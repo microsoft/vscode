@@ -1310,7 +1310,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		const rootDropPromise = this.doHandleRootDrop(items.filter(s => s.isRoot), target);
-		await Promise.all(items.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(source, target, isCopy)).concat(rootDropPromise));
+		await Promise.all([this.doHandleExplorerDrop(items.filter(s => !s.isRoot), target, isCopy), rootDropPromise]);
 	}
 
 	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem): Promise<void> {
@@ -1346,36 +1346,45 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
 	}
 
-	private async doHandleExplorerDrop(source: ExplorerItem, target: ExplorerItem, isCopy: boolean): Promise<void> {
+	private async doHandleExplorerDrop(sources: ExplorerItem[], target: ExplorerItem, isCopy: boolean): Promise<void> {
 		// Reuse duplicate action if user copies
+		const files = [];
 		if (isCopy) {
 			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const stat = (await this.workingCopyFileService.copy([{ source: source.resource, target: findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming) }]))[0];
-			if (!stat.isDirectory) {
-				await this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+			for (let i = 0; i < sources.length; i++) {
+				const source = sources[i];
+				files.push({ source: source.resource, target: findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming) });
 			}
+			const stats = await this.workingCopyFileService.copy(files);
+			stats.forEach(async stat => {
+				if (!stat.isDirectory) {
+					await this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+				}
+			});
 
 			return;
 		}
 
 		// Otherwise move
-		const targetResource = joinPath(target.resource, source.name);
-		if (source.isReadonly) {
+		for (let i = 0; i < sources.length; i++) {
+			const source = sources[i];
 			// Do not allow moving readonly items
-			return Promise.resolve();
+			if (!source.isReadonly) {
+				files.push({ source: source.resource, target: joinPath(target.resource, source.name) });
+			}
 		}
 
 		try {
-			await this.workingCopyFileService.move([{ source: source.resource, target: targetResource }]);
+			await this.workingCopyFileService.move(files);
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-				const confirm = getFileOverwriteConfirm(source.name);
+				const confirm = getFileOverwriteConfirm(sources[0].name);
 				// Move with overwrite if the user confirms
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {
 					try {
-						await this.workingCopyFileService.move([{ source: source.resource, target: targetResource }], true /* overwrite */);
+						await this.workingCopyFileService.move(files, true /* overwrite */);
 					} catch (error) {
 						this.notificationService.error(error);
 					}
