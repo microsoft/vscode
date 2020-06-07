@@ -282,7 +282,7 @@
 	"new Promise": {
 		"prefix": "newpromise",
 		"body": [
-			"new Promise((resolve, reject) => {",
+			"new Promise<$1:type>((resolve, reject) => {",
 			"\t$1",
 			"})"
 		],
