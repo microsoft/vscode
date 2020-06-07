@@ -54,7 +54,6 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	}
 });
 
-
 if (isWindows) {
 	registerSingleton(IExternalTerminalService, WindowsExternalTerminalService, true);
 } else if (isMacintosh) {
