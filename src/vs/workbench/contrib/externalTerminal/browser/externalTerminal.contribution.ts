@@ -8,7 +8,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import * as paths from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalService as IIntegratedTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -27,7 +27,7 @@ import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { isWeb } from 'vs/base/common/platform';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 CommandsRegistry.registerCommand({
@@ -120,31 +120,14 @@ if (!isWeb) {
 	});
 }
 
-const openConsoleCommand = {
-	id: OPEN_IN_TERMINAL_COMMAND_ID,
-	title: nls.localize('scopedConsoleAction', "Open in Terminal")
+const menuItem: IMenuItem = {
+	group: 'navigation',
+	order: 30,
+	command: {
+		id: OPEN_IN_TERMINAL_COMMAND_ID,
+		title: nls.localize('scopedConsoleAction', "Open in Terminal")
+	},
+	when: ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote))
 };
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: 'navigation',
-	order: 30,
-	command: openConsoleCommand,
-	when: ResourceContextKey.Scheme.isEqualTo(Schemas.file)
-});
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: 'navigation',
-	order: 30,
-	command: openConsoleCommand,
-	when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
-});
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: 'navigation',
-	order: 30,
-	command: openConsoleCommand,
-	when: ResourceContextKey.Scheme.isEqualTo(Schemas.file)
-});
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: 'navigation',
-	order: 30,
-	command: openConsoleCommand,
-	when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
-});
+MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, menuItem);
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, menuItem);
