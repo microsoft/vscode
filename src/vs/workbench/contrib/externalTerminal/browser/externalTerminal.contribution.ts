@@ -9,12 +9,8 @@ import * as paths from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalService as IIntegratedTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
@@ -25,8 +21,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
-import { isWeb } from 'vs/base/common/platform';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
@@ -83,42 +77,6 @@ CommandsRegistry.registerCommand({
 		});
 	}
 });
-
-if (!isWeb) {
-	const OPEN_NATIVE_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
-		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
-		when: KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED,
-		weight: KeybindingWeight.WorkbenchContrib,
-		handler: async (accessor) => {
-			const historyService = accessor.get(IHistoryService);
-			// Open external terminal in local workspaces
-			const terminalService = accessor.get(IExternalTerminalService);
-			const root = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-			if (root) {
-				terminalService.openTerminal(root.fsPath);
-			} else {
-				// Opens current file's folder, if no folder is open in editor
-				const activeFile = historyService.getLastActiveFile(Schemas.file);
-				if (activeFile) {
-					terminalService.openTerminal(paths.dirname(activeFile.fsPath));
-				} else {
-					const pathService = accessor.get(IPathService);
-					const userHome = await pathService.userHome;
-					terminalService.openTerminal(userHome.fsPath);
-				}
-			}
-		}
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-		command: {
-			id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
-			title: { value: nls.localize('globalConsoleAction', "Open New External Terminal"), original: 'Open New External Terminal' }
-		}
-	});
-}
 
 const menuItem: IMenuItem = {
 	group: 'navigation',
