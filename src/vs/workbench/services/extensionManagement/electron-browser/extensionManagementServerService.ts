@@ -26,7 +26,10 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly localExtensionManagementServer: IExtensionManagementServer;
+	private readonly _localExtensionManagementServer: IExtensionManagementServer;
+	public get localExtensionManagementServer(): IExtensionManagementServer {
+		return this._localExtensionManagementServer;
+	}
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null = null;
 	readonly isSingleServer: boolean = false;
 
@@ -41,7 +44,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	) {
 		const localExtensionManagementService = new ExtensionManagementChannelClient(sharedProcessService.getChannel('extensions'));
 
-		this.localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, authority: localExtensionManagementServerAuthority, label: localize('local', "Local") };
+		this._localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, authority: localExtensionManagementServerAuthority, label: localize('local', "Local") };
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
 			const extensionManagementService = new RemoteExtensionManagementChannelClient(remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer.extensionManagementService, galleryService, logService, configurationService, productService);

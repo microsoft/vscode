@@ -109,8 +109,8 @@ import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';
 // CodeEditor Contributions
 import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
-// Execution
-import 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
+// External Terminal
+import 'vs/workbench/contrib/externalTerminal/node/externalTerminal.contribution';
 
 // Performance
 import 'vs/workbench/contrib/performance/electron-browser/performance.contribution';

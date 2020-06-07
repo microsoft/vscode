@@ -220,7 +220,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				const newPanel = {
 					id: panel.id,
 					name: panel.name,
-					order: cachedPanel?.order === undefined ? panel.order : cachedPanel.order
+					order: panel.order,
+					requestedIndex: panel.requestedIndex
 				};
 
 				this.compositeBar.addComposite(newPanel);
@@ -676,17 +677,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			const cachedPanels = this.getCachedPanels();
 
 			for (const cachedPanel of cachedPanels) {
-				// Add and update existing items
-				const existingItem = compositeItems.filter(({ id }) => id === cachedPanel.id)[0];
-				if (existingItem) {
-					newCompositeItems.push({
-						id: existingItem.id,
-						name: existingItem.name,
-						order: existingItem.order,
-						pinned: cachedPanel.pinned,
-						visible: existingItem.visible
-					});
-				}
+				// copy behavior from activity bar
+				newCompositeItems.push({
+					id: cachedPanel.id,
+					name: cachedPanel.name,
+					order: cachedPanel.order,
+					pinned: cachedPanel.pinned,
+					visible: !!compositeItems.find(({ id }) => id === cachedPanel.id)
+				});
 			}
 
 			for (let index = 0; index < compositeItems.length; index++) {

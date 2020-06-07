@@ -73,10 +73,11 @@ export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 		name: string,
 		cssClass?: string,
 		order?: number,
+		requestedIndex?: number,
 		iconUrl?: URI
 	): ViewletDescriptor {
 
-		return new ViewletDescriptor(ctor as IConstructorSignature0<Viewlet>, id, name, cssClass, order, iconUrl);
+		return new ViewletDescriptor(ctor as IConstructorSignature0<Viewlet>, id, name, cssClass, order, requestedIndex, iconUrl);
 	}
 
 	private constructor(
@@ -85,9 +86,10 @@ export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 		name: string,
 		cssClass?: string,
 		order?: number,
+		requestedIndex?: number,
 		readonly iconUrl?: URI
 	) {
-		super(ctor, id, name, cssClass, order, id);
+		super(ctor, id, name, cssClass, order, requestedIndex, id);
 	}
 }
 
