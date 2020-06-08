@@ -752,7 +752,7 @@ export class TestFileService implements IFileService {
 		this.lastReadFileUri = resource;
 
 		return Promise.resolve({
-			resource: resource,
+			resource,
 			value: {
 				on: (event: string, callback: Function): void => {
 					if (event === 'data') {
@@ -762,6 +762,7 @@ export class TestFileService implements IFileService {
 						callback();
 					}
 				},
+				removeListener: () => { },
 				resume: () => { },
 				pause: () => { },
 				destroy: () => { }
