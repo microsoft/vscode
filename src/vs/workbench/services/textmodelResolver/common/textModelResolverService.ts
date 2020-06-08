@@ -163,7 +163,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 
 export class TextModelResolverService extends Disposable implements ITextModelService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly resourceModelCollection = this.instantiationService.createInstance(ResourceModelCollection);
 

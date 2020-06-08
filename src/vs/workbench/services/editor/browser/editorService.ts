@@ -45,7 +45,7 @@ type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTI
 
 export class EditorService extends Disposable implements EditorServiceImpl {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	//#region events
 
@@ -1275,7 +1275,7 @@ export interface IEditorOpenHandler {
  */
 export class DelegatingEditorService implements IEditorService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		private editorOpenHandler: IEditorOpenHandler,

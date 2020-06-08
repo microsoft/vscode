@@ -29,7 +29,7 @@ export const IElectronMainService = createDecorator<IElectronMainService>('elect
 
 export class ElectronMainService implements IElectronMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,

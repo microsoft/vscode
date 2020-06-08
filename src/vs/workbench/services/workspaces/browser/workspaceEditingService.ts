@@ -22,7 +22,7 @@ import { URI } from 'vs/base/common/uri';
 
 export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IJSONEditingService jsonEditingService: IJSONEditingService,

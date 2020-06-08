@@ -28,7 +28,7 @@ export const IIssueMainService = createDecorator<IIssueMainService>('issueMainSe
 export interface IIssueMainService extends ICommonIssueService { }
 
 export class IssueMainService implements ICommonIssueService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	_issueWindow: BrowserWindow | null = null;
 	_issueParentWindow: BrowserWindow | null = null;
 	_processExplorerWindow: BrowserWindow | null = null;

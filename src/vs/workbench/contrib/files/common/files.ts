@@ -39,7 +39,7 @@ export const VIEW_ID = 'workbench.explorer.fileView';
 export const DEFAULT_EDITOR_ID = 'default';
 
 export interface IExplorerService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
 	readonly sortOrder: SortOrder;
 

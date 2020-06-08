@@ -45,7 +45,7 @@ export class TestFileIconTheme implements IFileIconTheme {
 
 export class TestThemeService implements IThemeService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	_colorTheme: IColorTheme;
 	_fileIconTheme: IFileIconTheme;
 	_onThemeChange = new Emitter<IColorTheme>();

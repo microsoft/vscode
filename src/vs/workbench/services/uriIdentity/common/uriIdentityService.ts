@@ -22,7 +22,7 @@ class Entry {
 
 export class UriIdentityService implements IUriIdentityService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	readonly extUri: IExtUri;
 
