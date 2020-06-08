@@ -139,14 +139,14 @@ export class NotebookEditor extends BaseEditor {
 		// input attached
 		Event.once(input.onDispose)(() => {
 			// make sure the editor widget is removed from the view
-			const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput);
+			const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input as NotebookEditorInput);
 			if (existingEditorWidgetForInput) {
 				// the editor widget is only referenced by the editor input
 				// clear its state
 				existingEditorWidgetForInput?.onWillHide();
 				existingEditorWidgetForInput?.getDomNode().remove();
 				existingEditorWidgetForInput?.dispose();
-				NotebookRegistry.releaseNotebookEditorWidget(this.input as NotebookEditorInput);
+				NotebookRegistry.releaseNotebookEditorWidget(input as NotebookEditorInput);
 			}
 		});
 

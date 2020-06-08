@@ -160,7 +160,7 @@ export interface IDialogOptions {
  */
 export interface IDialogService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Ask the user for confirmation with a modal dialog.
@@ -189,7 +189,7 @@ export const IFileDialogService = createDecorator<IFileDialogService>('fileDialo
  */
 export interface IFileDialogService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * The default path for a new file based on previously used files.

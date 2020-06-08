@@ -10,7 +10,7 @@ import { IExtensionResourceLoaderService } from 'vs/workbench/services/extension
 
 export class ExtensionResourceLoaderService implements IExtensionResourceLoaderService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService

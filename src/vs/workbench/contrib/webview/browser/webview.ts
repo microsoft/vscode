@@ -34,7 +34,7 @@ export interface WebviewIcons {
  * Handles the creation of webview elements.
  */
 export interface IWebviewService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	createWebviewElement(
 		id: string,

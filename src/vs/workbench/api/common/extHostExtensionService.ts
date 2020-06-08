@@ -48,7 +48,7 @@ interface INewTestRunner {
 export const IHostUtils = createDecorator<IHostUtils>('IHostUtils');
 
 export interface IHostUtils {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	exit(code?: number): void;
 	exists(path: string): Promise<boolean>;
 	realpath(path: string): Promise<string>;
@@ -827,7 +827,7 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 export const IExtHostExtensionService = createDecorator<IExtHostExtensionService>('IExtHostExtensionService');
 
 export interface IExtHostExtensionService extends AbstractExtHostExtensionService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	initialize(): Promise<void>;
 	isActivated(extensionId: ExtensionIdentifier): boolean;
 	activateByIdWithErrors(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;

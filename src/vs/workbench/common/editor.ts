@@ -176,6 +176,7 @@ export interface IFileEditorInputFactory {
 
 interface ICustomEditorInputFactory {
 	createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput>;
+	canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean;
 }
 
 export interface IEditorInputFactoryRegistry {
@@ -193,12 +194,12 @@ export interface IEditorInputFactoryRegistry {
 	/**
 	 * Registers the custom editor input factory to use for custom inputs.
 	 */
-	registerCustomEditorInputFactory(factory: ICustomEditorInputFactory): void;
+	registerCustomEditorInputFactory(scheme: string, factory: ICustomEditorInputFactory): void;
 
 	/**
 	 * Returns the custom editor input factory to use for custom inputs.
 	 */
-	getCustomEditorInputFactory(): ICustomEditorInputFactory;
+	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined;
 
 	/**
 	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
@@ -1280,7 +1281,7 @@ export interface IEditorMemento<T> {
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
 	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
-	private customEditorInputFactory: ICustomEditorInputFactory | undefined;
+	private customEditorInputFactoryInstances: Map<string, ICustomEditorInputFactory> = new Map();
 
 	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
 	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
@@ -1308,12 +1309,12 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 		return assertIsDefined(this.fileEditorInputFactory);
 	}
 
-	registerCustomEditorInputFactory(factory: ICustomEditorInputFactory): void {
-		this.customEditorInputFactory = factory;
+	registerCustomEditorInputFactory(scheme: string, factory: ICustomEditorInputFactory): void {
+		this.customEditorInputFactoryInstances.set(scheme, factory);
 	}
 
-	getCustomEditorInputFactory(): ICustomEditorInputFactory {
-		return assertIsDefined(this.customEditorInputFactory);
+	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined {
+		return this.customEditorInputFactoryInstances.get(scheme);
 	}
 
 	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): IDisposable {

@@ -281,7 +281,7 @@ export const TestEnvironmentService = new TestEnvironmentServiceWithArgs(Object.
 
 export class TestProgressService implements IProgressService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	withProgress(
 		options: IProgressOptions | IProgressWindowOptions | IProgressNotificationOptions | IProgressCompositeOptions,
@@ -294,7 +294,7 @@ export class TestProgressService implements IProgressService {
 
 export class TestAccessibilityService implements IAccessibilityService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	onDidChangeScreenReaderOptimized = Event.None;
 
@@ -306,7 +306,7 @@ export class TestAccessibilityService implements IAccessibilityService {
 
 export class TestDecorationsService implements IDecorationsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
 
@@ -316,7 +316,7 @@ export class TestDecorationsService implements IDecorationsService {
 
 export class TestMenuService implements IMenuService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	createMenu(_id: MenuId, _scopedKeybindingService: IContextKeyService): IMenu {
 		return {
@@ -329,7 +329,7 @@ export class TestMenuService implements IMenuService {
 
 export class TestHistoryService implements IHistoryService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(private root?: URI) { }
 
@@ -350,7 +350,7 @@ export class TestHistoryService implements IHistoryService {
 
 export class TestFileDialogService implements IFileDialogService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private confirmResult!: ConfirmResult;
 
@@ -375,7 +375,7 @@ export class TestFileDialogService implements IFileDialogService {
 
 export class TestLayoutService implements IWorkbenchLayoutService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	openedDefaultEditors = false;
 
@@ -435,7 +435,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 let activeViewlet: Viewlet = {} as any;
 
 export class TestViewletService implements IViewletService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
 	onDidViewletDeregisterEmitter = new Emitter<ViewletDescriptor>();
@@ -460,7 +460,7 @@ export class TestViewletService implements IViewletService {
 }
 
 export class TestPanelService implements IPanelService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
@@ -479,7 +479,7 @@ export class TestPanelService implements IPanelService {
 }
 
 export class TestViewsService implements IViewsService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 
 	onDidChangeViewContainerVisibility = new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>().event;
@@ -499,7 +499,7 @@ export class TestViewsService implements IViewsService {
 
 export class TestEditorGroupsService implements IEditorGroupsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(public groups: TestEditorGroupView[] = []) { }
 
@@ -630,7 +630,7 @@ export class TestEditorGroupAccessor implements IEditorGroupsAccessor {
 
 export class TestEditorService implements EditorServiceImpl {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	onDidActiveEditorChange: Event<void> = Event.None;
 	onDidVisibleEditorsChange: Event<void> = Event.None;
@@ -690,7 +690,7 @@ export class TestEditorService implements EditorServiceImpl {
 
 export class TestFileService implements IFileService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidFilesChange = new Emitter<FileChangesEvent>();
 	private readonly _onDidRunOperation = new Emitter<FileOperationEvent>();
@@ -840,7 +840,7 @@ export class TestFileService implements IFileService {
 }
 
 export class TestBackupFileService implements IBackupFileService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	hasBackups(): Promise<boolean> { return Promise.resolve(false); }
 	hasBackup(_resource: URI): Promise<boolean> { return Promise.resolve(false); }
@@ -862,7 +862,7 @@ export class TestBackupFileService implements IBackupFileService {
 
 export class TestLifecycleService implements ILifecycleService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	phase!: LifecyclePhase;
 	startupKind!: StartupKind;
@@ -890,7 +890,7 @@ export class TestLifecycleService implements ILifecycleService {
 
 export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(private configurationService = new TestConfigurationService()) { }
 
@@ -947,7 +947,7 @@ export const productService: IProductService = { _serviceBrand: undefined, ...pr
 
 export class TestHostService implements IHostService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _hasFocus = true;
 	get hasFocus() { return this._hasFocus; }
@@ -1132,7 +1132,7 @@ export class TestEditorPart extends EditorPart {
 }
 
 export class TestListService implements IListService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	lastFocusedList: any | undefined = undefined;
 
@@ -1143,7 +1143,7 @@ export class TestListService implements IListService {
 
 export class TestPathService implements IPathService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(private readonly fallbackUserHome: URI = URI.from({ scheme: Schemas.vscodeRemote, path: '/' })) { }
 

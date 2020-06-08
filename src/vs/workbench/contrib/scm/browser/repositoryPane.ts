@@ -1029,7 +1029,7 @@ export class RepositoryPane extends ViewPane {
 
 			this.validationContainer.style.top = `${editorHeight + 1}px`;
 
-			const listHeight = height - (editorHeight + 5 + 3 + 5);
+			const listHeight = height - (editorHeight + 5 + 2 + 5);
 			this.listContainer.style.height = `${listHeight}px`;
 			this.tree.layout(listHeight, width);
 		} else {

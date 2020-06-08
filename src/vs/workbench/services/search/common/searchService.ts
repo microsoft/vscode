@@ -24,7 +24,7 @@ import { DeferredPromise } from 'vs/base/test/common/utils';
 
 export class SearchService extends Disposable implements ISearchService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	protected diskSearch: ISearchResultProvider | null = null;
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();

@@ -30,7 +30,7 @@ export const IKeybindingEditingService = createDecorator<IKeybindingEditingServi
 
 export interface IKeybindingEditingService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	editKeybinding(keybindingItem: ResolvedKeybindingItem, key: string, when: string | undefined): Promise<void>;
 

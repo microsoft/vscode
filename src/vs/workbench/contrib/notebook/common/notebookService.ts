@@ -28,7 +28,7 @@ export interface IMainNotebookController {
 }
 
 export interface INotebookService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	modelManager: INotebookEditorModelManager;
 	canResolve(viewType: string): Promise<boolean>;
 	onDidChangeActiveEditor: Event<string | null>;

@@ -62,7 +62,7 @@ export enum ProfileSessionState {
 }
 
 export interface IExtensionHostProfileService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeState: Event<void>;
 	readonly onDidChangeLastProfile: Event<void>;

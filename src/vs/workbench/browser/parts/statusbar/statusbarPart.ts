@@ -373,7 +373,7 @@ class HideStatusbarEntryAction extends Action {
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	//#region IView
 

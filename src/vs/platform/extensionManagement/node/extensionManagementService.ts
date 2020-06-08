@@ -62,7 +62,7 @@ interface InstallableExtension {
 
 export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly extensionsScanner: ExtensionsScanner;
 	private reportedExtensions: Promise<IReportedExtension[]> | undefined;

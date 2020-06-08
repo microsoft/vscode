@@ -237,7 +237,7 @@ export interface IShellLaunchConfig {
  * Provides access to native or electron APIs to other terminal services.
  */
 export interface ITerminalNativeService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly linuxDistro: LinuxDistro;
 
