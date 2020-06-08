@@ -97,6 +97,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
 
+	get isDisposed() {
+		return this._isDisposed;
+	}
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,

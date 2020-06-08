@@ -317,6 +317,10 @@ abstract class AbstractCellRenderer {
 
 		updateActions();
 		disposables.add(menu.onDidChange(() => {
+			if (this.notebookEditor.isDisposed) {
+				return;
+			}
+
 			updateActions();
 		}));
 	}
@@ -490,10 +494,12 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
+		console.log('dispose templateData');
 		templateData.disposables.clear();
 	}
 
 	disposeElement(element: ICellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
+		console.log('dispose element');
 		if (height) {
 			templateData.elementDisposables.clear();
 		}
