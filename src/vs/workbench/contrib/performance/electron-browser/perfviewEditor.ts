@@ -217,7 +217,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		md.value += `Name\tTimestamp\tDelta\tTotal\n`;
 		let lastStartTime = -1;
 		let total = 0;
-		for (const { name, timestamp: startTime } of perf.getEntries()) {
+		for (const { name, startTime } of perf.getEntries()) {
 			let delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
 			total += delta;
 			md.value += `${name}\t${startTime}\t${delta}\t${total}\n`;
