@@ -97,6 +97,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
 
+	get isDisposed() {
+		return this._isDisposed;
+	}
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -165,6 +169,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	set activeKernel(kernel: INotebookKernelInfo | undefined) {
+		if (this._isDisposed) {
+			return;
+		}
+
 		this._activeKernel = kernel;
 		this._onDidChangeKernel.fire();
 	}
@@ -173,6 +181,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
 
 	get activeCodeEditor(): IEditor | undefined {
+		if (this._isDisposed) {
+			return;
+		}
+
 		const [focused] = this.list!.getFocusedElements();
 		return this.renderedEditors.get(focused);
 	}
@@ -358,7 +370,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	onWillHide() {
 		this.editorFocus?.set(false);
 		this.overlayContainer.style.visibility = 'hidden';
-		this.overlayContainer.style.display = 'none';
+		this.overlayContainer.style.left = '-50000px';
 	}
 
 	getInnerWebview(): Webview | undefined {
@@ -527,6 +539,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this.localStore.add(this.list!.onDidChangeContentHeight(() => {
 			DOM.scheduleAtNextAnimationFrame(() => {
+				if (this._isDisposed) {
+					return;
+				}
+
 				const scrollTop = this.list?.scrollTop || 0;
 				const scrollHeight = this.list?.scrollHeight || 0;
 				this.webview!.element.style.height = `${scrollHeight}px`;
@@ -793,6 +809,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		let relayout = (cell: ICellViewModel, height: number) => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			this.list?.updateElementHeight2(cell, height);
 		};
 
@@ -987,7 +1007,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return null;
 			}
 
-			if (below.metadata && !below.metadata.editable) {
+			if (!below.getEvaluatedMetadata(this.viewModel!.notebookDocument.metadata).editable) {
 				return null;
 			}
 
@@ -1012,6 +1032,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	async deleteNotebookCell(cell: ICellViewModel): Promise<boolean> {
 		if (!this.notebookViewModel!.metadata.editable) {
 			return false;
+		}
+
+		if (this.pendingLayouts.has(cell)) {
+			this.pendingLayouts.get(cell)!.dispose();
 		}
 
 		const index = this.notebookViewModel!.getCellIndex(cell);
@@ -1078,6 +1102,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		let r: (val: boolean) => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
+			if (this._isDisposed) {
+				r(false);
+			}
+
 			this.list?.revealElementInView(this.notebookViewModel!.viewCells[newIdx]);
 			r(true);
 		});
@@ -1203,6 +1231,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
+		if (this._isDisposed) {
+			return;
+		}
+
 		if (focusItem === 'editor') {
 			this.selectElement(cell);
 			this.list?.focusView();
@@ -1318,7 +1350,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		this.localStore.clear();
-		this.list?.clear();
+		this.list?.dispose();
 		this.webview?.dispose();
 
 		this.overlayContainer.remove();

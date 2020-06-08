@@ -99,7 +99,7 @@ interface IExtensionHostDebugEnvironment {
 
 export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _configuration: IEnvironmentConfiguration | undefined = undefined;
 	get configuration(): IEnvironmentConfiguration {
@@ -268,6 +268,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 					case 'inspect-brk-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
 						extensionHostDebugEnvironment.params.break = true;
+						break;
+					case 'inspect-extensions':
+						extensionHostDebugEnvironment.params.port = parseInt(value);
 						break;
 					case 'enableProposedApi':
 						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];

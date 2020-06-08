@@ -104,7 +104,7 @@ interface SideBarActivityState {
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	//#region Events
 
@@ -476,6 +476,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
+
+		// Default Layout
 		this.applyDefaultLayout(this.environmentService, this.storageService);
 
 		// Fullscreen

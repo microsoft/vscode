@@ -24,7 +24,7 @@ import { joinPath } from 'vs/base/common/resources';
 
 export class RemoteExtensionManagementChannelClient extends ExtensionManagementChannelClient {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		channel: IChannel,

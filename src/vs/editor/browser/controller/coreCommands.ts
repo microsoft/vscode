@@ -958,7 +958,7 @@ export namespace CoreNavigationCommands {
 			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
-				CursorMoveCommands.moveToEndOfLine(viewModel, viewModel.getCursorStates(), this._inSelectionMode)
+				CursorMoveCommands.moveToEndOfLine(viewModel, viewModel.getCursorStates(), this._inSelectionMode, args.sticky || false)
 			);
 			viewModel.revealPrimaryCursor(args.source, true);
 		}
@@ -969,10 +969,27 @@ export namespace CoreNavigationCommands {
 		id: 'cursorEnd',
 		precondition: undefined,
 		kbOpts: {
+			args: { sticky: false },
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyCode.End,
 			mac: { primary: KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow] }
+		},
+		description: {
+			description: `Go to End`,
+			args: [{
+				name: 'args',
+				schema: {
+					type: 'object',
+					properties: {
+						'sticky': {
+							description: nls.localize('stickydesc', "Stick to the end even when going to longer lines"),
+							type: 'boolean',
+							default: false
+						}
+					}
+				}
+			}]
 		}
 	}));
 
@@ -981,10 +998,27 @@ export namespace CoreNavigationCommands {
 		id: 'cursorEndSelect',
 		precondition: undefined,
 		kbOpts: {
+			args: { sticky: false },
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.Shift | KeyCode.End,
 			mac: { primary: KeyMod.Shift | KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow] }
+		},
+		description: {
+			description: `Select to End`,
+			args: [{
+				name: 'args',
+				schema: {
+					type: 'object',
+					properties: {
+						'sticky': {
+							description: nls.localize('stickydesc', "Stick to the end even when going to longer lines"),
+							type: 'boolean',
+							default: false
+						}
+					}
+				}
+			}]
 		}
 	}));
 

@@ -37,6 +37,11 @@ export class TestCell extends NotebookCellTextModel {
 }
 
 export class TestNotebookEditor implements INotebookEditor {
+	private _isDisposed = false;
+
+	get isDisposed() {
+		return this._isDisposed;
+	}
 
 	get viewModel() {
 		return undefined;
@@ -215,6 +220,10 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
 		throw new Error('Method not implemented.');
+	}
+
+	dispose() {
+		this._isDisposed = true;
 	}
 }
 

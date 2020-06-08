@@ -9,7 +9,7 @@ import { $ } from 'vs/base/browser/dom';
 
 export class BrowserClipboardService implements IClipboardService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
 
@@ -96,11 +96,6 @@ export class BrowserClipboardService implements IClipboardService {
 
 	async hasResources(): Promise<boolean> {
 		return this.resources.length > 0;
-	}
-
-	/** @deprecated */
-	readTextSync(): string | undefined {
-		return undefined;
 	}
 
 	/** @deprecated */

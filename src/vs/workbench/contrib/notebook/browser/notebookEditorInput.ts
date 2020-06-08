@@ -13,9 +13,14 @@ import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebo
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 let NOTEBOOK_EDITOR_INPUT_HANDLE = 0;
+
+interface NotebookEditorInputOptions {
+	startDirty?: boolean;
+}
+
 export class NotebookEditorInput extends EditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, name: string, viewType: string | undefined) {
-		return instantiationService.createInstance(NotebookEditorInput, resource, name, viewType);
+	static create(instantiationService: IInstantiationService, resource: URI, name: string, viewType: string | undefined, options: NotebookEditorInputOptions = {}) {
+		return instantiationService.createInstance(NotebookEditorInput, resource, name, viewType, options);
 	}
 
 	static readonly ID: string = 'workbench.input.notebook';
@@ -31,11 +36,14 @@ export class NotebookEditorInput extends EditorInput {
 		this._group = group;
 	}
 
+	private _defaultDirtyState: boolean = false;
+
 	readonly id: number = NOTEBOOK_EDITOR_INPUT_HANDLE++;
 	constructor(
 		public resource: URI,
 		public name: string,
 		public readonly viewType: string | undefined,
+		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
@@ -43,6 +51,7 @@ export class NotebookEditorInput extends EditorInput {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
+		this._defaultDirtyState = !!options.startDirty;
 	}
 
 	getTypeId(): string {
@@ -54,6 +63,10 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	isDirty() {
+		if (!this.textModel) {
+			return !!this._defaultDirtyState;
+		}
+
 		return this.textModel?.isDirty() || false;
 	}
 

@@ -159,6 +159,8 @@ export interface INotebookEditor extends IEditor {
 	activeKernel: INotebookKernelInfo | undefined;
 	readonly onDidChangeKernel: Event<void>;
 
+	isDisposed: boolean;
+
 	getId(): string;
 	getDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;

@@ -248,12 +248,12 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			localize('Replace or Merge', "Replace or Merge"),
 			[
 				localize('show synced data', "Show Synced Data"),
-				localize('cancel', "Cancel"),
 				localize('merge', "Merge"),
 				localize('replace local', "Replace Local"),
+				localize('cancel', "Cancel"),
 			],
 			{
-				cancelId: 1,
+				cancelId: 3,
 				detail: localize('first time sync detail', "It looks like you last synced from another machine.\nWould you like to replace or merge with the synced data?"),
 			}
 		);
@@ -263,15 +263,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				await this.commandService.executeCommand(SHOW_SYNCED_DATA_COMMAND_ID);
 				throw canceled();
 			case 1:
-				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
-				throw canceled();
-			case 2:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
 				break;
-			case 3:
+			case 2:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'replace-local' });
 				await this.userDataSyncService.pull();
 				break;
+			case 3:
+				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
+				throw canceled();
 		}
 	}
 

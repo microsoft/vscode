@@ -13,7 +13,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { Schemas } from 'vs/base/common/network';
-import { dirname } from 'vs/base/common/resources';
+import { dirname, extUri } from 'vs/base/common/resources';
 
 /**
  * The base class for all editor inputs that open in text editors.
@@ -22,8 +22,11 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 
 	private static readonly MEMOIZER = createMemoizer();
 
+	private label: URI;
+
 	constructor(
 		public readonly resource: URI,
+		preferredLabel: URI | undefined,
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
@@ -32,6 +35,8 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
+
+		this.label = preferredLabel || resource;
 
 		this.registerListeners();
 	}
@@ -45,14 +50,30 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 	}
 
 	private onLabelEvent(scheme: string): void {
-		if (scheme === this.resource.scheme) {
-
-			// Clear any cached labels from before
-			AbstractTextResourceEditorInput.MEMOIZER.clear();
-
-			// Trigger recompute of label
-			this._onDidChangeLabel.fire();
+		if (scheme === this.label.scheme) {
+			this.updateLabel();
 		}
+	}
+
+	private updateLabel(): void {
+
+		// Clear any cached labels from before
+		AbstractTextResourceEditorInput.MEMOIZER.clear();
+
+		// Trigger recompute of label
+		this._onDidChangeLabel.fire();
+	}
+
+	setLabel(label: URI): void {
+		if (!extUri.isEqual(label, this.label)) {
+			this.label = label;
+
+			this.updateLabel();
+		}
+	}
+
+	getLabel(): URI {
+		return this.label;
 	}
 
 	getName(): string {
@@ -61,7 +82,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get basename(): string {
-		return this.labelService.getUriBasenameLabel(this.resource);
+		return this.labelService.getUriBasenameLabel(this.label);
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
@@ -78,17 +99,17 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get shortDescription(): string {
-		return this.labelService.getUriBasenameLabel(dirname(this.resource));
+		return this.labelService.getUriBasenameLabel(dirname(this.label));
 	}
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get mediumDescription(): string {
-		return this.labelService.getUriLabel(dirname(this.resource), { relative: true });
+		return this.labelService.getUriLabel(dirname(this.label), { relative: true });
 	}
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get longDescription(): string {
-		return this.labelService.getUriLabel(dirname(this.resource));
+		return this.labelService.getUriLabel(dirname(this.label));
 	}
 
 	@AbstractTextResourceEditorInput.MEMOIZER
@@ -98,12 +119,12 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get mediumTitle(): string {
-		return this.labelService.getUriLabel(this.resource, { relative: true });
+		return this.labelService.getUriLabel(this.label, { relative: true });
 	}
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get longTitle(): string {
-		return this.labelService.getUriLabel(this.resource);
+		return this.labelService.getUriLabel(this.label);
 	}
 
 	getTitle(verbosity: Verbosity): string {

@@ -23,7 +23,7 @@ type Credentials = {
 
 export class ProxyAuthHandler extends Disposable {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private retryCount = 0;
 

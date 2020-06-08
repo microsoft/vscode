@@ -38,7 +38,7 @@ export interface IWorkspaceEnteredEvent {
 
 export interface IWorkspacesMainService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
 	readonly onWorkspaceEntered: Event<IWorkspaceEnteredEvent>;
@@ -65,7 +65,7 @@ export interface IStoredWorkspace {
 
 export class WorkspacesMainService extends Disposable implements IWorkspacesMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly untitledWorkspacesHome: URI; // local URI that contains all untitled workspaces
 

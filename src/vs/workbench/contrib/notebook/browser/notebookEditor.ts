@@ -19,6 +19,7 @@ import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contri
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
+import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -38,7 +39,7 @@ export class NotebookEditor extends BaseEditor {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService) {
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 
 		// this._widget = this.instantiationService.createInstance(NotebookEditorWidget);
@@ -139,14 +140,14 @@ export class NotebookEditor extends BaseEditor {
 		// input attached
 		Event.once(input.onDispose)(() => {
 			// make sure the editor widget is removed from the view
-			const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput);
+			const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input as NotebookEditorInput);
 			if (existingEditorWidgetForInput) {
 				// the editor widget is only referenced by the editor input
 				// clear its state
 				existingEditorWidgetForInput?.onWillHide();
 				existingEditorWidgetForInput?.getDomNode().remove();
 				existingEditorWidgetForInput?.dispose();
-				NotebookRegistry.releaseNotebookEditorWidget(this.input as NotebookEditorInput);
+				NotebookRegistry.releaseNotebookEditorWidget(input as NotebookEditorInput);
 			}
 		});
 
@@ -182,6 +183,12 @@ export class NotebookEditor extends BaseEditor {
 
 		await this._widget.setModel(model.notebook, viewState, options);
 		this._widgetDisposableStore.add(this._widget.onDidFocus(() => this._onDidFocusWidget.fire()));
+
+		if (this.editorGroupService instanceof EditorPart) {
+			this._widgetDisposableStore.add(this.editorGroupService.createEditorDropTarget(this._widget.getDomNode(), {
+				groupContainsPredicate: (group) => this.group?.id === group.group.id
+			}));
+		}
 	}
 
 	clearInput(): void {

@@ -32,7 +32,7 @@ export interface INativeEnvironmentConfiguration extends IEnvironmentConfigurati
 
 export class NativeWorkbenchEnvironmentService extends EnvironmentService implements INativeWorkbenchEnvironmentService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	@memoize
 	get webviewExternalEndpoint(): string {

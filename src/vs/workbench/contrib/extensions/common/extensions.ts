@@ -71,7 +71,7 @@ export const SERVICE_ID = 'extensionsWorkbenchService';
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>(SERVICE_ID);
 
 export interface IExtensionsWorkbenchService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	onChange: Event<IExtension | undefined>;
 	local: IExtension[];
 	installed: IExtension[];

@@ -719,13 +719,13 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 						break;
 					case KeyCode.Home:
-						if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
+						if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
 							this.ui.list.focus(QuickInputListFocus.First);
 							dom.EventHelper.stop(event, true);
 						}
 						break;
 					case KeyCode.End:
-						if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
+						if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
 							this.ui.list.focus(QuickInputListFocus.Last);
 							dom.EventHelper.stop(event, true);
 						}

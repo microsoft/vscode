@@ -560,6 +560,11 @@ export interface INotebookTextModelBackup {
 	cells: ICellDto2[]
 }
 
+export interface NotebookDocumentBackupData {
+	readonly viewType: string;
+	readonly name: string;
+}
+
 export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;

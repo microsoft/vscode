@@ -883,9 +883,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const value = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
-		assert.equal(value.length, 1);
-		assert.equal(value[0].completion.insertText, 'testing2');
+		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		assert.equal(items.length, 1);
+		assert.equal(items[0].completion.insertText, 'testing2');
 	});
 
 	test('Suggest, order 2/3', async () => {
@@ -903,9 +903,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const value = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
-		assert.equal(value.length, 1);
-		assert.equal(value[0].completion.insertText, 'weak-selector');
+		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		assert.equal(items.length, 1);
+		assert.equal(items[0].completion.insertText, 'weak-selector');
 	});
 
 	test('Suggest, order 2/3', async () => {
@@ -923,10 +923,10 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const value = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
-		assert.equal(value.length, 2);
-		assert.equal(value[0].completion.insertText, 'strong-1'); // sort by label
-		assert.equal(value[1].completion.insertText, 'strong-2');
+		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		assert.equal(items.length, 2);
+		assert.equal(items[0].completion.insertText, 'strong-1'); // sort by label
+		assert.equal(items[1].completion.insertText, 'strong-2');
 	});
 
 	test('Suggest, evil provider', async () => {
@@ -945,8 +945,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 
 		await rpcProtocol.sync();
-		const value = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
-		assert.equal(value[0].container.incomplete, false);
+		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		assert.equal(items[0].container.incomplete, false);
 	});
 
 	test('Suggest, CompletionList', async () => {
@@ -958,8 +958,8 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet))).then(value => {
-			assert.equal(value[0].container.incomplete, true);
+		provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet))).then(model => {
+			assert.equal(model.items[0].container.incomplete, true);
 		});
 	});
 
