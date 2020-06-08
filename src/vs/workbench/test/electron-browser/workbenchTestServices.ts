@@ -152,7 +152,7 @@ class TestEncodingOracle extends EncodingOracle {
 
 export class TestSharedProcessService implements ISharedProcessService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	getChannel(channelName: string): any { return undefined; }
 
@@ -164,7 +164,7 @@ export class TestSharedProcessService implements ISharedProcessService {
 
 export class TestElectronService implements IElectronService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	readonly windowId = -1;
 
@@ -260,7 +260,7 @@ export class TestServiceAccessor {
 
 export class TestNativePathService extends TestPathService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService) {
 		super(environmentService.userHome);

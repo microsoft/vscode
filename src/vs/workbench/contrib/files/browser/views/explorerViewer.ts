@@ -9,7 +9,7 @@ import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, BinarySize } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -1023,8 +1023,25 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		// Report progress
+		let totalBytesUploaded = 0;
+		const reportProgress = (fileSize: number, bytesUploaded: number): void => {
+			totalBytesUploaded += bytesUploaded;
+
+			let message: string;
+			if (operation.total === 1 && entry.name) {
+				message = entry.name;
+			} else {
+				message = localize('uploadProgress', "{0} of {1} files", operation.worked, operation.total);
+			}
+
+			if (fileSize > BinarySize.MB) {
+				message = localize('uploadProgressDetail', "{0} ({1} of {2})", message, BinarySize.formatSize(totalBytesUploaded), BinarySize.formatSize(fileSize));
+			}
+
+			progress.report({ message });
+		};
 		operation.worked++;
-		progress.report({ message: localize('uploadProgress', "{0} of {1} files", operation.worked, operation.total) });
+		reportProgress(0, 0);
 
 		// Handle file upload
 		if (entry.isFile) {
@@ -1036,12 +1053,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// Chrome/Edge/Firefox support stream method
 			if (typeof file.stream === 'function') {
-				await this.doUploadWebFileEntryBuffered(resource, file);
+				await this.doUploadWebFileEntryBuffered(resource, file, reportProgress);
 			}
 
 			// Fallback to unbuffered upload for other browsers
 			else {
-				await this.doUploadWebFileEntryUnbuffered(resource, file);
+				await this.doUploadWebFileEntryUnbuffered(resource, file, reportProgress);
 			}
 
 			return { isFile: true, resource };
@@ -1083,36 +1100,36 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	private async doUploadWebFileEntryBuffered(resource: URI, file: File): Promise<void> {
+	private async doUploadWebFileEntryBuffered(resource: URI, file: File, progressReporter: (fileSize: number, bytesUploaded: number) => void): Promise<void> {
 		const writeableStream = newWriteableBufferStream();
+		const writeFilePromise = this.fileService.writeFile(resource, writeableStream, { progress: byteLength => progressReporter(file.size, byteLength) });
 
 		// Read the file in chunks using File.stream() web APIs
-		(async () => {
-			try {
-				const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
+		try {
+			const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
 
-				let res = await reader.read();
-				while (!res.done) {
-					writeableStream.write(VSBuffer.wrap(res.value));
+			let res = await reader.read();
+			while (!res.done) {
+				writeableStream.write(VSBuffer.wrap(res.value));
 
-					res = await reader.read();
-				}
-				writeableStream.end(res.value instanceof Uint8Array ? VSBuffer.wrap(res.value) : undefined);
-			} catch (error) {
-				writeableStream.end(error);
+				res = await reader.read();
 			}
-		})();
+			writeableStream.end(res.value instanceof Uint8Array ? VSBuffer.wrap(res.value) : undefined);
+		} catch (error) {
+			writeableStream.end(error);
+		}
 
-		await this.fileService.writeFile(resource, writeableStream);
+		// Wait for file being written to target
+		await writeFilePromise;
 	}
 
-	private doUploadWebFileEntryUnbuffered(resource: URI, file: File): Promise<void> {
+	private doUploadWebFileEntryUnbuffered(resource: URI, file: File, progressReporter: (fileSize: number, bytesUploaded: number) => void): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			const reader = new FileReader();
 			reader.onload = async event => {
 				try {
 					if (event.target?.result instanceof ArrayBuffer) {
-						await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)));
+						await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)), { progress: byteLength => progressReporter(file.size, byteLength) });
 					} else {
 						throw new Error('Could not read from dropped file.');
 					}

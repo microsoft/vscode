@@ -160,7 +160,7 @@ export interface IResourceRefHandle {
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
 export type ServerResource = SyncResource | 'machines';
 export interface IUserDataSyncStoreService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
 	read(resource: ServerResource, oldValue: IUserData | null): Promise<IUserData>;
 	write(resource: ServerResource, content: string, ref: string | null): Promise<string>;
@@ -173,7 +173,7 @@ export interface IUserDataSyncStoreService {
 
 export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
 export interface IUserDataSyncBackupStoreService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	backup(resource: SyncResource, content: string): Promise<void>;
 	getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]>;
 	resolveContent(resource: SyncResource, ref?: string): Promise<string | null>;
@@ -367,7 +367,7 @@ export interface IUserDataAutoSyncService {
 
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');
 export interface IUserDataSyncUtilService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
 	resolveDefaultIgnoredSettings(): Promise<string[]>;

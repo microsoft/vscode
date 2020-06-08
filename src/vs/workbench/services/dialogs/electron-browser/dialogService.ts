@@ -42,7 +42,7 @@ interface IMassagedMessageBoxOptions {
 
 export class DialogService implements IDialogService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private nativeImpl: IDialogService;
 	private customImpl: IDialogService;
@@ -89,7 +89,7 @@ export class DialogService implements IDialogService {
 
 class NativeDialogService implements IDialogService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

@@ -9,7 +9,7 @@ import { IssueReporterData } from 'vs/platform/issue/common/issue';
 export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>('workbenchIssueService');
 
 export interface IWorkbenchIssueService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	openReporter(dataOverrides?: Partial<IssueReporterData>): Promise<void>;
 	openProcessExplorer(): Promise<void>;
 }

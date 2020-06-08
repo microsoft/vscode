@@ -11,7 +11,7 @@ import { UriComponents, URI } from 'vs/base/common/uri';
 
 export class WebviewMainService implements IWebviewManagerService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private protocolProvider: WebviewProtocolProvider;
 

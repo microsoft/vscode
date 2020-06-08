@@ -127,6 +127,21 @@ export async function configureOpenerTrustedDomainsHandler(
 	return [];
 }
 
+// Exported for testing.
+export function extractGitHubRemotesFromGitConfig(gitConfig: string): string[] {
+	const domains = new Set<string>();
+	let match: RegExpExecArray | null;
+
+	const RemoteMatcher = /^\s*url\s*=\s*(?:git@|https:\/\/)github\.com(?::|\/)(\S*)\s*$/mg;
+	while (match = RemoteMatcher.exec(gitConfig)) {
+		const repo = match[1].replace(/\.git$/, '');
+		if (repo) {
+			domains.add(`https://github.com/${repo}/`);
+		}
+	}
+	return [...domains];
+}
+
 async function getRemotes(fileService: IFileService, textFileService: ITextFileService, contextService: IWorkspaceContextService): Promise<string[]> {
 	const workspaceUris = contextService.getWorkspace().folders.map(folder => folder.uri);
 	const domains = await Promise.all<string[]>(workspaceUris.map(async workspaceUri => {
@@ -136,18 +151,8 @@ async function getRemotes(fileService: IFileService, textFileService: ITextFileS
 		if (!exists) {
 			return [];
 		}
-		const content = (await (textFileService.read(uri, { acceptTextOnly: true }).catch(() => ({ value: '' })))).value;
-		const domains = new Set<string>();
-		let match: RegExpExecArray | null;
-
-		const RemoteMatcher = /^\s*url\s*=\s*(?:git@|https:\/\/)github\.com(?::|\/)(\S*)(?:\.git)?\s*$/mg;
-		while (match = RemoteMatcher.exec(content)) {
-			const repo = match[1];
-			if (repo) {
-				domains.add(`https://github.com/${repo}/`);
-			}
-		}
-		return [...domains];
+		const gitConfig = (await (textFileService.read(uri, { acceptTextOnly: true }).catch(() => ({ value: '' })))).value;
+		return extractGitHubRemotesFromGitConfig(gitConfig);
 	}));
 
 	const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());

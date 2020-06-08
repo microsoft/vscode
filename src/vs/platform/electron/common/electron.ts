@@ -11,7 +11,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 
 export interface ICommonElectronService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	// Properties
 	readonly windowId: number;

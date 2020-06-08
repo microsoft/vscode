@@ -27,7 +27,7 @@ interface ICachedViewContainerInfo {
 
 export class ViewDescriptorService extends Disposable implements IViewDescriptorService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly CACHED_VIEW_POSITIONS = 'views.cachedViewPositions';
 	private static readonly CACHED_VIEW_CONTAINER_LOCATIONS = 'views.cachedViewContainerLocations';
@@ -295,7 +295,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		return this.viewContainersRegistry.getDefaultViewContainer(location);
 	}
 
-	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, order?: number): void {
+	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number): void {
 		const from = this.getViewContainerLocation(viewContainer);
 		const to = location;
 		if (from !== to) {
@@ -304,10 +304,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			const defaultLocation = this.isGeneratedContainerId(viewContainer.id) ? true : this.getViewContainerLocation(viewContainer) === this.getDefaultViewContainerLocation(viewContainer);
 			this.getOrCreateDefaultViewContainerLocationContextKey(viewContainer).set(defaultLocation);
 
-			if (order !== undefined) {
-				viewContainer.order = order;
-			}
-
+			viewContainer.requestedIndex = requestedIndex;
 			this._onDidChangeContainerLocation.fire({ viewContainer, from, to });
 
 			const views = this.getViewsByContainer(viewContainer);
@@ -407,6 +404,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this.cachedViewContainerInfo.set(container.id, location);
 			this.saveViewContainerLocationsToCache();
 		}
+
+		this.getOrCreateDefaultViewContainerLocationContextKey(container).set(true);
 
 		return container;
 	}

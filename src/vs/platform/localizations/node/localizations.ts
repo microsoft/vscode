@@ -35,7 +35,7 @@ if (product.quality !== 'stable') {
 
 export class LocalizationsService extends Disposable implements ILocalizationsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly cache: LanguagePacksCache;
 

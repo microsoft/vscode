@@ -13,7 +13,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { basenameOrAuthority } from 'vs/base/common/resources';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -33,7 +32,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		@IFileService fileService: IFileService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(model.resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
+		super(model.resource, undefined, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 
 		this.registerModelListeners(model);
 	}
@@ -50,10 +49,6 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 
 	getTypeId(): string {
 		return UntitledTextEditorInput.ID;
-	}
-
-	get ariaLabel(): string {
-		return basenameOrAuthority(this.resource);
 	}
 
 	getName(): string {

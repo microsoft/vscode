@@ -181,7 +181,7 @@ class SelectionToReplAction extends EditorAction {
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
 		await session.addReplExpression(viewModel.focusedStackFrame!, text);
-		await viewsService.openView(REPL_VIEW_ID, true);
+		await viewsService.openView(REPL_VIEW_ID, false);
 	}
 }
 

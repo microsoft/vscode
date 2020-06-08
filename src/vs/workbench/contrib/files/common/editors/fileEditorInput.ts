@@ -41,10 +41,11 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	private model: ITextFileEditorModel | undefined = undefined;
 	private cachedTextFileModelReference: IReference<ITextFileEditorModel> | undefined = undefined;
 
-	private modelListeners: DisposableStore = this._register(new DisposableStore());
+	private readonly modelListeners: DisposableStore = this._register(new DisposableStore());
 
 	constructor(
 		resource: URI,
+		preferredLabel: URI | undefined,
 		preferredEncoding: string | undefined,
 		preferredMode: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -56,7 +57,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
+		super(resource, preferredLabel, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 
 		this.model = this.textFileService.files.get(resource);
 
@@ -119,6 +120,37 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		}));
 	}
 
+	getTypeId(): string {
+		return FILE_EDITOR_INPUT_ID;
+	}
+
+	getName(): string {
+		return this.decorateLabel(super.getName());
+	}
+
+	getTitle(verbosity: Verbosity): string {
+		return this.decorateLabel(super.getTitle(verbosity));
+	}
+
+	private decorateLabel(label: string): string {
+		const orphaned = this.model?.hasState(TextFileEditorModelState.ORPHAN);
+		const readonly = this.isReadonly();
+
+		if (orphaned && readonly) {
+			return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
+		}
+
+		if (orphaned) {
+			return localize('orphanedFile', "{0} (deleted)", label);
+		}
+
+		if (readonly) {
+			return localize('readonlyFile', "{0} (read-only)", label);
+		}
+
+		return label;
+	}
+
 	getEncoding(): string | undefined {
 		if (this.model) {
 			return this.model.getEncoding();
@@ -167,37 +199,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	setForceOpenAsBinary(): void {
 		this.forceOpenAs = ForceOpenAs.Binary;
-	}
-
-	getTypeId(): string {
-		return FILE_EDITOR_INPUT_ID;
-	}
-
-	getName(): string {
-		return this.decorateLabel(super.getName());
-	}
-
-	getTitle(verbosity: Verbosity): string {
-		return this.decorateLabel(super.getTitle(verbosity));
-	}
-
-	private decorateLabel(label: string): string {
-		const orphaned = this.model?.hasState(TextFileEditorModelState.ORPHAN);
-		const readonly = this.isReadonly();
-
-		if (orphaned && readonly) {
-			return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
-		}
-
-		if (orphaned) {
-			return localize('orphanedFile', "{0} (deleted)", label);
-		}
-
-		if (readonly) {
-			return localize('readonlyFile', "{0} (read-only)", label);
-		}
-
-		return label;
 	}
 
 	isDirty(): boolean {

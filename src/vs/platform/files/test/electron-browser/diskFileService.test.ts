@@ -1681,9 +1681,11 @@ suite('Disk File Service', function () {
 		assert.equal(content, 'Small File');
 
 		const newContent = 'Updates to the small file';
-		await service.writeFile(resource, VSBuffer.fromString(newContent));
+		let totalBytes = 0;
+		await service.writeFile(resource, VSBuffer.fromString(newContent), { progress: byteLength => totalBytes += byteLength });
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+		assert.equal(totalBytes, newContent.length);
 	}
 
 	test('writeFile (large file) - default', async () => {
@@ -1708,10 +1710,12 @@ suite('Disk File Service', function () {
 		const content = readFileSync(resource.fsPath);
 		const newContent = content.toString() + content.toString();
 
-		const fileStat = await service.writeFile(resource, VSBuffer.fromString(newContent));
+		let totalBytes = 0;
+		const fileStat = await service.writeFile(resource, VSBuffer.fromString(newContent), { progress: byteLength => totalBytes += byteLength });
 		assert.equal(fileStat.name, 'lorem.txt');
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+		assert.equal(totalBytes, newContent.length);
 	}
 
 	test('writeFile - buffered - readonly throws', async () => {
@@ -1782,9 +1786,11 @@ suite('Disk File Service', function () {
 		assert.equal(content, 'Small File');
 
 		const newContent = 'Updates to the small file';
-		await service.writeFile(resource, toLineByLineReadable(newContent));
+		let totalBytes = 0;
+		await service.writeFile(resource, toLineByLineReadable(newContent), { progress: byteLength => totalBytes += byteLength });
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+		assert.equal(totalBytes, newContent.length);
 	}
 
 	test('writeFile (large file - readable) - default', async () => {
@@ -1809,10 +1815,12 @@ suite('Disk File Service', function () {
 		const content = readFileSync(resource.fsPath);
 		const newContent = content.toString() + content.toString();
 
-		const fileStat = await service.writeFile(resource, toLineByLineReadable(newContent));
+		let totalBytes = 0;
+		const fileStat = await service.writeFile(resource, toLineByLineReadable(newContent), { progress: byteLength => totalBytes += byteLength });
 		assert.equal(fileStat.name, 'lorem.txt');
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+		assert.equal(totalBytes, newContent.length);
 	}
 
 	test('writeFile (stream) - default', async () => {
@@ -1835,10 +1843,13 @@ suite('Disk File Service', function () {
 		const source = URI.file(join(testDir, 'small.txt'));
 		const target = URI.file(join(testDir, 'small-copy.txt'));
 
-		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
+		let totalBytes = 0;
+		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)), { progress: byteLength => totalBytes += byteLength });
 		assert.equal(fileStat.name, 'small-copy.txt');
 
-		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
+		const targetContents = readFileSync(target.fsPath).toString();
+		assert.equal(readFileSync(source.fsPath).toString(), targetContents);
+		assert.equal(totalBytes, targetContents.length);
 	}
 
 	test('writeFile (large file - stream) - default', async () => {
@@ -1861,10 +1872,13 @@ suite('Disk File Service', function () {
 		const source = URI.file(join(testDir, 'lorem.txt'));
 		const target = URI.file(join(testDir, 'lorem-copy.txt'));
 
-		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
+		let totalBytes = 0;
+		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)), { progress: byteLength => totalBytes += byteLength });
 		assert.equal(fileStat.name, 'lorem-copy.txt');
 
-		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
+		const targetContents = readFileSync(target.fsPath).toString();
+		assert.equal(readFileSync(source.fsPath).toString(), targetContents);
+		assert.equal(totalBytes, targetContents.length);
 	}
 
 	test('writeFile (file is created including parents)', async () => {

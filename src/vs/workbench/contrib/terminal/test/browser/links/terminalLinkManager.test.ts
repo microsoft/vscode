@@ -37,7 +37,7 @@ class MockTerminalInstanceService implements ITerminalInstanceService {
 	getDefaultShellAndArgs(): Promise<{ shell: string; args: string | string[] | undefined; }> {
 		throw new Error('Method not implemented.');
 	}
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	getXtermConstructor(): Promise<any> {
 		throw new Error('Method not implemented.');
 	}
