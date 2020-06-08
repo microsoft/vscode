@@ -196,7 +196,39 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return false;
 	}
 
+	private _isDeltaEmpty(delta: INotebookDocumentsAndEditorsDelta) {
+		if (delta.addedDocuments !== undefined && delta.addedDocuments.length > 0) {
+			return false;
+		}
+
+		if (delta.removedDocuments !== undefined && delta.removedDocuments.length > 0) {
+			return false;
+		}
+
+		if (delta.addedEditors !== undefined && delta.addedEditors.length > 0) {
+			return false;
+		}
+
+		if (delta.removedEditors !== undefined && delta.removedEditors.length > 0) {
+			return false;
+		}
+
+		if (delta.visibleEditors !== undefined && delta.visibleEditors.length > 0) {
+			return false;
+		}
+
+		if (delta.newActiveEditor !== undefined) {
+			return false;
+		}
+
+		return true;
+	}
+
 	private _emitDelta(delta: INotebookDocumentsAndEditorsDelta) {
+		if (this._isDeltaEmpty(delta)) {
+			return;
+		}
+
 		this._proxy.$acceptDocumentAndEditorsDelta(delta);
 	}
 
