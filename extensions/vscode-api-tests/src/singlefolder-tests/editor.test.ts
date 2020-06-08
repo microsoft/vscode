@@ -48,17 +48,19 @@ suite('vscode API - editors', () => {
 	});
 
 	test('insert snippet with clipboard variables', async () => {
-
+		const old = await env.clipboard.readText();
 		await env.clipboard.writeText('INTEGRATION-TESTS');
 
 		const snippetString = new SnippetString('running: $CLIPBOARD');
 
-		return withRandomFileEditor('', async (editor, doc) => {
+		await withRandomFileEditor('', async (editor, doc) => {
 			const inserted = await editor.insertSnippet(snippetString);
 			assert.ok(inserted);
 			assert.equal(doc.getText(), 'running: INTEGRATION-TESTS');
 			assert.ok(doc.isDirty);
 		});
+
+		await env.clipboard.writeText(old);
 	});
 
 	test('insert snippet with replacement, editor selection', () => {
