@@ -12,6 +12,7 @@ const url = require('url');
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
+const glob = require('glob');
 const opn = require('opn');
 const minimist = require('minimist');
 const webpack = require('webpack');
@@ -78,8 +79,13 @@ async function initialize() {
 
 				if (packageJSON.browser) {
 					packageJSON.main = packageJSON.browser;
-					const webpackConfigPath = path.join(EXTENSIONS_ROOT, extensionFolder, 'extension-browser.webpack.config.js');
-					if ((await exists(webpackConfigPath))) {
+
+					const webpackConfigLocations = glob.sync(
+						path.join(EXTENSIONS_ROOT, extensionFolder, '**', 'extension-browser.webpack.config.js'),
+						{ ignore: ['**/node_modules'] }
+					);
+
+					for (const webpackConfigPath of webpackConfigLocations) {
 						const configOrFnOrArray = require(webpackConfigPath);
 						function addConfig(configOrFn) {
 							if (typeof configOrFn === 'function') {
@@ -88,11 +94,7 @@ async function initialize() {
 								webpackConfigs.push(configOrFn);
 							}
 						}
-						if (Array.isArray(configOrFnOrArray)) {
-							configOrFnOrArray.forEach(addConfig);
-						} else {
-							addConfig(configOrFnOrArray);
-						}
+						addConfig(configOrFnOrArray);
 					}
 				}
 
