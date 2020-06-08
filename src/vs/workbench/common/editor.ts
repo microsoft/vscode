@@ -22,6 +22,7 @@ import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
+import { IExtUri } from 'vs/base/common/resources';
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
@@ -1269,7 +1270,7 @@ export interface IEditorMemento<T> {
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
 	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
 
-	moveEditorState(source: URI, target: URI): void;
+	moveEditorState(source: URI, target: URI, comparer: IExtUri): void;
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {

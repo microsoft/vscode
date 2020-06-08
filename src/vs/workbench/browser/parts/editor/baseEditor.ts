@@ -16,8 +16,7 @@ import { Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { MementoObject } from 'vs/workbench/common/memento';
-import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import { isLinux } from 'vs/base/common/platform';
+import { joinPath, IExtUri } from 'vs/base/common/resources';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -259,7 +258,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 	}
 
-	moveEditorState(source: URI, target: URI): void {
+	moveEditorState(source: URI, target: URI, comparer: IExtUri): void {
 		const cache = this.doLoad();
 
 		// We need a copy of the keys to not iterate over
@@ -268,7 +267,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		for (const cacheKey of cacheKeys) {
 			const resource = URI.parse(cacheKey);
 
-			if (!isEqualOrParent(resource, source)) {
+			if (!comparer.isEqualOrParent(resource, source)) {
 				continue; // not matching our resource
 			}
 
@@ -277,7 +276,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 			if (source.toString() === resource.toString()) {
 				targetResource = target; // file got moved
 			} else {
-				const index = indexOfPath(resource.path, source.path, !isLinux);
+				const index = indexOfPath(resource.path, source.path);
 				targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
 			}
 
