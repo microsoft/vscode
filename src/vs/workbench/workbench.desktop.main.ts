@@ -58,7 +58,6 @@ import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingServic
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
 import 'vs/workbench/services/authentication/electron-browser/authenticationTokenService';
-import 'vs/workbench/services/authentication/browser/authenticationService';
 import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
 import 'vs/workbench/services/localizations/electron-browser/localizationsService';
 import 'vs/workbench/services/clipboard/electron-browser/clipboardService';
