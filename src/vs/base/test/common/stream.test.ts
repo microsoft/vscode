@@ -76,12 +76,6 @@ suite('Stream', () => {
 		};
 		stream.on('error', errorListener);
 
-		let end = false;
-		const endListener = () => {
-			end = true;
-		};
-		stream.on('end', endListener);
-
 		let data = false;
 		const dataListener = () => {
 			data = true;

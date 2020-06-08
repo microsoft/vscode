@@ -731,6 +731,13 @@ export interface IWriteFileOptions {
 	 * The etag of the file. This can be used to prevent dirty writes.
 	 */
 	readonly etag?: string;
+
+	/**
+	 * The progress callback can be used to get accurate information how many
+	 * bytes have been written. Each call carries the length of bytes written
+	 * since the last call was made.
+	 */
+	readonly progress?: (byteLength: number) => void;
 }
 
 export interface IResolveFileOptions {
@@ -865,3 +872,33 @@ export function whenProviderRegistered(file: URI, fileService: IFileService): Pr
  */
 export const MIN_MAX_MEMORY_SIZE_MB = 2048;
 export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
+
+/**
+ * Helper to format a raw byte size into a human readable label.
+ */
+export class BinarySize {
+	static readonly KB = 1024;
+	static readonly MB = BinarySize.KB * BinarySize.KB;
+	static readonly GB = BinarySize.MB * BinarySize.KB;
+	static readonly TB = BinarySize.GB * BinarySize.KB;
+
+	static formatSize(size: number): string {
+		if (size < BinarySize.KB) {
+			return localize('sizeB', "{0}B", size);
+		}
+
+		if (size < BinarySize.MB) {
+			return localize('sizeKB', "{0}KB", (size / BinarySize.KB).toFixed(2));
+		}
+
+		if (size < BinarySize.GB) {
+			return localize('sizeMB', "{0}MB", (size / BinarySize.MB).toFixed(2));
+		}
+
+		if (size < BinarySize.TB) {
+			return localize('sizeGB', "{0}GB", (size / BinarySize.GB).toFixed(2));
+		}
+
+		return localize('sizeTB', "{0}TB", (size / BinarySize.TB).toFixed(2));
+	}
+}
