@@ -484,7 +484,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async createWebview(id: string, document: URI): Promise<void> {
 		this.webview = this.instantiationService.createInstance(BackLayerWebView, this, id, document);
-		await this.webview.waitForInitialization();
+		// attach the webview container to the DOM tree first
+		this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview.element);
+		await this.webview.createWebview();
 		this.webview.webview.onDidBlur(() => this.updateEditorFocus());
 		this.webview.webview.onDidFocus(() => {
 			this.updateEditorFocus();
@@ -496,7 +498,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), message);
 			}
 		}));
-		this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview.element);
 	}
 
 	private async attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined) {

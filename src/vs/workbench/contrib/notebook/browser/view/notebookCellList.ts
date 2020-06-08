@@ -878,6 +878,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	dispose() {
+		this._viewModelStore.dispose();
 		this._localDisposableStore.dispose();
 		super.dispose();
 	}

@@ -232,7 +232,6 @@ suite('API tests', () => {
 		const untitledEditorChange = getEventOncePromise(vscode.notebook.onDidChangeActiveNotebookEditor);
 		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
 		await untitledEditorChange;
-		// TODO@rebornix, this is not safe, we might need to listen to visible editor change event.
 		assert.equal(firstEditor?.visible, true);
 		assert.equal(firstEditor?.active, false);
 		assert.equal(secondEditor?.visible, false);
