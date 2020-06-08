@@ -32,7 +32,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		@IFileService fileService: IFileService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(model.resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
+		super(model.resource, undefined, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 
 		this.registerModelListeners(model);
 	}

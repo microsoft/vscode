@@ -167,7 +167,7 @@ export interface IFileEditorInputFactory {
 	/**
 	 * Creates new new editor input capable of showing files.
 	 */
-	createFileEditorInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileEditorInput(resource: URI, label: URI | undefined, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
 	/**
 	 * Check if the provided object is a file editor input.
@@ -652,12 +652,17 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	readonly resource: URI;
 
 	/**
-	 * Sets the preferred encoding to use for this input.
+	 * Sets the preferred label to use for this file input.
+	 */
+	setLabel(label: URI): void;
+
+	/**
+	 * Sets the preferred encoding to use for this file input.
 	 */
 	setPreferredEncoding(encoding: string): void;
 
 	/**
-	 * Sets the preferred language mode to use for this input.
+	 * Sets the preferred language mode to use for this file input.
 	 */
 	setPreferredMode(mode: string): void;
 
@@ -667,7 +672,7 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	setForceOpenAsBinary(): void;
 
 	/**
-	 * Figure out if the input has been resolved or not.
+	 * Figure out if the file input has been resolved or not.
 	 */
 	isResolved(): boolean;
 }

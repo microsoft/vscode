@@ -45,6 +45,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	constructor(
 		resource: URI,
+		preferredLabel: URI | undefined,
 		preferredEncoding: string | undefined,
 		preferredMode: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -56,7 +57,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
+		super(resource, preferredLabel, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 
 		this.model = this.textFileService.files.get(resource);
 
