@@ -74,7 +74,7 @@ startInBackgroundIfNotRunning "fluxbox" sudoUserIf "dbus-launch startfluxbox"
 /usr/local/bin/set-resolution ${VNC_RESOLUTION:-1280x720} ${VNC_DPI:-72}
 
 # Start x11vnc
-startInBackgroundIfNotRunning "x11vnc" sudoIf "x11vnc -display ${DISPLAY:-:1} -rfbport ${VNC_PORT:-5901}  -localhost -no6 -xkb -shared -forever -nopw"
+startInBackgroundIfNotRunning "x11vnc" sudoIf "x11vnc -display ${DISPLAY:-:1} -rfbport ${VNC_PORT:-5901} -localhost -no6 -xkb -shared -forever -passwdfile $HOME/.vnc/passwd"
 
 # Spin up noVNC if installed and not runnning.
 if [ -d "/usr/local/novnc" ] && [ "$(ps -ef | grep /usr/local/novnc/noVNC*/utils/launch.sh | grep -v grep)" = "" ]; then

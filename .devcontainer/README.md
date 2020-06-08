@@ -2,13 +2,15 @@
 
 This repository includes configuration for a development container for working with Code - OSS in an isolated local container or using [Visual Studio Codespaces](https://aka.ms/vso).
 
+> **Tip:** The default VNC password is `vscode`. The VNC server runs on port `5901` with a web client at `6080`. For better performance, we recommend using a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/). Applications like the macOS Screen Sharing app will not perform as well. [Chicken](https://sourceforge.net/projects/chicken/) is a good macOS alternative.
+
 ## Quick start - local
 
 1. Install Docker Desktop or Docker on your local machine. (See [docs](https://aka.ms/vscode-remote/containers/getting-started) for additional details.)
 
 2. [Docker Desktop] If you are not using the new WSL2 Docker Desktop engine, increase the resources allocated to Docker Desktop to at least **4 Cores and 4 GB of RAM (8 GB recommended)**. Right-click on the Docker status bar item, go to **Preferences/Settings > Resources > Advanced** to do so.
 
-	> **Note:** The [Resource Monitor](https://marketplace.visualstudio.com/items?itemName=mutantdino.resourcemonitor) extension is included in the container so you can keep an eye on CPU/Memory in the status bar.
+    > **Note:** The [Resource Monitor](https://marketplace.visualstudio.com/items?itemName=mutantdino.resourcemonitor) extension is included in the container so you can keep an eye on CPU/Memory in the status bar.
 
 3. Install [Visual Studio Code Stable](https://code.visualstudio.com/) or [Insiders](https://code.visualstudio.com/insiders/) and the [Remote - Containers](https://aka.ms/vscode-remote/download/containers) extension.
 
@@ -22,7 +24,7 @@ This repository includes configuration for a development container for working w
 
 5. Type `https://github.com/microsoft/vscode` (or a branch or PR URL) in the input box and press <kbd>Enter</kbd>.
 
-6. After the container is running, open a web browser and go to [http://localhost:6080](http://localhost:6080) or use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901`.
+6. After the container is running, open a web browser and go to [http://localhost:6080](http://localhost:6080) or use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901` and enter `vscode` as the password.
 
 Anything you start in VS Code or the integrated terminal will appear here.
 
@@ -30,7 +32,7 @@ Next: **[Try it out!](#try-it)**
 
 ## Quick start - Codespaces
 
-Note that the Codspaces browser-based editor cannot currently access the desktop environment in this containe (due to a [missing feature](https://github.com/MicrosoftDocs/vsonline/issues/117)). We recommend using Visual Studio Code from the desktop to connect instead in the near term.
+>Note that the Codespaces browser-based editor cannot currently access the desktop environment in this container (due to a [missing feature](https://github.com/MicrosoftDocs/vsonline/issues/117)). We recommend using Visual Studio Code from the desktop to connect instead in the near term.
 
 1. Install [Visual Studio Code Stable](https://code.visualstudio.com/) or [Insiders](https://code.visualstudio.com/insiders/) and the [Visual Studio Codespaces](https://aka.ms/vscs-ext-vscode) extension.
 
@@ -40,11 +42,11 @@ Note that the Codspaces browser-based editor cannot currently access the desktop
 
 2. Sign in by pressing <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> and selecting **Codespaces: Sign In**. You may also need to use the **Codespaces: Create Plan** if you do not have a plan. See the [Codespaces docs](https://aka.ms/vso-docs/vscode) for details.
 
-3. Press <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> and select **Codespaes: Create New Codespace**.
+3. Press <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> and select **Codespaces: Create New Codespace**.
 
 4. Use default settings, select a plan, and then enter the repository URL `https://github.com/microsoft/vscode` (or a branch or PR URL) in the input box when prompted.
 
-5. After the container is running, open a web browser and go to [http://localhost:6080](http://localhost:6080) or use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901`.
+5. After the container is running, open a web browser and go to [http://localhost:6080](http://localhost:6080) or use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901` and enter `vscode` as the password.
 
 6. Anything you start in VS Code or the integrated terminal will appear here.
 
@@ -63,7 +65,7 @@ To start working with Code - OSS, follow these steps:
     scripts/code.sh
     ```
 
-2. After the build is complete, open a web browser and go to [http://localhost:6080](http://localhost:6080) or use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901`.
+2. After the build is complete, open a web browser and go to [http://localhost:6080](http://localhost:6080) or use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901` and enter `vscode` as the password.
 
 3. You should now see Code - OSS!
 

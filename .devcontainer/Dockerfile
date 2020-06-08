@@ -12,6 +12,7 @@ ARG MAX_VNC_RESOLUTION=1920x1080x16
 ARG TARGET_VNC_RESOLUTION=1920x1080
 ARG TARGET_VNC_DPI=72
 ARG TARGET_VNC_PORT=5901
+ARG VNC_PASSWORD="vscode"
 
 # noVNC (VNC web client) options
 ARG INSTALL_NOVNC="true"
@@ -37,11 +38,6 @@ ENV DBUS_SESSION_BUS_ADDRESS="autolaunch:" \
 	LANGUAGE="en_US.UTF-8" \
 	VISUAL="nano" \
 	EDITOR="nano"
-
-COPY bin/init-dev-container.sh /usr/local/share/
-COPY bin/set-resolution /usr/local/bin/
-COPY fluxbox/* /root/.fluxbox/
-COPY fluxbox/* /home/${USERNAME}/.fluxbox/
 
 # Configure apt and install packages
 RUN apt-get update \
@@ -84,10 +80,6 @@ RUN apt-get update \
 		fonts-droid-fallback \
 		vim-tiny \
 		nano \
-	&& mkdir -p /var/run/dbus \
-	&& touch /root/.Xmodmap /home/${USERNAME}/.Xmodmap \
-	&& chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.Xmodmap /home/${USERNAME}/.fluxbox \
-	&& chmod +x /usr/local/share/init-dev-container.sh /usr/local/bin/set-resolution \
 	#
 	# [Optional] Install noVNC
 	&& if [ "${INSTALL_NOVNC}" = "true" ]; then \
@@ -112,6 +104,18 @@ RUN apt-get update \
 	&& apt-get autoremove -y \
 	&& apt-get clean -y \
 	&& rm -rf /var/lib/apt/lists/*
+
+COPY bin/init-dev-container.sh /usr/local/share/
+COPY bin/set-resolution /usr/local/bin/
+COPY fluxbox/* /root/.fluxbox/
+COPY fluxbox/* /home/${USERNAME}/.fluxbox/
+
+# Update privs, owners of config files
+RUN mkdir -p /var/run/dbus /root/.vnc /home/${USERNAME}/.vnc \
+	&& touch /root/.Xmodmap /home/${USERNAME}/.Xmodmap \
+	&& echo "${VNC_PASSWORD}" | tee /root/.vnc/passwd > /home/${USERNAME}/.vnc/passwd \
+	&& chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.Xmodmap /home/${USERNAME}/.fluxbox /home/${USERNAME}/.vnc \
+	&& chmod +x /usr/local/share/init-dev-container.sh /usr/local/bin/set-resolution
 
 ENTRYPOINT ["/usr/local/share/init-dev-container.sh"]
 CMD ["sleep", "infinity"]

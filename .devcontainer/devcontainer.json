@@ -7,6 +7,7 @@
 			"TARGET_VNC_RESOLUTION": "1280x768",
 			"TARGET_VNC_PORT": "5901",
 			"TARGET_NOVNC_PORT": "6080",
+			"VNC_PASSWORD": "vscode",
 			"INSTALL_FIREFOX": "true"
 		}
 	},
