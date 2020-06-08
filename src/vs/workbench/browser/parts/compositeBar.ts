@@ -234,12 +234,12 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
 			onDragOver: (e: IDraggedCompositeData) => {
 				// don't add feedback if this is over the composite bar actions or there are no actions
-				if (!(this.compositeSwitcherBar?.length()) || (e.eventData.target && isAncestor(e.eventData.target as HTMLElement, actionBarDiv))) {
+				const pinnedItems = this.getPinnedComposites();
+				if (!pinnedItems.length || (e.eventData.target && isAncestor(e.eventData.target as HTMLElement, actionBarDiv))) {
 					toggleClass(parent, 'dragged-over', false);
 					return;
 				}
 
-				const pinnedItems = this.getPinnedComposites();
 				const validDropTarget = this.options.dndHandler.onDragOver(e.dragAndDropData, pinnedItems[pinnedItems.length - 1].id, e.eventData);
 				toggleClass(parent, 'dragged-over', validDropTarget);
 			},
