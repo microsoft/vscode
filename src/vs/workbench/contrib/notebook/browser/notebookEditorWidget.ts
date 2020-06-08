@@ -752,28 +752,28 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.list?.revealElementInCenter(cell);
 	}
 
-	revealLineInView(cell: ICellViewModel, line: number): void {
-		this.list?.revealElementLineInView(cell, line);
+	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
+		return this.list?.revealElementLineInViewAsync(cell, line);
 	}
 
-	revealLineInCenter(cell: ICellViewModel, line: number) {
-		this.list?.revealElementLineInCenter(cell, line);
+	async revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
+		return this.list?.revealElementLineInCenterAsync(cell, line);
 	}
 
-	revealLineInCenterIfOutsideViewport(cell: ICellViewModel, line: number) {
-		this.list?.revealElementLineInCenterIfOutsideViewport(cell, line);
+	async revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
+		return this.list?.revealElementLineInCenterIfOutsideViewportAsync(cell, line);
 	}
 
-	revealRangeInView(cell: ICellViewModel, range: Range): void {
-		this.list?.revealElementRangeInView(cell, range);
+	async revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
+		return this.list?.revealElementRangeInViewAsync(cell, range);
 	}
 
-	revealRangeInCenter(cell: ICellViewModel, range: Range): void {
-		this.list?.revealElementRangeInCenter(cell, range);
+	async revealRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void> {
+		return this.list?.revealElementRangeInCenterAsync(cell, range);
 	}
 
-	revealRangeInCenterIfOutsideViewport(cell: ICellViewModel, range: Range): void {
-		this.list?.revealElementRangeInCenterIfOutsideViewport(cell, range);
+	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
+		return this.list?.revealElementRangeInCenterIfOutsideViewportAsync(cell, range);
 	}
 
 	setCellSelection(cell: ICellViewModel, range: Range): void {
