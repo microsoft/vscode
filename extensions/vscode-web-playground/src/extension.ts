@@ -13,7 +13,6 @@
 //
 
 import * as vscode from 'vscode';
-import { GitHubFS } from './githubfs';
 import { MemFS } from './memfs';
 
 declare const window: unknown;
@@ -36,7 +35,6 @@ export function activate(context: vscode.ExtensionContext) {
 function enableFs(context: vscode.ExtensionContext): MemFS {
 	const memFs = new MemFS();
 	context.subscriptions.push(memFs);
-	context.subscriptions.push(new GitHubFS());
 
 	return memFs;
 }

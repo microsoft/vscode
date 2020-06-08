@@ -32,6 +32,7 @@ import {
 import { Octokit } from '@octokit/rest';
 import { graphql } from '@octokit/graphql/';
 import * as fuzzySort from 'fuzzysort';
+import fetch from 'node-fetch';
 import { Iterables } from './iterables';
 
 const emptyDisposable = { dispose: () => { /* noop */ } };

@@ -15,5 +15,10 @@ module.exports = withDefaults({
 	node: false,
 	entry: {
 		extension: './src/extension.ts',
+	},
+	resolve: {
+		alias: {
+			'node-fetch': path.resolve(__dirname, 'node_modules/node-fetch/browser.js'),
+		},
 	}
 });
