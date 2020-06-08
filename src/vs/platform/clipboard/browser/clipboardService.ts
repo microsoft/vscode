@@ -99,11 +99,6 @@ export class BrowserClipboardService implements IClipboardService {
 	}
 
 	/** @deprecated */
-	readTextSync(): string | undefined {
-		return undefined;
-	}
-
-	/** @deprecated */
 	readFindTextSync(): string {
 		return this.findText;
 	}
