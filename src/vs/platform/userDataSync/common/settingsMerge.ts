@@ -429,26 +429,34 @@ function getEditToInsertAtLocation(content: string, key: string, value: any, loc
 
 	if (location.insertAfter) {
 
+		const edits: Edit[] = [];
+
 		/* Insert after a setting */
 		if (node.setting) {
-			return [{ offset: node.endOffset, length: 0, content: ',' + newProperty }];
+			edits.push({ offset: node.endOffset, length: 0, content: ',' + newProperty });
 		}
 
-		/*
-			Insert after a comment and before a setting (or)
-			Insert between comments and there is a setting after
-		*/
-		if (tree[location.index + 1] &&
-			(tree[location.index + 1].setting || findNextSettingNode(location.index, tree))) {
-			return [{ offset: node.endOffset, length: 0, content: eol + newProperty + ',' }];
+		/* Insert after a comment */
+		else {
+
+			const nextSettingNode = findNextSettingNode(location.index, tree);
+			const previousSettingNode = findPreviousSettingNode(location.index, tree);
+			const previousSettingCommaOffset = previousSettingNode?.setting?.commaOffset;
+
+			/* If there is a previous setting and it does not has comma then add it */
+			if (previousSettingNode && previousSettingCommaOffset === undefined) {
+				edits.push({ offset: previousSettingNode.endOffset, length: 0, content: ',' });
+			}
+
+			const isPreviouisSettingIncludesComment = previousSettingCommaOffset !== undefined && previousSettingCommaOffset > node.endOffset;
+			edits.push({
+				offset: isPreviouisSettingIncludesComment ? previousSettingCommaOffset! + 1 : node.endOffset,
+				length: 0,
+				content: nextSettingNode ? eol + newProperty + ',' : eol + newProperty
+			});
 		}
 
-		/* Insert after the comment at the end */
-		const edits = [{ offset: node.endOffset, length: 0, content: eol + newProperty }];
-		const previousSettingNode = findPreviousSettingNode(location.index, tree);
-		if (previousSettingNode && !previousSettingNode.setting!.hasCommaSeparator) {
-			edits.splice(0, 0, { offset: previousSettingNode.endOffset, length: 0, content: ',' });
-		}
+
 		return edits;
 	}
 
@@ -516,7 +524,7 @@ interface INode {
 	readonly value: string;
 	readonly setting?: {
 		readonly key: string;
-		readonly hasCommaSeparator: boolean;
+		readonly commaOffset: number | undefined;
 	};
 	readonly comment?: string;
 }
@@ -547,7 +555,7 @@ function parseSettings(content: string): INode[] {
 					value: content.substring(startOffset, offset + length),
 					setting: {
 						key,
-						hasCommaSeparator: false
+						commaOffset: undefined
 					}
 				});
 			}
@@ -564,7 +572,7 @@ function parseSettings(content: string): INode[] {
 					value: content.substring(startOffset, offset + length),
 					setting: {
 						key,
-						hasCommaSeparator: false
+						commaOffset: undefined
 					}
 				});
 			}
@@ -577,7 +585,7 @@ function parseSettings(content: string): INode[] {
 					value: content.substring(startOffset, offset + length),
 					setting: {
 						key,
-						hasCommaSeparator: false
+						commaOffset: undefined
 					}
 				});
 			}
@@ -585,15 +593,21 @@ function parseSettings(content: string): INode[] {
 		onSeparator: (sep: string, offset: number, length: number) => {
 			if (hierarchyLevel === 0) {
 				if (sep === ',') {
-					const node = nodes.pop();
+					let index = nodes.length - 1;
+					for (; index >= 0; index--) {
+						if (nodes[index].setting) {
+							break;
+						}
+					}
+					const node = nodes[index];
 					if (node) {
-						nodes.push({
+						nodes.splice(index, 1, {
 							startOffset: node.startOffset,
 							endOffset: node.endOffset,
 							value: node.value,
 							setting: {
 								key: node.setting!.key,
-								hasCommaSeparator: true
+								commaOffset: offset
 							}
 						});
 					}

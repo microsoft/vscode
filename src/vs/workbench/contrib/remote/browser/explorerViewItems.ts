@@ -6,12 +6,11 @@
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 
-import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IRemoteExplorerService, REMOTE_EXPLORER_TYPE_KEY } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -28,8 +27,6 @@ export interface IRemoteSelectItem extends ISelectOptionItem {
 
 export class SwitchRemoteViewItem extends SelectActionViewItem {
 
-	actionRunner!: IActionRunner;
-
 	constructor(
 		action: IAction,
 		private readonly optionsItems: IRemoteSelectItem[],
@@ -40,9 +37,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(null, action, optionsItems, 0, contextViewService, { ariaLabel: nls.localize('remotes', 'Switch Remote') });
-		this._register(attachSelectBoxStyler(this.selectBox, themeService, {
-			selectBackground: SIDE_BAR_BACKGROUND
-		}));
+		this._register(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this.setSelectionForConnection(optionsItems, environmentService, remoteExplorerService);
 	}
@@ -77,11 +72,13 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	}
 
 	render(container: HTMLElement) {
-		super.render(container);
-		dom.addClass(container, 'switch-remote');
-		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-			container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
-		}));
+		if (this.optionsItems.length > 1) {
+			super.render(container);
+			dom.addClass(container, 'switch-remote');
+			this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+				container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
+			}));
+		}
 	}
 
 	protected getActionContext(_: string, index: number): any {

@@ -81,13 +81,18 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 		// Entries detected configurations
 		const dynamicProviders = await configManager.getDynamicProviders();
 		if (dynamicProviders.length > 0) {
-			picks.push({ type: 'separator', label: localize('contributed', "contributed") });
+			picks.push({
+				type: 'separator', label: localize({
+					key: 'contributed',
+					comment: ['contributed is lower case because it looks better like that in UI. Nothing preceeds it. It is a name of the grouping of debug configurations.']
+				}, "contributed")
+			});
 		}
 
 		dynamicProviders.forEach(provider => {
 			picks.push({
 				label: `$(folder) ${provider.label}...`,
-				ariaLabel: localize('providerAriaLabel', "{0} contributed configurations", provider.label),
+				ariaLabel: localize({ key: 'providerAriaLabel', comment: ['Placeholder stands for the provider label. For example "NodeJS".'] }, "{0} contributed configurations", provider.label),
 				accept: async () => {
 					const pick = await provider.pick();
 					if (pick) {

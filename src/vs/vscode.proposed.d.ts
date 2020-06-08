@@ -28,6 +28,41 @@ declare module 'vscode' {
 		scopes: string[];
 	}
 
+	export class AuthenticationSession2 {
+		/**
+		 * The identifier of the authentication session.
+		 */
+		readonly id: string;
+
+		/**
+		 * The access token.
+		 */
+		readonly accessToken: string;
+
+		/**
+		 * The account associated with the session.
+		 */
+		readonly account: {
+			/**
+			 * The human-readable name of the account.
+			 */
+			readonly displayName: string;
+
+			/**
+			 * The unique identifier of the account.
+			 */
+			readonly id: string;
+		};
+
+		/**
+		 * The permissions granted by the session's access token. Available scopes
+		 * are defined by the authentication provider.
+		 */
+		readonly scopes: string[];
+
+		constructor(id: string, accessToken: string, account: { displayName: string, id: string }, scopes: string[]);
+	}
+
 	/**
 	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
 	 */
@@ -42,7 +77,6 @@ declare module 'vscode' {
 		 */
 		readonly removed: string[];
 	}
-
 
 	/**
 	 * Options to be used when getting a session from an [AuthenticationProvider](#AuthenticationProvider).
@@ -112,12 +146,12 @@ declare module 'vscode' {
 		/**
 		 * Returns an array of current sessions.
 		 */
-		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
+		getSessions(): Thenable<ReadonlyArray<AuthenticationSession2>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
-		login(scopes: string[]): Thenable<AuthenticationSession>;
+		login(scopes: string[]): Thenable<AuthenticationSession2>;
 
 		/**
 		 * Removes the session corresponding to session id.
@@ -144,6 +178,12 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
+		 * The ids of the currently registered authentication providers.
+		 * @returns An array of the ids of authentication providers that are currently registered.
+		 */
+		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
+
+		/**
 		 * An array of the ids of authentication providers that are currently registered.
 		 */
 		export const providerIds: string[];
@@ -167,10 +207,21 @@ declare module 'vscode' {
 		 * @param providerId The id of the provider to use
 		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
 		 * @param options The [getSessionOptions](#GetSessionOptions) to use
-		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions and
-		 * `createIfNone` was not specified.
+		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession2>;
+
+		/**
+		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with
+		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
+		 * quickpick to select which account they would like to use.
+		 * @param providerId The id of the provider to use
+		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param options The [getSessionOptions](#GetSessionOptions) to use
+		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
+		 */
+		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession2 | undefined>;
 
 		/**
 		 * @deprecated
@@ -966,8 +1017,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-
 	//#region Terminal link handlers https://github.com/microsoft/vscode/issues/91606
 
 	export namespace window {
@@ -1040,6 +1089,11 @@ declare module 'vscode' {
 		label?: string | TreeItemLabel | /* for compilation */ any;
 
 		/**
+		 * Accessibility information used when screen reader interacts with this tree item.
+		 */
+		accessibilityInformation?: AccessibilityInformation;
+
+		/**
 		 * @param label Label describing this item
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
@@ -1099,6 +1153,11 @@ declare module 'vscode' {
 			 * status bar item.
 			 */
 			name: string;
+
+			/**
+			 * Accessibility information used when screen reader interacts with this status bar item.
+			 */
+			accessibilityInformation?: AccessibilityInformation;
 
 			/**
 			 * The alignment of the status bar item.
@@ -1162,316 +1221,11 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Custom editor https://github.com/microsoft/vscode/issues/77131
-
-	/**
-	 * Represents a custom document used by a [`CustomEditorProvider`](#CustomEditorProvider).
-	 *
-	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a `CustomDocument` is
-	 * managed by VS Code. When no more references remain to a `CustomDocument`, it is disposed of.
-	 */
-	interface CustomDocument {
-		/**
-		 * The associated uri for this document.
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * Dispose of the custom document.
-		 *
-		 * This is invoked by VS Code when there are no more references to a given `CustomDocument` (for example when
-		 * all editors associated with the document have been closed.)
-		 */
-		dispose(): void;
-	}
-
-	/**
-	 * Event triggered by extensions to signal to VS Code that an edit has occurred on an [`CustomDocument`](#CustomDocument).
-	 *
-	 * @see [`CustomDocumentProvider.onDidChangeCustomDocument`](#CustomDocumentProvider.onDidChangeCustomDocument).
-	 */
-	interface CustomDocumentEditEvent<T extends CustomDocument = CustomDocument> {
-
-		/**
-		 * The document that the edit is for.
-		 */
-		readonly document: T;
-
-		/**
-		 * Undo the edit operation.
-		 *
-		 * This is invoked by VS Code when the user undoes this edit. To implement `undo`, your
-		 * extension should restore the document and editor to the state they were in just before this
-		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
-		 */
-		undo(): Thenable<void> | void;
-
-		/**
-		 * Redo the edit operation.
-		 *
-		 * This is invoked by VS Code when the user redoes this edit. To implement `redo`, your
-		 * extension should restore the document and editor to the state they were in just after this
-		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
-		 */
-		redo(): Thenable<void> | void;
-
-		/**
-		 * Display name describing the edit.
-		 *
-		 * This is shown in the UI to users.
-		 */
-		readonly label?: string;
-	}
-
-	/**
-	 * Event triggered by extensions to signal to VS Code that the content of a [`CustomDocument`](#CustomDocument)
-	 * has changed.
-	 *
-	 * @see [`CustomDocumentProvider.onDidChangeCustomDocument`](#CustomDocumentProvider.onDidChangeCustomDocument).
-	 */
-	interface CustomDocumentContentChangeEvent<T extends CustomDocument = CustomDocument> {
-		/**
-		 * The document that the change is for.
-		 */
-		readonly document: T;
-	}
-
-	/**
-	 * A backup for an [`CustomDocument`](#CustomDocument).
-	 */
-	interface CustomDocumentBackup {
-		/**
-		 * Unique identifier for the backup.
-		 *
-		 * This id is passed back to your extension in `openCustomDocument` when opening a custom editor from a backup.
-		 */
-		readonly id: string;
-
-		/**
-		 * Delete the current backup.
-		 *
-		 * This is called by VS Code when it is clear the current backup is no longer needed, such as when a new backup
-		 * is made or when the file is saved.
-		 */
-		delete(): void;
-	}
-
-	/**
-	 * Additional information used to implement [`CustomEditableDocument.backup`](#CustomEditableDocument.backup).
-	 */
-	interface CustomDocumentBackupContext {
-		/**
-		 * Suggested file location to write the new backup.
-		 *
-		 * Note that your extension is free to ignore this and use its own strategy for backup.
-		 *
-		 * For editors for workspace resource, this destination will be in the workspace storage. The path may not
-		 */
-		readonly destination: Uri;
-	}
-
-	/**
-	 * Additional information about the opening custom document.
-	 */
-	interface CustomDocumentOpenContext {
-		/**
-		 * The id of the backup to restore the document from or `undefined` if there is no backup.
-		 *
-		 * If this is provided, your extension should restore the editor from the backup instead of reading the file
-		 * the user's workspace.
-		 */
-		readonly backupId?: string;
-	}
-
-	/**
-	 * Provider for readonly custom editors that use a custom document model.
-	 *
-	 * Custom editors use [`CustomDocument`](#CustomDocument) as their document model instead of a [`TextDocument`](#TextDocument).
-	 *
-	 * You should use this type of custom editor when dealing with binary files or more complex scenarios. For simple
-	 * text based documents, use [`CustomTextEditorProvider`](#CustomTextEditorProvider) instead.
-	 *
-	 * @param T Type of the custom document returned by this provider.
-	 */
-	export interface CustomReadonlyEditorProvider<T extends CustomDocument = CustomDocument> {
-
-		/**
-		 * Create a new document for a given resource.
-		 *
-		 * `openCustomDocument` is called when the first editor for a given resource is opened, and the resolve document
-		 * is passed to `resolveCustomEditor`. The resolved `CustomDocument` is re-used for subsequent editor opens.
-		 * If all editors for a given resource are closed, the `CustomDocument` is disposed of. Opening an editor at
-		 * this point will trigger another call to `openCustomDocument`.
-		 *
-		 * @param uri Uri of the document to open.
-		 * @param openContext Additional information about the opening custom document.
-		 * @param token A cancellation token that indicates the result is no longer needed.
-		 *
-		 * @return The custom document.
-		 */
-		openCustomDocument(uri: Uri, openContext: CustomDocumentOpenContext, token: CancellationToken): Thenable<T> | T;
-
-		/**
-		 * Resolve a custom editor for a given resource.
-		 *
-		 * This is called whenever the user opens a new editor for this `CustomEditorProvider`.
-		 *
-		 * To resolve a custom editor, the provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
-		 * for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
-		 *
-		 * @param document Document for the resource being resolved.
-		 * @param webviewPanel Webview to resolve.
-		 * @param token A cancellation token that indicates the result is no longer needed.
-		 *
-		 * @return Optional thenable indicating that the custom editor has been resolved.
-		 */
-		resolveCustomEditor(document: T, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
-	}
-
-	/**
-	 * Provider for editiable custom editors that use a custom document model.
-	 *
-	 * Custom editors use [`CustomDocument`](#CustomDocument) as their document model instead of a [`TextDocument`](#TextDocument).
-	 * This gives extensions full control over actions such as edit, save, and backup.
-	 *
-	 * You should use this type of custom editor when dealing with binary files or more complex scenarios. For simple
-	 * text based documents, use [`CustomTextEditorProvider`](#CustomTextEditorProvider) instead.
-	 *
-	 * @param T Type of the custom document returned by this provider.
-	 */
-	export interface CustomEditorProvider<T extends CustomDocument = CustomDocument> extends CustomReadonlyEditorProvider<T> {
-		/**
-		 * Signal that an edit has occurred inside a custom editor.
-		 *
-		 * This event must be fired by your extension whenever an edit happens in a custom editor. An edit can be
-		 * anything from changing some text, to cropping an image, to reordering a list. Your extension is free to
-		 * define what an edit is and what data is stored on each edit.
-		 *
-		 * Firing `onDidChange` causes VS Code to mark the editors as being dirty. This is cleared when the user either
-		 * saves or reverts the file.
-		 *
-		 * Editors that support undo/redo must fire a `CustomDocumentEditEvent` whenever an edit happens. This allows
-		 * users to undo and redo the edit using VS Code's standard VS Code keyboard shortcuts. VS Code will also mark
-		 * the editor as no longer being dirty if the user undoes all edits to the last saved state.
-		 *
-		 * Editors that support editing but cannot use VS Code's standard undo/redo mechanism must fire a `CustomDocumentContentChangeEvent`.
-		 * The only way for a user to clear the dirty state of an editor that does not support undo/redo is to either
-		 * `save` or `revert` the file.
-		 *
-		 * An editor should only ever fire `CustomDocumentEditEvent` events, or only ever fire `CustomDocumentContentChangeEvent` events.
-		 */
-		readonly onDidChangeCustomDocument: Event<CustomDocumentEditEvent<T>> | Event<CustomDocumentContentChangeEvent<T>>;
-
-		/**
-		 * Save a custom document.
-		 *
-		 * This method is invoked by VS Code when the user saves a custom editor. This can happen when the user
-		 * triggers save while the custom editor is active, by commands such as `save all`, or by auto save if enabled.
-		 *
-		 * To implement `save`, the implementer must persist the custom editor. This usually means writing the
-		 * file data for the custom document to disk. After `save` completes, any associated editor instances will
-		 * no longer be marked as dirty.
-		 *
-		 * @param document Document to save.
-		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
-		 *
-		 * @return Thenable signaling that saving has completed.
-		 */
-		saveCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
-
-		/**
-		 * Save a custom document to a different location.
-		 *
-		 * This method is invoked by VS Code when the user triggers 'save as' on a custom editor. The implementer must
-		 * persist the custom editor to `destination`.
-		 *
-		 * When the user accepts save as, the current editor is be replaced by an non-dirty editor for the newly saved file.
-		 *
-		 * @param document Document to save.
-		 * @param destination Location to save to.
-		 * @param cancellation Token that signals the save is no longer required.
-		 *
-		 * @return Thenable signaling that saving has completed.
-		 */
-		saveCustomDocumentAs(document: T, destination: Uri, cancellation: CancellationToken): Thenable<void>;
-
-		/**
-		 * Revert a custom document to its last saved state.
-		 *
-		 * This method is invoked by VS Code when the user triggers `File: Revert File` in a custom editor. (Note that
-		 * this is only used using VS Code's `File: Revert File` command and not on a `git revert` of the file).
-		 *
-		 * To implement `revert`, the implementer must make sure all editor instances (webviews) for `document`
-		 * are displaying the document in the same state is saved in. This usually means reloading the file from the
-		 * workspace.
-		 *
-		 * @param document Document to revert.
-		 * @param cancellation Token that signals the revert is no longer required.
-		 *
-		 * @return Thenable signaling that the change has completed.
-		 */
-		revertCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
-
-		/**
-		 * Back up a dirty custom document.
-		 *
-		 * Backups are used for hot exit and to prevent data loss. Your `backup` method should persist the resource in
-		 * its current state, i.e. with the edits applied. Most commonly this means saving the resource to disk in
-		 * the `ExtensionContext.storagePath`. When VS Code reloads and your custom editor is opened for a resource,
-		 * your extension should first check to see if any backups exist for the resource. If there is a backup, your
-		 * extension should load the file contents from there instead of from the resource in the workspace.
-		 *
-		 * `backup` is triggered whenever an edit it made. Calls to `backup` are debounced so that if multiple edits are
-		 * made in quick succession, `backup` is only triggered after the last one. `backup` is not invoked when
-		 * `auto save` is enabled (since auto save already persists resource ).
-		 *
-		 * @param document Document to backup.
-		 * @param context Information that can be used to backup the document.
-		 * @param cancellation Token that signals the current backup since a new backup is coming in. It is up to your
-		 * extension to decided how to respond to cancellation. If for example your extension is backing up a large file
-		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
-		 * than cancelling it to ensure that VS Code has some valid backup.
-		 */
-		backupCustomDocument(document: T, context: CustomDocumentBackupContext, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
-	}
-
-	namespace window {
-		/**
-		 * Temporary overload for `registerCustomEditorProvider` that takes a `CustomEditorProvider`.
-		 */
-		export function registerCustomEditorProvider2(
-			viewType: string,
-			provider: CustomReadonlyEditorProvider | CustomEditorProvider,
-			options?: {
-				readonly webviewOptions?: WebviewPanelOptions;
-
-				/**
-				 * Only applies to `CustomReadonlyEditorProvider | CustomEditorProvider`.
-				 *
-				 * Indicates that the provider allows multiple editor instances to be open at the same time for
-				 * the same resource.
-				 *
-				 * If not set, VS Code only allows one editor instance to be open at a time for each resource. If the
-				 * user tries to open a second editor instance for the resource, the first one is instead moved to where
-				 * the second one was to be opened.
-				 *
-				 * When set, users can split and create copies of the custom editor. The custom editor must make sure it
-				 * can properly synchronize the states of all editor instances for a resource so that they are consistent.
-				 */
-				readonly supportsMultipleEditorsPerDocument?: boolean;
-			}
-		): Disposable;
-	}
-
-	// #endregion
-
 	//#region Custom editor move https://github.com/microsoft/vscode/issues/86146
 
 	// TODO: Also for custom editor
 
 	export interface CustomTextEditorProvider {
-
 
 		/**
 		 * Handle when the underlying resource for a custom editor is renamed.
@@ -1489,7 +1243,6 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
 
 	//#region allow QuickPicks to skip sorting: https://github.com/microsoft/vscode/issues/73904
 
@@ -1592,6 +1345,18 @@ declare module 'vscode' {
 		runnable?: boolean;
 
 		/**
+		 * Controls if the cell has a margin to support the breakpoint UI.
+		 * This metadata is ignored for markdown cell.
+		 */
+		breakpointMargin?: boolean;
+
+		/**
+		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
+		 * Defaults to true.
+		 */
+		hasExecutionOrder?: boolean;
+
+		/**
 		 * The order in which this cell was executed.
 		 */
 		executionOrder?: number;
@@ -1623,6 +1388,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookCell {
+		readonly notebook: NotebookDocument;
 		readonly uri: Uri;
 		readonly cellKind: CellKind;
 		readonly document: TextDocument;
@@ -1659,10 +1425,10 @@ declare module 'vscode' {
 		cellRunnable?: boolean;
 
 		/**
-		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
+		 * Default value for [cell hasExecutionOrder metadata](#NotebookCellMetadata.hasExecutionOrder).
 		 * Defaults to true.
 		 */
-		hasExecutionOrder?: boolean;
+		cellHasExecutionOrder?: boolean;
 
 		displayOrder?: GlobPattern[];
 
@@ -1711,7 +1477,25 @@ declare module 'vscode' {
 		 */
 		readonly selection?: NotebookCell;
 
+		/**
+		 * The column in which this editor shows.
+		 */
 		viewColumn?: ViewColumn;
+
+		/**
+		 * Whether the panel is active (focused by the user).
+		 */
+		readonly active: boolean;
+
+		/**
+		 * Whether the panel is visible.
+		 */
+		readonly visible: boolean;
+
+		/**
+		 * Fired when the panel is disposed.
+		 */
+		readonly onDidDispose: Event<void>;
 
 		/**
 		 * Fired when the output hosting webview posts a message.
@@ -1725,6 +1509,11 @@ declare module 'vscode' {
 		 * @param message Body of the message. This must be a string or other json serilizable object.
 		 */
 		postMessage(message: any): Thenable<boolean>;
+
+		/**
+		 * Convert a uri for the local file system to one that can be used inside outputs webview.
+		 */
+		asWebviewUri(localResource: Uri): Uri;
 
 		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
 	}
@@ -1744,17 +1533,48 @@ declare module 'vscode' {
 		preloads?: Uri[];
 	}
 
-	export interface NotebookDocumentChangeEvent {
+	export interface NotebookCellsChangeData {
+		readonly start: number;
+		readonly deletedCount: number;
+		readonly items: NotebookCell[];
+	}
+
+	export interface NotebookCellsChangeEvent {
 
 		/**
 		 * The affected document.
 		 */
 		readonly document: NotebookDocument;
+		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
+	}
+
+	export interface NotebookCellMoveEvent {
 
 		/**
-		 * An array of content changes.
+		 * The affected document.
 		 */
-		// readonly contentChanges: ReadonlyArray<TextDocumentContentChangeEvent>;
+		readonly document: NotebookDocument;
+		readonly index: number;
+		readonly newIndex: number;
+	}
+
+	export interface NotebookCellOutputsChangeEvent {
+
+		/**
+		 * The affected document.
+		 */
+		readonly document: NotebookDocument;
+		readonly cells: NotebookCell[];
+	}
+
+	export interface NotebookCellLanguageChangeEvent {
+
+		/**
+		 * The affected document.
+		 */
+		readonly document: NotebookDocument;
+		readonly cell: NotebookCell;
+		readonly language: string;
 	}
 
 	export interface NotebookCellData {
@@ -1788,10 +1608,7 @@ declare module 'vscode' {
 		// revert?(document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
 		// backup?(document: NotebookDocument, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
 
-		/**
-		 * Responsible for filling in outputs for the cell
-		 */
-		executeCell(document: NotebookDocument, cell: NotebookCell | undefined, token: CancellationToken): Promise<void>;
+		kernel?: NotebookKernel;
 	}
 
 	export interface NotebookKernel {
@@ -1821,15 +1638,17 @@ declare module 'vscode' {
 
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
-		// export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
+		export let visibleNotebookEditors: NotebookEditor[];
+		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
 
 		// remove activeNotebookDocument, now that there is activeNotebookEditor.document
 		export let activeNotebookDocument: NotebookDocument | undefined;
 
 		export let activeNotebookEditor: NotebookEditor | undefined;
-
-		export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
-
+		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
+		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
+		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
+		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
 		/**
 		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
 		 * but a selector can be provided to narrow to down the set of cells.
@@ -1912,7 +1731,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
 	//#region @eamodio - timeline: https://github.com/microsoft/vscode/issues/84297
 
 	export class TimelineItem {
@@ -1972,6 +1790,11 @@ declare module 'vscode' {
 		 * This will show the `extension.copyCommitId` action only for items where `contextValue` is `commit`.
 		 */
 		contextValue?: string;
+
+		/**
+		 * Accessibility information used when screen reader interacts with this timeline item.
+		 */
+		accessibilityInformation?: AccessibilityInformation;
 
 		/**
 		 * @param label A human-readable string describing the timeline item
@@ -2117,6 +1940,45 @@ declare module 'vscode' {
 		 * systems do not present title on save dialogs.
 		 */
 		title?: string;
+	}
+
+	//#endregion
+
+	//#region Accessibility information: https://github.com/microsoft/vscode/issues/95360
+
+	/**
+	 * Accessibility information which controls screen reader behavior.
+	 */
+	export interface AccessibilityInformation {
+		label: string;
+		role?: string;
+	}
+
+	export interface StatusBarItem {
+		/**
+		 * Accessibility information used when screen reader interacts with this StatusBar item
+		 */
+		accessibilityInformation?: AccessibilityInformation;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/91555
+
+	export enum StandardTokenType {
+		Other = 0,
+		Comment = 1,
+		String = 2,
+		RegEx = 4
+	}
+
+	export interface TokenInformation {
+		type: StandardTokenType;
+		range: Range;
+	}
+
+	export namespace languages {
+		export function getTokenInformationAtPosition(document: TextDocument, position: Position): Promise<TokenInformation>;
 	}
 
 	//#endregion

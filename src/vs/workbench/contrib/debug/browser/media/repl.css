@@ -41,11 +41,6 @@
 .monaco-workbench .repl .repl-tree .monaco-tl-contents .arrow {
 	position:absolute;
 	left: 2px;
-	opacity: 0.25;
-}
-
-.monaco-workbench.vs-dark .repl .repl-tree .monaco-tl-contents .arrow {
-	opacity: 0.4;
 }
 
 .monaco-workbench .repl .repl-tree .output.expression.value-and-source .source {
@@ -86,18 +81,6 @@
 /* Output coloring  and styling */
 .monaco-workbench .repl .repl-tree .output.expression > .ignore {
 	font-style: italic;
-}
-
-.monaco-workbench.vs .repl .repl-tree .output.expression > .warn {
-	color: #cd9731;
-}
-
-.monaco-workbench.vs-dark .repl .repl-tree .output.expression > .warn {
-	color: #cd9731;
-}
-
-.monaco-workbench.hc-black .repl .repl-tree .output.expression > .warn {
-	color: #008000;
 }
 
 /* ANSI Codes */

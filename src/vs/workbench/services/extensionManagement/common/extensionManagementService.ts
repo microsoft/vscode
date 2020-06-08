@@ -22,7 +22,7 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 
 export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	readonly onInstallExtension: Event<InstallExtensionEvent>;
 	readonly onDidInstallExtension: Event<DidInstallExtensionEvent>;
@@ -140,8 +140,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
 
-	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
-		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation, type))).then(([extensionIdentifier]) => extensionIdentifier);
+	unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
+		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation))).then(([extensionIdentifier]) => extensionIdentifier);
 	}
 
 	async install(vsix: URI): Promise<ILocalExtension> {

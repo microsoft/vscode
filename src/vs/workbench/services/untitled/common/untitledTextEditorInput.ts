@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEncodingSupport, EncodingMode, Verbosity, IModeSupport, TextResourceEditorInput } from 'vs/workbench/common/editor';
+import { IEncodingSupport, EncodingMode, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
+import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -12,11 +13,12 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { basenameOrAuthority } from 'vs/base/common/resources';
 
 /**
  * An editor input to be used for untitled text buffers.
  */
-export class UntitledTextEditorInput extends TextResourceEditorInput implements IEncodingSupport, IModeSupport {
+export class UntitledTextEditorInput extends AbstractTextResourceEditorInput implements IEncodingSupport, IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
@@ -48,6 +50,10 @@ export class UntitledTextEditorInput extends TextResourceEditorInput implements 
 
 	getTypeId(): string {
 		return UntitledTextEditorInput.ID;
+	}
+
+	get ariaLabel(): string {
+		return basenameOrAuthority(this.resource);
 	}
 
 	getName(): string {

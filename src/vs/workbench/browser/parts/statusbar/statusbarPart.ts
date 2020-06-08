@@ -9,7 +9,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -374,7 +373,7 @@ class HideStatusbarEntryAction extends Action {
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	//#region IView
 
@@ -726,7 +725,6 @@ class StatusbarEntryItem extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
@@ -740,6 +738,7 @@ class StatusbarEntryItem extends Disposable {
 		// Label Container
 		this.labelContainer = document.createElement('a');
 		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
+		this.labelContainer.setAttribute('role', 'button');
 
 		// Label
 		this.label = new CodiconLabel(this.labelContainer);
@@ -829,12 +828,6 @@ class StatusbarEntryItem extends Disposable {
 		const id = typeof command === 'string' ? command : command.id;
 		const args = typeof command === 'string' ? [] : command.arguments ?? [];
 
-		// Maintain old behaviour of always focusing the editor here
-		const activeTextEditorControl = this.editorService.activeTextEditorControl;
-		if (activeTextEditorControl) {
-			activeTextEditorControl.focus();
-		}
-
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'status bar' });
 		try {
 			await this.commandService.executeCommand(id, ...args);
@@ -903,6 +896,10 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
 	if (statusBarItemActiveBackground) {
 		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active { background-color: ${statusBarItemActiveBackground}; }`);
+	}
+	const contrastBorderColor = theme.getColor(contrastBorder);
+	if (contrastBorderColor) {
+		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus { outline: 1px solid ${contrastBorderColor};}`);
 	}
 
 	const statusBarProminentItemForeground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);

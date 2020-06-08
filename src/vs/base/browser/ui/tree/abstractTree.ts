@@ -707,7 +707,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(this.keyboardNavigationEventFilter || (() => true))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
-			.filter(e => this.keyboardNavigationDelegate.mightProducePrintableCharacter(e) || ((this.pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? (e.altKey && !e.metaKey) : e.ctrlKey) && !e.shiftKey)))
+			.filter(e => (this.keyboardNavigationDelegate.mightProducePrintableCharacter(e) && !(e.keyCode === KeyCode.DownArrow || e.keyCode === KeyCode.UpArrow || e.keyCode === KeyCode.LeftArrow || e.keyCode === KeyCode.RightArrow)) || ((this.pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? (e.altKey && !e.metaKey) : e.ctrlKey) && !e.shiftKey)))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.event;
 
@@ -962,6 +962,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly simpleKeyboardNavigation?: boolean;
 	readonly filterOnType?: boolean;
 	readonly openOnSingleClick?: boolean;
+	readonly smoothScrolling?: boolean;
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
@@ -1360,7 +1361,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		this.view.updateOptions({
 			enableKeyboardNavigation: this._options.simpleKeyboardNavigation,
-			automaticKeyboardNavigation: this._options.automaticKeyboardNavigation
+			automaticKeyboardNavigation: this._options.automaticKeyboardNavigation,
+			smoothScrolling: this._options.smoothScrolling
 		});
 
 		if (this.typeFilterController) {

@@ -28,7 +28,6 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IdleValue, raceCancellation } from 'vs/base/common/async';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -38,6 +37,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 class RenameSkeleton {
 
 	private readonly _providers: RenameProvider[];
+	private _providerRenameIdx: number = 0;
 
 	constructor(
 		private readonly model: ITextModel,
@@ -51,30 +51,45 @@ class RenameSkeleton {
 	}
 
 	async resolveRenameLocation(token: CancellationToken): Promise<RenameLocation & Rejection | undefined> {
-		const firstProvider = this._providers[0];
-		if (!firstProvider) {
-			return undefined;
-		}
 
-		let res: RenameLocation & Rejection | undefined;
-		if (firstProvider.resolveRenameLocation) {
-			res = withNullAsUndefined(await firstProvider.resolveRenameLocation(this.model, this.position, token));
-		}
+		const rejects: string[] = [];
 
-		if (!res) {
-			const word = this.model.getWordAtPosition(this.position);
-			if (word) {
-				return {
-					range: new Range(this.position.lineNumber, word.startColumn, this.position.lineNumber, word.endColumn),
-					text: word.word
-				};
+		for (this._providerRenameIdx = 0; this._providerRenameIdx < this._providers.length; this._providerRenameIdx++) {
+			const provider = this._providers[this._providerRenameIdx];
+			if (!provider.resolveRenameLocation) {
+				break;
 			}
+			let res = await provider.resolveRenameLocation(this.model, this.position, token);
+			if (!res) {
+				continue;
+			}
+			if (res.rejectReason) {
+				rejects.push(res.rejectReason);
+				continue;
+			}
+			return res;
 		}
 
-		return res;
+		const word = this.model.getWordAtPosition(this.position);
+		if (!word) {
+			return {
+				range: Range.fromPositions(this.position),
+				text: '',
+				rejectReason: rejects.length > 0 ? rejects.join('\n') : undefined
+			};
+		}
+		return {
+			range: new Range(this.position.lineNumber, word.startColumn, this.position.lineNumber, word.endColumn),
+			text: word.word,
+			rejectReason: rejects.length > 0 ? rejects.join('\n') : undefined
+		};
 	}
 
-	async provideRenameEdits(newName: string, i: number, rejects: string[], token: CancellationToken): Promise<WorkspaceEdit & Rejection> {
+	async provideRenameEdits(newName: string, token: CancellationToken): Promise<WorkspaceEdit & Rejection> {
+		return this._provideRenameEdits(newName, this._providerRenameIdx, [], token);
+	}
+
+	private async _provideRenameEdits(newName: string, i: number, rejects: string[], token: CancellationToken): Promise<WorkspaceEdit & Rejection> {
 		const provider = this._providers[i];
 		if (!provider) {
 			return {
@@ -85,16 +100,21 @@ class RenameSkeleton {
 
 		const result = await provider.provideRenameEdits(this.model, this.position, newName, token);
 		if (!result) {
-			return this.provideRenameEdits(newName, i + 1, rejects.concat(nls.localize('no result', "No result.")), token);
+			return this._provideRenameEdits(newName, i + 1, rejects.concat(nls.localize('no result', "No result.")), token);
 		} else if (result.rejectReason) {
-			return this.provideRenameEdits(newName, i + 1, rejects.concat(result.rejectReason), token);
+			return this._provideRenameEdits(newName, i + 1, rejects.concat(result.rejectReason), token);
 		}
 		return result;
 	}
 }
 
 export async function rename(model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit & Rejection> {
-	return new RenameSkeleton(model, position).provideRenameEdits(newName, 0, [], CancellationToken.None);
+	const skeleton = new RenameSkeleton(model, position);
+	const loc = await skeleton.resolveRenameLocation(CancellationToken.None);
+	if (loc?.rejectReason) {
+		return { edits: [], rejectReason: loc.rejectReason };
+	}
+	return skeleton.provideRenameEdits(newName, CancellationToken.None);
 }
 
 // ---  register actions and commands
@@ -194,7 +214,7 @@ class RenameController implements IEditorContribution {
 
 		this.editor.focus();
 
-		const renameOperation = raceCancellation(skeleton.provideRenameEdits(inputFieldResult.newName, 0, [], this._cts.token), this._cts.token).then(async renameResult => {
+		const renameOperation = raceCancellation(skeleton.provideRenameEdits(inputFieldResult.newName, this._cts.token), this._cts.token).then(async renameResult => {
 
 			if (!renameResult || !this.editor.hasModel()) {
 				return;

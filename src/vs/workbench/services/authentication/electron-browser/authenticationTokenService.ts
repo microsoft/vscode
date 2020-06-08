@@ -12,9 +12,12 @@ import { IAuthenticationTokenService, IUserDataSyncAuthToken } from 'vs/platform
 
 export class AuthenticationTokenService extends Disposable implements IAuthenticationTokenService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly channel: IChannel;
+
+	private _token: IUserDataSyncAuthToken | undefined;
+	get token(): IUserDataSyncAuthToken | undefined { return this._token; }
 	private _onDidChangeToken = this._register(new Emitter<IUserDataSyncAuthToken | undefined>());
 	readonly onDidChangeToken = this._onDidChangeToken.event;
 
@@ -29,11 +32,8 @@ export class AuthenticationTokenService extends Disposable implements IAuthentic
 		this._register(this.channel.listen<void[]>('onTokenFailed')(_ => this.sendTokenFailed()));
 	}
 
-	getToken(): Promise<IUserDataSyncAuthToken | undefined> {
-		return this.channel.call('getToken');
-	}
-
 	setToken(token: IUserDataSyncAuthToken | undefined): Promise<undefined> {
+		this._token = token;
 		return this.channel.call('setToken', token);
 	}
 

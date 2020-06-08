@@ -56,7 +56,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		@IStorageService private readonly storageService: IStorageService,
 		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
-		super(SyncResource.GlobalState, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(SyncResource.GlobalState, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(this.fileService.watch(dirname(this.environmentService.argvResource)));
 		this._register(
 			Event.any(
@@ -66,7 +66,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				Event.filter(this.storageService.onDidChangeStorage, e => storageKeysSyncRegistryService.storageKeys.some(({ key }) => e.key === key)),
 				/* Storage key registered */
 				this.storageKeysSyncRegistryService.onDidChangeStorageKeys
-			)((() => this._onDidChangeLocal.fire()))
+			)((() => this.triggerLocalChange()))
 		);
 	}
 
@@ -93,7 +93,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 					local, remote, remoteUserData, localUserData: localGlobalState, lastSyncUserData,
 					skippedStorageKeys: skipped,
 					hasLocalChanged: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0,
-					hasRemoteChanged: remote !== null
+					hasRemoteChanged: remote !== null,
+					isLastSyncFromCurrentMachine: false
 				});
 			}
 
@@ -127,7 +128,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				local: { added: {}, removed: [], updated: {} }, remote: localUserData.storage, remoteUserData, localUserData, lastSyncUserData,
 				skippedStorageKeys: [],
 				hasLocalChanged: false,
-				hasRemoteChanged: true
+				hasRemoteChanged: true,
+				isLastSyncFromCurrentMachine: false
 			}, true);
 
 			this.logService.info(`${this.syncResourceLogLabel}: Finished pushing UI State.`);
@@ -208,13 +210,22 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			local, remote: syncGlobalState.storage, remoteUserData, localUserData, lastSyncUserData,
 			skippedStorageKeys: skipped,
 			hasLocalChanged: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0,
-			hasRemoteChanged: true
+			hasRemoteChanged: true,
+			isLastSyncFromCurrentMachine: false,
 		});
 	}
 
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IGlobalSyncPreviewResult> {
 		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
-		const lastSyncGlobalState: IGlobalState = lastSyncUserData && lastSyncUserData.syncData ? JSON.parse(lastSyncUserData.syncData.content) : null;
+		const isLastSyncFromCurrentMachine = await this.isLastSyncFromCurrentMachine(remoteUserData);
+		let lastSyncGlobalState: IGlobalState | null = null;
+		if (lastSyncUserData === null) {
+			if (isLastSyncFromCurrentMachine) {
+				lastSyncGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
+			}
+		} else {
+			lastSyncGlobalState = lastSyncUserData.syncData ? JSON.parse(lastSyncUserData.syncData.content) : null;
+		}
 
 		const localGloablState = await this.getLocalGlobalState();
 
@@ -230,7 +241,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			local, remote, remoteUserData, localUserData: localGloablState, lastSyncUserData,
 			skippedStorageKeys: skipped,
 			hasLocalChanged: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0,
-			hasRemoteChanged: remote !== null
+			hasRemoteChanged: remote !== null,
+			isLastSyncFromCurrentMachine
 		};
 	}
 

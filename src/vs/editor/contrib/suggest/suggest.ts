@@ -55,12 +55,15 @@ export class CompletionItem {
 	idx?: number;
 	word?: string;
 
+	// resolving
+	private _isResolved?: boolean;
+	private _resolveCache?: Promise<void>;
+
 	constructor(
 		readonly position: IPosition,
 		readonly completion: modes.CompletionItem,
 		readonly container: modes.CompletionList,
 		readonly provider: modes.CompletionItemProvider,
-		model: ITextModel
 	) {
 		this.textLabel = typeof completion.label === 'string'
 			? completion.label
@@ -94,7 +97,7 @@ export class CompletionItem {
 			this.isInvalid = this.isInvalid
 				|| Range.spansMultipleLines(completion.range.insert) || Range.spansMultipleLines(completion.range.replace)
 				|| completion.range.insert.startLineNumber !== position.lineNumber || completion.range.replace.startLineNumber !== position.lineNumber
-				|| Range.compareRangesUsingStarts(completion.range.insert, completion.range.replace) !== 0;
+				|| completion.range.insert.startColumn !== completion.range.replace.startColumn;
 		}
 
 		// create the suggestion resolver
@@ -104,13 +107,11 @@ export class CompletionItem {
 		}
 	}
 
-	// resolving
-	get isResolved() {
-		return Boolean(this._isResolved);
-	}
+	// ---- resolving
 
-	private _resolveCache?: Promise<void>;
-	private _isResolved?: boolean;
+	get isResolved(): boolean {
+		return !!this._isResolved;
+	}
 
 	async resolve(token: CancellationToken) {
 		if (!this._resolveCache) {
@@ -194,7 +195,7 @@ export async function provideSuggestionItems(
 				if (!suggestion.sortText) {
 					suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
 				}
-				result.push(new CompletionItem(position, suggestion, container, provider, model));
+				result.push(new CompletionItem(position, suggestion, container, provider));
 			}
 		}
 		if (isDisposable(container)) {

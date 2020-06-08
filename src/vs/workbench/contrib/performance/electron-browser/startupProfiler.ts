@@ -18,7 +18,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export class StartupProfiler implements IWorkbenchContribution {
@@ -115,8 +115,11 @@ export class StartupProfiler implements IWorkbenchContribution {
 		}
 
 		const ref = await this._textModelResolverService.createModelReference(PerfviewInput.Uri);
-		await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
-		ref.dispose();
+		try {
+			await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
+		} finally {
+			ref.dispose();
+		}
 
 		const body = `
 1. :warning: We have copied additional data to your clipboard. Make sure to **paste** here. :warning:

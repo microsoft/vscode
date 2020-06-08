@@ -10,7 +10,7 @@
     "onFileSystem:memfs",
     "onDebug"
   ],
-  "main": "./out/extension",
+  "browser": "./out/extension",
   "engines": {
     "vscode": "^1.25.0"
   },

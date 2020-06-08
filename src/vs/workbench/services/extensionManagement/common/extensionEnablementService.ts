@@ -23,7 +23,7 @@ const SOURCE = 'IWorkbenchExtensionEnablementService';
 
 export class ExtensionEnablementService extends Disposable implements IWorkbenchExtensionEnablementService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onEnablementChanged = new Emitter<readonly IExtension[]>();
 	public readonly onEnablementChanged: Event<readonly IExtension[]> = this._onEnablementChanged.event;

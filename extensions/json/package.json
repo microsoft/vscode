@@ -26,6 +26,7 @@
           ".webmanifest",
           ".js.map",
           ".css.map",
+          ".ts.map",
           ".har",
           ".jslintrc",
           ".jsonld"

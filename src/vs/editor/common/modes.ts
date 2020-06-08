@@ -1411,7 +1411,7 @@ export interface RenameProvider {
  */
 export interface AuthenticationSession {
 	id: string;
-	getAccessToken(): Thenable<string>;
+	accessToken: string;
 	account: {
 		displayName: string;
 		id: string;
@@ -1603,7 +1603,7 @@ export interface IWebviewPortMapping {
 export interface IWebviewOptions {
 	readonly enableScripts?: boolean;
 	readonly enableCommandUris?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<URI>;
+	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
 	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
 }
 

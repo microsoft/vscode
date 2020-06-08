@@ -38,10 +38,10 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
 
-	readonly minimumWidth = DEFAULT_EDITOR_MIN_DIMENSIONS.width;
-	readonly maximumWidth = DEFAULT_EDITOR_MAX_DIMENSIONS.width;
-	readonly minimumHeight = DEFAULT_EDITOR_MIN_DIMENSIONS.height;
-	readonly maximumHeight = DEFAULT_EDITOR_MAX_DIMENSIONS.height;
+	get minimumWidth() { return DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
+	get maximumWidth() { return DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
+	get minimumHeight() { return DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
+	get maximumHeight() { return DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
 	readonly onDidSizeConstraintsChange = Event.None;
 
@@ -106,10 +106,6 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 		this.createEditor(parent);
 	}
 
-	onHide() { }
-
-	onWillHide() { }
-
 	/**
 	 * Called to create the editor in the parent HTMLElement.
 	 */
@@ -132,6 +128,16 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		this._group = group;
 	}
+
+	/**
+	 * Called before the editor is being removed from the DOM.
+	 */
+	onWillHide() { }
+
+	/**
+	 * Called after the editor has been removed from the DOM.
+	 */
+	onDidHide() { }
 
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
 		const mementoKey = `${this.getId()}${key}`;

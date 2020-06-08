@@ -20,6 +20,7 @@ import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { ConflictDetector } from 'vs/workbench/services/bulkEdit/browser/conflicts';
 import { ResourceMap } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
+import { extUri } from 'vs/base/common/resources';
 
 export class CheckedStates<T extends object> {
 
@@ -209,13 +210,13 @@ export class BulkFileOperations {
 			}
 
 			const insert = (uri: URI, map: Map<string, BulkFileOperation>) => {
-				let key = uri.toString();
+				let key = extUri.getComparisonKey(uri, true);
 				let operation = map.get(key);
 
 				// rename
 				if (!operation && newToOldUri.has(uri)) {
 					uri = newToOldUri.get(uri)!;
-					key = uri.toString();
+					key = extUri.getComparisonKey(uri, true);
 					operation = map.get(key);
 				}
 

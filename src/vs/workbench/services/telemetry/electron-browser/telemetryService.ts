@@ -21,7 +21,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private impl: ITelemetryService;
 	public readonly sendErrorTelemetry: boolean;

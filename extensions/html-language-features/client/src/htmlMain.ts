@@ -298,21 +298,26 @@ export function activate(context: ExtensionContext) {
 	});
 
 	const promptForTypeOnRenameKey = 'html.promptForTypeOnRename';
-	const promptForTypeOnRename =
-		!workspace.getConfiguration().get(SettingIds.renameOnType, { languageId: 'html' }) &&
-		extensions.getExtension('formulahendry.auto-rename-tag') &&
-		(context.globalState.get(promptForTypeOnRenameKey) !== false);
+	const promptForTypeOnRename = extensions.getExtension('formulahendry.auto-rename-tag') !== undefined &&
+		(context.globalState.get(promptForTypeOnRenameKey) !== false) &&
+		!workspace.getConfiguration('editor', { languageId: 'html' }).get('renameOnType');
 
-	toDispose.push(window.onDidChangeActiveTextEditor(async e => {
-		if (e && promptForTypeOnRename && documentSelector.indexOf(e.document.languageId) !== -1) {
-			context.globalState.update(promptForTypeOnRenameKey, false);
-			const configure = localize('configureButton', 'Configure');
-			const res = await window.showInformationMessage(localize('renameOnTypeQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
-			if (res === configure) {
-				commands.executeCommand('workbench.action.openSettings', SettingIds.renameOnType);
+	if (promptForTypeOnRename) {
+		const activeEditorListener = window.onDidChangeActiveTextEditor(async e => {
+			if (e && documentSelector.indexOf(e.document.languageId) !== -1) {
+				context.globalState.update(promptForTypeOnRenameKey, false);
+				activeEditorListener.dispose();
+				const configure = localize('configureButton', 'Configure');
+				const res = await window.showInformationMessage(localize('renameOnTypeQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
+				if (res === configure) {
+					commands.executeCommand('workbench.action.openSettings', SettingIds.renameOnType);
+				}
 			}
-		}
-	}));
+		});
+		toDispose.push(activeEditorListener);
+	}
+
+	toDispose.push();
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo | null {

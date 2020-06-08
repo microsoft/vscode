@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IOpenWindowOptions, IWindowConfiguration, IPath, IOpenFileRequest, IPathData } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration, IPath, IOpenFileRequest, IPathData } from 'vs/platform/windows/common/windows';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
@@ -12,15 +12,6 @@ import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { ExportData } from 'vs/base/common/performance';
 import { ParsedArgs } from 'vs/platform/environment/node/argv';
-
-export interface IOpenedWindow {
-	id: number;
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: ISingleFolderWorkspaceIdentifier;
-	title: string;
-	filename?: string;
-	dirty: boolean;
-}
 
 export const enum OpenContext {
 
@@ -51,10 +42,6 @@ export interface IRunActionInWindowRequest {
 
 export interface IRunKeybindingInWindowRequest {
 	userSettingsLabel: string;
-}
-
-export interface IAddFoldersRequest {
-	foldersToAdd: UriComponents[];
 }
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, ParsedArgs {
@@ -98,13 +85,6 @@ export interface IPathsToWaitFor extends IPathsToWaitForData {
 export interface IPathsToWaitForData {
 	paths: IPathData[];
 	waitMarkerFileUri: UriComponents;
-}
-
-export interface INativeOpenWindowOptions extends IOpenWindowOptions {
-	diffMode?: boolean;
-	addMode?: boolean;
-	gotoLineMode?: boolean;
-	waitMarkerFileURI?: URI;
 }
 
 export interface IWindowContext {
