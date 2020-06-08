@@ -165,6 +165,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	set activeKernel(kernel: INotebookKernelInfo | undefined) {
+		if (this._isDisposed) {
+			return;
+		}
+
 		this._activeKernel = kernel;
 		this._onDidChangeKernel.fire();
 	}
@@ -173,6 +177,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
 
 	get activeCodeEditor(): IEditor | undefined {
+		if (this._isDisposed) {
+			return;
+		}
+
 		const [focused] = this.list!.getFocusedElements();
 		return this.renderedEditors.get(focused);
 	}
