@@ -294,32 +294,32 @@ export interface INotebookEditor extends IEditor {
 	/**
 	 * Reveal a line in notebook cell into viewport with minimal scrolling.
 	 */
-	revealLineInView(cell: ICellViewModel, line: number): void;
+	revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void>;
 
 	/**
 	 * Reveal a line in notebook cell into viewport center.
 	 */
-	revealLineInCenter(cell: ICellViewModel, line: number): void;
+	revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void>;
 
 	/**
 	 * Reveal a line in notebook cell into viewport center.
 	 */
-	revealLineInCenterIfOutsideViewport(cell: ICellViewModel, line: number): void;
+	revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void>;
 
 	/**
 	 * Reveal a range in notebook cell into viewport with minimal scrolling.
 	 */
-	revealRangeInView(cell: ICellViewModel, range: Range): void;
+	revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
 	 * Reveal a range in notebook cell into viewport center.
 	 */
-	revealRangeInCenter(cell: ICellViewModel, range: Range): void;
+	revealRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
 	 * Reveal a range in notebook cell into viewport center.
 	 */
-	revealRangeInCenterIfOutsideViewport(cell: ICellViewModel, range: Range): void;
+	revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
 	 * Set hidden areas on cell text models.
@@ -380,12 +380,12 @@ export interface INotebookCellList {
 	revealElementInView(element: ICellViewModel): void;
 	revealElementInCenterIfOutsideViewport(element: ICellViewModel): void;
 	revealElementInCenter(element: ICellViewModel): void;
-	revealElementLineInView(element: ICellViewModel, line: number): void;
-	revealElementLineInCenter(element: ICellViewModel, line: number): void;
-	revealElementLineInCenterIfOutsideViewport(element: ICellViewModel, line: number): void;
-	revealElementRangeInView(element: ICellViewModel, range: Range): void;
-	revealElementRangeInCenter(element: ICellViewModel, range: Range): void;
-	revealElementRangeInCenterIfOutsideViewport(element: ICellViewModel, range: Range): void;
+	revealElementLineInViewAsync(element: ICellViewModel, line: number): Promise<void>;
+	revealElementLineInCenterAsync(element: ICellViewModel, line: number): Promise<void>;
+	revealElementLineInCenterIfOutsideViewportAsync(element: ICellViewModel, line: number): Promise<void>;
+	revealElementRangeInViewAsync(element: ICellViewModel, range: Range): Promise<void>;
+	revealElementRangeInCenterAsync(element: ICellViewModel, range: Range): Promise<void>;
+	revealElementRangeInCenterIfOutsideViewportAsync(element: ICellViewModel, range: Range): Promise<void>;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
 	focusView(): void;

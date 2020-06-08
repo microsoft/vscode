@@ -234,13 +234,13 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
 			onDragOver: (e: IDraggedCompositeData) => {
 				// don't add feedback if this is over the composite bar actions or there are no actions
-				if (!(this.compositeSwitcherBar?.length()) || (e.eventData.target && isAncestor(e.eventData.target as HTMLElement, actionBarDiv))) {
+				const visibleItems = this.getVisibleComposites();
+				if (!visibleItems.length || (e.eventData.target && isAncestor(e.eventData.target as HTMLElement, actionBarDiv))) {
 					toggleClass(parent, 'dragged-over', false);
 					return;
 				}
 
-				const pinnedItems = this.getPinnedComposites();
-				const validDropTarget = this.options.dndHandler.onDragOver(e.dragAndDropData, pinnedItems[pinnedItems.length - 1].id, e.eventData);
+				const validDropTarget = this.options.dndHandler.onDragOver(e.dragAndDropData, visibleItems[visibleItems.length - 1].id, e.eventData);
 				toggleClass(parent, 'dragged-over', validDropTarget);
 			},
 
@@ -251,9 +251,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				toggleClass(parent, 'dragged-over', false);
 			},
 			onDrop: (e: IDraggedCompositeData) => {
-				const pinnedItems = this.getPinnedComposites();
-				if (pinnedItems.length) {
-					this.options.dndHandler.drop(e.dragAndDropData, pinnedItems[pinnedItems.length - 1].id, e.eventData, { horizontallyBefore: false, verticallyBefore: false });
+				const visibleItems = this.getVisibleComposites();
+				if (visibleItems.length) {
+					this.options.dndHandler.drop(e.dragAndDropData, visibleItems[visibleItems.length - 1].id, e.eventData, { horizontallyBefore: false, verticallyBefore: false });
 				}
 				toggleClass(parent, 'dragged-over', false);
 			}
