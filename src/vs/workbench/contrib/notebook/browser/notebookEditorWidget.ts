@@ -97,6 +97,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
 
+	get isDisposed() {
+		return this._isDisposed;
+	}
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -165,6 +169,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	set activeKernel(kernel: INotebookKernelInfo | undefined) {
+		if (this._isDisposed) {
+			return;
+		}
+
 		this._activeKernel = kernel;
 		this._onDidChangeKernel.fire();
 	}
@@ -173,6 +181,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
 
 	get activeCodeEditor(): IEditor | undefined {
+		if (this._isDisposed) {
+			return;
+		}
+
 		const [focused] = this.list!.getFocusedElements();
 		return this.renderedEditors.get(focused);
 	}

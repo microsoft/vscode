@@ -19,6 +19,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { equals } from 'vs/base/common/arrays';
 import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 
 export interface IFocusTracker {
 	onGainedFocus(): void;
@@ -467,7 +468,7 @@ export class MainThreadTextEditor {
 
 		// check if clipboard is required and only iff read it (async)
 		let clipboardText: string | undefined;
-		const needsTemplate = SnippetController2.guessNeedsClipboard(template);
+		const needsTemplate = SnippetParser.guessNeedsClipboard(template);
 		if (needsTemplate) {
 			const state = new EditorState(this._codeEditor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 			clipboardText = await this._clipboardService.readText();

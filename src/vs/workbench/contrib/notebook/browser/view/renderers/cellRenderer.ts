@@ -317,6 +317,10 @@ abstract class AbstractCellRenderer {
 
 		updateActions();
 		disposables.add(menu.onDidChange(() => {
+			if (this.notebookEditor.isDisposed) {
+				return;
+			}
+
 			updateActions();
 		}));
 	}

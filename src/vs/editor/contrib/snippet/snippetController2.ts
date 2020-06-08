@@ -45,10 +45,6 @@ export class SnippetController2 implements IEditorContribution {
 		return editor.getContribution<SnippetController2>(SnippetController2.ID);
 	}
 
-	static guessNeedsClipboard(template: string): boolean {
-		return /\${?CLIPBOARD/.test(template);
-	}
-
 	static readonly InSnippetMode = new RawContextKey('inSnippetMode', false);
 	static readonly HasNextTabstop = new RawContextKey('hasNextTabstop', false);
 	static readonly HasPrevTabstop = new RawContextKey('hasPrevTabstop', false);
