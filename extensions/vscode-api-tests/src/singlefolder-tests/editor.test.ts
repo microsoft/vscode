@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection, Uri } from 'vscode';
+import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection, Uri, env } from 'vscode';
 import { createRandomFile, deleteFile, closeAllEditors } from '../utils';
 
 suite('vscode API - editors', () => {
@@ -44,6 +44,20 @@ suite('vscode API - editors', () => {
 				assert.equal(doc.getText(), 'This is a placeholder snippet');
 				assert.ok(doc.isDirty);
 			});
+		});
+	});
+
+	test('insert snippet with clipboard variables', async () => {
+
+		await env.clipboard.writeText('INTEGRATION-TESTS');
+
+		const snippetString = new SnippetString('running: $CLIPBOARD');
+
+		return withRandomFileEditor('', async (editor, doc) => {
+			const inserted = await editor.insertSnippet(snippetString);
+			assert.ok(inserted);
+			assert.equal(doc.getText(), 'running: INTEGRATION-TESTS');
+			assert.ok(doc.isDirty);
 		});
 	});
 

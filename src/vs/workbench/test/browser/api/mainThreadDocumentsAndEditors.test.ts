@@ -27,6 +27,7 @@ import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogSer
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -92,6 +93,11 @@ suite('MainThreadDocumentsAndEditors', () => {
 			TestEnvironmentService,
 			new TestWorkingCopyFileService(),
 			new UriIdentityService(fileService),
+			new class extends mock<IClipboardService>() {
+				readText() {
+					return Promise.resolve('clipboard_contents');
+				}
+			}
 		);
 	});
 
