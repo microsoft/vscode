@@ -30,7 +30,8 @@ export enum SettingValueType {
 	Exclude = 'exclude',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
-	NullableNumber = 'nullable-number'
+	NullableNumber = 'nullable-number',
+	Object = 'object'
 }
 
 export interface ISettingsGroup {

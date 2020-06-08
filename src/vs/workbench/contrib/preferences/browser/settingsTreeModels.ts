@@ -5,7 +5,7 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { isArray, withUndefinedAsNull } from 'vs/base/common/types';
+import { isArray, withUndefinedAsNull, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
@@ -15,6 +15,7 @@ import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/pr
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -217,6 +218,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			} else {
 				this.valueType = SettingValueType.Complex;
 			}
+		} else if (isObjectSetting(this.setting)) {
+			this.valueType = SettingValueType.Object;
 		} else {
 			this.valueType = SettingValueType.Complex;
 		}
@@ -463,6 +466,23 @@ export function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
 		setting.key === 'search.exclude' ||
 		setting.key === 'files.watcherExclude';
+}
+
+function isObjectRenderableSchemaMap(schemaMap: IJSONSchemaMap): boolean {
+	return Object.values(schemaMap).every(({ type }) => type === 'string');
+}
+
+function isObjectSetting(setting: ISetting): boolean {
+	if (setting.type !== 'object') {
+		return false;
+	}
+
+	if (isUndefinedOrNull(setting.objectProperties) && isUndefinedOrNull(setting.objectPatternProperties)) {
+		return false;
+	}
+
+	return isObjectRenderableSchemaMap(setting.objectProperties ?? {})
+		&& isObjectRenderableSchemaMap(setting.objectPatternProperties ?? {});
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {
