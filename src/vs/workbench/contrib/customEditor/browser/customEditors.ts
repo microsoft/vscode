@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Registry } from 'vs/platform/registry/common/platform';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
@@ -21,11 +22,10 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput, EditorOptions, GroupIdentifier, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, IEditorInput, IEditorPane, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { defaultEditorOverrideEntry } from 'vs/workbench/contrib/files/common/openWith';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
 import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
@@ -47,6 +47,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	private readonly _webviewHasOwnEditFunctions: IContextKey<boolean>;
 	private readonly _onDidChangeViewTypes = new Emitter<void>();
 	onDidChangeViewTypes: Event<void> = this._onDidChangeViewTypes.event;
+
+	private readonly _fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileEditorInputFactory();
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -322,7 +324,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const editorsToReplace = new Map<GroupIdentifier, IEditorInput[]>();
 		for (const group of this.editorGroupService.groups) {
 			for (const editor of group.editors) {
-				if (editor instanceof FileEditorInput
+				if (this._fileEditorInputFactory.isFileEditorInput(editor)
 					&& !(editor instanceof CustomEditorInput)
 					&& isEqual(editor.resource, newResource)
 				) {
@@ -420,6 +422,9 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 }
 
 export class CustomEditorContribution extends Disposable implements IWorkbenchContribution {
+
+	private readonly _fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileEditorInputFactory();
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
@@ -441,7 +446,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 				return [
 					{
 						...defaultEditorOverrideEntry,
-						active: currentEditor instanceof FileEditorInput,
+						active: this._fileEditorInputFactory.isFileEditorInput(currentEditor),
 					},
 					...customEditors.allEditors
 						.filter(entry => entry.id !== defaultCustomEditor.id)

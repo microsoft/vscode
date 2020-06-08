@@ -28,9 +28,9 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 	private modelReference: Promise<IReference<ITextEditorModel>> | undefined = undefined;
 
 	constructor(
+		resource: URI,
 		private name: string | undefined,
 		private description: string | undefined,
-		resource: URI,
 		private preferredMode: string | undefined,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService,

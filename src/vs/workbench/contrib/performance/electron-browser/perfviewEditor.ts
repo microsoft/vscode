@@ -58,9 +58,9 @@ export class PerfviewInput extends ResourceEditorInput {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
 		super(
+			PerfviewInput.Uri,
 			localize('name', "Startup Performance"),
 			undefined,
-			PerfviewInput.Uri,
 			undefined,
 			textModelResolverService,
 			textFileService,

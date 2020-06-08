@@ -159,10 +159,10 @@ suite('Workbench base editor', () => {
 
 		let inst = workbenchInstantiationService();
 
-		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceEditorInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
+		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
 		assert.strictEqual(editor.getId(), 'myEditor');
 
-		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
+		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
 		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
 
 		disposable.dispose();
@@ -171,7 +171,7 @@ suite('Workbench base editor', () => {
 	test('Editor Lookup favors specific class over superclass (match on super class)', function () {
 		let inst = workbenchInstantiationService();
 
-		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceEditorInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
+		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
 		assert.strictEqual('workbench.editors.textResourceEditor', editor.getId());
 	});
 

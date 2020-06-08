@@ -887,7 +887,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 
 				// Resource
-				return this.instantiationService.createInstance(ResourceEditorInput, resourceEditorInput.label, resourceEditorInput.description, canonicalResource, resourceEditorInput.mode);
+				return this.instantiationService.createInstance(ResourceEditorInput, canonicalResource, resourceEditorInput.label, resourceEditorInput.description, resourceEditorInput.mode);
 			}, cachedInput => {
 
 				// Untitled
