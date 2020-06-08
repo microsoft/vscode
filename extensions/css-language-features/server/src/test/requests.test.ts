@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import 'mocha';
 import * as assert from 'assert';
-import { joinPath, normalizePath, resolvePath } from '../requests';
-
+import { joinPath, normalizePath, resolvePath, extname } from '../requests';
 
 suite('requests', () => {
 	test('join', async function () {
@@ -50,5 +49,14 @@ suite('requests', () => {
 		assertNormalize('/a/n/../..', '/');
 		assertNormalize('..', '');
 		assertNormalize('/..', '/');
+	});
+
+	test('extname', async function () {
+		function assertExtName(input: string, expected: string) {
+			assert.equal(extname(input), expected, input);
+		}
+		assertExtName('foo://a/foo/bar', '');
+		assertExtName('foo://a/foo/bar.foo', '.foo');
+		assertExtName('foo://a/foo/.foo', '');
 	});
 });
