@@ -46,6 +46,12 @@ export namespace TsServerLogLevel {
 	}
 }
 
+export const enum SeparateSyntaxServerConfigration {
+	Disabled,
+	Enabled,
+	Dynamic,
+}
+
 export class TypeScriptServiceConfiguration {
 	public readonly locale: string | null;
 	public readonly globalTsdk: string | null;
@@ -56,7 +62,7 @@ export class TypeScriptServiceConfiguration {
 	public readonly checkJs: boolean;
 	public readonly experimentalDecorators: boolean;
 	public readonly disableAutomaticTypeAcquisition: boolean;
-	public readonly useSeparateSyntaxServer: boolean;
+	public readonly separateSyntaxServer: SeparateSyntaxServerConfigration;
 	public readonly enableProjectDiagnostics: boolean;
 	public readonly maxTsServerMemory: number;
 	public readonly enablePromptUseWorkspaceTsdk: boolean;
@@ -78,7 +84,7 @@ export class TypeScriptServiceConfiguration {
 		this.checkJs = TypeScriptServiceConfiguration.readCheckJs(configuration);
 		this.experimentalDecorators = TypeScriptServiceConfiguration.readExperimentalDecorators(configuration);
 		this.disableAutomaticTypeAcquisition = TypeScriptServiceConfiguration.readDisableAutomaticTypeAcquisition(configuration);
-		this.useSeparateSyntaxServer = TypeScriptServiceConfiguration.readUseSeparateSyntaxServer(configuration);
+		this.separateSyntaxServer = TypeScriptServiceConfiguration.readUseSeparateSyntaxServer(configuration);
 		this.enableProjectDiagnostics = TypeScriptServiceConfiguration.readEnableProjectDiagnostics(configuration);
 		this.maxTsServerMemory = TypeScriptServiceConfiguration.readMaxTsServerMemory(configuration);
 		this.enablePromptUseWorkspaceTsdk = TypeScriptServiceConfiguration.readEnablePromptUseWorkspaceTsdk(configuration);
@@ -95,7 +101,7 @@ export class TypeScriptServiceConfiguration {
 			&& this.experimentalDecorators === other.experimentalDecorators
 			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition
 			&& arrays.equals(this.tsServerPluginPaths, other.tsServerPluginPaths)
-			&& this.useSeparateSyntaxServer === other.useSeparateSyntaxServer
+			&& this.separateSyntaxServer === other.separateSyntaxServer
 			&& this.enableProjectDiagnostics === other.enableProjectDiagnostics
 			&& this.maxTsServerMemory === other.maxTsServerMemory
 			&& objects.equals(this.watchOptions, other.watchOptions)
@@ -157,8 +163,15 @@ export class TypeScriptServiceConfiguration {
 		return configuration.get<string | null>('typescript.locale', null);
 	}
 
-	private static readUseSeparateSyntaxServer(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.useSeparateSyntaxServer', true);
+	private static readUseSeparateSyntaxServer(configuration: vscode.WorkspaceConfiguration): SeparateSyntaxServerConfigration {
+		const value = configuration.get('typescript.tsserver.useSeparateSyntaxServer', true);
+		if (value === true) {
+			return SeparateSyntaxServerConfigration.Enabled;
+		}
+		if (value === 'dynamic') {
+			return SeparateSyntaxServerConfigration.Dynamic;
+		}
+		return SeparateSyntaxServerConfigration.Disabled;
 	}
 
 	private static readEnableProjectDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {

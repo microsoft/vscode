@@ -16,6 +16,7 @@ import { Reader } from '../utils/wireProtocol';
 import { CallbackMap } from './callbackMap';
 import { RequestItem, RequestQueue, RequestQueueingType } from './requestQueue';
 import { TypeScriptServerError } from './serverError';
+import { EventName } from '../protocol.const';
 
 export interface OngoingRequestCanceller {
 	tryCancelOngoingRequest(seq: number): boolean;
@@ -309,7 +310,7 @@ class RequestRouter {
 	]);
 
 	constructor(
-		private readonly servers: ReadonlyArray<{ readonly server: ITypeScriptServer, readonly preferredCommands?: ReadonlySet<keyof TypeScriptRequests> }>,
+		private readonly servers: ReadonlyArray<{ readonly server: ITypeScriptServer, canRun?(command: keyof TypeScriptRequests): void }>,
 		private readonly delegate: TsServerDelegate,
 	) { }
 
@@ -368,8 +369,8 @@ class RequestRouter {
 			return firstRequest;
 		}
 
-		for (const { preferredCommands, server } of this.servers) {
-			if (!preferredCommands || preferredCommands.has(command)) {
+		for (const { canRun, server } of this.servers) {
+			if (!canRun || canRun(command)) {
 				return server.executeImpl(command, args, executeInfo);
 			}
 		}
@@ -379,17 +380,17 @@ class RequestRouter {
 }
 
 
-export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServer {
+const syntaxCommands: ReadonlySet<keyof TypeScriptRequests> = new Set<keyof TypeScriptRequests>([
+	'navtree',
+	'getOutliningSpans',
+	'jsxClosingTag',
+	'selectionRange',
+	'format',
+	'formatonkey',
+	'docCommentTemplate',
+]);
 
-	private static readonly syntaxCommands = new Set<keyof TypeScriptRequests>([
-		'navtree',
-		'getOutliningSpans',
-		'jsxClosingTag',
-		'selectionRange',
-		'format',
-		'formatonkey',
-		'docCommentTemplate',
-	]);
+export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServer {
 
 	private readonly syntaxServer: ITypeScriptServer;
 	private readonly semanticServer: ITypeScriptServer;
@@ -406,8 +407,8 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 
 		this.router = new RequestRouter(
 			[
-				{ server: this.syntaxServer, preferredCommands: SyntaxRoutingTsServer.syntaxCommands },
-				{ server: this.semanticServer, preferredCommands: undefined /* gets all other commands */ }
+				{ server: this.syntaxServer, canRun: (command) => syntaxCommands.has(command) },
+				{ server: this.semanticServer, canRun: undefined /* gets all other commands */ }
 			],
 			delegate);
 
@@ -449,11 +450,11 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 
 export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServer {
 
-	private static readonly diagnosticEvents = new Set([
-		'configFileDiag',
-		'syntaxDiag',
-		'semanticDiag',
-		'suggestionDiag'
+	private static readonly diagnosticEvents = new Set<string>([
+		EventName.configFileDiag,
+		EventName.syntaxDiag,
+		EventName.semanticDiag,
+		EventName.suggestionDiag
 	]);
 
 	private readonly getErrServer: ITypeScriptServer;
@@ -471,8 +472,8 @@ export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServ
 
 		this.router = new RequestRouter(
 			[
-				{ server: this.getErrServer, preferredCommands: new Set<keyof TypeScriptRequests>(['geterr', 'geterrForProject']) },
-				{ server: this.mainServer, preferredCommands: undefined /* gets all other commands */ }
+				{ server: this.getErrServer, canRun: (command) => ['geterr', 'geterrForProject'].includes(command) },
+				{ server: this.mainServer, canRun: undefined /* gets all other commands */ }
 			],
 			delegate);
 
@@ -523,6 +524,105 @@ export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServ
 	}
 }
 
+
+export class ProjectLoadingRoutingSyntaxTsServer extends Disposable implements ITypeScriptServer {
+
+	private static readonly semanticCommands = new Set<keyof TypeScriptRequests>([
+		'geterr',
+		'geterrForProject'
+	]);
+
+	private readonly syntaxServer: ITypeScriptServer;
+	private readonly semanticServer: ITypeScriptServer;
+	private readonly router: RequestRouter;
+
+	private _projectLoading = true;
+
+	public constructor(
+		servers: { syntax: ITypeScriptServer, semantic: ITypeScriptServer },
+		delegate: TsServerDelegate,
+	) {
+		super();
+
+		this.syntaxServer = servers.syntax;
+		this.semanticServer = servers.semantic;
+
+		this.router = new RequestRouter(
+			[
+				{
+					server: this.syntaxServer,
+					canRun: (command) => {
+						if (syntaxCommands.has(command)) {
+							return true;
+						}
+						if (ProjectLoadingRoutingSyntaxTsServer.semanticCommands.has(command)) {
+							return false;
+						}
+						if (this._projectLoading) {
+							return true;
+						}
+						return false;
+					}
+				}, {
+					server: this.semanticServer,
+					canRun: undefined /* gets all other commands */
+				}
+			],
+			delegate);
+
+		this._register(this.syntaxServer.onEvent(e => {
+			return this._onEvent.fire(e);
+		}));
+
+		this._register(this.semanticServer.onEvent(e => {
+			switch (e.event) {
+				case EventName.projectLoadingStart:
+					this._projectLoading = true;
+					break;
+
+				case EventName.projectLoadingFinish:
+				case EventName.semanticDiag:
+				case EventName.syntaxDiag:
+				case EventName.suggestionDiag:
+				case EventName.configFileDiag:
+					this._projectLoading = false;
+					break;
+			}
+			return this._onEvent.fire(e);
+		}));
+
+		this._register(this.semanticServer.onExit(e => {
+			this._onExit.fire(e);
+			this.syntaxServer.kill();
+		}));
+
+		this._register(this.semanticServer.onError(e => this._onError.fire(e)));
+	}
+
+	private readonly _onEvent = this._register(new vscode.EventEmitter<Proto.Event>());
+	public readonly onEvent = this._onEvent.event;
+
+	private readonly _onExit = this._register(new vscode.EventEmitter<any>());
+	public readonly onExit = this._onExit.event;
+
+	private readonly _onError = this._register(new vscode.EventEmitter<any>());
+	public readonly onError = this._onError.event;
+
+	public get onReaderError() { return this.semanticServer.onReaderError; }
+
+	public get tsServerLogFile() { return this.semanticServer.tsServerLogFile; }
+
+	public kill(): void {
+		this.syntaxServer.kill();
+		this.semanticServer.kill();
+	}
+
+	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
+	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
+	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
+		return this.router.execute(command, args, executeInfo);
+	}
+}
 
 namespace RequestState {
 	export const enum Type { Unresolved, Resolved, Errored }
