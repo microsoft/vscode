@@ -13,7 +13,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/electron-browser/timerService';
-import { repeat } from 'vs/base/common/strings';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import * as perf from 'vs/base/common/performance';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -59,9 +58,9 @@ export class PerfviewInput extends ResourceEditorInput {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
 		super(
+			PerfviewInput.Uri,
 			localize('name', "Startup Performance"),
 			undefined,
-			PerfviewInput.Uri,
 			undefined,
 			textModelResolverService,
 			textFileService,
@@ -218,7 +217,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		md.value += `Name\tTimestamp\tDelta\tTotal\n`;
 		let lastStartTime = -1;
 		let total = 0;
-		for (const { name, timestamp: startTime } of perf.getEntries()) {
+		for (const { name, startTime } of perf.getEntries()) {
 			let delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
 			total += delta;
 			md.value += `${name}\t${startTime}\t${delta}\t${total}\n`;
@@ -377,7 +376,7 @@ class MarkdownBuilder {
 	value: string = '';
 
 	heading(level: number, value: string): this {
-		this.value += `${repeat('#', level)} ${value}\n\n`;
+		this.value += `${'#'.repeat(level)} ${value}\n\n`;
 		return this;
 	}
 
@@ -407,16 +406,16 @@ class MarkdownBuilder {
 		});
 
 		// header
-		header.forEach((cell, ci) => { this.value += `| ${cell + repeat(' ', lengths[ci] - cell.toString().length)} `; });
+		header.forEach((cell, ci) => { this.value += `| ${cell + ' '.repeat(lengths[ci] - cell.toString().length)} `; });
 		this.value += '|\n';
-		header.forEach((_cell, ci) => { this.value += `| ${repeat('-', lengths[ci])} `; });
+		header.forEach((_cell, ci) => { this.value += `| ${'-'.repeat(lengths[ci])} `; });
 		this.value += '|\n';
 
 		// cells
 		rows.forEach(row => {
 			row.forEach((cell, ci) => {
 				if (typeof cell !== 'undefined') {
-					this.value += `| ${cell + repeat(' ', lengths[ci] - cell.toString().length)} `;
+					this.value += `| ${cell + ' '.repeat(lengths[ci] - cell.toString().length)} `;
 				}
 			});
 			this.value += '|\n';

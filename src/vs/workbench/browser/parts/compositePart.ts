@@ -316,11 +316,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
 
-	private collectCompositeActions(composite: Composite): () => void {
+	private collectCompositeActions(composite?: Composite): () => void {
 
 		// From Composite
-		const primaryActions: IAction[] = composite.getActions().slice(0);
-		const secondaryActions: IAction[] = composite.getSecondaryActions().slice(0);
+		const primaryActions: IAction[] = composite?.getActions().slice(0) || [];
+		const secondaryActions: IAction[] = composite?.getSecondaryActions().slice(0) || [];
 
 		// From Part
 		primaryActions.push(...this.getActions());
@@ -368,7 +368,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Empty Actions
 		if (this.toolBar) {
-			this.toolBar.setActions([])();
+			this.collectCompositeActions()();
 		}
 		this.onDidCompositeClose.fire(composite);
 
@@ -394,6 +394,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment()
 		}));
+
+		this.collectCompositeActions()();
 
 		return titleArea;
 	}

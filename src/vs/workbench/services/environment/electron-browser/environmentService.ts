@@ -18,6 +18,7 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 	readonly configuration: INativeEnvironmentConfiguration;
 
 	readonly disableCrashReporter: boolean;
+	readonly crashReporterDirectory?: string;
 
 	readonly cliPath: string;
 
@@ -31,7 +32,7 @@ export interface INativeEnvironmentConfiguration extends IEnvironmentConfigurati
 
 export class NativeWorkbenchEnvironmentService extends EnvironmentService implements INativeWorkbenchEnvironmentService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	@memoize
 	get webviewExternalEndpoint(): string {
@@ -41,10 +42,15 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	}
 
 	@memoize
-	get webviewResourceRoot(): string { return 'vscode-resource://{{resource}}'; }
+	get webviewResourceRoot(): string {
+		return `${Schemas.oldVscodeWebviewResource}://{{resource}}`;
+
+		// TODO mjbvz: restore when switching to new protcol
+		// return `${Schemas.vscodeWebviewResource}://{{uuid}}/{{resource}}`;
+	}
 
 	@memoize
-	get webviewCspSource(): string { return 'vscode-resource:'; }
+	get webviewCspSource(): string { return `${Schemas.oldVscodeWebviewResource}:`; }
 
 	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
@@ -54,6 +60,9 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 
 	@memoize
 	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
+
+	@memoize
+	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }
 
 	constructor(
 		readonly configuration: INativeEnvironmentConfiguration,

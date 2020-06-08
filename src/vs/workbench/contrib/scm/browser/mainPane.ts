@@ -192,6 +192,7 @@ export class MainPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
@@ -212,6 +213,9 @@ export class MainPane extends ViewPane {
 			accessibilityProvider: {
 				getAriaLabel(r: ISCMRepository) {
 					return r.provider.label;
+				},
+				getWidgetAriaLabel() {
+					return MainPane.TITLE;
 				}
 			}
 		}) as WorkbenchList<ISCMRepository>;
@@ -244,6 +248,10 @@ export class MainPane extends ViewPane {
 		toggleClass(this.element, 'empty', empty);
 
 		this.updateBodySize();
+	}
+
+	focus(): void {
+		this.list.domFocus();
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -279,6 +287,12 @@ export class MainPane extends ViewPane {
 
 		menu.dispose();
 		contextKeyService.dispose();
+
+		if (repository.provider.rootUri) {
+			secondary.push(new Action('_openInTerminal', localize('open in terminal', "Open In Terminal"), undefined, true, async () => {
+				await this.commandService.executeCommand('openInTerminal', repository.provider.rootUri);
+			}));
+		}
 
 		if (secondary.length === 0) {
 			return;

@@ -6,6 +6,7 @@
 import * as nls from 'vs/nls';
 import { ChildProcess, fork } from 'child_process';
 import { Server, Socket, createServer } from 'net';
+import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -27,7 +28,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -170,8 +171,17 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					opts.execArgv = ['--inspect-port=0'];
 				}
 
-				const crashReporterOptions = undefined; // TODO@electron pass this in as options to the extension host after verifying this actually works
-				if (crashReporterOptions) {
+				// Enable the crash reporter depending on environment for local reporting
+				const crashesDirectory = this._environmentService.crashReporterDirectory;
+				if (crashesDirectory) {
+					const crashReporterOptions: CrashReporterStartOptions = {
+						companyName: product.crashReporter?.companyName || 'Microsoft',
+						productName: product.crashReporter?.productName || product.nameShort,
+						submitURL: '',
+						uploadToServer: false,
+						crashesDirectory
+					};
+
 					opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterOptions);
 				}
 

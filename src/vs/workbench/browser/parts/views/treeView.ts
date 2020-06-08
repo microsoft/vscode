@@ -68,6 +68,9 @@ export class TreeViewPane extends ViewPane {
 		this._register(toDisposable(() => this.treeView.setVisibility(false)));
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 		this._register(this.treeView.onDidChangeWelcomeState(() => this._onDidChangeViewWelcomeState.fire()));
+		if (options.title !== this.treeView.title) {
+			this.updateTitle(this.treeView.title);
+		}
 		this.updateTreeVisibility();
 	}
 
@@ -161,7 +164,7 @@ export class TreeView extends Disposable implements ITreeView {
 	private readonly _onDidCompleteRefresh: Emitter<void> = this._register(new Emitter<void>());
 
 	constructor(
-		protected readonly id: string,
+		readonly id: string,
 		private _title: string,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -199,11 +202,11 @@ export class TreeView extends Disposable implements ITreeView {
 	}
 
 	get viewContainer(): ViewContainer {
-		return this.viewDescriptorService.getViewContainer(this.id)!;
+		return this.viewDescriptorService.getViewContainerByViewId(this.id)!;
 	}
 
 	get viewLocation(): ViewContainerLocation {
-		return this.viewDescriptorService.getViewLocation(this.id)!;
+		return this.viewDescriptorService.getViewLocationById(this.id)!;
 	}
 
 	private _dataProvider: ITreeViewDataProvider | undefined;
@@ -418,16 +421,26 @@ export class TreeView extends Disposable implements ITreeView {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
 		const aligner = new Aligner(this.themeService);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner);
+		const widgetAriaLabel = this._title;
 
 		this.tree = this._register(this.instantiationService.createInstance(Tree, this.id, this.treeContainer, new TreeViewDelegate(), [renderer],
 			dataSource, {
 			identityProvider: new TreeViewIdentityProvider(),
 			accessibilityProvider: {
 				getAriaLabel(element: ITreeItem): string {
+					if (element.accessibilityInformation) {
+						return element.accessibilityInformation.label;
+					}
+
 					return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
+				},
+				getRole(element: ITreeItem): string | undefined {
+					return element.accessibilityInformation?.role;
+				},
+				getWidgetAriaLabel(): string {
+					return widgetAriaLabel;
 				}
 			},
-			ariaLabel: this._title,
 			keyboardNavigationLabelProvider: {
 				getKeyboardNavigationLabel: (item: ITreeItem) => {
 					return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
@@ -780,14 +793,14 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
 		const label = treeItemLabel ? treeItemLabel.label : undefined;
 		const matches = (treeItemLabel && treeItemLabel.highlights && label) ? treeItemLabel.highlights.map(([start, end]) => {
-			if ((Math.abs(start) > label.length) || (Math.abs(end) >= label.length)) {
-				return ({ start: 0, end: 0 });
-			}
 			if (start < 0) {
 				start = label.length + start;
 			}
 			if (end < 0) {
 				end = label.length + end;
+			}
+			if ((start >= label.length) || (end > label.length)) {
+				return ({ start: 0, end: 0 });
 			}
 			if (start > end) {
 				const swap = start;

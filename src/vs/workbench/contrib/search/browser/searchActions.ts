@@ -22,7 +22,7 @@ import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { FolderMatch, FileMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, VIEW_ID, VIEWLET_ID } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -182,6 +182,7 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 
 export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
 
+	static readonly ID = VIEWLET_ID;
 	static readonly LABEL = nls.localize('showSearch', "Show Search");
 
 	constructor(id: string, label: string,
@@ -764,7 +765,16 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 }
 
-export const copyPathCommand: ICommandHandler = async (accessor, fileMatch: FileMatch | FolderMatchWithResource) => {
+export const copyPathCommand: ICommandHandler = async (accessor, fileMatch: FileMatch | FolderMatchWithResource | undefined) => {
+	if (!fileMatch) {
+		const selection = getSelectedRow(accessor);
+		if (!(selection instanceof FileMatch || selection instanceof FolderMatchWithResource)) {
+			return;
+		}
+
+		fileMatch = selection;
+	}
+
 	const clipboardService = accessor.get(IClipboardService);
 	const labelService = accessor.get(ILabelService);
 
@@ -831,7 +841,16 @@ function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch,
 }
 
 const maxClipboardMatches = 1e4;
-export const copyMatchCommand: ICommandHandler = async (accessor, match: RenderableMatch) => {
+export const copyMatchCommand: ICommandHandler = async (accessor, match: RenderableMatch | undefined) => {
+	if (!match) {
+		const selection = getSelectedRow(accessor);
+		if (!selection) {
+			return;
+		}
+
+		match = selection;
+	}
+
 	const clipboardService = accessor.get(IClipboardService);
 	const labelService = accessor.get(ILabelService);
 
@@ -862,6 +881,12 @@ function allFolderMatchesToString(folderMatches: Array<FolderMatchWithResource |
 	}
 
 	return folderResults.join(lineDelimiter + lineDelimiter);
+}
+
+function getSelectedRow(accessor: ServicesAccessor): RenderableMatch | undefined | null {
+	const viewsService = accessor.get(IViewsService);
+	const searchView = getSearchView(viewsService);
+	return searchView?.getControl().getSelection()[0];
 }
 
 export const copyAllCommand: ICommandHandler = async (accessor) => {

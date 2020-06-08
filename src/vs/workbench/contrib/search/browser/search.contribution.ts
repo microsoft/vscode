@@ -557,7 +557,7 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 
 // Show Search and Find in Files are redundant, but we can't break keybindings by removing one. So it's the same action, same keybinding, registered to different IDs.
 // Show Search 'when' is redundant but if the two conflict with exactly the same keybinding and 'when' clause, then they can show up as "unbound" - #51780
-registry.registerWorkbenchAction(SyncActionDescriptor.create(OpenSearchViewletAction, VIEWLET_ID, OpenSearchViewletAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }, Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenSearchViewletAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }, Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.FindInFilesActionId,
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -575,8 +575,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	order: 1
 });
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextSearchResultAction, { primary: KeyCode.F4 }, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor)), 'Focus Next Search Result', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousSearchResultAction, { primary: KeyMod.Shift | KeyCode.F4 }, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor)), 'Focus Previous Search Result', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextSearchResultAction, { primary: KeyCode.F4 }), 'Focus Next Search Result', category, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousSearchResultAction, { primary: KeyMod.Shift | KeyCode.F4 }), 'Focus Previous Search Result', category, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor));
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ReplaceInFilesAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H }), 'Replace in Files', category);
 MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
@@ -588,12 +588,22 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	order: 2
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
-	id: Constants.ToggleCaseSensitiveCommandId,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.SearchViewFocusedKey, Constants.FileMatchOrFolderMatchFocusKey.toNegated()),
-	handler: toggleCaseSensitiveCommand
-}, ToggleCaseSensitiveKeybinding));
+if (platform.isMacintosh) {
+	// Register this with a more restrictive `when` on mac to avoid conflict with "copy path"
+	KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+		id: Constants.ToggleCaseSensitiveCommandId,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: ContextKeyExpr.and(Constants.SearchViewFocusedKey, Constants.FileMatchOrFolderMatchFocusKey.toNegated()),
+		handler: toggleCaseSensitiveCommand
+	}, ToggleCaseSensitiveKeybinding));
+} else {
+	KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+		id: Constants.ToggleCaseSensitiveCommandId,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: Constants.SearchViewFocusedKey,
+		handler: toggleCaseSensitiveCommand
+	}, ToggleCaseSensitiveKeybinding));
+}
 
 KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 	id: Constants.ToggleWholeWordCommandId,
@@ -798,7 +808,7 @@ configurationRegistry.registerConfiguration({
 		'search.seedOnFocus': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('search.seedOnFocus', "Update workspace seach query to the editor's selected text when focusing the search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
+			description: nls.localize('search.seedOnFocus', "Update workspace search query to the editor's selected text when focusing the search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
 		},
 		'search.searchOnTypeDebouncePeriod': {
 			type: 'number',
@@ -816,17 +826,27 @@ configurationRegistry.registerConfiguration({
 			],
 			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double clicking a result in a search editor.")
 		},
+		'search.searchEditor.reusePriorSearchConfiguration': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('search.searchEditor.reusePriorSearchConfiguration', "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor")
+		},
+		'search.searchEditor.defaultNumberOfContextLines': {
+			type: ['number', 'null'],
+			default: null,
+			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding context lines to use when creating new Search Editors with `Search Editor: Open new Search Editor` and `Search Editor: Open new Search Editor to the Side`. If defined, this overrides `#search.searchEditor.reusePriorSearchConfiguration#`.")
+		},
 		'search.sortOrder': {
 			'type': 'string',
 			'enum': [SearchSortOrder.Default, SearchSortOrder.FileNames, SearchSortOrder.Type, SearchSortOrder.Modified, SearchSortOrder.CountDescending, SearchSortOrder.CountAscending],
 			'default': SearchSortOrder.Default,
 			'enumDescriptions': [
-				nls.localize('searchSortOrder.default', 'Results are sorted by folder and file names, in alphabetical order.'),
-				nls.localize('searchSortOrder.filesOnly', 'Results are sorted by file names ignoring folder order, in alphabetical order.'),
-				nls.localize('searchSortOrder.type', 'Results are sorted by file extensions, in alphabetical order.'),
-				nls.localize('searchSortOrder.modified', 'Results are sorted by file last modified date, in descending order.'),
-				nls.localize('searchSortOrder.countDescending', 'Results are sorted by count per file, in descending order.'),
-				nls.localize('searchSortOrder.countAscending', 'Results are sorted by count per file, in ascending order.')
+				nls.localize('searchSortOrder.default', "Results are sorted by folder and file names, in alphabetical order."),
+				nls.localize('searchSortOrder.filesOnly', "Results are sorted by file names ignoring folder order, in alphabetical order."),
+				nls.localize('searchSortOrder.type', "Results are sorted by file extensions, in alphabetical order."),
+				nls.localize('searchSortOrder.modified', "Results are sorted by file last modified date, in descending order."),
+				nls.localize('searchSortOrder.countDescending', "Results are sorted by count per file, in descending order."),
+				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
 		},

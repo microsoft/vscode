@@ -274,8 +274,10 @@ class QuickInput extends Disposable implements IQuickInput {
 			return;
 		}
 		const title = this.getTitle();
-		if (this.ui.title.textContent !== title) {
+		if (title && this.ui.title.textContent !== title) {
 			this.ui.title.textContent = title;
+		} else if (!title && this.ui.title.innerHTML !== '&nbsp;') {
+			this.ui.title.innerHTML = '&nbsp;';
 		}
 		const description = this.getDescription();
 		if (this.ui.description.textContent !== description) {
@@ -717,13 +719,13 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 						break;
 					case KeyCode.Home:
-						if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
+						if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
 							this.ui.list.focus(QuickInputListFocus.First);
 							dom.EventHelper.stop(event, true);
 						}
 						break;
 					case KeyCode.End:
-						if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
+						if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
 							this.ui.list.focus(QuickInputListFocus.Last);
 							dom.EventHelper.stop(event, true);
 						}
@@ -853,7 +855,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		dom.toggleClass(this.ui.container, 'hidden-input', hideInput);
 		const visibilities: Visibilities = {
-			title: !!this.title || !!this.step,
+			title: !!this.title || !!this.step || !!this.buttons.length,
 			description: !!this.description,
 			checkAll: this.canSelectMany,
 			inputBox: !hideInput,
@@ -1048,7 +1050,12 @@ class InputBox extends QuickInput implements IInputBox {
 		if (!this.visible) {
 			return;
 		}
-		this.ui.setVisibilities({ title: !!this.title || !!this.step, description: !!this.description || !!this.step, inputBox: true, message: true });
+		const visibilities: Visibilities = {
+			title: !!this.title || !!this.step || !!this.buttons.length,
+			description: !!this.description || !!this.step,
+			inputBox: true, message: true
+		};
+		this.ui.setVisibilities(visibilities);
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;

@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditorPane, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, IEditorIdentifier, GroupIdentifier, EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -32,6 +32,7 @@ import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/d
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -87,11 +88,12 @@ interface IStackEntry {
 interface IRecentlyClosedFile {
 	resource: URI;
 	index: number;
+	sticky: boolean;
 }
 
 export class HistoryService extends Disposable implements IHistoryService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private lastActiveEditor?: IEditorIdentifier;
@@ -616,7 +618,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 				// Remove all inputs matching and add as last recently closed
 				this.removeFromRecentlyClosedFiles(event.editor);
-				this.recentlyClosedFiles.push({ resource, index: event.index });
+				this.recentlyClosedFiles.push({ resource, index: event.index, sticky: event.sticky });
 
 				// Bounding
 				if (this.recentlyClosedFiles.length > HistoryService.MAX_RECENTLY_CLOSED_EDITORS) {
@@ -637,7 +639,22 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		if (lastClosedFile) {
 			(async () => {
-				const editor = await this.editorService.openEditor({ resource: lastClosedFile.resource, options: { pinned: true, index: lastClosedFile.index } });
+				let options: IEditorOptions;
+				if (lastClosedFile.sticky) {
+					// Sticky: in case the target index is outside of the range of
+					// sticky editors, we make sure to not provide the index as
+					// option. Otherwise the index will cause the sticky flag to
+					// be ignored.
+					if (!this.editorGroupService.activeGroup.isSticky(lastClosedFile.index)) {
+						options = { pinned: true, sticky: true };
+					} else {
+						options = { pinned: true, sticky: true, index: lastClosedFile.index };
+					}
+				} else {
+					options = { pinned: true, index: lastClosedFile.index };
+				}
+
+				const editor = await this.editorService.openEditor({ resource: lastClosedFile.resource, options });
 
 				// Fix for https://github.com/Microsoft/vscode/issues/67882
 				// If opening of the editor fails, make sure to try the next one
@@ -809,7 +826,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const entriesRaw = this.storageService.get(HistoryService.HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
-			entries = coalesce(JSON.parse(entriesRaw));
+			try {
+				entries = coalesce(JSON.parse(entriesRaw));
+			} catch (error) {
+				onUnexpectedError(error); // https://github.com/microsoft/vscode/issues/99075
+			}
 		}
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);

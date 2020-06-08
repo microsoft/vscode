@@ -21,6 +21,8 @@ import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { withNullAsUndefined, assertType } from 'vs/base/common/types';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+
 
 export type ServicesAccessor = InstantiationServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, IEditorContribution>;
@@ -41,6 +43,10 @@ export interface IDiffEditorContributionDescription {
 export interface ICommandKeybindingsOptions extends IKeybindings {
 	kbExpr?: ContextKeyExpression | null;
 	weight: number;
+	/**
+	 * the default keybinding arguments
+	 */
+	args?: any;
 }
 export interface ICommandMenuOptions {
 	menuId: MenuId;
@@ -48,6 +54,7 @@ export interface ICommandMenuOptions {
 	order: number;
 	when?: ContextKeyExpression;
 	title: string;
+	icon?: ThemeIcon
 }
 export interface ICommandOptions {
 	id: string;
@@ -93,6 +100,7 @@ export abstract class Command {
 				id: this.id,
 				handler: (accessor, args) => this.runCommand(accessor, args),
 				weight: this._kbOpts.weight,
+				args: this._kbOpts.args,
 				when: kbWhen,
 				primary: this._kbOpts.primary,
 				secondary: this._kbOpts.secondary,
@@ -118,6 +126,7 @@ export abstract class Command {
 			command: {
 				id: this.id,
 				title: item.title,
+				icon: item.icon
 				// precondition: this.precondition
 			},
 			when: item.when,

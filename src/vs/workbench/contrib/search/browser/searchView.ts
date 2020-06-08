@@ -785,6 +785,10 @@ export class SearchView extends ViewPane {
 	}
 
 	selectNextMatch(): void {
+		if (!this.hasSearchResults()) {
+			return;
+		}
+
 		const [selected] = this.tree.getSelection();
 
 		// Expand the initial selected node, if needed
@@ -824,6 +828,10 @@ export class SearchView extends ViewPane {
 	}
 
 	selectPreviousMatch(): void {
+		if (!this.hasSearchResults()) {
+			return;
+		}
+
 		const [selected] = this.tree.getSelection();
 		let navigator = this.tree.navigate(selected);
 
@@ -831,7 +839,13 @@ export class SearchView extends ViewPane {
 
 		// Select previous until find a Match or a collapsed item
 		while (!prev || (!(prev instanceof Match) && !this.tree.isCollapsed(prev))) {
-			prev = prev ? navigator.previous() : navigator.last();
+			const nextPrev = prev ? navigator.previous() : navigator.last();
+
+			if (!prev && !nextPrev) {
+				return;
+			}
+
+			prev = nextPrev;
 		}
 
 		// Expand until last child is a Match
@@ -874,7 +888,7 @@ export class SearchView extends ViewPane {
 					selectedText = strings.escapeRegExpCharacters(selectedText);
 				}
 
-				if (allowSearchOnType && !this.viewModel.searchResult.hasRemovedResults) {
+				if (allowSearchOnType && !this.viewModel.searchResult.isDirty) {
 					this.searchWidget.setValue(selectedText);
 				} else {
 					this.pauseSearching = true;
@@ -1022,6 +1036,7 @@ export class SearchView extends ViewPane {
 		}
 		this.viewModel.cancelSearch();
 		this.updateActions();
+		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
 		aria.status(nls.localize('ariaSearchResultsClearStatus', "The search results have been cleared"));
 	}
@@ -1557,9 +1572,12 @@ export class SearchView extends ViewPane {
 		this.hasSearchResultsKey.set(fileCount > 0);
 
 		const msgWasHidden = this.messagesElement.style.display === 'none';
+
+		const messageEl = this.clearMessage();
+		let resultMsg = this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount);
+		this.tree.ariaLabel = resultMsg + nls.localize('forTerm', " - Search: {0}", this.searchResult.query?.contentPattern.pattern ?? '');
+
 		if (fileCount > 0) {
-			const messageEl = this.clearMessage();
-			let resultMsg = this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount);
 			if (disregardExcludesAndIgnores) {
 				resultMsg += nls.localize('useIgnoresAndExcludesDisabled', " - exclude settings and ignore files are disabled");
 			}
@@ -1657,7 +1675,7 @@ export class SearchView extends ViewPane {
 				revealIfVisible: true
 			}
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-			if (editor && element instanceof Match && preserveFocus) {
+			if (element instanceof Match && preserveFocus && isCodeEditor(editor)) {
 				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange(
 					(<ICodeEditor>editor.getControl()).getModel()!,
 					element.range()

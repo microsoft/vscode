@@ -41,9 +41,11 @@ export class JSONEditingService implements IJSONEditingService {
 
 	private async doWriteConfiguration(resource: URI, values: IJSONValue[], save: boolean): Promise<void> {
 		const reference = await this.resolveAndValidate(resource, save);
-		await this.writeToBuffer(reference.object.textEditorModel, values, save);
-
-		reference.dispose();
+		try {
+			await this.writeToBuffer(reference.object.textEditorModel, values, save);
+		} finally {
+			reference.dispose();
+		}
 	}
 
 	private async writeToBuffer(model: ITextModel, values: IJSONValue[], save: boolean): Promise<any> {
@@ -108,11 +110,13 @@ export class JSONEditingService implements IJSONEditingService {
 		const model = reference.object.textEditorModel;
 
 		if (this.hasParseErrors(model)) {
+			reference.dispose();
 			return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
 		}
 
 		// Target cannot be dirty if not writing into buffer
 		if (checkDirty && this.textFileService.isDirty(resource)) {
+			reference.dispose();
 			return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
 		}
 

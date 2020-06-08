@@ -10,7 +10,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ILogService } from 'vs/platform/log/common/log';
 
 export abstract class AbstractTunnelService implements ITunnelService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _onTunnelOpened: Emitter<RemoteTunnel> = new Emitter();
 	public onTunnelOpened: Event<RemoteTunnel> = this._onTunnelOpened.event;

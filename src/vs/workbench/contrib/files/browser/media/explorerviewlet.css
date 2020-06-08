@@ -55,15 +55,15 @@
 	align-items: center;
 }
 
+.pane.horizontal:not(.expanded) .pane-header .dirty-count.monaco-count-badge,
 .pane-header .dirty-count.monaco-count-badge.hidden {
 	display: none;
 }
 
 .dirty-count.monaco-count-badge {
-	padding: 1px 6px 2px;
+	padding: 2px 4px;
 	margin-left: 6px;
 	min-height: auto;
-	border-radius: 0; /* goes better when ellipsis shows up on narrow sidebar */
 }
 
 .explorer-viewlet .explorer-item.nonexistent-root {
@@ -96,6 +96,6 @@
 }
 
 /* High Contrast Theming */
-.hc-black .monaco-workbench .explorer-viewlet .explorer-item {
+.monaco-workbench.hc-black .explorer-viewlet .explorer-item {
 	line-height: 20px;
 }

@@ -50,7 +50,7 @@ export function positionFromString(str: string): Position {
 
 export interface IWorkbenchLayoutService extends ILayoutService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emits when the zen mode is enabled or disabled.
@@ -224,4 +224,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns the next visible view part in a given direction
 	 */
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
+
+	/**
+	 * True if a default layout with default editors was applied at startup
+	 */
+	readonly openedDefaultEditors: boolean;
 }

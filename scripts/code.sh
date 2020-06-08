@@ -44,7 +44,6 @@ function code() {
 	# Configuration
 	export NODE_ENV=development
 	export VSCODE_DEV=1
-	export ELECTRON_ENABLE_SECURITY_WARNINGS=1
 	export VSCODE_CLI=1
 	export ELECTRON_ENABLE_STACK_DUMPING=1
 	export ELECTRON_ENABLE_LOGGING=1
@@ -56,7 +55,7 @@ function code() {
 
 function code-wsl()
 {
-	HOST_IP=$(powershell.exe -Command "& {(Get-NetIPAddress | Where-Object {\$_.InterfaceAlias -like '*WSL*' -and \$_.AddressFamily -eq 'IPv4'}).IPAddress | Write-Host -NoNewline}")
+	HOST_IP=$(powershell.exe –noprofile -Command "& {(Get-NetIPAddress | Where-Object {\$_.InterfaceAlias -like '*WSL*' -and \$_.AddressFamily -eq 'IPv4'}).IPAddress | Write-Host -NoNewline}")
 	export DISPLAY="$HOST_IP:0"
 
 	# in a wsl shell

@@ -5,10 +5,9 @@
 
 import { Action } from 'vs/base/common/actions';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose, MutableDisposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
 import { isEqual, basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -29,19 +28,17 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
-	CONTEXT_SYNC_STATE, ISyncConfiguration, IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
-	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, CONTEXT_SYNC_ENABLEMENT,
+	IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
+	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService,
 	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
-import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
-import { IActivityService, IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -51,72 +48,58 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { UserDataSyncAccounts, AccountStatus } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncAccount';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { Codicon } from 'vs/base/common/codicons';
+import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer } from 'vs/workbench/common/views';
+import { UserDataSyncViewPaneContainer, UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncViews';
+import { IUserDataSyncWorkbenchService, CONTEXT_ENABLE_VIEWS, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
 type ConfigureSyncQuickPickItem = { id: SyncResource, label: string, description?: string };
-
-function getSyncAreaLabel(source: SyncResource): string {
-	switch (source) {
-		case SyncResource.Settings: return localize('settings', "Settings");
-		case SyncResource.Keybindings: return localize('keybindings', "Keyboard Shortcuts");
-		case SyncResource.Snippets: return localize('snippets', "User Snippets");
-		case SyncResource.Extensions: return localize('extensions', "Extensions");
-		case SyncResource.GlobalState: return localize('ui state label', "UI State");
-	}
-}
 
 type SyncConflictsClassification = {
 	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 	action?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
-type FirstTimeSyncClassification = {
-	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+const turnOnSyncCommand = { id: 'workbench.userDataSync.actions.turnOn', title: localize('turn on sync with category', "Preferences Sync: Turn On...") };
+const turnOffSyncCommand = { id: 'workbench.userDataSync.actions.turnOff', title: localize('stop sync', "Preferences Sync: Turn Off") };
+const configureSyncCommand = { id: CONFIGURE_SYNC_COMMAND_ID, title: localize('configure sync', "Preferences Sync: Configure...") };
+const resolveSettingsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveSettingsConflicts', title: localize('showConflicts', "Preferences Sync: Show Settings Conflicts") };
+const resolveKeybindingsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveKeybindingsConflicts', title: localize('showKeybindingsConflicts', "Preferences Sync: Show Keybindings Conflicts") };
+const resolveSnippetsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveSnippetsConflicts', title: localize('showSnippetsConflicts', "Preferences Sync: Show User Snippets Conflicts") };
+const syncNowCommand = {
+	id: 'workbench.userDataSync.actions.syncNow',
+	title: localize('sync now', "Preferences Sync: Sync Now"),
+	description(userDataSyncService: IUserDataSyncService): string | undefined {
+		if (userDataSyncService.status === SyncStatus.Syncing) {
+			return localize('sync is on with syncing', "syncing");
+		}
+		if (userDataSyncService.lastSyncTime) {
+			return localize('sync is on with time', "synced {0}", fromNow(userDataSyncService.lastSyncTime, true));
+		}
+		return undefined;
+	}
 };
+const showSyncSettingsCommand = { id: 'workbench.userDataSync.actions.settings', title: localize('sync settings', "Preferences Sync: Show Settings"), };
 
-const getActivityTitle = (label: string, userDataSyncService: IUserDataSyncService): string => {
-	if (userDataSyncService.status === SyncStatus.Syncing) {
-		return localize('sync is on with syncing', "{0} (syncing)", label);
-	}
-	if (userDataSyncService.lastSyncTime) {
-		return localize('sync is on with time', "{0} (synced {1})", label, fromNow(userDataSyncService.lastSyncTime, true));
-	}
-	return label;
-};
-const getIdentityTitle = (label: string, userDataSyncAccountService: UserDataSyncAccounts, authenticationService: IAuthenticationService) => {
-	const account = userDataSyncAccountService.current;
-	return account ? `${label} (${authenticationService.getDisplayName(account.authenticationProviderId)}:${account.accountName})` : label;
-};
-const turnOnSyncCommand = { id: 'workbench.userData.actions.syncStart', title: localize('turn on sync with category', "Preferences Sync: Turn On...") };
-const stopSyncCommand = { id: 'workbench.userData.actions.stopSync', title(userDataSyncAccountService: UserDataSyncAccounts, authenticationService: IAuthenticationService) { return getIdentityTitle(localize('stop sync', "Preferences Sync: Turn Off"), userDataSyncAccountService, authenticationService); } };
-const resolveSettingsConflictsCommand = { id: 'workbench.userData.actions.resolveSettingsConflicts', title: localize('showConflicts', "Preferences Sync: Show Settings Conflicts") };
-const resolveKeybindingsConflictsCommand = { id: 'workbench.userData.actions.resolveKeybindingsConflicts', title: localize('showKeybindingsConflicts', "Preferences Sync: Show Keybindings Conflicts") };
-const resolveSnippetsConflictsCommand = { id: 'workbench.userData.actions.resolveSnippetsConflicts', title: localize('showSnippetsConflicts', "Preferences Sync: Show User Snippets Conflicts") };
-const configureSyncCommand = { id: 'workbench.userData.actions.configureSync', title: localize('configure sync', "Preferences Sync: Configure...") };
-const showSyncActivityCommand = {
-	id: 'workbench.userData.actions.showSyncActivity', title(userDataSyncService: IUserDataSyncService): string {
-		return getActivityTitle(localize('show sync log', "Preferences Sync: Show Log"), userDataSyncService);
-	}
-};
-const showSyncSettingsCommand = { id: 'workbench.userData.actions.syncSettings', title: localize('sync settings', "Preferences Sync: Show Settings"), };
-
-const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
+const CONTEXT_TURNING_ON_STATE = new RawContextKey<false>('userDataSyncTurningOn', false);
 
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
-	private readonly syncEnablementContext: IContextKey<boolean>;
-	private readonly syncStatusContext: IContextKey<string>;
-	private readonly accountStatusContext: IContextKey<string>;
+	private readonly turningOnSyncContext: IContextKey<boolean>;
 	private readonly conflictsSources: IContextKey<string>;
+	private readonly viewsEnablementContext: IContextKey<boolean>;
 
-	private readonly userDataSyncAccounts: UserDataSyncAccounts;
-	private readonly badgeDisposable = this._register(new MutableDisposable());
+	private readonly globalActivityBadgeDisposable = this._register(new MutableDisposable());
+	private readonly accountBadgeDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
+		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IActivityService private readonly activityService: IActivityService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -124,7 +107,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOutputService private readonly outputService: IOutputService,
 		@IAuthenticationTokenService readonly authTokenService: IAuthenticationTokenService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
@@ -138,52 +121,40 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	) {
 		super();
 
-		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
-		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
-		this.accountStatusContext = CONTEXT_ACCOUNT_STATE.bindTo(contextKeyService);
+		this.turningOnSyncContext = CONTEXT_TURNING_ON_STATE.bindTo(contextKeyService);
 		this.conflictsSources = CONTEXT_CONFLICTS_SOURCES.bindTo(contextKeyService);
+		this.viewsEnablementContext = CONTEXT_ENABLE_VIEWS.bindTo(contextKeyService);
 
-		this.userDataSyncAccounts = instantiationService.createInstance(UserDataSyncAccounts);
-
-		if (this.userDataSyncAccounts.authenticationProviders.length) {
+		if (this.userDataSyncWorkbenchService.authenticationProviders.length) {
 			registerConfiguration();
 
-			this.onDidChangeSyncStatus(this.userDataSyncService.status);
+			this.updateAccountBadge();
+			this.updateGlobalActivityBadge();
 			this.onDidChangeConflicts(this.userDataSyncService.conflicts);
-			this.onDidChangeEnablement(this.userDataSyncEnablementService.isEnabled());
-			this.onDidChangeAccountStatus(this.userDataSyncAccounts.status);
 
-			this._register(Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500)(() => this.onDidChangeSyncStatus(this.userDataSyncService.status)));
+			this._register(Event.any(
+				Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500),
+				this.userDataSyncEnablementService.onDidChangeEnablement,
+				this.userDataSyncWorkbenchService.onDidChangeAccountStatus
+			)(() => {
+				this.updateAccountBadge();
+				this.updateGlobalActivityBadge();
+			}));
 			this._register(userDataSyncService.onDidChangeConflicts(() => this.onDidChangeConflicts(this.userDataSyncService.conflicts)));
-			this._register(userDataSyncService.onSyncErrors(errors => this.onSyncErrors(errors)));
-			this._register(this.userDataSyncEnablementService.onDidChangeEnablement(enabled => this.onDidChangeEnablement(enabled)));
+			this._register(userDataSyncService.onSyncErrors(errors => this.onSynchronizerErrors(errors)));
 			this._register(userDataAutoSyncService.onError(error => this.onAutoSyncError(error)));
-			this._register(this.userDataSyncAccounts.onDidChangeStatus(status => this.onDidChangeAccountStatus(status)));
-			this._register(this.userDataSyncAccounts.onDidSignOut(() => this.doTurnOff(false)));
+
 			this.registerActions();
+			this.registerViews();
 
 			textModelResolverService.registerTextModelContentProvider(USER_DATA_SYNC_SCHEME, instantiationService.createInstance(UserDataRemoteContentProvider));
 			registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution);
-
-			if (!isWeb) {
-				this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(source => userDataAutoSyncService.triggerAutoSync([source])));
-			}
 		}
-	}
-
-	private onDidChangeAccountStatus(status: AccountStatus): void {
-		this.accountStatusContext.set(status);
-		this.updateBadge();
-	}
-
-	private onDidChangeSyncStatus(status: SyncStatus) {
-		this.syncStatusContext.set(status);
-		this.updateBadge();
 	}
 
 	private readonly conflictsDisposables = new Map<SyncResource, IDisposable>();
 	private onDidChangeConflicts(conflicts: SyncResourceConflicts[]) {
-		this.updateBadge();
+		this.updateGlobalActivityBadge();
 		if (conflicts.length) {
 			const conflictsSources: SyncResource[] = conflicts.map(conflict => conflict.syncResource);
 			this.conflictsSources.set(conflictsSources.join(','));
@@ -269,8 +240,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		try {
 			for (const conflict of conflicts) {
 				const modelRef = await this.textModelResolverService.createModelReference(conflict.remote);
-				await this.userDataSyncService.acceptConflict(conflict.remote, modelRef.object.textEditorModel.getValue());
-				modelRef.dispose();
+				try {
+					await this.userDataSyncService.acceptConflict(conflict.remote, modelRef.object.textEditorModel.getValue());
+				} finally {
+					modelRef.dispose();
+				}
 			}
 		} catch (e) {
 			this.notificationService.error(e);
@@ -281,20 +255,18 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		try {
 			for (const conflict of conflicts) {
 				const modelRef = await this.textModelResolverService.createModelReference(conflict.local);
-				await this.userDataSyncService.acceptConflict(conflict.local, modelRef.object.textEditorModel.getValue());
-				modelRef.dispose();
+				try {
+					await this.userDataSyncService.acceptConflict(conflict.local, modelRef.object.textEditorModel.getValue());
+				} finally {
+					modelRef.dispose();
+				}
 			}
 		} catch (e) {
 			this.notificationService.error(e);
 		}
 	}
 
-	private onDidChangeEnablement(enabled: boolean) {
-		this.syncEnablementContext.set(enabled);
-		this.updateBadge();
-	}
-
-	private onAutoSyncError(error: UserDataSyncError): void {
+	private onAutoSyncError(error: UserDataSyncError): boolean {
 		switch (error.code) {
 			case UserDataSyncErrorCode.TurnedOff:
 			case UserDataSyncErrorCode.SessionExpired:
@@ -305,7 +277,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Preferences Sync..."), undefined, true, () => this.turnOn())]
 					}
 				});
-				return;
+				return true;
 			case UserDataSyncErrorCode.TooLarge:
 				if (error.resource === SyncResource.Keybindings || error.resource === SyncResource.Settings) {
 					this.disableSync(error.resource);
@@ -319,19 +291,22 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						}
 					});
 				}
-				return;
+				return true;
 			case UserDataSyncErrorCode.Incompatible:
+			case UserDataSyncErrorCode.Gone:
+			case UserDataSyncErrorCode.UpgradeRequired:
 				this.disableSync();
 				this.notificationService.notify({
 					severity: Severity.Error,
-					message: localize('error incompatible', "Turned off sync because local data is incompatible with the data in the cloud. Please update {0} and turn on sync to continue syncing.", this.productService.nameLong),
+					message: localize('error upgrade required', "Preferences sync is disabled because the current version ({0}, {1}) is not compatible with the sync service. Please update before turning on sync.", this.productService.version, this.productService.commit),
 				});
-				return;
+				return true;
 		}
+		return false;
 	}
 
 	private readonly invalidContentErrorDisposables = new Map<SyncResource, IDisposable>();
-	private onSyncErrors(errors: [SyncResource, UserDataSyncError][]): void {
+	private onSynchronizerErrors(errors: [SyncResource, UserDataSyncError][]): void {
 		if (errors.length) {
 			for (const [source, error] of errors) {
 				switch (error.code) {
@@ -367,7 +342,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const errorArea = getSyncAreaLabel(source);
 		const handle = this.notificationService.notify({
 			severity: Severity.Error,
-			message: localize('errorInvalidConfiguration', "Unable to sync {0} because there are some errors/warnings in the file. Please open the file to correct errors/warnings in it.", errorArea.toLowerCase()),
+			message: localize('errorInvalidConfiguration', "Unable to sync {0} because the content in the file is not valid. Please open the file and correct it.", errorArea.toLowerCase()),
 			actions: {
 				primary: [new Action('open sync file', localize('open file', "Open {0} File", errorArea), undefined, true,
 					() => source === SyncResource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
@@ -380,58 +355,111 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}));
 	}
 
-	private async updateBadge(): Promise<void> {
-		this.badgeDisposable.clear();
+	private async updateGlobalActivityBadge(): Promise<void> {
+		this.globalActivityBadgeDisposable.clear();
 
 		let badge: IBadge | undefined = undefined;
 		let clazz: string | undefined;
 		let priority: number | undefined = undefined;
 
-		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.userDataSyncEnablementService.isEnabled() && this.userDataSyncAccounts.status === AccountStatus.Unavailable) {
-			badge = new NumberBadge(1, () => localize('sign in to sync preferences', "Sign in to Sync Preferences"));
-		} else if (this.userDataSyncService.conflicts.length) {
+		if (this.userDataSyncService.conflicts.length) {
 			badge = new NumberBadge(this.userDataSyncService.conflicts.reduce((result, syncResourceConflict) => { return result + syncResourceConflict.conflicts.length; }, 0), () => localize('has conflicts', "Preferences Sync: Conflicts Detected"));
+		} else if (this.turningOnSync) {
+			badge = new ProgressBadge(() => localize('turning on syncing', "Turning on Preferences Sync..."));
+			clazz = 'progress-badge';
+			priority = 1;
 		}
 
 		if (badge) {
-			this.badgeDisposable.value = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz, priority);
+			this.globalActivityBadgeDisposable.value = this.activityService.showGlobalActivity({ badge, clazz, priority });
 		}
 	}
 
-	private async turnOn(): Promise<void> {
-		if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
-			const result = await this.dialogService.show(
-				Severity.Info,
-				localize('sync preview message', "Synchronizing your preferences is a preview feature, please read the documentation before turning it on."),
-				[
-					localize('open doc', "Open Documentation"),
-					localize('turn on', "Turn On"),
-					localize('cancel', "Cancel"),
-				],
-				{
-					cancelId: 2
-				}
-			);
-			switch (result.choice) {
-				case 0: this.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); return;
-				case 2: return;
-			}
+	private async updateAccountBadge(): Promise<void> {
+		this.accountBadgeDisposable.clear();
+
+		let badge: IBadge | undefined = undefined;
+
+		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.userDataSyncEnablementService.isEnabled() && this.userDataSyncWorkbenchService.accountStatus === AccountStatus.Unavailable) {
+			badge = new NumberBadge(1, () => localize('sign in to sync preferences', "Sign in to Sync Preferences"));
 		}
 
-		return new Promise((c, e) => {
+		if (badge) {
+			this.accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, clazz: undefined, priority: undefined });
+		}
+	}
+
+	private get turningOnSync(): boolean {
+		return !!this.turningOnSyncContext.get();
+	}
+
+	private set turningOnSync(turningOn: boolean) {
+		this.turningOnSyncContext.set(turningOn);
+		this.updateGlobalActivityBadge();
+	}
+
+	private async turnOn(): Promise<void> {
+		this.turningOnSync = true;
+		try {
+			if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
+				if (!await this.askForConfirmation()) {
+					return;
+				}
+			}
+			const turnOn = await this.askToConfigure();
+			if (!turnOn) {
+				return;
+			}
+			await this.userDataSyncWorkbenchService.turnOn();
+			this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL);
+		} catch (e) {
+			if (isPromiseCanceledError(e)) {
+				return;
+			}
+			if (e instanceof UserDataSyncError && this.onAutoSyncError(e)) {
+				return;
+			}
+			this.notificationService.error(localize('turn on failed', "Error while starting Sync: {0}", toErrorMessage(e)));
+		} finally {
+			this.turningOnSync = false;
+		}
+	}
+
+	private async askForConfirmation(): Promise<boolean> {
+		const result = await this.dialogService.show(
+			Severity.Info,
+			localize('sync preview message', "Synchronizing your preferences is a preview feature, please read the documentation before turning it on."),
+			[
+				localize('open doc', "Open Documentation"),
+				localize('turn on', "Turn On"),
+				localize('cancel', "Cancel"),
+			],
+			{
+				cancelId: 2
+			}
+		);
+		switch (result.choice) {
+			case 0: this.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); return false;
+			case 2: return false;
+		}
+		return true;
+	}
+
+	private async askToConfigure(): Promise<boolean> {
+		return new Promise<boolean>((c, e) => {
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
 			disposables.add(quickPick);
 			quickPick.title = localize('Preferences Sync Title', "Preferences Sync");
 			quickPick.ok = false;
 			quickPick.customButton = true;
-			if (this.userDataSyncAccounts.all.length) {
+			if (this.userDataSyncWorkbenchService.all.length) {
 				quickPick.customLabel = localize('turn on', "Turn On");
 			} else {
 				const orTerm = localize({ key: 'or', comment: ['Here is the context where it is used - Sign in with your A or B or C account to synchronize your data across devices.'] }, "or");
-				const displayName = this.userDataSyncAccounts.authenticationProviders.length === 1
-					? this.authenticationService.getDisplayName(this.userDataSyncAccounts.authenticationProviders[0].id)
-					: this.userDataSyncAccounts.authenticationProviders.map(({ id }) => this.authenticationService.getDisplayName(id)).join(` ${orTerm} `);
+				const displayName = this.userDataSyncWorkbenchService.authenticationProviders.length === 1
+					? this.authenticationService.getDisplayName(this.userDataSyncWorkbenchService.authenticationProviders[0].id)
+					: this.userDataSyncWorkbenchService.authenticationProviders.map(({ id }) => this.authenticationService.getDisplayName(id)).join(` ${orTerm} `);
 				quickPick.description = localize('sign in and turn on sync detail', "Sign in with your {0} account to synchronize your data across devices.", displayName);
 				quickPick.customLabel = localize('sign in and turn on sync', "Sign in & Turn on");
 			}
@@ -441,33 +469,25 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
 			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
-			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(async () => {
-				if (quickPick.selectedItems.length) {
-					this.updateConfiguration(items, quickPick.selectedItems);
-					this.doTurnOn().then(c, e);
-					quickPick.hide();
+			let accepted: boolean = false;
+			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
+				accepted = true;
+				quickPick.hide();
+			}));
+			disposables.add(quickPick.onDidHide(() => {
+				try {
+					if (accepted) {
+						this.updateConfiguration(items, quickPick.selectedItems);
+					}
+					c(accepted);
+				} catch (error) {
+					e(error);
+				} finally {
+					disposables.dispose();
 				}
 			}));
-			disposables.add(quickPick.onDidHide(() => disposables.dispose()));
 			quickPick.show();
 		});
-	}
-
-	private async doTurnOn(): Promise<void> {
-		const picked = await this.userDataSyncAccounts.pick();
-		if (!picked) {
-			throw canceled();
-		}
-
-		// User did not pick an account or login failed
-		if (this.userDataSyncAccounts.status !== AccountStatus.Available) {
-			throw new Error(localize('no account', "No account available"));
-		}
-
-		await this.handleFirstTimeSync();
-		this.userDataSyncEnablementService.setEnablement(true);
-		this.notificationService.info(localize('sync turned on', "Preferences sync is turned on"));
-		this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL);
 	}
 
 	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
@@ -499,7 +519,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private async configureSyncOptions(): Promise<ISyncConfiguration> {
+	private async configureSyncOptions(): Promise<void> {
 		return new Promise((c, e) => {
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
@@ -514,7 +534,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
 			disposables.add(quickPick.onDidAccept(async () => {
 				if (quickPick.selectedItems.length) {
-					await this.updateConfiguration(items, quickPick.selectedItems);
+					this.updateConfiguration(items, quickPick.selectedItems);
 					quickPick.hide();
 				}
 			}));
@@ -524,38 +544,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}));
 			quickPick.show();
 		});
-	}
-
-	private async handleFirstTimeSync(): Promise<void> {
-		const isFirstSyncWithMerge = await this.userDataSyncService.isFirstTimeSyncWithMerge();
-		if (!isFirstSyncWithMerge) {
-			return;
-		}
-		const result = await this.dialogService.show(
-			Severity.Info,
-			localize('firs time sync', "Sync"),
-			[
-				localize('merge', "Merge"),
-				localize('cancel', "Cancel"),
-				localize('replace', "Replace Local"),
-			],
-			{
-				cancelId: 1,
-				detail: localize('first time sync detail', "It looks like this is the first time sync is set up.\nWould you like to merge or replace with the data from the cloud?"),
-			}
-		);
-		switch (result.choice) {
-			case 0:
-				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
-				break;
-			case 1:
-				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
-				throw canceled();
-			case 2:
-				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'replace-local' });
-				await this.userDataSyncService.pull();
-				break;
-		}
 	}
 
 	private async turnOff(): Promise<void> {
@@ -569,24 +557,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 		});
 		if (result.confirmed) {
-			return this.doTurnOff(!!result.checkboxChecked);
+			return this.userDataSyncWorkbenchService.turnoff(!!result.checkboxChecked);
 		}
-	}
-
-	private async doTurnOff(turnOffEveryWhere: boolean): Promise<void> {
-		if (!this.userDataSyncEnablementService.isEnabled()) {
-			return;
-		}
-		if (!this.userDataSyncEnablementService.canToggleEnablement()) {
-			return;
-		}
-		if (turnOffEveryWhere) {
-			this.telemetryService.publicLog2('sync/turnOffEveryWhere');
-			await this.userDataSyncService.reset();
-		} else {
-			await this.userDataSyncService.resetLocal();
-		}
-		this.disableSync();
 	}
 
 	private disableSync(source?: SyncResource): void {
@@ -656,28 +628,23 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this.registerTurnOnSyncAction();
 			this.registerTurnOffSyncAction();
 		}
+		this.registerTurninOnSyncAction();
 		this.registerSignInAction(); // When Sync is turned on from CLI
 		this.registerShowSettingsConflictsAction();
 		this.registerShowKeybindingsConflictsAction();
 		this.registerShowSnippetsConflictsAction();
-		this.registerSyncStatusAction();
 
+		this.registerEnableSyncViewsAction();
+		this.registerManageSyncAction();
+		this.registerSyncNowAction();
 		this.registerConfigureSyncAction();
-		this.registerShowActivityAction();
 		this.registerShowSettingsAction();
+		this.registerShowLogAction();
 	}
 
 	private registerTurnOnSyncAction(): void {
-		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized));
-		CommandsRegistry.registerCommand(turnOnSyncCommand.id, async () => {
-			try {
-				await this.turnOn();
-			} catch (e) {
-				if (!isPromiseCanceledError(e)) {
-					this.notificationService.error(localize('turn on failed', "Error while starting Sync: {0}", toErrorMessage(e)));
-				}
-			}
-		});
+		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized), CONTEXT_TURNING_ON_STATE.negate());
+		CommandsRegistry.registerCommand(turnOnSyncCommand.id, () => this.turnOn());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
 			command: {
@@ -709,6 +676,30 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 	}
 
+	private registerTurninOnSyncAction(): void {
+		const when = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized), CONTEXT_TURNING_ON_STATE);
+		this._register(registerAction2(class TurningOnSyncAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.userData.actions.turningOn',
+					title: localize('turnin on sync', "Turning on Preferences Sync..."),
+					precondition: ContextKeyExpr.false(),
+					menu: [{
+						group: '5_sync',
+						id: MenuId.GlobalActivity,
+						when,
+						order: 2
+					}, {
+						group: '1_sync',
+						id: MenuId.AccountsContext,
+						when,
+					}]
+				});
+			}
+			async run(): Promise<any> { }
+		}));
+	}
+
 	private registerSignInAction(): void {
 		const that = this;
 		const id = 'workbench.userData.actions.signin';
@@ -717,7 +708,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: 'workbench.userData.actions.signin',
-					title: localize('sign in global', "Sign in to Sync Preferences(1)"),
+					title: localize('sign in global', "Sign in to Sync Preferences"),
 					menu: {
 						group: '5_sync',
 						id: MenuId.GlobalActivity,
@@ -728,7 +719,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 			async run(): Promise<any> {
 				try {
-					await that.userDataSyncAccounts.pick();
+					await that.userDataSyncWorkbenchService.pickAccount();
 				} catch (e) {
 					that.notificationService.error(e);
 				}
@@ -738,7 +729,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '1_sync',
 			command: {
 				id,
-				title: localize('sign in accounts', "Sign in to Sync Preferences"),
+				title: localize('sign in accounts', "Sign in to Sync Preferences (1)"),
 			},
 			when
 		}));
@@ -828,13 +819,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}));
 	}
 
-	private registerSyncStatusAction(): void {
+	private registerManageSyncAction(): void {
 		const that = this;
 		const when = ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
 		this._register(registerAction2(class SyncStatusAction extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.userData.actions.syncStatus',
+					id: 'workbench.userDataSync.actions.manage',
 					title: localize('sync is on', "Preferences Sync is On"),
 					menu: [
 						{
@@ -882,11 +873,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						items.push({ type: 'separator' });
 					}
 					items.push({ id: configureSyncCommand.id, label: configureSyncCommand.title });
-					items.push({ id: showSyncSettingsCommand.id, label: showSyncSettingsCommand.title });
-					items.push({ id: showSyncActivityCommand.id, label: showSyncActivityCommand.title(that.userDataSyncService) });
 					items.push({ type: 'separator' });
+					items.push({ id: syncNowCommand.id, label: syncNowCommand.title, description: syncNowCommand.description(that.userDataSyncService) });
 					if (that.userDataSyncEnablementService.canToggleEnablement()) {
-						items.push({ id: stopSyncCommand.id, label: stopSyncCommand.title(that.userDataSyncAccounts, that.authenticationService) });
+						const account = that.userDataSyncWorkbenchService.current;
+						items.push({ id: turnOffSyncCommand.id, label: turnOffSyncCommand.title, description: account ? `${account.accountName} (${that.authenticationService.getDisplayName(account.authenticationProviderId)})` : undefined });
 					}
 					quickPick.items = items;
 					disposables.add(quickPick.onDidAccept(() => {
@@ -905,13 +896,50 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}));
 	}
 
+	private registerEnableSyncViewsAction(): void {
+		const that = this;
+		const when = ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
+		this._register(registerAction2(class SyncStatusAction extends Action2 {
+			constructor() {
+				super({
+					id: ENABLE_SYNC_VIEWS_COMMAND_ID,
+					title: ENABLE_SYNC_VIEWS_COMMAND_ID,
+					precondition: when
+				});
+			}
+			run(accessor: ServicesAccessor): any {
+				that.viewsEnablementContext.set(true);
+			}
+		}));
+	}
+
+	private registerSyncNowAction(): void {
+		const that = this;
+		this._register(registerAction2(class SyncNowAction extends Action2 {
+			constructor() {
+				super({
+					id: syncNowCommand.id,
+					title: syncNowCommand.title,
+					menu: {
+						id: MenuId.CommandPalette,
+						when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized))
+					}
+				});
+			}
+			run(accessor: ServicesAccessor): Promise<any> {
+				accessor.get(ITelemetryService).publicLog2(`sync/actions/${syncNowCommand.id}`);
+				return that.userDataSyncService.sync();
+			}
+		}));
+	}
+
 	private registerTurnOffSyncAction(): void {
 		const that = this;
 		this._register(registerAction2(class StopSyncAction extends Action2 {
 			constructor() {
 				super({
-					id: stopSyncCommand.id,
-					title: stopSyncCommand.title(that.userDataSyncAccounts, that.authenticationService),
+					id: turnOffSyncCommand.id,
+					title: turnOffSyncCommand.title,
 					menu: {
 						id: MenuId.CommandPalette,
 						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT),
@@ -932,28 +960,29 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private registerConfigureSyncAction(): void {
 		const that = this;
-		this._register(registerAction2(class ShowSyncActivityAction extends Action2 {
+		const when = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT);
+		this._register(registerAction2(class ConfigureSyncAction extends Action2 {
 			constructor() {
 				super({
 					id: configureSyncCommand.id,
 					title: configureSyncCommand.title,
 					menu: {
 						id: MenuId.CommandPalette,
-						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT),
-					},
+						when
+					}
 				});
 			}
 			run(): any { return that.configureSyncOptions(); }
 		}));
 	}
 
-	private registerShowActivityAction(): void {
+	private registerShowLogAction(): void {
 		const that = this;
 		this._register(registerAction2(class ShowSyncActivityAction extends Action2 {
 			constructor() {
 				super({
-					id: showSyncActivityCommand.id,
-					get title() { return showSyncActivityCommand.title(that.userDataSyncService); },
+					id: SHOW_SYNC_LOG_COMMAND_ID,
+					title: localize('show sync log title', "Preferences Sync: Show Log"),
 					menu: {
 						id: MenuId.CommandPalette,
 						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
@@ -980,6 +1009,30 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				accessor.get(IPreferencesService).openGlobalSettings(false, { query: '@tag:sync' });
 			}
 		}));
+	}
+
+	private registerViews(): void {
+		const container = this.registerViewContainer();
+		this.registerDataViews(container);
+	}
+
+	private registerViewContainer(): ViewContainer {
+		const viewContainerId = 'workbench.view.sync';
+		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+			{
+				id: viewContainerId,
+				name: localize('sync preferences', "Preferences Sync"),
+				ctorDescriptor: new SyncDescriptor(
+					UserDataSyncViewPaneContainer,
+					[viewContainerId]
+				),
+				icon: Codicon.sync.classNames,
+				hideIfEmpty: true,
+			}, ViewContainerLocation.Sidebar);
+	}
+
+	private registerDataViews(container: ViewContainer): void {
+		this._register(this.instantiationService.createInstance(UserDataSyncDataViews, container));
 	}
 
 }

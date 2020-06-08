@@ -137,13 +137,15 @@ export class ExtensionsListView extends ViewPane {
 		const extensionsViewState = new ExtensionsViewState();
 		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState);
 		this.list = this.instantiationService.createInstance<typeof WorkbenchPagedList, WorkbenchPagedList<IExtension>>(WorkbenchPagedList, 'Extensions', extensionsList, delegate, [renderer], {
-			ariaLabel: localize('extensions', "Extensions"),
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false,
 			accessibilityProvider: <IListAccessibilityProvider<IExtension | null>>{
 				getAriaLabel(extension: IExtension | null): string {
 					return extension ? localize('extension-arialabel', "{0}. Press enter for extension details.", extension.displayName) : '';
+				},
+				getWidgetAriaLabel(): string {
+					return localize('extensions', "Extensions");
 				}
 			},
 			overrideStyles: {

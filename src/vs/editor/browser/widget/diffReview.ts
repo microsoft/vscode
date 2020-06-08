@@ -114,6 +114,7 @@ export class DiffReview extends Disposable {
 
 		this._content = createFastDomNode(document.createElement('div'));
 		this._content.setClassName('diff-review-content');
+		this._content.setAttribute('role', 'code');
 		this.scrollbar = this._register(new DomScrollableElement(this._content.domNode, {}));
 		this.domNode.domNode.appendChild(this.scrollbar.getDomNode());
 
@@ -268,6 +269,7 @@ export class DiffReview extends Disposable {
 
 	private hide(): void {
 		this._isVisible = false;
+		this._diffEditor.updateOptions({ readOnly: false });
 		this._diffEditor.focus();
 		this._diffEditor.doLayout();
 		this._render();
@@ -540,6 +542,7 @@ export class DiffReview extends Disposable {
 			return;
 		}
 
+		this._diffEditor.updateOptions({ readOnly: true });
 		const diffIndex = this._findDiffIndex(this._diffEditor.getPosition()!);
 
 		if (this._diffs[diffIndex] === this._currentDiff) {
@@ -748,7 +751,11 @@ export class DiffReview extends Disposable {
 			let ariaLabel: string = '';
 			switch (type) {
 				case DiffEntryType.Equal:
-					ariaLabel = nls.localize('equalLine', "{0} original line {1} modified line {2}", lineContent, originalLine, modifiedLine);
+					if (originalLine === modifiedLine) {
+						ariaLabel = nls.localize({ key: 'unchangedLine', comment: ['The placholders are contents of the line and should not be translated.'] }, "{0} unchanged line {1}", lineContent, originalLine);
+					} else {
+						ariaLabel = nls.localize('equalLine', "{0} original line {1} modified line {2}", lineContent, originalLine, modifiedLine);
+					}
 					break;
 				case DiffEntryType.Insert:
 					ariaLabel = nls.localize('insertLine', "+ {0} modified line {1}", lineContent, modifiedLine);

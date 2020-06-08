@@ -8,20 +8,16 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
+import { IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, CellRunState, CursorAtBoundary, ICellViewModel, CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
-export const NotebookCellMetadataDefaults = {
-	editable: true,
-	runnable: true
-};
-
-export abstract class BaseCellViewModel extends Disposable implements ICellViewModel {
+export abstract class BaseCellViewModel extends Disposable {
 	protected readonly _onDidChangeEditorAttachState = new Emitter<void>();
 	// Do not merge this event with `onDidChangeState` as we are using `Event.once(onDidChangeEditorAttachState)` elsewhere.
 	readonly onDidChangeEditorAttachState = this._onDidChangeEditorAttachState.event;
@@ -35,7 +31,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		return this.model.uri;
 	}
 	get lineCount() {
-		return this.model.source.length;
+		return this.model.textBuffer.getLineCount();
 	}
 	get metadata() {
 		return this.model.metadata;
@@ -64,19 +60,13 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		}
 	}
 
-	// TODO - move any "run"/"status" concept to Code-specific places
 	private _currentTokenSource: CancellationTokenSource | undefined;
 	public set currentTokenSource(v: CancellationTokenSource | undefined) {
 		this._currentTokenSource = v;
-		this._onDidChangeState.fire({ runStateChanged: true });
 	}
 
 	public get currentTokenSource(): CancellationTokenSource | undefined {
 		return this._currentTokenSource;
-	}
-
-	get runState(): CellRunState {
-		return this._currentTokenSource ? CellRunState.Running : CellRunState.Idle;
 	}
 
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
@@ -105,6 +95,14 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 	private _lastDecorationId: number = 0;
 	protected _textModel?: model.ITextModel;
 
+	get textModel(): model.ITextModel | undefined {
+		return this._textModel;
+	}
+
+	hasModel(): this is IEditableCellViewModel {
+		return !!this._textModel;
+	}
+
 	private _dragging: boolean = false;
 	get dragging(): boolean {
 		return this._dragging;
@@ -114,7 +112,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		this._dragging = v;
 	}
 
-	constructor(readonly viewType: string, readonly notebookHandle: number, readonly model: NotebookCellTextModel, public id: string) {
+	constructor(readonly viewType: string, readonly model: NotebookCellTextModel, public id: string) {
 		super();
 
 		this._register(model.onDidChangeLanguage(() => {
@@ -126,6 +124,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		}));
 	}
 
+	// abstract resolveTextModel(): Promise<model.ITextModel>;
 	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
@@ -175,7 +174,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 	}
 
 	detachTextEditor() {
-		this._editorViewStates = this.saveViewState();
+		this.saveViewState();
 		// decorations need to be cleared first as editors can be resued.
 		this._resolvedDecorations.forEach(value => {
 			let resolvedid = value.id;
@@ -192,24 +191,20 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 	}
 
 	getText(): string {
-		if (this._textModel) {
-			return this._textModel.getValue();
-		}
-
-		return this.model.source.join('\n');
+		return this.model.getValue();
 	}
 
-	private saveViewState(): editorCommon.ICodeEditorViewState | null {
+	private saveViewState(): void {
 		if (!this._textEditor) {
-			return null;
+			return;
 		}
 
-		return this._textEditor.saveViewState();
+		this._editorViewStates = this._textEditor.saveViewState();
 	}
 
 	saveEditorViewState() {
 		if (this._textEditor) {
-			this._editorViewStates = this.saveViewState();
+			this._editorViewStates = this._textEditor.saveViewState();
 		}
 
 		return this._editorViewStates;
@@ -269,12 +264,30 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		this._textEditor?.setSelection(range);
 	}
 
+	getSelectionsStartPosition(): IPosition[] | undefined {
+		if (this._textEditor) {
+			const selections = this._textEditor.getSelections();
+			return selections?.map(s => s.getStartPosition());
+		} else {
+			const selections = this._editorViewStates?.cursorState;
+			return selections?.map(s => s.selectionStart);
+		}
+	}
+
 	getLineScrollTopOffset(line: number): number {
 		if (!this._textEditor) {
 			return 0;
 		}
 
-		return this._textEditor.getTopForLineNumber(line) + EDITOR_TOP_MARGIN + EDITOR_TOOLBAR_HEIGHT;
+		return this._textEditor.getTopForLineNumber(line) + EDITOR_TOP_PADDING;
+	}
+
+	getPositionScrollTopOffset(line: number, column: number): number {
+		if (!this._textEditor) {
+			return 0;
+		}
+
+		return this._textEditor.getTopForPosition(line, column) + EDITOR_TOP_PADDING;
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {
@@ -290,27 +303,28 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 			return CursorAtBoundary.None;
 		}
 
-		// we don't allow attaching text editor without a model
-		const lineCnt = this._textEditor.getModel()!.getLineCount();
+		const firstViewLineTop = this._textEditor.getTopForPosition(1, 1);
+		const lastViewLineTop = this._textEditor.getTopForPosition(this._textModel!.getLineCount(), this._textModel!.getLineLength(this._textModel!.getLineCount()));
+		const selectionTop = this._textEditor.getTopForPosition(selection.startLineNumber, selection.startColumn);
 
-		if (selection.startLineNumber === lineCnt) {
-			// bottom
-			if (selection.startLineNumber === 1) {
+		if (selectionTop === lastViewLineTop) {
+			if (selectionTop === firstViewLineTop) {
 				return CursorAtBoundary.Both;
-			}
-			else {
+			} else {
 				return CursorAtBoundary.Bottom;
 			}
+		} else {
+			if (selectionTop === firstViewLineTop) {
+				return CursorAtBoundary.Top;
+			} else {
+				return CursorAtBoundary.None;
+			}
 		}
-
-		if (selection.startLineNumber === 1) {
-			return CursorAtBoundary.Top;
-		}
-
-		return CursorAtBoundary.None;
 	}
 
-	protected _buffer: model.ITextBuffer | null = null;
+	get textBuffer() {
+		return this.model.textBuffer;
+	}
 
 	protected cellStartFind(value: string): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
@@ -318,12 +332,8 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		if (this.assertTextModelAttached()) {
 			cellMatches = this._textModel!.findMatches(value, false, false, false, null, false);
 		} else {
-			if (!this._buffer) {
-				this._buffer = this.model.resolveTextBufferFactory().create(model.DefaultEndOfLine.LF);
-			}
-
-			const lineCount = this._buffer.getLineCount();
-			const fullRange = new Range(1, 1, lineCount, this._buffer.getLineLength(lineCount) + 1);
+			const lineCount = this.textBuffer.getLineCount();
+			const fullRange = new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
 			const searchParams = new SearchParams(value, false, false, null);
 			const searchData = searchParams.parseSearchRequest();
 
@@ -331,27 +341,29 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 				return null;
 			}
 
-			cellMatches = this._buffer.findMatchesLineByLine(fullRange, searchData, false, 1000);
+			cellMatches = this.textBuffer.findMatchesLineByLine(fullRange, searchData, false, 1000);
 		}
 
 		return cellMatches;
 	}
 
-	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata {
-		const editable: boolean = this.metadata?.editable === undefined
-			? (documentMetadata?.cellEditable === undefined ? NotebookCellMetadataDefaults.editable : documentMetadata?.cellEditable)
-			: this.metadata?.editable;
+	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata): NotebookCellMetadata {
+		const editable = this.metadata?.editable ??
+			documentMetadata.cellEditable;
 
-		const runnable: boolean = this.metadata?.runnable === undefined
-			? (documentMetadata?.cellRunnable === undefined ? NotebookCellMetadataDefaults.runnable : documentMetadata?.cellRunnable)
-			: this.metadata?.runnable;
+		const runnable = this.metadata?.runnable ??
+			documentMetadata.cellRunnable;
+
+		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
+			documentMetadata.cellHasExecutionOrder;
 
 		return {
-			editable,
-			runnable,
-			executionOrder: this.metadata?.executionOrder,
-			runState: this.metadata?.runState,
-			statusMessage: this.metadata?.statusMessage
+			...(this.metadata || {}),
+			...{
+				editable,
+				runnable,
+				hasExecutionOrder
+			}
 		};
 	}
 

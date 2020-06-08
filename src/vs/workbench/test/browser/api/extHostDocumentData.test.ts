@@ -10,7 +10,7 @@ import { Position } from 'vs/workbench/api/common/extHostTypes';
 import { Range } from 'vs/editor/common/core/range';
 import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { mock } from 'vs/workbench/test/browser/api/mock';
+import { mock } from 'vs/base/test/common/mock';
 
 
 suite('ExtHostDocumentData', () => {
@@ -314,6 +314,22 @@ suite('ExtHostDocumentData', () => {
 		assert.ok(range);
 		assert.ok(range.contains(pos));
 		assert.equal(data.document.getText(range), 'TaskDefinition');
+	});
+
+	test('Rename popup sometimes populates with text on the left side omitted #96013', function () {
+
+		const regex = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\$\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
+		const line = 'int abcdefhijklmnopqwvrstxyz;';
+
+		data = new ExtHostDocumentData(undefined!, URI.file(''), [
+			line
+		], '\n', 'text', 1, false);
+
+		let range = data.document.getWordRangeAtPosition(new Position(0, 27), regex)!;
+		assert.equal(range.start.line, 0);
+		assert.equal(range.end.line, 0);
+		assert.equal(range.start.character, 4);
+		assert.equal(range.end.character, 28);
 	});
 });
 

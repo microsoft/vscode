@@ -32,7 +32,7 @@ import { Codicon } from 'vs/base/common/codicons';
 class OpenSCMViewletAction extends ShowViewletAction {
 
 	static readonly ID = VIEWLET_ID;
-	static readonly LABEL = localize('toggleGitViewlet', "Show Git");
+	static readonly LABEL = localize('toggleSCMViewlet', "Show SCM");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
 		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
@@ -63,7 +63,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	SyncActionDescriptor.create(OpenSCMViewletAction, VIEWLET_ID, localize('toggleSCMViewlet', "Show SCM"), {
+	SyncActionDescriptor.from(OpenSCMViewletAction, {
 		primary: 0,
 		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
@@ -150,6 +150,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('autoReveal', "Controls whether the SCM view should automatically reveal and select files when opening them."),
 			default: true
 		},
+		'scm.inputFontFamily': {
+			type: 'string',
+			markdownDescription: localize('inputFontFamily', "Controls the font for the input message. Use `default` for the workbench user interface font family, `editor` for the `#editor.fontFamily#`'s value, or a custom font family."),
+			default: 'default'
+		}
 	}
 });
 

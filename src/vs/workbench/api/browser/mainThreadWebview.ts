@@ -5,7 +5,7 @@
 
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -280,8 +280,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				if (webviewInput.webview.state) {
 					try {
 						state = JSON.parse(webviewInput.webview.state);
-					} catch {
-						// noop
+					} catch (e) {
+						console.error('Could not load webview state', e, webviewInput.webview.state);
 					}
 				}
 
@@ -309,8 +309,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		this.registerEditorProvider(ModelType.Text, extensionData, viewType, options, capabilities, true);
 	}
 
-	public $registerCustomEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, supportsMultipleEditorsPerResource: boolean): void {
-		this.registerEditorProvider(ModelType.Custom, extensionData, viewType, options, {}, supportsMultipleEditorsPerResource);
+	public $registerCustomEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, supportsMultipleEditorsPerDocument: boolean): void {
+		this.registerEditorProvider(ModelType.Custom, extensionData, viewType, options, {}, supportsMultipleEditorsPerDocument);
 	}
 
 	private registerEditorProvider(
@@ -319,19 +319,20 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		viewType: string,
 		options: modes.IWebviewPanelOptions,
 		capabilities: extHostProtocol.CustomTextEditorCapabilities,
-		supportsMultipleEditorsPerResource: boolean,
+		supportsMultipleEditorsPerDocument: boolean,
 	): DisposableStore {
 		if (this._editorProviders.has(viewType)) {
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
 
-		this._customEditorService.registerCustomEditorCapabilities(viewType, {
-			supportsMultipleEditorsPerResource
-		});
-
 		const extension = reviveWebviewExtension(extensionData);
 
 		const disposables = new DisposableStore();
+
+		disposables.add(this._customEditorService.registerCustomEditorCapabilities(viewType, {
+			supportsMultipleEditorsPerDocument
+		}));
+
 		disposables.add(this._webviewWorkbenchService.registerResolver({
 			canResolve: (webviewInput) => {
 				return webviewInput instanceof CustomEditorInput && webviewInput.viewType === viewType;
@@ -360,6 +361,17 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				}
 
 				webviewInput.webview.onDispose(() => {
+					// If the model is still dirty, make sure we have time to save it
+					if (modelRef.object.isDirty()) {
+						const sub = modelRef.object.onDidChangeDirty(() => {
+							if (!modelRef.object.isDirty()) {
+								sub.dispose();
+								modelRef.dispose();
+							}
+						});
+						return;
+					}
+
 					modelRef.dispose();
 				});
 
@@ -610,8 +622,9 @@ namespace HotExitState {
 
 class MainThreadCustomEditorModel extends Disposable implements ICustomEditorModel, IWorkingCopy {
 
+	private _fromBackup: boolean = false;
 	private _hotExitState: HotExitState.State = HotExitState.Allowed;
-	private readonly _fromBackup: boolean = false;
+	private _backupId: string | undefined;
 
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
@@ -648,10 +661,11 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	) {
 		super();
 
+		this._fromBackup = fromBackup;
+
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
 		}
-		this._fromBackup = fromBackup;
 	}
 
 	get editorResource() {
@@ -709,11 +723,15 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	//#endregion
 
 	public isReadonly() {
-		return this._editable;
+		return !this._editable;
 	}
 
 	public get viewType() {
 		return this._viewType;
+	}
+
+	public get backupId() {
+		return this._backupId;
 	}
 
 	public pushEdit(editId: number, label: string | undefined) {
@@ -803,13 +821,14 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return;
 		}
 
-		if (this._currentEditIndex === this._savePoint && !this._isDirtyFromContentChange) {
+		if (this._currentEditIndex === this._savePoint && !this._isDirtyFromContentChange && !this._fromBackup) {
 			return;
 		}
 
 		this._proxy.$revert(this._editorResource, this.viewType, CancellationToken.None);
 		this.change(() => {
 			this._isDirtyFromContentChange = false;
+			this._fromBackup = false;
 			this._currentEditIndex = this._savePoint;
 			this.spliceEdits();
 		});
@@ -832,6 +851,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		this.change(() => {
 			this._isDirtyFromContentChange = false;
 			this._savePoint = this._currentEditIndex;
+			this._fromBackup = false;
 		});
 
 		try {
@@ -902,9 +922,15 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			if (this._hotExitState === pendingState) {
 				this._hotExitState = HotExitState.Allowed;
 				backupData.meta!.backupId = backupId;
+				this._backupId = backupId;
 			}
 		} catch (e) {
-			// Make sure state has not changed in the meantime
+			if (isPromiseCanceledError(e)) {
+				// This is expected
+				throw e;
+			}
+
+			// Otherwise it could be a real error. Make sure state has not changed in the meantime.
 			if (this._hotExitState === pendingState) {
 				this._hotExitState = HotExitState.NotAllowed;
 			}

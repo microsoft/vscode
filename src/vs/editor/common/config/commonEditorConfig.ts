@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as arrays from 'vs/base/common/arrays';
-import { IEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, IComputedEditorOptions, ConfigurationChangedEvent, EDITOR_MODEL_DEFAULTS, EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, IComputedEditorOptions, ConfigurationChangedEvent, EDITOR_MODEL_DEFAULTS, EditorOption, FindComputedEditorOptionValueById, ComputeOptionsMemory } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IConfiguration, IDimension } from 'vs/editor/common/editorCommon';
@@ -283,7 +283,11 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 	private _onDidChange = this._register(new Emitter<ConfigurationChangedEvent>());
 	public readonly onDidChange: Event<ConfigurationChangedEvent> = this._onDidChange.event;
 
+	private _onDidChangeFast = this._register(new Emitter<ConfigurationChangedEvent>());
+	public readonly onDidChangeFast: Event<ConfigurationChangedEvent> = this._onDidChangeFast.event;
+
 	public readonly isSimpleWidget: boolean;
+	private _computeOptionsMemory: ComputeOptionsMemory;
 	public options!: ComputedEditorOptions;
 
 	private _isDominatedByLongLines: boolean;
@@ -299,6 +303,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 		this.isSimpleWidget = isSimpleWidget;
 
 		this._isDominatedByLongLines = false;
+		this._computeOptionsMemory = new ComputeOptionsMemory();
 		this._viewLineCount = 1;
 		this._lineNumbersDigitCount = 1;
 
@@ -332,6 +337,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 			}
 
 			this.options = newOptions;
+			this._onDidChangeFast.fire(changeEvent);
 			this._onDidChange.fire(changeEvent);
 		}
 	}
@@ -344,6 +350,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 		const partialEnv = this._getEnvConfiguration();
 		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, this.isSimpleWidget);
 		const env: IEnvironmentalOptions = {
+			memory: this._computeOptionsMemory,
 			outerWidth: partialEnv.outerWidth,
 			outerHeight: partialEnv.outerHeight,
 			fontInfo: this.readConfiguration(bareFontInfo),

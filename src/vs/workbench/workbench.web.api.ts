@@ -35,6 +35,17 @@ interface IExternalUriResolver {
 	(uri: URI): Promise<URI>;
 }
 
+interface ITunnelProvider {
+	/**
+	 * Support for creating tunnels.
+	 */
+	tunnelFactory?: ITunnelFactory;
+	/**
+	 * Support for filtering candidate ports
+	 */
+	showPortCandidate?: IShowPortCandidate;
+}
+
 interface ITunnelFactory {
 	(tunnelOptions: ITunnelOptions): Promise<ITunnel> | undefined;
 }
@@ -89,9 +100,14 @@ interface ICommand {
 interface IHomeIndicator {
 
 	/**
-	 * The identifier of the command to run when clicking the home indicator.
+	 * The link to open when clicking the home indicator.
 	 */
-	command: string;
+	href: string;
+
+	/**
+	 * @deprecated use `href` instead.
+	 */
+	command?: string;
 
 	/**
 	 * The icon name for the home indicator. This needs to be one of the existing
@@ -119,7 +135,7 @@ interface IDefaultSideBarLayout {
 		}[];
 	} | {
 		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active?: false | undefined;
+		active?: false;
 		order?: number;
 		visible?: boolean;
 		views?: {
@@ -140,15 +156,21 @@ interface IDefaultPanelLayout {
 	} | {
 		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
 		order?: number;
-		active?: false | undefined;
+		active?: false;
 		visible?: boolean;
 	})[];
 }
 
+interface IDefaultEditor {
+	readonly uri: UriComponents;
+	readonly openOnlyIfExists?: boolean;
+	readonly openWith?: string;
+}
+
 interface IDefaultLayout {
-	sidebar?: IDefaultSideBarLayout;
-	panel?: IDefaultPanelLayout;
-	// editors?: IDefaultWorkspaceEditorsLayout
+	readonly sidebar?: IDefaultSideBarLayout;
+	readonly panel?: IDefaultPanelLayout;
+	readonly editors?: IDefaultEditor[];
 }
 
 interface IWorkbenchConstructionOptions {
@@ -188,14 +210,10 @@ interface IWorkbenchConstructionOptions {
 	readonly resolveExternalUri?: IExternalUriResolver;
 
 	/**
-	 * Support for creating tunnels.
+	 * A provider for supplying tunneling functionality,
+	 * such as creating tunnels and showing candidate ports to forward.
 	 */
-	readonly tunnelFactory?: ITunnelFactory;
-
-	/**
-	 * Support for filtering candidate ports
-	 */
-	readonly showCandidate?: IShowPortCandidate;
+	readonly tunnelProvider?: ITunnelProvider;
 
 	//#endregion
 
@@ -214,12 +232,12 @@ interface IWorkbenchConstructionOptions {
 	userDataProvider?: IFileSystemProvider;
 
 	/**
-	 * Logged in user account information.
+	 * Session id of the current authenticated user
 	 */
-	readonly loggedInAccount?: { authenticationProviderId: string, accountName: string };
+	readonly authenticationSessionId?: string;
 
 	/**
-	 * Enables user data sync by default and syncs into the [loggedInAccount}(#loggedInAccount) if provided.
+	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
 	 */
 	readonly enableSyncByDefault?: boolean;
 
@@ -261,6 +279,11 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly homeIndicator?: IHomeIndicator;
 
+	/**
+	 * Optional default layout to apply on first time the workspace is opened.
+	 */
+	readonly defaultLayout?: IDefaultLayout;
+
 	//#endregion
 
 
@@ -277,8 +300,6 @@ interface IWorkbenchConstructionOptions {
 	readonly driver?: boolean;
 
 	//#endregion
-
-	defaultLayout?: IDefaultLayout;
 }
 
 interface IWorkbench {
@@ -397,6 +418,7 @@ export {
 	IExternalUriResolver,
 
 	// Tunnel
+	ITunnelProvider,
 	ITunnelFactory,
 	ITunnel,
 	ITunnelOptions,
@@ -412,6 +434,7 @@ export {
 	IHomeIndicator,
 
 	// Default layout
+	IDefaultEditor,
 	IDefaultLayout,
 	IDefaultPanelLayout,
 	IDefaultSideBarLayout,

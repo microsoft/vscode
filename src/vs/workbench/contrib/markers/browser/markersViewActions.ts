@@ -16,7 +16,7 @@ import { IThemeService, registerThemingParticipant, ICssStyleCollector, IColorTh
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { BaseActionViewItem, ActionViewItem, ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { badgeBackground, badgeForeground, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, badgeForeground, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
@@ -323,7 +323,6 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_ARIA_LABEL,
 			history: this.filterController.filters.filterHistory
 		}));
-		this.filterInputBox.inputElement.setAttribute('aria-labelledby', 'markers-panel-arialabel');
 		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
 		this.filterInputBox.value = this.filterController.filters.filterText;
 		this._register(this.filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(this.filterInputBox!))));
@@ -335,6 +334,10 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, this.filterInputBox!)));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
+		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.CLICK, (e) => {
+			e.stopPropagation();
+			e.preventDefault();
+		}));
 
 		const focusTracker = this._register(DOM.trackFocus(this.filterInputBox.inputElement));
 		this._register(focusTracker.onDidFocus(() => this.focusContextKey.set(true)));
@@ -510,6 +513,10 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
 	if (inputActiveOptionBorderColor) {
 		collector.addRule(`.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-label.markers-filters.checked { border-color: ${inputActiveOptionBorderColor}; }`);
+	}
+	const inputActiveOptionForegroundColor = theme.getColor(inputActiveOptionForeground);
+	if (inputActiveOptionForegroundColor) {
+		collector.addRule(`.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-label.markers-filters.checked { color: ${inputActiveOptionForegroundColor}; }`);
 	}
 	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
 	if (inputActiveOptionBackgroundColor) {

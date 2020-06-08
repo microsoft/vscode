@@ -26,13 +26,7 @@ import { values } from 'vs/base/common/map';
 import { clamp } from 'vs/base/common/numbers';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { SetMap } from 'vs/base/common/collections';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
-
-const treeItemExpandedIcon = registerIcon('tree-item-expanded', Codicon.chevronDown); // collapsed is done with rotation
-
-const treeFilterOnTypeOnIcon = registerIcon('tree-filter-on-type-on', Codicon.listFilter);
-const treeFilterOnTypeOffIcon = registerIcon('tree-filter-on-type-off', Codicon.listSelection);
-const treeFilterClearIcon = registerIcon('tree-filter-clear', Codicon.close);
+import { treeItemExpandedIcon, treeFilterOnTypeOnIcon, treeFilterOnTypeOffIcon, treeFilterClearIcon } from 'vs/base/browser/ui/tree/treeIcons';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -189,6 +183,10 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element);
 			},
+			getWidgetAriaLabel() {
+				return options.accessibilityProvider!.getWidgetAriaLabel();
+			},
+			getWidgetRole: options.accessibilityProvider && options.accessibilityProvider.getWidgetRole ? () => options.accessibilityProvider!.getWidgetRole!() : () => 'tree',
 			getAriaLevel(node) {
 				return node.depth;
 			},
@@ -202,8 +200,7 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(node.element);
 			}
 		},
-		enableKeyboardNavigation: options.simpleKeyboardNavigation,
-		ariaRole: 'tree'
+		enableKeyboardNavigation: options.simpleKeyboardNavigation
 	};
 }
 
@@ -710,7 +707,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(this.keyboardNavigationEventFilter || (() => true))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
-			.filter(e => this.keyboardNavigationDelegate.mightProducePrintableCharacter(e) || ((this.pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? (e.altKey && !e.metaKey) : e.ctrlKey) && !e.shiftKey)))
+			.filter(e => (this.keyboardNavigationDelegate.mightProducePrintableCharacter(e) && !(e.keyCode === KeyCode.DownArrow || e.keyCode === KeyCode.UpArrow || e.keyCode === KeyCode.LeftArrow || e.keyCode === KeyCode.RightArrow)) || ((this.pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? (e.altKey && !e.metaKey) : e.ctrlKey) && !e.shiftKey)))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.event;
 
@@ -965,6 +962,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly simpleKeyboardNavigation?: boolean;
 	readonly filterOnType?: boolean;
 	readonly openOnSingleClick?: boolean;
+	readonly smoothScrolling?: boolean;
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
@@ -1363,7 +1361,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		this.view.updateOptions({
 			enableKeyboardNavigation: this._options.simpleKeyboardNavigation,
-			automaticKeyboardNavigation: this._options.automaticKeyboardNavigation
+			automaticKeyboardNavigation: this._options.automaticKeyboardNavigation,
+			smoothScrolling: this._options.smoothScrolling
 		});
 
 		if (this.typeFilterController) {
@@ -1452,6 +1451,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const index = this.view.lastVisibleIndex;
 		const node = this.view.element(index);
 		return node.element;
+	}
+
+	get ariaLabel(): string {
+		return this.view.ariaLabel;
+	}
+
+	set ariaLabel(value: string) {
+		this.view.ariaLabel = value;
 	}
 
 	domFocus(): void {

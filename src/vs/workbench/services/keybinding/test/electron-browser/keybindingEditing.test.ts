@@ -58,6 +58,8 @@ import { TestTextResourcePropertiesService, TestContextService, TestWorkingCopyS
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 
 class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -115,8 +117,9 @@ suite('KeybindingsEditing', () => {
 			const fileService = new FileService(new NullLogService());
 			const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 			fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-			fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
+			fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService, new NullLogService()));
 			instantiationService.stub(IFileService, fileService);
+			instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
 			instantiationService.stub(IWorkingCopyService, new TestWorkingCopyService());
 			instantiationService.stub(IWorkingCopyFileService, instantiationService.createInstance(WorkingCopyFileService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));

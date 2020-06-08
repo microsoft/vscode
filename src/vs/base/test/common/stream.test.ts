@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { isReadableStream, newWriteableStream, Readable, consumeReadable, consumeReadableWithLimit, consumeStream, ReadableStream, toStream, toReadable, transform, consumeStreamWithLimit } from 'vs/base/common/stream';
+import { timeout } from 'vs/base/common/async';
 
 suite('Stream', () => {
 
@@ -13,7 +14,7 @@ suite('Stream', () => {
 		assert.ok(isReadableStream(newWriteableStream(d => d)));
 	});
 
-	test('WriteableStream', () => {
+	test('WriteableStream - basics', () => {
 		const stream = newWriteableStream<string>(strings => strings.join());
 
 		let error = false;
@@ -64,6 +65,81 @@ suite('Stream', () => {
 
 		stream.write('Unexpected');
 		assert.equal(chunks.length, 4);
+	});
+
+	test('WriteableStream - removeListener', () => {
+		const stream = newWriteableStream<string>(strings => strings.join());
+
+		let error = false;
+		const errorListener = (e: Error) => {
+			error = true;
+		};
+		stream.on('error', errorListener);
+
+		let data = false;
+		const dataListener = () => {
+			data = true;
+		};
+		stream.on('data', dataListener);
+
+		stream.write('Hello');
+		assert.equal(data, true);
+
+		data = false;
+		stream.removeListener('data', dataListener);
+
+		stream.write('World');
+		assert.equal(data, false);
+
+		stream.error(new Error());
+		assert.equal(error, true);
+
+		error = false;
+		stream.removeListener('error', errorListener);
+
+		stream.error(new Error());
+		assert.equal(error, false);
+	});
+
+	test('WriteableStream - highWaterMark', async () => {
+		const stream = newWriteableStream<string>(strings => strings.join(), { highWaterMark: 3 });
+
+		let res = stream.write('1');
+		assert.ok(!res);
+
+		res = stream.write('2');
+		assert.ok(!res);
+
+		res = stream.write('3');
+		assert.ok(!res);
+
+		let promise1 = stream.write('4');
+		assert.ok(promise1 instanceof Promise);
+
+		let promise2 = stream.write('5');
+		assert.ok(promise2 instanceof Promise);
+
+		let drained1 = false;
+		(async () => {
+			await promise1;
+			drained1 = true;
+		})();
+
+		let drained2 = false;
+		(async () => {
+			await promise2;
+			drained2 = true;
+		})();
+
+		let data: string | undefined = undefined;
+		stream.on('data', chunk => {
+			data = chunk;
+		});
+		assert.ok(data);
+
+		await timeout(0);
+		assert.equal(drained1, true);
+		assert.equal(drained2, true);
 	});
 
 	test('consumeReadable', () => {

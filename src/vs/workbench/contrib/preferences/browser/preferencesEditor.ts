@@ -80,7 +80,7 @@ export class PreferencesEditor extends BaseEditor {
 	set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
-	readonly minimumHeight = 260;
+	get minimumHeight() { return 260; }
 
 	private _onDidCreateWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = this._onDidCreateWidget.event;
@@ -609,7 +609,7 @@ class PreferencesRenderersController extends Disposable {
 					const message = getErrorMessage(err).trim();
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
-						this.telemetryService.publicLog('defaultSettings.searchError', { message }, true);
+						this.telemetryService.publicLogError('defaultSettings.searchError', { message });
 						this.logService.info('Setting search error: ' + message);
 					}
 					return undefined;

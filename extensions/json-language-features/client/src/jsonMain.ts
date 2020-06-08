@@ -77,6 +77,12 @@ interface JSONSchemaSettings {
 	schema?: any;
 }
 
+namespace SettingIds {
+	export const enableFormatter = 'json.format.enable';
+	export const enableSchemaDownload = 'json.schemaDownload.enable';
+	export const maxItemsComputed = 'json.maxItemsComputed';
+}
+
 let telemetryReporter: TelemetryReporter | undefined;
 
 export function activate(context: ExtensionContext) {
@@ -107,14 +113,13 @@ export function activate(context: ExtensionContext) {
 		id: 'status.json.resolveError',
 		name: localize('json.resolveError', "JSON: Schema Resolution Error"),
 		alignment: StatusBarAlignment.Right,
-		priority: 0
+		priority: 0,
 	});
-	schemaResolutionErrorStatusBarItem.command = '_json.retryResolveSchema';
-	schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionErrorMessage', 'Unable to resolve schema.') + ' ' + localize('json.clickToRetry', 'Click to retry.');
 	schemaResolutionErrorStatusBarItem.text = '$(alert)';
 	toDispose.push(schemaResolutionErrorStatusBarItem);
 
 	const fileSchemaErrors = new Map<string, string>();
+	let schemaDownloadEnabled = true;
 
 	// Options to control the language client
 	const clientOptions: LanguageClientOptions = {
@@ -135,7 +140,7 @@ export function activate(context: ExtensionContext) {
 				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
 			},
 			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
-				const schemaErrorIndex = diagnostics.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
+				const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
 
 				if (schemaErrorIndex === -1) {
 					fileSchemaErrors.delete(uri.toString());
@@ -144,6 +149,10 @@ export function activate(context: ExtensionContext) {
 
 				const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
 				fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
+
+				if (!schemaDownloadEnabled) {
+					diagnostics = diagnostics.filter(d => !isSchemaResolveError(d));
+				}
 
 				if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri.toString()) {
 					schemaResolutionErrorStatusBarItem.show();
@@ -205,16 +214,16 @@ export function activate(context: ExtensionContext) {
 		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
 			const uri = Uri.parse(uriPath);
 			if (uri.scheme === 'untitled') {
-				return Promise.reject(new Error(localize('untitled.schema', 'Unable to load {0}', uri.toString())));
+				return Promise.reject(new ResponseError(3, localize('untitled.schema', 'Unable to load {0}', uri.toString())));
 			}
 			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 				return workspace.openTextDocument(uri).then(doc => {
 					schemaDocuments[uri.toString()] = true;
 					return doc.getText();
 				}, error => {
-					return Promise.reject(error);
+					return Promise.reject(new ResponseError(2, error.toString()));
 				});
-			} else {
+			} else if (schemaDownloadEnabled) {
 				if (telemetryReporter && uri.authority === 'schema.management.azure.com') {
 					/* __GDPR__
 						"json.schema" : {
@@ -233,6 +242,8 @@ export function activate(context: ExtensionContext) {
 					}
 					return Promise.reject(new ResponseError(error.status, getErrorStatusDescription(error.status) + '\n' + extraInfo));
 				});
+			} else {
+				return Promise.reject(new ResponseError(1, localize('schemaDownloadDisabled', 'Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload)));
 			}
 		});
 
@@ -273,7 +284,7 @@ export function activate(context: ExtensionContext) {
 				schemaResolutionErrorStatusBarItem.text = '$(watch)';
 				const activeDocUri = window.activeTextEditor.document.uri.toString();
 				client.sendRequest(ForceValidateRequest.type, activeDocUri).then((diagnostics) => {
-					const schemaErrorIndex = diagnostics.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
+					const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
 					if (schemaErrorIndex !== -1) {
 						// Show schema resolution errors in status bar only; ref: #51032
 						const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
@@ -294,15 +305,60 @@ export function activate(context: ExtensionContext) {
 			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
 		});
 
-		// manually register / deregister format provider based on the `html.format.enable` setting avoiding issues with late registration. See #71652.
+		// manually register / deregister format provider based on the `json.format.enable` setting avoiding issues with late registration. See #71652.
 		updateFormatterRegistration();
 		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
-		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
 
+		updateSchemaDownloadSetting();
+
+		toDispose.push(workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(SettingIds.enableFormatter)) {
+				updateFormatterRegistration();
+			} else if (e.affectsConfiguration(SettingIds.enableSchemaDownload)) {
+				updateSchemaDownloadSetting();
+			}
+		}));
 
 		client.onNotification(ResultLimitReachedNotification.type, message => {
-			window.showInformationMessage(`${message}\nUse setting 'json.maxItemsComputed' to configure the limit.`);
+			window.showInformationMessage(`${message}\n${localize('configureLimit', 'Use setting \'{0}\' to configure the limit.', SettingIds.maxItemsComputed)}`);
 		});
+
+		function updateFormatterRegistration() {
+			const formatEnabled = workspace.getConfiguration().get(SettingIds.enableFormatter);
+			if (!formatEnabled && rangeFormatting) {
+				rangeFormatting.dispose();
+				rangeFormatting = undefined;
+			} else if (formatEnabled && !rangeFormatting) {
+				rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
+					provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
+						const params: DocumentRangeFormattingParams = {
+							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+							range: client.code2ProtocolConverter.asRange(range),
+							options: client.code2ProtocolConverter.asFormattingOptions(options)
+						};
+						return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
+							client.protocol2CodeConverter.asTextEdits,
+							(error) => {
+								client.logFailedRequest(DocumentRangeFormattingRequest.type, error);
+								return Promise.resolve([]);
+							}
+						);
+					}
+				});
+			}
+		}
+
+		function updateSchemaDownloadSetting() {
+			schemaDownloadEnabled = workspace.getConfiguration().get(SettingIds.enableSchemaDownload) !== false;
+			if (schemaDownloadEnabled) {
+				schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionErrorMessage', 'Unable to resolve schema. Click to retry.');
+				schemaResolutionErrorStatusBarItem.command = '_json.retryResolveSchema';
+				handleRetryResolveSchemaCommand();
+			} else {
+				schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionDisabledMessage', 'Downloading schemas is disabled. Click to configure.');
+				schemaResolutionErrorStatusBarItem.command = { command: 'workbench.action.openSettings', arguments: [SettingIds.enableSchemaDownload], title: '' };
+			}
+		}
 
 	});
 
@@ -316,30 +372,6 @@ export function activate(context: ExtensionContext) {
 	languages.setLanguageConfiguration('json', languageConfiguration);
 	languages.setLanguageConfiguration('jsonc', languageConfiguration);
 
-	function updateFormatterRegistration() {
-		const formatEnabled = workspace.getConfiguration().get('json.format.enable');
-		if (!formatEnabled && rangeFormatting) {
-			rangeFormatting.dispose();
-			rangeFormatting = undefined;
-		} else if (formatEnabled && !rangeFormatting) {
-			rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
-				provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
-					const params: DocumentRangeFormattingParams = {
-						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-						range: client.code2ProtocolConverter.asRange(range),
-						options: client.code2ProtocolConverter.asFormattingOptions(options)
-					};
-					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
-						client.protocol2CodeConverter.asTextEdits,
-						(error) => {
-							client.logFailedRequest(DocumentRangeFormattingRequest.type, error);
-							return Promise.resolve([]);
-						}
-					);
-				}
-			});
-		}
-	}
 }
 
 
@@ -386,7 +418,7 @@ function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[]
 function getSettings(): Settings {
 	const httpSettings = workspace.getConfiguration('http');
 
-	const resultLimit: number = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get('json.maxItemsComputed')))) || 5000;
+	const resultLimit: number = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get(SettingIds.maxItemsComputed)))) || 5000;
 
 	const settings: Settings = {
 		http: {
@@ -517,4 +549,8 @@ function updateMarkdownString(h: MarkdownString): MarkdownString {
 	const n = new MarkdownString(h.value, true);
 	n.isTrusted = h.isTrusted;
 	return n;
+}
+
+function isSchemaResolveError(d: Diagnostic) {
+	return d.code === /* SchemaResolveError */ 0x300;
 }

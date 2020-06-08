@@ -78,6 +78,10 @@ class PagedAccessibilityProvider<T> implements IListAccessibilityProvider<number
 		private accessibilityProvider: IListAccessibilityProvider<T>
 	) { }
 
+	getWidgetAriaLabel(): string {
+		return this.accessibilityProvider.getWidgetAriaLabel();
+	}
+
 	getAriaLabel(index: number): string | null {
 		const model = this.modelProvider();
 
@@ -161,7 +165,7 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	get onDidChangeFocus(): Event<IListEvent<T>> {
-		return Event.map(this.list.onDidChangeFocus, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+		return Event.map(this.list.onDidChangeFocus, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
 	}
 
 	get onDidOpen(): Event<IListEvent<T>> {
@@ -169,11 +173,11 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	get onDidChangeSelection(): Event<IListEvent<T>> {
-		return Event.map(this.list.onDidChangeSelection, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+		return Event.map(this.list.onDidChangeSelection, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
 	}
 
 	get onPin(): Event<IListEvent<T>> {
-		return Event.map(this.list.onDidPin, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+		return Event.map(this.list.onDidPin, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
 	}
 
 	get onContextMenu(): Event<IListContextMenuEvent<T>> {

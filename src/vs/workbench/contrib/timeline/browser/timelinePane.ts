@@ -100,7 +100,7 @@ class TimelineAggregate {
 		return this.items[this.items.length - 1];
 	}
 
-	add(timeline: Timeline) {
+	add(timeline: Timeline, options: TimelineOptions) {
 		let updated = false;
 
 		if (timeline.items.length !== 0 && this.items.length !== 0) {
@@ -139,7 +139,10 @@ class TimelineAggregate {
 			this.items.push(...timeline.items);
 		}
 
-		this._cursor = timeline.paging?.cursor;
+		// If we are not requesting more recent items than we have, then update the cursor
+		if (options.cursor !== undefined || typeof options.limit !== 'object') {
+			this._cursor = timeline.paging?.cursor;
+		}
 
 		if (updated) {
 			this.items.sort(
@@ -626,7 +629,7 @@ export class TimelinePane extends ViewPane {
 			updated = true;
 		}
 		else {
-			updated = timeline.add(response);
+			updated = timeline.add(response, request.options);
 		}
 
 		if (updated) {
@@ -660,7 +663,7 @@ export class TimelinePane extends ViewPane {
 		let count = 0;
 
 		if (this.timelinesBySource.size === 1) {
-			const [source, timeline] = Iterable.first(this.timelinesBySource);
+			const [source, timeline] = Iterable.first(this.timelinesBySource)!;
 
 			timeline.lastRenderedIndex = -1;
 
@@ -880,10 +883,12 @@ export class TimelinePane extends ViewPane {
 					if (isLoadMoreCommand(element)) {
 						return element.ariaLabel;
 					}
-					return element.ariaLabel ?? localize('timeline.aria.item', "{0}: {1}", element.relativeTime ?? '', element.label);
+					return element.accessibilityInformation ? element.accessibilityInformation.label : localize('timeline.aria.item', "{0}: {1}", element.relativeTime ?? '', element.label);
+				},
+				getWidgetAriaLabel(): string {
+					return localize('timeline', "Timeline");
 				}
 			},
-			ariaLabel: this.title,
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
 			overrideStyles: {
 				listBackground: this.getBackgroundColor(),
@@ -921,6 +926,10 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private loadMore(item: LoadMoreCommand) {
+		if (item.loading) {
+			return;
+		}
+
 		item.loading = true;
 		this.tree.rerender(item);
 

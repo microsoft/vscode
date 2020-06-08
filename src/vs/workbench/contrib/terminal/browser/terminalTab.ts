@@ -347,7 +347,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._container.appendChild(this._tabElement);
 		if (!this._splitPaneContainer) {
 			this._panelPosition = this._layoutService.getPanelPosition();
-			this._terminalLocation = this._viewDescriptorService.getViewLocation(TERMINAL_VIEW_ID)!;
+			this._terminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 			const orientation = this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 			const newLocal = this._instantiationService.createInstance(SplitPaneContainer, this._tabElement, orientation);
 			this._splitPaneContainer = newLocal;
@@ -400,7 +400,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (this._splitPaneContainer) {
 			// Check if the panel position changed and rotate panes if so
 			const newPanelPosition = this._layoutService.getPanelPosition();
-			const newTerminalLocation = this._viewDescriptorService.getViewLocation(TERMINAL_VIEW_ID)!;
+			const newTerminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 			const terminalPositionChanged = newPanelPosition !== this._panelPosition || newTerminalLocation !== this._terminalLocation;
 
 			if (terminalPositionChanged) {

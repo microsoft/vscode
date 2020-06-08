@@ -94,6 +94,10 @@
 		postMessage: hostMessaging.postMessage.bind(hostMessaging),
 		onMessage: hostMessaging.onMessage.bind(hostMessaging),
 		ready: workerReady,
-		fakeLoad: true
+		fakeLoad: true,
+		rewriteCSP: (csp, endpoint) => {
+			const endpointUrl = new URL(endpoint);
+			csp.setAttribute('content', csp.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin));
+		}
 	});
 }());

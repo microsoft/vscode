@@ -51,8 +51,12 @@ export class RemoteFileSystemProvider extends Disposable implements
 		const connection = remoteAgentService.getConnection()!;
 		this.channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
 
+		// Initially assume case sensitivity until remote environment is resolved
 		this.setCaseSensitive(true);
-		remoteAgentService.getEnvironment().then(remoteAgentEnvironment => this.setCaseSensitive(!!(remoteAgentEnvironment && remoteAgentEnvironment.os === OperatingSystem.Linux)));
+		(async () => {
+			const remoteAgentEnvironment = await remoteAgentService.getEnvironment();
+			this.setCaseSensitive(remoteAgentEnvironment?.os === OperatingSystem.Linux);
+		})();
 
 		this.registerListeners();
 	}

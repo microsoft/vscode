@@ -31,7 +31,7 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  * A service that enables to search for files or with in files.
  */
 export interface ISearchService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
@@ -183,7 +183,7 @@ export function resultIsMatch(result: ITextSearchResult): result is ITextSearchM
 }
 
 export interface IProgressMessage {
-	message?: string;
+	message: string;
 }
 
 export type ISearchProgressItem = IFileMatch | IProgressMessage;
@@ -192,8 +192,8 @@ export function isFileMatch(p: ISearchProgressItem): p is IFileMatch {
 	return !!(<IFileMatch>p).resource;
 }
 
-export function isProgressMessage(p: ISearchProgressItem): p is IProgressMessage {
-	return !isFileMatch(p);
+export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProgressItem): p is IProgressMessage {
+	return !!(p as IProgressMessage).message;
 }
 
 export interface ISearchCompleteStats {
@@ -349,7 +349,9 @@ export interface ISearchConfigurationProperties {
 	searchOnTypeDebouncePeriod: number;
 	searchEditor: {
 		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',
-		experimental: { reusePriorSearchConfiguration: boolean }
+		reusePriorSearchConfiguration: boolean,
+		defaultNumberOfContextLines: number | null,
+		experimental: {}
 	};
 	sortOrder: SearchSortOrder;
 }
@@ -467,7 +469,7 @@ export interface IRawFileMatch {
 	 *
 	 * If not given, the search algorithm should use `relativePath`.
 	 */
-	searchPath?: string;
+	searchPath: string | undefined;
 }
 
 export interface ISearchEngine<T> {

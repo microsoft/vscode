@@ -2,7 +2,24 @@
 # Flags: CaseSensitive WordMatch
 # ContextLines: 2
 
-10 results - 4 files
+16 results - 5 files
+
+src/vs/base/browser/dom.ts:
+  81  };
+  82  
+  83: /** @deprecated ES6 - use classList*/
+  84  export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+  85: /** @deprecated ES6 - use classList*/
+  86  export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
+  87: /** @deprecated ES6 - use classList*/
+  88  export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
+  89: /** @deprecated ES6 - use classList*/
+  90  export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
+  91: /** @deprecated ES6 - use classList*/
+  92  export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+  93: /** @deprecated ES6 - use classList*/
+  94  export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
+  95  
 
 src/vs/base/common/arrays.ts:
   401  

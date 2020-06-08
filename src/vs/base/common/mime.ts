@@ -335,3 +335,13 @@ export function getMediaMime(path: string): string | undefined {
 	const ext = extname(path);
 	return mapExtToMediaMimes[ext.toLowerCase()];
 }
+
+export function getExtensionForMimeType(mimeType: string): string | undefined {
+	for (const extension in mapExtToMediaMimes) {
+		if (mapExtToMediaMimes[extension] === mimeType) {
+			return extension;
+		}
+	}
+
+	return undefined;
+}

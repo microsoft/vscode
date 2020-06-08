@@ -405,7 +405,8 @@ class HelpPanel extends ViewPane {
 				accessibilityProvider: {
 					getAriaLabel: (item: HelpItemBase) => {
 						return item.label;
-					}
+					},
+					getWidgetAriaLabel: () => nls.localize('remotehelp', "Remote Help")
 				}
 			}
 		);
@@ -590,7 +591,7 @@ class OpenRemoteViewletAction extends ShowViewletAction {
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	SyncActionDescriptor.create(OpenRemoteViewletAction, VIEWLET_ID, nls.localize('toggleRemoteViewlet', "Show Remote Explorer"), {
+	SyncActionDescriptor.from(OpenRemoteViewletAction, {
 		primary: 0
 	}),
 	'View: Show Remote Explorer',
@@ -817,4 +818,3 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);
-

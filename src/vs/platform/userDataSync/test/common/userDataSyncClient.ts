@@ -6,7 +6,7 @@
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IUserData, IUserDataManifest, ALL_SYNC_RESOURCES, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSyncUtilService, IUserDataSyncEnablementService, IUserDataSyncService, getDefaultIgnoredSettings, IUserDataSyncBackupStoreService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataManifest, ALL_SYNC_RESOURCES, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSyncUtilService, IUserDataSyncEnablementService, IUserDataSyncService, getDefaultIgnoredSettings, IUserDataSyncBackupStoreService, SyncResource, ServerResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { generateUuid } from 'vs/base/common/uuid';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
@@ -37,6 +37,7 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -83,12 +84,13 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IRequestService, this.testServer);
 		this.instantiationService.stub(IAuthenticationTokenService, <Partial<IAuthenticationTokenService>>{
 			onDidChangeToken: new Emitter<IUserDataSyncAuthToken | undefined>().event,
-			async getToken() { return { authenticationProviderId: 'id', token: 'token' }; }
+			token: { authenticationProviderId: 'id', token: 'token' }
 		});
 
 		this.instantiationService.stub(IUserDataSyncLogService, logService);
 		this.instantiationService.stub(ITelemetryService, NullTelemetryService);
 		this.instantiationService.stub(IUserDataSyncStoreService, this.instantiationService.createInstance(UserDataSyncStoreService));
+		this.instantiationService.stub(IUserDataSyncMachinesService, this.instantiationService.createInstance(UserDataSyncMachinesService));
 		this.instantiationService.stub(IUserDataSyncBackupStoreService, this.instantiationService.createInstance(UserDataSyncBackupStoreService));
 		this.instantiationService.stub(IUserDataSyncUtilService, new TestUserDataSyncUtilService());
 		this.instantiationService.stub(IUserDataSyncEnablementService, this.instantiationService.createInstance(UserDataSyncEnablementService));
@@ -124,7 +126,13 @@ export class UserDataSyncClient extends Disposable {
 		return this.instantiationService.get(IUserDataSyncStoreService).read(resource, null);
 	}
 
+	manifest(): Promise<IUserDataManifest | null> {
+		return this.instantiationService.get(IUserDataSyncStoreService).manifest();
+	}
+
 }
+
+const ALL_SERVER_RESOURCES: ServerResource[] = [...ALL_SYNC_RESOURCES, 'machines'];
 
 export class UserDataSyncTestServer implements IRequestService {
 
@@ -132,14 +140,17 @@ export class UserDataSyncTestServer implements IRequestService {
 
 	readonly url: string = 'http://host:3000';
 	private session: string | null = null;
-	private readonly data: Map<SyncResource, IUserData> = new Map<SyncResource, IUserData>();
+	private readonly data: Map<ServerResource, IUserData> = new Map<SyncResource, IUserData>();
 
 	private _requests: { url: string, type: string, headers?: IHeaders }[] = [];
 	get requests(): { url: string, type: string, headers?: IHeaders }[] { return this._requests; }
 
+	private _requestsWithAllHeaders: { url: string, type: string, headers?: IHeaders }[] = [];
+	get requestsWithAllHeaders(): { url: string, type: string, headers?: IHeaders }[] { return this._requestsWithAllHeaders; }
+
 	private _responses: { status: number }[] = [];
 	get responses(): { status: number }[] { return this._responses; }
-	reset(): void { this._requests = []; this._responses = []; }
+	reset(): void { this._requests = []; this._responses = []; this._requestsWithAllHeaders = []; }
 
 	async resolveProxy(url: string): Promise<string | undefined> { return url; }
 
@@ -154,6 +165,7 @@ export class UserDataSyncTestServer implements IRequestService {
 			}
 		}
 		this._requests.push({ url: options.url!, type: options.type!, headers });
+		this._requestsWithAllHeaders.push({ url: options.url!, type: options.type!, headers: options.headers });
 		const requestContext = await this.doRequest(options);
 		this._responses.push({ status: requestContext.res.statusCode! });
 		return requestContext;
@@ -180,7 +192,7 @@ export class UserDataSyncTestServer implements IRequestService {
 
 	private async getManifest(headers?: IHeaders): Promise<IRequestContext> {
 		if (this.session) {
-			const latest: Record<SyncResource, string> = Object.create({});
+			const latest: Record<ServerResource, string> = Object.create({});
 			const manifest: IUserDataManifest = { session: this.session, latest };
 			this.data.forEach((value, key) => latest[key] = value.ref);
 			return this.toResponse(200, { 'Content-Type': 'application/json' }, JSON.stringify(manifest));
@@ -189,7 +201,7 @@ export class UserDataSyncTestServer implements IRequestService {
 	}
 
 	private async getLatestData(resource: string, headers: IHeaders = {}): Promise<IRequestContext> {
-		const resourceKey = ALL_SYNC_RESOURCES.find(key => key === resource);
+		const resourceKey = ALL_SERVER_RESOURCES.find(key => key === resource);
 		if (resourceKey) {
 			const data = this.data.get(resourceKey);
 			if (!data) {
@@ -207,7 +219,7 @@ export class UserDataSyncTestServer implements IRequestService {
 		if (!this.session) {
 			this.session = generateUuid();
 		}
-		const resourceKey = ALL_SYNC_RESOURCES.find(key => key === resource);
+		const resourceKey = ALL_SERVER_RESOURCES.find(key => key === resource);
 		if (resourceKey) {
 			const data = this.data.get(resourceKey);
 			if (headers['If-Match'] !== undefined && headers['If-Match'] !== (data ? data.ref : '0')) {
@@ -220,7 +232,7 @@ export class UserDataSyncTestServer implements IRequestService {
 		return this.toResponse(204);
 	}
 
-	private async clear(headers?: IHeaders): Promise<IRequestContext> {
+	async clear(headers?: IHeaders): Promise<IRequestContext> {
 		this.data.clear();
 		this.session = null;
 		return this.toResponse(204);

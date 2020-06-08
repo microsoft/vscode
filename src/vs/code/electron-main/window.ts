@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event } from 'electron';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -163,9 +163,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				show: !isFullscreenOrMaximized,
 				title: product.nameLong,
 				webPreferences: {
+					preload: URI.parse(this.doGetPreloadUrl()).fsPath,
 					nodeIntegration: true,
 					nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
-					webviewTag: true
+					webviewTag: true,
+					enableWebSQL: false
 				}
 			};
 
@@ -429,24 +431,34 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._lastFocusTime = Date.now();
 		});
 
-		// Simple fullscreen doesn't resize automatically when the resolution changes so as a workaround
-		// we need to detect when display metrics change or displays are added/removed and toggle the
-		// fullscreen manually.
 		if (isMacintosh) {
-			const simpleFullScreenScheduler = this._register(new RunOnceScheduler(() => {
+			const displayChangedScheduler = this._register(new RunOnceScheduler(() => {
 				if (!this._win) {
 					return; // disposed
 				}
 
+				// Notify renderers about displays changed
+				this.sendWhenReady('vscode:displayChanged');
+
+				// Simple fullscreen doesn't resize automatically when the resolution changes so as a workaround
+				// we need to detect when display metrics change or displays are added/removed and toggle the
+				// fullscreen manually.
 				if (!this.useNativeFullScreen() && this.isFullScreen) {
 					this.setFullScreen(false);
 					this.setFullScreen(true);
 				}
-
-				this.sendWhenReady('vscode:displayChanged');
 			}, 100));
 
-			const displayChangedListener = () => simpleFullScreenScheduler.schedule();
+			const displayChangedListener = (event: Event, display: Display, changedMetrics?: string[]) => {
+				if (Array.isArray(changedMetrics) && changedMetrics.length === 1 && changedMetrics[0] === 'workArea') {
+					// Electron will emit 'display-metrics-changed' events even when actually
+					// going fullscreen, because the dock hides. However, we do not want to
+					// react on this event as there is no change in display bounds.
+					return;
+				}
+
+				displayChangedScheduler.schedule();
+			};
 
 			screen.on('display-metrics-changed', displayChangedListener);
 			this._register(toDisposable(() => screen.removeListener('display-metrics-changed', displayChangedListener)));
@@ -502,7 +514,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private onWindowError(error: WindowError): void {
-		this.logService.error(error === WindowError.CRASHED ? '[VS Code]: render process crashed!' : '[VS Code]: detected unresponsive');
+		this.logService.error(error === WindowError.CRASHED ? '[VS Code]: renderer process crashed!' : '[VS Code]: detected unresponsive');
 
 		// If we run extension tests from CLI, showing a dialog is not
 		// very helpful in this case. Rather, we bring down the test run
@@ -599,9 +611,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 		// Do not set to empty configuration at startup if setting is empty to not override configuration through CLI options:
 		const env = process.env;
-		const newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
+		let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
 			|| (env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY || '').trim() // Not standardized.
 			|| undefined;
+		if (newHttpProxy?.endsWith('/')) {
+			newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
+		}
 		const newNoProxy = (env.no_proxy || env.NO_PROXY || '').trim() || undefined; // Not standardized.
 		if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
 			this.currentHttpProxy = newHttpProxy;
@@ -746,11 +761,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv, OPTIONS);
-		const config = Object.assign(environment, windowConfiguration);
+		const config = Object.assign(environment, windowConfiguration) as unknown as { [key: string]: unknown };
 		for (const key in config) {
-			const configValue = (config as any)[key];
+			const configValue = config[key];
 			if (configValue === undefined || configValue === null || configValue === '' || configValue === false) {
-				delete (config as any)[key]; // only send over properties that have a true value
+				delete config[key]; // only send over properties that have a true value
 			}
 		}
 
@@ -774,6 +789,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private doGetUrl(config: object): string {
 		return `${require.toUrl('vs/code/electron-browser/workbench/workbench.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+	}
+
+	private doGetPreloadUrl(): string {
+		return require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js');
 	}
 
 	serializeWindowState(): IWindowState {
@@ -937,7 +956,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Multi Montior (fullscreen): try to find the previously used display
 		if (state.display && state.mode === WindowMode.Fullscreen) {
-			const display = displays.filter(d => d.id === state.display)[0];
+			const display = displays.find(d => d.id === state.display);
 			if (display && typeof display.bounds?.x === 'number' && typeof display.bounds?.y === 'number') {
 				this.logService.trace('window#validateWindowState: restoring fullscreen to previous display');
 
