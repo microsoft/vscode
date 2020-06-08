@@ -254,7 +254,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				// No need to do anything
 				originalInput.updateGroup(group.id);
 				return {
-					override: this.editorService.openEditor(originalInput, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group)
+					override: this.editorService.openEditor(originalInput, new NotebookEditorOptions(options || {}).with({ override: false }), group)
 				};
 			} else {
 				// Create a copy of the input.
@@ -273,7 +273,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				}
 
 				return {
-					override: this.editorService.openEditor(copiedInput, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group)
+					override: this.editorService.openEditor(copiedInput, new NotebookEditorOptions(options || {}).with({ override: false }), group)
 				};
 			}
 		}
@@ -302,7 +302,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 			if (existingEditors.length) {
 				// switch to this cell
-				return { override: this.editorService.openEditor(existingEditors[0], new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group) };
+				return { override: this.editorService.openEditor(existingEditors[0], new NotebookEditorOptions(options || {}).with({ override: false }), group) };
 			}
 		}
 
@@ -311,7 +311,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 			if (!input!.isDisposed()) {
 				input?.updateGroup(group.id);
-				return { override: this.editorService.openEditor(input!, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group) };
+				return { override: this.editorService.openEditor(input!, new NotebookEditorOptions(options || {}).with({ override: false }), group) };
 			} else {
 				this._resourceMapping.delete(resource);
 			}
@@ -357,7 +357,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			index = group.isPinned(originalInput) ? originalEditorIndex + 1 : originalEditorIndex;
 		}
 
-		return { override: this.editorService.openEditor(input, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true, index }), group) };
+		return { override: this.editorService.openEditor(input, new NotebookEditorOptions(options || {}).with({ override: false, index }), group) };
 	}
 }
 

@@ -203,7 +203,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	): Promise<IEditorPane | undefined> {
 		if (viewType === defaultCustomEditor.id) {
 			const fileEditorInput = this.editorService.createEditorInput({ resource, forceFile: true });
-			return this.openEditorForResource(resource, fileEditorInput, { ...options, ignoreOverrides: true }, group);
+			return this.openEditorForResource(resource, fileEditorInput, { ...options, override: false }, group);
 		}
 
 		if (!this._contributedEditors.get(viewType)) {
@@ -391,7 +391,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}
 
 		const targetGroup = group || this.editorGroupService.activeGroup;
-		const newEditor = await this.openEditorForResource(resource, editorToUse.editor, { ...options, ignoreOverrides: true }, targetGroup);
+		const newEditor = await this.openEditorForResource(resource, editorToUse.editor, { ...options, override: false }, targetGroup);
 		if (targetGroup.id !== editorToUse.group.id) {
 			editorToUse.group.closeEditor(editorToUse.editor);
 		}
@@ -499,7 +499,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 
 		if (id) {
 			return {
-				override: this.customEditorService.openWith(resource, id, { ...options, ignoreOverrides: true }, group)
+				override: this.customEditorService.openWith(resource, id, { ...options, override: false }, group)
 			};
 		}
 
@@ -531,7 +531,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 			return {
 				override: this.editorService.openEditor(existingEditorForResource, {
 					...options,
-					ignoreOverrides: true,
+					override: false,
 					activation: options?.preserveFocus ? EditorActivation.RESTORE : undefined,
 				}, group)
 			};
@@ -562,7 +562,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		// Open VS Code's standard editor but prompt user to see if they wish to use a custom one instead
 		return {
 			override: (async () => {
-				const standardEditor = await this.editorService.openEditor(editor, { ...options, ignoreOverrides: true }, group);
+				const standardEditor = await this.editorService.openEditor(editor, { ...options, override: false }, group);
 				// Give a moment to make sure the editor is showing.
 				// Otherwise the focus shift can cause the prompt to be dismissed right away.
 				await new Promise(resolve => setTimeout(resolve, 20));
@@ -630,7 +630,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 			return {
 				override: (async () => {
 					const input = new DiffEditorInput(editor.getName(), editor.getDescription(), originalOverride || editor.originalInput, modifiedOverride || editor.modifiedInput, true);
-					return this.editorService.openEditor(input, { ...options, ignoreOverrides: true }, group);
+					return this.editorService.openEditor(input, { ...options, override: false }, group);
 				})(),
 			};
 		}
