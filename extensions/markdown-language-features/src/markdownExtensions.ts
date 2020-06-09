@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as path from 'path';
-import { Disposable } from './util/dispose';
 import * as arrays from './util/arrays';
+import { Disposable } from './util/dispose';
 
 const resolveExtensionResource = (extension: vscode.Extension<any>, resourcePath: string): vscode.Uri => {
-	return vscode.Uri.file(path.join(extension.extensionPath, resourcePath));
+	return vscode.Uri.joinPath(extension.extensionUri, resourcePath);
 };
 
 const resolveExtensionResources = (extension: vscode.Extension<any>, resourcePaths: unknown): vscode.Uri[] => {
