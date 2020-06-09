@@ -9,7 +9,7 @@ import { isFunction, isObject, isArray, assertIsDefined } from 'vs/base/common/t
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditorPane } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditorPane, IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -52,6 +52,14 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
 	}
 
+	protected onWillCloseEditorInGroup(editor: IEditorInput): void {
+
+		// React to editors closing to preserve or clear view state. This needs to happen
+		// in the onWillCloseEditor because at that time the editor has not yet
+		// been disposed and we can safely persist the view state still as needed.
+		this.doSaveOrClearTextDiffEditorViewState(editor);
+	}
+
 	getTitle(): string {
 		if (this.input) {
 			return this.input.getName();
@@ -69,7 +77,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
 
-		// Remember view settings if input changes
+		// Update/clear view settings if input changes
 		this.doSaveOrClearTextDiffEditorViewState(this.input);
 
 		// Set input and resolve
@@ -227,7 +235,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
 
-		// Keep editor view state in settings to restore when coming back
+		// Update/clear editor view state in settings
 		this.doSaveOrClearTextDiffEditorViewState(this.input);
 
 		// Clear Model
@@ -260,7 +268,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		super.saveState();
 	}
 
-	private doSaveOrClearTextDiffEditorViewState(input: EditorInput | undefined): void {
+	private doSaveOrClearTextDiffEditorViewState(input: IEditorInput | undefined): void {
 		if (!(input instanceof DiffEditorInput)) {
 			return; // only supported for diff editor inputs
 		}
@@ -272,7 +280,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 		// Clear view state if input is disposed or we are configured to not storing any state
 		if (input.isDisposed() || (!this.shouldRestoreViewState && (!this.group || !this.group.isOpened(input)))) {
-			super.clearTextEditorViewState([resource]);
+			super.clearTextEditorViewState([resource], this.group);
 		}
 
 		// Otherwise save it
@@ -281,7 +289,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 			// Make sure to clean up when the input gets disposed
 			Event.once(input.onDispose)(() => {
-				super.clearTextEditorViewState([resource]);
+				super.clearTextEditorViewState([resource], this.group);
 			});
 		}
 	}

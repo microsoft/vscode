@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined, isFunction } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorInput, EditorOptions, IEditorMemento, ITextEditorPane, TextEditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorMemento, ITextEditorPane, TextEditorOptions, IEditorCloseEvent, IEditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -23,8 +23,9 @@ import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { computeEditorAriaLabel } from 'vs/workbench/browser/parts/editor/editor';
+import { computeEditorAriaLabel, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { IExtUri } from 'vs/base/common/resources';
+import { MutableDisposable } from 'vs/base/common/lifecycle';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -44,6 +45,8 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 	private hasPendingConfigurationChange: boolean | undefined;
 	private lastAppliedEditorOptions?: IEditorOptions;
 	private editorMemento: IEditorMemento<IEditorViewState>;
+
+	private readonly groupListener = this._register(new MutableDisposable());
 
 	private _shouldRestoreViewState: boolean | undefined;
 	protected get shouldRestoreViewState(): boolean | undefined { return this._shouldRestoreViewState; }
@@ -192,7 +195,21 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 			editorControl.onHide();
 		}
 
+		// Listen to close events to trigger `onWillCloseEditorInGroup`
+		this.groupListener.value = ((group as IEditorGroupView).onWillCloseEditor(e => this.onWillCloseEditor(e)));
+
 		super.setEditorVisible(visible, group);
+	}
+
+	private onWillCloseEditor(e: IEditorCloseEvent): void {
+		const editor = e.editor;
+		if (editor === this.input) {
+			this.onWillCloseEditorInGroup(editor);
+		}
+	}
+
+	protected onWillCloseEditorInGroup(editor: IEditorInput): void {
+		// Subclasses can override
 	}
 
 	focus(): void {
