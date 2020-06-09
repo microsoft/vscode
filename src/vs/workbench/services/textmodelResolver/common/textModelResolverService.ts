@@ -17,6 +17,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
@@ -174,13 +175,17 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
-		@IModelService private readonly modelService: IModelService
+		@IModelService private readonly modelService: IModelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._register(new ModelUndoRedoParticipant(this.modelService, this, this.undoRedoService));
 	}
 
 	async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+
+		resource = this.uriIdentityService.asCanonicalUri(resource);
+
 		const ref = this.resourceModelCollection.acquire(resource.toString());
 
 		try {
