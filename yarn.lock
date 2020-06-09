@@ -6296,10 +6296,10 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.10.0-beta8:
-  version "0.10.0-beta8"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta8.tgz#f4aa56c71a794f4580373a3030dfebd25240c6db"
-  integrity sha512-Ul/hLsadC0SvvShxpne+kq2ebSMcitewlNhrwoXXBvFdCqxJt7Ai1AgMhH7AKBUp06uBeYXThJ2ihTszrkdnYw==
+node-pty@0.10.0-alpha1:
+  version "0.10.0-alpha1"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-alpha1.tgz#0460184fcf93e54e6583815dc96ea1e29559dd86"
+  integrity sha512-lAnMRr37htWfehdvDvTupkANZ/D9ua3FbGaPoMAnzCNf0guE7OJJzjhWCmXUGsraISyLfOX3UAoLUjXNuaiD4Q==
   dependencies:
     nan "^2.14.0"
 
