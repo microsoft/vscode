@@ -73,6 +73,7 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 
 	get source() {
 		// todo@jrieken remove this
+		console.warn('USE cell.document.getText() instead');
 		return this._documentData.getText();
 	}
 
