@@ -1534,6 +1534,7 @@ declare module 'vscode' {
 	export interface NotebookCellsChangeData {
 		readonly start: number;
 		readonly deletedCount: number;
+		readonly deletedItems: NotebookCell[];
 		readonly items: NotebookCell[];
 	}
 
