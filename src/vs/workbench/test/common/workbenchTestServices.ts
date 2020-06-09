@@ -134,7 +134,7 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
 	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable { return Disposable.None; }
 
-	async runFileOperationParticipants(data: { target: URI, source: URI | undefined }[], operation: FileOperation): Promise<void> { }
+	async runFileOperationParticipants(files: { target: URI, source: URI | undefined }[], operation: FileOperation): Promise<void> { }
 
 	async delete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<void> { }
 
