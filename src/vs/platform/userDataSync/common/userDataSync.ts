@@ -162,6 +162,9 @@ export type ServerResource = SyncResource | 'machines';
 export interface IUserDataSyncStoreService {
 	readonly _serviceBrand: undefined;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
+	readonly onTokenFailed: Event<void>;
+	readonly onTokenSucceed: Event<void>;
+	setAuthToken(token: string, type: string): void;
 	read(resource: ServerResource, oldValue: IUserData | null): Promise<IUserData>;
 	write(resource: ServerResource, content: string, ref: string | null): Promise<string>;
 	manifest(): Promise<IUserDataManifest | null>;

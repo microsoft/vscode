@@ -195,7 +195,7 @@ export class UserDataSyncAccountServiceChannel implements IServerChannel {
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
-			case 'onDidChangeToken': return this.service.onDidChangeAccount;
+			case 'onDidChangeAccount': return this.service.onDidChangeAccount;
 			case 'onTokenFailed': return this.service.onTokenFailed;
 		}
 		throw new Error(`Event not found: ${event}`);
@@ -203,6 +203,7 @@ export class UserDataSyncAccountServiceChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
+			case '_getInitialData': return Promise.resolve(this.service.account);
 			case 'updateAccount': return this.service.updateAccount(args);
 		}
 		throw new Error('Invalid call');

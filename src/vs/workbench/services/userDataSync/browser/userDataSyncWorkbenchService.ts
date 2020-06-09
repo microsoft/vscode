@@ -27,6 +27,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Action } from 'vs/base/common/actions';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -137,11 +138,12 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 						this.authenticationService.onDidRegisterAuthenticationProvider,
 						this.authenticationService.onDidUnregisterAuthenticationProvider,
 					), authenticationProviderId => this.isSupportedAuthenticationProviderId(authenticationProviderId)),
-				this.userDataSyncAccountService.onTokenFailed)
+				Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => !isSuccessive))
 				(() => this.update()));
 
 		this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
 		this._register(this.storageService.onDidChangeStorage(e => this.onDidChangeStorage(e)));
+		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => isSuccessive)(() => this.onDidSuccessiveAuthFailures()));
 	}
 
 	private async update(): Promise<void> {
@@ -200,10 +202,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
 			this.logService.debug('Sync account status changed', previous, accountStatus);
-
-			if (previous === AccountStatus.Available && accountStatus === AccountStatus.Unavailable) {
-				this.turnoff(false);
-			}
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);
@@ -283,7 +281,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		return account.sessionId === this.currentSessionId;
 	}
 
-	async pickAccount(): Promise<void> {
+	async signIn(): Promise<void> {
 		await this.pick();
 	}
 
@@ -385,6 +383,20 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.currentSessionId = sessionId;
 		this.telemetryService.publicLog2<UserAccountEvent, UserAccountClassification>('sync.userAccount', { id: accountId });
 		await this.update();
+	}
+
+	private async onDidSuccessiveAuthFailures(): Promise<void> {
+		this.telemetryService.publicLog2('sync/successiveAuthFailures');
+		this.currentSessionId = undefined;
+		await this.update();
+
+		this.notificationService.notify({
+			severity: Severity.Error,
+			message: localize('successive auth failures', "Preferences sync was turned off because of successive authorization failures. Please sign in again to continue synchronizing"),
+			actions: {
+				primary: [new Action('sign in', localize('sign in', "Sign in"), undefined, true, () => this.signIn())]
+			}
+		});
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {

@@ -6,6 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 
 export interface IUserDataSyncAccount {
 	readonly authenticationProviderId: string;
@@ -16,12 +17,11 @@ export const IUserDataSyncAccountService = createDecorator<IUserDataSyncAccountS
 export interface IUserDataSyncAccountService {
 	readonly _serviceBrand: undefined;
 
+	readonly onTokenFailed: Event<boolean>;
 	readonly account: IUserDataSyncAccount | undefined;
 	readonly onDidChangeAccount: Event<IUserDataSyncAccount | undefined>;
-	updateAccount(userDataSyncAuthToken: IUserDataSyncAccount | undefined): Promise<void>;
+	updateAccount(account: IUserDataSyncAccount | undefined): Promise<void>;
 
-	readonly onTokenFailed: Event<void>;
-	sendTokenFailed(): void;
 }
 
 export class UserDataSyncAccountService extends Disposable implements IUserDataSyncAccountService {
@@ -33,19 +33,32 @@ export class UserDataSyncAccountService extends Disposable implements IUserDataS
 	private _onDidChangeAccount = this._register(new Emitter<IUserDataSyncAccount | undefined>());
 	readonly onDidChangeAccount = this._onDidChangeAccount.event;
 
-	private _onTokenFailed: Emitter<void> = this._register(new Emitter<void>());
-	readonly onTokenFailed: Event<void> = this._onTokenFailed.event;
+	private _onTokenFailed: Emitter<boolean> = this._register(new Emitter<boolean>());
+	readonly onTokenFailed: Event<boolean> = this._onTokenFailed.event;
+
+	private wasTokenFailed: boolean = false;
+
+	constructor(
+		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService
+	) {
+		super();
+		this._register(userDataSyncStoreService.onTokenFailed(() => {
+			this.updateAccount(undefined);
+			this._onTokenFailed.fire(this.wasTokenFailed);
+			this.wasTokenFailed = true;
+		}));
+		this._register(userDataSyncStoreService.onTokenSucceed(() => this.wasTokenFailed = false));
+	}
 
 	async updateAccount(account: IUserDataSyncAccount | undefined): Promise<void> {
 		if (account && this._account ? account.token !== this._account.token || account.authenticationProviderId !== this._account.authenticationProviderId : account !== this._account) {
 			this._account = account;
+			if (this._account) {
+				this.userDataSyncStoreService.setAuthToken(this._account.token, this._account.authenticationProviderId);
+			}
 			this._onDidChangeAccount.fire(account);
 		}
 	}
 
-	sendTokenFailed(): void {
-		this.updateAccount(undefined);
-		this._onTokenFailed.fire();
-	}
 }
 
