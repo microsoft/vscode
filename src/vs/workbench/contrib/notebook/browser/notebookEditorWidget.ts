@@ -1384,17 +1384,17 @@ export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	hc: PANEL_BORDER
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
-export const selectedCellIndicator = registerColor('notebook.selectedCellIndicator', {
-	light: focusBorder,
-	dark: focusBorder,
-	hc: focusBorder
-}, nls.localize('notebook.selectedCellIndicator', "The color of the selected notebook cell indicator."));
-
 export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator', {
 	light: focusBorder,
 	dark: focusBorder,
 	hc: focusBorder
-}, nls.localize('notebook.focusedCellIndicator', "The color of the focused notebook cell indicator."));
+}, nls.localize('notebook.focusedCellIndicator', "The color of the notebook cell indicator."));
+
+export const focusedEditorIndicator = registerColor('notebook.focusedEditorIndicator', {
+	light: focusBorder,
+	dark: focusBorder,
+	hc: focusBorder
+}, nls.localize('notebook.focusedEditorIndicator', "The color of the notebook cell editor indicator."));
 
 export const cellStatusIconSuccess = registerColor('notebookStatusSuccessIcon.foreground', {
 	light: debugIconStartForeground,
@@ -1496,16 +1496,16 @@ registerThemingParticipant((theme, collector) => {
 			.notebookOverlay .monaco-list-row.cell-output-hover .notebook-cell-focus-indicator { border-color: ${cellToolbarSeperator}; }`);
 	}
 
-	const selectedCellIndicatorColor = theme.getColor(selectedCellIndicator);
-	if (selectedCellIndicatorColor) {
-		collector.addRule(`.notebookOverlay .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${selectedCellIndicatorColor}; }`);
-		collector.addRule(`.notebookOverlay .monaco-list-row .notebook-cell-focus-indicator { border-color: ${selectedCellIndicatorColor}; }`);
-		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${selectedCellIndicatorColor}; }`);
-	}
-
 	const focusedCellIndicatorColor = theme.getColor(focusedCellIndicator);
 	if (focusedCellIndicatorColor) {
-		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.notebookOverlay .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.notebookOverlay .monaco-list-row .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${focusedCellIndicatorColor}; }`);
+	}
+
+	const focusedEditorIndicatorColor = theme.getColor(focusedEditorIndicator);
+	if (focusedEditorIndicatorColor) {
+		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedEditorIndicatorColor}; }`);
 	}
 
 	const editorBorderColor = theme.getColor(notebookCellBorder);
