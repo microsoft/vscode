@@ -251,6 +251,10 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 				const resourceViewState = cache.get(resource.toString());
 				if (resourceViewState) {
 					delete resourceViewState[group.id];
+
+					if (isEmptyObject(resourceViewState)) {
+						cache.delete(resource.toString());
+					}
 				}
 			} else {
 				cache.delete(resource.toString());
