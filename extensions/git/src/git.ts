@@ -1791,11 +1791,15 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate', contains?: string }): Promise<Ref[]> {
+	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate', contains?: string, pattern?: string }): Promise<Ref[]> {
 		const args = ['for-each-ref', '--format', '%(refname) %(objectname)'];
 
 		if (opts && opts.sort && opts.sort !== 'alphabetically') {
 			args.push('--sort', `-${opts.sort}`);
+		}
+
+		if (opts?.pattern) {
+			args.push(opts.pattern);
 		}
 
 		if (opts?.contains) {
@@ -1920,7 +1924,7 @@ export class Repository {
 	}
 
 	async getBranches(query: BranchQuery): Promise<Ref[]> {
-		const refs = await this.getRefs({ contains: query.contains });
+		const refs = await this.getRefs({ contains: query.contains, pattern: query.pattern ? `refs/${query.pattern}` : undefined });
 		return refs.filter(value => (value.type !== RefType.Tag) && (query.remote || !value.remote));
 	}
 
