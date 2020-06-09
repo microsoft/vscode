@@ -122,7 +122,8 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			const draggedViews = this.viewDescriptorService.getViewContainerModel(currentContainer)!.allViewDescriptors;
 
 			// ... all views must be movable
-			return !draggedViews.some(v => !v.canMoveView);
+			// Prevent moving scm explicitly TODO@joaomoreno remove when scm is moveable
+			return !draggedViews.some(v => !v.canMoveView) && currentContainer.id !== 'workbench.view.scm';
 		} else {
 			// Dragging an individual view
 			const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(dragData.id);
