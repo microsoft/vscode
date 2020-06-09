@@ -13,7 +13,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { deepClone } from 'vs/base/common/objects';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -130,8 +129,7 @@ export class StartAction extends AbstractDebugAction {
 
 	async run(): Promise<boolean> {
 		let { launch, name, config } = this.debugService.getConfigurationManager().selectedConfiguration;
-		const clonedConfig = deepClone(config);
-		return this.debugService.startDebugging(launch, clonedConfig || name, { noDebug: this.isNoDebug() });
+		return this.debugService.startDebugging(launch, config || name, { noDebug: this.isNoDebug() });
 	}
 
 	protected isNoDebug(): boolean {
