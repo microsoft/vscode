@@ -372,11 +372,8 @@ export class DebugService implements IDebugService {
 			// a no-folder workspace has no launch.config
 			config = Object.create(null);
 		}
+		config!.noDebug = !!(options && options.noDebug);
 		const unresolvedConfig = deepClone(config);
-
-		if (options && options.noDebug) {
-			config!.noDebug = true;
-		}
 
 		if (!type) {
 			const guess = await this.configurationManager.guessDebugger();
