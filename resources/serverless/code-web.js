@@ -6,7 +6,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // @ts-check
-/** @typedef {import('../src/vs/workbench/workbench.web.api').IWorkbenchConstructionOptions} WebConfiguration **/
+/** @typedef {import('../../src/vs/workbench/workbench.web.api').IWorkbenchConstructionOptions} WebConfiguration **/
 
 const http = require('http');
 const url = require('url');
@@ -18,7 +18,7 @@ const opn = require('opn');
 const minimist = require('minimist');
 const webpack = require('webpack');
 
-const APP_ROOT = path.dirname(__dirname);
+const APP_ROOT = path.join(__dirname, '..', '..');
 const EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
 
