@@ -1060,14 +1060,13 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const toPaste = resources.distinctParents(await clipboardService.readResources(), r => r);
 	const element = context.length ? context[0] : explorerService.roots[0];
 
-	// Check if target is ancestor of pasted folder
-	const stats = await Promise.all(toPaste.map(async fileToPaste => {
+	try {
+		// Check if target is ancestor of pasted folder
+		const files = await Promise.all(toPaste.map(async fileToPaste => {
 
-		if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
-			throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
-		}
-
-		try {
+			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
+				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
+			}
 			const fileToPasteStat = await fileService.resolve(fileToPaste);
 
 			// Find target
@@ -1081,30 +1080,35 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
 
-			// Move/Copy File
-			if (pasteShouldMove) {
-				return (await workingCopyFileService.move([{ source: fileToPaste, target: targetFile }]))[0];
-			} else {
-				return (await workingCopyFileService.copy([{ source: fileToPaste, target: targetFile }]))[0];
-			}
-		} catch (e) {
-			onError(notificationService, new Error(nls.localize('fileDeleted', "The file to paste has been deleted or moved since you copied it. {0}", getErrorMessage(e))));
-			return undefined;
-		}
-	}));
+			return { source: fileToPaste, target: targetFile };
+		}));
 
-	if (pasteShouldMove) {
-		// Cut is done. Make sure to clear cut state.
-		await explorerService.setToCopy([], false);
-		pasteShouldMove = false;
-	}
-	if (stats.length >= 1) {
-		const stat = stats[0];
-		if (stat && !stat.isDirectory && stats.length === 1) {
-			await editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
+		let stats = null;
+		// Move/Copy File
+		if (pasteShouldMove) {
+			stats = await workingCopyFileService.move(files);
+		} else {
+			stats = await workingCopyFileService.copy(files);
 		}
-		if (stat) {
-			await explorerService.select(stat.resource);
+
+		if (stats.length >= 1) {
+			const stat = stats[0];
+			if (stat && !stat.isDirectory && stats.length === 1) {
+				await editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
+			}
+			if (stat) {
+				await explorerService.select(stat.resource);
+			}
+		}
+	}
+	catch (e) {
+		onError(notificationService, new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))));
+	}
+	finally {
+		if (pasteShouldMove) {
+			// Cut is done. Make sure to clear cut state.
+			await explorerService.setToCopy([], false);
+			pasteShouldMove = false;
 		}
 	}
 };
