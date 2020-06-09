@@ -118,12 +118,12 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 	) { }
 
 	canSerialize(editorInput: EditorInput): boolean {
-		return this.filesConfigurationService.isHotExitEnabled;
+		return this.filesConfigurationService.isHotExitEnabled && !editorInput.isDisposed();
 	}
 
 	serialize(editorInput: EditorInput): string | undefined {
-		if (!this.filesConfigurationService.isHotExitEnabled) {
-			return undefined; // never restore untitled unless hot exit is enabled
+		if (!this.filesConfigurationService.isHotExitEnabled || editorInput.isDisposed()) {
+			return undefined;
 		}
 
 		const untitledTextEditorInput = <UntitledTextEditorInput>editorInput;
