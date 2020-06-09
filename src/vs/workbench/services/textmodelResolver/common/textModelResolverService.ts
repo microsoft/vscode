@@ -184,6 +184,9 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 
 	async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 
+		// From this moment on, only operate on the canonical resource
+		// to ensure we reduce the chance of resolving the same resource
+		// with different resource forms (e.g. path casing on Windows)
 		resource = this.uriIdentityService.asCanonicalUri(resource);
 
 		const ref = this.resourceModelCollection.acquire(resource.toString());
