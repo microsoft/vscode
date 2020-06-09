@@ -49,13 +49,6 @@ export class UriIdentityService implements IUriIdentityService {
 
 	asCanonicalUri(uri: URI): URI {
 
-		// todo@jrieken there is more to it than just comparing
-		// * ASYNC!?
-		// * windows 8.3-filenames
-		// * substr-drives...
-		// * sym links?
-		// * fetch real casing?
-
 		// (1) normalize URI
 		if (this._fileService.canHandleResource(uri)) {
 			uri = normalizePath(uri);
