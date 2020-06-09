@@ -30,7 +30,7 @@ import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
-import { isArray } from 'vs/base/common/types';
+import { isArray, isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -131,11 +131,13 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 
 		const keysWithSchema = Object.keys(data)
 			.filter(key => !!data[key] && !(key in (element.setting.objectProperties ?? {})))
-			.filter(key => patternsAndSchemas.find(({ pattern }) => pattern.test(key)))
 			.map(key => {
-				const { schema } = patternsAndSchemas.find(({ pattern }) => pattern.test(key))!;
-				return { key, schema };
-			});
+				const patternAndSchema = patternsAndSchemas.find(({ pattern }) => pattern.test(key));
+				return patternAndSchema
+					? { key, schema: patternAndSchema.schema }
+					: undefined;
+			})
+			.filter(isDefined);
 
 		items = items.concat(keysWithSchema.map(({ key, schema }) => {
 			const valueEnumOptions = getEnumOptionsFromSchema(schema);
