@@ -132,35 +132,35 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._processType = ProcessType.ExtensionTerminal;
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, undefined, cols, rows, this._configHelper);
 		} else {
-			// const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
+			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
 			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 				this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
 			} else {
 				this.remoteAuthority = this._environmentService.configuration.remoteAuthority;
 			}
 			const hasRemoteAuthority = !!this.remoteAuthority;
-			// let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
+			let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
 
 			// resolvedUserHome is needed here as remote resolvers can launch local terminals before
 			// they're connected to the remote.
 			this.userHome = this._pathService.resolvedUserHome?.fsPath;
 			this.os = platform.OS;
-			// if (launchRemotely) {
-			const userHomeUri = await this._pathService.userHome;
-			this.userHome = userHomeUri.path;
-			if (hasRemoteAuthority) {
-				const remoteEnv = await this._remoteAgentService.getEnvironment();
-				if (remoteEnv) {
-					this.userHome = remoteEnv.userHome.path;
-					this.os = remoteEnv.os;
+			if (launchRemotely) {
+				const userHomeUri = await this._pathService.userHome;
+				this.userHome = userHomeUri.path;
+				if (hasRemoteAuthority) {
+					const remoteEnv = await this._remoteAgentService.getEnvironment();
+					if (remoteEnv) {
+						this.userHome = remoteEnv.userHome.path;
+						this.os = remoteEnv.os;
+					}
 				}
-			}
 
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
-			// } else {
-			// 	this._process = await this._launchProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
-			// }
+				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+				this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
+			} else {
+				this._process = await this._launchProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
+			}
 		}
 		this.processState = ProcessState.LAUNCHING;
 
@@ -256,7 +256,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
-		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
+		return await this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
 	}
 
 	public setDimensions(cols: number, rows: number): void {

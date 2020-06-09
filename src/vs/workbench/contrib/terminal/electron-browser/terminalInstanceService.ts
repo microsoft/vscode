@@ -8,7 +8,6 @@ import { IWindowsShellHelper, IShellLaunchConfig, ITerminalChildProcess, IS_WORK
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/electron-browser/windowsShellHelper';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, platform, Platform } from 'vs/base/common/platform';
-import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
 import { Terminal as XTermTerminal } from 'xterm';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
@@ -22,7 +21,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
+import { TerminalProcessMainProxy } from 'vs/workbench/contrib/terminal/electron-browser/terminalProcessMainProxy';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -39,11 +38,8 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IHistoryService private readonly _historyService: IHistoryService,
-		@ILogService private readonly _logService: ILogService,
-		@IPtyService private readonly _ptyService: IPtyService
+		@ILogService private readonly _logService: ILogService
 	) {
-		console.log('call main service');
-		console.log('result: ', this._ptyService.createInstance());
 	}
 
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
@@ -78,8 +74,10 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return new WindowsShellHelper(shellProcessId, xterm);
 	}
 
-	public createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess {
-		return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
+	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): Promise<ITerminalChildProcess> {
+		return this._instantiationService.createInstance(TerminalProcessMainProxy, shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
+
+		// return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
 	}
 
 	private _isWorkspaceShellAllowed(): boolean {

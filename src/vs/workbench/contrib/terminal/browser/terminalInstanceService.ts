@@ -56,7 +56,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		throw new Error('Not implemented');
 	}
 
-	public createTerminalProcess(): ITerminalChildProcess {
+	public createTerminalProcess(): Promise<ITerminalChildProcess> {
 		throw new Error('Not implemented');
 	}
 
