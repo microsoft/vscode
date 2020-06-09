@@ -50,7 +50,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 
 export class EnvironmentService implements INativeEnvironmentService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	get args(): ParsedArgs { return this._args; }
 

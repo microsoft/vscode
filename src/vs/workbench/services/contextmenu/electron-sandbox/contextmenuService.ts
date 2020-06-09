@@ -29,7 +29,7 @@ import { stripCodicons } from 'vs/base/common/codicons';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	get onDidContextMenu(): Event<void> { return this.impl.onDidContextMenu; }
 
@@ -64,7 +64,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
 class NativeContextMenuService extends Disposable implements IContextMenuService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _onDidContextMenu = this._register(new Emitter<void>());
 	readonly onDidContextMenu: Event<void> = this._onDidContextMenu.event;

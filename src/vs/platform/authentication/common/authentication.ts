@@ -15,7 +15,7 @@ export interface IUserDataSyncAuthToken {
 }
 
 export interface IAuthenticationTokenService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly token: IUserDataSyncAuthToken | undefined;
 	readonly onDidChangeToken: Event<IUserDataSyncAuthToken | undefined>;

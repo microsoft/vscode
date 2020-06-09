@@ -39,6 +39,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { AbstractSideBySideEditorInputFactory } from 'vs/workbench/browser/parts/editor/editor.contribution';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -89,79 +90,11 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-interface ISerializedPreferencesEditorInput {
-	name: string;
-	description: string;
-
-	detailsSerialized: string;
-	masterSerialized: string;
-
-	detailsTypeId: string;
-	masterTypeId: string;
-}
-
 // Register Preferences Editor Input Factory
-class PreferencesEditorInputFactory implements IEditorInputFactory {
+class PreferencesEditorInputFactory extends AbstractSideBySideEditorInputFactory {
 
-	canSerialize(editorInput: EditorInput): boolean {
-		const input = <PreferencesEditorInput>editorInput;
-
-		if (input.details && input.master) {
-			const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
-			const detailsInputFactory = registry.getEditorInputFactory(input.details.getTypeId());
-			const masterInputFactory = registry.getEditorInputFactory(input.master.getTypeId());
-
-			return !!(detailsInputFactory?.canSerialize(input.details) && masterInputFactory?.canSerialize(input.master));
-		}
-
-		return false;
-	}
-
-	serialize(editorInput: EditorInput): string | undefined {
-		const input = <PreferencesEditorInput>editorInput;
-
-		if (input.details && input.master) {
-			const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
-			const detailsInputFactory = registry.getEditorInputFactory(input.details.getTypeId());
-			const masterInputFactory = registry.getEditorInputFactory(input.master.getTypeId());
-
-			if (detailsInputFactory && masterInputFactory) {
-				const detailsSerialized = detailsInputFactory.serialize(input.details);
-				const masterSerialized = masterInputFactory.serialize(input.master);
-
-				if (detailsSerialized && masterSerialized) {
-					return JSON.stringify(<ISerializedPreferencesEditorInput>{
-						name: input.getName(),
-						description: input.getDescription(),
-						detailsSerialized,
-						masterSerialized,
-						detailsTypeId: input.details.getTypeId(),
-						masterTypeId: input.master.getTypeId()
-					});
-				}
-			}
-		}
-
-		return undefined;
-	}
-
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
-		const deserialized: ISerializedPreferencesEditorInput = JSON.parse(serializedEditorInput);
-
-		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
-		const detailsInputFactory = registry.getEditorInputFactory(deserialized.detailsTypeId);
-		const masterInputFactory = registry.getEditorInputFactory(deserialized.masterTypeId);
-
-		if (detailsInputFactory && masterInputFactory) {
-			const detailsInput = detailsInputFactory.deserialize(instantiationService, deserialized.detailsSerialized);
-			const masterInput = masterInputFactory.deserialize(instantiationService, deserialized.masterSerialized);
-
-			if (detailsInput && masterInput) {
-				return new PreferencesEditorInput(deserialized.name, deserialized.description, detailsInput, masterInput);
-			}
-		}
-
-		return undefined;
+	protected createEditorInput(name: string, description: string | undefined, detailsInput: EditorInput, masterInput: EditorInput): EditorInput {
+		return new PreferencesEditorInput(name, description, detailsInput, masterInput);
 	}
 }
 

@@ -6,8 +6,6 @@
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
 import { compareSubstringIgnoreCase, compare, compareSubstring } from 'vs/base/common/strings';
-import { Schemas } from 'vs/base/common/network';
-import { isLinux } from 'vs/base/common/platform';
 
 /**
  * @deprecated ES6: use `[...SetOrMap.values()]`
@@ -161,6 +159,8 @@ export class UriIterator implements IKeyIterator<URI> {
 	private _states: UriIteratorState[] = [];
 	private _stateIdx: number = 0;
 
+	constructor(private readonly _ignorePathCasing: boolean = false) { }
+
 	reset(key: URI): this {
 		this._value = key;
 		this._states = [];
@@ -171,10 +171,7 @@ export class UriIterator implements IKeyIterator<URI> {
 			this._states.push(UriIteratorState.Authority);
 		}
 		if (this._value.path) {
-			//todo@jrieken the case-sensitive logic is copied form `resources.ts#hasToIgnoreCase`
-			// which cannot be used because it depends on this
-			const caseSensitive = key.scheme === Schemas.file && isLinux;
-			this._pathIterator = new PathIterator(false, caseSensitive);
+			this._pathIterator = new PathIterator(false, !this._ignorePathCasing);
 			this._pathIterator.reset(key.path);
 			if (this._pathIterator.value()) {
 				this._states.push(UriIteratorState.Path);
@@ -481,14 +478,40 @@ export class TernarySearchTree<K, V> {
 	}
 }
 
+interface ResourceMapKeyFn {
+	(resource: URI): string;
+}
+
 export class ResourceMap<T> implements Map<URI, T> {
+
+	private static readonly defaultToKey = (resource: URI) => resource.toString();
 
 	readonly [Symbol.toStringTag] = 'ResourceMap';
 
-	protected readonly map: Map<string, T>;
+	private readonly map: Map<string, T>;
+	private readonly toKey: ResourceMapKeyFn;
 
-	constructor(other?: ResourceMap<T>) {
-		this.map = other ? new Map(other.map) : new Map();
+	/**
+	 *
+	 * @param toKey Custom uri identity function, e.g use an existing `IExtUri#getComparison`-util
+	 */
+	constructor(toKey?: ResourceMapKeyFn);
+
+	/**
+	 *
+	 * @param other Another resource which this maps is created from
+	 * @param toKey Custom uri identity function, e.g use an existing `IExtUri#getComparison`-util
+	 */
+	constructor(other?: ResourceMap<T>, toKey?: ResourceMapKeyFn);
+
+	constructor(mapOrKeyFn?: ResourceMap<T> | ResourceMapKeyFn, toKey?: ResourceMapKeyFn) {
+		if (mapOrKeyFn instanceof ResourceMap) {
+			this.map = new Map(mapOrKeyFn.map);
+			this.toKey = toKey ?? ResourceMap.defaultToKey;
+		} else {
+			this.map = new Map();
+			this.toKey = mapOrKeyFn ?? ResourceMap.defaultToKey;
+		}
 	}
 
 	set(resource: URI, value: T): this {
@@ -545,10 +568,6 @@ export class ResourceMap<T> implements Map<URI, T> {
 		for (let item of this.map) {
 			yield [URI.parse(item[0]), item[1]];
 		}
-	}
-
-	private toKey(resource: URI): string {
-		return resource.toString();
 	}
 }
 

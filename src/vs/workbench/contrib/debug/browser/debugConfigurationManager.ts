@@ -257,7 +257,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		const debugDynamicExtensionsTypes = extensions.map(e => {
 			const activationEvent = e.activationEvents && e.activationEvents.find(e => e.includes(onDebugDynamicConfigurationsName));
 			if (activationEvent) {
-				const type = activationEvent.substr(onDebugDynamicConfigurationsName.length);
+				const type = activationEvent.substr(onDebugDynamicConfigurationsName.length + 1);
 				return type || (e.contributes && e.contributes.debuggers && e.contributes.debuggers.length ? e.contributes.debuggers[0].type : undefined);
 			}
 

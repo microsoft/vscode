@@ -20,7 +20,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 	private static readonly LAST_SHUTDOWN_REASON_KEY = 'lifecyle.lastShutdownReason';
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private shutdownReason: ShutdownReason | undefined;
 

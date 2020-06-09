@@ -14,7 +14,7 @@ export class NativeClipboardService implements IClipboardService {
 
 	private static readonly FILE_FORMAT = 'code/file-list'; // Clipboard format for files
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IElectronService private readonly electronService: IElectronService
@@ -76,11 +76,6 @@ export class NativeClipboardService implements IClipboardService {
 		} catch (error) {
 			return []; // do not trust clipboard data
 		}
-	}
-
-	/** @deprecated */
-	readTextSync(): string {
-		return clipboard.readText();
 	}
 
 	/** @deprecated */

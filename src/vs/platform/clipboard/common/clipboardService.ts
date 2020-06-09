@@ -10,7 +10,7 @@ export const IClipboardService = createDecorator<IClipboardService>('clipboardSe
 
 export interface IClipboardService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Writes text to the system clipboard.
@@ -48,8 +48,6 @@ export interface IClipboardService {
 	hasResources(): Promise<boolean>;
 
 
-	/** @deprecated */
-	readTextSync(): string | undefined;
 
 	/** @deprecated */
 	readFindTextSync(): string;

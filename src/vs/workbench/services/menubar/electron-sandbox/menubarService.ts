@@ -10,7 +10,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class MenubarService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
 		return createChannelSender<IMenubarService>(mainProcessService.getChannel('menubar'));

@@ -28,9 +28,9 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 	private modelReference: Promise<IReference<ITextEditorModel>> | undefined = undefined;
 
 	constructor(
+		resource: URI,
 		private name: string | undefined,
 		private description: string | undefined,
-		resource: URI,
 		private preferredMode: string | undefined,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService,
@@ -40,7 +40,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 		@ILabelService labelService: ILabelService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
+		super(resource, undefined, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 	}
 
 	getTypeId(): string {

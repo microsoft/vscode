@@ -67,7 +67,7 @@ interface ICachedViewContainer {
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly ACTION_HEIGHT = 48;
 	static readonly PINNED_VIEW_CONTAINERS = 'workbench.activity.pinnedViewlets2';

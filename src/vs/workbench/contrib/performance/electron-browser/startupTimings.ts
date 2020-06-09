@@ -123,7 +123,7 @@ export class StartupTimings implements IWorkbenchContribution {
 	private _reportPerfTicks(): void {
 		const entries: Record<string, number> = Object.create(null);
 		for (const entry of getEntries()) {
-			entries[entry.name] = entry.timestamp;
+			entries[entry.name] = entry.startTime;
 		}
 		/* __GDPR__
 			"startupRawTimers" : {
@@ -133,4 +133,3 @@ export class StartupTimings implements IWorkbenchContribution {
 		this._telemetryService.publicLog('startupRawTimers', { entries });
 	}
 }
-

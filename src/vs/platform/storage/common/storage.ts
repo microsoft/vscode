@@ -22,7 +22,7 @@ export interface IWillSaveStateEvent {
 
 export interface IStorageService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -131,7 +131,7 @@ export interface IWorkspaceStorageChangeEvent {
 
 export class InMemoryStorageService extends Disposable implements IStorageService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;

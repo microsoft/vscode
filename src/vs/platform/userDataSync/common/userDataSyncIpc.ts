@@ -101,7 +101,7 @@ export class UserDataSycnUtilServiceChannel implements IServerChannel {
 
 export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(private readonly channel: IChannel) {
 	}
@@ -142,7 +142,7 @@ export class StorageKeysSyncRegistryChannel implements IServerChannel {
 
 export class StorageKeysSyncRegistryChannelClient extends Disposable implements IStorageKeysSyncRegistryService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _storageKeys: ReadonlyArray<IStorageKey> = [];
 	get storageKeys(): ReadonlyArray<IStorageKey> { return this._storageKeys; }

@@ -140,7 +140,7 @@ export const enum GroupsOrder {
 
 export interface IEditorGroupsService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * An event for when the active editor group changes. The active editor

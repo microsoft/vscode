@@ -28,7 +28,7 @@ export interface ITelemetryService {
 	 */
 	readonly sendErrorTelemetry: boolean;
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Sends a telemetry event that has been privacy approved.
