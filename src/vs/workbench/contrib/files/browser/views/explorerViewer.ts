@@ -984,15 +984,18 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			title: localize('uploadingFiles', "Uploading")
 		}, async progress => {
 			for (let entry of entries) {
+
 				// Confirm overwrite as needed
 				if (target && entry.name && target.getChild(entry.name)) {
 					const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(entry.name));
 					if (!confirmed) {
 						continue;
 					}
-					this.workingCopyFileService.delete(joinPath(target.resource, entry.name), { recursive: true });
+
+					await this.workingCopyFileService.delete(joinPath(target.resource, entry.name), { recursive: true });
 				}
 
+				// Upload entry
 				const result = await this.doUploadWebFileEntry(entry, target.resource, target, progress, operation, cts.token);
 				if (result) {
 					results.push(result);
@@ -1014,12 +1017,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private async doUploadWebFileEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: { total: number; worked: number; }, token: CancellationToken): Promise<{ isFile: boolean, resource: URI } | undefined> {
 		if (token.isCancellationRequested || !entry.name || (!entry.isFile && !entry.isDirectory)) {
-			return undefined;
-		}
-
-		const resource = joinPath(parentResource, entry.name);
-
-		if (token.isCancellationRequested) {
 			return undefined;
 		}
 
@@ -1045,6 +1042,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		reportProgress(0, 0);
 
 		// Handle file upload
+		const resource = joinPath(parentResource, entry.name);
 		if (entry.isFile) {
 			const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
 
