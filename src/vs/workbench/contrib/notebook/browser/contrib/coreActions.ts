@@ -938,7 +938,12 @@ registerAction2(class extends NotebookAction {
 			title: localize('cursorMoveDown', 'Cursor Move Down'),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), EditorContextKeys.editorTextFocus, NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
+				when: ContextKeyExpr.and(
+					NOTEBOOK_EDITOR_FOCUSED,
+					ContextKeyExpr.has(InputFocusedContextKey),
+					EditorContextKeys.editorTextFocus,
+					NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'),
+					NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
 				primary: KeyCode.DownArrow,
 				weight: EDITOR_WIDGET_ACTION_WEIGHT
 			}
@@ -971,7 +976,12 @@ registerAction2(class extends NotebookAction {
 			title: localize('cursorMoveUp', 'Cursor Move Up'),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), EditorContextKeys.editorTextFocus, NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
+				when: ContextKeyExpr.and(
+					NOTEBOOK_EDITOR_FOCUSED,
+					ContextKeyExpr.has(InputFocusedContextKey),
+					EditorContextKeys.editorTextFocus,
+					NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'),
+					NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
 				primary: KeyCode.UpArrow,
 				weight: EDITOR_WIDGET_ACTION_WEIGHT
 			},

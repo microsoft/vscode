@@ -50,6 +50,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { URI } from 'vs/base/common/uri';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugToolBar';
+import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 
 const $ = DOM.$;
 
@@ -96,6 +97,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _isDisposed: boolean = false;
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
+	private _cellContextKeyManager: CellContextKeyManager | null = null;
 
 	get isDisposed() {
 		return this._isDisposed;
@@ -398,6 +400,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.localStore.add(this.notebookService.onDidChangeKernels(() => {
 			if (this.activeKernel === undefined) {
 				this._setKernels(textModel);
+			}
+		}));
+
+		this.localStore.add(this.list!.onDidChangeFocus(() => {
+			this._cellContextKeyManager?.dispose();
+			const focused = this.list!.getFocusedElements()[0];
+			if (focused) {
+				this._cellContextKeyManager = this.localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as any));
 			}
 		}));
 
