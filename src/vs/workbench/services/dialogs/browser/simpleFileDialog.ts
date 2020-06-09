@@ -878,8 +878,7 @@ export class SimpleFileDialog {
 		const backDir = this.createBackItem(currentFolder);
 		try {
 			const folder = await this.fileService.resolve(currentFolder);
-			const fileNames = folder.children ? folder.children.map(child => child.name) : [];
-			const items = await Promise.all(fileNames.map(fileName => this.createItem(fileName, currentFolder, token)));
+			const items = folder.children ? await Promise.all(folder.children.map(child => this.createItem(child, currentFolder, token))) : [];
 			for (let item of items) {
 				if (item) {
 					result.push(item);
@@ -922,23 +921,18 @@ export class SimpleFileDialog {
 		return true;
 	}
 
-	private async createItem(filename: string, parent: URI, token: CancellationToken): Promise<FileQuickPickItem | undefined> {
+	private async createItem(stat: IFileStat, parent: URI, token: CancellationToken): Promise<FileQuickPickItem | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
-		let fullPath = resources.joinPath(parent, filename);
-		try {
-			const stat = await this.fileService.resolve(fullPath);
-			if (stat.isDirectory) {
-				filename = resources.basename(fullPath);
-				fullPath = resources.addTrailingPathSeparator(fullPath, this.separator);
-				return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };
-			} else if (!stat.isDirectory && this.allowFileSelection && this.filterFile(fullPath)) {
-				return { label: filename, uri: fullPath, isFolder: false, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined) };
-			}
-			return undefined;
-		} catch (e) {
-			return undefined;
+		let fullPath = resources.joinPath(parent, stat.name);
+		if (stat.isDirectory) {
+			const filename = resources.basename(fullPath);
+			fullPath = resources.addTrailingPathSeparator(fullPath, this.separator);
+			return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };
+		} else if (!stat.isDirectory && this.allowFileSelection && this.filterFile(fullPath)) {
+			return { label: stat.name, uri: fullPath, isFolder: false, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined) };
 		}
+		return undefined;
 	}
 }
