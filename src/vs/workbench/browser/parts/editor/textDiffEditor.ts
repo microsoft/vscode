@@ -9,7 +9,7 @@ import { isFunction, isObject, isArray, assertIsDefined } from 'vs/base/common/t
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditorPane, IEditorMemento } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -28,7 +28,6 @@ import { Event } from 'vs/base/common/event';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
@@ -53,10 +52,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
 	}
 
-	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
-		return new EditorMemento(this.getId(), key, Object.create(null), limit, editorGroupService); // do not persist in storage as diff editors are never persisted
-	}
-
 	getTitle(): string {
 		if (this.input) {
 			return this.input.getName();
@@ -75,7 +70,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		this.diffNavigatorDisposables.clear();
 
 		// Remember view settings if input changes
-		this.saveTextDiffEditorViewState(this.input);
+		this.doSaveOrClearTextDiffEditorViewState(this.input);
 
 		// Set input and resolve
 		await super.setInput(input, options, token);
@@ -233,7 +228,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		this.diffNavigatorDisposables.clear();
 
 		// Keep editor view state in settings to restore when coming back
-		this.saveTextDiffEditorViewState(this.input);
+		this.doSaveOrClearTextDiffEditorViewState(this.input);
 
 		// Clear Model
 		const diffEditor = this.getControl();
@@ -257,7 +252,15 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return super.loadTextEditorViewState(resource) as IDiffEditorViewState;  // overridden for text diff editor support
 	}
 
-	private saveTextDiffEditorViewState(input: EditorInput | undefined): void {
+	protected saveState(): void {
+
+		// Update/clear editor view State
+		this.doSaveOrClearTextDiffEditorViewState(this.input);
+
+		super.saveState();
+	}
+
+	private doSaveOrClearTextDiffEditorViewState(input: EditorInput | undefined): void {
 		if (!(input instanceof DiffEditorInput)) {
 			return; // only supported for diff editor inputs
 		}
