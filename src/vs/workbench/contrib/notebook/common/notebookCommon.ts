@@ -575,3 +575,8 @@ export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	hasFocus(): boolean;
 	hasModel(): boolean;
 }
+
+export enum NotebookEditorPriority {
+	default = 'default',
+	option = 'option',
+}
