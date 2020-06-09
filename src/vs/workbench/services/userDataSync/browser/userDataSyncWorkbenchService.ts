@@ -13,7 +13,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { flatten } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -78,7 +78,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	constructor(
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IAuthenticationTokenService private readonly authenticationTokenService: IAuthenticationTokenService,
+		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -137,7 +137,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 						this.authenticationService.onDidRegisterAuthenticationProvider,
 						this.authenticationService.onDidUnregisterAuthenticationProvider,
 					), authenticationProviderId => this.isSupportedAuthenticationProviderId(authenticationProviderId)),
-				this.authenticationTokenService.onTokenFailed)
+				this.userDataSyncAccountService.onTokenFailed)
 				(() => this.update()));
 
 		this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
@@ -190,7 +190,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				this.logService.error(e);
 			}
 		}
-		await this.authenticationTokenService.setToken(value);
+		await this.userDataSyncAccountService.updateAccount(value);
 	}
 
 	private updateAccountStatus(current: UserDataSyncAccount | undefined): void {

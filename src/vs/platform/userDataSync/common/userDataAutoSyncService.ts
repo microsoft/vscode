@@ -7,7 +7,7 @@ import { Delayer, disposableTimeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IUserDataSyncLogService, IUserDataSyncService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService, ALL_SYNC_RESOURCES, getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
-import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -34,7 +34,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@IAuthenticationTokenService private readonly authTokenService: IAuthenticationTokenService,
+		@IUserDataSyncAccountService private readonly authTokenService: IUserDataSyncAccountService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -44,7 +44,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 		if (getUserDataSyncStore(this.productService, this.configurationService)) {
 			this.updateAutoSync();
-			this._register(Event.any(authTokenService.onDidChangeToken, this.userDataSyncEnablementService.onDidChangeEnablement)(() => this.updateAutoSync()));
+			this._register(Event.any(authTokenService.onDidChangeAccount, this.userDataSyncEnablementService.onDidChangeEnablement)(() => this.updateAutoSync()));
 			this._register(Event.filter(this.userDataSyncEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerAutoSync([RESOURCE_ENABLEMENT_SOURCE])));
 		}
 	}
@@ -86,7 +86,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		if (!this.userDataSyncEnablementService.isEnabled()) {
 			return { enabled: false, reason: 'sync is disabled' };
 		}
-		if (!this.authTokenService.token) {
+		if (!this.authTokenService.account) {
 			return { enabled: false, reason: 'token is not avaialable' };
 		}
 		return { enabled: true };

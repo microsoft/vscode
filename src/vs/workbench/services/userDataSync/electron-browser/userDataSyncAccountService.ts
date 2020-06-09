@@ -8,18 +8,18 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IAuthenticationTokenService, IUserDataSyncAuthToken } from 'vs/platform/authentication/common/authentication';
+import { IUserDataSyncAccountService, IUserDataSyncAccount } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 
-export class AuthenticationTokenService extends Disposable implements IAuthenticationTokenService {
+export class UserDataSyncAccountService extends Disposable implements IUserDataSyncAccountService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly channel: IChannel;
 
-	private _token: IUserDataSyncAuthToken | undefined;
-	get token(): IUserDataSyncAuthToken | undefined { return this._token; }
-	private _onDidChangeToken = this._register(new Emitter<IUserDataSyncAuthToken | undefined>());
-	readonly onDidChangeToken = this._onDidChangeToken.event;
+	private _token: IUserDataSyncAccount | undefined;
+	get account(): IUserDataSyncAccount | undefined { return this._token; }
+	private _onDidChangeToken = this._register(new Emitter<IUserDataSyncAccount | undefined>());
+	readonly onDidChangeAccount = this._onDidChangeToken.event;
 
 	private _onTokenFailed: Emitter<void> = this._register(new Emitter<void>());
 	readonly onTokenFailed: Event<void> = this._onTokenFailed.event;
@@ -28,13 +28,13 @@ export class AuthenticationTokenService extends Disposable implements IAuthentic
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 	) {
 		super();
-		this.channel = sharedProcessService.getChannel('authToken');
+		this.channel = sharedProcessService.getChannel('userDataSyncAccount');
 		this._register(this.channel.listen<void[]>('onTokenFailed')(_ => this.sendTokenFailed()));
 	}
 
-	setToken(token: IUserDataSyncAuthToken | undefined): Promise<undefined> {
-		this._token = token;
-		return this.channel.call('setToken', token);
+	updateAccount(account: IUserDataSyncAccount | undefined): Promise<undefined> {
+		this._token = account;
+		return this.channel.call('updateAccount', account);
 	}
 
 	sendTokenFailed(): void {
@@ -42,4 +42,4 @@ export class AuthenticationTokenService extends Disposable implements IAuthentic
 	}
 }
 
-registerSingleton(IAuthenticationTokenService, AuthenticationTokenService);
+registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService);
