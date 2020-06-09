@@ -225,7 +225,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Just save if target is same as models own resource
 		if (source.toString() === target.toString()) {
-			return this.save(source, options);
+			return this.save(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
 		}
 
 		// If the target is different but of same identity, we
