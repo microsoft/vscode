@@ -227,9 +227,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onRequestSpawnExtHostProcess(request: ISpawnExtHostProcessRequest): void {
 		// Only allow processes on remote ext hosts
-		if (!this._remoteAuthority) {
-			return;
-		}
+		// TODO: If we allow any we need to know when and when not to create it
+		// if (!this._remoteAuthority) {
+		// 	return;
+		// }
 
 		const proxy = request.proxy;
 		const ready = this._terminalProcessesReady.get(proxy.terminalId);

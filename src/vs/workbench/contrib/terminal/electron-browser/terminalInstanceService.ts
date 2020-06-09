@@ -22,6 +22,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -38,8 +39,11 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IHistoryService private readonly _historyService: IHistoryService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IPtyService private readonly _ptyService: IPtyService
 	) {
+		console.log('call main service');
+		console.log('result: ', this._ptyService.createInstance());
 	}
 
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {

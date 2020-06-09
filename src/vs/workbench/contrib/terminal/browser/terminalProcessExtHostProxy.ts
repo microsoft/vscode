@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import * as nls from 'vs/nls';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { OS } from 'vs/base/common/platform';
 
 let hasReceivedResponse: boolean = false;
 
@@ -63,10 +64,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 			this._terminalService.requestStartExtensionTerminal(this, cols, rows);
 		} else {
 			remoteAgentService.getEnvironment().then(env => {
-				if (!env) {
-					throw new Error('Could not fetch environment');
-				}
-				this._terminalService.requestSpawnExtHostProcess(this, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper.checkWorkspaceShellPermissions(env.os));
+				const os = env?.os || OS;
+				this._terminalService.requestSpawnExtHostProcess(this, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper.checkWorkspaceShellPermissions(os));
 			});
 			if (!hasReceivedResponse) {
 				setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);

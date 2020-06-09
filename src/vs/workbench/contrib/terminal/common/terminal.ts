@@ -614,3 +614,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.quickOpenView',
 	'workbench.action.toggleMaximizedPanel'
 ];
+
+export interface IPtyService {
+	createInstance(): void;
+}

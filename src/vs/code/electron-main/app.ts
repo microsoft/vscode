@@ -80,6 +80,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/node/environm
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
+import { IPtyMainService, PtyMainService } from 'vs/platform/terminal/electron-main/ptyMainService';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -466,6 +467,7 @@ export class CodeApplication extends Disposable {
 		const diagnosticsChannel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')));
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
 
+		services.set(IPtyMainService, new SyncDescriptor(PtyMainService));
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IElectronMainService, new SyncDescriptor(ElectronMainService));
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
@@ -550,6 +552,10 @@ export class CodeApplication extends Disposable {
 		const updateService = accessor.get(IUpdateService);
 		const updateChannel = new UpdateChannel(updateService);
 		electronIpcServer.registerChannel('update', updateChannel);
+
+		const ptyMainService = accessor.get(IPtyMainService);
+		const ptyChannel = createChannelReceiver(ptyMainService);
+		electronIpcServer.registerChannel('pty', ptyChannel);
 
 		const issueMainService = accessor.get(IIssueMainService);
 		const issueChannel = createChannelReceiver(issueMainService);
