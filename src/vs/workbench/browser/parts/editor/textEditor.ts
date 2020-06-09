@@ -45,13 +45,12 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 	private lastAppliedEditorOptions?: IEditorOptions;
 	private editorMemento: IEditorMemento<IEditorViewState>;
 
+	private _shouldRestoreViewState: boolean | undefined;
+	protected get shouldRestoreViewState(): boolean | undefined { return this._shouldRestoreViewState; }
+
 	private _instantiationService: IInstantiationService;
-	protected get instantiationService(): IInstantiationService {
-		return this._instantiationService;
-	}
-	protected set instantiationService(value: IInstantiationService) {
-		this._instantiationService = value;
-	}
+	protected get instantiationService(): IInstantiationService { return this._instantiationService; }
+	protected set instantiationService(value: IInstantiationService) { this._instantiationService = value; }
 
 	constructor(
 		id: string,
@@ -83,14 +82,22 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 			this.editorContainer?.setAttribute('aria-label', ariaLabel);
 			this.editorControl?.updateOptions({ ariaLabel });
 		}));
+
+		this.updateRestoreViewStateConfiguration();
 	}
 
 	protected handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
+		this.updateRestoreViewStateConfiguration();
+
 		if (this.isVisible()) {
 			this.updateEditorConfiguration(configuration);
 		} else {
 			this.hasPendingConfigurationChange = true;
 		}
+	}
+
+	private updateRestoreViewStateConfiguration(): void {
+		this._shouldRestoreViewState = this.textResourceConfigurationService.getValue(undefined, 'workbench.editor.restoreViewState') ?? true /* default */;
 	}
 
 	private consumePendingConfigurationChangeEvent(): void {

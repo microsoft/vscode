@@ -11,7 +11,7 @@ import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
@@ -31,7 +31,6 @@ import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 /**
@@ -41,7 +40,6 @@ export class TextFileEditor extends BaseTextEditor {
 
 	static readonly ID = TEXT_FILE_EDITOR_ID;
 
-	private restoreViewState: boolean | undefined;
 	private readonly groupListener = this._register(new MutableDisposable());
 
 	constructor(
@@ -57,12 +55,9 @@ export class TextFileEditor extends BaseTextEditor {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IExplorerService private readonly explorerService: IExplorerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
-
-		this.updateRestoreViewStateConfiguration();
 
 		// Clear view state for deleted files
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
@@ -82,16 +77,6 @@ export class TextFileEditor extends BaseTextEditor {
 		if (e.operation === FileOperation.MOVE && e.target) {
 			this.moveTextEditorViewState(e.resource, e.target.resource, this.uriIdentityService.extUri);
 		}
-	}
-
-	protected handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
-		super.handleConfigurationChangeEvent(configuration);
-
-		this.updateRestoreViewStateConfiguration();
-	}
-
-	private updateRestoreViewStateConfiguration(): void {
-		this.restoreViewState = this.configurationService.getValue('workbench.editor.restoreViewState') ?? true /* default */;
 	}
 
 	getTitle(): string {
@@ -121,7 +106,7 @@ export class TextFileEditor extends BaseTextEditor {
 		// If the editor is not active, we can only clear the view state because it needs
 		// an active editor with the file opened, so we check for the restoreViewState flag
 		// being set.
-		if (editor === this.input || !this.restoreViewState) {
+		if (editor === this.input || !this.shouldRestoreViewState) {
 			this.doSaveOrClearTextEditorViewState(editor);
 		}
 	}
@@ -277,7 +262,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// If the user configured to not restore view state, we clear the view
 		// state unless the editor is still opened in the group.
-		if (!this.restoreViewState && (!this.group || !this.group.isOpened(input))) {
+		if (!this.shouldRestoreViewState && (!this.group || !this.group.isOpened(input))) {
 			this.clearTextEditorViewState([input.resource], this.group);
 		}
 
