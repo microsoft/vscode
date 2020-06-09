@@ -130,10 +130,13 @@ suite('API tests', () => {
 		assert.deepEqual(cellChangeEventRet.changes[0], {
 			start: 1,
 			deletedCount: 0,
+			deletedItems: [],
 			items: [
 				vscode.notebook.activeNotebookEditor!.document.cells[1]
 			]
 		});
+
+		const secondCell = vscode.notebook.activeNotebookEditor!.document.cells[1];
 
 		const moveCellEvent = getEventOncePromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
 		await vscode.commands.executeCommand('notebook.cell.moveUp');
@@ -144,11 +147,13 @@ suite('API tests', () => {
 				{
 					start: 1,
 					deletedCount: 1,
+					deletedItems: [secondCell],
 					items: []
 				},
 				{
 					start: 0,
 					deletedCount: 0,
+					deletedItems: [],
 					items: [vscode.notebook.activeNotebookEditor?.document.cells[0]]
 				}
 			]
@@ -203,11 +208,13 @@ suite('API tests', () => {
 				{
 					start: 0,
 					deletedCount: 1,
+					deletedItems: [activeCell],
 					items: []
 				},
 				{
 					start: 1,
 					deletedCount: 0,
+					deletedItems: [],
 					items: [activeCell]
 				}
 			]
