@@ -210,7 +210,7 @@ export class BackLayerWebView extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage: Event<any> = this._onMessage.event;
 	private _loaded!: Promise<void>;
-	private _initalized: Promise<void>;
+	private _initalized?: Promise<void>;
 	private _disposed = false;
 
 	constructor(
@@ -227,51 +227,14 @@ export class BackLayerWebView extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
+
 		this.element = document.createElement('div');
 
 		this.element.style.width = `calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px)`;
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
 		this.element.style.margin = `0px 0 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px`;
-
-		const pathsPath = getPathFromAmdModule(require, 'vs/loader.js');
-		const loader = asWebviewUri(this.workbenchEnvironmentService, this.id, URI.file(pathsPath));
-
-		let coreDependencies = '';
-		let resolveFunc: () => void;
-
-		this._initalized = new Promise<void>((resolve, reject) => {
-			resolveFunc = resolve;
-		});
-
-		const baseUrl = asWebviewUri(this.workbenchEnvironmentService, this.id, dirname(documentUri));
-
-		if (!isWeb) {
-			coreDependencies = `<script src="${loader}"></script>`;
-			const htmlContent = this.generateContent(8, coreDependencies, baseUrl.toString());
-			this.initialize(htmlContent);
-			resolveFunc!();
-		} else {
-			fetch(pathsPath).then(async response => {
-				if (response.status !== 200) {
-					throw new Error(response.statusText);
-				}
-
-				const loaderJs = await response.text();
-
-				coreDependencies = `
-<script>
-${loaderJs}
-</script>
-`;
-
-				const htmlContent = this.generateContent(8, coreDependencies, baseUrl.toString());
-				this.initialize(htmlContent);
-				resolveFunc!();
-			});
-		}
 	}
-
 	generateContent(outputNodePadding: number, coreDependencies: string, baseUrl: string) {
 		return html`
 		<html lang="en">
@@ -313,9 +276,51 @@ ${loaderJs}
 		return { cell: this.insetMapping.get(output)!.cell, output };
 	}
 
+	async createWebview(): Promise<void> {
+		const pathsPath = getPathFromAmdModule(require, 'vs/loader.js');
+		const loader = asWebviewUri(this.workbenchEnvironmentService, this.id, URI.file(pathsPath));
+
+		let coreDependencies = '';
+		let resolveFunc: () => void;
+
+		this._initalized = new Promise<void>((resolve, reject) => {
+			resolveFunc = resolve;
+		});
+
+		const baseUrl = asWebviewUri(this.workbenchEnvironmentService, this.id, dirname(this.documentUri));
+
+		if (!isWeb) {
+			coreDependencies = `<script src="${loader}"></script>`;
+			const htmlContent = this.generateContent(8, coreDependencies, baseUrl.toString());
+			this.initialize(htmlContent);
+			resolveFunc!();
+		} else {
+			fetch(pathsPath).then(async response => {
+				if (response.status !== 200) {
+					throw new Error(response.statusText);
+				}
+
+				const loaderJs = await response.text();
+
+				coreDependencies = `
+<script>
+${loaderJs}
+</script>
+`;
+
+				const htmlContent = this.generateContent(8, coreDependencies, baseUrl.toString());
+				this.initialize(htmlContent);
+				resolveFunc!();
+			});
+		}
+
+		await this._initalized;
+	}
+
 	async initialize(content: string) {
 		this.webview = this._createInset(this.webviewService, content);
 		this.webview.mountTo(this.element);
+		this._register(this.webview);
 
 		this._register(this.webview.onDidClickLink(link => {
 			if (!link) {
@@ -433,10 +438,6 @@ ${loaderJs}
 		const buff = VSBuffer.wrap(typedArray);
 		await this.fileService.writeFile(newFileUri, buff);
 		await this.openerService.open(newFileUri);
-	}
-
-	async waitForInitialization() {
-		await this._initalized;
 	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {

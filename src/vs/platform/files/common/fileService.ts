@@ -907,8 +907,10 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private toWatchKey(provider: IFileSystemProvider, resource: URI, options: IWatchOptions): string {
+		const { extUri } = this.getExtUri(provider);
+
 		return [
-			this.toMapKey(provider, resource), 	// lowercase path if the provider is case insensitive
+			extUri.getComparisonKey(resource), 	// lowercase path if the provider is case insensitive
 			String(options.recursive),			// use recursive: true | false as part of the key
 			options.excludes.join()				// use excludes as part of the key
 		].join();
@@ -928,10 +930,12 @@ export class FileService extends Disposable implements IFileService {
 	private writeQueues: Map<string, Queue<void>> = new Map();
 
 	private ensureWriteQueue(provider: IFileSystemProvider, resource: URI): Queue<void> {
+		const { extUri } = this.getExtUri(provider);
+		const queueKey = extUri.getComparisonKey(resource);
+
 		// ensure to never write to the same resource without finishing
 		// the one write. this ensures a write finishes consistently
 		// (even with error) before another write is done.
-		const queueKey = this.toMapKey(provider, resource);
 		let writeQueue = this.writeQueues.get(queueKey);
 		if (!writeQueue) {
 			writeQueue = new Queue<void>();
@@ -945,12 +949,6 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		return writeQueue;
-	}
-
-	private toMapKey(provider: IFileSystemProvider, resource: URI): string {
-		const isPathCaseSensitive = !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
-
-		return isPathCaseSensitive ? resource.toString() : resource.toString().toLowerCase();
 	}
 
 	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, readableOrStream: VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<void> {

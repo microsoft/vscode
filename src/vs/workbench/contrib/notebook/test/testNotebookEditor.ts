@@ -143,26 +143,26 @@ export class TestNotebookEditor implements INotebookEditor {
 	setSelection(cell: CellViewModel, selection: Range): void {
 		throw new Error('Method not implemented.');
 	}
-	revealRangeInView(cell: CellViewModel, range: Range): void {
+	revealRangeInViewAsync(cell: CellViewModel, range: Range): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	revealRangeInCenter(cell: CellViewModel, range: Range): void {
+	revealRangeInCenterAsync(cell: CellViewModel, range: Range): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	revealRangeInCenterIfOutsideViewport(cell: CellViewModel, range: Range): void {
+	revealRangeInCenterIfOutsideViewportAsync(cell: CellViewModel, range: Range): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
-	revealLineInView(cell: CellViewModel, line: number): void {
+	revealLineInViewAsync(cell: CellViewModel, line: number): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 	getLayoutInfo(): NotebookLayoutInfo {
 		throw new Error('Method not implemented.');
 	}
-	revealLineInCenterIfOutsideViewport(cell: CellViewModel, line: number): void {
+	revealLineInCenterIfOutsideViewportAsync(cell: CellViewModel, line: number): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	revealLineInCenter(cell: CellViewModel, line: number): void {
+	revealLineInCenterAsync(cell: CellViewModel, line: number): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 	focus(): void {

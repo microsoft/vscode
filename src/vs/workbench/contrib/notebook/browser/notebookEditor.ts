@@ -20,6 +20,9 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -39,7 +42,9 @@ export class NotebookEditor extends BaseEditor {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService) {
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@INotificationService private readonly notificationService: INotificationService) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 
 		// this._widget = this.instantiationService.createInstance(NotebookEditorWidget);
@@ -179,6 +184,23 @@ export class NotebookEditor extends BaseEditor {
 		}
 
 		const model = await input.resolve(this._widget!.getId());
+
+		if (model === null) {
+			this.notificationService.prompt(
+				Severity.Error,
+				`Cannot open resource with notebook editor type '${input.viewType}', please check if you have the right extension installed or enabled.`,
+				[{
+					label: 'Reopen file with VS Code standard text editor',
+					run: async () => {
+						const fileEditorInput = this.editorService.createEditorInput({ resource: input.resource, forceFile: true });
+						const textOptions: IEditorOptions | ITextEditorOptions = options ? { ...options, override: false } : { override: false };
+						await this.editorService.openEditor(fileEditorInput, textOptions);
+					}
+				}]
+			);
+			return;
+		}
+
 		const viewState = this.loadTextEditorViewState(input);
 
 		await this._widget.setModel(model.notebook, viewState, options);

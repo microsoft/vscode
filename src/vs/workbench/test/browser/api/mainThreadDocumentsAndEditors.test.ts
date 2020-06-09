@@ -68,6 +68,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			onDidRunOperation = Event.None;
+			onDidChangeFileSystemProviderCapabilities = Event.None;
+			onDidChangeFileSystemProviderRegistrations = Event.None;
 		};
 
 		new MainThreadDocumentsAndEditors(

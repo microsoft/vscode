@@ -132,7 +132,7 @@ export class CodeCell extends Disposable {
 			const primarySelection = templateData.editor!.getSelection();
 
 			if (primarySelection) {
-				this.notebookEditor.revealLineInView(viewCell, primarySelection!.positionLineNumber);
+				this.notebookEditor.revealLineInViewAsync(viewCell, primarySelection!.positionLineNumber);
 			}
 		}));
 

@@ -197,6 +197,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			const visibleNotebookEditors = editorService.visibleEditorPanes
 				.filter(pane => (pane as any).isNotebookEditor)
 				.map(pane => pane.getControl() as INotebookEditor)
+				.filter(control => !!control)
 				.map(editor => editor.getId());
 
 			this.notebookService.updateVisibleNotebookEditor(visibleNotebookEditors);
