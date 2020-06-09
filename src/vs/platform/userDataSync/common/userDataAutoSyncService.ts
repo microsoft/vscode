@@ -139,9 +139,13 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				await this.autoSync.value.sync('Activity');
 			}
 		}, this.successiveFailures
-			? 1000 * 1 * Math.min(Math.pow(2, this.successiveFailures), 60) /* Delay exponentially until max 1 minute */
-			: 1000); /* Debounce for a second if there are no failures */
+			? this.getSyncTriggerDelayTime() * 1 * Math.min(Math.pow(2, this.successiveFailures), 60) /* Delay exponentially until max 1 minute */
+			: this.getSyncTriggerDelayTime());
 
+	}
+
+	protected getSyncTriggerDelayTime(): number {
+		return 1000; /* Debounce for a second if there are no failures */
 	}
 
 }
