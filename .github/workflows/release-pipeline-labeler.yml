@@ -1,9 +1,9 @@
 name: "Release Pipeline Labeler"
 on:
   issues:
-    types: [] #[closed, reopened]
+    types: [closed, reopened]
   repository_dispatch:
-    types: [] #[released-insider]
+    types: [released-insider]
 
 jobs:
   main:
