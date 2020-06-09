@@ -8,7 +8,7 @@ import * as paths from 'vs/base/common/path';
 import { URI, uriToFsPath } from 'vs/base/common/uri';
 import { equalsIgnoreCase, compare as strCompare } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -331,28 +331,22 @@ export const extUri = new ExtUri(() => false);
  */
 export const extUriIgnorePathCase = new ExtUri(_ => true);
 
-const exturiBiasedIgnorePathCase = new ExtUri(uri => {
-	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
-	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
-	return uri && uri.scheme === Schemas.file ? !isLinux : true;
-});
-
-export const isEqual = exturiBiasedIgnorePathCase.isEqual.bind(exturiBiasedIgnorePathCase);
-export const isEqualOrParent = exturiBiasedIgnorePathCase.isEqualOrParent.bind(exturiBiasedIgnorePathCase);
-export const getComparisonKey = exturiBiasedIgnorePathCase.getComparisonKey.bind(exturiBiasedIgnorePathCase);
-export const basenameOrAuthority = exturiBiasedIgnorePathCase.basenameOrAuthority.bind(exturiBiasedIgnorePathCase);
-export const basename = exturiBiasedIgnorePathCase.basename.bind(exturiBiasedIgnorePathCase);
-export const extname = exturiBiasedIgnorePathCase.extname.bind(exturiBiasedIgnorePathCase);
-export const dirname = exturiBiasedIgnorePathCase.dirname.bind(exturiBiasedIgnorePathCase);
+export const isEqual = extUri.isEqual.bind(extUri);
+export const isEqualOrParent = extUri.isEqualOrParent.bind(extUri);
+export const getComparisonKey = extUri.getComparisonKey.bind(extUri);
+export const basenameOrAuthority = extUri.basenameOrAuthority.bind(extUri);
+export const basename = extUri.basename.bind(extUri);
+export const extname = extUri.extname.bind(extUri);
+export const dirname = extUri.dirname.bind(extUri);
 export const joinPath = extUri.joinPath.bind(extUri);
-export const normalizePath = exturiBiasedIgnorePathCase.normalizePath.bind(exturiBiasedIgnorePathCase);
-export const relativePath = exturiBiasedIgnorePathCase.relativePath.bind(exturiBiasedIgnorePathCase);
-export const resolvePath = exturiBiasedIgnorePathCase.resolvePath.bind(exturiBiasedIgnorePathCase);
-export const isAbsolutePath = exturiBiasedIgnorePathCase.isAbsolutePath.bind(exturiBiasedIgnorePathCase);
-export const isEqualAuthority = exturiBiasedIgnorePathCase.isEqualAuthority.bind(exturiBiasedIgnorePathCase);
-export const hasTrailingPathSeparator = exturiBiasedIgnorePathCase.hasTrailingPathSeparator.bind(exturiBiasedIgnorePathCase);
-export const removeTrailingPathSeparator = exturiBiasedIgnorePathCase.removeTrailingPathSeparator.bind(exturiBiasedIgnorePathCase);
-export const addTrailingPathSeparator = exturiBiasedIgnorePathCase.addTrailingPathSeparator.bind(exturiBiasedIgnorePathCase);
+export const normalizePath = extUri.normalizePath.bind(extUri);
+export const relativePath = extUri.relativePath.bind(extUri);
+export const resolvePath = extUri.resolvePath.bind(extUri);
+export const isAbsolutePath = extUri.isAbsolutePath.bind(extUri);
+export const isEqualAuthority = extUri.isEqualAuthority.bind(extUri);
+export const hasTrailingPathSeparator = extUri.hasTrailingPathSeparator.bind(extUri);
+export const removeTrailingPathSeparator = extUri.removeTrailingPathSeparator.bind(extUri);
+export const addTrailingPathSeparator = extUri.addTrailingPathSeparator.bind(extUri);
 
 //#endregion
 
