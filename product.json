@@ -89,11 +89,11 @@
 			}
 		},
 		{
-			"name": "ms-vscode.js-debug-nightly",
-			"version": "2020.6.208",
+			"name": "ms-vscode.js-debug",
+			"version": "1.46.1",
 			"repo": "https://github.com/Microsoft/vscode-js-debug",
 			"metadata": {
-				"id": "7acbb4ce-c85a-49d4-8d95-a8054406ae97",
+				"id": "25629058-ddac-4e17-abba-74678e126c5d",
 				"publisherId": {
 					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
 					"publisherName": "ms-vscode",

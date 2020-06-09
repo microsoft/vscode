@@ -24,6 +24,7 @@ import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/parts/editor/editor';
+import { IExtUri } from 'vs/base/common/resources';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -250,8 +251,8 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 		return this.group ? this.editorMemento.loadEditorState(this.group, resource) : undefined;
 	}
 
-	protected moveTextEditorViewState(source: URI, target: URI): void {
-		return this.editorMemento.moveEditorState(source, target);
+	protected moveTextEditorViewState(source: URI, target: URI, comparer: IExtUri): void {
+		return this.editorMemento.moveEditorState(source, target, comparer);
 	}
 
 	protected clearTextEditorViewState(resources: URI[], group?: IEditorGroup): void {

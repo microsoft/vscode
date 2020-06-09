@@ -22,6 +22,7 @@ import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
+import { IExtUri } from 'vs/base/common/resources';
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
@@ -166,7 +167,7 @@ export interface IFileEditorInputFactory {
 	/**
 	 * Creates new new editor input capable of showing files.
 	 */
-	createFileEditorInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileEditorInput(resource: URI, label: URI | undefined, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
 	/**
 	 * Check if the provided object is a file editor input.
@@ -651,12 +652,17 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	readonly resource: URI;
 
 	/**
-	 * Sets the preferred encoding to use for this input.
+	 * Sets the preferred label to use for this file input.
+	 */
+	setLabel(label: URI): void;
+
+	/**
+	 * Sets the preferred encoding to use for this file input.
 	 */
 	setPreferredEncoding(encoding: string): void;
 
 	/**
-	 * Sets the preferred language mode to use for this input.
+	 * Sets the preferred language mode to use for this file input.
 	 */
 	setPreferredMode(mode: string): void;
 
@@ -666,7 +672,7 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	setForceOpenAsBinary(): void;
 
 	/**
-	 * Figure out if the input has been resolved or not.
+	 * Figure out if the file input has been resolved or not.
 	 */
 	isResolved(): boolean;
 }
@@ -926,14 +932,12 @@ export class EditorOptions implements IEditorOptions {
 	ignoreError: boolean | undefined;
 
 	/**
-	 * Does not use editor overrides while opening the editor.
+	 * Allows to override the editor that should be used to display the input:
+	 * - `undefined`: let the editor decide for itself
+	 * - `false`: disable overrides
+	 * - `string`: specific override by id
 	 */
-	ignoreOverrides: boolean | undefined;
-
-	/**
-	 * An optional id to override the editor used to edit the resource, e.g. custom editor.
-	 */
-	overrideId: string | undefined;
+	override?: false | string;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.
@@ -991,12 +995,8 @@ export class EditorOptions implements IEditorOptions {
 			this.index = options.index;
 		}
 
-		if (typeof options.ignoreOverrides === 'boolean') {
-			this.ignoreOverrides = options.ignoreOverrides;
-		}
-
-		if (typeof options.overrideId === 'string') {
-			this.overrideId = options.overrideId;
+		if (typeof options.override === 'string' || options.override === false) {
+			this.override = options.override;
 		}
 
 		if (typeof options.context === 'number') {
@@ -1032,7 +1032,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 			return undefined;
 		}
 
-		return TextEditorOptions.create({ ...input.options, overrideId: input.overrideId });
+		return TextEditorOptions.create(input.options);
 	}
 
 	/**
@@ -1275,7 +1275,7 @@ export interface IEditorMemento<T> {
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
 	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
 
-	moveEditorState(source: URI, target: URI): void;
+	moveEditorState(source: URI, target: URI, comparer: IExtUri): void;
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
@@ -1363,14 +1363,18 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 				startLineNumber: path.lineNumber,
 				startColumn: path.columnNumber || 1
 			},
-			pinned: true
-		} : { pinned: true };
+			pinned: true,
+			override: path.overrideId
+		} : {
+				pinned: true,
+				override: path.overrideId
+			};
 
 		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {
 			input = { resource, options, forceUntitled: true };
 		} else {
-			input = { resource, options, forceFile: true, overrideId: path.overrideId };
+			input = { resource, options, forceFile: true };
 		}
 
 		return input;

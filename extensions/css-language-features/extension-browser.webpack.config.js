@@ -30,19 +30,4 @@ const clientConfig = withDefaults({
 clientConfig.plugins[1] = vscodeNlsReplacement; // replace nls bundler
 clientConfig.module.rules[0].use.shift(); // remove nls loader
 
-const serverConfig = withDefaults({
-	target: 'webworker',
-	context: path.join(__dirname, 'server'),
-	entry: {
-		extension: './src/browser/cssServerMain.ts',
-	},
-	output: {
-		filename: 'cssServerMain.js',
-		path: path.join(__dirname, 'server', 'dist', 'browser'),
-		libraryTarget: 'var'
-	}
-});
-serverConfig.plugins[1] = vscodeNlsReplacement; // replace nls bundler
-serverConfig.module.rules[0].use.shift(); // remove nls loader
-
-module.exports = [clientConfig, serverConfig];
+module.exports = clientConfig;

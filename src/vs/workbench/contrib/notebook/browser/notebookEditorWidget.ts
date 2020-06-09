@@ -50,6 +50,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { URI } from 'vs/base/common/uri';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugToolBar';
+import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 
 const $ = DOM.$;
 
@@ -96,6 +97,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _isDisposed: boolean = false;
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
+	private _cellContextKeyManager: CellContextKeyManager | null = null;
+
+	get isDisposed() {
+		return this._isDisposed;
+	}
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -165,6 +171,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	set activeKernel(kernel: INotebookKernelInfo | undefined) {
+		if (this._isDisposed) {
+			return;
+		}
+
 		this._activeKernel = kernel;
 		this._onDidChangeKernel.fire();
 	}
@@ -173,6 +183,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
 
 	get activeCodeEditor(): IEditor | undefined {
+		if (this._isDisposed) {
+			return;
+		}
+
 		const [focused] = this.list!.getFocusedElements();
 		return this.renderedEditors.get(focused);
 	}
@@ -389,6 +403,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 		}));
 
+		this.localStore.add(this.list!.onDidChangeFocus(() => {
+			this._cellContextKeyManager?.dispose();
+			const focused = this.list!.getFocusedElements()[0];
+			if (focused) {
+				this._cellContextKeyManager = this.localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as any));
+			}
+		}));
+
 		// reveal cell if editor options tell to do so
 		if (options instanceof NotebookEditorOptions && options.cellOptions) {
 			const cellOptions = options.cellOptions;
@@ -472,7 +494,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async createWebview(id: string, document: URI): Promise<void> {
 		this.webview = this.instantiationService.createInstance(BackLayerWebView, this, id, document);
-		await this.webview.waitForInitialization();
+		// attach the webview container to the DOM tree first
+		this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview.element);
+		await this.webview.createWebview();
 		this.webview.webview.onDidBlur(() => this.updateEditorFocus());
 		this.webview.webview.onDidFocus(() => {
 			this.updateEditorFocus();
@@ -484,7 +508,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), message);
 			}
 		}));
-		this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview.element);
 	}
 
 	private async attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined) {
@@ -739,28 +762,28 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.list?.revealElementInCenter(cell);
 	}
 
-	revealLineInView(cell: ICellViewModel, line: number): void {
-		this.list?.revealElementLineInView(cell, line);
+	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
+		return this.list?.revealElementLineInViewAsync(cell, line);
 	}
 
-	revealLineInCenter(cell: ICellViewModel, line: number) {
-		this.list?.revealElementLineInCenter(cell, line);
+	async revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
+		return this.list?.revealElementLineInCenterAsync(cell, line);
 	}
 
-	revealLineInCenterIfOutsideViewport(cell: ICellViewModel, line: number) {
-		this.list?.revealElementLineInCenterIfOutsideViewport(cell, line);
+	async revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
+		return this.list?.revealElementLineInCenterIfOutsideViewportAsync(cell, line);
 	}
 
-	revealRangeInView(cell: ICellViewModel, range: Range): void {
-		this.list?.revealElementRangeInView(cell, range);
+	async revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
+		return this.list?.revealElementRangeInViewAsync(cell, range);
 	}
 
-	revealRangeInCenter(cell: ICellViewModel, range: Range): void {
-		this.list?.revealElementRangeInCenter(cell, range);
+	async revealRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void> {
+		return this.list?.revealElementRangeInCenterAsync(cell, range);
 	}
 
-	revealRangeInCenterIfOutsideViewport(cell: ICellViewModel, range: Range): void {
-		this.list?.revealElementRangeInCenterIfOutsideViewport(cell, range);
+	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
+		return this.list?.revealElementRangeInCenterIfOutsideViewportAsync(cell, range);
 	}
 
 	setCellSelection(cell: ICellViewModel, range: Range): void {
@@ -979,8 +1002,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			if (!above.hasModel()) {
 				return null;
 			}
-
-			const insertContent = cell.getText();
+			const insertContent = (cell.textModel?.getEOL() ?? '') + cell.getText();
 			const aboveCellLineCount = above.textModel.getLineCount();
 			const aboveCellLastLineEndColumn = above.textModel.getLineLength(aboveCellLineCount);
 			above.textModel.applyEdits([
@@ -1004,7 +1026,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return null;
 			}
 
-			const insertContent = below.getText();
+			const insertContent = (cell.textModel?.getEOL() ?? '') + below.getText();
 
 			const cellLineCount = cell.textModel.getLineCount();
 			const cellLastLineEndColumn = cell.textModel.getLineLength(cellLineCount);
@@ -1362,10 +1384,16 @@ export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	hc: PANEL_BORDER
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
+export const selectedCellIndicator = registerColor('notebook.selectedCellIndicator', {
+	light: focusBorder,
+	dark: focusBorder,
+	hc: focusBorder
+}, nls.localize('notebook.selectedCellIndicator', "The color of the selected notebook cell indicator."));
+
 export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator', {
-	light: new Color(new RGBA(102, 175, 224)),
-	dark: new Color(new RGBA(12, 125, 157)),
-	hc: new Color(new RGBA(0, 73, 122))
+	light: focusBorder,
+	dark: focusBorder,
+	hc: focusBorder
 }, nls.localize('notebook.focusedCellIndicator', "The color of the focused notebook cell indicator."));
 
 export const cellStatusIconSuccess = registerColor('notebookStatusSuccessIcon.foreground', {
@@ -1468,11 +1496,15 @@ registerThemingParticipant((theme, collector) => {
 			.notebookOverlay .monaco-list-row.cell-output-hover .notebook-cell-focus-indicator { border-color: ${cellToolbarSeperator}; }`);
 	}
 
+	const selectedCellIndicatorColor = theme.getColor(selectedCellIndicator);
+	if (selectedCellIndicatorColor) {
+		collector.addRule(`.notebookOverlay .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${selectedCellIndicatorColor}; }`);
+		collector.addRule(`.notebookOverlay .monaco-list-row .notebook-cell-focus-indicator { border-color: ${selectedCellIndicatorColor}; }`);
+		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${selectedCellIndicatorColor}; }`);
+	}
+
 	const focusedCellIndicatorColor = theme.getColor(focusedCellIndicator);
 	if (focusedCellIndicatorColor) {
-		collector.addRule(`.notebookOverlay .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
-		collector.addRule(`.notebookOverlay .monaco-list-row .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
-		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedCellIndicatorColor}; }`);
 	}
 

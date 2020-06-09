@@ -49,6 +49,11 @@ export interface ReadableStream<T> extends ReadableStreamEvents<T> {
 	 * Destroys the stream and stops emitting any event.
 	 */
 	destroy(): void;
+
+	/**
+	 * Allows to remove a listener that was previously added.
+	 */
+	removeListener(event: string, callback: Function): void;
 }
 
 /**
@@ -74,8 +79,14 @@ export interface WriteableStream<T> extends ReadableStream<T> {
 	 * Writing data to the stream will trigger the on('data')
 	 * event listener if the stream is flowing and buffer the
 	 * data otherwise until the stream is flowing.
+	 *
+	 * If a `highWaterMark` is configured and writing to the
+	 * stream reaches this mark, a promise will be returned
+	 * that should be awaited on before writing more data.
+	 * Otherwise there is a risk of buffering a large number
+	 * of data chunks without consumer.
 	 */
-	write(data: T): void;
+	write(data: T): void | Promise<void>;
 
 	/**
 	 * Signals an error to the consumer of the stream via the
@@ -118,8 +129,18 @@ export interface ITransformer<Original, Transformed> {
 	error?: IErrorTransformer;
 }
 
-export function newWriteableStream<T>(reducer: IReducer<T>): WriteableStream<T> {
-	return new WriteableStreamImpl<T>(reducer);
+export function newWriteableStream<T>(reducer: IReducer<T>, options?: WriteableStreamOptions): WriteableStream<T> {
+	return new WriteableStreamImpl<T>(reducer, options);
+}
+
+export interface WriteableStreamOptions {
+
+	/**
+	 * The number of objects to buffer before WriteableStream#write()
+	 * signals back that the buffer is full. Can be used to reduce
+	 * the memory pressure when the stream is not flowing.
+	 */
+	highWaterMark?: number;
 }
 
 class WriteableStreamImpl<T> implements WriteableStream<T> {
@@ -141,7 +162,9 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		end: [] as { (): void }[]
 	};
 
-	constructor(private reducer: IReducer<T>) { }
+	private readonly pendingWritePromises: Function[] = [];
+
+	constructor(private reducer: IReducer<T>, private options?: WriteableStreamOptions) { }
 
 	pause(): void {
 		if (this.state.destroyed) {
@@ -166,7 +189,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		}
 	}
 
-	write(data: T): void {
+	write(data: T): void | Promise<void> {
 		if (this.state.destroyed) {
 			return;
 		}
@@ -179,6 +202,11 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		// not yet flowing: buffer data until flowing
 		else {
 			this.buffer.data.push(data);
+
+			// highWaterMark: if configured, signal back when buffer reached limits
+			if (typeof this.options?.highWaterMark === 'number' && this.buffer.data.length > this.options.highWaterMark) {
+				return new Promise(resolve => this.pendingWritePromises.push(resolve));
+			}
 		}
 	}
 
@@ -267,6 +295,35 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		}
 	}
 
+	removeListener(event: string, callback: Function): void {
+		if (this.state.destroyed) {
+			return;
+		}
+
+		let listeners: unknown[] | undefined = undefined;
+
+		switch (event) {
+			case 'data':
+				listeners = this.listeners.data;
+				break;
+
+			case 'end':
+				listeners = this.listeners.end;
+				break;
+
+			case 'error':
+				listeners = this.listeners.error;
+				break;
+		}
+
+		if (listeners) {
+			const index = listeners.indexOf(callback);
+			if (index >= 0) {
+				listeners.splice(index, 1);
+			}
+		}
+	}
+
 	private flowData(): void {
 		if (this.buffer.data.length > 0) {
 			const fullDataBuffer = this.reducer(this.buffer.data);
@@ -274,6 +331,11 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 			this.listeners.data.forEach(listener => listener(fullDataBuffer));
 
 			this.buffer.data.length = 0;
+
+			// When the buffer is empty, resolve all pending writers
+			const pendingWritePromises = [...this.pendingWritePromises];
+			this.pendingWritePromises.length = 0;
+			pendingWritePromises.forEach(pendingWritePromise => pendingWritePromise());
 		}
 	}
 
@@ -308,6 +370,8 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 			this.listeners.data.length = 0;
 			this.listeners.error.length = 0;
 			this.listeners.end.length = 0;
+
+			this.pendingWritePromises.length = 0;
 		}
 	}
 }

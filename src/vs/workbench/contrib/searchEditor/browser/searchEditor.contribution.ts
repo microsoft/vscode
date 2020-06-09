@@ -93,7 +93,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 					override: (async () => {
 						const { config } = await instantiationService.invokeFunction(parseSavedSearchEditor, resource);
 						const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { backingUri: resource, config });
-						return editorService.openEditor(input, { ...options, ignoreOverrides: true }, group);
+						return editorService.openEditor(input, { ...options, override: false }, group);
 					})()
 				};
 			}
