@@ -113,7 +113,8 @@ export namespace MarkdownContributions {
 }
 
 export interface MarkdownContributionProvider {
-	readonly extensionPath: string;
+	readonly extensionUri: vscode.Uri;
+
 	readonly contributions: MarkdownContributions;
 	readonly onContributionsChanged: vscode.Event<this>;
 
@@ -124,7 +125,7 @@ class VSCodeExtensionMarkdownContributionProvider extends Disposable implements 
 	private _contributions?: MarkdownContributions;
 
 	public constructor(
-		public readonly extensionPath: string,
+		private readonly _extensionContext: vscode.ExtensionContext,
 	) {
 		super();
 
@@ -137,6 +138,8 @@ class VSCodeExtensionMarkdownContributionProvider extends Disposable implements 
 			}
 		}, undefined, this._disposables);
 	}
+
+	public get extensionUri() { return this._extensionContext.extensionUri; }
 
 	private readonly _onContributionsChanged = this._register(new vscode.EventEmitter<this>());
 	public readonly onContributionsChanged = this._onContributionsChanged.event;
@@ -156,5 +159,5 @@ class VSCodeExtensionMarkdownContributionProvider extends Disposable implements 
 }
 
 export function getMarkdownExtensionContributions(context: vscode.ExtensionContext): MarkdownContributionProvider {
-	return new VSCodeExtensionMarkdownContributionProvider(context.extensionPath);
+	return new VSCodeExtensionMarkdownContributionProvider(context);
 }
