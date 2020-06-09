@@ -32,7 +32,7 @@ export interface INativeEnvironmentConfiguration extends IEnvironmentConfigurati
 
 export class NativeWorkbenchEnvironmentService extends EnvironmentService implements INativeWorkbenchEnvironmentService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	@memoize
 	get webviewExternalEndpoint(): string {
@@ -42,10 +42,15 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	}
 
 	@memoize
-	get webviewResourceRoot(): string { return `${Schemas.vscodeWebviewResource}://{{uuid}}/{{resource}}`; }
+	get webviewResourceRoot(): string {
+		return `${Schemas.oldVscodeWebviewResource}://{{resource}}`;
+
+		// TODO mjbvz: restore when switching to new protcol
+		// return `${Schemas.vscodeWebviewResource}://{{uuid}}/{{resource}}`;
+	}
 
 	@memoize
-	get webviewCspSource(): string { return `${Schemas.vscodeWebviewResource}:`; }
+	get webviewCspSource(): string { return `${Schemas.oldVscodeWebviewResource}:`; }
 
 	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }

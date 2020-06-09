@@ -116,7 +116,7 @@ suite('NotebookConcatDocument', function () {
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
-			change: [0, 0, [{
+			changes: [[0, 0, [{
 				handle: 1,
 				uri: CellUri.generate(notebook.uri, 1),
 				source: ['Hello', 'World', 'Hello World!'],
@@ -130,7 +130,7 @@ suite('NotebookConcatDocument', function () {
 				language: 'test',
 				cellKind: CellKind.Code,
 				outputs: [],
-			}]]
+			}]]]
 		});
 
 
@@ -155,14 +155,14 @@ suite('NotebookConcatDocument', function () {
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
-			change: [0, 0, [{
+			changes: [[0, 0, [{
 				handle: 1,
 				uri: CellUri.generate(notebook.uri, 1),
 				source: ['Hello', 'World', 'Hello World!'],
 				language: 'test',
 				cellKind: CellKind.Code,
 				outputs: [],
-			}]]
+			}]]]
 		});
 		assert.equal(notebook.cells.length, 1 + 1);
 		assert.equal(doc.version, 1);
@@ -177,14 +177,14 @@ suite('NotebookConcatDocument', function () {
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
-			change: [1, 0, [{
+			changes: [[1, 0, [{
 				handle: 2,
 				uri: CellUri.generate(notebook.uri, 2),
 				source: ['Hallo', 'Welt', 'Hallo Welt!'],
 				language: 'test',
 				cellKind: CellKind.Code,
 				outputs: [],
-			}]]
+			}]]]
 		});
 
 		assert.equal(notebook.cells.length, 1 + 2);
@@ -200,7 +200,7 @@ suite('NotebookConcatDocument', function () {
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
-			change: [1, 1, []]
+			changes: [[1, 1, []]]
 		});
 		assert.equal(notebook.cells.length, 1 + 1);
 		assert.equal(doc.version, 3);
@@ -218,7 +218,7 @@ suite('NotebookConcatDocument', function () {
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
-			change: [0, 0, [{
+			changes: [[0, 0, [{
 				handle: 1,
 				uri: CellUri.generate(notebook.uri, 1),
 				source: ['Hello', 'World', 'Hello World!'],
@@ -232,7 +232,7 @@ suite('NotebookConcatDocument', function () {
 				language: 'test',
 				cellKind: CellKind.Code,
 				outputs: [],
-			}]]
+			}]]]
 		});
 		assert.equal(notebook.cells.length, 1 + 2);
 		assert.equal(doc.version, 1);
@@ -281,7 +281,7 @@ suite('NotebookConcatDocument', function () {
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
-			change: [0, 0, [{
+			changes: [[0, 0, [{
 				handle: 1,
 				uri: CellUri.generate(notebook.uri, 1),
 				source: ['fooLang-document'],
@@ -295,7 +295,7 @@ suite('NotebookConcatDocument', function () {
 				language: 'barLang',
 				cellKind: CellKind.Code,
 				outputs: [],
-			}]]
+			}]]]
 		});
 
 		const mixedDoc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook, undefined);
@@ -309,14 +309,14 @@ suite('NotebookConcatDocument', function () {
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
-			change: [2, 0, [{
+			changes: [[2, 0, [{
 				handle: 3,
 				uri: CellUri.generate(notebook.uri, 3),
 				source: ['barLang-document2'],
 				language: 'barLang',
 				cellKind: CellKind.Code,
 				outputs: [],
-			}]]
+			}]]]
 		});
 
 		assertLines(mixedDoc, 'fooLang-document', 'barLang-document', 'barLang-document2');
@@ -342,7 +342,7 @@ suite('NotebookConcatDocument', function () {
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
-			change: [0, 0, [{
+			changes: [[0, 0, [{
 				handle: 1,
 				uri: CellUri.generate(notebook.uri, 1),
 				source: ['Hello', 'World', 'Hello World!'],
@@ -356,7 +356,7 @@ suite('NotebookConcatDocument', function () {
 				language: 'test',
 				cellKind: CellKind.Code,
 				outputs: [],
-			}]]
+			}]]]
 		});
 
 		assert.equal(notebook.cells.length, 1 + 2); // markdown and code
@@ -393,7 +393,7 @@ suite('NotebookConcatDocument', function () {
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
-			change: [0, 0, [{
+			changes: [[0, 0, [{
 				handle: 1,
 				uri: CellUri.generate(notebook.uri, 1),
 				source: ['Hello', 'World', 'Hello World!'],
@@ -407,7 +407,7 @@ suite('NotebookConcatDocument', function () {
 				language: 'test',
 				cellKind: CellKind.Code,
 				outputs: [],
-			}]]
+			}]]]
 		});
 
 		assert.equal(notebook.cells.length, 1 + 2); // markdown and code
@@ -428,7 +428,7 @@ suite('NotebookConcatDocument', function () {
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
-			change: [0, 0, [{
+			changes: [[0, 0, [{
 				handle: 1,
 				uri: CellUri.generate(notebook.uri, 1),
 				source: ['Hello', 'World', 'Hello World!'],
@@ -442,7 +442,7 @@ suite('NotebookConcatDocument', function () {
 				language: 'test',
 				cellKind: CellKind.Code,
 				outputs: [],
-			}]]
+			}]]]
 		});
 
 		assert.equal(notebook.cells.length, 1 + 2); // markdown and code

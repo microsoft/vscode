@@ -16,17 +16,26 @@ export const terminalConfiguration: IConfigurationNode = {
 	type: 'object',
 	properties: {
 		'terminal.integrated.automationShell.linux': {
-			markdownDescription: localize('terminal.integrated.automationShell.linux', "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.linux`', '`shellArgs`'),
+			markdownDescription: localize({
+				key: 'terminal.integrated.automationShell.linux',
+				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
+			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.linux`', '`shellArgs`'),
 			type: ['string', 'null'],
 			default: null
 		},
 		'terminal.integrated.automationShell.osx': {
-			markdownDescription: localize('terminal.integrated.automationShell.osx', "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.osx`', '`shellArgs`'),
+			markdownDescription: localize({
+				key: 'terminal.integrated.automationShell.osx',
+				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
+			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.osx`', '`shellArgs`'),
 			type: ['string', 'null'],
 			default: null
 		},
 		'terminal.integrated.automationShell.windows': {
-			markdownDescription: localize('terminal.integrated.automationShell.windows', "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.windows`', '`shellArgs`'),
+			markdownDescription: localize({
+				key: 'terminal.integrated.automationShell.windows',
+				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
+			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.windows`', '`shellArgs`'),
 			type: ['string', 'null'],
 			default: null
 		},

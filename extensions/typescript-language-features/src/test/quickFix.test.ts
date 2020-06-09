@@ -122,6 +122,32 @@ suite('TypeScript Quick Fix', () => {
 		assert.strictEqual(fixes![0].title, `Implement interface 'IFoo'`);
 		assert.strictEqual(fixes![1].title, `Remove unused declaration for: 'Foo'`);
 	});
+
+	test('Add all missing imports should come after other add import fixes #98613', async () => {
+		await createTestEditor(workspaceFile('foo.ts'),
+			`export const foo = 1;`);
+
+		await createTestEditor(workspaceFile('bar.ts'),
+			`export const foo = 1;`);
+
+		const editor = await createTestEditor(workspaceFile('index.ts'),
+			`export const _ = 1;`,
+			`foo$0;`,
+			`foo$0;`
+		);
+
+		await wait(3000);
+
+		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
+			workspaceFile('index.ts'),
+			editor.document.lineAt(1).range
+		);
+
+		assert.strictEqual(fixes?.length, 3);
+		assert.strictEqual(fixes![0].title, `Import 'foo' from module "./bar"`);
+		assert.strictEqual(fixes![1].title, `Import 'foo' from module "./foo"`);
+		assert.strictEqual(fixes![2].title, `Add all missing imports`);
+	});
 });
 
 

@@ -7,6 +7,8 @@ import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { ViewEvent } from 'vs/editor/common/view/viewEvents';
 
 suite('ViewModel', () => {
 
@@ -63,9 +65,11 @@ suite('ViewModel', () => {
 			let viewLineCount: number[] = [];
 
 			viewLineCount.push(viewModel.getLineCount());
-			viewModel.addViewEventListener((events) => {
-				// Access the view model
-				viewLineCount.push(viewModel.getLineCount());
+			viewModel.addViewEventHandler(new class extends ViewEventHandler {
+				handleEvents(events: ViewEvent[]): void {
+					// Access the view model
+					viewLineCount.push(viewModel.getLineCount());
+				}
 			});
 			model.undo();
 			viewLineCount.push(viewModel.getLineCount());

@@ -9,11 +9,11 @@ import { DynamicWebviewEditorOverlay } from 'vs/workbench/contrib/webview/browse
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { WebviewIconManager } from 'vs/workbench/contrib/webview/browser/webviewIconManager';
-import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
 export class ElectronWebviewService implements IWebviewService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _webviewThemeDataProvider: WebviewThemeDataProvider;
 	private readonly _iconManager: WebviewIconManager;

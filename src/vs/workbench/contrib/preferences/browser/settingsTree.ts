@@ -979,7 +979,11 @@ export class SettingTextRenderer extends AbstractSettingRenderer implements ITre
 
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
-		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(value); };
+		template.onChange = value => {
+			if (!renderValidations(dataElement, template, false, label)) {
+				onChange(value);
+			}
+		};
 
 		renderValidations(dataElement, template, true, label);
 	}
@@ -1126,8 +1130,9 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => {
-			renderValidations(dataElement, template, false, label);
-			onChange(nullNumParseFn(value));
+			if (!renderValidations(dataElement, template, false, label)) {
+				onChange(nullNumParseFn(value));
+			}
 		};
 
 		renderValidations(dataElement, template, true, label);
@@ -1348,7 +1353,10 @@ export class SettingTreeRenderers {
 	}
 }
 
-function renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, calledOnStartup: boolean, originalAriaLabel: string) {
+/**
+ * Validate and render any error message. Returns true if the value is invalid.
+ */
+function renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, calledOnStartup: boolean, originalAriaLabel: string): boolean {
 	if (dataElement.setting.validator) {
 		const errMsg = dataElement.setting.validator(template.inputBox.value);
 		if (errMsg) {
@@ -1357,12 +1365,13 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 			const validationError = localize('validationError', "Validation Error.");
 			template.inputBox.inputElement.parentElement!.setAttribute('aria-label', [originalAriaLabel, validationError, errMsg].join(' '));
 			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
-			return;
+			return true;
 		} else {
 			template.inputBox.inputElement.parentElement!.setAttribute('aria-label', originalAriaLabel);
 		}
 	}
 	DOM.removeClass(template.containerElement, 'invalid-input');
+	return false;
 }
 
 function renderArrayValidations(

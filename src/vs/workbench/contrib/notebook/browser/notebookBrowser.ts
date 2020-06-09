@@ -23,7 +23,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { CellLanguageStatusBarItem, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
@@ -159,6 +159,8 @@ export interface INotebookEditor extends IEditor {
 	activeKernel: INotebookKernelInfo | undefined;
 	readonly onDidChangeKernel: Event<void>;
 
+	isDisposed: boolean;
+
 	getId(): string;
 	getDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
@@ -220,19 +222,6 @@ export interface INotebookEditor extends IEditor {
 	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<boolean>;
 
 	/**
-	 * Switch the cell into editing mode.
-	 *
-	 * For code cell, the monaco editor will be focused.
-	 * For markdown cell, it will switch from preview mode to editing mode, which focuses the monaco editor.
-	 */
-	editNotebookCell(cell: ICellViewModel): void;
-
-	/**
-	 * Quit cell editing mode.
-	 */
-	saveNotebookCell(cell: ICellViewModel): void;
-
-	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
 	 */
 	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
@@ -270,12 +259,12 @@ export interface INotebookEditor extends IEditor {
 	/**
 	 * Render the output in webview layer
 	 */
-	createInset(cell: ICellViewModel, output: IOutput, shadowContent: string, offset: number): void;
+	createInset(cell: ICellViewModel, output: IProcessedOutput, shadowContent: string, offset: number): void;
 
 	/**
 	 * Remove the output from the webview layer
 	 */
-	removeInset(output: IOutput): void;
+	removeInset(output: IProcessedOutput): void;
 
 	/**
 	 * Send message to the webview for outputs.
@@ -305,32 +294,32 @@ export interface INotebookEditor extends IEditor {
 	/**
 	 * Reveal a line in notebook cell into viewport with minimal scrolling.
 	 */
-	revealLineInView(cell: ICellViewModel, line: number): void;
+	revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void>;
 
 	/**
 	 * Reveal a line in notebook cell into viewport center.
 	 */
-	revealLineInCenter(cell: ICellViewModel, line: number): void;
+	revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void>;
 
 	/**
 	 * Reveal a line in notebook cell into viewport center.
 	 */
-	revealLineInCenterIfOutsideViewport(cell: ICellViewModel, line: number): void;
+	revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void>;
 
 	/**
 	 * Reveal a range in notebook cell into viewport with minimal scrolling.
 	 */
-	revealRangeInView(cell: ICellViewModel, range: Range): void;
+	revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
 	 * Reveal a range in notebook cell into viewport center.
 	 */
-	revealRangeInCenter(cell: ICellViewModel, range: Range): void;
+	revealRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
 	 * Reveal a range in notebook cell into viewport center.
 	 */
-	revealRangeInCenterIfOutsideViewport(cell: ICellViewModel, range: Range): void;
+	revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
 	 * Set hidden areas on cell text models.
@@ -377,8 +366,8 @@ export interface INotebookCellList {
 	scrollLeft: number;
 	length: number;
 	rowsContainer: HTMLElement;
-	readonly onDidRemoveOutput: Event<IOutput>;
-	readonly onDidHideOutput: Event<IOutput>;
+	readonly onDidRemoveOutput: Event<IProcessedOutput>;
+	readonly onDidHideOutput: Event<IProcessedOutput>;
 	readonly onMouseUp: Event<IListMouseEvent<CellViewModel>>;
 	readonly onMouseDown: Event<IListMouseEvent<CellViewModel>>;
 	detachViewModel(): void;
@@ -391,12 +380,12 @@ export interface INotebookCellList {
 	revealElementInView(element: ICellViewModel): void;
 	revealElementInCenterIfOutsideViewport(element: ICellViewModel): void;
 	revealElementInCenter(element: ICellViewModel): void;
-	revealElementLineInView(element: ICellViewModel, line: number): void;
-	revealElementLineInCenter(element: ICellViewModel, line: number): void;
-	revealElementLineInCenterIfOutsideViewport(element: ICellViewModel, line: number): void;
-	revealElementRangeInView(element: ICellViewModel, range: Range): void;
-	revealElementRangeInCenter(element: ICellViewModel, range: Range): void;
-	revealElementRangeInCenterIfOutsideViewport(element: ICellViewModel, range: Range): void;
+	revealElementLineInViewAsync(element: ICellViewModel, line: number): Promise<void>;
+	revealElementLineInCenterAsync(element: ICellViewModel, line: number): Promise<void>;
+	revealElementLineInCenterIfOutsideViewportAsync(element: ICellViewModel, line: number): Promise<void>;
+	revealElementRangeInViewAsync(element: ICellViewModel, range: Range): Promise<void>;
+	revealElementRangeInCenterAsync(element: ICellViewModel, range: Range): Promise<void>;
+	revealElementRangeInCenterIfOutsideViewportAsync(element: ICellViewModel, range: Range): Promise<void>;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
 	focusView(): void;
@@ -456,7 +445,7 @@ export interface IOutputTransformContribution {
 	 */
 	dispose(): void;
 
-	render(output: IOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput;
+	render(output: IProcessedOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput;
 }
 
 export interface CellFindMatch {

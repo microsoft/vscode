@@ -79,8 +79,8 @@ src/vs/base/common/strings.ts:
   170   */
   171  export function endsWith(haystack: string, needle: string): boolean {
 
-  853  
-  854  /**
-  855:  * @deprecated ES6
-  856   */
-  857  export function repeat(s: string, count: number): string {
+  861  
+  862  /**
+  863:  * @deprecated ES6
+  864   */
+  865  export function repeat(s: string, count: number): string {
