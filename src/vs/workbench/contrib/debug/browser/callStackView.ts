@@ -591,6 +591,25 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 		const label = new HighlightedLabel(labelDiv, false);
 		const actionBar = new ActionBar(stackFrame);
 
+		// Mouse enter listener, to check the size of the container and file label
+		// If the size is going above threshold, adding a class to change the css
+		// and fit the restart frame in the dom
+		dom.addDisposableListener(stackFrame, dom.EventType.MOUSE_ENTER, () => {
+			const thresholdBuffer = 46;
+			const labelDivWidth = dom.getContentWidth(labelDiv);
+			const containerWidth = dom.getContentWidth(container);
+			if (labelDivWidth + thresholdBuffer >= containerWidth) {
+				dom.addClass(labelDiv, 'threshold-label-view');
+			}
+		});
+
+		// Mouse leave listener, to remove the class added above
+		dom.addDisposableListener(stackFrame, dom.EventType.MOUSE_LEAVE, () => {
+			if (dom.hasClass(labelDiv, 'threshold-label-view')) {
+				dom.removeClass(labelDiv, 'threshold-label-view');
+			}
+		});
+
 		return { file, fileName, label, lineNumber, stackFrame, actionBar };
 	}
 

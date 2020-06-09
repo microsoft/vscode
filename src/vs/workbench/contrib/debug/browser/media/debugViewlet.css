@@ -183,6 +183,10 @@
 	min-width: -moz-fit-content;
 }
 
+.debug-pane .debug-call-stack .stack-frame .threshold-label-view {
+	min-width: calc(100% - 64px);
+}
+
 .debug-pane .debug-call-stack .stack-frame.subtle {
 	font-style: italic;
 }
