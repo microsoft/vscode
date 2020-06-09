@@ -529,7 +529,8 @@ export class ProjectLoadingRoutingSyntaxTsServer extends Disposable implements I
 
 	private static readonly semanticCommands = new Set<keyof TypeScriptRequests>([
 		'geterr',
-		'geterrForProject'
+		'geterrForProject',
+		'projectInfo'
 	]);
 
 	private readonly syntaxServer: ITypeScriptServer;
