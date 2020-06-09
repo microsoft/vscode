@@ -18,6 +18,7 @@ import { Event } from 'vs/base/common/event';
 import { relative } from 'vs/base/common/path';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.panel.search';
@@ -422,7 +423,8 @@ export enum SearchErrorCode {
 	globParseError,
 	invalidLiteral,
 	rgProcessError,
-	other
+	other,
+	canceled
 }
 
 export class SearchError extends Error {
@@ -431,7 +433,13 @@ export class SearchError extends Error {
 	}
 }
 
-export function deserializeSearchError(errorMsg: string): SearchError {
+export function deserializeSearchError(error: Error): SearchError {
+	const errorMsg = error.message;
+
+	if (isPromiseCanceledError(error)) {
+		return new SearchError(errorMsg, SearchErrorCode.canceled);
+	}
+
 	try {
 		const details = JSON.parse(errorMsg);
 		return new SearchError(details.message, details.code);
