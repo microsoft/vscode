@@ -135,6 +135,7 @@ export interface CommitOptions {
 export interface BranchQuery {
 	readonly remote?: boolean;
 	readonly pattern?: string;
+	readonly count?: number;
 	readonly contains?: string;
 }
 
