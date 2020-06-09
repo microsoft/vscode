@@ -81,10 +81,7 @@ export class MemFS implements FileSystemProvider, FileSearchProvider, TextSearch
 
 	constructor() {
 		this.disposable = Disposable.from(
-			workspace.registerFileSystemProvider(MemFS.scheme, this, {
-				isCaseSensitive: true,
-				isReadonly: true,
-			}),
+			workspace.registerFileSystemProvider(MemFS.scheme, this, { isCaseSensitive: true }),
 			workspace.registerFileSearchProvider(MemFS.scheme, this),
 			workspace.registerTextSearchProvider(MemFS.scheme, this)
 		);
