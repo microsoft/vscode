@@ -12,7 +12,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorOptions, IEditorCloseEvent, IEditorMemento } from 'vs/workbench/common/editor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -112,7 +111,7 @@ export class NotebookEditor extends BaseEditor {
 
 	setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
-		this.groupListener.value = ((group as IEditorGroupView).onWillCloseEditor(e => this.onWillCloseEditorInGroup(e)));
+		this.groupListener.value = group?.onWillCloseEditor(e => this.onWillCloseEditorInGroup(e));
 	}
 
 	private onWillCloseEditorInGroup(e: IEditorCloseEvent): void {

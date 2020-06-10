@@ -1395,3 +1395,23 @@ export const enum EditorsOrder {
 	 */
 	SEQUENTIAL
 }
+
+export function computeEditorAriaLabel(input: IEditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
+	let ariaLabel = input.getAriaLabel();
+	if (group && !group.isPinned(input)) {
+		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
+	}
+
+	if (group && group.isSticky(index ?? input)) {
+		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
+	}
+
+	// Apply group information to help identify in
+	// which group we are (only if more than one group
+	// is actually opened)
+	if (group && groupCount > 1) {
+		ariaLabel = `${ariaLabel}, ${group.ariaLabel}`;
+	}
+
+	return ariaLabel;
+}
