@@ -559,6 +559,27 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 // Show Search 'when' is redundant but if the two conflict with exactly the same keybinding and 'when' clause, then they can show up as "unbound" - #51780
 registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenSearchViewletAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }, Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	description: {
+		description: nls.localize('findInFiles.description', "Open the search viewlet"),
+		args: [
+			{
+				name: nls.localize('findInFiles.args', "A set of options for the search viewlet"),
+				schema: {
+					type: 'object',
+					properties: {
+						query: { 'type': 'string' },
+						replace: { 'type': 'string' },
+						triggerSearch: { 'type': 'boolean' },
+						filesToInclude: { 'type': 'string' },
+						filesToExclude: { 'type': 'string' },
+						isRegex: { 'type': 'boolean' },
+						isCaseSensitive: { 'type': 'boolean' },
+						matchWholeWord: { 'type': 'boolean' },
+					}
+				}
+			},
+		]
+	},
 	id: Constants.FindInFilesActionId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: null,
