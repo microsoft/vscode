@@ -340,7 +340,16 @@ class Extensions extends Disposable {
 	}
 
 	async queryInstalled(): Promise<IExtension[]> {
-		const installed = await this.server.extensionManagementService.getInstalled();
+		const all = await this.server.extensionManagementService.getInstalled();
+
+		// dedup user and system extensions by giving priority to user extensions.
+		const installed = groupByExtension(all, r => r.identifier).reduce((result, extensions) => {
+			const extension = extensions.length === 1 ? extensions[0]
+				: extensions.find(e => e.type === ExtensionType.User) || extensions.find(e => e.type === ExtensionType.System);
+			result.push(extension!);
+			return result;
+		}, []);
+
 		const byId = index(this.installed, e => e.local ? e.local.identifier.id : e.identifier.id);
 		this.installed = installed.map(local => {
 			const extension = byId[local.identifier.id] || this.instantiationService.createInstance(Extension, this.stateProvider, this.server, local, undefined);
@@ -542,8 +551,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	get local(): IExtension[] {
-		const result = [...this.installed];
-		const byId = groupByExtension(result, r => r.identifier);
+		const byId = groupByExtension(this.installed, r => r.identifier);
 		return byId.reduce((result, extensions) => { result.push(this.getPrimaryExtension(extensions)); return result; }, []);
 	}
 

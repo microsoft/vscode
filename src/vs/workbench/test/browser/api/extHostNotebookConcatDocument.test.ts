@@ -73,7 +73,7 @@ suite('NotebookConcatDocument', function () {
 		});
 		await extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
 
-		notebook = extHostNotebooks.activeNotebookDocument!;
+		notebook = extHostNotebooks.notebookDocuments[0]!;
 
 		disposables.add(reg);
 		disposables.add(notebook);

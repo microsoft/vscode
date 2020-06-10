@@ -21,9 +21,18 @@
     "resourceLabelFormatters": [
       {
         "scheme": "github",
+        "authority": "HEAD",
+        "formatting": {
+          "label": "github.com${path}",
+          "separator": "/",
+          "workspaceSuffix": "GitHub"
+        }
+      },
+      {
+        "scheme": "github",
         "authority": "*",
         "formatting": {
-          "label": "${authority}${path}",
+          "label": "github.com${path} (${authority})",
           "separator": "/",
           "workspaceSuffix": "GitHub"
         }

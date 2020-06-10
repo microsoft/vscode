@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as crypto from 'crypto';
-import * as path from 'path';
 import { MarkdownIt, Token } from 'markdown-it';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
-import { MarkdownFileExtensions, Schemes, isOfScheme } from './util/links';
+import { hash } from './util/hash';
+import { isOfScheme, MarkdownFileExtensions, Schemes } from './util/links';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
@@ -197,9 +197,7 @@ export class MarkdownEngine {
 
 			const src = token.attrGet('src');
 			if (src) {
-				const hash = crypto.createHash('sha256');
-				hash.update(src);
-				const imgHash = hash.digest('hex');
+				const imgHash = hash(src);
 				token.attrSet('id', `image-hash-${imgHash}`);
 			}
 

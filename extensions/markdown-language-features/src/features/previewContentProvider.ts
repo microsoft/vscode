@@ -111,7 +111,7 @@ export class MarkdownContentProvider {
 
 	private extensionResourcePath(resourceProvider: WebviewResourceProvider, mediaFile: string): string {
 		const webviewResource = resourceProvider.asWebviewUri(
-			vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))));
+			vscode.Uri.joinPath(this.context.extensionUri, 'media', mediaFile));
 		return webviewResource.toString();
 	}
 

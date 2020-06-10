@@ -235,7 +235,7 @@ export interface IEditorInputFactory {
 	 * Returns a string representation of the provided editor input that contains enough information
 	 * to deserialize back to the original editor input from the deserialize() method.
 	 */
-	serialize(editorInput: EditorInput): string | undefined;
+	serialize(editorInput: IEditorInput): string | undefined;
 
 	/**
 	 * Returns an editor input from the provided serialized form of the editor input. This form matches

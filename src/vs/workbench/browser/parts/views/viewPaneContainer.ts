@@ -917,7 +917,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 						const container = this.viewDescriptorService.getViewContainerById(dropData.id)!;
 						const viewsToMove = this.viewDescriptorService.getViewContainerModel(container).allViewDescriptors;
 
-						if (!viewsToMove.some(v => !v.canMoveView)) {
+						if (!viewsToMove.some(v => !v.canMoveView) && viewsToMove.length > 0) {
 							overlay = new ViewPaneDropOverlay(parent, undefined, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
 						}
 					}
@@ -1357,7 +1357,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 						const container = this.viewDescriptorService.getViewContainerById(dropData.id)!;
 						const viewsToMove = this.viewDescriptorService.getViewContainerModel(container).allViewDescriptors;
 
-						if (!viewsToMove.some(v => !v.canMoveView)) {
+						if (!viewsToMove.some(v => !v.canMoveView) && viewsToMove.length > 0) {
 							overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
 						}
 					}
