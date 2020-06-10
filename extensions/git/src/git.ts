@@ -1792,18 +1792,20 @@ export class Repository {
 	}
 
 	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate', contains?: string, pattern?: string, count?: number }): Promise<Ref[]> {
-		const args = ['for-each-ref', '--format', '%(refname) %(objectname)'];
+		const args = ['for-each-ref'];
+
+		if (opts?.count) {
+			args.push(`--count=${opts.count}`);
+		}
 
 		if (opts && opts.sort && opts.sort !== 'alphabetically') {
 			args.push('--sort', `-${opts.sort}`);
 		}
 
+		args.push('--format', '%(refname) %(objectname)');
+
 		if (opts?.pattern) {
 			args.push(opts.pattern);
-		}
-
-		if (opts?.count) {
-			args.push(`--count=${opts.count}`);
 		}
 
 		if (opts?.contains) {
