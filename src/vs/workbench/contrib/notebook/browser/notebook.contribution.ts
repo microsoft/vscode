@@ -29,7 +29,7 @@ import { EditorInput, Extensions as EditorInputExtensions, IEditorInput, IEditor
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookService, INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellUri, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -58,6 +58,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
+import { NotebookModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -218,6 +219,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				return;
 			}
 
+			// todo@rebornix, @jrieken
+			// it seems we are fighting against the platfrom here
 			if (!this.editorService.editors.some(other => (
 				other.resource === editor.resource
 				&& other instanceof NotebookEditorInput
@@ -371,6 +374,7 @@ class CellContentProvider implements ITextModelContentProvider {
 		@IModelService private readonly _modelService: IModelService,
 		@IModeService private readonly _modeService: IModeService,
 		@INotebookService private readonly _notebookService: INotebookService,
+		@INotebookEditorModelResolverService private readonly _notebookModelService: INotebookEditorModelResolverService
 	) {
 		this._registration = textModelService.registerTextModelContentProvider(CellUri.scheme, this);
 	}
@@ -385,7 +389,6 @@ class CellContentProvider implements ITextModelContentProvider {
 			return existing;
 		}
 		const data = CellUri.parse(resource);
-		// const data = parseCellUri(resource);
 		if (!data) {
 			return null;
 		}
@@ -394,12 +397,12 @@ class CellContentProvider implements ITextModelContentProvider {
 			return null;
 		}
 
-		const editorModel = await this._notebookService.modelManager.resolve(data.notebook, info.id);
-		if (!editorModel) {
-			return null;
-		}
+		const reference = await this._notebookModelService.resolve(data.notebook, info.id);
 
-		for (let cell of editorModel.notebook.cells) {
+
+		let result: ITextModel | null = null;
+
+		for (let cell of reference.object.notebook.cells) {
 			if (cell.uri.toString() === resource.toString()) {
 				const bufferFactory: ITextBufferFactory = {
 					create: (defaultEOL) => {
@@ -412,15 +415,25 @@ class CellContentProvider implements ITextModelContentProvider {
 					}
 				};
 				const language = cell.cellKind === CellKind.Markdown ? this._modeService.create('markdown') : (cell.language ? this._modeService.create(cell.language) : this._modeService.createByFilepathOrFirstLine(resource, cell.textBuffer.getLineContent(1)));
-				return this._modelService.createModel(
+				result = this._modelService.createModel(
 					bufferFactory,
 					language,
 					resource
 				);
+				break;
 			}
 		}
 
-		return null;
+		if (result) {
+			// this keeps the whole notebook alive as long as this single
+			// cell-document reference is alive!
+			const listener = result.onWillDispose(() => {
+				listener.dispose();
+				reference.dispose();
+			});
+		}
+
+		return result;
 	}
 }
 
@@ -428,6 +441,7 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
 
+registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverService);
 registerSingleton(INotebookService, NotebookService);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);

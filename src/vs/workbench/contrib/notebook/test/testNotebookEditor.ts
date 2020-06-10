@@ -246,6 +246,14 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		return this._notebook;
 	}
 
+	get viewType() {
+		return this._notebook.viewType;
+	}
+
+	get resource() {
+		return this._notebook.uri;
+	}
+
 	constructor(
 		private _notebook: NotebookTextModel
 	) {
@@ -277,6 +285,14 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		}
 
 		return false;
+	}
+
+	saveAs(): any {
+		throw new Error('not implemented');
+	}
+
+	revert(): any {
+		throw new Error('not implemented');
 	}
 }
 

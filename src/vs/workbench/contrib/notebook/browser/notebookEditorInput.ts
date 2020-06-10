@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions } from 'vs/workbench/common/editor';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookService, INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, basename } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IReference } from 'vs/base/common/lifecycle';
+import { INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 let NOTEBOOK_EDITOR_INPUT_HANDLE = 0;
 
@@ -24,8 +25,8 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	static readonly ID: string = 'workbench.input.notebook';
-	private textModel: NotebookEditorModel | null = null;
 
+	private _modelReference: IReference<INotebookEditorModel> | undefined;
 	private _group: GroupIdentifier | undefined;
 
 	public get group(): GroupIdentifier | undefined {
@@ -45,6 +46,7 @@ export class NotebookEditorInput extends EditorInput {
 		public readonly viewType: string | undefined,
 		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly notebookService: INotebookService,
+		@INotebookEditorModelResolverService private readonly notebookModelService: INotebookEditorModelResolverService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		// @IEditorService private readonly editorService: IEditorService,
@@ -63,11 +65,11 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	isDirty() {
-		if (!this.textModel) {
+		if (!this._modelReference) {
 			return !!this._defaultDirtyState;
 		}
 
-		return this.textModel?.isDirty() || false;
+		return this._modelReference.object?.isDirty() || false;
 	}
 
 	isReadonly() {
@@ -91,8 +93,8 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (this.textModel) {
-			await this.textModel.save();
+		if (this._modelReference) {
+			await this._modelReference.object.save();
 			return this;
 		}
 
@@ -100,17 +102,17 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (!this.textModel) {
+		if (!this._modelReference) {
 			return undefined;
 		}
 
-		const dialogPath = this.textModel.resource;
+		const dialogPath = this._modelReference.object.resource;
 		const target = await this.fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
 		if (!target) {
 			return undefined; // save cancelled
 		}
 
-		if (!await this.textModel.saveAs(target)) {
+		if (!await this._modelReference.object.saveAs(target)) {
 			return undefined;
 		}
 
@@ -119,10 +121,10 @@ export class NotebookEditorInput extends EditorInput {
 
 	// called when users rename a notebook document
 	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
-		if (this.textModel) {
+		if (this._modelReference) {
 			const contributedNotebookProviders = this.notebookService.getContributedNotebookProviders(target);
 
-			if (contributedNotebookProviders.find(provider => provider.id === this.textModel!.viewType)) {
+			if (contributedNotebookProviders.find(provider => provider.id === this._modelReference!.object.viewType)) {
 				return this._move(group, target);
 			}
 		}
@@ -135,29 +137,32 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		if (this.textModel) {
-			await this.textModel.revert(options);
+		if (this._modelReference) {
+			await this._modelReference.object.revert(options);
 		}
 
 		return;
 	}
 
-	async resolve(editorId?: string): Promise<NotebookEditorModel | null> {
-		if (!await this.notebookService.canResolve(this.viewType!)) {
-			return null;
+	async resolve(editorId?: string): Promise<INotebookEditorModel | null> {
+
+		if (!this._modelReference) {
+
+			if (!await this.notebookService.canResolve(this.viewType!)) {
+				return null;
+			}
+
+			this._modelReference = await this.notebookModelService.resolve(this.resource, this.viewType!, editorId);
+
+			this._register(this._modelReference.object.onDidChangeDirty(() => {
+				this._onDidChangeDirty.fire();
+			}));
+
+			if (this._modelReference.object.isDirty()) {
+				this._onDidChangeDirty.fire();
+			}
 		}
-
-		this.textModel = await this.notebookService.modelManager.resolve(this.resource, this.viewType!, editorId);
-
-		this._register(this.textModel.onDidChangeDirty(() => {
-			this._onDidChangeDirty.fire();
-		}));
-
-		if (this.textModel.isDirty()) {
-			this._onDidChangeDirty.fire();
-		}
-
-		return this.textModel;
+		return this._modelReference.object;
 	}
 
 	matches(otherInput: unknown): boolean {
@@ -172,9 +177,9 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	clearTextModel() {
-		if (this.textModel) {
-			this.notebookService.destoryNotebookDocument(this.textModel!.notebook.viewType, this.textModel!.notebook);
-			this.textModel.dispose();
+		if (this._modelReference) {
+			this._modelReference.dispose();
+			this._modelReference = undefined;
 		}
 	}
 

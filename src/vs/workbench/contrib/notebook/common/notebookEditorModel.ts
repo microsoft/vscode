@@ -7,10 +7,9 @@ import { EditorModel, IRevertOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebookEditorModel, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
+import { IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookService, INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { basename } from 'vs/base/common/resources';
@@ -18,14 +17,8 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { DefaultEndOfLine, ITextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
+import { ILogService } from 'vs/platform/log/common/log';
 
-export interface INotebookEditorModelManager {
-	models: NotebookEditorModel[];
-
-	resolve(resource: URI, viewType: string, editorId?: string): Promise<NotebookEditorModel>;
-
-	get(resource: URI): NotebookEditorModel | undefined;
-}
 
 export interface INotebookLoadOptions {
 	/**
@@ -204,118 +197,53 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	}
 }
 
-export class NotebookEditorModelManager extends Disposable implements INotebookEditorModelManager {
+class NotebookModelReferenceCollection extends ReferenceCollection<Promise<NotebookEditorModel>> {
 
-	private readonly mapResourceToModel = new ResourceMap<NotebookEditorModel>();
-	private readonly mapResourceToModelListeners = new ResourceMap<IDisposable>();
-	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
-	private readonly mapResourceToPendingModelLoaders = new ResourceMap<Promise<NotebookEditorModel>>();
-
-	// private readonly modelLoadQueue = this._register(new ResourceQueue());
-
-	get models(): NotebookEditorModel[] {
-		return [...this.mapResourceToModel.values()];
-	}
 	constructor(
-		@IInstantiationService readonly instantiationService: IInstantiationService
+		@IInstantiationService readonly _instantiationService: IInstantiationService,
+		@INotebookService private readonly _notebookService: INotebookService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
 
-	async resolve(resource: URI, viewType: string, editorId?: string): Promise<NotebookEditorModel> {
-		// Return early if model is currently being loaded
-		const pendingLoad = this.mapResourceToPendingModelLoaders.get(resource);
-		if (pendingLoad) {
-			return pendingLoad;
-		}
+	protected createReferencedObject(key: string, ...args: any[]): Promise<NotebookEditorModel> {
+		const [viewType, editorId] = args as [string, string | undefined];
 
-		let modelPromise: Promise<NotebookEditorModel>;
-		let model = this.get(resource);
-		// let didCreateModel = false;
-
-		// Model exists
-		if (model) {
-			// if (options?.reload) {
-			// } else {
-			modelPromise = Promise.resolve(model);
-			// }
-		}
-
-		// Model does not exist
-		else {
-			// didCreateModel = true;
-			const newModel = model = this.instantiationService.createInstance(NotebookEditorModel, resource, viewType);
-			modelPromise = model.load({ editorId });
-
-			this.registerModel(newModel);
-		}
-
-		// Store pending loads to avoid race conditions
-		this.mapResourceToPendingModelLoaders.set(resource, modelPromise);
-
-		// Make known to manager (if not already known)
-		this.add(resource, model);
-
-		// dispose and bind new listeners
-
-		try {
-			const resolvedModel = await modelPromise;
-
-			// Remove from pending loads
-			this.mapResourceToPendingModelLoaders.delete(resource);
-			return resolvedModel;
-		} catch (error) {
-			// Free resources of this invalid model
-			if (model) {
-				model.dispose();
-			}
-
-			// Remove from pending loads
-			this.mapResourceToPendingModelLoaders.delete(resource);
-
-			throw error;
-		}
+		const resource = URI.parse(key);
+		const model = this._instantiationService.createInstance(NotebookEditorModel, resource, viewType);
+		const promise = model.load({ editorId });
+		return promise;
 	}
 
-	add(resource: URI, model: NotebookEditorModel): void {
-		const knownModel = this.mapResourceToModel.get(resource);
-		if (knownModel === model) {
-			return; // already cached
-		}
+	protected destroyReferencedObject(_key: string, object: Promise<NotebookEditorModel>): void {
+		object.then(model => {
+			this._notebookService.destoryNotebookDocument(model.viewType, model.notebook);
+			model.dispose();
+		}).catch(err => {
+			this._logService.critical('FAILED to destory notebook', err);
+		});
+	}
+}
 
-		// dispose any previously stored dispose listener for this resource
-		const disposeListener = this.mapResourceToDisposeListener.get(resource);
-		if (disposeListener) {
-			disposeListener.dispose();
-		}
+export class NotebookModelResolverService implements INotebookEditorModelResolverService {
 
-		// store in cache but remove when model gets disposed
-		this.mapResourceToModel.set(resource, model);
-		this.mapResourceToDisposeListener.set(resource, model.onDispose(() => this.remove(resource)));
+	readonly _serviceBrand: undefined;
+
+	private readonly _data: NotebookModelReferenceCollection;
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		this._data = instantiationService.createInstance(NotebookModelReferenceCollection);
 	}
 
-	remove(resource: URI): void {
-		this.mapResourceToModel.delete(resource);
-
-		const disposeListener = this.mapResourceToDisposeListener.get(resource);
-		if (disposeListener) {
-			dispose(disposeListener);
-			this.mapResourceToDisposeListener.delete(resource);
-		}
-
-		const modelListener = this.mapResourceToModelListeners.get(resource);
-		if (modelListener) {
-			dispose(modelListener);
-			this.mapResourceToModelListeners.delete(resource);
-		}
-	}
-
-
-	private registerModel(model: NotebookEditorModel): void {
-
-	}
-
-	get(resource: URI): NotebookEditorModel | undefined {
-		return this.mapResourceToModel.get(resource);
+	async resolve(resource: URI, viewType: string, editorId?: string | undefined): Promise<IReference<NotebookEditorModel>> {
+		const reference = this._data.acquire(resource.toString(), viewType, editorId);
+		const model = await reference.object;
+		return {
+			object: model,
+			dispose() { reference.dispose(); }
+		};
 	}
 }
