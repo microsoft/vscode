@@ -72,6 +72,8 @@ const FOCUS_OUT_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutOutput';
 
 export const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
 
+export const CELL_TITLE_GROUP_ID = 'inline';
+
 const EDITOR_WIDGET_ACTION_WEIGHT = KeybindingWeight.EditorContrib; // smaller than Suggest Widget, etc
 
 const enum CellToolbarOrder {
@@ -597,7 +599,8 @@ registerAction2(class extends NotebookAction {
 						NOTEBOOK_CELL_TYPE.isEqualTo('markdown'),
 						NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.toNegated(),
 						NOTEBOOK_CELL_EDITABLE),
-					order: CellToolbarOrder.EditCell
+					order: CellToolbarOrder.EditCell,
+					group: CELL_TITLE_GROUP_ID
 				},
 				icon: { id: 'codicon/pencil' }
 			});
@@ -620,7 +623,8 @@ registerAction2(class extends NotebookAction {
 						NOTEBOOK_CELL_TYPE.isEqualTo('markdown'),
 						NOTEBOOK_CELL_MARKDOWN_EDIT_MODE,
 						NOTEBOOK_CELL_EDITABLE),
-					order: CellToolbarOrder.SaveCell
+					order: CellToolbarOrder.SaveCell,
+					group: CELL_TITLE_GROUP_ID
 				},
 				icon: { id: 'codicon/check' },
 				keybinding: {
@@ -657,7 +661,8 @@ registerAction2(class extends NotebookAction {
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					order: CellToolbarOrder.DeleteCell,
-					when: NOTEBOOK_EDITOR_EDITABLE
+					when: NOTEBOOK_EDITOR_EDITABLE,
+					group: CELL_TITLE_GROUP_ID
 				},
 				keybinding: {
 					primary: KeyCode.Delete,
@@ -1170,7 +1175,8 @@ registerAction2(class extends NotebookAction {
 			menu: {
 				id: MenuId.NotebookCellTitle,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_RUNNABLE),
-				order: CellToolbarOrder.ClearCellOutput
+				order: CellToolbarOrder.ClearCellOutput,
+				group: CELL_TITLE_GROUP_ID
 			},
 			icon: { id: 'codicon/clear-all' },
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
@@ -1338,7 +1344,8 @@ registerAction2(class extends NotebookAction {
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, InputFocusedContext),
-					order: CellToolbarOrder.SplitCell
+					order: CellToolbarOrder.SplitCell,
+					group: CELL_TITLE_GROUP_ID
 				},
 				icon: { id: 'codicon/split-vertical' },
 				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,

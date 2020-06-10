@@ -42,7 +42,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { BOTTOM_CELL_TOOLBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CancelCellAction, ChangeCellLanguageAction, ExecuteCellAction, INotebookCellActionContext, InsertCodeCellAction, InsertMarkdownCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { CancelCellAction, ChangeCellLanguageAction, ExecuteCellAction, INotebookCellActionContext, InsertCodeCellAction, InsertMarkdownCellAction, CELL_TITLE_GROUP_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { BaseCellRenderTemplate, CellEditState, CodeCellRenderTemplate, ICellViewModel, INotebookCellList, INotebookEditor, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
@@ -287,13 +287,19 @@ abstract class AbstractCellRenderer {
 		return toolbar;
 	}
 
-	private getCellToolbarActions(menu: IMenu): IAction[] {
-		const actions: IAction[] = [];
-		for (let [, menuActions] of menu.getActions({ shouldForwardArgs: true })) {
-			actions.push(...menuActions);
+	private getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[] } {
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const actions = menu.getActions({ shouldForwardArgs: true });
+		for (let [id, menuActions] of actions) {
+			if (id === CELL_TITLE_GROUP_ID) {
+				primary.push(...menuActions);
+			} else {
+				secondary.push(...menuActions);
+			}
 		}
 
-		return actions;
+		return { primary, secondary };
 	}
 
 	protected setupCellToolbarActions(scopedContextKeyService: IContextKeyService, templateData: BaseCellRenderTemplate, disposables: DisposableStore): void {
@@ -303,10 +309,10 @@ abstract class AbstractCellRenderer {
 		const updateActions = () => {
 			const actions = this.getCellToolbarActions(menu);
 
-			templateData.toolbar.setActions(actions)();
+			templateData.toolbar.setActions(actions.primary, actions.secondary)();
 
 			if (templateData.focusIndicator) {
-				if (actions.length) {
+				if (actions.primary.length || actions.secondary.length) {
 					templateData.container.classList.add('cell-has-toolbar-actions');
 					templateData.focusIndicator.style.top = `${EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN}px`;
 				} else {
