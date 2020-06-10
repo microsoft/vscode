@@ -8,7 +8,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repos=repo:microsoft/vscode repo:microsoft/vscode-remote-release repo:microsoft/vscode-github-issue-notebooks\n\n$milestone=milestone:\"June 2020\"",
+    "value": "// list of repos we work in\n$repos=repo:microsoft/vscode repo:microsoft/vscode-remote-release repo:microsoft/vscode-github-issue-notebooks\n\n// current milestone name\n$milestone=milestone:\"June 2020\"",
     "editable": true
   },
   {
@@ -26,7 +26,7 @@
   {
     "kind": 1,
     "language": "github-issues",
-    "value": "## Other",
+    "value": "## Bugs, Debt, Features...",
     "editable": true
   },
   {
