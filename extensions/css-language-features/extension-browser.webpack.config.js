@@ -25,6 +25,9 @@ const clientConfig = withDefaults({
 	output: {
 		filename: 'cssClientMain.js',
 		path: path.join(__dirname, 'client', 'dist', 'browser')
+	},
+	performance: {
+		hints: false
 	}
 });
 clientConfig.plugins[1] = vscodeNlsReplacement; // replace nls bundler

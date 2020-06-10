@@ -26,6 +26,9 @@ const serverConfig = withDefaults({
 		filename: 'cssServerMain.js',
 		path: path.join(__dirname, 'dist', 'browser'),
 		libraryTarget: 'var'
+	},
+	performance: {
+		hints: false
 	}
 });
 serverConfig.plugins[1] = vscodeNlsReplacement; // replace nls bundler
