@@ -497,23 +497,6 @@ registerAction2(class extends InsertCellCommand {
 	}
 });
 
-export class InsertCodeCellAction extends MenuItemAction {
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService
-	) {
-		super(
-			{
-				id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
-				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below")
-			},
-			undefined,
-			{ shouldForwardArgs: true },
-			contextKeyService,
-			commandService);
-	}
-}
-
 registerAction2(class extends InsertCellCommand {
 	constructor() {
 		super(
@@ -521,7 +504,6 @@ registerAction2(class extends InsertCellCommand {
 				id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
 				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
-				icon: { id: 'codicon/add' },
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
@@ -533,6 +515,15 @@ registerAction2(class extends InsertCellCommand {
 			CellKind.Code,
 			'below');
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
+	command: {
+		id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
+		title: localize('notebookActions.menu.insertCode', "$(add) Code")
+	},
+	order: 0,
+	group: 'inline'
 });
 
 registerAction2(class extends InsertCellCommand {
@@ -550,23 +541,6 @@ registerAction2(class extends InsertCellCommand {
 	}
 });
 
-export class InsertMarkdownCellAction extends MenuItemAction {
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService
-	) {
-		super(
-			{
-				id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
-				title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below")
-			},
-			undefined,
-			{ shouldForwardArgs: true },
-			contextKeyService,
-			commandService);
-	}
-}
-
 registerAction2(class extends InsertCellCommand {
 	constructor() {
 		super(
@@ -580,6 +554,15 @@ registerAction2(class extends InsertCellCommand {
 			CellKind.Markdown,
 			'below');
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
+	command: {
+		id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
+		title: localize('notebookActions.menu.insertMarkdown', "$(add) Markdown")
+	},
+	order: 1,
+	group: 'inline'
 });
 
 registerAction2(class extends NotebookAction {
