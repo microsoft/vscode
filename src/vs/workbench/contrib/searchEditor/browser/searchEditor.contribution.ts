@@ -271,9 +271,12 @@ registerAction2(class extends Action2 {
 			category,
 			f1: true,
 			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				primary: KeyMod.Alt | KeyCode.Enter,
 				when: ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey),
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: KeybindingWeight.WorkbenchContrib,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.Enter
+				}
 			},
 		});
 	}
