@@ -7,7 +7,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import { IJSONSchemaMap, IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -68,6 +68,7 @@ export interface ISetting {
 	arrayItemType?: string;
 	objectProperties?: IJSONSchemaMap,
 	objectPatternProperties?: IJSONSchemaMap,
+	objectAdditionalProperties?: boolean | IJSONSchema,
 	enum?: string[];
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;

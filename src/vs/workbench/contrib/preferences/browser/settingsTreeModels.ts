@@ -15,7 +15,7 @@ import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/pr
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
-import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -468,21 +468,41 @@ export function isExcludeSetting(setting: ISetting): boolean {
 		setting.key === 'files.watcherExclude';
 }
 
-function isObjectRenderableSchemaMap(schemaMap: IJSONSchemaMap): boolean {
-	return Object.values(schemaMap).every(({ type }) => type === 'string');
+function isObjectRenderableSchema({ type }: IJSONSchema): boolean {
+	return type === 'string';
 }
 
-function isObjectSetting(setting: ISetting): boolean {
-	if (setting.type !== 'object') {
+function isObjectSetting({
+	type,
+	objectProperties,
+	objectPatternProperties,
+	objectAdditionalProperties
+}: ISetting): boolean {
+	if (type !== 'object') {
 		return false;
 	}
 
-	if (isUndefinedOrNull(setting.objectProperties) && isUndefinedOrNull(setting.objectPatternProperties)) {
+	// object can have any shape
+	if (
+		isUndefinedOrNull(objectProperties) &&
+		isUndefinedOrNull(objectPatternProperties) &&
+		isUndefinedOrNull(objectAdditionalProperties)
+	) {
 		return false;
 	}
 
-	return isObjectRenderableSchemaMap(setting.objectProperties ?? {})
-		&& isObjectRenderableSchemaMap(setting.objectPatternProperties ?? {});
+	// object additional properties allow it to have any shape
+	if (objectAdditionalProperties === true) {
+		return false;
+	}
+
+	return Object.values(objectProperties ?? {}).every(isObjectRenderableSchema) &&
+		Object.values(objectPatternProperties ?? {}).every(isObjectRenderableSchema) &&
+		(
+			typeof objectAdditionalProperties === 'object'
+				? isObjectRenderableSchema(objectAdditionalProperties)
+				: true
+		);
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {

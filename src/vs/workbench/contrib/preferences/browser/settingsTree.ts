@@ -93,67 +93,81 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		{ ...element.defaultValue, ...element.scopeValue } :
 		element.defaultValue;
 
-	let items: IObjectDataItem[] = [];
+	const items: IObjectDataItem[] = [];
 
-	if (element.setting.objectProperties) {
-		const wellDefinedKeys = Object.keys(element.setting.objectProperties);
-		const keyOptions = wellDefinedKeys.map(value => ({ value }));
+	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
 
-		items = items.concat(
-			wellDefinedKeys
-				.filter(key => !!data[key])
-				.map(key => {
-					const valueEnumOptions = getEnumOptionsFromSchema(element.setting.objectProperties![key]);
-
-					return {
-						key: {
-							type: 'enum',
-							data: key,
-							options: keyOptions,
-						},
-						value: {
-							type: valueEnumOptions.length > 0 ? 'enum' : 'string',
-							data: data[key],
-							options: valueEnumOptions,
-						},
-					};
-				})
-		);
-	}
-
-	if (element.setting.objectPatternProperties) {
-		const patternsAndSchemas = Object
-			.entries(element.setting.objectPatternProperties)
-			.map(([pattern, schema]) => ({
-				pattern: new RegExp(pattern),
-				schema
-			}));
-
-		const keysWithSchema = Object.keys(data)
-			.filter(key => !!data[key] && !(key in (element.setting.objectProperties ?? {})))
-			.map(key => {
-				const patternAndSchema = patternsAndSchemas.find(({ pattern }) => pattern.test(key));
-				return patternAndSchema
-					? { key, schema: patternAndSchema.schema }
-					: undefined;
-			})
-			.filter(isDefined);
-
-		items = items.concat(keysWithSchema.map(({ key, schema }) => {
-			const valueEnumOptions = getEnumOptionsFromSchema(schema);
-
-			return {
-				key: { type: 'string', data: key },
-				value: {
-					type: valueEnumOptions.length > 0 ? 'enum' : 'string',
-					data: data[key],
-					options: valueEnumOptions,
-				}
-			};
+	const patternsAndSchemas = Object
+		.entries(objectPatternProperties ?? {})
+		.map(([pattern, schema]) => ({
+			pattern: new RegExp(pattern),
+			schema
 		}));
-	}
 
-	// TODO @9at8: What should we do if properties don't match?
+	const allKeys = new Set<string>(Object.keys(data).concat(Object.keys(objectProperties ?? {})));
+	const wellDefinedKeys: string[] = [];
+	const patternKeysWithSchema = new Map<string, IJSONSchema>();
+	const additionalKeys: string[] = [];
+	const additionalValueEnums = getEnumOptionsFromSchema(
+		typeof objectAdditionalProperties === 'boolean'
+			? {}
+			: objectAdditionalProperties ?? {}
+	);
+
+	// copy the keys into appropriate buckets
+	allKeys.forEach(key => {
+		if (key in (objectProperties ?? {})) {
+			wellDefinedKeys.push(key);
+			return;
+		}
+
+		const schema = patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
+
+		if (isDefined(schema)) {
+			patternKeysWithSchema.set(key, schema);
+		} else {
+			additionalKeys.push(key);
+		}
+	});
+
+	wellDefinedKeys.forEach(key => {
+		const valueEnumOptions = getEnumOptionsFromSchema(objectProperties![key]);
+		items.push({
+			key: {
+				type: 'enum',
+				data: key,
+				options: wellDefinedKeys.map(value => ({ value })),
+			},
+			value: {
+				type: valueEnumOptions.length > 0 ? 'enum' : 'string',
+				data: data[key],
+				options: valueEnumOptions,
+			},
+		});
+	});
+
+	patternKeysWithSchema.forEach((schema, key) => {
+		const valueEnumOptions = getEnumOptionsFromSchema(schema);
+		items.push({
+			key: { type: 'string', data: key },
+			value: {
+				type: valueEnumOptions.length > 0 ? 'enum' : 'string',
+				data: data[key],
+				options: valueEnumOptions,
+			},
+		});
+	});
+
+	additionalKeys.forEach(key => {
+		items.push({
+			key: { type: 'string', data: key },
+			value: {
+				type: additionalValueEnums.length > 0 ? 'enum' : 'string',
+				data: data[key],
+				options: additionalValueEnums,
+			},
+		});
+	});
 
 	return items;
 }
@@ -984,20 +998,9 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 				newValue[e.item.key.data] = e.item.value.data;
 			}
 
-			function sortKeys<T extends object>(obj: T) {
-				const sortedKeys = Object.keys(obj)
-					.sort((a, b) => a.localeCompare(b)) as Array<keyof T>;
-
-				const retVal: Partial<T> = {};
-				for (const key of sortedKeys) {
-					retVal[key] = obj[key];
-				}
-				return retVal;
-			}
-
 			this._onDidChangeSetting.fire({
 				key: template.context.setting.key,
-				value: Object.keys(newValue).length === 0 ? undefined : sortKeys(newValue),
+				value: Object.keys(newValue).length === 0 ? undefined : newValue,
 				type: template.context.valueType
 			});
 		}
