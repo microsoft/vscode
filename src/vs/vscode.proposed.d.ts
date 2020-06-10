@@ -974,9 +974,9 @@ declare module 'vscode' {
 
 	namespace window {
 		/**
-		 * An event which fires when the terminal's pty slave pseudo-device is written to. In other
-		 * words, this provides access to the raw data stream from the process running within the
-		 * terminal, including VT sequences.
+		 * An event which fires when the terminal's child pseudo-device is written to (the shell).
+		 * In other words, this provides access to the raw data stream from the process running
+		 * within the terminal, including VT sequences.
 		 */
 		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
 	}
