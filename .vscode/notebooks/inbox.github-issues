@@ -1,0 +1,23 @@
+[
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "## Triage Inbox\n\nAll inbox issues but not those label as needing more information"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$inbox -label:\"needs more info\"",
+    "editable": true
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "## Inbox\n\nAll issues that have no assignee and that have neither **feature requests** nor **test plan items** nor **plan items**."
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$inbox=repo:microsoft/vscode is:open no:assignee -label:feature-request -label:testplan-item -label:plan-item \n$inbox"
+  }
+]
