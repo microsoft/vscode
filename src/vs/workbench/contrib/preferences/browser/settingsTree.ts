@@ -105,7 +105,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		}));
 
 	const allKeys = new Set<string>(Object.keys(data).concat(Object.keys(objectProperties ?? {})));
-	const wellDefinedKeys: string[] = [];
+	const wellDefinedKeys: { key: string, description?: string }[] = [];
 	const patternKeysWithSchema = new Map<string, IJSONSchema>();
 	const additionalKeys: string[] = [];
 	const additionalValueEnums = getEnumOptionsFromSchema(
@@ -117,7 +117,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 	// copy the keys into appropriate buckets
 	allKeys.forEach(key => {
 		if (key in (objectProperties ?? {})) {
-			wellDefinedKeys.push(key);
+			wellDefinedKeys.push({ key, description: objectProperties![key].description });
 			return;
 		}
 
@@ -130,17 +130,18 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		}
 	});
 
-	wellDefinedKeys.forEach(key => {
+	const wellDefinedKeyEnumOptions = wellDefinedKeys.map(({ key, description }) => ({ value: key, description }));
+	wellDefinedKeys.forEach(({ key }) => {
 		const valueEnumOptions = getEnumOptionsFromSchema(objectProperties![key]);
 		items.push({
 			key: {
 				type: 'enum',
 				data: key,
-				options: wellDefinedKeys.map(value => ({ value })),
+				options: wellDefinedKeyEnumOptions,
 			},
 			value: {
 				type: valueEnumOptions.length > 0 ? 'enum' : 'string',
-				data: data[key],
+				data: data[key] ?? objectProperties![key].default,
 				options: valueEnumOptions,
 			},
 		});
