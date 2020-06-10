@@ -116,6 +116,7 @@ app.on('ready', () => {
 			nodeIntegration: true,
 			webSecurity: false,
 			webviewTag: true,
+			preload: path.join(__dirname, '..', '..', '..', 'src', 'vs', 'base', 'parts', 'sandbox', 'electron-browser', 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
 			enableWebSQL: false
 		}
 	});

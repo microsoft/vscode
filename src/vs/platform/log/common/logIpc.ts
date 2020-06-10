@@ -73,7 +73,7 @@ export class LoggerChannelClient {
 }
 
 export class FollowerLogService extends DelegatedLogService implements ILogService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(private master: LoggerChannelClient, logService: ILogService) {
 		super(logService);

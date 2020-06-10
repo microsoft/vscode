@@ -144,9 +144,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceCut),
 	primary: KeyCode.Escape,
-	handler: (accessor: ServicesAccessor) => {
+	handler: async (accessor: ServicesAccessor) => {
 		const explorerService = accessor.get(IExplorerService);
-		explorerService.setToCopy([], true);
+		await explorerService.setToCopy([], true);
 	}
 });
 

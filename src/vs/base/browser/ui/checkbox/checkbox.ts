@@ -23,6 +23,7 @@ export interface ICheckboxOpts extends ICheckboxStyles {
 
 export interface ICheckboxStyles {
 	inputActiveOptionBorder?: Color;
+	inputActiveOptionForeground?: Color;
 	inputActiveOptionBackground?: Color;
 }
 
@@ -34,6 +35,7 @@ export interface ISimpleCheckboxStyles {
 
 const defaultOpts = {
 	inputActiveOptionBorder: Color.fromHex('#007ACC00'),
+	inputActiveOptionForeground: Color.fromHex('#FFFFFF'),
 	inputActiveOptionBackground: Color.fromHex('#0E639C50')
 };
 
@@ -170,6 +172,9 @@ export class Checkbox extends Widget {
 		if (styles.inputActiveOptionBorder) {
 			this._opts.inputActiveOptionBorder = styles.inputActiveOptionBorder;
 		}
+		if (styles.inputActiveOptionForeground) {
+			this._opts.inputActiveOptionForeground = styles.inputActiveOptionForeground;
+		}
 		if (styles.inputActiveOptionBackground) {
 			this._opts.inputActiveOptionBackground = styles.inputActiveOptionBackground;
 		}
@@ -179,6 +184,7 @@ export class Checkbox extends Widget {
 	protected applyStyles(): void {
 		if (this.domNode) {
 			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : 'transparent';
+			this.domNode.style.color = this._checked && this._opts.inputActiveOptionForeground ? this._opts.inputActiveOptionForeground.toString() : 'inherit';
 			this.domNode.style.backgroundColor = this._checked && this._opts.inputActiveOptionBackground ? this._opts.inputActiveOptionBackground.toString() : 'transparent';
 		}
 	}

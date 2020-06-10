@@ -11,7 +11,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ILogService readonly logService: ILogService

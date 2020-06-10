@@ -160,8 +160,11 @@ export interface IResourceRefHandle {
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
 export type ServerResource = SyncResource | 'machines';
 export interface IUserDataSyncStoreService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
+	readonly onTokenFailed: Event<void>;
+	readonly onTokenSucceed: Event<void>;
+	setAuthToken(token: string, type: string): void;
 	read(resource: ServerResource, oldValue: IUserData | null): Promise<IUserData>;
 	write(resource: ServerResource, content: string, ref: string | null): Promise<string>;
 	manifest(): Promise<IUserDataManifest | null>;
@@ -173,7 +176,7 @@ export interface IUserDataSyncStoreService {
 
 export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
 export interface IUserDataSyncBackupStoreService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	backup(resource: SyncResource, content: string): Promise<void>;
 	getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]>;
 	resolveContent(resource: SyncResource, ref?: string): Promise<string | null>;
@@ -184,18 +187,20 @@ export interface IUserDataSyncBackupStoreService {
 // #region User Data Sync Error
 
 export enum UserDataSyncErrorCode {
-	// Server Errors
-	Unauthorized = 'Unauthorized',
-	Forbidden = 'Forbidden',
+	// Client Errors (>= 400 )
+	Unauthorized = 'Unauthorized', /* 401 */
+	Gone = 'Gone', /* 410 */
+	PreconditionFailed = 'PreconditionFailed', /* 412 */
+	TooLarge = 'TooLarge', /* 413 */
+	UpgradeRequired = 'UpgradeRequired', /* 426 */
+	PreconditionRequired = 'PreconditionRequired', /* 428 */
+	TooManyRequests = 'RemoteTooManyRequests', /* 429 */
+
+	// Local Errors
 	ConnectionRefused = 'ConnectionRefused',
-	RemotePreconditionFailed = 'RemotePreconditionFailed',
-	TooManyRequests = 'RemoteTooManyRequests',
-	TooLarge = 'TooLarge',
 	NoRef = 'NoRef',
 	TurnedOff = 'TurnedOff',
 	SessionExpired = 'SessionExpired',
-
-	// Local Errors
 	LocalTooManyRequests = 'LocalTooManyRequests',
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
@@ -209,7 +214,7 @@ export class UserDataSyncError extends Error {
 
 	constructor(message: string, public readonly code: UserDataSyncErrorCode, public readonly resource?: SyncResource) {
 		super(message);
-		this.name = `${this.code} (UserDataSyncError) ${this.resource}`;
+		this.name = `${this.code} (UserDataSyncError) ${this.resource || ''}`;
 	}
 
 	static toUserDataSyncError(error: Error): UserDataSyncError {
@@ -239,6 +244,7 @@ export interface ISyncExtension {
 	identifier: IExtensionIdentifier;
 	version?: string;
 	disabled?: boolean;
+	installed?: boolean;
 }
 
 export interface IStorageValue {
@@ -265,6 +271,7 @@ export interface ISyncResourceHandle {
 export type Conflict = { remote: URI, local: URI };
 
 export interface ISyncPreviewResult {
+	readonly isLastSyncFromCurrentMachine: boolean;
 	readonly hasLocalChanged: boolean;
 	readonly hasRemoteChanged: boolean;
 }
@@ -342,7 +349,7 @@ export interface IUserDataSyncService {
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
 
-	isFirstTimeSyncWithMerge(): Promise<boolean>;
+	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
 	acceptConflict(conflictResource: URI, content: string): Promise<void>;
 
@@ -356,12 +363,14 @@ export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
 	readonly onError: Event<UserDataSyncError>;
+	enable(): void;
+	disable(): void;
 	triggerAutoSync(sources: string[]): Promise<void>;
 }
 
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');
 export interface IUserDataSyncUtilService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
 	resolveDefaultIgnoredSettings(): Promise<string[]>;

@@ -573,7 +573,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		}
 		const { serializer, extension } = entry;
 
-		const webview = new ExtHostWebview(webviewHandle, this._proxy, options, this.initData, this.workspace, extension, this._deprecationService);
+		const webview = new ExtHostWebview(webviewHandle, this._proxy, reviveOptions(options), this.initData, this.workspace, extension, this._deprecationService);
 		const revivedPanel = new ExtHostWebviewEditor(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
 		await serializer.deserializeWebviewPanel(revivedPanel, state);
@@ -628,7 +628,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 			throw new Error(`No provider found for '${viewType}'`);
 		}
 
-		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, entry.extension, this._deprecationService);
+		const webview = new ExtHostWebview(handle, this._proxy, reviveOptions(options), this.initData, this.workspace, entry.extension, this._deprecationService);
 		const revivedPanel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(handle, revivedPanel);
 
@@ -758,6 +758,15 @@ function convertWebviewOptions(
 	return {
 		...options,
 		localResourceRoots: options.localResourceRoots || getDefaultLocalResourceRoots(extension, workspace)
+	};
+}
+
+function reviveOptions(
+	options: modes.IWebviewOptions & modes.IWebviewPanelOptions
+): vscode.WebviewOptions {
+	return {
+		...options,
+		localResourceRoots: options.localResourceRoots?.map(components => URI.from(components)),
 	};
 }
 

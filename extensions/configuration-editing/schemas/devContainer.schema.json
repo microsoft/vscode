@@ -68,9 +68,33 @@
 						"type": "string"
 					}
 				},
+				"postStartCommand": {
+					"type": [
+						"string",
+						"array"
+					],
+					"description": "A command to run after starting the container. If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"items": {
+						"type": "string"
+					}
+				},
+				"postAttachCommand": {
+					"type": [
+						"string",
+						"array"
+					],
+					"description": "A command to run after attaching to the container. If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"items": {
+						"type": "string"
+					}
+				},
 				"devPort": {
 					"type": "integer",
 					"description": "The port VS Code can use to connect to its backend."
+				},
+				"codespaces": {
+					"type": "object",
+					"description": "Codespaces-specific configuration."
 				}
 			}
 		},

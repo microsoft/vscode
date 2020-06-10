@@ -11,7 +11,7 @@ import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/
 
 class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMachinesService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly channel: IChannel;
 

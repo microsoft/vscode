@@ -61,7 +61,13 @@ const ModulesToLookFor = [
 	'@microsoft/rush',
 	'lerna',
 	'just-task',
-	'beachball'
+	'beachball',
+	// Playwright packages
+	'playwright',
+	'playwright-core',
+	'playwright-chromium',
+	'playwright-firefox',
+	'playwright-webkit'
 ];
 const PyModulesToLookFor = [
 	'azure',
@@ -92,7 +98,7 @@ const PyModulesToLookFor = [
 ];
 
 export class WorkspaceTagsService implements IWorkspaceTagsService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	private _tags: Tags | undefined;
 
 	constructor(
@@ -200,6 +206,11 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.just-task" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.beachball" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.electron" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.playwright" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.playwright-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.playwright-chromium" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.playwright-firefox" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.playwright-webkit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.yeoman.code.ext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.cordova.high" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

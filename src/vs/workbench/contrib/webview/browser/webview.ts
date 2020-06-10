@@ -34,7 +34,7 @@ export interface WebviewIcons {
  * Handles the creation of webview elements.
  */
 export interface IWebviewService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	createWebviewElement(
 		id: string,
@@ -73,9 +73,15 @@ export interface WebviewExtensionDescription {
 	readonly id: ExtensionIdentifier;
 }
 
+export interface IDataLinkClickEvent {
+	dataURL: string;
+	downloadName?: string;
+}
+
 export interface Webview extends IDisposable {
 	html: string;
 	contentOptions: WebviewContentOptions;
+	localResourcesRoot: URI[];
 	extension: WebviewExtensionDescription | undefined;
 	initialScrollProgress: number;
 	state: string | undefined;

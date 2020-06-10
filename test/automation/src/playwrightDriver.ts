@@ -91,7 +91,7 @@ let server: ChildProcess | undefined;
 let endpoint: string | undefined;
 let workspacePath: string | undefined;
 
-export async function launch(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH): Promise<void> {
+export async function launch(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string): Promise<void> {
 	workspacePath = _workspacePath;
 
 	const agentFolder = userDataDir;
@@ -111,7 +111,7 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 	}
 	server = spawn(
 		serverLocation,
-		['--browser', 'none', '--driver', 'web'],
+		['--browser', 'none', '--driver', 'web', '--extensions-dir', extPath],
 		{ env }
 	);
 	server.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
@@ -146,7 +146,8 @@ export function connect(browserType: 'chromium' | 'webkit' | 'firefox' = 'chromi
 		const context = await browser.newContext();
 		const page = await context.newPage();
 		await page.setViewportSize({ width, height });
-		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}`);
+		const payloadParam = `[["enableProposedApi",""]]`;
+		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
 		const result = {
 			client: { dispose: () => browser.close() && teardown() },
 			driver: buildDriver(browser, page)

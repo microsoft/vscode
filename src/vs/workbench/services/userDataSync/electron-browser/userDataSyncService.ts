@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly channel: IChannel;
 
@@ -89,8 +89,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('resetLocal');
 	}
 
-	isFirstTimeSyncWithMerge(): Promise<boolean> {
-		return this.channel.call('isFirstTimeSyncWithMerge');
+	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean> {
+		return this.channel.call('isFirstTimeSyncingWithAnotherMachine');
 	}
 
 	acceptConflict(conflict: URI, content: string): Promise<void> {

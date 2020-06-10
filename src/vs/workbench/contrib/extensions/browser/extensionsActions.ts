@@ -808,7 +808,7 @@ export class MenuItemExtensionAction extends ExtensionAction {
 
 	constructor(
 		private readonly action: IAction,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(action.id, action.label);
 	}
@@ -818,7 +818,7 @@ export class MenuItemExtensionAction extends ExtensionAction {
 			return;
 		}
 		if (this.action.id === TOGGLE_IGNORE_EXTENSION_ACTION_ID) {
-			this.checked = !this.configurationService.getValue<string[]>('sync.ignoredExtensions').some(id => areSameExtensions({ id }, this.extension!.identifier));
+			this.checked = !this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension);
 		}
 	}
 
@@ -2660,7 +2660,8 @@ export class SyncIgnoredIconAction extends ExtensionAction {
 	private static readonly DISABLE_CLASS = `${SyncIgnoredIconAction.ENABLE_CLASS} hide`;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super('extensions.syncignore', '', SyncIgnoredIconAction.DISABLE_CLASS, false);
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('sync.ignoredExtensions'))(() => this.update()));
@@ -2670,11 +2671,8 @@ export class SyncIgnoredIconAction extends ExtensionAction {
 
 	update(): void {
 		this.class = SyncIgnoredIconAction.DISABLE_CLASS;
-		if (this.extension) {
-			const ignoredExtensions = this.configurationService.getValue<string[]>('sync.ignoredExtensions') || [];
-			if (ignoredExtensions.some(id => areSameExtensions({ id }, this.extension!.identifier))) {
-				this.class = SyncIgnoredIconAction.ENABLE_CLASS;
-			}
+		if (this.extension && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)) {
+			this.class = SyncIgnoredIconAction.ENABLE_CLASS;
 		}
 	}
 

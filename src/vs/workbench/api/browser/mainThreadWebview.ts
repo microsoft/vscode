@@ -5,7 +5,7 @@
 
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -280,8 +280,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				if (webviewInput.webview.state) {
 					try {
 						state = JSON.parse(webviewInput.webview.state);
-					} catch {
-						// noop
+					} catch (e) {
+						console.error('Could not load webview state', e, webviewInput.webview.state);
 					}
 				}
 
@@ -361,6 +361,17 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				}
 
 				webviewInput.webview.onDispose(() => {
+					// If the model is still dirty, make sure we have time to save it
+					if (modelRef.object.isDirty()) {
+						const sub = modelRef.object.onDidChangeDirty(() => {
+							if (!modelRef.object.isDirty()) {
+								sub.dispose();
+								modelRef.dispose();
+							}
+						});
+						return;
+					}
+
 					modelRef.dispose();
 				});
 
@@ -650,10 +661,11 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	) {
 		super();
 
+		this._fromBackup = fromBackup;
+
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
 		}
-		this._fromBackup = fromBackup;
 	}
 
 	get editorResource() {
@@ -711,7 +723,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	//#endregion
 
 	public isReadonly() {
-		return this._editable;
+		return !this._editable;
 	}
 
 	public get viewType() {
@@ -913,7 +925,12 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 				this._backupId = backupId;
 			}
 		} catch (e) {
-			// Make sure state has not changed in the meantime
+			if (isPromiseCanceledError(e)) {
+				// This is expected
+				throw e;
+			}
+
+			// Otherwise it could be a real error. Make sure state has not changed in the meantime.
 			if (this._hotExitState === pendingState) {
 				this._hotExitState = HotExitState.NotAllowed;
 			}
