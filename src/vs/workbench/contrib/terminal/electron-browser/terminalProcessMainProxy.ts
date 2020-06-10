@@ -125,6 +125,9 @@ export class TerminalProcessMainProxy extends Disposable implements ITerminalChi
 		const args = shellLaunchConfig.args || [];
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
 		const ptyProcess = await this._ptyService.spawn(shellLaunchConfig.executable!, args, options);
+		if (ptyProcess.restoreData) {
+			this._onProcessData.fire(ptyProcess.restoreData);
+		}
 
 		console.log('terminalInstanceService#createTerminalProcess');
 		console.log('result: ', ptyProcess);
