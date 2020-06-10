@@ -22,7 +22,6 @@ import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTr
 import { localize } from 'vs/nls';
 import { disposableTimeout } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
-import { values } from 'vs/base/common/map';
 import { clamp } from 'vs/base/common/numbers';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { SetMap } from 'vs/base/common/collections';
@@ -1042,7 +1041,7 @@ class Trait<T> {
 			const set = this.createNodeSet();
 			const visit = (node: ITreeNode<T, any>) => set.delete(node);
 			deletedNodes.forEach(node => dfs(node, visit));
-			this.set(values(set));
+			this.set([...set.values()]);
 			return;
 		}
 
@@ -1328,7 +1327,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 					set.add(node);
 				}
 
-				return values(set);
+				return [...set.values()];
 			}).event;
 
 		if (_options.keyboardSupport !== false) {
