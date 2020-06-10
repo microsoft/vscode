@@ -40,8 +40,8 @@ function minimizeLanguageJSON(input: Stream): Stream {
 		.pipe(tmLanguageJsonFilter.restore);
 }
 
-function updateExtensionPackageJSON(extensionPath: string, input: Stream, update: (data: any) => any): Stream {
-	const packageJsonFilter = filter((f: File) => f.path === path.join(extensionPath, 'package.json'), { restore: true });
+function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): Stream {
+	const packageJsonFilter = filter('extensions/*/package.json', { restore: true });
 	return input
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
@@ -62,7 +62,7 @@ function fromLocal(extensionPath: string, forWeb: boolean): Stream {
 		: fromLocalNormal(extensionPath);
 
 	if (forWeb) {
-		input = updateExtensionPackageJSON(extensionPath, input, (data: any) => {
+		input = updateExtensionPackageJSON(input, (data: any) => {
 			if (data.browser) {
 				data.main = data.browser;
 			}
@@ -70,7 +70,7 @@ function fromLocal(extensionPath: string, forWeb: boolean): Stream {
 			return data;
 		});
 	} else if (isWebPacked) {
-		input = updateExtensionPackageJSON(extensionPath, input, (data: any) => {
+		input = updateExtensionPackageJSON(input, (data: any) => {
 			if (data.main) {
 				data.main = data.main.replace('/out/', /dist/);
 			}

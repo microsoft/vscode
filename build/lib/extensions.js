@@ -39,8 +39,8 @@ function minimizeLanguageJSON(input) {
     }))
         .pipe(tmLanguageJsonFilter.restore);
 }
-function updateExtensionPackageJSON(extensionPath, input, update) {
-    const packageJsonFilter = filter((f) => f.path === path.join(extensionPath, 'package.json'), { restore: true });
+function updateExtensionPackageJSON(input, update) {
+    const packageJsonFilter = filter('extensions/*/package.json', { restore: true });
     return input
         .pipe(packageJsonFilter)
         .pipe(buffer())
@@ -58,7 +58,7 @@ function fromLocal(extensionPath, forWeb) {
         ? fromLocalWebpack(extensionPath, webpackConfigFileName)
         : fromLocalNormal(extensionPath);
     if (forWeb) {
-        input = updateExtensionPackageJSON(extensionPath, input, (data) => {
+        input = updateExtensionPackageJSON(input, (data) => {
             if (data.browser) {
                 data.main = data.browser;
             }
@@ -67,7 +67,7 @@ function fromLocal(extensionPath, forWeb) {
         });
     }
     else if (isWebPacked) {
-        input = updateExtensionPackageJSON(extensionPath, input, (data) => {
+        input = updateExtensionPackageJSON(input, (data) => {
             if (data.main) {
                 data.main = data.main.replace('/out/', /dist/);
             }
