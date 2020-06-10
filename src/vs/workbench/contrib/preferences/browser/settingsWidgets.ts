@@ -227,8 +227,8 @@ interface IEditHandlers<TDataItem extends object> {
 abstract class AbstractListSettingWidget<TDataItem extends object> extends Disposable {
 	private listElement: HTMLElement;
 	private readonly _onDidChangeList = this._register(new Emitter<ISettingListChangeEvent<TDataItem>>());
-	private readonly model = new ListSettingListModel<TDataItem>(this.getEmptyItem());
 
+	protected readonly model = new ListSettingListModel<TDataItem>(this.getEmptyItem());
 	protected readonly listDisposables = this._register(new DisposableStore());
 
 	readonly onDidChangeList: Event<ISettingListChangeEvent<TDataItem>> = this._onDidChangeList.event;
@@ -292,7 +292,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		addButtonLabel: string
 	};
 
-	private renderList(): void {
+	protected renderList(): void {
 		const focused = DOM.isAncestor(document.activeElement, this.listElement);
 
 		DOM.clearNode(this.listElement);
@@ -685,18 +685,30 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 			keyWidget.setPlaceHolder(this.getLocalizedStrings().keyInputPlaceholder);
 			this.listDisposables.add(DOM.addStandardDisposableListener(keyWidget.inputElement, DOM.EventType.KEY_DOWN, e => onKeydown(e, updatedItem())));
 		} else if (keyWidget instanceof SelectBox) {
-			keyWidget.onDidSelect(({ selected }) => {
-				onSubmit({ ...item, key: { ...item.key, data: selected } });
-			});
+			this.listDisposables.add(
+				keyWidget.onDidSelect(({ selected }) => {
+					const editKey = this.model.items.findIndex(({ key }) => selected === key.data);
+
+					if (editKey >= 0) {
+						this.model.select(editKey);
+						this.model.setEditKey(editKey);
+						this.renderList();
+					} else {
+						onSubmit({ ...item, key: { ...item.key, data: selected } });
+					}
+				})
+			);
 		}
 
 		if (valueWidget instanceof InputBox) {
 			valueWidget.setPlaceHolder(this.getLocalizedStrings().valueInputPlaceholder);
 			this.listDisposables.add(DOM.addStandardDisposableListener(valueWidget.inputElement, DOM.EventType.KEY_DOWN, e => onKeydown(e, updatedItem())));
 		} else if (valueWidget instanceof SelectBox) {
-			valueWidget.onDidSelect(({ selected }) => {
-				onSubmit({ ...item, value: { ...item.value, data: selected } });
-			});
+			this.listDisposables.add(
+				valueWidget.onDidSelect(({ selected }) => {
+					onSubmit({ ...item, value: { ...item.value, data: selected } });
+				})
+			);
 		}
 
 		const okButton = this._register(new Button(rowElement));
