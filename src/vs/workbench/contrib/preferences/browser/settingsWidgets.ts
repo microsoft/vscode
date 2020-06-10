@@ -741,10 +741,6 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 	}
 
 	protected getLocalizedRowTitle(item: IObjectDataItem): string {
-		if (item.key.type === 'enum') {
-
-		}
-
 		const enumDescription = item.key.type === 'enum'
 			? item.key.options.find(({ value }) => item.key.data === value)?.description
 			: undefined;
