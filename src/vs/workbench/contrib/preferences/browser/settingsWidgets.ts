@@ -741,17 +741,25 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 	}
 
 	protected getLocalizedRowTitle(item: IObjectDataItem): string {
-		return localize('mapPairHintLabel', "The key `{0}` maps to `{1}`", item.key.data, item.value.data);
+		if (item.key.type === 'enum') {
+
+		}
+
+		const enumDescription = item.key.type === 'enum'
+			? item.key.options.find(({ value }) => item.key.data === value)?.description
+			: undefined;
+
+		return enumDescription ?? localize('objectPairHintLabel', "The key `{0}` maps to `{1}`", item.key.data, item.value.data);
 	}
 
 	protected getLocalizedStrings() {
 		return {
-			deleteActionTooltip: localize('removeMapItem', "Remove key value pair"),
-			editActionTooltip: localize('editMapItem', "Edit key value pair"),
-			complexEditActionTooltip: localize('editMapItemInSettingsJson', "Edit key value pair in settings.json"),
-			addButtonLabel: localize('addMapItem', "Add key value pair"),
-			keyInputPlaceholder: localize('mapKeyInputPlaceholder', "Key"),
-			valueInputPlaceholder: localize('mapValueInputPlaceholder', "Value"),
+			deleteActionTooltip: localize('removeItem', "Remove Item"),
+			editActionTooltip: localize('editItem', "Edit Item"),
+			complexEditActionTooltip: localize('editItemInSettingsJson', "Edit Item in settings.json"),
+			addButtonLabel: localize('addItem', "Add Item"),
+			keyInputPlaceholder: localize('objectKeyInputPlaceholder', "Key"),
+			valueInputPlaceholder: localize('objectValueInputPlaceholder', "Value"),
 			connector: ' → ',
 		};
 	}
