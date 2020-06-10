@@ -50,6 +50,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { URI } from 'vs/base/common/uri';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugToolBar';
+import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 
 const $ = DOM.$;
 
@@ -96,6 +97,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _isDisposed: boolean = false;
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
+	private _cellContextKeyManager: CellContextKeyManager | null = null;
 
 	get isDisposed() {
 		return this._isDisposed;
@@ -398,6 +400,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.localStore.add(this.notebookService.onDidChangeKernels(() => {
 			if (this.activeKernel === undefined) {
 				this._setKernels(textModel);
+			}
+		}));
+
+		this.localStore.add(this.list!.onDidChangeFocus(() => {
+			this._cellContextKeyManager?.dispose();
+			const focused = this.list!.getFocusedElements()[0];
+			if (focused) {
+				this._cellContextKeyManager = this.localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as any));
 			}
 		}));
 
@@ -1376,10 +1386,16 @@ export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
 export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator', {
-	light: new Color(new RGBA(102, 175, 224)),
-	dark: new Color(new RGBA(12, 125, 157)),
-	hc: new Color(new RGBA(0, 73, 122))
-}, nls.localize('notebook.focusedCellIndicator', "The color of the focused notebook cell indicator."));
+	light: focusBorder,
+	dark: focusBorder,
+	hc: focusBorder
+}, nls.localize('notebook.focusedCellIndicator', "The color of the notebook cell indicator."));
+
+export const focusedEditorIndicator = registerColor('notebook.focusedEditorIndicator', {
+	light: focusBorder,
+	dark: focusBorder,
+	hc: focusBorder
+}, nls.localize('notebook.focusedEditorIndicator', "The color of the notebook cell editor indicator."));
 
 export const cellStatusIconSuccess = registerColor('notebookStatusSuccessIcon.foreground', {
 	light: debugIconStartForeground,
@@ -1486,7 +1502,11 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.notebookOverlay .monaco-list-row .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${focusedCellIndicatorColor}; }`);
-		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedCellIndicatorColor}; }`);
+	}
+
+	const focusedEditorIndicatorColor = theme.getColor(focusedEditorIndicator);
+	if (focusedEditorIndicatorColor) {
+		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedEditorIndicatorColor}; }`);
 	}
 
 	const editorBorderColor = theme.getColor(notebookCellBorder);

@@ -16,7 +16,6 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
-import { values } from 'vs/base/common/map';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { IThemable } from 'vs/base/common/styler';
@@ -904,7 +903,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return childAsyncDataTreeNode;
 		});
 
-		for (const node of values(nodesToForget)) {
+		for (const node of nodesToForget.values()) {
 			dfs(node, node => this.nodes.delete(node.element as T));
 		}
 

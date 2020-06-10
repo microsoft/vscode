@@ -897,7 +897,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						this._windowsShellHelper = this._terminalInstanceService.createWindowsShellHelper(this._processManager.shellProcessId, xterm);
 						this._windowsShellHelper.onShellNameChange(title => {
 							this.setShellType(this.getShellType(title));
-							if (this.isTitleSetByProcess) {
+							if (this.isTitleSetByProcess && !this._configHelper.config.experimentalUseTitleEvent) {
 								this.setTitle(title, TitleEventSource.Process);
 							}
 						});

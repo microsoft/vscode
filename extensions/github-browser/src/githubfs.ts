@@ -39,6 +39,11 @@ const emptyDisposable = { dispose: () => { /* noop */ } };
 const replaceBackslashRegex = /(\/|\\)/g;
 const textEncoder = new TextEncoder();
 
+interface Fuzzysort extends Fuzzysort.Fuzzysort {
+	prepareSlow(target: string): Fuzzysort.Prepared;
+	cleanup(): void;
+}
+
 export class GitHubFS implements FileSystemProvider, FileSearchProvider, TextSearchProvider, Disposable {
 	static scheme = 'github';
 
@@ -57,7 +62,7 @@ export class GitHubFS implements FileSystemProvider, FileSearchProvider, TextSea
 				isReadonly: true,
 			}),
 			workspace.registerFileSearchProvider(GitHubFS.scheme, this),
-			workspace.registerTextSearchProvider(GitHubFS.scheme, this)
+			workspace.registerTextSearchProvider(GitHubFS.scheme, this),
 		);
 	}
 
@@ -153,7 +158,7 @@ export class GitHubFS implements FileSystemProvider, FileSearchProvider, TextSea
 		);
 
 		if (data?.isBinary) {
-			const [owner, repo, path] = fromGitHubUri(uri);
+			const { owner, repo, path } = fromGitHubUri(uri);
 			// e.g. https://raw.githubusercontent.com/eamodio/vscode-gitlens/HEAD/images/gitlens-icon.png
 			const downloadUri = uri.with({
 				scheme: 'https',
@@ -199,7 +204,7 @@ export class GitHubFS implements FileSystemProvider, FileSearchProvider, TextSea
 			const matches = await (await this.github)?.filesQuery(options.folder);
 			if (matches === undefined || token.isCancellationRequested) { return []; }
 
-			searchable = [...Iterables.map(matches, m => (fuzzySort as any).prepareSlow(m)! as Fuzzysort.Prepared)];
+			searchable = [...Iterables.map(matches, m => (fuzzySort as Fuzzysort).prepareSlow(m))];
 			this.fileSearchCache.set(options.folder.toString(true), searchable);
 		}
 
@@ -213,9 +218,9 @@ export class GitHubFS implements FileSystemProvider, FileSearchProvider, TextSea
 				allowTypo: true,
 				limit: options.maxResults,
 			})
-			.map((m: any) => Uri.joinPath(options.folder, m.target));
+			.map(m => Uri.joinPath(options.folder, m.target));
 
-		(fuzzySort as any).cleanup();
+		(fuzzySort as Fuzzysort).cleanup();
 
 		return results;
 	}
@@ -258,17 +263,13 @@ export class GitHubFS implements FileSystemProvider, FileSearchProvider, TextSea
 	//#endregion
 
 	private async fsQuery<T>(uri: Uri, query: string, cache?: Map<string, any>): Promise<T | undefined> {
-		if (cache === undefined) {
-			return (await this.github)?.fsQuery<T>(uri, query);
-		}
-
 		const key = `${uri.toString()}:${getHashCode(query)}`;
 
-		let data = cache.get(key);
+		let data = cache?.get(key);
 		if (data !== undefined) { return data as T; }
 
 		data = await (await this.github)?.fsQuery<T>(uri, query);
-		cache.set(key, data);
+		cache?.set(key, data);
 		return data;
 	}
 }
@@ -294,10 +295,15 @@ function typenameToFileType(typename: string | undefined | null) {
 	}
 }
 
-type RepoInfo = [string, string, string | undefined];
+type RepoInfo = { owner: string; repo: string; path: string | undefined; ref?: string };
 function fromGitHubUri(uri: Uri): RepoInfo {
 	const [, owner, repo, ...rest] = uri.path.split('/');
-	return [owner, repo, rest.join('/')];
+
+	let ref;
+	if (uri.authority) {
+		ref = uri.authority;
+	}
+	return { owner: owner, repo: repo, path: rest.join('/'), ref: ref };
 }
 
 function getHashCode(s: string): number {
@@ -350,7 +356,7 @@ class GitHubApi {
 	}
 
 	async filesQuery(uri: Uri) {
-		const [owner, repo] = fromGitHubUri(uri);
+		const { owner, repo, ref } = fromGitHubUri(uri);
 		try {
 			const resp = await new Octokit({
 				auth: `token ${this.token}`,
@@ -358,7 +364,7 @@ class GitHubApi {
 				owner: owner,
 				repo: repo,
 				recursive: '1',
-				tree_sha: 'HEAD',
+				tree_sha: ref ?? 'HEAD',
 			});
 			return Iterables.filterMap(resp.data.tree, p => p.type === 'blob' ? p.path : undefined);
 		} catch (ex) {
@@ -372,7 +378,13 @@ class GitHubApi {
 		options: { maxResults?: number; context?: { before?: number; after?: number } },
 		_token: CancellationToken,
 	): Promise<SearchQueryResults> {
-		const [owner, repo] = fromGitHubUri(uri);
+		const { owner, repo, ref } = fromGitHubUri(uri);
+
+		// If we have a specific ref, don't try to search, because GitHub search only works against the default branch
+		if (ref === undefined) {
+			return { matches: [], limitHit: true };
+		}
+
 		try {
 			const resp = await new Octokit({
 				auth: `token ${this.token}`,
@@ -449,17 +461,17 @@ class GitHubApi {
 	}
 }`;
 
-			const [owner, repo, path] = fromGitHubUri(uri);
+			const { owner, repo, path, ref } = fromGitHubUri(uri);
 			const variables = {
 				owner: owner,
 				repo: repo,
-				path: `HEAD:${path}`,
+				path: `${ref ?? 'HEAD'}:${path}`,
 			};
 
 			const rsp = await this.query<{
-				repository: { object: T };
+				repository: { object: T | null | undefined };
 			}>(query, variables);
-			return rsp?.repository.object;
+			return rsp?.repository?.object ?? undefined;
 		} catch (ex) {
 			return undefined;
 		}

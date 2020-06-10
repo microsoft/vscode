@@ -56,7 +56,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
-
 	) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
 		this._previousFocusedElements = this.getFocusedElements();
@@ -67,19 +66,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				}
 			});
 			this._previousFocusedElements = e.elements;
-
-			// if focus is in the list, but is not inside the focused element, then reset focus
-			setTimeout(() => {
-				if (DOM.isAncestor(document.activeElement, this.rowsContainer)) {
-					const focusedElement = this.getFocusedElements()[0];
-					if (focusedElement) {
-						const focusedDomElement = this.domElementOfElement(focusedElement);
-						if (focusedDomElement && !DOM.isAncestor(document.activeElement, focusedDomElement)) {
-							focusedDomElement.focus();
-						}
-					}
-				}
-			}, 0);
 		}));
 
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);

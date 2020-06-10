@@ -6,7 +6,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // @ts-check
-/** @typedef {import('../src/vs/workbench/workbench.web.api').IWorkbenchConstructionOptions} WebConfiguration **/
+/** @typedef {import('../../src/vs/workbench/workbench.web.api').IWorkbenchConstructionOptions} WebConfiguration **/
 
 const http = require('http');
 const url = require('url');
@@ -18,7 +18,7 @@ const opn = require('opn');
 const minimist = require('minimist');
 const webpack = require('webpack');
 
-const APP_ROOT = path.dirname(__dirname);
+const APP_ROOT = path.join(__dirname, '..', '..');
 const EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
 
@@ -81,7 +81,7 @@ async function initialize() {
 				if (packageJSON.browser) {
 					packageJSON.main = packageJSON.browser;
 
-					const webpackConfigLocations = glob.sync(
+					const webpackConfigLocations = await util.promisify(glob)(
 						path.join(EXTENSIONS_ROOT, extensionFolder, '**', 'extension-browser.webpack.config.js'),
 						{ ignore: ['**/node_modules'] }
 					);
@@ -270,7 +270,7 @@ async function handleRoot(req, res) {
 	const webConfigJSON = escapeAttribute(JSON.stringify({
 		...webConfig,
 		folderUri: ghPath
-			? { scheme: 'github', authority: 'github.com', path: ghPath }
+			? { scheme: 'github', authority: 'HEAD', path: ghPath }
 			: { scheme: 'memfs', path: `/sample-folder` },
 	}));
 
@@ -320,7 +320,7 @@ async function handleCallback(req, res, parsedUrl) {
 
 	// add to map of known callbacks
 	mapCallbackUriToRequestId.set(requestId, JSON.stringify({ scheme: vscodeScheme || 'code-oss', authority: vscodeAuthority, path: vscodePath, query, fragment: vscodeFragment }));
-	return serveFile(req, res, path.join(APP_ROOT, 'scripts', 'callback.html'), { 'Content-Type': 'text/html' });
+	return serveFile(req, res, path.join(APP_ROOT, 'resources', 'serverless', 'callback.html'), { 'Content-Type': 'text/html' });
 }
 
 /**

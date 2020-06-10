@@ -455,16 +455,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get terminals() {
 				return extHostTerminalService.terminals;
 			},
-			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Thenable<vscode.TextEditor> {
-				let documentPromise: Promise<vscode.TextDocument>;
-				if (URI.isUri(documentOrUri)) {
-					documentPromise = Promise.resolve(workspace.openTextDocument(documentOrUri));
-				} else {
-					documentPromise = Promise.resolve(<vscode.TextDocument>documentOrUri);
-				}
-				return documentPromise.then(document => {
-					return extHostEditors.showTextDocument(document, columnOrOptions, preserveFocus);
-				});
+			async showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Promise<vscode.TextEditor> {
+				const document = await (URI.isUri(documentOrUri)
+					? Promise.resolve(workspace.openTextDocument(documentOrUri))
+					: Promise.resolve(<vscode.TextDocument>documentOrUri));
+
+				return extHostEditors.showTextDocument(document, columnOrOptions, preserveFocus);
 			},
 			createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
 				return extHostEditors.createTextEditorDecorationType(options);
@@ -921,10 +917,16 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidCloseNotebookDocument;
 			},
+			get notebookDocuments(): vscode.NotebookDocument[] {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.notebookDocuments;
+			},
 			get visibleNotebookEditors() {
+				checkProposedApiEnabled(extension);
 				return extHostNotebook.visibleNotebookEditors;
 			},
 			get onDidChangeVisibleNotebookEditors() {
+				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeVisibleNotebookEditors;
 			},
 			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider) => {

@@ -217,7 +217,7 @@
 			"type": "node",
 			"request": "launch",
 			"name": "VS Code (Web)",
-			"program": "${workspaceFolder}/scripts/code-web.js",
+			"program": "${workspaceFolder}/resources/serverless/code-web.js",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 2

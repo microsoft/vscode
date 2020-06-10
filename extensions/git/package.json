@@ -14,7 +14,8 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "*",
+    "onFileSystem:git"
   ],
   "main": "./out/main",
   "icon": "resources/icons/git.png",
