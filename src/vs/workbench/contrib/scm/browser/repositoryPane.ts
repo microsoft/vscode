@@ -1173,12 +1173,7 @@ export class RepositoryPane extends ViewPane {
 	}
 
 	getActions(): IAction[] {
-		const actions: IAction[] = [];
-
-		return [
-			...actions,
-			...this.menus.getTitleActions()
-		];
+		return this.menus.getTitleActions();
 	}
 
 	getSecondaryActions(): IAction[] {
