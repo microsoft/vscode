@@ -48,7 +48,7 @@ import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 
 export class DebugService implements IDebugService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeState: Emitter<State>;
 	private readonly _onDidNewSession: Emitter<IDebugSession>;
@@ -372,11 +372,10 @@ export class DebugService implements IDebugService {
 			// a no-folder workspace has no launch.config
 			config = Object.create(null);
 		}
-		const unresolvedConfig = deepClone(config);
-
 		if (options && options.noDebug) {
-			config!.noDebug = true;
+			options.noDebug = true;
 		}
+		const unresolvedConfig = deepClone(config);
 
 		if (!type) {
 			const guess = await this.configurationManager.guessDebugger();

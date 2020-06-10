@@ -42,8 +42,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { values } from 'vs/base/common/map';
-import { first } from 'vs/base/common/arrays';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -670,7 +668,14 @@ export class ExplorerView extends ViewPane {
 			} catch (e) {
 				return this.selectResource(resource, reveal, retry + 1);
 			}
-			item = first(values(item.children), i => this.uriIdentityService.extUri.isEqualOrParent(resource, i.resource));
+
+			for (let child of item.children.values()) {
+				if (this.uriIdentityService.extUri.isEqualOrParent(resource, child.resource)) {
+					item = child;
+					break;
+				}
+				item = undefined;
+			}
 		}
 
 		if (item) {

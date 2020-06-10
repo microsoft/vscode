@@ -6,7 +6,29 @@
 //@ts-check
 'use strict';
 
-const perf = require('../../../base/common/performance');
+const perf = (function () {
+	let sharedObj;
+	if (typeof global === 'object') {
+		// nodejs
+		sharedObj = global;
+	} else if (typeof self === 'object') {
+		// browser
+		sharedObj = self;
+	} else {
+		sharedObj = {};
+	}
+	// @ts-ignore
+	sharedObj._performanceEntries = sharedObj._performanceEntries || [];
+	return {
+		/**
+		 * @param {string} name
+		 */
+		mark(name) {
+			sharedObj._performanceEntries.push(name, Date.now());
+		}
+	};
+})();
+
 perf.mark('renderer/started');
 
 const bootstrapWindow = require('../../../../bootstrap-window');
@@ -149,7 +171,7 @@ function showPartsSplash(configuration) {
  * @returns {Promise<void>}
  */
 function getLazyEnv() {
-	
+
 	const ipc = require('electron').ipcRenderer;
 
 	return new Promise(function (resolve) {

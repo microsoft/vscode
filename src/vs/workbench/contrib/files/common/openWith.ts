@@ -136,7 +136,7 @@ export function getAllAvailableEditors(
 					}
 
 					const fileEditorInput = editorService.createEditorInput({ resource: input.resource, forceFile: true });
-					const textOptions = options ? { ...options, ignoreOverrides: true } : { ignoreOverrides: true };
+					const textOptions: IEditorOptions | ITextEditorOptions = options ? { ...options, override: false } : { override: false };
 					return { override: editorService.openEditor(fileEditorInput, textOptions, group) };
 				}
 			},

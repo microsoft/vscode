@@ -42,7 +42,7 @@ import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workben
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { fromNow } from 'vs/base/common/date';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -109,7 +109,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOutputService private readonly outputService: IOutputService,
-		@IAuthenticationTokenService readonly authTokenService: IAuthenticationTokenService,
+		@IUserDataSyncAccountService readonly authTokenService: IUserDataSyncAccountService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
@@ -719,7 +719,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 			async run(): Promise<any> {
 				try {
-					await that.userDataSyncWorkbenchService.pickAccount();
+					await that.userDataSyncWorkbenchService.signIn();
 				} catch (e) {
 					that.notificationService.error(e);
 				}

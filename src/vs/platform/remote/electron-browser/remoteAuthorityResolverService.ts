@@ -18,7 +18,7 @@ class PendingResolveAuthorityRequest {
 
 export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _resolveAuthorityRequests: { [authority: string]: PendingResolveAuthorityRequest; };
 

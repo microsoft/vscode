@@ -136,7 +136,7 @@ class ModelData implements IDisposable {
 	}
 }
 export class NotebookService extends Disposable implements INotebookService, ICustomEditorViewTypesHandler {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
 	private readonly _notebookRenderers = new Map<string, INotebookRendererInfo>();
 	private readonly _notebookKernels = new Map<string, INotebookKernelInfo>();

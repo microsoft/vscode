@@ -50,6 +50,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { URI } from 'vs/base/common/uri';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugToolBar';
+import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 
 const $ = DOM.$;
 
@@ -96,6 +97,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _isDisposed: boolean = false;
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
+	private _cellContextKeyManager: CellContextKeyManager | null = null;
+
+	get isDisposed() {
+		return this._isDisposed;
+	}
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -165,6 +171,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	set activeKernel(kernel: INotebookKernelInfo | undefined) {
+		if (this._isDisposed) {
+			return;
+		}
+
 		this._activeKernel = kernel;
 		this._onDidChangeKernel.fire();
 	}
@@ -173,6 +183,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
 
 	get activeCodeEditor(): IEditor | undefined {
+		if (this._isDisposed) {
+			return;
+		}
+
 		const [focused] = this.list!.getFocusedElements();
 		return this.renderedEditors.get(focused);
 	}
@@ -389,6 +403,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 		}));
 
+		this.localStore.add(this.list!.onDidChangeFocus(() => {
+			this._cellContextKeyManager?.dispose();
+			const focused = this.list!.getFocusedElements()[0];
+			if (focused) {
+				this._cellContextKeyManager = this.localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as any));
+			}
+		}));
+
 		// reveal cell if editor options tell to do so
 		if (options instanceof NotebookEditorOptions && options.cellOptions) {
 			const cellOptions = options.cellOptions;
@@ -472,7 +494,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async createWebview(id: string, document: URI): Promise<void> {
 		this.webview = this.instantiationService.createInstance(BackLayerWebView, this, id, document);
-		await this.webview.waitForInitialization();
+		// attach the webview container to the DOM tree first
+		this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview.element);
+		await this.webview.createWebview();
 		this.webview.webview.onDidBlur(() => this.updateEditorFocus());
 		this.webview.webview.onDidFocus(() => {
 			this.updateEditorFocus();
@@ -484,7 +508,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), message);
 			}
 		}));
-		this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview.element);
 	}
 
 	private async attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined) {
@@ -527,6 +550,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this.localStore.add(this.list!.onDidChangeContentHeight(() => {
 			DOM.scheduleAtNextAnimationFrame(() => {
+				if (this._isDisposed) {
+					return;
+				}
+
 				const scrollTop = this.list?.scrollTop || 0;
 				const scrollHeight = this.list?.scrollHeight || 0;
 				this.webview!.element.style.height = `${scrollHeight}px`;
@@ -735,28 +762,28 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.list?.revealElementInCenter(cell);
 	}
 
-	revealLineInView(cell: ICellViewModel, line: number): void {
-		this.list?.revealElementLineInView(cell, line);
+	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
+		return this.list?.revealElementLineInViewAsync(cell, line);
 	}
 
-	revealLineInCenter(cell: ICellViewModel, line: number) {
-		this.list?.revealElementLineInCenter(cell, line);
+	async revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
+		return this.list?.revealElementLineInCenterAsync(cell, line);
 	}
 
-	revealLineInCenterIfOutsideViewport(cell: ICellViewModel, line: number) {
-		this.list?.revealElementLineInCenterIfOutsideViewport(cell, line);
+	async revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
+		return this.list?.revealElementLineInCenterIfOutsideViewportAsync(cell, line);
 	}
 
-	revealRangeInView(cell: ICellViewModel, range: Range): void {
-		this.list?.revealElementRangeInView(cell, range);
+	async revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
+		return this.list?.revealElementRangeInViewAsync(cell, range);
 	}
 
-	revealRangeInCenter(cell: ICellViewModel, range: Range): void {
-		this.list?.revealElementRangeInCenter(cell, range);
+	async revealRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void> {
+		return this.list?.revealElementRangeInCenterAsync(cell, range);
 	}
 
-	revealRangeInCenterIfOutsideViewport(cell: ICellViewModel, range: Range): void {
-		this.list?.revealElementRangeInCenterIfOutsideViewport(cell, range);
+	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
+		return this.list?.revealElementRangeInCenterIfOutsideViewportAsync(cell, range);
 	}
 
 	setCellSelection(cell: ICellViewModel, range: Range): void {
@@ -975,8 +1002,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			if (!above.hasModel()) {
 				return null;
 			}
-
-			const insertContent = cell.getText();
+			const insertContent = (cell.textModel?.getEOL() ?? '') + cell.getText();
 			const aboveCellLineCount = above.textModel.getLineCount();
 			const aboveCellLastLineEndColumn = above.textModel.getLineLength(aboveCellLineCount);
 			above.textModel.applyEdits([
@@ -1000,7 +1026,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return null;
 			}
 
-			const insertContent = below.getText();
+			const insertContent = (cell.textModel?.getEOL() ?? '') + below.getText();
 
 			const cellLineCount = cell.textModel.getLineCount();
 			const cellLastLineEndColumn = cell.textModel.getLineLength(cellLineCount);
@@ -1086,6 +1112,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		let r: (val: boolean) => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
+			if (this._isDisposed) {
+				r(false);
+			}
+
 			this.list?.revealElementInView(this.notebookViewModel!.viewCells[newIdx]);
 			r(true);
 		});
@@ -1330,7 +1360,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		this.localStore.clear();
-		this.list?.clear();
+		this.list?.dispose();
 		this.webview?.dispose();
 
 		this.overlayContainer.remove();
@@ -1355,10 +1385,16 @@ export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
 export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator', {
-	light: new Color(new RGBA(102, 175, 224)),
-	dark: new Color(new RGBA(12, 125, 157)),
-	hc: new Color(new RGBA(0, 73, 122))
-}, nls.localize('notebook.focusedCellIndicator', "The color of the focused notebook cell indicator."));
+	light: focusBorder,
+	dark: focusBorder,
+	hc: focusBorder
+}, nls.localize('notebook.focusedCellIndicator', "The color of the notebook cell indicator."));
+
+export const focusedEditorIndicator = registerColor('notebook.focusedEditorIndicator', {
+	light: focusBorder,
+	dark: focusBorder,
+	hc: focusBorder
+}, nls.localize('notebook.focusedEditorIndicator', "The color of the notebook cell editor indicator."));
 
 export const cellStatusIconSuccess = registerColor('notebookStatusSuccessIcon.foreground', {
 	light: debugIconStartForeground,
@@ -1465,7 +1501,11 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.notebookOverlay .monaco-list-row .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${focusedCellIndicatorColor}; }`);
-		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedCellIndicatorColor}; }`);
+	}
+
+	const focusedEditorIndicatorColor = theme.getColor(focusedEditorIndicator);
+	if (focusedEditorIndicatorColor) {
+		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedEditorIndicatorColor}; }`);
 	}
 
 	const editorBorderColor = theme.getColor(notebookCellBorder);

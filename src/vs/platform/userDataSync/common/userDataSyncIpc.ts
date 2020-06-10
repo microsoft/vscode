@@ -13,6 +13,7 @@ import { IStorageKeysSyncRegistryService, IStorageKey } from 'vs/platform/userDa
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 
 export class UserDataSyncChannel implements IServerChannel {
 
@@ -101,7 +102,7 @@ export class UserDataSycnUtilServiceChannel implements IServerChannel {
 
 export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(private readonly channel: IChannel) {
 	}
@@ -142,7 +143,7 @@ export class StorageKeysSyncRegistryChannel implements IServerChannel {
 
 export class StorageKeysSyncRegistryChannelClient extends Disposable implements IStorageKeysSyncRegistryService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _storageKeys: ReadonlyArray<IStorageKey> = [];
 	get storageKeys(): ReadonlyArray<IStorageKey> { return this._storageKeys; }
@@ -188,3 +189,24 @@ export class UserDataSyncMachinesServiceChannel implements IServerChannel {
 	}
 
 }
+
+export class UserDataSyncAccountServiceChannel implements IServerChannel {
+	constructor(private readonly service: IUserDataSyncAccountService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onDidChangeAccount': return this.service.onDidChangeAccount;
+			case 'onTokenFailed': return this.service.onTokenFailed;
+		}
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case '_getInitialData': return Promise.resolve(this.service.account);
+			case 'updateAccount': return this.service.updateAccount(args);
+		}
+		throw new Error('Invalid call');
+	}
+}
+

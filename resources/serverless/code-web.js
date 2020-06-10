@@ -6,17 +6,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 // @ts-check
+/** @typedef {import('../../src/vs/workbench/workbench.web.api').IWorkbenchConstructionOptions} WebConfiguration **/
 
 const http = require('http');
 const url = require('url');
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
+const glob = require('glob');
 const opn = require('opn');
 const minimist = require('minimist');
 const webpack = require('webpack');
 
-const APP_ROOT = path.dirname(__dirname);
+const APP_ROOT = path.join(__dirname, '..', '..');
 const EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
 
@@ -78,8 +80,13 @@ async function initialize() {
 
 				if (packageJSON.browser) {
 					packageJSON.main = packageJSON.browser;
-					const webpackConfigPath = path.join(EXTENSIONS_ROOT, extensionFolder, 'extension-browser.webpack.config.js');
-					if ((await exists(webpackConfigPath))) {
+
+					const webpackConfigLocations = glob.sync(
+						path.join(EXTENSIONS_ROOT, extensionFolder, '**', 'extension-browser.webpack.config.js'),
+						{ ignore: ['**/node_modules'] }
+					);
+
+					for (const webpackConfigPath of webpackConfigLocations) {
 						const configOrFnOrArray = require(webpackConfigPath);
 						function addConfig(configOrFn) {
 							if (typeof configOrFn === 'function') {
@@ -88,11 +95,7 @@ async function initialize() {
 								webpackConfigs.push(configOrFn);
 							}
 						}
-						if (Array.isArray(configOrFnOrArray)) {
-							configOrFnOrArray.forEach(addConfig);
-						} else {
-							addConfig(configOrFnOrArray);
-						}
+						addConfig(configOrFnOrArray);
 					}
 				}
 
@@ -154,6 +157,8 @@ async function initialize() {
 
 const staticExtensionsPromise = initialize();
 
+const mapCallbackUriToRequestId = new Map();
+
 const server = http.createServer((req, res) => {
 	const parsedUrl = url.parse(req.url, true);
 	const pathname = parsedUrl.pathname;
@@ -185,6 +190,12 @@ const server = http.createServer((req, res) => {
 		if (pathname === '/') {
 			// main web
 			return handleRoot(req, res);
+		} else if (pathname === '/callback') {
+			// callback support
+			return handleCallback(req, res, parsedUrl);
+		} else if (pathname === '/fetch-callback') {
+			// callback fetch support
+			return handleFetchCallback(req, res, parsedUrl);
 		}
 
 		return serveError(req, res, 404, 'Not found.');
@@ -251,19 +262,119 @@ async function handleRoot(req, res) {
 	}
 
 	const staticExtensions = await staticExtensionsPromise;
-	const webConfiguration = escapeAttribute(JSON.stringify({
-		staticExtensions, folderUri: ghPath
-			? { scheme: 'github', authority: 'github.com', path: ghPath }
-			: { scheme: 'memfs', path: `/sample-folder` }
+	/** @type {WebConfiguration} */
+	const webConfig = {
+		staticExtensions: staticExtensions,
+	};
+
+	const webConfigJSON = escapeAttribute(JSON.stringify({
+		...webConfig,
+		folderUri: ghPath
+			? { scheme: 'github', authority: 'HEAD', path: ghPath }
+			: { scheme: 'memfs', path: `/sample-folder` },
 	}));
 
 	const data = (await util.promisify(fs.readFile)(WEB_MAIN)).toString()
-		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => webConfiguration) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
+		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => webConfigJSON) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
 		.replace('{{WEBVIEW_ENDPOINT}}', '')
 		.replace('{{REMOTE_USER_DATA_URI}}', '');
 
 	res.writeHead(200, { 'Content-Type': 'text/html' });
 	return res.end(data);
+}
+
+/**
+ * Handle HTTP requests for /callback
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ * @param {import('url').UrlWithParsedQuery} parsedUrl
+*/
+async function handleCallback(req, res, parsedUrl) {
+	const wellKnownKeys = ['vscode-requestId', 'vscode-scheme', 'vscode-authority', 'vscode-path', 'vscode-query', 'vscode-fragment'];
+	const [requestId, vscodeScheme, vscodeAuthority, vscodePath, vscodeQuery, vscodeFragment] = wellKnownKeys.map(key => {
+		const value = getFirstQueryValue(parsedUrl, key);
+		if (value) {
+			return decodeURIComponent(value);
+		}
+
+		return value;
+	});
+
+	if (!requestId) {
+		res.writeHead(400, { 'Content-Type': 'text/plain' });
+		return res.end(`Bad request.`);
+	}
+
+	// merge over additional query values that we got
+	let query = vscodeQuery;
+	let index = 0;
+	getFirstQueryValues(parsedUrl, wellKnownKeys).forEach((value, key) => {
+		if (!query) {
+			query = '';
+		}
+
+		const prefix = (index++ === 0) ? '' : '&';
+		query += `${prefix}${key}=${value}`;
+	});
+
+
+	// add to map of known callbacks
+	mapCallbackUriToRequestId.set(requestId, JSON.stringify({ scheme: vscodeScheme || 'code-oss', authority: vscodeAuthority, path: vscodePath, query, fragment: vscodeFragment }));
+	return serveFile(req, res, path.join(APP_ROOT, 'resources', 'serverless', 'callback.html'), { 'Content-Type': 'text/html' });
+}
+
+/**
+ * Handle HTTP requests for /fetch-callback
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ * @param {import('url').UrlWithParsedQuery} parsedUrl
+*/
+async function handleFetchCallback(req, res, parsedUrl) {
+	const requestId = getFirstQueryValue(parsedUrl, 'vscode-requestId');
+	if (!requestId) {
+		res.writeHead(400, { 'Content-Type': 'text/plain' });
+		return res.end(`Bad request.`);
+	}
+
+	const knownCallbackUri = mapCallbackUriToRequestId.get(requestId);
+	if (knownCallbackUri) {
+		mapCallbackUriToRequestId.delete(requestId);
+	}
+
+	res.writeHead(200, { 'Content-Type': 'text/json' });
+	return res.end(knownCallbackUri);
+}
+
+/**
+ * @param {import('url').UrlWithParsedQuery} parsedUrl
+ * @param {string} key
+ * @returns {string | undefined}
+*/
+function getFirstQueryValue(parsedUrl, key) {
+	const result = parsedUrl.query[key];
+	return Array.isArray(result) ? result[0] : result;
+}
+
+/**
+ * @param {import('url').UrlWithParsedQuery} parsedUrl
+ * @param {string[] | undefined} ignoreKeys
+ * @returns {Map<string, string>}
+*/
+function getFirstQueryValues(parsedUrl, ignoreKeys) {
+	const queryValues = new Map();
+
+	for (const key in parsedUrl.query) {
+		if (ignoreKeys && ignoreKeys.indexOf(key) >= 0) {
+			continue;
+		}
+
+		const value = getFirstQueryValue(parsedUrl, key);
+		if (typeof value === 'string') {
+			queryValues.set(key, value);
+		}
+	}
+
+	return queryValues;
 }
 
 /**

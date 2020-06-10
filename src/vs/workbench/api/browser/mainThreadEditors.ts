@@ -125,7 +125,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
-			ignoreOverrides: true
+			override: false
 		};
 
 		const input: IResourceEditorInput = {
@@ -306,7 +306,7 @@ CommandsRegistry.registerCommand('_workbench.openWith', (accessor: ServicesAcces
 	const [resource, id, options, position] = args;
 
 	const group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, position)) ?? editorGroupsService.activeGroup;
-	const textOptions = options ? { ...options, ignoreOverrides: true } : { ignoreOverrides: true };
+	const textOptions: ITextEditorOptions = options ? { ...options, override: false } : { override: false };
 
 	const input = editorService.createEditorInput({ resource });
 	return openEditorWith(input, id, textOptions, group, editorService, configurationService, quickInputService);

@@ -13,7 +13,7 @@ import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/t
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
 export class ElectronWebviewService implements IWebviewService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _webviewThemeDataProvider: WebviewThemeDataProvider;
 	private readonly _iconManager: WebviewIconManager;

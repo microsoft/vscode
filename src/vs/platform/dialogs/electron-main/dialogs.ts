@@ -21,7 +21,7 @@ export const IDialogMainService = createDecorator<IDialogMainService>('dialogMai
 
 export interface IDialogMainService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	pickFileFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined>;
 	pickFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined>;
@@ -44,7 +44,7 @@ interface IInternalNativeOpenDialogOptions extends INativeOpenDialogOptions {
 
 export class DialogMainService implements IDialogMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly workingDirPickerStorageKey = 'pickerWorkingDir';
 

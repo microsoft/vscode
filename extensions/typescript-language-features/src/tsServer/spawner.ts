@@ -9,7 +9,7 @@ import * as stream from 'stream';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import API from '../utils/api';
-import { TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
+import { TsServerLogLevel, TypeScriptServiceConfiguration, SeparateSyntaxServerConfigration } from '../utils/configuration';
 import * as electron from '../utils/electron';
 import LogDirectoryProvider from '../utils/logDirectoryProvider';
 import Logger from '../utils/logger';
@@ -18,13 +18,24 @@ import { PluginManager } from '../utils/plugins';
 import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
-import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess, TsServerDelegate, GetErrRoutingTsServer } from './server';
+import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess, TsServerDelegate, GetErrRoutingTsServer, ProjectLoadingRoutingSyntaxTsServer } from './server';
 
 const enum ServerKind {
 	Main = 'main',
 	Syntax = 'syntax',
 	Semantic = 'semantic',
 	Diagnostics = 'diagnostics'
+}
+
+const enum CompositeServerType {
+	/** Run a single server that handles all commands  */
+	Single,
+
+	/** Run a separate server for syntax commands */
+	SeparateSyntax,
+
+	/** Use a separate suntax server while the project is loading */
+	DynamicSeparateSyntax,
 }
 
 export class TypeScriptServerSpawner {
@@ -44,13 +55,28 @@ export class TypeScriptServerSpawner {
 		delegate: TsServerDelegate,
 	): ITypeScriptServer {
 		let primaryServer: ITypeScriptServer;
-		if (this.shouldUseSeparateSyntaxServer(version, configuration)) {
-			primaryServer = new SyntaxRoutingTsServer({
-				syntax: this.spawnTsServer(ServerKind.Syntax, version, configuration, pluginManager),
-				semantic: this.spawnTsServer(ServerKind.Semantic, version, configuration, pluginManager)
-			}, delegate);
-		} else {
-			primaryServer = this.spawnTsServer(ServerKind.Main, version, configuration, pluginManager);
+		switch (this.getCompositeServerType(version, configuration)) {
+			case CompositeServerType.SeparateSyntax:
+				{
+					primaryServer = new SyntaxRoutingTsServer({
+						syntax: this.spawnTsServer(ServerKind.Syntax, version, configuration, pluginManager),
+						semantic: this.spawnTsServer(ServerKind.Semantic, version, configuration, pluginManager)
+					}, delegate);
+					break;
+				}
+			case CompositeServerType.DynamicSeparateSyntax:
+				{
+					primaryServer = new ProjectLoadingRoutingSyntaxTsServer({
+						syntax: this.spawnTsServer(ServerKind.Syntax, version, configuration, pluginManager),
+						semantic: this.spawnTsServer(ServerKind.Semantic, version, configuration, pluginManager)
+					}, delegate);
+					break;
+				}
+			case CompositeServerType.Single:
+				{
+					primaryServer = this.spawnTsServer(ServerKind.Main, version, configuration, pluginManager);
+					break;
+				}
 		}
 
 		if (this.shouldUseSeparateDiagnosticsServer(configuration)) {
@@ -63,11 +89,20 @@ export class TypeScriptServerSpawner {
 		return primaryServer;
 	}
 
-	private shouldUseSeparateSyntaxServer(
+	private getCompositeServerType(
 		version: TypeScriptVersion,
 		configuration: TypeScriptServiceConfiguration,
-	): boolean {
-		return configuration.useSeparateSyntaxServer && !!version.apiVersion && version.apiVersion.gte(API.v340);
+	): CompositeServerType {
+		switch (configuration.separateSyntaxServer) {
+			case SeparateSyntaxServerConfigration.Disabled:
+				return CompositeServerType.Single;
+
+			case SeparateSyntaxServerConfigration.Enabled:
+				return version.apiVersion?.gte(API.v340) ? CompositeServerType.SeparateSyntax : CompositeServerType.Single;
+
+			case SeparateSyntaxServerConfigration.Dynamic:
+				return version.apiVersion?.gte(API.v400) ? CompositeServerType.DynamicSeparateSyntax : CompositeServerType.Single;
+		}
 	}
 
 	private shouldUseSeparateDiagnosticsServer(

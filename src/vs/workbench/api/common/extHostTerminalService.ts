@@ -20,7 +20,7 @@ import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	activeTerminal: vscode.Terminal | undefined;
 	terminals: vscode.Terminal[];

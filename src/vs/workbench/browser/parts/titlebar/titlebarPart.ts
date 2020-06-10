@@ -60,7 +60,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	protected title!: HTMLElement;
 	protected customMenubar: CustomMenubarControl | undefined;

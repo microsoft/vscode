@@ -35,7 +35,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IJSONEditingService jsonEditingService: IJSONEditingService,

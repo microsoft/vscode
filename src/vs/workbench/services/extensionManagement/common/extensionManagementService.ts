@@ -22,7 +22,7 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 
 export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	readonly onInstallExtension: Event<InstallExtensionEvent>;
 	readonly onDidInstallExtension: Event<DidInstallExtensionEvent>;

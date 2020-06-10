@@ -12,7 +12,7 @@ import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
 
 export const NullTelemetryService = new class implements ITelemetryService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	readonly sendErrorTelemetry = false;
 
 	publicLog(eventName: string, data?: ITelemetryData) {

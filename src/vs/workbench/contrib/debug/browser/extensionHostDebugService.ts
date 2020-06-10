@@ -132,7 +132,7 @@ registerSingleton(IExtensionHostDebugService, BrowserExtensionHostDebugService);
 
 class BrowserDebugHelperService implements IDebugHelperService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined {
 		return undefined;

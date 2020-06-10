@@ -2415,6 +2415,11 @@ declare module 'vscode' {
 		isTrusted?: boolean;
 
 		/**
+		 * Indicates that this markdown string can contain [ThemeIcons](#ThemeIcon), e.g. `$(zap)`.
+		 */
+		readonly supportThemeIcons?: boolean;
+
+		/**
 		 * Creates a new markdown string with the given value.
 		 *
 		 * @param value Optional, initial value.
@@ -8408,8 +8413,9 @@ declare module 'vscode' {
 	interface Pseudoterminal {
 		/**
 		 * An event that when fired will write data to the terminal. Unlike
-		 * [Terminal.sendText](#Terminal.sendText) which sends text to the underlying _process_
-		 * (the pty "slave"), this will write the text to the terminal itself (the pty "master").
+		 * [Terminal.sendText](#Terminal.sendText) which sends text to the underlying child
+		 * pseudo-device (the child), this will write the text to parent pseudo-device (the
+		 * _terminal_ itself).
 		 *
 		 * Note writing `\n` will just move the cursor down 1 row, you need to write `\r` as well
 		 * to move the cursor to the left-most cell.

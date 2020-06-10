@@ -57,8 +57,7 @@ import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
-import 'vs/workbench/services/authentication/electron-browser/authenticationTokenService';
-import 'vs/workbench/services/authentication/browser/authenticationService';
+import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncAccountService';
 import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
 import 'vs/workbench/services/localizations/electron-browser/localizationsService';
 import 'vs/workbench/services/clipboard/electron-browser/clipboardService';
@@ -109,8 +108,8 @@ import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';
 // CodeEditor Contributions
 import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
-// Execution
-import 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
+// External Terminal
+import 'vs/workbench/contrib/externalTerminal/node/externalTerminal.contribution';
 
 // Performance
 import 'vs/workbench/contrib/performance/electron-browser/performance.contribution';

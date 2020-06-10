@@ -24,7 +24,7 @@ import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/ele
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 
 export class TestDialogMainService implements IDialogMainService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	pickFileFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
 		throw new Error('Method not implemented.');
@@ -57,7 +57,7 @@ export class TestDialogMainService implements IDialogMainService {
 
 export class TestBackupMainService implements IBackupMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	isHotExitEnabled(): boolean {
 		throw new Error('Method not implemented.');
