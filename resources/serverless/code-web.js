@@ -270,7 +270,7 @@ async function handleRoot(req, res) {
 	const webConfigJSON = escapeAttribute(JSON.stringify({
 		...webConfig,
 		folderUri: ghPath
-			? { scheme: 'github', authority: 'github.com', path: ghPath }
+			? { scheme: 'github', authority: 'HEAD', path: ghPath }
 			: { scheme: 'memfs', path: `/sample-folder` },
 	}));
 
