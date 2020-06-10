@@ -81,7 +81,7 @@ async function initialize() {
 				if (packageJSON.browser) {
 					packageJSON.main = packageJSON.browser;
 
-					const webpackConfigLocations = glob.sync(
+					const webpackConfigLocations = await util.promisify(glob)(
 						path.join(EXTENSIONS_ROOT, extensionFolder, '**', 'extension-browser.webpack.config.js'),
 						{ ignore: ['**/node_modules'] }
 					);
