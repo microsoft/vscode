@@ -8,7 +8,7 @@ import * as paths from 'vs/base/common/path';
 import { URI, uriToFsPath } from 'vs/base/common/uri';
 import { equalsIgnoreCase, compare as strCompare } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -312,6 +312,12 @@ export class ExtUri implements IExtUri {
 		return resource;
 	}
 }
+
+export const extUriBiasedIgnorePathCase = new ExtUri(uri => {
+	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
+	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
+	return uri.scheme === Schemas.file ? !isLinux : true;
+});
 
 /**
  * Unbiased utility that takes uris "as they are". This means it can be interchanged with
