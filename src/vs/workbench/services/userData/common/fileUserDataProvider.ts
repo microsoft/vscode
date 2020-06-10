@@ -7,7 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithOpenReadWriteCloseCapability, FileOpenOptions, hasReadWriteCapability, hasOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, hasFileReadStreamCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
+import { extUriBiasedIgnorePathCase as resources } from 'vs/base/common/resources';
 import { startsWith } from 'vs/base/common/strings';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
