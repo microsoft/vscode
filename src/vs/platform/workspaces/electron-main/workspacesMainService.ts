@@ -18,7 +18,7 @@ import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { originalFSPath, joinPath, isEqual, basename } from 'vs/base/common/resources';
+import { originalFSPath, joinPath, basename } from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { localize } from 'vs/nls';
@@ -27,7 +27,7 @@ import { MessageBoxOptions, BrowserWindow } from 'electron';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
-import { findWindowOnWorkspace } from 'vs/platform/windows/node/window';
+import { findWindowOnWorkspace, fileUriComparer } from 'vs/platform/windows/node/window';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 
@@ -274,7 +274,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			return true;
 		}
 
-		if (window.openedWorkspace && isEqual(window.openedWorkspace.configPath, path)) {
+		if (window.openedWorkspace && fileUriComparer.isEqual(window.openedWorkspace.configPath, path)) {
 			return false; // window is already opened on a workspace with that path
 		}
 
