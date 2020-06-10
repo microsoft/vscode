@@ -1,4 +1,7 @@
 jobs:
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'build'
 - job: Windows
   pool:
     vmImage: VS2017-Win2016
