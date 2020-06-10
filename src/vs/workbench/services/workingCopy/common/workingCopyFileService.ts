@@ -221,8 +221,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 		let stats = [];
 
-		for (let i = 0; i < files.length; i++) {
-			const { source, target } = files[i];
+		for (const { source, target } of files) {
 
 			// validate move/copy operation before starting
 			const validateMoveOrCopy = await (move ? this.fileService.canMove(source, target, overwrite) : this.fileService.canCopy(source, target, overwrite));
@@ -234,8 +233,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		// file operation participant
 		await this.runFileOperationParticipants(files, move ? FileOperation.MOVE : FileOperation.COPY);
 
-		for (let i = 0; i < files.length; i++) {
-			const { source, target } = files[i];
+		for (const { source, target } of files) {
 
 			// Before doing the heavy operations, check first if source and target
 			// are either identical or are considered to be identical for the file

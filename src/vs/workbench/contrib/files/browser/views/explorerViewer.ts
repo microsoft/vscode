@@ -1351,8 +1351,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		const files = [];
 		if (isCopy) {
 			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			for (let i = 0; i < sources.length; i++) {
-				const source = sources[i];
+			for (const source of sources) {
 				files.push({ source: source.resource, target: findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming) });
 			}
 			const stats = await this.workingCopyFileService.copy(files);
@@ -1366,8 +1365,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		// Otherwise move
-		for (let i = 0; i < sources.length; i++) {
-			const source = sources[i];
+		for (const source of sources) {
 			// Do not allow moving readonly items
 			if (!source.isReadonly) {
 				files.push({ source: source.resource, target: joinPath(target.resource, source.name) });
