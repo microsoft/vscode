@@ -422,20 +422,38 @@ export class FoldingController extends Disposable implements IEditorContribution
 				if (region && region.startLineNumber === lineNumber) {
 					let isCollapsed = region.isCollapsed;
 					if (iconClicked || isCollapsed) {
-						let toToggle = [];
-						let recursive = e.event.middleButton || e.event.shiftKey;
-						if (recursive) {
-							for (const r of foldingModel.getRegionsInside(region)) {
-								if (r.isCollapsed === isCollapsed) {
+						let surrounding = e.event.altKey;
+						if (surrounding) {
+							let filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region!) && !region!.containedBy(otherRegion);
+							let toMaybeToggle = foldingModel.getRegionsInside(null, filter);
+							let toToggle = [];
+							for (const r of toMaybeToggle) {
+								if (r.isCollapsed) {
 									toToggle.push(r);
 								}
 							}
+							// if any surrounding regions are folded, unfold those. Otherwise, fold all surrounding
+							if (toToggle.length === 0) {
+								toToggle = toMaybeToggle;
+							}
+							foldingModel.toggleCollapseState(toToggle);
 						}
-						// when recursive, first only collapse all children. If all are already folded or there are no children, also fold parent.
-						if (isCollapsed || !recursive || toToggle.length === 0) {
-							toToggle.push(region);
+						else {
+							let toToggle = [];
+							let recursive = e.event.middleButton || e.event.shiftKey;
+							if (recursive) {
+								for (const r of foldingModel.getRegionsInside(region)) {
+									if (r.isCollapsed === isCollapsed) {
+										toToggle.push(r);
+									}
+								}
+							}
+							// when recursive, first only collapse all children. If all are already folded or there are no children, also fold parent.
+							if (isCollapsed || !recursive || toToggle.length === 0) {
+								toToggle.push(region);
+							}
+							foldingModel.toggleCollapseState(toToggle);
 						}
-						foldingModel.toggleCollapseState(toToggle);
 						this.reveal({ lineNumber, column: 1 });
 					}
 				}
