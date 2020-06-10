@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { GroupIdentifier, IWorkbenchEditorConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPane, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorInput } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -42,26 +41,6 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	labelFormat: 'default',
 	splitSizing: 'distribute'
 };
-
-export function computeEditorAriaLabel(input: IEditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
-	let ariaLabel = input.getAriaLabel();
-	if (group && !group.isPinned(input)) {
-		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
-	}
-
-	if (group && group.isSticky(index ?? input)) {
-		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
-	}
-
-	// Apply group information to help identify in
-	// which group we are (only if more than one group
-	// is actually opened)
-	if (group && groupCount > 1) {
-		ariaLabel = `${ariaLabel}, ${group.ariaLabel}`;
-	}
-
-	return ariaLabel;
-}
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
 	return event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme');
