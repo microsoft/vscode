@@ -76,6 +76,35 @@ suite('WorkingCopyFileService', () => {
 		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], true);
 	});
 
+	test('move - source identical to target', async function () {
+		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
+
+		const eventCounter = await testEventsMoveOrCopy([{ source: sourceModel.resource, target: sourceModel.resource }], true);
+
+		sourceModel.dispose();
+		assert.equal(eventCounter, 1);
+	});
+
+	test('move - one source == target and another source != target', async function () {
+		let sourceModel1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file1.txt'), 'utf8', undefined);
+		let sourceModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file2.txt'), 'utf8', undefined);
+		let targetModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target2.txt'), 'utf8', undefined);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel1.resource, sourceModel1);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel2.resource, sourceModel2);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel2.resource, targetModel2);
+
+		const eventCounter = await testEventsMoveOrCopy([
+			{ source: sourceModel1.resource, target: sourceModel1.resource },
+			{ source: sourceModel2.resource, target: targetModel2.resource }
+		], true);
+
+		sourceModel1.dispose();
+		sourceModel2.dispose();
+		targetModel2.dispose();
+		assert.equal(eventCounter, 4);
+	});
+
 	test('move multiple - dirty file', async function () {
 		await testMoveOrCopy([
 			{ source: toResource.call(this, '/path/file1.txt'), target: toResource.call(this, '/path/file1_target.txt') },
@@ -91,6 +120,35 @@ suite('WorkingCopyFileService', () => {
 		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], false);
 	});
 
+	test('copy - source identical to target', async function () {
+		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
+
+		const eventCounter = await testEventsMoveOrCopy([{ source: sourceModel.resource, target: sourceModel.resource }]);
+
+		sourceModel.dispose();
+		assert.equal(eventCounter, 1);
+	});
+
+	test('copy - one source == target and another source != target', async function () {
+		let sourceModel1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file1.txt'), 'utf8', undefined);
+		let sourceModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file2.txt'), 'utf8', undefined);
+		let targetModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target2.txt'), 'utf8', undefined);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel1.resource, sourceModel1);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel2.resource, sourceModel2);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel2.resource, targetModel2);
+
+		const eventCounter = await testEventsMoveOrCopy([
+			{ source: sourceModel1.resource, target: sourceModel1.resource },
+			{ source: sourceModel2.resource, target: targetModel2.resource }
+		]);
+
+		sourceModel1.dispose();
+		sourceModel2.dispose();
+		targetModel2.dispose();
+		assert.equal(eventCounter, 4);
+	});
+
 	test('copy multiple - dirty file', async function () {
 		await testMoveOrCopy([
 			{ source: toResource.call(this, '/path/file1.txt'), target: toResource.call(this, '/path/file_target1.txt') },
@@ -102,6 +160,37 @@ suite('WorkingCopyFileService', () => {
 	test('copy - dirty file (target exists and is dirty)', async function () {
 		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], false, true);
 	});
+
+	async function testEventsMoveOrCopy(files: { source: URI, target: URI }[], move?: boolean): Promise<number> {
+		let eventCounter = 0;
+
+		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
+			participate: async files => {
+				for (let i = 0; i < files.length; i++) {
+					eventCounter++;
+				}
+			}
+		});
+
+		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
+			eventCounter++;
+		});
+
+		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
+			eventCounter++;
+		});
+
+		if (move) {
+			await accessor.workingCopyFileService.move(files, true);
+		} else {
+			await accessor.workingCopyFileService.copy(files, true);
+		}
+
+		participant.dispose();
+		listener1.dispose();
+		listener2.dispose();
+		return eventCounter;
+	}
 
 	async function testMoveOrCopy(files: { source: URI, target: URI }[], move: boolean, targetDirty?: boolean): Promise<void> {
 
