@@ -10,26 +10,32 @@ import { URI } from 'vs/base/common/uri';
 export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverService {
 
 	declare readonly _serviceBrand: undefined;
+	private readonly _cache: Map<string, ResolverResult>;
 
 	constructor(
 		resourceUriProvider: ((uri: URI) => URI) | undefined
 	) {
+		this._cache = new Map<string, ResolverResult>();
 		if (resourceUriProvider) {
 			RemoteAuthorities.setDelegate(resourceUriProvider);
 		}
 	}
 
-	resolveAuthority(authority: string): Promise<ResolverResult> {
-		if (authority.indexOf(':') >= 0) {
-			const pieces = authority.split(':');
-			return Promise.resolve(this._createResolvedAuthority(authority, pieces[0], parseInt(pieces[1], 10)));
+	async resolveAuthority(authority: string): Promise<ResolverResult> {
+		if (!this._cache.has(authority)) {
+			const result = this._doResolveAuthority(authority);
+			RemoteAuthorities.set(authority, result.authority.host, result.authority.port);
+			this._cache.set(authority, result);
 		}
-		return Promise.resolve(this._createResolvedAuthority(authority, authority, 80));
+		return this._cache.get(authority)!;
 	}
 
-	private _createResolvedAuthority(authority: string, host: string, port: number): ResolverResult {
-		RemoteAuthorities.set(authority, host, port);
-		return { authority: { authority, host, port } };
+	private _doResolveAuthority(authority: string): ResolverResult {
+		if (authority.indexOf(':') >= 0) {
+			const pieces = authority.split(':');
+			return { authority: { authority, host: pieces[0], port: parseInt(pieces[1], 10) } };
+		}
+		return { authority: { authority, host: authority, port: 80 } };
 	}
 
 	clearResolvedAuthority(authority: string): void {

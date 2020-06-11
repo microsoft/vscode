@@ -30,7 +30,7 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 		if (!this._resolveAuthorityRequests[authority]) {
 			let resolve: (value: ResolverResult) => void;
 			let reject: (err: any) => void;
-			let promise = new Promise<ResolverResult>((_resolve, _reject) => {
+			const promise = new Promise<ResolverResult>((_resolve, _reject) => {
 				resolve = _resolve;
 				reject = _reject;
 			});
@@ -48,7 +48,7 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 
 	setResolvedAuthority(resolvedAuthority: ResolvedAuthority, options?: ResolvedOptions) {
 		if (this._resolveAuthorityRequests[resolvedAuthority.authority]) {
-			let request = this._resolveAuthorityRequests[resolvedAuthority.authority];
+			const request = this._resolveAuthorityRequests[resolvedAuthority.authority];
 			RemoteAuthorities.set(resolvedAuthority.authority, resolvedAuthority.host, resolvedAuthority.port);
 			request.resolve({ authority: resolvedAuthority, options });
 		}
@@ -56,7 +56,7 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 
 	setResolvedAuthorityError(authority: string, err: any): void {
 		if (this._resolveAuthorityRequests[authority]) {
-			let request = this._resolveAuthorityRequests[authority];
+			const request = this._resolveAuthorityRequests[authority];
 			request.reject(err);
 		}
 	}
