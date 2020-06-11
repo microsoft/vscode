@@ -187,7 +187,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 			inputBoxContainer.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
-
+			inputBoxContainer.innerHTML = '';
 			if (finishEditing) {
 				this.debugService.getViewModel().setSelectedExpression(undefined);
 				options.onFinish(value, success);

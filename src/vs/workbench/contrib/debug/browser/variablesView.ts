@@ -145,9 +145,11 @@ export class VariablesView extends ViewPane {
 		}));
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
 			if (!e) {
-				this.tree.updateChildren(this.tree.getInput(), false);
+				this.tree.updateChildren(undefined, false);
+				return;
 			}
-			else if (e instanceof Variable) {
+
+			if (e instanceof Variable) {
 				this.tree.rerender(e);
 			}
 		}));
