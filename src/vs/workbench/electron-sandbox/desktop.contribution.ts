@@ -346,7 +346,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			},
 			'enable-proposed-api': {
 				type: 'array',
-				description: nls.localize('argv.enebleProposedApi', "Enable proposed APIs for a list of extension id's (such as \`vscode.git\`). Proposed APIs are unstable and subject to breaking without warning at any time. This should only be set for extension development and testing purposes."),
+				description: nls.localize('argv.enebleProposedApi', "Enable proposed APIs for a list of extension ids (such as \`vscode.git\`). Proposed APIs are unstable and subject to breaking without warning at any time. This should only be set for extension development and testing purposes."),
 				items: {
 					type: 'string'
 				}
