@@ -595,7 +595,8 @@
 	border-left-style: solid;
 }
 
-.monaco-workbench .notebookOverlay .cell.markdown code {
+.monaco-workbench .notebookOverlay .cell.markdown code,
+.monaco-workbench .notebookOverlay .cell.markdown .code {
 	font-family: var(--monaco-monospace-font);
 	font-size: 1em;
 	line-height: 1.357em;
