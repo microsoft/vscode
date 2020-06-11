@@ -47,6 +47,7 @@ export class VariablesView extends ViewPane {
 	private needsRefresh = false;
 	private tree!: WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>;
 	private savedViewState = new Map<string, IAsyncDataTreeViewState>();
+	private autoExpandedScopes = new Set<string>();
 
 	constructor(
 		options: IViewletViewOptions,
@@ -84,7 +85,8 @@ export class VariablesView extends ViewPane {
 			// Automatically expand the first scope if it is not expensive and if all scopes are collapsed
 			const scopes = await stackFrame.getScopes();
 			const toExpand = scopes.find(s => !s.expensive);
-			if (toExpand && scopes.every(s => this.tree.isCollapsed(s))) {
+			if (toExpand && (scopes.every(s => this.tree.isCollapsed(s)) || !this.autoExpandedScopes.has(toExpand.getId()))) {
+				this.autoExpandedScopes.add(toExpand.getId());
 				await this.tree.expand(toExpand);
 			}
 		}, 400);
@@ -144,7 +146,10 @@ export class VariablesView extends ViewPane {
 				this.tree.rerender(e);
 			}
 		}));
-		this._register(this.debugService.onDidEndSession(() => this.savedViewState.clear()));
+		this._register(this.debugService.onDidEndSession(() => {
+			this.savedViewState.clear();
+			this.autoExpandedScopes.clear();
+		}));
 	}
 
 	getActions(): IAction[] {
