@@ -30,7 +30,8 @@ export abstract class AbstractRemoteAgentService extends Disposable {
 	private _environment: Promise<IRemoteAgentEnvironment | null> | null;
 
 	constructor(
-		@IEnvironmentService protected readonly _environmentService: IEnvironmentService
+		@IEnvironmentService protected readonly _environmentService: IEnvironmentService,
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super();
 		this._environment = null;
@@ -41,7 +42,11 @@ export abstract class AbstractRemoteAgentService extends Disposable {
 	getEnvironment(bail?: boolean): Promise<IRemoteAgentEnvironment | null> {
 		if (!this._environment) {
 			this._environment = this._withChannel(
-				(channel, connection) => RemoteExtensionEnvironmentChannelClient.getEnvironmentData(channel, connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI),
+				async (channel, connection) => {
+					const env = await RemoteExtensionEnvironmentChannelClient.getEnvironmentData(channel, connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI);
+					this._remoteAuthorityResolverService._setAuthorityConnectionToken(connection.remoteAuthority, env.connectionToken);
+					return env;
+				},
 				null
 			);
 		}

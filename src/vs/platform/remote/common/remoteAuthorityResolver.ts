@@ -31,6 +31,12 @@ export interface ResolverResult {
 	tunnelInformation?: TunnelInformation;
 }
 
+export interface IRemoteConnectionData {
+	host: string;
+	port: number;
+	connectionToken: string | undefined;
+}
+
 export enum RemoteAuthorityResolverErrorCode {
 	Unknown = 'Unknown',
 	NotAvailable = 'NotAvailable',
@@ -80,8 +86,10 @@ export interface IRemoteAuthorityResolverService {
 	readonly _serviceBrand: undefined;
 
 	resolveAuthority(authority: string): Promise<ResolverResult>;
+	getConnectionData(authority: string): IRemoteConnectionData | null;
 
-	clearResolvedAuthority(authority: string): void;
-	setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void;
-	setResolvedAuthorityError(authority: string, err: any): void;
+	_clearResolvedAuthority(authority: string): void;
+	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void;
+	_setResolvedAuthorityError(authority: string, err: any): void;
+	_setAuthorityConnectionToken(authority: string, connectionToken: string): void;
 }

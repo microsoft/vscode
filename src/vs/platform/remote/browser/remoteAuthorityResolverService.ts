@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedAuthority, IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ResolvedAuthority, IRemoteAuthorityResolverService, ResolverResult, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAuthorities } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 
@@ -11,11 +11,13 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 
 	declare readonly _serviceBrand: undefined;
 	private readonly _cache: Map<string, ResolverResult>;
+	private readonly _connectionTokens: Map<string, string>;
 
 	constructor(
 		resourceUriProvider: ((uri: URI) => URI) | undefined
 	) {
 		this._cache = new Map<string, ResolverResult>();
+		this._connectionTokens = new Map<string, string>();
 		if (resourceUriProvider) {
 			RemoteAuthorities.setDelegate(resourceUriProvider);
 		}
@@ -30,6 +32,19 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 		return this._cache.get(authority)!;
 	}
 
+	getConnectionData(authority: string): IRemoteConnectionData | null {
+		if (!this._cache.has(authority)) {
+			return null;
+		}
+		const resolverResult = this._cache.get(authority)!;
+		const connectionToken = this._connectionTokens.get(authority);
+		return {
+			host: resolverResult.authority.host,
+			port: resolverResult.authority.port,
+			connectionToken: connectionToken
+		};
+	}
+
 	private _doResolveAuthority(authority: string): ResolverResult {
 		if (authority.indexOf(':') >= 0) {
 			const pieces = authority.split(':');
@@ -38,12 +53,17 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 		return { authority: { authority, host: authority, port: 80 } };
 	}
 
-	clearResolvedAuthority(authority: string): void {
+	_clearResolvedAuthority(authority: string): void {
 	}
 
-	setResolvedAuthority(resolvedAuthority: ResolvedAuthority) {
+	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority) {
 	}
 
-	setResolvedAuthorityError(authority: string, err: any): void {
+	_setResolvedAuthorityError(authority: string, err: any): void {
+	}
+
+	_setAuthorityConnectionToken(authority: string, connectionToken: string): void {
+		this._connectionTokens.set(authority, connectionToken);
+		RemoteAuthorities.setConnectionToken(authority, connectionToken);
 	}
 }

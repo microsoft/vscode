@@ -78,16 +78,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			remoteAuthority: remoteAuthority,
 			getInitData: async () => {
 				await this.whenInstalledExtensionsRegistered();
-				const resolverResult = await this._remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
+				const connectionData = this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) || undefined;
 				const remoteEnvironment = this._remoteExtensionsEnvironmentData!;
-				return {
-					connectionData: {
-						host: resolverResult.authority.host,
-						port: resolverResult.authority.port,
-						connectionToken: remoteEnvironment.connectionToken
-					},
-					remoteEnvironment: remoteEnvironment
-				};
+				return { connectionData, remoteEnvironment };
 			}
 		};
 	}

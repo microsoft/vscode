@@ -53,7 +53,6 @@ class DeltaExtensionsQueueItem {
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
 	private readonly _remoteEnvironment: Map<string, IRemoteAgentEnvironment>;
-	private readonly _remoteResolvedAuthority: Map<string, ResolverResult>;
 
 	private readonly _extensionScanner: CachedExtensionScanner;
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
@@ -97,7 +96,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 
 		this._remoteEnvironment = new Map<string, IRemoteAgentEnvironment>();
-		this._remoteResolvedAuthority = new Map<string, ResolverResult>();
 
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 		this._deltaExtensionsQueue = [];
@@ -348,16 +346,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			remoteAuthority: remoteAuthority,
 			getInitData: async () => {
 				await this.whenInstalledExtensionsRegistered();
+				const connectionData = this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) || undefined;
 				const remoteEnvironment = this._remoteEnvironment.get(remoteAuthority)!;
-				const resolvedAuthority = this._remoteResolvedAuthority.get(remoteAuthority)!.authority;
-				return {
-					connectionData: {
-						host: resolvedAuthority.host,
-						port: resolvedAuthority.port,
-						connectionToken: remoteEnvironment.connectionToken
-					},
-					remoteEnvironment: remoteEnvironment
-				};
+				return { connectionData, remoteEnvironment };
 			}
 		};
 	}
@@ -443,12 +434,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 
 		const extensionHost = this._extensionHostProcessManagers[0];
-		this._remoteAuthorityResolverService.clearResolvedAuthority(remoteAuthority);
+		this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
 		try {
 			const result = await extensionHost.resolveAuthority(remoteAuthority);
-			this._remoteAuthorityResolverService.setResolvedAuthority(result.authority, result.options);
+			this._remoteAuthorityResolverService._setResolvedAuthority(result.authority, result.options);
 		} catch (err) {
-			this._remoteAuthorityResolverService.setResolvedAuthorityError(remoteAuthority, err);
+			this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 		}
 	}
 
@@ -481,7 +472,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 						console.log(`Error handled: Not showing a notification for the error`);
 					}
 				}
-				this._remoteAuthorityResolverService.setResolvedAuthorityError(remoteAuthority, err);
+				this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 
 				// Proceed with the local extension host
 				await this._startLocalExtensionHost(extensionHost, localExtensions, localExtensions.map(extension => extension.identifier));
@@ -489,7 +480,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}
 
 			// set the resolved authority
-			this._remoteAuthorityResolverService.setResolvedAuthority(resolvedAuthority.authority, resolvedAuthority.options);
+			this._remoteAuthorityResolverService._setResolvedAuthority(resolvedAuthority.authority, resolvedAuthority.options);
 			this._remoteExplorerService.setTunnelInformation(resolvedAuthority.tunnelInformation);
 
 			// monitor for breakage
@@ -501,7 +492,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 						return;
 					}
 					if (e.type === PersistentConnectionEventType.ConnectionLost) {
-						this._remoteAuthorityResolverService.clearResolvedAuthority(remoteAuthority);
+						this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
 					}
 				});
 				connection.onReconnecting(() => this._resolveAuthorityAgain());
@@ -558,7 +549,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 			// save for remote extension's init data
 			this._remoteEnvironment.set(remoteAuthority, remoteEnv);
-			this._remoteResolvedAuthority.set(remoteAuthority, resolvedAuthority);
 
 			await this._startLocalExtensionHost(extensionHost, remoteEnv.extensions.concat(localExtensions), localExtensions.map(extension => extension.identifier));
 		} else {

@@ -26,7 +26,7 @@ export class RemoteAgentService extends AbstractRemoteAgentService implements IR
 		@ILogService logService: ILogService,
 		@IProductService productService: IProductService
 	) {
-		super(environmentService);
+		super(environmentService, remoteAuthorityResolverService);
 		this.socketFactory = nodeSocketFactory;
 		if (environmentService.configuration.remoteAuthority) {
 			this._connection = this._register(new RemoteAgentConnection(environmentService.configuration.remoteAuthority, productService.commit, nodeSocketFactory, remoteAuthorityResolverService, signService, logService));
