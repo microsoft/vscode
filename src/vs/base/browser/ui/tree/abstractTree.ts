@@ -1361,7 +1361,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.updateOptions({
 			enableKeyboardNavigation: this._options.simpleKeyboardNavigation,
 			automaticKeyboardNavigation: this._options.automaticKeyboardNavigation,
-			smoothScrolling: this._options.smoothScrolling
+			smoothScrolling: this._options.smoothScrolling,
+			horizontalScrolling: this._options.horizontalScrolling
 		});
 
 		if (this.typeFilterController) {
