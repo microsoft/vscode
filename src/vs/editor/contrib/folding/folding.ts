@@ -14,7 +14,7 @@ import { ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, registerInstantiatedEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateForType, toggleCollapseState, setCollapseStateUp } from 'vs/editor/contrib/folding/foldingModel';
+import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateForType, setCollapseStateForRest, toggleCollapseState, setCollapseStateUp } from 'vs/editor/contrib/folding/foldingModel';
 import { FoldingDecorationProvider, foldingCollapsedIcon, foldingExpandedIcon } from './foldingDecorations';
 import { FoldingRegions, FoldingRegion } from './foldingRanges';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -832,6 +832,51 @@ class UnfoldAllRegionsAction extends FoldingAction<void> {
 	}
 }
 
+class FoldAllRegionsExceptAction extends FoldingAction<void> {
+
+	constructor() {
+		super({
+			id: 'editor.foldAllExcept',
+			label: nls.localize('foldAllExcept.label', "Fold All Regions Except Selected"),
+			alias: 'Fold All Regions Except Selected',
+			precondition: CONTEXT_FOLDING_ENABLED,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_MINUS),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
+		let selectedLines = this.getSelectedLines(editor);
+		setCollapseStateForRest(foldingModel, true, selectedLines);
+	}
+
+}
+
+class UnfoldAllRegionsExceptAction extends FoldingAction<void> {
+
+	constructor() {
+		super({
+			id: 'editor.unfoldAllExcept',
+			label: nls.localize('unfoldAllExcept.label', "Unfold All Regions Except Selected"),
+			alias: 'Unfold All Regions Except Selected',
+			precondition: CONTEXT_FOLDING_ENABLED,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
+		let selectedLines = this.getSelectedLines(editor);
+		setCollapseStateForRest(foldingModel, false, selectedLines);
+	}
+}
+
 class FoldAllAction extends FoldingAction<void> {
 
 	constructor() {
@@ -897,6 +942,8 @@ registerEditorAction(UnfoldAllAction);
 registerEditorAction(FoldAllBlockCommentsAction);
 registerEditorAction(FoldAllRegionsAction);
 registerEditorAction(UnfoldAllRegionsAction);
+registerEditorAction(FoldAllRegionsExceptAction);
+registerEditorAction(UnfoldAllRegionsExceptAction);
 registerEditorAction(ToggleFoldAction);
 
 for (let i = 1; i <= 7; i++) {

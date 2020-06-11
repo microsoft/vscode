@@ -361,9 +361,25 @@ export function setCollapseStateUp(foldingModel: FoldingModel, doCollapse: boole
  * Folds or unfolds all regions that have a given level, except if they contain one of the blocked lines.
  * @param foldLevel level. Level == 1 is the top level
  * @param doCollapse Wheter to collase or expand
-*/
+ */
 export function setCollapseStateAtLevel(foldingModel: FoldingModel, foldLevel: number, doCollapse: boolean, blockedLineNumbers: number[]): void {
 	let filter = (region: FoldingRegion, level: number) => level === foldLevel && region.isCollapsed !== doCollapse && !blockedLineNumbers.some(line => region.containsLine(line));
+	let toToggle = foldingModel.getRegionsInside(null, filter);
+	foldingModel.toggleCollapseState(toToggle);
+}
+
+/**
+ * Folds or unfolds all regions, except if they contain one of the blocked lines.
+ * @param doCollapse Whether to collapse or expand
+ * @param blockedLineNumbers the location of regions to not collapse or expand
+ */
+export function setCollapseStateForRest(foldingModel: FoldingModel, doCollapse: boolean, blockedLineNumbers: number[]): void {
+	let filteredRegions: FoldingRegion[] = [];
+	for (let lineNumber of blockedLineNumbers) {
+		filteredRegions = filteredRegions.concat(foldingModel.getAllRegionsAtLine(lineNumber, undefined));
+	}
+	let filteredRegionsIndices: number[] = filteredRegions.map(region => region.regionIndex);
+	let filter = (region: FoldingRegion) => !filteredRegionsIndices.includes(region.regionIndex) && !region.containedBy(filteredRegions[0]) && region.isCollapsed !== doCollapse;
 	let toToggle = foldingModel.getRegionsInside(null, filter);
 	foldingModel.toggleCollapseState(toToggle);
 }
