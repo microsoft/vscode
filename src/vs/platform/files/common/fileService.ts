@@ -13,8 +13,8 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ILogService } from 'vs/platform/log/common/log';
-import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, bufferToStream, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { isReadableStream, transform, ReadableStreamEvents, consumeReadableWithLimit, consumeStreamWithLimit } from 'vs/base/common/stream';
+import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, bufferToStream, VSBufferReadableStream, VSBufferReadableBufferedStream, bufferedStreamToBuffer } from 'vs/base/common/buffer';
+import { isReadableStream, transform, peekReadable, peekStream, isReadableBufferedStream } from 'vs/base/common/stream';
 import { Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
@@ -320,22 +320,30 @@ export class FileService extends Disposable implements IFileService {
 			// to write is a Readable, we consume up to 3 chunks and try to write the data
 			// unbuffered to reduce the overhead. If the Readable has more data to provide
 			// we continue to write buffered.
+			let bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream;
 			if (hasReadWriteCapability(provider) && !(bufferOrReadableOrStream instanceof VSBuffer)) {
 				if (isReadableStream(bufferOrReadableOrStream)) {
-					bufferOrReadableOrStream = await consumeStreamWithLimit(bufferOrReadableOrStream, data => VSBuffer.concat(data), 3);
+					const bufferedStream = await peekStream(bufferOrReadableOrStream, 3);
+					if (bufferedStream.ended) {
+						bufferOrReadableOrStreamOrBufferedStream = VSBuffer.concat(bufferedStream.buffer);
+					} else {
+						bufferOrReadableOrStreamOrBufferedStream = bufferedStream;
+					}
 				} else {
-					bufferOrReadableOrStream = consumeReadableWithLimit(bufferOrReadableOrStream, data => VSBuffer.concat(data), 3);
+					bufferOrReadableOrStreamOrBufferedStream = peekReadable(bufferOrReadableOrStream, data => VSBuffer.concat(data), 3);
 				}
+			} else {
+				bufferOrReadableOrStreamOrBufferedStream = bufferOrReadableOrStream;
 			}
 
 			// write file: unbuffered (only if data to write is a buffer, or the provider has no buffered write capability)
-			if (!hasOpenReadWriteCloseCapability(provider) || (hasReadWriteCapability(provider) && bufferOrReadableOrStream instanceof VSBuffer)) {
-				await this.doWriteUnbuffered(provider, resource, bufferOrReadableOrStream, options);
+			if (!hasOpenReadWriteCloseCapability(provider) || (hasReadWriteCapability(provider) && bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer)) {
+				await this.doWriteUnbuffered(provider, resource, bufferOrReadableOrStreamOrBufferedStream, options);
 			}
 
 			// write file: buffered
 			else {
-				await this.doWriteBuffered(provider, resource, bufferOrReadableOrStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStream) : bufferOrReadableOrStream, options);
+				await this.doWriteBuffered(provider, resource, bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStreamOrBufferedStream) : bufferOrReadableOrStreamOrBufferedStream, options);
 			}
 		} catch (error) {
 			throw new FileOperationError(localize('err.write', "Unable to write file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options);
@@ -946,7 +954,7 @@ export class FileService extends Disposable implements IFileService {
 		return writeQueue;
 	}
 
-	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, readableOrStream: VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<void> {
+	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, readableOrStreamOrBufferedStream: VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream, options?: IWriteFileOptions): Promise<void> {
 		return this.ensureWriteQueue(provider, resource).queue(async () => {
 
 			// open handle
@@ -954,10 +962,10 @@ export class FileService extends Disposable implements IFileService {
 
 			// write into handle until all bytes from buffer have been written
 			try {
-				if (isReadableStream(readableOrStream)) {
-					await this.doWriteStreamBufferedQueued(provider, handle, readableOrStream, options);
+				if (isReadableStream(readableOrStreamOrBufferedStream) || isReadableBufferedStream(readableOrStreamOrBufferedStream)) {
+					await this.doWriteStreamBufferedQueued(provider, handle, readableOrStreamOrBufferedStream, options);
 				} else {
-					await this.doWriteReadableBufferedQueued(provider, handle, readableOrStream, options);
+					await this.doWriteReadableBufferedQueued(provider, handle, readableOrStreamOrBufferedStream, options);
 				}
 			} catch (error) {
 				throw ensureFileSystemProviderError(error);
@@ -969,9 +977,34 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private doWriteStreamBufferedQueued(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, handle: number, stream: VSBufferReadableStream, options?: IWriteFileOptions): Promise<void> {
-		return new Promise((resolve, reject) => {
-			let posInFile = 0;
+	private async doWriteStreamBufferedQueued(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, handle: number, streamOrBufferedStream: VSBufferReadableStream | VSBufferReadableBufferedStream, options?: IWriteFileOptions): Promise<void> {
+		let posInFile = 0;
+		let stream: VSBufferReadableStream;
+
+		// Buffered stream: consume the buffer first by writing
+		// it to the target before reading from the stream.
+		if (isReadableBufferedStream(streamOrBufferedStream)) {
+			if (streamOrBufferedStream.buffer.length > 0) {
+				const chunk = VSBuffer.concat(streamOrBufferedStream.buffer);
+				await this.doWriteBuffer(provider, handle, chunk, chunk.byteLength, posInFile, 0, options);
+
+				posInFile += chunk.byteLength;
+			}
+
+			// If the stream has been consumed, return early
+			if (streamOrBufferedStream.ended) {
+				return;
+			}
+
+			stream = streamOrBufferedStream.stream;
+		}
+
+		// Unbuffered stream - just take as is
+		else {
+			stream = streamOrBufferedStream;
+		}
+
+		return new Promise(async (resolve, reject) => {
 
 			stream.on('data', async chunk => {
 
@@ -1022,18 +1055,20 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	private async doWriteUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<void> {
-		return this.ensureWriteQueue(provider, resource).queue(() => this.doWriteUnbufferedQueued(provider, resource, bufferOrReadableOrStream, options));
+	private async doWriteUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream, options?: IWriteFileOptions): Promise<void> {
+		return this.ensureWriteQueue(provider, resource).queue(() => this.doWriteUnbufferedQueued(provider, resource, bufferOrReadableOrStreamOrBufferedStream, options));
 	}
 
-	private async doWriteUnbufferedQueued(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<void> {
+	private async doWriteUnbufferedQueued(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream, options?: IWriteFileOptions): Promise<void> {
 		let buffer: VSBuffer;
-		if (bufferOrReadableOrStream instanceof VSBuffer) {
-			buffer = bufferOrReadableOrStream;
-		} else if (isReadableStream(bufferOrReadableOrStream)) {
-			buffer = await streamToBuffer(bufferOrReadableOrStream);
+		if (bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer) {
+			buffer = bufferOrReadableOrStreamOrBufferedStream;
+		} else if (isReadableStream(bufferOrReadableOrStreamOrBufferedStream)) {
+			buffer = await streamToBuffer(bufferOrReadableOrStreamOrBufferedStream);
+		} else if (isReadableBufferedStream(bufferOrReadableOrStreamOrBufferedStream)) {
+			buffer = await bufferedStreamToBuffer(bufferOrReadableOrStreamOrBufferedStream);
 		} else {
-			buffer = readableToBuffer(bufferOrReadableOrStream);
+			buffer = readableToBuffer(bufferOrReadableOrStreamOrBufferedStream);
 		}
 
 		// Write through the provider
