@@ -109,6 +109,9 @@ function pipeLoggingToParent() {
 		return res;
 	}
 
+	/**
+	 * @param {{ type: string; severity: string; arguments: string; }} arg
+	 */
 	function safeSend(arg) {
 		try {
 			process.send(arg);
@@ -117,6 +120,9 @@ function pipeLoggingToParent() {
 		}
 	}
 
+	/**
+	 * @param {unknown} obj
+	 */
 	function isObject(obj) {
 		return typeof obj === 'object'
 			&& obj !== null

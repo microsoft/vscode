@@ -489,12 +489,21 @@ export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, 
 export function insert<T>(array: T[], element: T): () => void {
 	array.push(element);
 
-	return () => {
-		const index = array.indexOf(element);
-		if (index > -1) {
-			array.splice(index, 1);
-		}
-	};
+	return () => remove(array, element);
+}
+
+/**
+ * Removes an element from an array if it can be found.
+ */
+export function remove<T>(array: T[], element: T): T | undefined {
+	const index = array.indexOf(element);
+	if (index > -1) {
+		array.splice(index, 1);
+
+		return element;
+	}
+
+	return undefined;
 }
 
 /**

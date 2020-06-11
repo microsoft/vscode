@@ -127,7 +127,10 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 	$setOptions(handle: number, options: modes.IWebviewOptions): void {
 		const inset = this.getInset(handle);
-		inset.webview.contentOptions = options;
+		inset.webview.contentOptions = {
+			...options,
+			localResourceRoots: options.localResourceRoots?.map(components => URI.from(components)),
+		};
 	}
 
 	async $postMessage(handle: number, value: any): Promise<boolean> {

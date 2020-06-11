@@ -11,7 +11,7 @@ import * as json from 'vs/base/common/json';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, IReference } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { TerminateResponseCode } from 'vs/base/common/processes';
@@ -72,7 +72,7 @@ import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomat
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { format } from 'vs/base/common/jsonFormatter';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
@@ -1051,7 +1051,29 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return false;
 	}
 
-	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | string | undefined): Promise<boolean> {
+	private async formatTaskForJson(resource: URI, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask): Promise<string> {
+		let reference: IReference<IResolvedTextEditorModel> | undefined;
+		let stringValue: string = '';
+		try {
+			reference = await this.textModelResolverService.createModelReference(resource);
+			const model = reference.object.textEditorModel;
+			const { tabSize, insertSpaces } = model.getOptions();
+			const eol = model.getEOL();
+			const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
+			let stringified = applyEdits(JSON.stringify(task), edits);
+			const regex = new RegExp(eol + '\\t', 'g');
+			stringified = stringified.replace(regex, eol + '\t\t\t');
+			const twoTabs = '\t\t';
+			stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
+		} finally {
+			if (reference) {
+				reference.dispose();
+			}
+		}
+		return stringValue;
+	}
+
+	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | string | undefined, configIndex: number = -1): Promise<boolean> {
 		if (resource === undefined) {
 			return Promise.resolve(false);
 		}
@@ -1062,19 +1084,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			if (task) {
 				const contentValue = content.toString();
-				let stringValue: string;
-				if (typeof task === 'string') {
-					stringValue = task;
-				} else {
-					const model = (await this.textModelResolverService.createModelReference(resource)).object.textEditorModel;
-					const { tabSize, insertSpaces } = model.getOptions();
-					const eol = model.getEOL();
-					const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
-					let stringified = applyEdits(JSON.stringify(task), edits);
-					const regex = new RegExp(eol + '\\t', 'g');
-					stringified = stringified.replace(regex, eol + '\t\t\t');
-					const twoTabs = '\t\t';
-					stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
+				let stringValue: string | undefined;
+				if (configIndex !== -1) {
+					const json: TaskConfig.ExternalTaskRunnerConfiguration = JSON.parse(contentValue);
+					if (json.tasks && (json.tasks.length > configIndex)) {
+						stringValue = await this.formatTaskForJson(resource, json.tasks[configIndex]);
+					}
+				}
+				if (!stringValue) {
+					if (typeof task === 'string') {
+						stringValue = task;
+					} else {
+						stringValue = await this.formatTaskForJson(resource, task);
+					}
 				}
 
 				const index = contentValue.indexOf(stringValue);
@@ -1272,14 +1294,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	public openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean> {
+	public async openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean> {
 		let resource: URI | undefined;
 		if (task) {
 			resource = this.getResourceForTask(task);
 		} else {
 			resource = (this._workspaceFolders && (this._workspaceFolders.length > 0)) ? this._workspaceFolders[0].toResource('.vscode/tasks.json') : undefined;
 		}
-		return this.openEditorAtTask(resource, task ? task._label : undefined);
+		return this.openEditorAtTask(resource, task ? task._label : undefined, task ? task._source.config.index : -1);
 	}
 
 	private createRunnableTask(tasks: TaskMap, group: TaskGroup): { task: Task; resolver: ITaskResolver } | undefined {
@@ -2507,38 +2529,58 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			location: ProgressLocation.Window,
 			title: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...')
 		};
-		let promise = this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
-			if (tasks.length > 0) {
-				let { defaults, users } = this.splitPerGroupType(tasks);
-				if (defaults.length === 1) {
-					this.run(defaults[0]).then(undefined, reason => {
-						// eat the error, it has already been surfaced to the user and we don't care about it here
-					});
-					return;
-				} else if (defaults.length + users.length > 0) {
-					tasks = defaults.concat(users);
+		let promise = this.getWorkspaceTasks().then(tasks => {
+			const buildTasks: ConfiguringTask[] = [];
+			for (const taskSource of tasks) {
+				for (const task in taskSource[1].configurations?.byIdentifier) {
+					if ((taskSource[1].configurations?.byIdentifier[task].configurationProperties.group === TaskGroup.Build) &&
+						(taskSource[1].configurations?.byIdentifier[task].configurationProperties.groupType === GroupType.default)) {
+						buildTasks.push(taskSource[1].configurations.byIdentifier[task]);
+					}
 				}
 			}
-			this.showIgnoredFoldersMessage().then(() => {
-				this.showQuickPick(tasks,
-					nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
-					{
-						label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...'),
-						task: null
-					},
-					true).then((entry) => {
-						let task: Task | undefined | null = entry ? entry.task : undefined;
-						if (task === undefined) {
-							return;
-						}
-						if (task === null) {
-							this.runConfigureDefaultBuildTask();
-							return;
-						}
-						this.run(task, { attachProblemMatcher: true }).then(undefined, reason => {
+			if (buildTasks.length === 1) {
+				this.tryResolveTask(buildTasks[0]).then(resolvedTask => {
+					this.run(resolvedTask).then(undefined, reason => {
+						// eat the error, it has already been surfaced to the user and we don't care about it here
+					});
+				});
+				return;
+			}
+
+			return this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
+				if (tasks.length > 0) {
+					let { defaults, users } = this.splitPerGroupType(tasks);
+					if (defaults.length === 1) {
+						this.run(defaults[0]).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
 						});
-					});
+						return;
+					} else if (defaults.length + users.length > 0) {
+						tasks = defaults.concat(users);
+					}
+				}
+				this.showIgnoredFoldersMessage().then(() => {
+					this.showQuickPick(tasks,
+						nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
+						{
+							label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...'),
+							task: null
+						},
+						true).then((entry) => {
+							let task: Task | undefined | null = entry ? entry.task : undefined;
+							if (task === undefined) {
+								return;
+							}
+							if (task === null) {
+								this.runConfigureDefaultBuildTask();
+								return;
+							}
+							this.run(task, { attachProblemMatcher: true }).then(undefined, reason => {
+								// eat the error, it has already been surfaced to the user and we don't care about it here
+							});
+						});
+				});
 			});
 		});
 		this.progressService.withProgress(options, () => promise);

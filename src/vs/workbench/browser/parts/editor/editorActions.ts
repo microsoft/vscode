@@ -1339,7 +1339,8 @@ export class QuickAccessPreviousEditorFromHistoryAction extends Action {
 		id: string,
 		label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -1347,7 +1348,14 @@ export class QuickAccessPreviousEditorFromHistoryAction extends Action {
 	async run(): Promise<void> {
 		const keybindings = this.keybindingService.lookupKeybindings(this.id);
 
-		this.quickInputService.quickAccess.show('', { quickNavigateConfiguration: { keybindings } });
+		// Enforce to activate the first item in quick access if
+		// the currently active editor group has n editor opened
+		let itemActivation: ItemActivation | undefined = undefined;
+		if (this.editorGroupService.activeGroup.count === 0) {
+			itemActivation = ItemActivation.FIRST;
+		}
+
+		this.quickInputService.quickAccess.show('', { quickNavigateConfiguration: { keybindings }, itemActivation });
 	}
 }
 

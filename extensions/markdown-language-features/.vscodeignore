@@ -3,7 +3,9 @@ src/**
 tsconfig.json
 out/test/**
 out/**
+polyfills/**
 extension.webpack.config.js
+extension-browser.webpack.config.js
 cgmanifest.json
 yarn.lock
 preview-src/**

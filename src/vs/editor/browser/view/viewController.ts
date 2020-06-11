@@ -6,7 +6,7 @@
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { CoreEditorCommand, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IEditorMouseEvent, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
+import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
@@ -49,18 +49,18 @@ export class ViewController {
 
 	private readonly configuration: IConfiguration;
 	private readonly viewModel: IViewModel;
-	private readonly outgoingEvents: ViewOutgoingEvents;
+	private readonly userInputEvents: ViewUserInputEvents;
 	private readonly commandDelegate: ICommandDelegate;
 
 	constructor(
 		configuration: IConfiguration,
 		viewModel: IViewModel,
-		outgoingEvents: ViewOutgoingEvents,
+		userInputEvents: ViewUserInputEvents,
 		commandDelegate: ICommandDelegate
 	) {
 		this.configuration = configuration;
 		this.viewModel = viewModel;
-		this.outgoingEvents = outgoingEvents;
+		this.userInputEvents = userInputEvents;
 		this.commandDelegate = commandDelegate;
 	}
 
@@ -289,42 +289,42 @@ export class ViewController {
 	}
 
 	public emitKeyDown(e: IKeyboardEvent): void {
-		this.outgoingEvents.emitKeyDown(e);
+		this.userInputEvents.emitKeyDown(e);
 	}
 
 	public emitKeyUp(e: IKeyboardEvent): void {
-		this.outgoingEvents.emitKeyUp(e);
+		this.userInputEvents.emitKeyUp(e);
 	}
 
 	public emitContextMenu(e: IEditorMouseEvent): void {
-		this.outgoingEvents.emitContextMenu(e);
+		this.userInputEvents.emitContextMenu(e);
 	}
 
 	public emitMouseMove(e: IEditorMouseEvent): void {
-		this.outgoingEvents.emitMouseMove(e);
+		this.userInputEvents.emitMouseMove(e);
 	}
 
 	public emitMouseLeave(e: IPartialEditorMouseEvent): void {
-		this.outgoingEvents.emitMouseLeave(e);
+		this.userInputEvents.emitMouseLeave(e);
 	}
 
 	public emitMouseUp(e: IEditorMouseEvent): void {
-		this.outgoingEvents.emitMouseUp(e);
+		this.userInputEvents.emitMouseUp(e);
 	}
 
 	public emitMouseDown(e: IEditorMouseEvent): void {
-		this.outgoingEvents.emitMouseDown(e);
+		this.userInputEvents.emitMouseDown(e);
 	}
 
 	public emitMouseDrag(e: IEditorMouseEvent): void {
-		this.outgoingEvents.emitMouseDrag(e);
+		this.userInputEvents.emitMouseDrag(e);
 	}
 
 	public emitMouseDrop(e: IPartialEditorMouseEvent): void {
-		this.outgoingEvents.emitMouseDrop(e);
+		this.userInputEvents.emitMouseDrop(e);
 	}
 
 	public emitMouseWheel(e: IMouseWheelEvent): void {
-		this.outgoingEvents.emitMouseWheel(e);
+		this.userInputEvents.emitMouseWheel(e);
 	}
 }

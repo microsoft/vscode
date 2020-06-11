@@ -11,7 +11,7 @@ import { tail } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
+import { extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -71,7 +71,7 @@ class Item extends BreadcrumbsItem {
 			return false;
 		}
 		if (this.element instanceof FileElement && other.element instanceof FileElement) {
-			return (isEqual(this.element.uri, other.element.uri, false) &&
+			return (extUri.isEqual(this.element.uri, other.element.uri) &&
 				this.options.showFileIcons === other.options.showFileIcons &&
 				this.options.showSymbolIcons === other.options.showSymbolIcons);
 		}

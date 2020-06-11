@@ -17,6 +17,7 @@ import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
+import { equals } from '../utils/objects';
 
 const localize = nls.loadMessageBundle();
 
@@ -147,7 +148,22 @@ class CodeActionSet {
 	}
 
 	public addAction(action: VsCodeCodeAction) {
+		for (const existing of this._actions) {
+			if (action.tsAction.fixName === existing.tsAction.fixName && equals(action.edit, existing.edit)) {
+				this._actions.delete(existing);
+			}
+		}
+
 		this._actions.add(action);
+
+		if (action.tsAction.fixId) {
+			// If we have an existing fix all action, then make sure it follows this action
+			const existingFixAll = this._fixAllActions.get(action.tsAction.fixId);
+			if (existingFixAll) {
+				this._actions.delete(existingFixAll);
+				this._actions.add(existingFixAll);
+			}
+		}
 	}
 
 	public addFixAllAction(fixId: {}, action: VsCodeCodeAction) {
@@ -338,7 +354,7 @@ const preferredFixes = new Map<string, { readonly value: number, readonly thereC
 	[fixNames.constructorForDerivedNeedSuperCall, { value: 1 }],
 	[fixNames.extendsInterfaceBecomesImplements, { value: 1 }],
 	[fixNames.awaitInSyncFunction, { value: 1 }],
-	[fixNames.classIncorrectlyImplementsInterface, { value: 1 }],
+	[fixNames.classIncorrectlyImplementsInterface, { value: 3 }],
 	[fixNames.unreachableCode, { value: 1 }],
 	[fixNames.unusedIdentifier, { value: 1 }],
 	[fixNames.forgottenThisPropertyAccess, { value: 1 }],
@@ -372,6 +388,8 @@ function isPreferredFix(
 		const otherFixPriority = preferredFixes.get(otherAction.tsAction.fixName);
 		if (!otherFixPriority || otherFixPriority.value < fixPriority.value) {
 			return true;
+		} else if (otherFixPriority.value > fixPriority.value) {
+			return false;
 		}
 
 		if (fixPriority.thereCanOnlyBeOne && action.tsAction.fixName === otherAction.tsAction.fixName) {

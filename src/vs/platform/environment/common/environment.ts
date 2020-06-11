@@ -26,7 +26,7 @@ export interface IEnvironmentService {
 	// UNLESS THIS PROPERTY IS SUPPORTED BOTH IN WEB AND DESKTOP!!!!
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	// --- user roaming data
 	userRoamingDataHome: URI;

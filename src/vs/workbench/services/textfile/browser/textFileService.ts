@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { isEqual, joinPath, dirname, basename, toLocalResource } from 'vs/base/common/resources';
+import { joinPath, dirname, basename, toLocalResource } from 'vs/base/common/resources';
 import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
@@ -34,13 +34,14 @@ import { suggestFilename } from 'vs/base/common/mime';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
  */
 export abstract class AbstractTextFileService extends Disposable implements ITextFileService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	//#region events
 
@@ -69,7 +70,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IPathService private readonly pathService: IPathService,
-		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService
+		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -223,7 +225,18 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Just save if target is same as models own resource
 		if (source.toString() === target.toString()) {
-			return this.save(source, options);
+			return this.save(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
+		}
+
+		// If the target is different but of same identity, we
+		// move the source to the target, knowing that the
+		// underlying file system cannot have both and then save.
+		// However, this will only work if the source exists
+		// and is not orphaned, so we need to check that too.
+		if (this.fileService.canHandleResource(source) && this.uriIdentityService.extUri.isEqual(source, target) && (await this.fileService.exists(source))) {
+			await this.workingCopyFileService.move(source, target);
+
+			return this.save(target, options);
 		}
 
 		// Do it
@@ -251,11 +264,13 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Next, if the source does not seem to be a file, we try to
 		// resolve a text model from the resource to get at the
 		// contents and additional meta data (e.g. encoding).
-		else if (this.textModelService.hasTextModelContentProvider(source.scheme)) {
+		else if (this.textModelService.canHandleResource(source)) {
 			const modelReference = await this.textModelService.createModelReference(source);
-			success = await this.doSaveAsTextFile(modelReference.object, source, target, options);
-
-			modelReference.dispose(); // free up our use of the reference
+			try {
+				success = await this.doSaveAsTextFile(modelReference.object, source, target, options);
+			} finally {
+				modelReference.dispose(); // free up our use of the reference
+			}
 		}
 
 		// Finally we simply check if we can find a editor model that
@@ -327,7 +342,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// path. This can happen if the file was created after the untitled file was opened.
 		// See https://github.com/Microsoft/vscode/issues/67946
 		let write: boolean;
-		if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.configuration.remoteAuthority))) {
+		if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && this.uriIdentityService.extUri.isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.configuration.remoteAuthority))) {
 			write = await this.confirmOverwrite(target);
 		} else {
 			write = true;

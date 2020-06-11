@@ -164,7 +164,7 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 		case ShellType.bash:
 
 			quote = (s: string) => {
-				s = s.replace(/(["'\\])/g, '\\$1');
+				s = s.replace(/(["'\\\$])/g, '\\$1');
 				return (s.indexOf(' ') >= 0 || s.indexOf(';') >= 0 || s.length === 0) ? `"${s}"` : s;
 			};
 

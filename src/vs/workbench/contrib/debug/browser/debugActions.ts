@@ -8,11 +8,12 @@ import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Variable, Breakpoint, FunctionBreakpoint, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { deepClone } from 'vs/base/common/objects';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -129,7 +130,8 @@ export class StartAction extends AbstractDebugAction {
 
 	async run(): Promise<boolean> {
 		let { launch, name, config } = this.debugService.getConfigurationManager().selectedConfiguration;
-		return this.debugService.startDebugging(launch, config || name, { noDebug: this.isNoDebug() });
+		const clonedConfig = deepClone(config);
+		return this.debugService.startDebugging(launch, clonedConfig || name, { noDebug: this.isNoDebug() });
 	}
 
 	protected isNoDebug(): boolean {
@@ -142,7 +144,10 @@ export class StartAction extends AbstractDebugAction {
 		if (debugService.state === State.Initializing) {
 			return false;
 		}
-		if ((sessions.length > 0) && !debugService.getConfigurationManager().selectedConfiguration.name) {
+		let { name, config } = debugService.getConfigurationManager().selectedConfiguration;
+		let nameToStart = name || config?.name;
+
+		if (sessions.some(s => s.configuration.name === nameToStart)) {
 			// There is already a debug session running and we do not have any launch configuration selected
 			return false;
 		}
@@ -380,12 +385,12 @@ export class CopyValueAction extends Action {
 	static readonly LABEL = nls.localize('copyValue', "Copy Value");
 
 	constructor(
-		id: string, label: string, private value: Variable | string, private context: string,
+		id: string, label: string, private value: Variable | Expression, private context: string,
 		@IDebugService private readonly debugService: IDebugService,
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
-		super(id, label, 'debug-action copy-value');
-		this._enabled = typeof this.value === 'string' || (this.value instanceof Variable && !!this.value.evaluateName);
+		super(id, label);
+		this._enabled = (this.value instanceof Expression) || (this.value instanceof Variable && !!this.value.evaluateName);
 	}
 
 	async run(): Promise<any> {
@@ -396,7 +401,7 @@ export class CopyValueAction extends Action {
 		}
 
 		const context = session.capabilities.supportsClipboardContext ? 'clipboard' : this.context;
-		const toEvaluate = typeof this.value === 'string' ? this.value : this.value.evaluateName || this.value.value;
+		const toEvaluate = this.value instanceof Variable ? (this.value.evaluateName || this.value.value) : this.value.name;
 
 		try {
 			const evaluation = await session.evaluate(toEvaluate, stackFrame.frameId, context);
