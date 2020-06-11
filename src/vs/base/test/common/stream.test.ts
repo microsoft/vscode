@@ -236,6 +236,7 @@ suite('Stream', () => {
 		assert.ok(!error);
 
 		stream.on('error', err => error = err);
+		stream.on('data', chunk => { });
 		assert.ok(error);
 	});
 
