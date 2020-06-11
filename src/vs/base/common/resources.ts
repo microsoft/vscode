@@ -313,11 +313,6 @@ export class ExtUri implements IExtUri {
 	}
 }
 
-export const extUriBiasedIgnorePathCase = new ExtUri(uri => {
-	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
-	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
-	return uri.scheme === Schemas.file ? !isLinux : true;
-});
 
 /**
  * Unbiased utility that takes uris "as they are". This means it can be interchanged with
@@ -329,11 +324,33 @@ export const extUriBiasedIgnorePathCase = new ExtUri(uri => {
 export const extUri = new ExtUri(() => false);
 
 /**
- * BIASED utility that always ignores the casing of uris path. ONLY use these util if you
+ * BIASED utility that _mostly_ ignored the case of urs paths. ONLY use this util if you
  * understand what you are doing.
  *
- * Note that `IUriIdentityService#extUri` is a better replacement for this because that utility
- * knows when path casing matters and when not.
+ * This utility is INCOMPATIBLE with `uri.toString()`-usages and both CANNOT be used interchanged.
+ *
+ * When dealing with uris from files or documents, `extUri` (the unbiased friend)is sufficient
+ * because those uris come from a "trustworthy source". When creating unknown uris it's always
+ * better to use `IUriIdentityService` which exposes an `IExtUri`-instance which knows when path
+ * casing matters.
+ */
+export const extUriBiasedIgnorePathCase = new ExtUri(uri => {
+	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
+	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
+	return uri.scheme === Schemas.file ? !isLinux : true;
+});
+
+
+/**
+ * BIASED utility that always ignores the casing of uris paths. ONLY use this util if you
+ * understand what you are doing.
+ *
+ * This utility is INCOMPATIBLE with `uri.toString()`-usages and both CANNOT be used interchanged.
+ *
+ * When dealing with uris from files or documents, `extUri` (the unbiased friend)is sufficient
+ * because those uris come from a "trustworthy source". When creating unknown uris it's always
+ * better to use `IUriIdentityService` which exposes an `IExtUri`-instance which knows when path
+ * casing matters.
  */
 export const extUriIgnorePathCase = new ExtUri(_ => true);
 
