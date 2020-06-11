@@ -2,11 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-import * as path from 'path';
-import * as fs from 'fs';
 import * as nls from 'vscode-nls';
-import { xhr, XHRResponse, getErrorStatusDescription } from 'request-light';
 
 const localize = nls.loadMessageBundle();
 
@@ -16,13 +12,13 @@ import {
 	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString,
 } from 'vscode';
 import {
-	LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType,
+	LanguageClientOptions, RequestType, NotificationType,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
-	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, CommonLanguageClient
 } from 'vscode-languageclient';
-import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { hash } from './utils/hash';
+import { RequestService, joinPath } from './requests';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
@@ -53,13 +49,6 @@ namespace ResultLimitReachedNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/resultLimitReached');
 }
 
-interface IPackageInfo {
-	name: string;
-	version: string;
-	aiKey: string;
-	main: string;
-}
-
 interface Settings {
 	json?: {
 		schemas?: JSONSchemaSettings[];
@@ -84,29 +73,27 @@ namespace SettingIds {
 	export const maxItemsComputed = 'json.maxItemsComputed';
 }
 
-let telemetryReporter: TelemetryReporter | undefined;
+export interface TelemetryReporter {
+	sendTelemetryEvent(eventName: string, properties?: {
+		[key: string]: string;
+	}, measurements?: {
+		[key: string]: number;
+	}): void;
+}
 
-export function activate(context: ExtensionContext) {
+export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
+
+export interface Runtime {
+	http: RequestService;
+	telemetry?: TelemetryReporter
+}
+
+export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
 
 	const toDispose = context.subscriptions;
 
 	let rangeFormatting: Disposable | undefined = undefined;
 
-	let clientPackageJSON = getPackageInfo(context);
-	telemetryReporter = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
-
-	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/jsonServerMain`;
-	const serverModule = context.asAbsolutePath(serverMain);
-
-	// The debug options for the server
-	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (9000 + Math.round(Math.random() * 10000))] };
-
-	// If the extension is launch in debug mode the debug server options are use
-	// Otherwise the run options are used
-	const serverOptions: ServerOptions = {
-		run: { module: serverModule, transport: TransportKind.ipc },
-		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
-	};
 
 	const documentSelector = ['json', 'jsonc'];
 
@@ -203,7 +190,7 @@ export function activate(context: ExtensionContext) {
 	};
 
 	// Create the language client and start the client.
-	const client = new LanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), serverOptions, clientOptions);
+	const client = newLanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), clientOptions);
 	client.registerProposedFeatures();
 
 	const disposable = client.start();
@@ -225,24 +212,15 @@ export function activate(context: ExtensionContext) {
 					return Promise.reject(new ResponseError(2, error.toString()));
 				});
 			} else if (schemaDownloadEnabled) {
-				if (telemetryReporter && uri.authority === 'schema.management.azure.com') {
+				if (runtime.telemetry && uri.authority === 'schema.management.azure.com') {
 					/* __GDPR__
 						"json.schema" : {
 							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
 					 */
-					telemetryReporter.sendTelemetryEvent('json.schema', { schemaURL: uriPath });
+					runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: uriPath });
 				}
-				const headers = { 'Accept-Encoding': 'gzip, deflate' };
-				return xhr({ url: uriPath, followRedirects: 5, headers }).then(response => {
-					return response.responseText;
-				}, (error: XHRResponse) => {
-					let extraInfo = error.responseText || error.toString();
-					if (extraInfo.length > 256) {
-						extraInfo = `${extraInfo.substr(0, 256)}...`;
-					}
-					return Promise.reject(new ResponseError(error.status, getErrorStatusDescription(error.status) + '\n' + extraInfo));
-				});
+				return runtime.http.getContent(uriPath);
 			} else {
 				return Promise.reject(new ResponseError(1, localize('schemaDownloadDisabled', 'Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload)));
 			}
@@ -340,7 +318,7 @@ export function activate(context: ExtensionContext) {
 						return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
 							client.protocol2CodeConverter.asTextEdits,
 							(error) => {
-								client.logFailedRequest(DocumentRangeFormattingRequest.type, error);
+								client.handleFailedRequest(DocumentRangeFormattingRequest.type, error, []);
 								return Promise.resolve([]);
 							}
 						);
@@ -375,12 +353,6 @@ export function activate(context: ExtensionContext) {
 
 }
 
-
-
-export function deactivate(): Promise<any> {
-	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
-}
-
 function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[] {
 	const associations: ISchemaAssociation[] = [];
 	extensions.all.forEach(extension => {
@@ -393,9 +365,10 @@ function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[]
 					if (typeof fileMatch === 'string') {
 						fileMatch = [fileMatch];
 					}
-					if (Array.isArray(fileMatch) && url) {
-						if (url[0] === '.' && url[1] === '/') {
-							url = Uri.file(path.join(extension.extensionPath, url)).toString();
+					if (Array.isArray(fileMatch) && typeof url === 'string') {
+						let uri: string = url;
+						if (uri[0] === '.' && uri[1] === '/') {
+							uri = joinPath(extension.extensionUri, uri).toString();
 						}
 						fileMatch = fileMatch.map(fm => {
 							if (fm[0] === '%') {
@@ -407,7 +380,7 @@ function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[]
 							}
 							return fm;
 						});
-						associations.push({ fileMatch, uri: url });
+						associations.push({ fileMatch, uri });
 					}
 				});
 			}
@@ -509,26 +482,16 @@ function getSettings(): Settings {
 	return settings;
 }
 
-function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri) {
+function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri): string | undefined {
 	let url = schema.url;
 	if (!url) {
 		if (schema.schema) {
 			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
 		}
 	} else if (folderUri && (url[0] === '.' || url[0] === '/')) {
-		url = folderUri.with({ path: path.posix.join(folderUri.path, url) }).toString();
+		url = joinPath(folderUri, url).toString();
 	}
 	return url;
-}
-
-function getPackageInfo(context: ExtensionContext): IPackageInfo {
-	const location = context.asAbsolutePath('./package.json');
-	try {
-		return JSON.parse(fs.readFileSync(location).toString());
-	} catch (e) {
-		console.log(`Problems reading ${location}: ${e}`);
-		return { name: '', version: '', aiKey: '', main: '' };
-	}
 }
 
 function isThenable<T>(obj: ProviderResult<T>): obj is Thenable<T> {
