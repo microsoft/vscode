@@ -9,12 +9,6 @@
 
 const withDefaults = require('../shared.webpack.config');
 const path = require('path');
-const webpack = require('webpack');
-
-const vscodeNlsReplacement = new webpack.NormalModuleReplacementPlugin(
-	/vscode\-nls[\\/]lib[\\/]main\.js/,
-	path.join(__dirname, 'client/out/browser/vscodeNlsShim.js')
-);
 
 const clientConfig = withDefaults({
 	target: 'webworker',
@@ -25,9 +19,16 @@ const clientConfig = withDefaults({
 	output: {
 		filename: 'cssClientMain.js',
 		path: path.join(__dirname, 'client', 'dist', 'browser')
+	},
+	performance: {
+		hints: false
+	},
+	resolve: {
+		alias: {
+			'vscode-nls': path.resolve(__dirname, 'polyfills/vscode-nls.js')
+		}
 	}
 });
-clientConfig.plugins[1] = vscodeNlsReplacement; // replace nls bundler
 clientConfig.module.rules[0].use.shift(); // remove nls loader
 
 module.exports = clientConfig;
