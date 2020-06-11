@@ -18,7 +18,7 @@ import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/context
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { BaseCellRenderTemplate, CellEditState, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_HAS_OUTPUTS, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_HAS_OUTPUTS, CellFocusMode, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -30,8 +30,8 @@ const NOTEBOOK_FOCUS_TOP = 'notebook.focusTop';
 const NOTEBOOK_FOCUS_BOTTOM = 'notebook.focusBottom';
 const NOTEBOOK_REDO = 'notebook.redo';
 const NOTEBOOK_UNDO = 'notebook.undo';
-const NOTEBOOK_CURSOR_UP = 'notebook.cursorUp';
-const NOTEBOOK_CURSOR_DOWN = 'notebook.cursorDown';
+const NOTEBOOK_FOCUS_PREVIOUS_EDITOR = 'notebook.focusPreviousEditor';
+const NOTEBOOK_FOCUS_NEXT_EDITOR = 'notebook.focusNextEditor';
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const RENDER_ALL_MARKDOWN_CELLS = 'notebook.renderAllMarkdownCells';
 
@@ -864,19 +864,26 @@ registerAction2(class extends NotebookAction {
 registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
-			id: NOTEBOOK_CURSOR_DOWN,
-			title: localize('cursorMoveDown', 'Cursor Move Down'),
-			f1: false,
-			keybinding: {
-				when: ContextKeyExpr.and(
-					NOTEBOOK_EDITOR_FOCUSED,
-					ContextKeyExpr.has(InputFocusedContextKey),
-					EditorContextKeys.editorTextFocus,
-					NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'),
-					NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
-				primary: KeyCode.DownArrow,
-				weight: EDITOR_WIDGET_ACTION_WEIGHT
-			}
+			id: NOTEBOOK_FOCUS_NEXT_EDITOR,
+			title: localize('cursorMoveDown', 'Focus Next Cell Editor'),
+			keybinding: [
+				{
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						ContextKeyExpr.has(InputFocusedContextKey),
+						EditorContextKeys.editorTextFocus,
+						NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'),
+						NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
+					primary: KeyCode.DownArrow,
+					weight: EDITOR_WIDGET_ACTION_WEIGHT
+				},
+				{
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED),
+					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+					mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.DownArrow, },
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			]
 		});
 	}
 
@@ -902,9 +909,8 @@ registerAction2(class extends NotebookAction {
 registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
-			id: NOTEBOOK_CURSOR_UP,
-			title: localize('cursorMoveUp', 'Cursor Move Up'),
-			f1: false,
+			id: NOTEBOOK_FOCUS_PREVIOUS_EDITOR,
+			title: localize('cursorMoveUp', 'Focus Previous Cell Editor'),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					NOTEBOOK_EDITOR_FOCUSED,

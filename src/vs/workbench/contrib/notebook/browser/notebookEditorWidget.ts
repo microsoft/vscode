@@ -28,7 +28,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_BOTTOM_PADDING, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, SCROLLABLE_ELEMENT_PADDING_TOP, BOTTOM_CELL_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -84,6 +84,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private dimension: DOM.Dimension | null = null;
 	private shadowElementViewInfo: { height: number, width: number, top: number; left: number; } | null = null;
 	private editorFocus: IContextKey<boolean> | null = null;
+	private outputFocus: IContextKey<boolean> | null = null;
 	private editorEditable: IContextKey<boolean> | null = null;
 	private editorRunnable: IContextKey<boolean> | null = null;
 	private editorExecutingNotebook: IContextKey<boolean> | null = null;
@@ -234,6 +235,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.generateFontInfo();
 		this.editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.contextKeyService);
 		this.editorFocus.set(true);
+		this.outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.contextKeyService);
 		this.editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
 		this.editorEditable.set(true);
 		this.editorRunnable = NOTEBOOK_EDITOR_RUNNABLE.bindTo(this.contextKeyService);
@@ -495,8 +497,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// attach the webview container to the DOM tree first
 		this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview.element);
 		await this.webview.createWebview();
-		this.webview.webview.onDidBlur(() => this.updateEditorFocus());
+		this.webview.webview.onDidBlur(() => {
+			this.outputFocus?.set(false);
+			this.updateEditorFocus();
+		});
 		this.webview.webview.onDidFocus(() => {
+			this.outputFocus?.set(true);
 			this.updateEditorFocus();
 			this._onDidFocusWidget.fire();
 		});
