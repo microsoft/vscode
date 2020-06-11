@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isReadableStream, newWriteableStream, Readable, consumeReadable, consumeReadableWithLimit, consumeStream, ReadableStream, toStream, toReadable, transform, consumeStreamWithLimit } from 'vs/base/common/stream';
+import { isReadableStream, newWriteableStream, Readable, consumeReadable, peekReadable, consumeStream, ReadableStream, toStream, toReadable, transform, peekStream, isReadableBufferedStream } from 'vs/base/common/stream';
 import { timeout } from 'vs/base/common/async';
 
 suite('Stream', () => {
@@ -12,6 +12,15 @@ suite('Stream', () => {
 	test('isReadableStream', () => {
 		assert.ok(!isReadableStream(Object.create(null)));
 		assert.ok(isReadableStream(newWriteableStream(d => d)));
+	});
+
+	test('isReadableBufferedStream', async () => {
+		assert.ok(!isReadableBufferedStream(Object.create(null)));
+
+		const stream = newWriteableStream(d => d);
+		stream.end();
+		const bufferedStream = await peekStream(stream, 1);
+		assert.ok(isReadableBufferedStream(bufferedStream));
 	});
 
 	test('WriteableStream - basics', () => {
@@ -148,11 +157,11 @@ suite('Stream', () => {
 		assert.equal(consumed, '1,2,3,4,5');
 	});
 
-	test('consumeReadableWithLimit', () => {
+	test('peekReadable', () => {
 		for (let i = 0; i < 5; i++) {
 			const readable = arrayToReadable(['1', '2', '3', '4', '5']);
 
-			const consumedOrReadable = consumeReadableWithLimit(readable, strings => strings.join(), i);
+			const consumedOrReadable = peekReadable(readable, strings => strings.join(), i);
 			if (typeof consumedOrReadable === 'string') {
 				assert.fail('Unexpected result');
 			} else {
@@ -162,12 +171,73 @@ suite('Stream', () => {
 		}
 
 		let readable = arrayToReadable(['1', '2', '3', '4', '5']);
-		let consumedOrReadable = consumeReadableWithLimit(readable, strings => strings.join(), 5);
+		let consumedOrReadable = peekReadable(readable, strings => strings.join(), 5);
 		assert.equal(consumedOrReadable, '1,2,3,4,5');
 
 		readable = arrayToReadable(['1', '2', '3', '4', '5']);
-		consumedOrReadable = consumeReadableWithLimit(readable, strings => strings.join(), 6);
+		consumedOrReadable = peekReadable(readable, strings => strings.join(), 6);
 		assert.equal(consumedOrReadable, '1,2,3,4,5');
+	});
+
+	test('peekReadable - error handling', async () => {
+
+		// 0 Chunks
+		let stream = newWriteableStream(data => data);
+
+		let error: Error | undefined = undefined;
+		let promise = (async () => {
+			try {
+				await peekStream(stream, 1);
+			} catch (err) {
+				error = err;
+			}
+		})();
+
+		stream.error(new Error());
+		await promise;
+
+		assert.ok(error);
+
+		// 1 Chunk
+		stream = newWriteableStream(data => data);
+
+		error = undefined;
+		promise = (async () => {
+			try {
+				await peekStream(stream, 1);
+			} catch (err) {
+				error = err;
+			}
+		})();
+
+		stream.write('foo');
+		stream.error(new Error());
+		await promise;
+
+		assert.ok(error);
+
+		// 2 Chunks
+		stream = newWriteableStream(data => data);
+
+		error = undefined;
+		promise = (async () => {
+			try {
+				await peekStream(stream, 1);
+			} catch (err) {
+				error = err;
+			}
+		})();
+
+		stream.write('foo');
+		stream.write('bar');
+		stream.error(new Error());
+		await promise;
+
+		assert.ok(!error);
+
+		stream.on('error', err => error = err);
+		stream.on('data', chunk => { });
+		assert.ok(error);
 	});
 
 	function arrayToReadable<T>(array: T[]): Readable<T> {
@@ -198,26 +268,39 @@ suite('Stream', () => {
 		assert.equal(consumed, '1,2,3,4,5');
 	});
 
-	test('consumeStreamWithLimit', async () => {
+	test('peekStream', async () => {
 		for (let i = 0; i < 5; i++) {
-			const readable = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));
+			const stream = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));
 
-			const consumedOrStream = await consumeStreamWithLimit(readable, strings => strings.join(), i);
-			if (typeof consumedOrStream === 'string') {
-				assert.fail('Unexpected result');
+			const result = await peekStream(stream, i);
+			assert.equal(stream, result.stream);
+			if (result.ended) {
+				assert.fail('Unexpected result, stream should not have ended yet');
 			} else {
-				const consumed = await consumeStream(consumedOrStream, strings => strings.join());
-				assert.equal(consumed, '1,2,3,4,5');
+				assert.equal(result.buffer.length, i + 1, `maxChunks: ${i}`);
+
+				const additionalResult: string[] = [];
+				await consumeStream(stream, strings => {
+					additionalResult.push(...strings);
+
+					return strings.join();
+				});
+
+				assert.equal([...result.buffer, ...additionalResult].join(), '1,2,3,4,5');
 			}
 		}
 
 		let stream = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));
-		let consumedOrStream = await consumeStreamWithLimit(stream, strings => strings.join(), 5);
-		assert.equal(consumedOrStream, '1,2,3,4,5');
+		let result = await peekStream(stream, 5);
+		assert.equal(stream, result.stream);
+		assert.equal(result.buffer.join(), '1,2,3,4,5');
+		assert.equal(result.ended, true);
 
 		stream = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));
-		consumedOrStream = await consumeStreamWithLimit(stream, strings => strings.join(), 6);
-		assert.equal(consumedOrStream, '1,2,3,4,5');
+		result = await peekStream(stream, 6);
+		assert.equal(stream, result.stream);
+		assert.equal(result.buffer.join(), '1,2,3,4,5');
+		assert.equal(result.ended, true);
 	});
 
 	test('toStream', async () => {

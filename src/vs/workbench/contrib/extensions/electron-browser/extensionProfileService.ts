@@ -57,7 +57,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 		CommandsRegistry.registerCommand('workbench.action.extensionHostProfilder.stop', () => {
 			this.stopProfiling();
-			this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
+			this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true });
 		});
 	}
 

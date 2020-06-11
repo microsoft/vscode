@@ -11,7 +11,7 @@
  *   focusIframeOnCreate?: boolean,
  *   ready?: Promise<void>,
  *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
- *   fakeLoad: boolean,
+ *   fakeLoad?: boolean,
  *   rewriteCSP: (existingCSP: string, endpoint?: string) => string,
  * }} WebviewHost
  */
@@ -605,6 +605,6 @@
 	if (typeof module !== 'undefined') {
 		module.exports = createWebviewManager;
 	} else {
-		window.createWebviewManager = createWebviewManager;
+		(/** @type {any} */ (window)).createWebviewManager = createWebviewManager;
 	}
 }());

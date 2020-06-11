@@ -582,6 +582,21 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 
 	/**
+	 * Called when this input was closed in a group. The second parameter
+	 * is a hint wether the editor is still opened in other groups. This
+	 * may include normal editors as well as side-by-side or diff editors.
+	 *
+	 * Subclasses can override what should happen. By default, an editor
+	 * input will dispose when it is closed.
+	 */
+	close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
+		// TODO@ben revisit this behaviour, should just dispose by default after adoption
+		if (!openedInOtherGroups) {
+			this.dispose();
+		}
+	}
+
+	/**
 	 * Subclasses can set this to false if it does not make sense to split the editor input.
 	 */
 	supportsSplitEditor(): boolean {

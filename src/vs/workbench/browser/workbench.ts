@@ -365,9 +365,7 @@ export class Workbench extends Layout {
 	}
 
 	private createPart(id: string, role: string, classes: string[]): HTMLElement {
-		// Use footer element for status bar #98376
-		const tagName = role === 'status' ? 'footer' : 'div';
-		const part = document.createElement(tagName);
+		const part = document.createElement(role === 'status' ? 'footer' : 'div'); // Use footer element for status bar #98376
 		addClasses(part, 'part', ...classes);
 		part.id = id;
 		part.setAttribute('role', role);

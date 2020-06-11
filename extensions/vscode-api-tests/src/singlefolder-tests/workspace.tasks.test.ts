@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2, env, UIKind } from 'vscode';
+import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2, env, UIKind, ShellExecution } from 'vscode';
 
 // Disable tasks tests:
 // - Web https://github.com/microsoft/vscode/issues/90528
@@ -118,7 +118,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 								writeEmitter.fire('exiting');
 								closeEmitter.fire();
 							},
-							close: () => {}
+							close: () => { }
 						};
 						return Promise.resolve(pty);
 					});
@@ -136,6 +136,38 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 				}
 			}));
 			commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
+		});
+
+		test('Execution from event is equal to original', () => {
+			return new Promise(async (resolve, reject) => {
+				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
+				const taskExecution = await tasks.executeTask(task);
+				let equalCount = 2;
+				function checkEqualCount() {
+					equalCount--;
+					if (equalCount === 0) {
+						resolve();
+					} else if (equalCount < 0) {
+						reject('Unexpected extra task events.');
+					}
+				}
+
+				tasks.onDidStartTaskProcess(e => {
+					if (e.execution === taskExecution) {
+						checkEqualCount();
+					} else {
+						reject('Unexpected task execution value in start process.');
+					}
+				});
+
+				tasks.onDidEndTaskProcess(e => {
+					if (e.execution === taskExecution) {
+						checkEqualCount();
+					} else {
+						reject('Unexpected task execution value in end process.');
+					}
+				});
+			});
 		});
 	});
 });

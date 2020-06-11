@@ -211,9 +211,12 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	);
 
 	function filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
-		if (token.tag === 'span' && markdown.isTrusted) {
-			if (token.attrs['style'] && Object.keys(token.attrs).length === 1) {
+		if (token.tag === 'span' && markdown.isTrusted && (Object.keys(token.attrs).length === 1)) {
+			if (token.attrs['style']) {
 				return !!token.attrs['style'].match(/^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/);
+			} else if (token.attrs['class']) {
+				// The class should match codicon rendering in src\vs\base\common\codicons.ts
+				return !!token.attrs['class'].match(/^codicon codicon-[a-z\-]+( codicon-animation-[a-z\-]+)?$/);
 			}
 			return false;
 		}

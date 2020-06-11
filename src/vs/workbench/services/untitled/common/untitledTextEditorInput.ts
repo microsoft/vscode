@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEncodingSupport, EncodingMode, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
+import { IEncodingSupport, EncodingMode, Verbosity, IModeSupport, GroupIdentifier } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -119,6 +119,12 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		this.modelResolve = this.model.load();
 
 		return this.modelResolve;
+	}
+
+	close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
+		if (!openedInOtherGroups) {
+			this.dispose(); // Only dispose if not opened anymore because all untitled inputs are shared
+		}
 	}
 
 	matches(otherInput: unknown): boolean {
