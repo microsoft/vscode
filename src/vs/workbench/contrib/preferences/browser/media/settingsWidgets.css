@@ -7,14 +7,18 @@
 	width: 100%;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key {
 	margin-right: 3px;
 	margin-left: 2px;
 }
 
 /* Deal with overflow */
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-connector,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
 	white-space: pre;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -25,9 +29,16 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
 	max-width: 10%;
 }
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
+	max-width: 50%;
+}
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-connector,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
 	display: inline-block;
 	line-height: 24px;
 }
@@ -49,6 +60,7 @@
 	display: none;
 	position: absolute;
 	right: 0px;
+	top: 0px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row {
@@ -99,7 +111,8 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-siblingInput {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-siblingInput,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input {
 	height: 24px;
 	max-width: 320px;
 	flex: 1;
@@ -111,7 +124,13 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget {
 	margin-bottom: 1px;
 	padding: 1px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input select {
+	width: 100%;
+	height: 24px;
 }

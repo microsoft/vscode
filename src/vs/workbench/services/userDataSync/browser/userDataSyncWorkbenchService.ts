@@ -239,8 +239,10 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private async handleFirstTimeSync(): Promise<void> {
 		const isFirstTimeSyncingWithAnotherMachine = await this.userDataSyncService.isFirstTimeSyncingWithAnotherMachine();
 		if (!isFirstTimeSyncingWithAnotherMachine) {
+			await this.userDataSyncService.sync();
 			return;
 		}
+
 		const result = await this.dialogService.show(
 			Severity.Info,
 			localize('Replace or Merge', "Replace or Merge"),
@@ -262,6 +264,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				throw canceled();
 			case 1:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
+				await this.userDataSyncService.sync();
 				break;
 			case 2:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'replace-local' });

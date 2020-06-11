@@ -240,7 +240,7 @@ export class MarkdownEngine {
 					if (uri.path[0] === '/') {
 						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument!);
 						if (root) {
-							const fileUri = vscode.Uri.file(path.join(root.uri.fsPath, uri.fsPath));
+							const fileUri = vscode.Uri.joinPath(root.uri, uri.fsPath);
 							uri = fileUri.with({
 								scheme: uri.scheme,
 								fragment: uri.fragment,
