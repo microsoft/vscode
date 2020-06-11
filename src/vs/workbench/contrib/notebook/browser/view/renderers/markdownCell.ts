@@ -10,9 +10,8 @@ import { renderCodicons } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, CELL_STATUSBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, INotebookEditor, MarkdownCellRenderTemplate, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
@@ -125,7 +124,7 @@ export class StatefullMarkdownCell extends Disposable {
 			this.viewCell.attachTextEditor(this.editor);
 			this.focusEditorIfNeeded();
 
-			this.bindEditorListeners(this.editor.getModel()!);
+			this.bindEditorListeners();
 		} else {
 			const width = this.viewCell.layoutInfo.editorWidth;
 			const lineNum = this.viewCell.lineCount;
@@ -175,22 +174,13 @@ export class StatefullMarkdownCell extends Disposable {
 					this.focusEditorIfNeeded();
 				}
 
-				this.bindEditorListeners(model, {
-					width: width,
-					height: editorHeight
-				});
+				this.bindEditorListeners();
 
-				const clientHeight = this.markdownContainer.clientHeight;
-				const totalHeight = editorHeight + 32 + clientHeight + CELL_STATUSBAR_HEIGHT;
-				this.viewCell.totalHeight = totalHeight;
-				this.notebookEditor.layoutNotebookCell(this.viewCell, totalHeight);
+				this.viewCell.editorHeight = editorHeight;
 			});
 		}
 
-		const clientHeight = this.markdownContainer.clientHeight;
-		const totalHeight = editorHeight + 32 + clientHeight + CELL_STATUSBAR_HEIGHT;
-		this.viewCell.totalHeight = totalHeight;
-		this.notebookEditor.layoutNotebookCell(this.viewCell, totalHeight);
+		this.viewCell.editorHeight = editorHeight;
 		this.focusEditorIfNeeded();
 		this.renderedEditors.set(this.viewCell, this.editor!);
 	}
@@ -288,7 +278,7 @@ export class StatefullMarkdownCell extends Disposable {
 		}
 	}
 
-	private bindEditorListeners(model: ITextModel, dimension?: IDimension) {
+	private bindEditorListeners() {
 		this.localDisposables.add(this.editor!.onDidContentSizeChange(e => {
 			let viewLayout = this.editor!.getLayoutInfo();
 
@@ -299,9 +289,7 @@ export class StatefullMarkdownCell extends Disposable {
 						height: e.contentHeight
 					}
 				);
-				const clientHeight = this.markdownContainer.clientHeight;
-				this.viewCell.totalHeight = e.contentHeight + 32 + clientHeight + CELL_STATUSBAR_HEIGHT;
-				this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+				this.viewCell.editorHeight = e.contentHeight;
 			}
 		}));
 

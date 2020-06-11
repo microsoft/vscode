@@ -94,7 +94,6 @@ export interface MarkdownCellLayoutChangeEvent {
 	font?: BareFontInfo;
 	outerWidth?: number;
 	totalHeight?: number;
-	editorHeight?: boolean;
 }
 
 export interface ICellViewModel {
