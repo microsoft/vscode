@@ -85,6 +85,12 @@ export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents, name: string, index: number; }[];
 }
 
+export interface IRemoteConnectionData {
+	host: string;
+	port: number;
+	connectionToken: string;
+}
+
 export interface IInitData {
 	version: string;
 	commit?: string;
@@ -99,7 +105,7 @@ export interface IInitData {
 	logsLocation: URI;
 	logFile: URI;
 	autoStart: boolean;
-	remote: { isRemote: boolean; authority: string | undefined; };
+	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | undefined; };
 	uiKind: UIKind;
 }
 

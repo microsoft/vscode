@@ -52,7 +52,8 @@ class DeltaExtensionsQueueItem {
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
-	private readonly _remoteExtensionsEnvironmentData: Map<string, IRemoteAgentEnvironment>;
+	private readonly _remoteEnvironment: Map<string, IRemoteAgentEnvironment>;
+	private readonly _remoteResolvedAuthority: Map<string, ResolverResult>;
 
 	private readonly _extensionScanner: CachedExtensionScanner;
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
@@ -95,7 +96,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}]);
 		}
 
-		this._remoteExtensionsEnvironmentData = new Map<string, IRemoteAgentEnvironment>();
+		this._remoteEnvironment = new Map<string, IRemoteAgentEnvironment>();
+		this._remoteResolvedAuthority = new Map<string, ResolverResult>();
 
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 		this._deltaExtensionsQueue = [];
@@ -344,10 +346,18 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	private _createProvider(remoteAuthority: string): IInitDataProvider {
 		return {
 			remoteAuthority: remoteAuthority,
-			getInitData: () => {
-				return this.whenInstalledExtensionsRegistered().then(() => {
-					return this._remoteExtensionsEnvironmentData.get(remoteAuthority)!;
-				});
+			getInitData: async () => {
+				await this.whenInstalledExtensionsRegistered();
+				const remoteEnvironment = this._remoteEnvironment.get(remoteAuthority)!;
+				const resolvedAuthority = this._remoteResolvedAuthority.get(remoteAuthority)!.authority;
+				return {
+					connectionData: {
+						host: resolvedAuthority.host,
+						port: resolvedAuthority.port,
+						connectionToken: remoteEnvironment.connectionToken
+					},
+					remoteEnvironment: remoteEnvironment
+				};
 			}
 		};
 	}
@@ -547,7 +557,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			remoteEnv.extensions = remoteEnv.extensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === RunningLocation.Remote);
 
 			// save for remote extension's init data
-			this._remoteExtensionsEnvironmentData.set(remoteAuthority, remoteEnv);
+			this._remoteEnvironment.set(remoteAuthority, remoteEnv);
+			this._remoteResolvedAuthority.set(remoteAuthority, resolvedAuthority);
 
 			await this._startLocalExtensionHost(extensionHost, remoteEnv.extensions.concat(localExtensions), localExtensions.map(extension => extension.identifier));
 		} else {
