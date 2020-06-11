@@ -2,6 +2,7 @@ src/**
 !src/common/config.json
 out/**
 build/**
+polyfills/**
 extension.webpack.config.js
 tsconfig.json
 yarn.lock
