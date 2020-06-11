@@ -11,7 +11,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
@@ -122,19 +121,16 @@ export class LinkDetector implements IEditorContribution {
 	private activeLinkDecorationId: string | null;
 	private readonly openerService: IOpenerService;
 	private readonly notificationService: INotificationService;
-	private readonly workspaceService: IWorkspaceContextService;
 	private currentOccurrences: { [decorationId: string]: LinkOccurrence; };
 
 	constructor(
 		editor: ICodeEditor,
 		@IOpenerService openerService: IOpenerService,
-		@INotificationService notificationService: INotificationService,
-		@IWorkspaceContextService workspaceService: IWorkspaceContextService
+		@INotificationService notificationService: INotificationService
 	) {
 		this.editor = editor;
 		this.openerService = openerService;
 		this.notificationService = notificationService;
-		this.workspaceService = workspaceService;
 
 		let clickLinkGesture = new ClickLinkGesture(editor);
 		this.listenersToRemove.add(clickLinkGesture);
