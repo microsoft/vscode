@@ -134,6 +134,18 @@
 		"addLabel": "~needs more info"
 	},
 	{
+		"type": "comment",
+		"name": "closedWith",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "unreleased"
+	},
+	{
 		"type": "label",
 		"name": "~needs more info",
 		"action": "updateLabels",

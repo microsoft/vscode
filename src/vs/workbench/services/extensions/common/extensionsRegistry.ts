@@ -270,6 +270,11 @@ export const schema: IJSONSchema = {
 						body: 'workspaceContains:${4:filePattern}'
 					},
 					{
+						label: 'onStartupFinished',
+						description: nls.localize('vscode.extension.activationEvents.onStartupFinished', 'An activation event emitted after the start-up finished (after all eager activated extensions have finished activating).'),
+						body: 'onStartupFinished'
+					},
+					{
 						label: 'onFileSystem',
 						description: nls.localize('vscode.extension.activationEvents.onFileSystem', 'An activation event emitted whenever a file or folder is accessed with the given scheme.'),
 						body: 'onFileSystem:${1:scheme}'

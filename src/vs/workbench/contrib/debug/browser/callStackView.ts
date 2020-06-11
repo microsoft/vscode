@@ -572,7 +572,10 @@ class ThreadsRenderer implements ITreeRenderer<IThread, FuzzyScore, IThreadTempl
 class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, IStackFrameTemplateData> {
 	static readonly ID = 'stackFrame';
 
-	constructor(@ILabelService private readonly labelService: ILabelService) { }
+	constructor(
+		@ILabelService private readonly labelService: ILabelService,
+		@INotificationService private readonly notificationService: INotificationService
+	) { }
 
 	get templateId(): string {
 		return StackFramesRenderer.ID;
@@ -617,8 +620,12 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 
 		data.actionBar.clear();
 		if (hasActions) {
-			const action = new Action('debug.callStack.restartFrame', nls.localize('restartFrame', "Restart Frame"), 'codicon-debug-restart-frame', true, () => {
-				return stackFrame.restart();
+			const action = new Action('debug.callStack.restartFrame', nls.localize('restartFrame', "Restart Frame"), 'codicon-debug-restart-frame', true, async () => {
+				try {
+					await stackFrame.restart();
+				} catch (e) {
+					this.notificationService.error(e);
+				}
 			});
 			data.actionBar.push(action, { icon: true, label: false });
 		}

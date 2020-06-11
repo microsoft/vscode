@@ -29,6 +29,7 @@
 	display: flex;
 	cursor: pointer;
 	align-items: center;
+	box-sizing: border-box;
 }
 
 .monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header {

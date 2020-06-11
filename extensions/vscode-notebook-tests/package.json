@@ -54,6 +54,15 @@
           }
         ]
       }
+    ],
+    "notebookOutputRenderer": [
+      {
+        "viewType": "notebookCoreTestRenderer",
+        "displayName": "Notebook Core Test Renderer",
+        "mimeTypes": [
+          "text/custom"
+        ]
+      }
     ]
   }
 }

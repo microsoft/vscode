@@ -110,11 +110,13 @@ export class JSONEditingService implements IJSONEditingService {
 		const model = reference.object.textEditorModel;
 
 		if (this.hasParseErrors(model)) {
+			reference.dispose();
 			return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
 		}
 
 		// Target cannot be dirty if not writing into buffer
 		if (checkDirty && this.textFileService.isDirty(resource)) {
+			reference.dispose();
 			return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
 		}
 

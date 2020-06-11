@@ -11,7 +11,7 @@
  *   focusIframeOnCreate?: boolean,
  *   ready?: Promise<void>,
  *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
- *   fakeLoad: boolean,
+ *   fakeLoad?: boolean,
  *   rewriteCSP: (existingCSP: string, endpoint?: string) => string,
  * }} WebviewHost
  */
@@ -179,7 +179,7 @@
 		let pendingMessages = [];
 
 		const initData = {
-			initialScrollProgress: undefined
+			initialScrollProgress: undefined,
 		};
 
 
@@ -195,6 +195,9 @@
 			if (body) {
 				body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
 				body.classList.add(initData.activeTheme);
+
+				body.dataset.vscodeThemeKind = initData.activeTheme;
+				body.dataset.vscodeThemeName = initData.themeName || '';
 			}
 
 			if (initData.styles) {
@@ -383,6 +386,7 @@
 			host.onMessage('styles', (_event, data) => {
 				initData.styles = data.styles;
 				initData.activeTheme = data.activeTheme;
+				initData.themeName = data.themeName;
 
 				const target = getActiveFrame();
 				if (!target) {
@@ -601,6 +605,6 @@
 	if (typeof module !== 'undefined') {
 		module.exports = createWebviewManager;
 	} else {
-		window.createWebviewManager = createWebviewManager;
+		(/** @type {any} */ (window)).createWebviewManager = createWebviewManager;
 	}
 }());

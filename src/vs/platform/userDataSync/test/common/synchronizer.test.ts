@@ -42,8 +42,8 @@ class TestSynchroniser extends AbstractSynchroniser {
 	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> { }
 
 	async apply(ref: string): Promise<void> {
-		ref = await this.userDataSyncStoreService.write(this.resource, '', ref);
-		await this.updateLastSyncUserData({ ref, syncData: { content: '', version: this.version } });
+		const remoteUserData = await this.updateRemoteUserData('', ref);
+		await this.updateLastSyncUserData(remoteUserData);
 	}
 
 	async stop(): Promise<void> {
@@ -62,7 +62,7 @@ class TestSynchroniser extends AbstractSynchroniser {
 	}
 
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult> {
-		return { hasLocalChanged: false, hasRemoteChanged: false };
+		return { hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false };
 	}
 
 }

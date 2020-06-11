@@ -72,3 +72,19 @@ export class DisplayPartKind {
 	public static readonly punctuation = 'punctuation';
 	public static readonly text = 'text';
 }
+
+export enum EventName {
+	syntaxDiag = 'syntaxDiag',
+	semanticDiag = 'semanticDiag',
+	suggestionDiag = 'suggestionDiag',
+	configFileDiag = 'configFileDiag',
+	telemetry = 'telemetry',
+	projectLanguageServiceState = 'projectLanguageServiceState',
+	projectsUpdatedInBackground = 'projectsUpdatedInBackground',
+	beginInstallTypes = 'beginInstallTypes',
+	endInstallTypes = 'endInstallTypes',
+	typesInstallerInitializationFailed = 'typesInstallerInitializationFailed',
+	surveyReady = 'surveyReady',
+	projectLoadingStart = 'projectLoadingStart',
+	projectLoadingFinish = 'projectLoadingFinish',
+}

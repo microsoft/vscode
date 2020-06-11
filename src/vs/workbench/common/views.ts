@@ -60,7 +60,9 @@ export interface IViewContainerDescriptor {
 
 	readonly rejectAddedViews?: boolean;
 
-	order?: number;
+	readonly order?: number;
+
+	requestedIndex?: number;
 }
 
 export interface IViewContainersRegistry {
@@ -235,6 +237,11 @@ export interface IViewDescriptorRef {
 export interface IAddedViewDescriptorRef extends IViewDescriptorRef {
 	collapsed: boolean;
 	size?: number;
+}
+
+export interface IAddedViewDescriptorState {
+	viewDescriptor: IViewDescriptor,
+	collapsed?: boolean;
 }
 
 export interface IViewContainerModel {
@@ -468,7 +475,7 @@ export interface IView {
 export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	// View Container APIs
 	readonly onDidChangeViewContainerVisibility: Event<{ id: string, visible: boolean, location: ViewContainerLocation }>;
@@ -496,7 +503,7 @@ export const IViewDescriptorService = createDecorator<IViewDescriptorService>('v
 
 export interface IViewDescriptorService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	// ViewContainers
 	readonly viewContainers: ReadonlyArray<ViewContainer>;
@@ -510,7 +517,7 @@ export interface IViewDescriptorService {
 	getViewContainerModel(viewContainer: ViewContainer): IViewContainerModel;
 
 	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }>;
-	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, order?: number): void;
+	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number): void;
 
 	// Views
 	getViewDescriptorById(id: string): IViewDescriptor | null;

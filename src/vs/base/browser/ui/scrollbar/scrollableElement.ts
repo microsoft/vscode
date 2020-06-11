@@ -343,7 +343,13 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		const classifier = MouseWheelClassifier.INSTANCE;
 		if (SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED) {
-			classifier.accept(Date.now(), e.deltaX, e.deltaY);
+			if (platform.isWindows) {
+				// On Windows, the incoming delta events are multiplied with the device pixel ratio,
+				// so to get a better classification, simply undo that.
+				classifier.accept(Date.now(), e.deltaX / window.devicePixelRatio, e.deltaY / window.devicePixelRatio);
+			} else {
+				classifier.accept(Date.now(), e.deltaX, e.deltaY);
+			}
 		}
 
 		// console.log(`${Date.now()}, ${e.deltaY}, ${e.deltaX}`);
@@ -531,6 +537,14 @@ export class SmoothScrollableElement extends AbstractScrollableElement {
 
 	constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable: Scrollable) {
 		super(element, options, scrollable);
+	}
+
+	public setScrollPosition(update: INewScrollPosition): void {
+		this._scrollable.setScrollPositionNow(update);
+	}
+
+	public getScrollPosition(): IScrollPosition {
+		return this._scrollable.getCurrentScrollPosition();
 	}
 
 }

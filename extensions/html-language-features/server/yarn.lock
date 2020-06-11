@@ -727,19 +727,19 @@ to-regex-range@^5.0.1:
     is-number "^7.0.0"
 
 vscode-css-languageservice@^4.1.2:
-  version "4.1.2"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-4.1.2.tgz#533bfeb79b38e8add07230dc67001cceb80253e8"
-  integrity sha512-clIjSS940NPBvtfubZokKT/YDNfE5ST9VDwsuwdCbQSkJAVZPAbmIgfmgrz/f/o8PawYQU/ooUBEuRIvIYq3ag==
+  version "4.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-4.2.0.tgz#56081374857ce8aa4dd4c98f97e4e10a30b7242f"
+  integrity sha512-HIjl5bofrrxMMF05K/nq83270EdvteuAIio44FWd6tDdfhgg4vbofiAuXRSpXFi335f5+ekKdrzvPZm9ahqzsg==
   dependencies:
     vscode-languageserver-textdocument "^1.0.1"
     vscode-languageserver-types "^3.15.1"
     vscode-nls "^4.1.2"
     vscode-uri "^2.1.1"
 
-vscode-html-languageservice@^3.1.0-next.0:
-  version "3.1.0-next.0"
-  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-3.1.0-next.0.tgz#cd3efee3729ede804e82a8a1ac44bd6ea326d237"
-  integrity sha512-DaByLVmFQA0iLoYi6PzwlE6GJFZxvBUan0Wz30qaXwRqwrTG55Xq8n7Y5e6JHB9zixYyo1jhsQdQq/+rT0tv5w==
+vscode-html-languageservice@^3.1.0-next.2:
+  version "3.1.0-next.2"
+  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-3.1.0-next.2.tgz#a6ad42ed0ad0adda9ad0c5d34b2ac0d05076190e"
+  integrity sha512-cohfk2Ez8MrnT/8upnKsOc2FK2T+lU2LsBgg0L2P2BHjVzq4LMCOiYcwNeq+u9y2L5ck9E6SFw1BTdyZ5377KQ==
   dependencies:
     vscode-languageserver-textdocument "^1.0.1"
     vscode-languageserver-types "^3.15.1"
@@ -785,6 +785,11 @@ vscode-uri@^2.1.1:
   version "2.1.1"
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-2.1.1.tgz#5aa1803391b6ebdd17d047f51365cf62c38f6e90"
   integrity sha512-eY9jmGoEnVf8VE8xr5znSah7Qt1P/xsCdErz+g8HYZtJ7bZqKH5E3d+6oVNm1AC/c6IHUDokbmVXKOi4qPAC9A==
+
+vscode-uri@^2.1.2:
+  version "2.1.2"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-2.1.2.tgz#c8d40de93eb57af31f3c715dd650e2ca2c096f1c"
+  integrity sha512-8TEXQxlldWAuIODdukIb+TR5s+9Ds40eSJrw+1iDDA9IFORPjMELarNQE3myz5XIkWWpdprmJjm1/SxMlWOC8A==
 
 which-module@^2.0.0:
   version "2.0.0"

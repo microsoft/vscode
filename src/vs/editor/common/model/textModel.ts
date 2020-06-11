@@ -706,9 +706,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public removeUnusualLineTerminators(selections: Selection[] | null = null): void {
 		const matches = this.findMatches(strings.UNUSUAL_LINE_TERMINATORS.source, false, true, false, null, false, Constants.MAX_SAFE_SMALL_INTEGER);
-		const eol = this.getEOL();
 		this._buffer.resetMightContainUnusualLineTerminators();
-		this.pushEditOperations(selections, matches.map(m => ({ range: m.range, text: eol })), () => null);
+		this.pushEditOperations(selections, matches.map(m => ({ range: m.range, text: null })), () => null);
 	}
 
 	public mightContainNonBasicASCII(): boolean {
