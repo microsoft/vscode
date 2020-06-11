@@ -352,19 +352,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK)
 });
 
-
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
-		id: EXECUTE_CELL_COMMAND_ID,
-		title: localize('notebookActions.menu.execute', "Execute Notebook Cell"),
-		category: NOTEBOOK_ACTIONS_CATEGORY,
-		icon: { id: 'codicon/run' }
-	},
-	order: 0,
-	group: 'navigation',
-	when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_RUNNABLE)
-});
-
 registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
