@@ -320,17 +320,6 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			}
 		}
 
-		if (this._resourceMapping.has(resource)) {
-			const input = this._resourceMapping.get(resource);
-
-			if (!input!.isDisposed()) {
-				input?.updateGroup(group.id);
-				return { override: this.editorService.openEditor(input!, new NotebookEditorOptions(options || {}).with({ override: false }), group) };
-			} else {
-				this._resourceMapping.delete(resource);
-			}
-		}
-
 		let info: NotebookProviderInfo | undefined;
 		const data = CellUri.parse(resource);
 		if (data) {
