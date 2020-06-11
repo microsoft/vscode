@@ -303,6 +303,12 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return undefined;
 	}
 
+	close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
+		if (!openedInOtherGroups) {
+			this.dispose(); // Only dispose if not opened anymore because all file inputs are shared
+		}
+	}
+
 	matches(otherInput: unknown): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
