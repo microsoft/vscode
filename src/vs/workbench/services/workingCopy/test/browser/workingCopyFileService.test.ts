@@ -49,14 +49,14 @@ suite('WorkingCopyFileService', () => {
 		});
 
 		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
-			assert.equal(e.target.toString(), model.resource.toString());
+			assert.equal(e.files[0].target.toString(), model.resource.toString());
 			assert.equal(e.operation, FileOperation.DELETE);
 			correlationId = e.correlationId;
 			eventCounter++;
 		});
 
 		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			assert.equal(e.target.toString(), model.resource.toString());
+			assert.equal(e.files[0].target.toString(), model.resource.toString());
 			assert.equal(e.operation, FileOperation.DELETE);
 			assert.equal(e.correlationId, correlationId);
 			eventCounter++;
@@ -227,27 +227,33 @@ suite('WorkingCopyFileService', () => {
 			}
 		});
 
-		const correlationIds: Array<Number | undefined> = [];
+		let correlationId: number;
 
 		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
-			const foundIndex = models.findIndex(m => e.target.toString() === m.targetModel.resource.toString() &&
-				e.source?.toString() === m.sourceModel.resource.toString());
+			for (let i = 0; i < e.files.length; i++) {
+				const { target, source } = files[i];
+				const { targetModel, sourceModel } = models[i];
 
-			assert.equal(foundIndex !== -1, true);
+				assert.equal(target.toString(), targetModel.resource.toString());
+				assert.equal(source?.toString(), sourceModel.resource.toString());
+				eventCounter++;
+			}
+
+			correlationId = e.correlationId;
 			assert.equal(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
-			eventCounter++;
-			correlationIds.push(e.correlationId);
 		});
 
 		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			const foundIndex = models.findIndex(m => e.target.toString() === m.targetModel.resource.toString() &&
-				e.source?.toString() === m.sourceModel.resource.toString());
+			for (let i = 0; i < e.files.length; i++) {
+				const { target, source } = files[i];
+				const { targetModel, sourceModel } = models[i];
+				assert.equal(target.toString(), targetModel.resource.toString());
+				assert.equal(source?.toString(), sourceModel.resource.toString());
+				eventCounter++;
+			}
 
-			assert.equal(foundIndex !== -1, true);
 			assert.equal(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
-			eventCounter++;
-
-			assert.equal(correlationIds.includes(e.correlationId), true);
+			assert.equal(e.correlationId, correlationId);
 		});
 
 		if (move) {

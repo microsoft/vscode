@@ -32,14 +32,13 @@ export interface WorkingCopyFileEvent extends IWaitUntil {
 	readonly operation: FileOperation;
 
 	/**
-	 * The resource the event is about.
+	 * The target resources the event is about.
+	 * The source resources that are defined for move operations.
 	 */
-	readonly target: URI;
-
-	/**
-	 * A property that is defined for move operations.
-	 */
-	readonly source?: URI;
+	readonly files: {
+		readonly target: URI;
+		readonly source?: URI;
+	}[]
 }
 
 export interface IWorkingCopyFileOperationParticipant {
@@ -249,7 +248,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 			}
 
 			// before event
-			const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, target, source };
+			const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, files: [{ target, source }] };
 			await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 
 			// handle dirty working copies depending on the operation:
@@ -292,7 +291,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		await this.runFileOperationParticipants([{ target: resource, source: undefined }], FileOperation.DELETE);
 
 		// before events
-		const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, target: resource };
+		const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, files: [{ target: resource }] };
 		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 
 		// Check for any existing dirty working copies for the resource
