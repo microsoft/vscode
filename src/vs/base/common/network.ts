@@ -40,10 +40,6 @@ export namespace Schemas {
 
 	export const file = 'file';
 
-	export const workspace = 'workspace';
-
-	export const project = 'project';
-
 	export const mailto = 'mailto';
 
 	export const untitled = 'untitled';

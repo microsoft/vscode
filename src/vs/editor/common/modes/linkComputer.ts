@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { ILink } from 'vs/editor/common/modes';
-
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;
@@ -22,28 +22,12 @@ export const enum State {
 	F = 6,
 	FI = 7,
 	FIL = 8,
-	W = 9,
-	WO = 10,
-	WOR = 11,
-	WORK = 12,
-	WORKS = 13,
-	WORKSP = 14,
-	WORKSPA = 15,
-	WORKSPAC = 16,
-	P = 17,
-	PR = 18,
-	PRO = 19,
-	PROJ = 20,
-	PROJE = 21,
-	PROJEC = 22,
-
-	BeforeColon = 23,
-	AfterColon = 24,
-	AlmostThere = 25,
-	End = 26,
-	Accept = 27,
-	LastKnownState = 28, // marker, custom states may follow
-
+	BeforeColon = 9,
+	AfterColon = 10,
+	AlmostThere = 11,
+	End = 12,
+	Accept = 13,
+	LastKnownState = 14 // marker, custom states may follow
 }
 
 export type Edge = [State, number, State];
@@ -125,8 +109,6 @@ function getStateMachine(): StateMachine {
 			[State.Start, CharCode.H, State.H],
 			[State.Start, CharCode.f, State.F],
 			[State.Start, CharCode.F, State.F],
-			[State.Start, CharCode.w, State.W],
-			[State.Start, CharCode.p, State.P],
 
 			[State.H, CharCode.t, State.HT],
 			[State.H, CharCode.T, State.HT],
@@ -149,22 +131,6 @@ function getStateMachine(): StateMachine {
 
 			[State.FIL, CharCode.e, State.BeforeColon],
 			[State.FIL, CharCode.E, State.BeforeColon],
-
-			[State.W, CharCode.o, State.WO],
-			[State.WO, CharCode.r, State.WOR],
-			[State.WOR, CharCode.k, State.WORK],
-			[State.WORK, CharCode.s, State.WORKS],
-			[State.WORKS, CharCode.p, State.WORKSP],
-			[State.WORKSP, CharCode.a, State.WORKSPA],
-			[State.WORKSPA, CharCode.c, State.WORKSPAC],
-			[State.WORKSPAC, CharCode.e, State.BeforeColon],
-
-			[State.P, CharCode.r, State.PR],
-			[State.PR, CharCode.o, State.PRO],
-			[State.PRO, CharCode.j, State.PROJ],
-			[State.PROJ, CharCode.e, State.PROJE],
-			[State.PROJE, CharCode.c, State.PROJEC],
-			[State.PROJEC, CharCode.t, State.BeforeColon],
 
 			[State.BeforeColon, CharCode.Colon, State.AfterColon],
 
@@ -380,6 +346,5 @@ export function computeLinks(model: ILinkComputerTarget | null): ILink[] {
 		// Unknown caller!
 		return [];
 	}
-
 	return LinkComputer.computeLinks(model);
 }
