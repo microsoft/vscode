@@ -1052,12 +1052,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// Chrome/Edge/Firefox support stream method
 			if (typeof file.stream === 'function') {
-				await this.doUploadWebFileEntryBuffered(resource, file, reportProgress);
+				await this.doUploadWebFileEntryBuffered(resource, file, reportProgress, token);
 			}
 
 			// Fallback to unbuffered upload for other browsers
 			else {
-				await this.doUploadWebFileEntryUnbuffered(resource, file, reportProgress);
+				await this.doUploadWebFileEntryUnbuffered(resource, file);
 			}
 
 			return { isFile: true, resource };
@@ -1099,9 +1099,14 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	private async doUploadWebFileEntryBuffered(resource: URI, file: File, progressReporter: (fileSize: number, bytesUploaded: number) => void): Promise<void> {
-		const writeableStream = newWriteableBufferStream();
-		const writeFilePromise = this.fileService.writeFile(resource, writeableStream, { progress: byteLength => progressReporter(file.size, byteLength) });
+	private async doUploadWebFileEntryBuffered(resource: URI, file: File, progressReporter: (fileSize: number, bytesUploaded: number) => void, token: CancellationToken): Promise<void> {
+		const writeableStream = newWriteableBufferStream({
+			// Set a highWaterMark to prevent the stream
+			// for file upload to produce large buffers
+			// in-memory
+			highWaterMark: 10
+		});
+		const writeFilePromise = this.fileService.writeFile(resource, writeableStream);
 
 		// Read the file in chunks using File.stream() web APIs
 		try {
@@ -1109,7 +1114,21 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			let res = await reader.read();
 			while (!res.done) {
-				writeableStream.write(VSBuffer.wrap(res.value));
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
+
+				// Write buffer into stream but make sure to wait
+				// in case the highWaterMark is reached
+				const buffer = VSBuffer.wrap(res.value);
+				await writeableStream.write(buffer);
+
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
+
+				// Report progress
+				progressReporter(file.size, buffer.byteLength);
 
 				res = await reader.read();
 			}
@@ -1118,17 +1137,21 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			writeableStream.end(error);
 		}
 
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
 		// Wait for file being written to target
 		await writeFilePromise;
 	}
 
-	private doUploadWebFileEntryUnbuffered(resource: URI, file: File, progressReporter: (fileSize: number, bytesUploaded: number) => void): Promise<void> {
+	private doUploadWebFileEntryUnbuffered(resource: URI, file: File): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			const reader = new FileReader();
 			reader.onload = async event => {
 				try {
 					if (event.target?.result instanceof ArrayBuffer) {
-						await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)), { progress: byteLength => progressReporter(file.size, byteLength) });
+						await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)));
 					} else {
 						throw new Error('Could not read from dropped file.');
 					}

@@ -731,13 +731,6 @@ export interface IWriteFileOptions {
 	 * The etag of the file. This can be used to prevent dirty writes.
 	 */
 	readonly etag?: string;
-
-	/**
-	 * The progress callback can be used to get accurate information how many
-	 * bytes have been written. Each call carries the length of bytes written
-	 * since the last call was made.
-	 */
-	readonly progress?: (byteLength: number) => void;
 }
 
 export interface IResolveFileOptions {
