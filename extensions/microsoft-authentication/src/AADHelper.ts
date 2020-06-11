@@ -82,9 +82,6 @@ export class AzureActiveDirectoryService {
 	}
 
 	public async initialize(): Promise<void> {
-		// TODO remove, temporary migration
-		await keychain.migrateToken();
-
 		const storedData = await keychain.getToken();
 		if (storedData) {
 			try {

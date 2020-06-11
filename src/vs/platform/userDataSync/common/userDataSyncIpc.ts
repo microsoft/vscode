@@ -12,6 +12,8 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { IStorageKeysSyncRegistryService, IStorageKey } from 'vs/platform/userDataSync/common/storageKeys';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 
 export class UserDataSyncChannel implements IServerChannel {
 
@@ -47,12 +49,13 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'replace': return this.service.replace(URI.revive(args[0]));
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
-			case 'isFirstTimeSyncWithMerge': return this.service.isFirstTimeSyncWithMerge();
+			case 'isFirstTimeSyncingWithAnotherMachine': return this.service.isFirstTimeSyncingWithAnotherMachine();
 			case 'acceptConflict': return this.service.acceptConflict(URI.revive(args[0]), args[1]);
 			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
 			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0]);
 			case 'getRemoteSyncResourceHandles': return this.service.getRemoteSyncResourceHandles(args[0]);
 			case 'getAssociatedResources': return this.service.getAssociatedResources(args[0], { created: args[1].created, uri: URI.revive(args[1].uri) });
+			case 'getMachineId': return this.service.getMachineId(args[0], { created: args[1].created, uri: URI.revive(args[1].uri) });
 		}
 		throw new Error('Invalid call');
 	}
@@ -72,6 +75,8 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'triggerAutoSync': return this.service.triggerAutoSync(args[0]);
+			case 'enable': return Promise.resolve(this.service.enable());
+			case 'disable': return Promise.resolve(this.service.disable());
 		}
 		throw new Error('Invalid call');
 	}
@@ -97,7 +102,7 @@ export class UserDataSycnUtilServiceChannel implements IServerChannel {
 
 export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(private readonly channel: IChannel) {
 	}
@@ -138,7 +143,7 @@ export class StorageKeysSyncRegistryChannel implements IServerChannel {
 
 export class StorageKeysSyncRegistryChannelClient extends Disposable implements IStorageKeysSyncRegistryService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _storageKeys: ReadonlyArray<IStorageKey> = [];
 	get storageKeys(): ReadonlyArray<IStorageKey> { return this._storageKeys; }
@@ -163,3 +168,45 @@ export class StorageKeysSyncRegistryChannelClient extends Disposable implements 
 	}
 
 }
+
+export class UserDataSyncMachinesServiceChannel implements IServerChannel {
+
+	constructor(private readonly service: IUserDataSyncMachinesService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	async call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case 'getMachines': return this.service.getMachines();
+			case 'addCurrentMachine': return this.service.addCurrentMachine(args[0]);
+			case 'removeCurrentMachine': return this.service.removeCurrentMachine();
+			case 'renameMachine': return this.service.renameMachine(args[0], args[1]);
+			case 'disableMachine': return this.service.disableMachine(args[0]);
+		}
+		throw new Error('Invalid call');
+	}
+
+}
+
+export class UserDataSyncAccountServiceChannel implements IServerChannel {
+	constructor(private readonly service: IUserDataSyncAccountService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onDidChangeAccount': return this.service.onDidChangeAccount;
+			case 'onTokenFailed': return this.service.onTokenFailed;
+		}
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case '_getInitialData': return Promise.resolve(this.service.account);
+			case 'updateAccount': return this.service.updateAccount(args);
+		}
+		throw new Error('Invalid call');
+	}
+}
+

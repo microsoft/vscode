@@ -193,14 +193,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get onDidChangeAuthenticationProviders(): Event<vscode.AuthenticationProvidersChangeEvent> {
 				return extHostAuthentication.onDidChangeAuthenticationProviders;
 			},
+			getProviderIds(): Thenable<ReadonlyArray<string>> {
+				return extHostAuthentication.getProviderIds();
+			},
 			get providerIds(): string[] {
 				return extHostAuthentication.providerIds;
 			},
 			hasSessions(providerId: string, scopes: string[]): Thenable<boolean> {
 				return extHostAuthentication.hasSessions(providerId, scopes);
 			},
-			getSession(providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions): Thenable<vscode.AuthenticationSession2 | undefined> {
-				return extHostAuthentication.getSession(extension, providerId, scopes, options);
+			getSession(providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions) {
+				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			getSessions(providerId: string, scopes: string[]): Thenable<readonly vscode.AuthenticationSession[]> {
 				return extHostAuthentication.getSessions(extension, providerId, scopes);
@@ -431,6 +434,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return extHostLanguageFeatures.setLanguageConfiguration(extension, language, configuration);
+			},
+			getTokenInformationAtPosition(doc: vscode.TextDocument, pos: vscode.Position) {
+				checkProposedApiEnabled(extension);
+				return extHostLanguages.tokenAtPosition(doc, pos);
 			}
 		};
 
@@ -448,16 +455,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get terminals() {
 				return extHostTerminalService.terminals;
 			},
-			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Thenable<vscode.TextEditor> {
-				let documentPromise: Promise<vscode.TextDocument>;
-				if (URI.isUri(documentOrUri)) {
-					documentPromise = Promise.resolve(workspace.openTextDocument(documentOrUri));
-				} else {
-					documentPromise = Promise.resolve(<vscode.TextDocument>documentOrUri);
-				}
-				return documentPromise.then(document => {
-					return extHostEditors.showTextDocument(document, columnOrOptions, preserveFocus);
-				});
+			async showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Promise<vscode.TextEditor> {
+				const document = await (URI.isUri(documentOrUri)
+					? Promise.resolve(workspace.openTextDocument(documentOrUri))
+					: Promise.resolve(<vscode.TextDocument>documentOrUri));
+
+				return extHostEditors.showTextDocument(document, columnOrOptions, preserveFocus);
 			},
 			createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
 				return extHostEditors.createTextEditorDecorationType(options);
@@ -592,11 +595,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializer);
 			},
-			registerCustomEditorProvider: (viewType: string, provider: vscode.CustomTextEditorProvider, options: { webviewOptions?: vscode.WebviewPanelOptions } = {}) => {
-				return extHostWebviews.registerCustomEditorProvider(extension, viewType, provider, options);
-			},
-			registerCustomEditorProvider2: (viewType: string, provider: vscode.CustomReadonlyEditorProvider, options: { webviewOptions?: vscode.WebviewPanelOptions, supportsMultipleEditorsPerDocument?: boolean } = {}) => {
-				checkProposedApiEnabled(extension);
+			registerCustomEditorProvider: (viewType: string, provider: vscode.CustomTextEditorProvider | vscode.CustomReadonlyEditorProvider, options: { webviewOptions?: vscode.WebviewPanelOptions, supportsMultipleEditorsPerDocument?: boolean } = {}) => {
 				return extHostWebviews.registerCustomEditorProvider(extension, viewType, provider, options);
 			},
 			registerDecorationProvider(provider: vscode.DecorationProvider) {
@@ -708,8 +707,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 
 				return uriPromise.then(uri => {
-					return extHostDocuments.ensureDocumentData(uri).then(() => {
-						return extHostDocuments.getDocument(uri);
+					return extHostDocuments.ensureDocumentData(uri).then(documentData => {
+						return documentData.document;
 					});
 				});
 			},
@@ -918,6 +917,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidCloseNotebookDocument;
 			},
+			get notebookDocuments(): vscode.NotebookDocument[] {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.notebookDocuments;
+			},
+			get visibleNotebookEditors() {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.visibleNotebookEditors;
+			},
+			get onDidChangeVisibleNotebookEditors() {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeVisibleNotebookEditors;
+			},
 			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider);
@@ -938,9 +949,21 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.activeNotebookEditor;
 			},
-			onDidChangeNotebookDocument(listener, thisArgs?, disposables?) {
+			onDidChangeActiveNotebookEditor(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeNotebookDocument(listener, thisArgs, disposables);
+				return extHostNotebook.onDidChangeActiveNotebookEditor(listener, thisArgs, disposables);
+			},
+			onDidChangeNotebookCells(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeNotebookCells(listener, thisArgs, disposables);
+			},
+			onDidChangeCellOutputs(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeCellOutputs(listener, thisArgs, disposables);
+			},
+			onDidChangeCellLanguage(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeCellLanguage(listener, thisArgs, disposables);
 			},
 			createConcatTextDocument(notebook, selector) {
 				checkProposedApiEnabled(extension);
@@ -1040,6 +1063,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SnippetString: extHostTypes.SnippetString,
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			SourceControlInputBoxValidationType: extHostTypes.SourceControlInputBoxValidationType,
+			StandardTokenType: extHostTypes.StandardTokenType,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolKind: extHostTypes.SymbolKind,

@@ -301,7 +301,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 				if (markerOrChange instanceof Marker) {
 					this.tree.rerender(markerOrChange);
 				} else {
-					if (markerOrChange.added.length || markerOrChange.removed.length) {
+					if (markerOrChange.added.size || markerOrChange.removed.size) {
 						// Reset complete tree
 						this.resetTree();
 					} else {
@@ -675,7 +675,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		if (typeof autoReveal === 'boolean' && autoReveal) {
 			let currentActiveResource = this.getResourceForCurrentActiveResource();
 			if (currentActiveResource) {
-				if (!this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
+				if (this.tree.hasElement(currentActiveResource) && !this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
 					this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
 					if (focus) {
 						this.tree.setFocus(this.tree.getSelection());
@@ -705,7 +705,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 			let selectedElement = this.tree.getSelection();
 			if (selectedElement && selectedElement.length > 0) {
 				if (selectedElement[0] instanceof Marker) {
-					if (resource.resource.toString() === (<Marker>selectedElement[0]).marker.resource.toString()) {
+					if (resource.has((<Marker>selectedElement[0]).marker.resource)) {
 						return true;
 					}
 				}

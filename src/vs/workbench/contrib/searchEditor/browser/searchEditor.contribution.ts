@@ -93,7 +93,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 					override: (async () => {
 						const { config } = await instantiationService.invokeFunction(parseSavedSearchEditor, resource);
 						const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { backingUri: resource, config });
-						return editorService.openEditor(input, { ...options, ignoreOverrides: true }, group);
+						return editorService.openEditor(input, { ...options, override: false }, group);
 					})()
 				};
 			}
@@ -109,7 +109,9 @@ workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContrib
 type SerializedSearchEditor = { modelUri: string, dirty: boolean, config: SearchConfiguration, name: string, matchRanges: Range[], backingUri: string };
 class SearchEditorInputFactory implements IEditorInputFactory {
 
-	canSerialize() { return true; }
+	canSerialize(input: SearchEditorInput) {
+		return !input.isDisposed();
+	}
 
 	serialize(input: SearchEditorInput) {
 		let modelUri = undefined;
@@ -269,9 +271,12 @@ registerAction2(class extends Action2 {
 			category,
 			f1: true,
 			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				primary: KeyMod.Alt | KeyCode.Enter,
 				when: ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey),
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: KeybindingWeight.WorkbenchContrib,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.Enter
+				}
 			},
 		});
 	}

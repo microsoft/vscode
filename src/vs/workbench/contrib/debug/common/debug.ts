@@ -24,6 +24,7 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
+import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 
@@ -155,6 +156,7 @@ export interface IDebugSessionOptions {
 	noDebug?: boolean;
 	parentSession?: IDebugSession;
 	repl?: IDebugSessionReplMode;
+	compoundRoot?: DebugCompoundRoot;
 }
 
 export interface IDebugSession extends ITreeElement {
@@ -518,6 +520,7 @@ export interface IConfig extends IEnvConfig {
 
 export interface ICompound {
 	name: string;
+	stopAll?: boolean;
 	preLaunchTask?: string | TaskIdentifier;
 	configurations: (string | { name: string, folder: string })[];
 	presentation?: IConfigPresentation;
@@ -728,7 +731,7 @@ export interface ILaunch {
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 
 export interface IDebugService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Gets the current debug state.
@@ -906,7 +909,7 @@ export const DEBUG_HELPER_SERVICE_ID = 'debugHelperService';
 export const IDebugHelperService = createDecorator<IDebugHelperService>(DEBUG_HELPER_SERVICE_ID);
 
 export interface IDebugHelperService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined;
 }

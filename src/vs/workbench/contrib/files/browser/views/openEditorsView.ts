@@ -303,6 +303,11 @@ export class OpenEditorsView extends ViewPane {
 				this.listRefreshScheduler.schedule(0);
 			}
 		}));
+
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
+			this.updateSize();
+		}));
 	}
 
 	getActions(): IAction[] {
@@ -446,6 +451,11 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	private getMaxExpandedBodySize(): number {
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		if (containerModel.visibleViewDescriptors.length <= 1) {
+			return Number.POSITIVE_INFINITY;
+		}
+
 		return this.elementCount * OpenEditorsDelegate.ITEM_HEIGHT;
 	}
 

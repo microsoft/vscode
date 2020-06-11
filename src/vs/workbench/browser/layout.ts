@@ -16,7 +16,7 @@ import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { Position, Parts, IWorkbenchLayoutService, positionFromString, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, WillSaveStateReason, WorkspaceStorageSettings } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -54,7 +54,6 @@ export enum Settings {
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
-	WORKSPACE_FIRST_OPEN = 'workbench.workspaceFirstOpen'
 }
 
 enum Storage {
@@ -104,7 +103,7 @@ interface SideBarActivityState {
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	//#region Events
 
@@ -221,6 +220,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		statusBar: {
 			hidden: false
+		},
+
+		views: {
+			defaults: undefined as (string[] | undefined)
 		},
 
 		zenMode: {
@@ -476,6 +479,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
+
+		// Default Layout
 		this.applyDefaultLayout(this.environmentService, this.storageService);
 
 		// Fullscreen
@@ -555,15 +560,24 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private applyDefaultLayout(environmentService: IWorkbenchEnvironmentService, storageService: IStorageService) {
-		const defaultLayout = environmentService.options?.defaultLayout;
+		let defaultLayout = environmentService.options?.defaultLayout;
 		if (!defaultLayout) {
 			return;
 		}
 
-		const firstOpen = storageService.getBoolean(Settings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE);
+		const firstOpen = storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE);
 		if (!firstOpen) {
 			return;
 		}
+
+		const { views } = defaultLayout;
+		if (views?.length) {
+			this.state.views.defaults = views.map(v => v.id);
+
+			return;
+		}
+
+		// Everything below here is deprecated and will be removed once Codespaces migrates
 
 		const { sidebar } = defaultLayout;
 		if (sidebar) {
@@ -773,7 +787,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[] } | undefined {
 		const defaultLayout = this.environmentService.options?.defaultLayout;
-		if (defaultLayout?.editors?.length && this.storageService.getBoolean(Settings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE)) {
+		if (defaultLayout?.editors?.length && this.storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE)) {
 			this._openedDefaultEditors = true;
 
 			return {
@@ -783,7 +797,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 						if ('path' in f && 'scheme' in f) {
 							return { fileUri: URI.file((f as any).path).with({ scheme: (f as any).scheme }) };
 						}
-						return { fileUri: URI.revive(f.uri), openOnlyIfExists: f.openOnlyIfExists };
+						return { fileUri: URI.revive(f.uri), openOnlyIfExists: f.openOnlyIfExists, overrideId: f.openWith };
 					})
 			};
 		}
@@ -1394,9 +1408,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// If panel part becomes hidden, also hide the current active panel if any
+		let focusEditor = false;
 		if (hidden && this.panelService.getActivePanel()) {
 			this.panelService.hideActivePanel();
-			this.editorGroupService.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
+			focusEditor = true;
 		}
 
 		// If panel part becomes visible, show last active panel or default panel
@@ -1427,6 +1442,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (hidden && this.state.editor.hidden) {
 			this.setEditorHidden(false, true);
 		}
+
+		if (focusEditor) {
+			this.editorGroupService.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
+		}
 	}
 
 	toggleMaximizedPanel(): void {
@@ -1446,7 +1465,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		} else {
 			this.setEditorHidden(false);
 			this.workbenchGrid.resizeView(this.panelPartView, { width: this.state.panel.position === Position.BOTTOM ? size.width : this.state.panel.lastNonMaximizedWidth, height: this.state.panel.position === Position.BOTTOM ? this.state.panel.lastNonMaximizedHeight : size.height });
-			this.editorGroupService.activeGroup.focus();
 		}
 	}
 

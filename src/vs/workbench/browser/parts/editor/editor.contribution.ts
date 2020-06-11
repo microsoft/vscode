@@ -48,7 +48,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { toLocalResource } from 'vs/base/common/resources';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -119,12 +118,12 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 	) { }
 
 	canSerialize(editorInput: EditorInput): boolean {
-		return this.filesConfigurationService.isHotExitEnabled;
+		return this.filesConfigurationService.isHotExitEnabled && !editorInput.isDisposed();
 	}
 
 	serialize(editorInput: EditorInput): string | undefined {
-		if (!this.filesConfigurationService.isHotExitEnabled) {
-			return undefined; // never restore untitled unless hot exit is enabled
+		if (!this.filesConfigurationService.isHotExitEnabled || editorInput.isDisposed()) {
+			return undefined;
 		}
 
 		const untitledTextEditorInput = <UntitledTextEditorInput>editorInput;
@@ -169,9 +168,10 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(UntitledTextEditorInput.ID, UntitledTextEditorInputFactory);
 
+// Register SideBySide/DiffEditor Input Factory
 interface ISerializedSideBySideEditorInput {
 	name: string;
-	description: string;
+	description: string | undefined;
 
 	detailsSerialized: string;
 	masterSerialized: string;
@@ -180,16 +180,19 @@ interface ISerializedSideBySideEditorInput {
 	masterTypeId: string;
 }
 
-// Register Side by Side Editor Input Factory
-class SideBySideEditorInputFactory implements IEditorInputFactory {
+export abstract class AbstractSideBySideEditorInputFactory implements IEditorInputFactory {
+
+	private getInputFactories(detailsId: string, masterId: string): [IEditorInputFactory | undefined, IEditorInputFactory | undefined] {
+		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
+
+		return [registry.getEditorInputFactory(detailsId), registry.getEditorInputFactory(masterId)];
+	}
 
 	canSerialize(editorInput: EditorInput): boolean {
-		const input = <SideBySideEditorInput>editorInput;
+		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
 
 		if (input.details && input.master) {
-			const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
-			const detailsInputFactory = registry.getEditorInputFactory(input.details.getTypeId());
-			const masterInputFactory = registry.getEditorInputFactory(input.master.getTypeId());
+			const [detailsInputFactory, masterInputFactory] = this.getInputFactories(input.details.getTypeId(), input.master.getTypeId());
 
 			return !!(detailsInputFactory?.canSerialize(input.details) && masterInputFactory?.canSerialize(input.master));
 		}
@@ -198,26 +201,25 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 	}
 
 	serialize(editorInput: EditorInput): string | undefined {
-		const input = <SideBySideEditorInput>editorInput;
+		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
 
 		if (input.details && input.master) {
-			const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
-			const detailsInputFactory = registry.getEditorInputFactory(input.details.getTypeId());
-			const masterInputFactory = registry.getEditorInputFactory(input.master.getTypeId());
-
+			const [detailsInputFactory, masterInputFactory] = this.getInputFactories(input.details.getTypeId(), input.master.getTypeId());
 			if (detailsInputFactory && masterInputFactory) {
 				const detailsSerialized = detailsInputFactory.serialize(input.details);
 				const masterSerialized = masterInputFactory.serialize(input.master);
 
 				if (detailsSerialized && masterSerialized) {
-					return JSON.stringify(<ISerializedSideBySideEditorInput>{
+					const serializedEditorInput: ISerializedSideBySideEditorInput = {
 						name: input.getName(),
 						description: input.getDescription(),
 						detailsSerialized,
 						masterSerialized,
 						detailsTypeId: input.details.getTypeId(),
 						masterTypeId: input.master.getTypeId()
-					});
+					};
+
+					return JSON.stringify(serializedEditorInput);
 				}
 			}
 		}
@@ -228,24 +230,38 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const deserialized: ISerializedSideBySideEditorInput = JSON.parse(serializedEditorInput);
 
-		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
-		const detailsInputFactory = registry.getEditorInputFactory(deserialized.detailsTypeId);
-		const masterInputFactory = registry.getEditorInputFactory(deserialized.masterTypeId);
-
+		const [detailsInputFactory, masterInputFactory] = this.getInputFactories(deserialized.detailsTypeId, deserialized.masterTypeId);
 		if (detailsInputFactory && masterInputFactory) {
 			const detailsInput = detailsInputFactory.deserialize(instantiationService, deserialized.detailsSerialized);
 			const masterInput = masterInputFactory.deserialize(instantiationService, deserialized.masterSerialized);
 
 			if (detailsInput && masterInput) {
-				return new SideBySideEditorInput(deserialized.name, withNullAsUndefined(deserialized.description), detailsInput, masterInput);
+				return this.createEditorInput(deserialized.name, deserialized.description, detailsInput, masterInput);
 			}
 		}
 
 		return undefined;
 	}
+
+	protected abstract createEditorInput(name: string, description: string | undefined, detailsInput: EditorInput, masterInput: EditorInput): EditorInput;
+}
+
+class SideBySideEditorInputFactory extends AbstractSideBySideEditorInputFactory {
+
+	protected createEditorInput(name: string, description: string | undefined, detailsInput: EditorInput, masterInput: EditorInput): EditorInput {
+		return new SideBySideEditorInput(name, description, detailsInput, masterInput);
+	}
+}
+
+class DiffEditorInputFactory extends AbstractSideBySideEditorInputFactory {
+
+	protected createEditorInput(name: string, description: string | undefined, detailsInput: EditorInput, masterInput: EditorInput): EditorInput {
+		return new DiffEditorInput(name, description, detailsInput, masterInput);
+	}
 }
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(SideBySideEditorInput.ID, SideBySideEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(DiffEditorInput.ID, DiffEditorInputFactory);
 
 // Register Editor Contributions
 registerEditorContribution(OpenWorkspaceButtonContribution.ID, OpenWorkspaceButtonContribution);

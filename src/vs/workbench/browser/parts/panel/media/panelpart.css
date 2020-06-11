@@ -50,6 +50,10 @@
 	outline-offset: -2px;
 }
 
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.clicked:focus .action-label {
+	border-bottom-color: transparent !important; /* hides border on clicked state */
+}
+
 /** Panel Switcher */
 
 .monaco-workbench .part.panel > .composite.title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.codicon-more {

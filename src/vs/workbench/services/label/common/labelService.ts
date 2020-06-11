@@ -14,7 +14,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { isEqual, basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { ltrim } from 'vs/base/common/strings';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -92,7 +91,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 export class LabelService extends Disposable implements ILabelService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private formatters: ResourceLabelFormatter[] = [];
 
@@ -139,20 +138,24 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		let label: string | undefined;
-		const baseResource = this.contextService && this.contextService.getWorkspaceFolder(resource);
+		const baseResource = this.contextService?.getWorkspaceFolder(resource);
 
 		if (options.relative && baseResource) {
+			const rootName = baseResource?.name ?? basenameOrAuthority(baseResource.uri);
+
 			let relativeLabel: string;
 			if (isEqual(baseResource.uri, resource)) {
 				relativeLabel = ''; // no label if resources are identical
 			} else {
 				const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
-				relativeLabel = ltrim(this.formatUri(resource, formatting, options.noPrefix).substring(baseResourceLabel.length), formatting.separator);
+				relativeLabel = this.formatUri(resource, formatting, options.noPrefix).substring(baseResourceLabel.lastIndexOf(formatting.separator) + 1);
+				if (relativeLabel.startsWith(rootName)) {
+					relativeLabel = relativeLabel.substring(rootName.length + (relativeLabel[rootName.length] === formatting.separator ? 1 : 0));
+				}
 			}
 
 			const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
 			if (hasMultipleRoots && !options.noPrefix) {
-				const rootName = (baseResource && baseResource.name) ? baseResource.name : basenameOrAuthority(baseResource.uri);
 				relativeLabel = relativeLabel ? (rootName + ' • ' + relativeLabel) : rootName; // always show root basename if there are multiple
 			}
 

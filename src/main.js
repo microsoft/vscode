@@ -16,9 +16,8 @@ const fs = require('fs');
 const os = require('os');
 const bootstrap = require('./bootstrap');
 const paths = require('./paths');
-// @ts-ignore
+/** @type {any} */
 const product = require('../product.json');
-// @ts-ignore
 const { app, protocol } = require('electron');
 
 // Enable portable support
@@ -42,6 +41,11 @@ let crashReporterDirectory = args['crash-reporter-directory'];
 if (crashReporterDirectory) {
 	crashReporterDirectory = path.normalize(crashReporterDirectory);
 
+	if (!path.isAbsolute(crashReporterDirectory)) {
+		console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory must be absolute.`);
+		app.exit(1);
+	}
+
 	if (!fs.existsSync(crashReporterDirectory)) {
 		try {
 			fs.mkdirSync(crashReporterDirectory);
@@ -58,9 +62,11 @@ if (crashReporterDirectory) {
 
 	// Start crash reporter
 	const { crashReporter } = require('electron');
+	const productName = (product.crashReporter && product.crashReporter.productName) || product.nameShort;
+	const companyName = (product.crashReporter && product.crashReporter.companyName) || 'Microsoft';
 	crashReporter.start({
-		companyName: 'Microsoft',
-		productName: product.nameShort,
+		companyName: companyName,
+		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
 		submitURL: '',
 		uploadToServer: false
 	});
@@ -80,6 +86,13 @@ setCurrentWorkingDirectory();
 // Register custom schemes with privileges
 protocol.registerSchemesAsPrivileged([
 	{
+		scheme: 'vscode-resource',
+		privileges: {
+			secure: true,
+			supportFetchAPI: true,
+			corsEnabled: true,
+		}
+	}, {
 		scheme: 'vscode-webview-resource',
 		privileges: {
 			secure: true,
@@ -122,7 +135,6 @@ if (locale) {
 // Load our code once ready
 app.once('ready', function () {
 	if (args['trace']) {
-		// @ts-ignore
 		const contentTracing = require('electron').contentTracing;
 
 		const traceOptions = {
@@ -469,6 +481,7 @@ function getNodeCachedDir() {
 }
 
 //#region NLS Support
+
 /**
  * Resolve the NLS configuration
  *
@@ -564,4 +577,5 @@ function getLegacyUserDefinedLocaleSync(localeConfigPath) {
 		// ignore
 	}
 }
+
 //#endregion

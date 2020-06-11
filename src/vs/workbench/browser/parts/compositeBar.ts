@@ -39,6 +39,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 		private targetContainerLocation: ViewContainerLocation,
 		private openComposite: (id: string, focus?: boolean) => Promise<IPaneComposite | null>,
 		private moveComposite: (from: string, to: string, before?: Before2D) => void,
+		private getItems: () => ICompositeBarItem[],
 	) { }
 
 	drop(data: CompositeDragAndDropData, targetCompositeId: string | undefined, originalEvent: DragEvent, before?: Before2D): void {
@@ -61,11 +62,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 					return;
 				}
 
-				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation);
-
-				if (targetCompositeId) {
-					this.moveComposite(currentContainer.id, targetCompositeId, before);
-				}
+				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, this.getTargetIndex(targetCompositeId, before));
 			}
 		}
 
@@ -98,6 +95,16 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 		return this.canDrop(data, targetCompositeId);
 	}
 
+	private getTargetIndex(targetId: string | undefined, before2d: Before2D | undefined): number | undefined {
+		if (!targetId) {
+			return undefined;
+		}
+
+		const items = this.getItems();
+		const before = this.targetContainerLocation === ViewContainerLocation.Panel ? before2d?.horizontallyBefore : before2d?.verticallyBefore;
+		return items.filter(o => o.visible).findIndex(o => o.id === targetId) + (before ? 0 : 1);
+	}
+
 	private canDrop(data: CompositeDragAndDropData, targetCompositeId: string | undefined): boolean {
 		const dragData = data.getData();
 
@@ -115,7 +122,8 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			const draggedViews = this.viewDescriptorService.getViewContainerModel(currentContainer)!.allViewDescriptors;
 
 			// ... all views must be movable
-			return !draggedViews.some(v => !v.canMoveView);
+			// Prevent moving scm explicitly TODO@joaomoreno remove when scm is moveable
+			return !draggedViews.some(v => !v.canMoveView) && currentContainer.id !== 'workbench.view.scm';
 		} else {
 			// Dragging an individual view
 			const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(dragData.id);
@@ -228,14 +236,14 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
 			onDragOver: (e: IDraggedCompositeData) => {
 				// don't add feedback if this is over the composite bar actions or there are no actions
-				if (!(this.compositeSwitcherBar?.length()) || (e.eventData.target && isAncestor(e.eventData.target as HTMLElement, actionBarDiv))) {
+				const visibleItems = this.getVisibleComposites();
+				if (!visibleItems.length || (e.eventData.target && isAncestor(e.eventData.target as HTMLElement, actionBarDiv))) {
 					insertDropBefore = this.updateFromDragging(parent, false, false);
 					return;
 				}
 
-				const pinnedItems = this.getPinnedComposites();
 				const insertAtFront = this.insertAtFront(actionBarDiv, e.eventData);
-				const target = insertAtFront ? pinnedItems[0] : pinnedItems[pinnedItems.length - 1];
+				const target = insertAtFront ? visibleItems[0] : visibleItems[visibleItems.length - 1];
 				const validDropTarget = this.options.dndHandler.onDragOver(e.dragAndDropData, target.id, e.eventData);
 				insertDropBefore = this.updateFromDragging(parent, validDropTarget, insertAtFront);
 			},
@@ -247,9 +255,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				insertDropBefore = this.updateFromDragging(parent, false, false);
 			},
 			onDrop: (e: IDraggedCompositeData) => {
-				const pinnedItems = this.getPinnedComposites();
-				if (pinnedItems.length) {
-					const target = this.insertAtFront(actionBarDiv, e.eventData) ? pinnedItems[0] : pinnedItems[pinnedItems.length - 1];
+				const visibleItems = this.getVisibleComposites();
+				if (visibleItems.length) {
+					const target = this.insertAtFront(actionBarDiv, e.eventData) ? visibleItems[0] : visibleItems[visibleItems.length - 1];
 					this.options.dndHandler.drop(e.dragAndDropData, target.id, e.eventData, insertDropBefore);
 				}
 				insertDropBefore = this.updateFromDragging(parent, false, false);
@@ -307,9 +315,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this.updateCompositeSwitcher();
 	}
 
-	addComposite({ id, name, order }: { id: string; name: string, order?: number }): void {
+	addComposite({ id, name, order, requestedIndex }: { id: string; name: string, order?: number, requestedIndex?: number }): void {
 		// Add to the model
-		if (this.model.add(id, name, order)) {
+		if (this.model.add(id, name, order, requestedIndex)) {
 			this.computeSizes([this.model.findItem(id)]);
 			this.updateCompositeSwitcher();
 		}
@@ -696,6 +704,7 @@ class CompositeBarModel {
 			}
 			this._items = result;
 		}
+
 		return hasChanges;
 	}
 
@@ -721,7 +730,7 @@ class CompositeBarModel {
 		};
 	}
 
-	add(id: string, name: string, order: number | undefined): boolean {
+	add(id: string, name: string, order: number | undefined, requestedIndex: number | undefined): boolean {
 		const item = this.findItem(id);
 		if (item) {
 			let changed = false;
@@ -734,10 +743,21 @@ class CompositeBarModel {
 				item.visible = true;
 				changed = true;
 			}
+
 			return changed;
 		} else {
 			const item = this.createCompositeBarItem(id, name, order, true, true);
-			if (isUndefinedOrNull(order)) {
+			if (!isUndefinedOrNull(requestedIndex)) {
+				let index = 0;
+				let rIndex = requestedIndex;
+				while (rIndex > 0 && index < this.items.length) {
+					if (this.items[index++].visible) {
+						rIndex--;
+					}
+				}
+
+				this.items.splice(index, 0, item);
+			} else if (isUndefinedOrNull(order)) {
 				this.items.push(item);
 			} else {
 				let index = 0;
@@ -746,6 +766,7 @@ class CompositeBarModel {
 				}
 				this.items.splice(index, 0, item);
 			}
+
 			return true;
 		}
 	}

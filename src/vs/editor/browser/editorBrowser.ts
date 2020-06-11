@@ -7,7 +7,6 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OverviewRulerPosition, ConfigurationChangedEvent, EditorLayoutInfo, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -666,11 +665,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
-	_getCursors(): ICursors | null;
-
-	/**
-	 * @internal
-	 */
 	_getViewModel(): IViewModel | null;
 
 	/**
@@ -860,11 +854,6 @@ export interface IActiveCodeEditor extends ICodeEditor {
 	 * Type the getModel() of IEditor.
 	 */
 	getModel(): ITextModel;
-
-	/**
-	 * @internal
-	 */
-	_getCursors(): ICursors;
 
 	/**
 	 * @internal

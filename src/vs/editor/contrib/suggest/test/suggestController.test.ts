@@ -26,6 +26,7 @@ import { IMenuService, IMenu } from 'vs/platform/actions/common/actions';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { Range } from 'vs/editor/common/core/range';
 import { timeout } from 'vs/base/common/async';
+import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 
 suite('SuggestController', function () {
 
@@ -40,6 +41,7 @@ suite('SuggestController', function () {
 
 		const serviceCollection = new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
+			[ILogService, new NullLogService()],
 			[IStorageService, new InMemoryStorageService()],
 			[IKeybindingService, new MockKeybindingService()],
 			[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {

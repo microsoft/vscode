@@ -6,19 +6,22 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
+import { MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorOptions, IEditorCloseEvent, IEditorMemento } from 'vs/workbench/common/editor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
+import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -29,13 +32,18 @@ export class NotebookEditor extends BaseEditor {
 	private _widget?: NotebookEditorWidget;
 	private _rootElement!: HTMLElement;
 	private dimension: DOM.Dimension | null = null;
+	private _widgetDisposableStore: DisposableStore = new DisposableStore();
+	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
+	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService) {
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@INotificationService private readonly notificationService: INotificationService) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 
 		// this._widget = this.instantiationService.createInstance(NotebookEditorWidget);
@@ -93,13 +101,17 @@ export class NotebookEditor extends BaseEditor {
 			this.saveEditorViewState(this.input);
 		}
 
-		this._widget?.onWillHide();
-		super.onHide();
+		if (this.input && NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput) === this._widget) {
+			// the widget is not transfered to other editor inputs
+			this._widget?.onWillHide();
+		}
+
+		super.onWillHide();
 	}
 
 	setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
-		this.groupListener.value = ((group as IEditorGroupView).onWillCloseEditor(e => this.onWillCloseEditorInGroup(e)));
+		this.groupListener.value = group?.onWillCloseEditor(e => this.onWillCloseEditorInGroup(e));
 	}
 
 	private onWillCloseEditorInGroup(e: IEditorCloseEvent): void {
@@ -132,22 +144,31 @@ export class NotebookEditor extends BaseEditor {
 		// input attached
 		Event.once(input.onDispose)(() => {
 			// make sure the editor widget is removed from the view
-			const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput);
-			existingEditorWidgetForInput?.getDomNode().remove();
-			existingEditorWidgetForInput?.dispose();
-			NotebookRegistry.releaseNotebookEditorWidget(this.input as NotebookEditorInput);
+			const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input as NotebookEditorInput);
+			if (existingEditorWidgetForInput) {
+				// the editor widget is only referenced by the editor input
+				// clear its state
+				existingEditorWidgetForInput?.onWillHide();
+				existingEditorWidgetForInput?.getDomNode().remove();
+				existingEditorWidgetForInput?.dispose();
+				NotebookRegistry.releaseNotebookEditorWidget(input as NotebookEditorInput);
+			}
 		});
 
+		this._widgetDisposableStore.clear();
 
-		const model = await input.resolve();
-		const viewState = this.loadTextEditorViewState(input);
 		const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input);
 		if (existingEditorWidgetForInput) {
-			// hide current widget
-			this._widget?.onWillHide();
+			// hide previous widget
+			if (NotebookRegistry.getNotebookEditorWidget(this.input! as NotebookEditorInput) === this._widget) {
+				// the widet is not transfered to other editor inputs
+				this._widget?.onWillHide();
+			}
+
 			// previous widget is then detached
 			// set the new one
 			this._widget = existingEditorWidgetForInput;
+			NotebookRegistry.claimNotebookEditorWidget(input, this._widget);
 		} else {
 			// hide current widget
 			this._widget?.onWillHide();
@@ -161,11 +182,39 @@ export class NotebookEditor extends BaseEditor {
 			this._widget.layout(this.dimension, this._rootElement);
 		}
 
-		this._widget.setModel(model.notebook, viewState, options);
+		const model = await input.resolve(this._widget!.getId());
+
+		if (model === null) {
+			this.notificationService.prompt(
+				Severity.Error,
+				`Cannot open resource with notebook editor type '${input.viewType}', please check if you have the right extension installed or enabled.`,
+				[{
+					label: 'Reopen file with VS Code standard text editor',
+					run: async () => {
+						const fileEditorInput = this.editorService.createEditorInput({ resource: input.resource, forceFile: true });
+						const textOptions: IEditorOptions | ITextEditorOptions = options ? { ...options, override: false } : { override: false };
+						await this.editorService.openEditor(fileEditorInput, textOptions);
+					}
+				}]
+			);
+			return;
+		}
+
+		const viewState = this.loadTextEditorViewState(input);
+
+		await this._widget.setModel(model.notebook, viewState, options);
+		this._widgetDisposableStore.add(this._widget.onDidFocus(() => this._onDidFocusWidget.fire()));
+
+		if (this.editorGroupService instanceof EditorPart) {
+			this._widgetDisposableStore.add(this.editorGroupService.createEditorDropTarget(this._widget.getDomNode(), {
+				groupContainsPredicate: (group) => this.group?.id === group.group.id
+			}));
+		}
 	}
 
 	clearInput(): void {
-		this._widget?.onWillHide();
+		const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput);
+		existingEditorWidgetForInput?.onWillHide();
 		this._widget = undefined;
 		super.clearInput();
 	}
@@ -194,7 +243,7 @@ export class NotebookEditor extends BaseEditor {
 			return;
 		}
 
-		if (this._input.resource?.toString() !== this._widget?.viewModel?.uri.toString()) {
+		if (this._input.resource?.toString() !== this._widget?.viewModel?.uri.toString() && this._widget?.viewModel) {
 			// input and widget mismatch
 			// this happens when
 			// 1. open document A, pin the document

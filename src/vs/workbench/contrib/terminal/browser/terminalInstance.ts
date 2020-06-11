@@ -103,6 +103,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 
+	private _timeoutDimension: dom.Dimension | undefined;
+
 	public disableLayout: boolean;
 	public get id(): number { return this._id; }
 	public get cols(): number {
@@ -408,7 +410,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					return false;
 				});
 			}
-			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!, this._configHelper);
+			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!);
 			this._linkManager.onBeforeHandleLink(e => {
 				e.terminal = this;
 				this._onBeforeHandleLink.fire(e);
@@ -656,14 +658,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		};
 	}
 
-	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
-		return this._linkManager!.registerCustomLinkHandler(regex, (_, url) => handler(url), matchIndex, validationCallback);
-	}
-
-	public deregisterLinkMatcher(linkMatcherId: number): void {
-		this._xtermReadyPromise.then(xterm => xterm.deregisterLinkMatcher(linkMatcherId));
-	}
-
 	public hasSelection(): boolean {
 		return this._xterm ? this._xterm.hasSelection() : false;
 	}
@@ -829,7 +823,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// HACK: Trigger another async layout to ensure xterm's CharMeasure is ready to use,
 				// this hack can be removed when https://github.com/xtermjs/xterm.js/issues/702 is
 				// supported.
-				setTimeout(() => this.layout(new dom.Dimension(width, height)), 0);
+				this._timeoutDimension = new dom.Dimension(width, height);
+				setTimeout(() => this.layout(this._timeoutDimension!), 0);
 			}
 		}
 	}
@@ -905,7 +900,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						this._windowsShellHelper = this._terminalInstanceService.createWindowsShellHelper(this._processManager.shellProcessId, xterm);
 						this._windowsShellHelper.onShellNameChange(title => {
 							this.setShellType(this.getShellType(title));
-							if (this.isTitleSetByProcess) {
+							if (this.isTitleSetByProcess && !this._configHelper.config.experimentalUseTitleEvent) {
 								this.setTitle(title, TitleEventSource.Process);
 							}
 						});
@@ -1276,6 +1271,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!terminalWidth) {
 			return;
 		}
+
+		this._timeoutDimension = new dom.Dimension(dimension.width, dimension.height);
 
 		if (this._xterm && this._xterm.element) {
 			this._xterm.element.style.width = terminalWidth + 'px';

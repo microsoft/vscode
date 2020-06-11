@@ -6,7 +6,7 @@
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
+import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage, WorkspaceStorageSettings } from 'vs/platform/storage/common/storage';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorageDatabase, IStorage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { mark } from 'vs/base/common/performance';
@@ -20,7 +20,7 @@ import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 export class NativeStorageService extends Disposable implements IStorageService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static readonly WORKSPACE_META_NAME = 'workspace.json';
@@ -104,6 +104,13 @@ export class NativeStorageService extends Disposable implements IStorageService 
 					result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined
 				);
 				await workspaceStorage.init();
+
+				const firstOpen = workspaceStorage.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN);
+				if (firstOpen === undefined) {
+					workspaceStorage.set(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, !result.wasCreated);
+				} else if (firstOpen) {
+					workspaceStorage.set(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, false);
+				}
 			} finally {
 				mark('didInitWorkspaceStorage');
 			}

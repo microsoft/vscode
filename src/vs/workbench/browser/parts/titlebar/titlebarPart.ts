@@ -60,7 +60,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	protected title!: HTMLElement;
 	protected customMenubar: CustomMenubarControl | undefined;
@@ -333,7 +333,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
 
 		this.menubar = this.element.insertBefore($('div.menubar'), this.title);
-
 		this.menubar.setAttribute('role', 'menubar');
 
 		this.customMenubar.create(this.menubar);

@@ -16,7 +16,7 @@ import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardE
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListError, IKeyboardNavigationDelegate } from './list';
-import { ListView, IListViewOptions, IListViewDragAndDrop, IListViewAccessibilityProvider } from './listView';
+import { ListView, IListViewOptions, IListViewDragAndDrop, IListViewAccessibilityProvider, IListViewOptionsUpdate } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
@@ -1107,10 +1107,9 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 	}
 }
 
-export interface IListOptionsUpdate {
+export interface IListOptionsUpdate extends IListViewOptionsUpdate {
 	readonly enableKeyboardNavigation?: boolean;
 	readonly automaticKeyboardNavigation?: boolean;
-	readonly additionalScrollHeight?: number;
 }
 
 export class List<T> implements ISpliceable<T>, IDisposable {
@@ -1288,9 +1287,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			this.typeLabelController.updateOptions(this._options);
 		}
 
-		if (optionsUpdate.additionalScrollHeight !== undefined) {
-			this.view.updateOptions(optionsUpdate);
-		}
+		this.view.updateOptions(optionsUpdate);
 	}
 
 	get options(): IListOptions<T> {

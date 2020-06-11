@@ -5,14 +5,14 @@
 
 // Scrollable Element
 
-export const SCROLLABLE_ELEMENT_PADDING_TOP = 16;
+export const SCROLLABLE_ELEMENT_PADDING_TOP = 20;
 
 // Cell sizing related
 export const CELL_MARGIN = 20;
 export const CELL_RUN_GUTTER = 32;
 
 export const EDITOR_TOOLBAR_HEIGHT = 0;
-export const BOTTOM_CELL_TOOLBAR_HEIGHT = 36;
+export const BOTTOM_CELL_TOOLBAR_HEIGHT = 32;
 export const CELL_STATUSBAR_HEIGHT = 22;
 
 // Top margin of editor
