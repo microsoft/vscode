@@ -24,6 +24,10 @@ try {
 }
 
 function isValidTag(t: string) {
+	if (!t.startsWith('release/')) {
+		return false;
+	}
+	t = t.substr(8); // Cut of the release portion.
 	if (t.split('.').length !== 3) {
 		return false;
 	}
