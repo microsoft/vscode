@@ -819,7 +819,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				let insertIndex = this.getCellIndex(cell) + 1;
 				const newCells = [];
 				for (let j = 1; j < newLinesContents.length; j++, insertIndex++) {
-					newCells.push(this.createCell(insertIndex, newLinesContents[j], language, kind, true, false));
+					newCells.push(this.createCell(insertIndex, newLinesContents[j], language, kind, undefined, true, false));
 				}
 
 				this.selectionHandles = [cell.handle];

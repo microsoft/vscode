@@ -716,8 +716,8 @@ suite('metadata', () => {
 		await vscode.commands.executeCommand('notebook.cell.copyDown');
 		const activeCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
-		assert.equal(activeCell?.metadata.custom!['testCellMetadata'] as number, 123));
-});
+		assert.equal(activeCell?.metadata.custom!['testCellMetadata'] as number, 123);
+	});
 });
 
 suite('regression', () => {

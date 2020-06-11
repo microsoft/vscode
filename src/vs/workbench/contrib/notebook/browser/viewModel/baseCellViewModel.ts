@@ -152,6 +152,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		this._textEditor = editor;
+		this._textModel = this._textEditor.getModel() || undefined;
 
 		if (this._editorViewStates) {
 			this.restoreViewState(this._editorViewStates);
