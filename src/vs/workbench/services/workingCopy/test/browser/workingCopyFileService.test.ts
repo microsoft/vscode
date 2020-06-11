@@ -102,7 +102,7 @@ suite('WorkingCopyFileService', () => {
 		sourceModel1.dispose();
 		sourceModel2.dispose();
 		targetModel2.dispose();
-		assert.equal(eventCounter, 4);
+		assert.equal(eventCounter, 3);
 	});
 
 	test('move multiple - dirty file', async function () {
@@ -146,7 +146,7 @@ suite('WorkingCopyFileService', () => {
 		sourceModel1.dispose();
 		sourceModel2.dispose();
 		targetModel2.dispose();
-		assert.equal(eventCounter, 4);
+		assert.equal(eventCounter, 3);
 	});
 
 	test('copy multiple - dirty file', async function () {
@@ -166,9 +166,7 @@ suite('WorkingCopyFileService', () => {
 
 		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
 			participate: async files => {
-				for (let i = 0; i < files.length; i++) {
-					eventCounter++;
-				}
+				eventCounter++;
 			}
 		});
 
@@ -221,9 +219,11 @@ suite('WorkingCopyFileService', () => {
 
 					assert.equal(target.toString(), targetModel.resource.toString());
 					assert.equal(source?.toString(), sourceModel.resource.toString());
-					assert.equal(operation, move ? FileOperation.MOVE : FileOperation.COPY);
-					eventCounter++;
 				}
+
+				eventCounter++;
+
+				assert.equal(operation, move ? FileOperation.MOVE : FileOperation.COPY);
 			}
 		});
 
@@ -236,8 +236,9 @@ suite('WorkingCopyFileService', () => {
 
 				assert.equal(target.toString(), targetModel.resource.toString());
 				assert.equal(source?.toString(), sourceModel.resource.toString());
-				eventCounter++;
 			}
+
+			eventCounter++;
 
 			correlationId = e.correlationId;
 			assert.equal(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
@@ -249,8 +250,9 @@ suite('WorkingCopyFileService', () => {
 				const { targetModel, sourceModel } = models[i];
 				assert.equal(target.toString(), targetModel.resource.toString());
 				assert.equal(source?.toString(), sourceModel.resource.toString());
-				eventCounter++;
 			}
+
+			eventCounter++;
 
 			assert.equal(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
 			assert.equal(e.correlationId, correlationId);
@@ -277,7 +279,7 @@ suite('WorkingCopyFileService', () => {
 			sourceModel.dispose();
 			targetModel.dispose();
 		}
-		assert.equal(eventCounter, 3 * models.length);
+		assert.equal(eventCounter, 3);
 
 		participant.dispose();
 		listener1.dispose();

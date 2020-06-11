@@ -232,6 +232,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		// file operation participant
 		await this.runFileOperationParticipants(files, move ? FileOperation.MOVE : FileOperation.COPY);
 
+		const nonIdenticalPairs = [];
 		for (const { source, target } of files) {
 
 			// Before doing the heavy operations, check first if source and target
@@ -244,25 +245,32 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 				} else {
 					stats.push(await this.fileService.copy(source, target, overwrite));
 				}
-				continue;
+			} else {
+				nonIdenticalPairs.push({ source, target });
 			}
+		}
+
+		if (nonIdenticalPairs.length > 0) {
 
 			// before event
-			const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, files: [{ target, source }] };
+			const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, files: nonIdenticalPairs };
 			await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 
-			// handle dirty working copies depending on the operation:
-			// - move: revert both source and target (if any)
-			// - copy: revert target (if any)
-			const dirtyWorkingCopies = (move ? [...this.getDirty(source), ...this.getDirty(target)] : this.getDirty(target));
-			await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
-
-			// now we can rename the source to target via file operation
 			try {
-				if (move) {
-					stats.push(await this.fileService.move(source, target, overwrite));
-				} else {
-					stats.push(await this.fileService.copy(source, target, overwrite));
+				for (const { source, target } of nonIdenticalPairs) {
+
+					// handle dirty working copies depending on the operation:
+					// - move: revert both source and target (if any)
+					// - copy: revert target (if any)
+					const dirtyWorkingCopies = (move ? [...this.getDirty(source), ...this.getDirty(target)] : this.getDirty(target));
+					await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
+
+					// now we can rename the source to target via file operation
+					if (move) {
+						stats.push(await this.fileService.move(source, target, overwrite));
+					} else {
+						stats.push(await this.fileService.copy(source, target, overwrite));
+					}
 				}
 			} catch (error) {
 
