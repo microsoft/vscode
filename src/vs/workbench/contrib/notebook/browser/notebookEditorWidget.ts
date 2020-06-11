@@ -15,10 +15,8 @@ import 'vs/css!./media/notebook';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -30,7 +28,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_BOTTOM_PADDING, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, IEditableCellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -867,175 +865,26 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return newCell;
 	}
 
-	private pushIfAbsent(positions: IPosition[], p: IPosition) {
-		const last = positions.length > 0 ? positions[positions.length - 1] : undefined;
-		if (!last || last.lineNumber !== p.lineNumber || last.column !== p.column) {
-			positions.push(p);
-		}
-	}
-
-	/**
-	 * Add split point at the beginning and the end;
-	 * Move end of line split points to the beginning of the next line;
-	 * Avoid duplicate split points
-	 */
-	private splitPointsToBoundaries(splitPoints: IPosition[], textBuffer: IReadonlyTextBuffer): IPosition[] | null {
-		const boundaries: IPosition[] = [];
-		const lineCnt = textBuffer.getLineCount();
-		const getLineLen = (lineNumber: number) => {
-			return textBuffer.getLineLength(lineNumber);
-		};
-
-		// split points need to be sorted
-		splitPoints = splitPoints.sort((l, r) => {
-			const lineDiff = l.lineNumber - r.lineNumber;
-			const columnDiff = l.column - r.column;
-			return lineDiff !== 0 ? lineDiff : columnDiff;
-		});
-
-		// eat-up any split point at the beginning, i.e. we ignore the split point at the very beginning
-		this.pushIfAbsent(boundaries, new Position(1, 1));
-
-		for (let sp of splitPoints) {
-			if (getLineLen(sp.lineNumber) + 1 === sp.column && sp.lineNumber < lineCnt) {
-				sp = new Position(sp.lineNumber + 1, 1);
-			}
-			this.pushIfAbsent(boundaries, sp);
-		}
-
-		// eat-up any split point at the beginning, i.e. we ignore the split point at the very end
-		this.pushIfAbsent(boundaries, new Position(lineCnt, getLineLen(lineCnt) + 1));
-
-		// if we only have two then they describe the whole range and nothing needs to be split
-		return boundaries.length > 2 ? boundaries : null;
-	}
-
-	private computeCellLinesContents(cell: IEditableCellViewModel, splitPoints: IPosition[]): string[] | null {
-		const rangeBoundaries = this.splitPointsToBoundaries(splitPoints, cell.textBuffer);
-		if (!rangeBoundaries) {
-			return null;
-		}
-		const newLineModels: string[] = [];
-		for (let i = 1; i < rangeBoundaries.length; i++) {
-			const start = rangeBoundaries[i - 1];
-			const end = rangeBoundaries[i];
-
-			newLineModels.push(cell.textModel.getValueInRange(new Range(start.lineNumber, start.column, end.lineNumber, end.column)));
-		}
-
-		return newLineModels;
-	}
-
 	async splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null> {
-		if (!this.notebookViewModel!.metadata.editable) {
-			return null;
-		}
+		const index = this.notebookViewModel!.getCellIndex(cell);
 
-		if (!cell.metadata?.editable) {
-			return null;
-		}
-
-		let splitPoints = cell.getSelectionsStartPosition();
-		if (splitPoints && splitPoints.length > 0) {
-			await cell.resolveTextModel();
-
-			if (!cell.hasModel()) {
-				return null;
-			}
-
-			let newLinesContents = this.computeCellLinesContents(cell, splitPoints);
-			if (newLinesContents) {
-
-				// update the contents of the first cell
-				cell.textModel.applyEdits([
-					{ range: cell.textModel.getFullModelRange(), text: newLinesContents[0] }
-				], true);
-
-				// create new cells based on the new text models
-				const language = cell.model.language;
-				const kind = cell.cellKind;
-				let insertIndex = this.notebookViewModel!.getCellIndex(cell) + 1;
-				const newCells = [];
-				for (let j = 1; j < newLinesContents.length; j++, insertIndex++) {
-					newCells.push(this.notebookViewModel!.createCell(insertIndex, newLinesContents[j], language, kind, true));
-				}
-				return newCells;
-			}
-		}
-
-		return null;
+		return this.notebookViewModel!.splitNotebookCell(index);
 	}
 
 	async joinNotebookCells(cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<ICellViewModel | null> {
-		if (!this.notebookViewModel!.metadata.editable) {
-			return null;
-		}
-
-		if (!cell.getEvaluatedMetadata(this.viewModel!.notebookDocument.metadata).editable) {
-			return null;
-		}
-
-		if (constraint && cell.cellKind !== constraint) {
-			return null;
-		}
-
 		const index = this.notebookViewModel!.getCellIndex(cell);
-		if (index === 0 && direction === 'above') {
-			return null;
-		}
+		const ret = await this.notebookViewModel!.joinNotebookCells(index, direction, constraint);
 
-		if (index === this.notebookViewModel!.length - 1 && direction === 'below') {
-			return null;
-		}
+		if (ret) {
+			ret.deletedCells.forEach(cell => {
+				if (this.pendingLayouts.has(cell)) {
+					this.pendingLayouts.get(cell)!.dispose();
+				}
+			});
 
-		if (direction === 'above') {
-			const above = this.notebookViewModel!.viewCells[index - 1];
-			if (constraint && above.cellKind !== constraint) {
-				return null;
-			}
-
-			if (!above.getEvaluatedMetadata(this.viewModel!.notebookDocument.metadata).editable) {
-				return null;
-			}
-
-			await above.resolveTextModel();
-			if (!above.hasModel()) {
-				return null;
-			}
-			const insertContent = (cell.textModel?.getEOL() ?? '') + cell.getText();
-			const aboveCellLineCount = above.textModel.getLineCount();
-			const aboveCellLastLineEndColumn = above.textModel.getLineLength(aboveCellLineCount);
-			above.textModel.applyEdits([
-				{ range: new Range(aboveCellLineCount, aboveCellLastLineEndColumn + 1, aboveCellLineCount, aboveCellLastLineEndColumn + 1), text: insertContent }
-			]);
-
-			await this.deleteNotebookCell(cell);
-			return above;
+			return ret.cell;
 		} else {
-			const below = this.notebookViewModel!.viewCells[index + 1];
-			if (constraint && below.cellKind !== constraint) {
-				return null;
-			}
-
-			if (!below.getEvaluatedMetadata(this.viewModel!.notebookDocument.metadata).editable) {
-				return null;
-			}
-
-			await cell.resolveTextModel();
-			if (!cell.hasModel()) {
-				return null;
-			}
-
-			const insertContent = (cell.textModel?.getEOL() ?? '') + below.getText();
-
-			const cellLineCount = cell.textModel.getLineCount();
-			const cellLastLineEndColumn = cell.textModel.getLineLength(cellLineCount);
-			cell.textModel.applyEdits([
-				{ range: new Range(cellLineCount, cellLastLineEndColumn + 1, cellLineCount, cellLastLineEndColumn + 1), text: insertContent }
-			]);
-
-			await this.deleteNotebookCell(below);
-			return cell;
+			return null;
 		}
 	}
 
