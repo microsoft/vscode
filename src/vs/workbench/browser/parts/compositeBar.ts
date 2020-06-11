@@ -283,8 +283,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	private updateFromDragging(element: HTMLElement, showFeedback: boolean, front: boolean): Before2D | undefined {
-		toggleClass(element, 'dragged-over-front', showFeedback && front);
-		toggleClass(element, 'dragged-over', showFeedback && !front);
+		toggleClass(element, 'dragged-over-head', showFeedback && front);
+		toggleClass(element, 'dragged-over-tail', showFeedback && !front);
 
 		if (!showFeedback) {
 			return undefined;
