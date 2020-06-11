@@ -161,6 +161,10 @@ interface IDefaultPanelLayout {
 	})[];
 }
 
+interface IDefaultView {
+	readonly id: string;
+}
+
 interface IDefaultEditor {
 	readonly uri: UriComponents;
 	readonly openOnlyIfExists?: boolean;
@@ -168,8 +172,11 @@ interface IDefaultEditor {
 }
 
 interface IDefaultLayout {
+	/** @deprecated Use views instead */
 	readonly sidebar?: IDefaultSideBarLayout;
+	/** @deprecated Use views instead */
 	readonly panel?: IDefaultPanelLayout;
+	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
 }
 
