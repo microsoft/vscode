@@ -100,7 +100,7 @@ async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenRead
 				lastChunkLength = Math.min(posInBuffer, allowedRemainingBytes);
 			}
 
-			await target.write(transformer(buffer.slice(0, lastChunkLength)));
+			target.write(transformer(buffer.slice(0, lastChunkLength)));
 		}
 	} catch (error) {
 		throw ensureFileSystemProviderError(error);
