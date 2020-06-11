@@ -1232,21 +1232,21 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('application settings are not read from workspace', () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.applicationSetting": "userValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }], true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => assert.equal(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue'));
 	});
 
 	test('machine settings are not read from workspace', () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.machineSetting": "userValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.machineSetting': 'workspaceValue' } }], true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.machineSetting': 'workspaceValue' } }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => assert.equal(testObject.getValue('configurationService.workspace.machineSetting'), 'userValue'));
 	});
 
 	test('workspace settings override user settings after defaults are registered ', () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.newSetting": "userValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.newSetting': 'workspaceValue' } }], true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.newSetting': 'workspaceValue' } }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				configurationRegistry.registerConfiguration({
@@ -1265,7 +1265,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('workspace settings override user settings after defaults are registered for machine overridable settings ', () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.newMachineOverridableSetting": "userValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.newMachineOverridableSetting': 'workspaceValue' } }], true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.newMachineOverridableSetting': 'workspaceValue' } }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				configurationRegistry.registerConfiguration({
@@ -1339,7 +1339,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('resource setting in folder is read after it is registered later', () => {
 		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewResourceSetting2": "workspaceFolderValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.testNewResourceSetting2': 'workspaceValue' } }], true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.testNewResourceSetting2': 'workspaceValue' } }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				configurationRegistry.registerConfiguration({
@@ -1359,7 +1359,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('resource language setting in folder is read after it is registered later', () => {
 		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewResourceLanguageSetting2": "workspaceFolderValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.testNewResourceLanguageSetting2': 'workspaceValue' } }], true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.testNewResourceLanguageSetting2': 'workspaceValue' } }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				configurationRegistry.registerConfiguration({
@@ -1379,7 +1379,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('machine overridable setting in folder is read after it is registered later', () => {
 		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewMachineOverridableSetting2": "workspaceFolderValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.testNewMachineOverridableSetting2': 'workspaceValue' } }], true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.testNewMachineOverridableSetting2': 'workspaceValue' } }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				configurationRegistry.registerConfiguration({
@@ -1422,7 +1422,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				assert.equal(actual.workspaceFolderValue, undefined);
 				assert.equal(actual.value, 'userValue');
 
-				return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.testResourceSetting': 'workspaceValue' } }], true)
+				return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.testResourceSetting': 'workspaceValue' } }], true)
 					.then(() => testObject.reloadConfiguration())
 					.then(() => {
 						actual = testObject.inspect('configurationService.workspace.testResourceSetting');
@@ -1464,7 +1464,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				}
 			]
 		};
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'launch', value: expectedLaunchConfiguration }], true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['launch'], value: expectedLaunchConfiguration }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				const actual = testObject.getValue('launch');
@@ -1489,7 +1489,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				}
 			]
 		};
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'launch', value: expectedLaunchConfiguration }], true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['launch'], value: expectedLaunchConfiguration }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				const actual = testObject.inspect('launch').workspaceValue;
@@ -1513,7 +1513,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				}
 			]
 		};
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'tasks', value: expectedTasksConfiguration }], true)
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['tasks'], value: expectedTasksConfiguration }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				const actual = testObject.getValue('tasks');
@@ -1536,7 +1536,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				}
 			]
 		};
-		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'tasks', value: expectedTasksConfiguration }], true);
+		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['tasks'], value: expectedTasksConfiguration }], true);
 		await testObject.reloadConfiguration();
 		const actual = testObject.inspect('tasks').workspaceValue;
 		assert.deepEqual(actual, expectedTasksConfiguration);
