@@ -85,7 +85,7 @@ async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenRead
 
 			// when buffer full, create a new one and emit it through stream
 			if (posInBuffer === buffer.byteLength) {
-				target.write(transformer(buffer));
+				await target.write(transformer(buffer));
 
 				buffer = VSBuffer.alloc(Math.min(options.bufferSize, typeof allowedRemainingBytes === 'number' ? allowedRemainingBytes : options.bufferSize));
 
@@ -100,7 +100,7 @@ async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenRead
 				lastChunkLength = Math.min(posInBuffer, allowedRemainingBytes);
 			}
 
-			target.write(transformer(buffer.slice(0, lastChunkLength)));
+			await target.write(transformer(buffer.slice(0, lastChunkLength)));
 		}
 	} catch (error) {
 		throw ensureFileSystemProviderError(error);

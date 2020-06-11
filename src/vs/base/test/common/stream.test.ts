@@ -179,6 +179,66 @@ suite('Stream', () => {
 		assert.equal(consumedOrReadable, '1,2,3,4,5');
 	});
 
+	test('peekReadable - error handling', async () => {
+
+		// 0 Chunks
+		let stream = newWriteableStream(data => data);
+
+		let error: Error | undefined = undefined;
+		let promise = (async () => {
+			try {
+				await peekStream(stream, 1);
+			} catch (err) {
+				error = err;
+			}
+		})();
+
+		stream.error(new Error());
+		await promise;
+
+		assert.ok(error);
+
+		// 1 Chunk
+		stream = newWriteableStream(data => data);
+
+		error = undefined;
+		promise = (async () => {
+			try {
+				await peekStream(stream, 1);
+			} catch (err) {
+				error = err;
+			}
+		})();
+
+		stream.write('foo');
+		stream.error(new Error());
+		await promise;
+
+		assert.ok(error);
+
+		// 2 Chunks
+		stream = newWriteableStream(data => data);
+
+		error = undefined;
+		promise = (async () => {
+			try {
+				await peekStream(stream, 1);
+			} catch (err) {
+				error = err;
+			}
+		})();
+
+		stream.write('foo');
+		stream.write('bar');
+		stream.error(new Error());
+		await promise;
+
+		assert.ok(!error);
+
+		stream.on('error', err => error = err);
+		assert.ok(error);
+	});
+
 	function arrayToReadable<T>(array: T[]): Readable<T> {
 		return {
 			read: () => array.shift() || null
