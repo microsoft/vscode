@@ -138,6 +138,14 @@ export class StatefullMarkdownCell extends Disposable {
 				hide(this.editorPart);
 				show(this.markdownContainer);
 				renderedEditors.delete(this.viewCell);
+
+				this.markdownContainer.innerHTML = '';
+				let markdownRenderer = viewCell.getMarkdownRenderer();
+				let renderedHTML = viewCell.getHTML();
+				if (renderedHTML) {
+					this.markdownContainer.appendChild(renderedHTML);
+				}
+
 				if (this.editor) {
 					// switch from editing mode
 					const clientHeight = templateData.container.clientHeight;
@@ -145,29 +153,10 @@ export class StatefullMarkdownCell extends Disposable {
 					notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 				} else {
 					// first time, readonly mode
-					this.markdownContainer.innerHTML = '';
-					let markdownRenderer = viewCell.getMarkdownRenderer();
-					let renderedHTML = viewCell.getHTML();
-					if (renderedHTML) {
-						this.markdownContainer.appendChild(renderedHTML);
-					}
-
 					this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
 						const clientHeight = templateData.container.clientHeight;
 						this.viewCell.totalHeight = clientHeight;
 						notebookEditor.layoutNotebookCell(viewCell, clientHeight);
-					}));
-
-					this.localDisposables.add(viewCell.onDidChangeState((e) => {
-						if (!e.contentChanged) {
-							return;
-						}
-
-						this.markdownContainer.innerHTML = '';
-						let renderedHTML = viewCell.getHTML();
-						if (renderedHTML) {
-							this.markdownContainer.appendChild(renderedHTML);
-						}
 					}));
 
 					this.localDisposables.add(viewCell.textBuffer.onDidChangeContent(() => {
@@ -295,22 +284,7 @@ export class StatefullMarkdownCell extends Disposable {
 		}
 	}
 
-	bindEditorListeners(model: ITextModel, dimension?: IDimension) {
-		this.localDisposables.add(model.onDidChangeContent(() => {
-			// we don't need to update view cell text anymore as the textbuffer is shared
-			this.viewCell.clearHTML();
-			let clientHeight = this.markdownContainer.clientHeight;
-			this.markdownContainer.innerHTML = '';
-			let renderedHTML = this.viewCell.getHTML();
-			if (renderedHTML) {
-				this.markdownContainer.appendChild(renderedHTML);
-				clientHeight = this.markdownContainer.clientHeight;
-			}
-
-			this.viewCell.totalHeight = this.editor!.getContentHeight() + 32 + clientHeight + CELL_STATUSBAR_HEIGHT;
-			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
-		}));
-
+	private bindEditorListeners(model: ITextModel, dimension?: IDimension) {
 		this.localDisposables.add(this.editor!.onDidContentSizeChange(e => {
 			let viewLayout = this.editor!.getLayoutInfo();
 
@@ -339,18 +313,6 @@ export class StatefullMarkdownCell extends Disposable {
 				this.notebookEditor.revealLineInViewAsync(this.viewCell, primarySelection!.positionLineNumber);
 			}
 		}));
-
-		let markdownRenderer = this.viewCell.getMarkdownRenderer();
-		this.markdownContainer.innerHTML = '';
-		let renderedHTML = this.viewCell.getHTML();
-		if (renderedHTML) {
-			this.markdownContainer.appendChild(renderedHTML);
-			this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
-				const clientHeight = this.markdownContainer.clientHeight;
-				this.viewCell.totalHeight = clientHeight;
-				this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
-			}));
-		}
 
 		const updateFocusMode = () => this.viewCell.focusMode = this.editor!.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
 		this.localDisposables.add(this.editor!.onDidFocusEditorWidget(() => {
