@@ -1033,6 +1033,8 @@ export class SearchView extends ViewPane {
 		}
 		if (clearInput) {
 			this.searchWidget.clear();
+			this.inputPatternIncludes.clear();
+			this.searchExcludePattern.clear();
 		}
 		this.viewModel.cancelSearch();
 		this.updateActions();

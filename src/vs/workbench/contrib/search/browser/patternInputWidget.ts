@@ -131,6 +131,10 @@ export class PatternInputWidget extends Widget implements IThemable {
 		this.inputBox.style(styles);
 	}
 
+	clear() {
+		this.setValue('');
+	}
+
 	private render(options: IOptions): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
