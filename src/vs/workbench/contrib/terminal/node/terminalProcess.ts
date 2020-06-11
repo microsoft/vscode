@@ -124,15 +124,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._processStartupComplete = new Promise<void>(c => {
 			this.onProcessReady(() => c());
 		});
-		ptyProcess.on('data', data => {
+		ptyProcess.onData(data => {
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
 		});
-		ptyProcess.on('exit', code => {
-			this._exitCode = code;
+		ptyProcess.onExit(e => {
+			this._exitCode = e.exitCode;
 			this._queueProcessExit();
 		});
 		this._setupTitlePolling(ptyProcess);
@@ -200,8 +200,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this.dispose();
 	}
 
-	private _sendProcessId(ptyProcess: pty.IPty) {
-		this._onProcessReady.fire({ pid: ptyProcess.pid, cwd: this._initialCwd });
+	private _sendProcessId(pid: number) {
+		this._onProcessReady.fire({ pid, cwd: this._initialCwd });
 	}
 
 	private _sendProcessTitle(ptyProcess: pty.IPty): void {
