@@ -30,7 +30,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchDataTree, SelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
+import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -571,8 +571,7 @@ export class OutlinePane extends ViewPane {
 			// todo@Joh
 			if (e.browserEvent) {
 				if (e.browserEvent.type === 'keydown') {
-					const selectionEvent = e.browserEvent as SelectionKeyboardEvent;
-					focus = typeof selectionEvent.preserveFocus === 'boolean' ? selectionEvent.preserveFocus : true;
+					focus = true;
 				} else if (e.browserEvent.type === 'click') {
 					const event = new StandardMouseEvent(e.browserEvent as MouseEvent);
 					focus = e.browserEvent.detail === 2;
