@@ -13,12 +13,12 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ILogService } from 'vs/platform/log/common/log';
-import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, bufferToStream, VSBufferReadableStream, VSBufferReadableBufferedStream, bufferedStreamToBuffer } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, bufferToStream, VSBufferReadableStream, VSBufferReadableBufferedStream, bufferedStreamToBuffer, newWriteableBufferStream } from 'vs/base/common/buffer';
 import { isReadableStream, transform, peekReadable, peekStream, isReadableBufferedStream } from 'vs/base/common/stream';
 import { Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
-import { createVSBufferReadStream } from 'vs/platform/files/common/io';
+import { readFileIntoStream } from 'vs/platform/files/common/io';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -476,11 +476,15 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private readFileBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, token: CancellationToken, options: IReadFileOptions = Object.create(null)): VSBufferReadableStream {
-		return createVSBufferReadStream(provider, resource, {
+		const stream = newWriteableBufferStream();
+
+		readFileIntoStream(provider, resource, stream, data => data, {
 			...options,
 			bufferSize: this.BUFFER_SIZE,
 			errorTransformer: error => new FileOperationError(localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options)
 		}, token);
+
+		return stream;
 	}
 
 	private async readFileUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options?: IReadFileOptions): Promise<VSBufferReadableStream> {

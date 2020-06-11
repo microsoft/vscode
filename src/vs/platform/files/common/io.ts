@@ -5,11 +5,11 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { VSBuffer, newWriteableBufferStream, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IFileSystemProviderWithOpenReadWriteCloseCapability, FileReadStreamOptions, createFileSystemProviderError, FileSystemProviderErrorCode, ensureFileSystemProviderError } from 'vs/platform/files/common/files';
 import { canceled } from 'vs/base/common/errors';
-import { IErrorTransformer, IDataTransformer, ReadableStream, WriteableStream, newWriteableStream } from 'vs/base/common/stream';
+import { IErrorTransformer, IDataTransformer, WriteableStream } from 'vs/base/common/stream';
 
 export interface ICreateReadStreamOptions extends FileReadStreamOptions {
 
@@ -24,27 +24,21 @@ export interface ICreateReadStreamOptions extends FileReadStreamOptions {
 	errorTransformer?: IErrorTransformer;
 }
 
-export function createVSBufferReadStream(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, options: ICreateReadStreamOptions, token?: CancellationToken): VSBufferReadableStream {
-	const stream = newWriteableBufferStream();
-
-	readFileIntoStream(provider, resource, stream, data => data, options, token);
-
-	return stream;
-}
-
-export function createUint8ArrayReadStream(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, options: ICreateReadStreamOptions, token?: CancellationToken): ReadableStream<Uint8Array> {
-	const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
-
-	readFileIntoStream(provider, resource, stream, data => data.buffer, options, token);
-
-	return stream;
-}
-
-async function readFileIntoStream<T>(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, stream: WriteableStream<T>, transformer: IDataTransformer<VSBuffer, T>, options: ICreateReadStreamOptions, token?: CancellationToken): Promise<void> {
+/**
+ * A helper to read a file from a provider with open/read/close capability into a stream.
+ */
+export async function readFileIntoStream<T>(
+	provider: IFileSystemProviderWithOpenReadWriteCloseCapability,
+	resource: URI,
+	target: WriteableStream<T>,
+	transformer: IDataTransformer<VSBuffer, T>,
+	options: ICreateReadStreamOptions,
+	token: CancellationToken
+): Promise<void> {
 	let error: Error | undefined = undefined;
 
 	try {
-		await doReadFileIntoStream(provider, resource, stream, transformer, options, token);
+		await doReadFileIntoStream(provider, resource, target, transformer, options, token);
 	} catch (err) {
 		error = err;
 	} finally {
@@ -52,11 +46,11 @@ async function readFileIntoStream<T>(provider: IFileSystemProviderWithOpenReadWr
 			error = options.errorTransformer(error);
 		}
 
-		stream.end(error);
+		target.end(error);
 	}
 }
 
-async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, stream: WriteableStream<T>, transformer: IDataTransformer<VSBuffer, T>, options: ICreateReadStreamOptions, token?: CancellationToken): Promise<void> {
+async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, target: WriteableStream<T>, transformer: IDataTransformer<VSBuffer, T>, options: ICreateReadStreamOptions, token: CancellationToken): Promise<void> {
 
 	// Check for cancellation
 	throwIfCancelled(token);
@@ -91,7 +85,7 @@ async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenRead
 
 			// when buffer full, create a new one and emit it through stream
 			if (posInBuffer === buffer.byteLength) {
-				stream.write(transformer(buffer));
+				target.write(transformer(buffer));
 
 				buffer = VSBuffer.alloc(Math.min(options.bufferSize, typeof allowedRemainingBytes === 'number' ? allowedRemainingBytes : options.bufferSize));
 
@@ -106,7 +100,7 @@ async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenRead
 				lastChunkLength = Math.min(posInBuffer, allowedRemainingBytes);
 			}
 
-			stream.write(transformer(buffer.slice(0, lastChunkLength)));
+			target.write(transformer(buffer.slice(0, lastChunkLength)));
 		}
 	} catch (error) {
 		throw ensureFileSystemProviderError(error);
@@ -115,8 +109,8 @@ async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenRead
 	}
 }
 
-function throwIfCancelled(token?: CancellationToken): boolean {
-	if (token && token.isCancellationRequested) {
+function throwIfCancelled(token: CancellationToken): boolean {
+	if (token.isCancellationRequested) {
 		throw canceled();
 	}
 

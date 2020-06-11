@@ -67,7 +67,7 @@ export class FileUserDataProvider extends Disposable implements
 		throw new Error('not supported');
 	}
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token?: CancellationToken): ReadableStreamEvents<Uint8Array> {
+	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 		if (hasFileReadStreamCapability(this.fileSystemProvider)) {
 			return this.fileSystemProvider.readFileStream(this.toFileSystemResource(resource), opts, token);
 		}

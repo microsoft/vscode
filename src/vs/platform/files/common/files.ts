@@ -283,7 +283,7 @@ export interface IFileSystemProvider {
 	readFile?(resource: URI): Promise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
 
-	readFileStream?(resource: URI, opts: FileReadStreamOptions, token?: CancellationToken): ReadableStreamEvents<Uint8Array>;
+	readFileStream?(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
 
 	open?(resource: URI, opts: FileOpenOptions): Promise<number>;
 	close?(fd: number): Promise<void>;
@@ -320,7 +320,7 @@ export function hasOpenReadWriteCloseCapability(provider: IFileSystemProvider): 
 }
 
 export interface IFileSystemProviderWithFileReadStreamCapability extends IFileSystemProvider {
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token?: CancellationToken): ReadableStreamEvents<Uint8Array>;
+	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
 }
 
 export function hasFileReadStreamCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadStreamCapability {
