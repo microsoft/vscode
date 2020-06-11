@@ -21,13 +21,13 @@ export class FileUserDataProvider extends Disposable implements
 	IFileSystemProviderWithFileReadStreamCapability {
 
 	readonly capabilities: FileSystemProviderCapabilities = this.fileSystemProvider.capabilities;
-	readonly onDidChangeCapabilities: Event<void> = Event.None;
+	readonly onDidChangeCapabilities: Event<void> = this.fileSystemProvider.onDidChangeCapabilities;
 
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
 	private readonly userDataHome: URI;
-	private readonly extUri: ExtUri;
+	private extUri: ExtUri;
 
 	constructor(
 		private readonly fileSystemUserDataHome: URI,
@@ -41,7 +41,8 @@ export class FileUserDataProvider extends Disposable implements
 		this.userDataHome = environmentService.userRoamingDataHome;
 
 		this.extUri = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase;
-		// Not required to update extUri as capabilites will not change.
+		// update extUri as capabilites might change.
+		this._register(this.onDidChangeCapabilities(() => this.extUri = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase));
 
 		// Assumption: This path always exists
 		this._register(this.fileSystemProvider.watch(this.fileSystemUserDataHome, { recursive: false, excludes: [] }));
