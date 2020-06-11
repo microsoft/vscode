@@ -8,11 +8,10 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
 import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ExtUri } from 'vs/base/common/resources';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { ExportData } from 'vs/base/common/performance';
 import { ParsedArgs } from 'vs/platform/environment/node/argv';
-import { Schemas } from 'vs/base/common/network';
 
 export const enum OpenContext {
 
@@ -116,11 +115,6 @@ export function findBestWindowOrFolderForFile<W extends IWindowContext>({ window
 	return !newWindow ? getLastActiveWindow(windows) : undefined;
 }
 
-// Comparers for  resources that will
-// - ignore path casing on Windows/macOS
-// - respect path casing on Linux
-export const fileUriComparer = new ExtUri(uri => uri && uri.scheme === Schemas.file ? !platform.isLinux : false);
-
 function findWindowOnFilePath<W extends IWindowContext>(windows: W[], fileUri: URI, localWorkspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace | null): W | null {
 
 	// First check for windows with workspaces that have a parent folder of the provided path opened
@@ -130,12 +124,12 @@ function findWindowOnFilePath<W extends IWindowContext>(windows: W[], fileUri: U
 			const resolvedWorkspace = localWorkspaceResolver(workspace);
 			if (resolvedWorkspace) {
 				// workspace could be resolved: It's in the local file system
-				if (resolvedWorkspace.folders.some(folder => fileUriComparer.isEqualOrParent(fileUri, folder.uri))) {
+				if (resolvedWorkspace.folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, folder.uri))) {
 					return window;
 				}
 			} else {
 				// use the config path instead
-				if (fileUriComparer.isEqualOrParent(fileUri, workspace.configPath)) {
+				if (extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, workspace.configPath)) {
 					return window;
 				}
 			}
@@ -143,7 +137,7 @@ function findWindowOnFilePath<W extends IWindowContext>(windows: W[], fileUri: U
 	}
 
 	// Then go with single folder windows that are parent of the provided file path
-	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && fileUriComparer.isEqualOrParent(fileUri, window.openedFolderUri));
+	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, window.openedFolderUri));
 	if (singleFolderWindowsOnFilePath.length) {
 		return singleFolderWindowsOnFilePath.sort((a, b) => -(a.openedFolderUri!.path.length - b.openedFolderUri!.path.length))[0];
 	}
@@ -162,7 +156,7 @@ export function findWindowOnWorkspace<W extends IWindowContext>(windows: W[], wo
 		for (const window of windows) {
 			// match on folder
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				if (window.openedFolderUri && fileUriComparer.isEqual(window.openedFolderUri, workspace)) {
+				if (window.openedFolderUri && extUriBiasedIgnorePathCase.isEqual(window.openedFolderUri, workspace)) {
 					return window;
 				}
 			}
@@ -201,12 +195,12 @@ export function findWindowOnWorkspaceOrFolderUri<W extends IWindowContext>(windo
 	}
 	for (const window of windows) {
 		// check for workspace config path
-		if (window.openedWorkspace && fileUriComparer.isEqual(window.openedWorkspace.configPath, uri)) {
+		if (window.openedWorkspace && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, uri)) {
 			return window;
 		}
 
 		// check for folder path
-		if (window.openedFolderUri && fileUriComparer.isEqual(window.openedFolderUri, uri)) {
+		if (window.openedFolderUri && extUriBiasedIgnorePathCase.isEqual(window.openedFolderUri, uri)) {
 			return window;
 		}
 	}
