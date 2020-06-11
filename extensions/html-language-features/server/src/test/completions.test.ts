@@ -6,10 +6,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
-import { TextDocument, CompletionList, CompletionItemKind } from 'vscode-languageserver-types';
-import { getLanguageModes } from '../modes/languageModes';
-import { WorkspaceFolder } from 'vscode-languageserver';
-
+import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities} from '../modes/languageModes';
 export interface ItemDescription {
 	label: string;
 	documentation?: string;
@@ -58,7 +55,7 @@ export function testCompletionFor(value: string, expected: { count?: number, ite
 	let document = TextDocument.create(uri, 'html', 0, value);
 	let position = document.positionAt(offset);
 
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace);
+	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
 	const mode = languageModes.getModeAtPosition(document, position)!;
 
 	let list = mode.doComplete!(document, position);

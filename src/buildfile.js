@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+function entrypoint(name) {
+	return [{ name: name, include: [], exclude: ['vs/css', 'vs/nls'] }];
+}
+
 exports.base = [{
 	name: 'vs/base/common/worker/simpleWorker',
 	include: ['vs/editor/common/services/editorSimpleWorker'],
@@ -11,19 +15,17 @@ exports.base = [{
 	dest: 'vs/base/worker/workerMain.js'
 }];
 
-exports.serviceWorker = [{
-	name: 'vs/workbench/contrib/resources/browser/resourceServiceWorker',
-	// include: ['vs/editor/common/services/editorSimpleWorker'],
-	prepend: ['vs/loader.js'],
-	append: ['vs/workbench/contrib/resources/browser/resourceServiceWorkerMain'],
-	dest: 'vs/workbench/contrib/resources/browser/resourceServiceWorkerMain.js'
-}];
+exports.workerExtensionHost = [entrypoint('vs/workbench/services/extensions/worker/extensionHostWorker')];
 
-exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.main']);
-exports.workbenchWeb = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.web.api']);
+exports.workbenchDesktop = require('./vs/workbench/buildfile.desktop').collectModules();
+exports.workbenchWeb = require('./vs/workbench/buildfile.web').collectModules();
+
+exports.keyboardMaps = [
+	entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux'),
+	entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.darwin'),
+	entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.win')
+];
 
 exports.code = require('./vs/code/buildfile').collectModules();
 
-exports.entrypoint = function (name) {
-	return [{ name: name, include: [], exclude: ['vs/css', 'vs/nls'] }];
-};
+exports.entrypoint = entrypoint;

@@ -26,6 +26,9 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkb
 Registry.as<IEditorInputFactoryRegistry>(Input.EditorInputFactories).registerEditorInputFactory(
 	PerfviewInput.Id,
 	class implements IEditorInputFactory {
+		canSerialize(): boolean {
+			return true;
+		}
 		serialize(): string {
 			return '';
 		}

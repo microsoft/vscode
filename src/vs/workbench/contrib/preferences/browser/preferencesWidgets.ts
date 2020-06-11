@@ -28,19 +28,22 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { activeContrastBorder, badgeBackground, badgeForeground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { ISettingsGroup, IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { isEqual } from 'vs/base/common/resources';
+import { registerIcon, Codicon } from 'vs/base/common/codicons';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
-	private id: number;
-	private _domNode: HTMLElement;
+	private id!: string;
+	private _domNode!: HTMLElement;
 
-	protected titleContainer: HTMLElement;
-	private messageElement: HTMLElement;
+	protected titleContainer!: HTMLElement;
+	private messageElement!: HTMLElement;
 
 	constructor(protected editor: ICodeEditor, private title: string) {
 		super();
@@ -84,9 +87,10 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 	}
 
 	private layout(): void {
-		const configuration = this.editor.getConfiguration();
-		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
-		if (!configuration.contribInfo.folding) {
+		const options = this.editor.getOptions();
+		const fontInfo = options.get(EditorOption.fontInfo);
+		this.titleContainer.style.fontSize = fontInfo.fontSize + 'px';
+		if (!options.get(EditorOption.folding)) {
 			this.titleContainer.style.paddingLeft = '6px';
 		}
 	}
@@ -121,18 +125,18 @@ export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
-	private id: number;
-	private _afterLineNumber: number;
-	private _domNode: HTMLElement;
+	private id!: string;
+	private _afterLineNumber!: number;
+	private _domNode!: HTMLElement;
 
-	private titleContainer: HTMLElement;
-	private icon: HTMLElement;
-	private title: HTMLElement;
+	private titleContainer!: HTMLElement;
+	private icon!: HTMLElement;
+	private title!: HTMLElement;
 
 	private _onToggled = this._register(new Emitter<boolean>());
 	readonly onToggled: Event<boolean> = this._onToggled.event;
 
-	private previousPosition: Position;
+	private previousPosition: Position | null = null;
 
 	constructor(private editor: ICodeEditor, public settingsGroup: ISettingsGroup) {
 		super();
@@ -166,7 +170,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		this._register(focusTracker.onDidFocus(() => this.toggleFocus(true)));
 		this._register(focusTracker.onDidBlur(() => this.toggleFocus(false)));
 
-		this.icon = DOM.append(this.titleContainer, DOM.$('.expand-collapse-icon'));
+		this.icon = DOM.append(this.titleContainer, DOM.$('.codicon.codicon-chevron-down'));
 		this.title = DOM.append(this.titleContainer, DOM.$('.title'));
 		this.title.textContent = this.settingsGroup.title + ` (${this.settingsGroup.sections.reduce((count, section) => count + section.settings.length, 0)})`;
 
@@ -199,17 +203,18 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 
 	private layout(): void {
-		const configuration = this.editor.getConfiguration();
+		const options = this.editor.getOptions();
+		const fontInfo = options.get(EditorOption.fontInfo);
 		const layoutInfo = this.editor.getLayoutInfo();
 		this._domNode.style.width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth + 'px';
-		this.titleContainer.style.lineHeight = configuration.lineHeight + 3 + 'px';
-		this.titleContainer.style.height = configuration.lineHeight + 3 + 'px';
-		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
+		this.titleContainer.style.lineHeight = options.get(EditorOption.lineHeight) + 3 + 'px';
+		this.titleContainer.style.height = options.get(EditorOption.lineHeight) + 3 + 'px';
+		this.titleContainer.style.fontSize = fontInfo.fontSize + 'px';
 		this.icon.style.minWidth = `${this.getIconSize(16)}px`;
 	}
 
 	private getIconSize(minSize: number): number {
-		const fontSize = this.editor.getConfiguration().fontInfo.fontSize;
+		const fontSize = this.editor.getOption(EditorOption.fontInfo).fontSize;
 		return fontSize > 8 ? Math.max(fontSize, minSize) : 12;
 	}
 
@@ -296,16 +301,17 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 	private _folder: IWorkspaceFolder | null;
 	private _folderSettingCounts = new Map<string, number>();
 
-	private container: HTMLElement;
-	private anchorElement: HTMLElement;
-	private labelElement: HTMLElement;
-	private detailsElement: HTMLElement;
-	private dropDownElement: HTMLElement;
+	private container!: HTMLElement;
+	private anchorElement!: HTMLElement;
+	private labelElement!: HTMLElement;
+	private detailsElement!: HTMLElement;
+	private dropDownElement!: HTMLElement;
 
 	constructor(
 		action: IAction,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super(null, action);
 		const workspace = this.contextService.getWorkspace();
@@ -338,7 +344,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		this.container = container;
 		this.labelElement = DOM.$('.action-title');
 		this.detailsElement = DOM.$('.action-details');
-		this.dropDownElement = DOM.$('.dropdown-icon.octicon.octicon-triangle-down.hide');
+		this.dropDownElement = DOM.$('.dropdown-icon.codicon.codicon-triangle-down.hide');
 		this.anchorElement = DOM.$('a.action-label.folder-settings', {
 			role: 'button',
 			'aria-haspopup': 'true',
@@ -384,29 +390,25 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		const oldFolder = this._folder;
 		const workspace = this.contextService.getWorkspace();
 		if (oldFolder) {
-			this._folder = workspace.folders.filter(folder => folder.uri.toString() === oldFolder.uri.toString())[0] || workspace.folders[0];
+			this._folder = workspace.folders.filter(folder => isEqual(folder.uri, oldFolder.uri))[0] || workspace.folders[0];
 		}
 		this._folder = this._folder ? this._folder : workspace.folders.length === 1 ? workspace.folders[0] : null;
 
 		this.update();
 
 		if (this._action.checked) {
-			if ((oldFolder || !this._folder)
-				|| (!oldFolder || this._folder)
-				|| (oldFolder && this._folder && (oldFolder as IWorkspaceFolder).uri.toString() === (this._folder as IWorkspaceFolder).uri.toString())) {
-				this._action.run(this._folder);
-			}
+			this._action.run(this._folder);
 		}
 	}
 
-	private update(): void {
+	private async update(): Promise<void> {
 		let total = 0;
 		this._folderSettingCounts.forEach(n => total += n);
 
 		const workspace = this.contextService.getWorkspace();
 		if (this._folder) {
 			this.labelElement.textContent = this._folder.name;
-			this.anchorElement.title = this._folder.name;
+			this.anchorElement.title = (await this.preferencesService.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, this._folder.uri))?.fsPath || '';
 			const detailsText = this.labelWithCount(this._action.label, total);
 			this.detailsElement.textContent = detailsText;
 			DOM.toggleClass(this.dropDownElement, 'hide', workspace.folders.length === 1 || !this._action.checked);
@@ -417,6 +419,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 			this.anchorElement.title = this._action.label;
 			DOM.removeClass(this.dropDownElement, 'hide');
 		}
+
 		DOM.toggleClass(this.anchorElement, 'checked', this._action.checked);
 		DOM.toggleClass(this.container, 'disabled', !this._action.enabled);
 	}
@@ -441,7 +444,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
 					label: this.labelWithCount(folder.name, folderCount),
-					checked: this.folder && this.folder.uri.toString() === folder.uri.toString(),
+					checked: this.folder && isEqual(this.folder.uri, folder.uri),
 					enabled: true,
 					run: () => this._action.run(folder)
 				};
@@ -468,14 +471,14 @@ export interface ISettingsTargetsWidgetOptions {
 
 export class SettingsTargetsWidget extends Widget {
 
-	private settingsSwitcherBar: ActionBar;
-	private userLocalSettings: Action;
-	private userRemoteSettings: Action;
-	private workspaceSettings: Action;
-	private folderSettings: FolderSettingsActionViewItem;
+	private settingsSwitcherBar!: ActionBar;
+	private userLocalSettings!: Action;
+	private userRemoteSettings!: Action;
+	private workspaceSettings!: Action;
+	private folderSettings!: FolderSettingsActionViewItem;
 	private options: ISettingsTargetsWidgetOptions;
 
-	private _settingsTarget: SettingsTarget;
+	private _settingsTarget: SettingsTarget | null = null;
 
 	private readonly _onDidTargetChange = this._register(new Emitter<SettingsTarget>());
 	readonly onDidTargetChange: Event<SettingsTarget> = this._onDidTargetChange.event;
@@ -486,7 +489,8 @@ export class SettingsTargetsWidget extends Widget {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 		this.options = options || {};
@@ -501,23 +505,28 @@ export class SettingsTargetsWidget extends Widget {
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
 			animated: false,
-			actionViewItemProvider: (action: Action) => action.id === 'folderSettings' ? this.folderSettings : undefined
+			actionViewItemProvider: (action: IAction) => action.id === 'folderSettings' ? this.folderSettings : undefined
 		}));
 
 		this.userLocalSettings = new Action('userSettings', localize('userSettings', "User"), '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
-		this.userLocalSettings.tooltip = this.userLocalSettings.label;
+		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_LOCAL).then(uri => {
+			// Don't wait to create UI on resolving remote
+			this.userLocalSettings.tooltip = uri?.fsPath || '';
+		});
 
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const hostLabel = remoteAuthority && this.labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAuthority);
 		const remoteSettingsLabel = localize('userSettingsRemote', "Remote") +
 			(hostLabel ? ` [${hostLabel}]` : '');
 		this.userRemoteSettings = new Action('userSettingsRemote', remoteSettingsLabel, '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
-		this.userRemoteSettings.tooltip = this.userRemoteSettings.label;
+		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_REMOTE).then(uri => {
+			this.userRemoteSettings.tooltip = uri?.fsPath || '';
+		});
 
 		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace"), '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
-		this.workspaceSettings.tooltip = this.workspaceSettings.label;
 
-		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false, (folder: IWorkspaceFolder) => this.updateTarget(folder.uri));
+		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false,
+			(folder: IWorkspaceFolder | null) => this.updateTarget(folder ? folder.uri : ConfigurationTarget.USER_LOCAL));
 		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionViewItem, folderSettingsAction);
 
 		this.update();
@@ -525,11 +534,11 @@ export class SettingsTargetsWidget extends Widget {
 		this.settingsSwitcherBar.push([this.userLocalSettings, this.userRemoteSettings, this.workspaceSettings, folderSettingsAction]);
 	}
 
-	get settingsTarget(): SettingsTarget {
+	get settingsTarget(): SettingsTarget | null {
 		return this._settingsTarget;
 	}
 
-	set settingsTarget(settingsTarget: SettingsTarget) {
+	set settingsTarget(settingsTarget: SettingsTarget | null) {
 		this._settingsTarget = settingsTarget;
 		this.userLocalSettings.checked = ConfigurationTarget.USER_LOCAL === this.settingsTarget;
 		this.userRemoteSettings.checked = ConfigurationTarget.USER_REMOTE === this.settingsTarget;
@@ -574,7 +583,7 @@ export class SettingsTargetsWidget extends Widget {
 		const isSameTarget = this.settingsTarget === settingsTarget ||
 			settingsTarget instanceof URI &&
 			this.settingsTarget instanceof URI &&
-			this.settingsTarget.toString() === settingsTarget.toString();
+			isEqual(this.settingsTarget, settingsTarget);
 
 		if (!isSameTarget) {
 			this.settingsTarget = settingsTarget;
@@ -584,13 +593,14 @@ export class SettingsTargetsWidget extends Widget {
 		return Promise.resolve(undefined);
 	}
 
-	private update(): void {
+	private async update(): Promise<void> {
 		DOM.toggleClass(this.settingsSwitcherBar.domNode, 'empty-workbench', this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
 		this.userRemoteSettings.enabled = !!(this.options.enableRemoteSettings && this.environmentService.configuration.remoteAuthority);
 		this.workspaceSettings.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 		this.folderSettings.getAction().enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
-	}
 
+		this.workspaceSettings.tooltip = (await this.preferencesService.getEditableSettingsURI(ConfigurationTarget.WORKSPACE))?.fsPath || '';
+	}
 }
 
 export interface SearchOptions extends IInputOptions {
@@ -602,12 +612,12 @@ export interface SearchOptions extends IInputOptions {
 
 export class SearchWidget extends Widget {
 
-	domNode: HTMLElement;
+	domNode!: HTMLElement;
 
-	private countElement: HTMLElement;
-	private searchContainer: HTMLElement;
-	inputBox: InputBox;
-	private controlsDiv: HTMLElement;
+	private countElement!: HTMLElement;
+	private searchContainer!: HTMLElement;
+	inputBox!: InputBox;
+	private controlsDiv!: HTMLElement;
 
 	private readonly _onDidChange: Emitter<string> = this._register(new Emitter<string>());
 	readonly onDidChange: Event<string> = this._onDidChange.event;
@@ -632,17 +642,17 @@ export class SearchWidget extends Widget {
 		if (this.options.showResultCount) {
 			this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
 			this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
-				const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
-				const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+				const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
+				const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
 
 				this.countElement.style.backgroundColor = background;
 
-				this.countElement.style.borderWidth = border ? '1px' : null;
-				this.countElement.style.borderStyle = border ? 'solid' : null;
+				this.countElement.style.borderWidth = border ? '1px' : '';
+				this.countElement.style.borderStyle = border ? 'solid' : '';
 				this.countElement.style.borderColor = border;
 
-				const color = this.themeService.getTheme().getColor(badgeForeground);
-				this.countElement.style.color = color ? color.toString() : null;
+				const color = this.themeService.getColorTheme().getColor(badgeForeground);
+				this.countElement.style.color = color ? color.toString() : '';
 			}));
 		}
 
@@ -735,12 +745,12 @@ export class SearchWidget extends Widget {
 	}
 }
 
+export const preferencesEditIcon = registerIcon('preferences-edit', Codicon.edit, localize('preferencesEditIcon', 'Icon for the edit action in preferences.'));
+
 export class EditPreferenceWidget<T> extends Disposable {
 
-	static readonly GLYPH_MARGIN_CLASS_NAME = 'edit-preferences-widget';
-
-	private _line: number;
-	private _preferences: T[];
+	private _line: number = -1;
+	private _preferences: T[] = [];
 
 	private _editPreferenceDecoration: string[];
 
@@ -774,7 +784,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 		this._line = line;
 		newDecoration.push({
 			options: {
-				glyphMarginClassName: EditPreferenceWidget.GLYPH_MARGIN_CLASS_NAME,
+				glyphMarginClassName: preferencesEditIcon.classNames,
 				glyphMarginHoverMessage: new MarkdownString().appendText(hoverMessage),
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			},
@@ -802,7 +812,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 
 	collector.addRule(`
 		.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus,

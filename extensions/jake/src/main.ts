@@ -124,10 +124,7 @@ class FolderDetector {
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
 		const jakeTask = (<any>_task.definition).task;
 		if (jakeTask) {
-			let kind: JakeTaskDefinition = {
-				type: 'jake',
-				task: jakeTask
-			};
+			let kind: JakeTaskDefinition = (<any>_task.definition);
 			let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
 			let task = new vscode.Task(kind, this.workspaceFolder, jakeTask, 'jake', new vscode.ShellExecution(await this._jakeCommand, [jakeTask], options));
 			return task;
@@ -272,7 +269,7 @@ class TaskDetector {
 	private updateProvider(): void {
 		if (!this.taskProvider && this.detectors.size > 0) {
 			const thisCapture = this;
-			this.taskProvider = vscode.workspace.registerTaskProvider('jake', {
+			this.taskProvider = vscode.tasks.registerTaskProvider('jake', {
 				provideTasks(): Promise<vscode.Task[]> {
 					return thisCapture.getTasks();
 				},

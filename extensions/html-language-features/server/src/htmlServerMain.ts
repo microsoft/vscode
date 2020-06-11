@@ -6,11 +6,13 @@
 import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType,
 	DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities,
-	Position, ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
-	WorkspaceFolder, DocumentColorRequest, ColorInformation, ColorPresentationRequest
+	ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
+	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind
 } from 'vscode-languageserver';
-import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-languageserver-types';
-import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
+import {
+	getLanguageModes, LanguageModes, Settings, TextDocument, Position, Diagnostic, WorkspaceFolder, ColorInformation,
+	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier
+} from './modes/languageModes';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
@@ -20,9 +22,26 @@ import { formatError, runSafe, runSafeAsync } from './utils/runner';
 
 import { getFoldingRanges } from './modes/htmlFolding';
 import { getDataProviders } from './customData';
+import { getSelectionRanges } from './modes/selectionRanges';
+import { SemanticTokenProvider, newSemanticTokenProvider } from './modes/semanticTokens';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
+}
+namespace OnTypeRenameRequest {
+	export const type: RequestType<TextDocumentPositionParams, Range[] | null, any, any> = new RequestType('html/onTypeRename');
+}
+
+// experimental: semantic tokens
+interface SemanticTokenParams {
+	textDocument: TextDocumentIdentifier;
+	ranges?: Range[];
+}
+namespace SemanticTokenRequest {
+	export const type: RequestType<SemanticTokenParams, number[] | null, any, any> = new RequestType('html/semanticTokens');
+}
+namespace SemanticTokenLegendRequest {
+	export const type: RequestType<void, { types: string[]; modifiers: string[] } | null, any, any> = new RequestType('html/semanticTokenLegend');
 }
 
 // Create a connection for the server
@@ -39,7 +58,7 @@ process.on('uncaughtException', (e: any) => {
 });
 
 // Create a text document manager.
-const documents: TextDocuments = new TextDocuments();
+const documents = new TextDocuments(TextDocument);
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 documents.listen(connection);
@@ -49,7 +68,7 @@ let workspaceFolders: WorkspaceFolder[] = [];
 let languageModes: LanguageModes;
 
 let clientSnippetSupport = false;
-let clientDynamicRegisterSupport = false;
+let dynamicFormatterRegistration = false;
 let scopedSettingsSupport = false;
 let workspaceFoldersSupport = false;
 let foldingRangeLimit = Number.MAX_VALUE;
@@ -96,7 +115,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		get folders() { return workspaceFolders; }
 	};
 
-	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace, providers);
+	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace, params.capabilities, providers);
 
 	documents.onDidClose(e => {
 		languageModes.onDocumentRemoved(e.document);
@@ -118,24 +137,25 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	}
 
 	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
-	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
+	dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof params.initializationOptions.provideFormatter !== 'boolean');
 	scopedSettingsSupport = getClientCapability('workspace.configuration', false);
 	workspaceFoldersSupport = getClientCapability('workspace.workspaceFolders', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 	const capabilities: ServerCapabilities = {
-		// Tell the client that the server works in FULL text document sync mode
-		textDocumentSync: documents.syncKind,
+		textDocumentSync: TextDocumentSyncKind.Incremental,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : undefined,
 		hoverProvider: true,
 		documentHighlightProvider: true,
-		documentRangeFormattingProvider: false,
+		documentRangeFormattingProvider: params.initializationOptions.provideFormatter === true,
 		documentLinkProvider: { resolveProvider: false },
 		documentSymbolProvider: true,
 		definitionProvider: true,
 		signatureHelpProvider: { triggerCharacters: ['('] },
 		referencesProvider: true,
 		colorProvider: {},
-		foldingRangeProvider: true
+		foldingRangeProvider: true,
+		selectionRangeProvider: true,
+		renameProvider: true
 	};
 	return { capabilities };
 });
@@ -170,7 +190,7 @@ connection.onDidChangeConfiguration((change) => {
 	documents.all().forEach(triggerValidation);
 
 	// dynamically enable & disable the formatter
-	if (clientDynamicRegisterSupport) {
+	if (dynamicFormatterRegistration) {
 		const enableFormatter = globalSettings && globalSettings.html && globalSettings.html.format && globalSettings.html.format.enable;
 		if (enableFormatter) {
 			if (!formatterRegistration) {
@@ -454,19 +474,69 @@ connection.onFoldingRanges((params, token) => {
 	}, null, `Error while computing folding regions for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest('$/textDocument/selectionRanges', async (params, token) => {
+connection.onSelectionRanges((params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
-		const positions: Position[] = params.positions;
+		if (document) {
+			return getSelectionRanges(languageModes, document, params.positions);
+		}
+		return [];
+	}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
+});
+
+connection.onRenameRequest((params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		const position: Position = params.position;
 
 		if (document) {
 			const htmlMode = languageModes.getMode('html');
-			if (htmlMode && htmlMode.getSelectionRanges) {
-				return htmlMode.getSelectionRanges(document, positions);
+			if (htmlMode && htmlMode.doRename) {
+				return htmlMode.doRename(document, position, params.newName);
 			}
 		}
-		return Promise.resolve(null);
-	}, null, `Error while computing selection ranges for ${params.textDocument.uri}`, token);
+		return null;
+	}, null, `Error while computing rename for ${params.textDocument.uri}`, token);
+});
+
+connection.onRequest(OnTypeRenameRequest.type, (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			const pos = params.position;
+			if (pos.character > 0) {
+				const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
+				if (mode && mode.doOnTypeRename) {
+					return mode.doOnTypeRename(document, pos);
+				}
+			}
+		}
+		return null;
+	}, null, `Error while computing synced regions for ${params.textDocument.uri}`, token);
+});
+
+let semanticTokensProvider: SemanticTokenProvider | undefined;
+function getSemanticTokenProvider() {
+	if (!semanticTokensProvider) {
+		semanticTokensProvider = newSemanticTokenProvider(languageModes);
+	}
+	return semanticTokensProvider;
+}
+
+connection.onRequest(SemanticTokenRequest.type, (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			return getSemanticTokenProvider().getSemanticTokens(document, params.ranges);
+		}
+		return null;
+	}, null, `Error while computing semantic tokens for ${params.textDocument.uri}`, token);
+});
+
+connection.onRequest(SemanticTokenLegendRequest.type, (_params, token) => {
+	return runSafe(() => {
+		return getSemanticTokenProvider().legend;
+	}, null, `Error while computing semantic tokens legend`, token);
 });
 
 

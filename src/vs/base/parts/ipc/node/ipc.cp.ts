@@ -86,13 +86,13 @@ export interface IIPCOptions {
 
 export class Client implements IChannelClient, IDisposable {
 
-	private disposeDelayer: Delayer<void>;
+	private disposeDelayer: Delayer<void> | undefined;
 	private activeRequests = new Set<IDisposable>();
 	private child: ChildProcess | null;
 	private _client: IPCClient | null;
 	private channels = new Map<string, IChannel>();
 
-	private _onDidProcessExit = new Emitter<{ code: number, signal: string }>();
+	private readonly _onDidProcessExit = new Emitter<{ code: number, signal: string }>();
 	readonly onDidProcessExit = this._onDidProcessExit.event;
 
 	constructor(private modulePath: string, private options: IIPCOptions) {
@@ -137,7 +137,7 @@ export class Client implements IChannelClient, IDisposable {
 			cancellationTokenListener.dispose();
 			this.activeRequests.delete(disposable);
 
-			if (this.activeRequests.size === 0) {
+			if (this.activeRequests.size === 0 && this.disposeDelayer) {
 				this.disposeDelayer.trigger(() => this.disposeClient());
 			}
 		});
@@ -227,7 +227,7 @@ export class Client implements IChannelClient, IDisposable {
 			this.child.on('error', err => console.warn('IPC "' + this.options.serverName + '" errored with ' + err));
 
 			this.child.on('exit', (code: any, signal: any) => {
-				process.removeListener('exit', onExit);
+				process.removeListener('exit' as 'loaded', onExit); // https://github.com/electron/electron/issues/21475
 
 				this.activeRequests.forEach(r => dispose(r));
 				this.activeRequests.clear();
@@ -271,8 +271,10 @@ export class Client implements IChannelClient, IDisposable {
 
 	dispose() {
 		this._onDidProcessExit.dispose();
-		this.disposeDelayer.cancel();
-		this.disposeDelayer = null!; // StrictNullOverride: nulling out ok in dispose
+		if (this.disposeDelayer) {
+			this.disposeDelayer.cancel();
+			this.disposeDelayer = undefined;
+		}
 		this.disposeClient();
 		this.activeRequests.clear();
 	}

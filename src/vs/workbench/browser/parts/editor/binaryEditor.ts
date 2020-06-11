@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/binaryeditor';
 import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -12,18 +13,17 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/parts/editor/resourceViewer';
 import { URI } from 'vs/base/common/uri';
-import { Dimension, size, clearNode } from 'vs/base/browser/dom';
+import { Dimension, size, clearNode, append, addDisposableListener, EventType, $ } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { BinarySize } from 'vs/platform/files/common/files';
 
 export interface IOpenCallbacks {
-	openInternal: (input: EditorInput, options: EditorOptions) => Promise<void>;
+	openInternal: (input: EditorInput, options: EditorOptions | undefined) => Promise<void>;
 	openExternal: (uri: URI) => void;
 }
 
@@ -32,16 +32,16 @@ export interface IOpenCallbacks {
  */
 export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
-	private readonly _onMetadataChanged: Emitter<void> = this._register(new Emitter<void>());
-	readonly onMetadataChanged: Event<void> = this._onMetadataChanged.event;
+	private readonly _onMetadataChanged = this._register(new Emitter<void>());
+	readonly onMetadataChanged = this._onMetadataChanged.event;
 
-	private readonly _onDidOpenInPlace: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidOpenInPlace: Event<void> = this._onDidOpenInPlace.event;
+	private readonly _onDidOpenInPlace = this._register(new Emitter<void>());
+	readonly onDidOpenInPlace = this._onDidOpenInPlace.event;
 
 	private callbacks: IOpenCallbacks;
 	private metadata: string | undefined;
-	private binaryContainer: HTMLElement;
-	private scrollbar: DomScrollableElement;
+	private binaryContainer: HTMLElement | undefined;
+	private scrollbar: DomScrollableElement | undefined;
 	private resourceViewerContext: ResourceViewerContext | undefined;
 
 	constructor(
@@ -49,17 +49,15 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		@IFileService private readonly fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(id, telemetryService, themeService, storageService);
 
 		this.callbacks = callbacks;
 	}
 
-	getTitle() {
+	getTitle(): string {
 		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
 	}
 
@@ -76,7 +74,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, token);
 		const model = await input.resolve();
 
@@ -95,14 +93,15 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 			this.resourceViewerContext.dispose();
 		}
 
-		this.resourceViewerContext = ResourceViewer.show({ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() }, this.fileService, this.binaryContainer, this.scrollbar, {
+		const [binaryContainer, scrollbar] = assertAllDefined(this.binaryContainer, this.scrollbar);
+		this.resourceViewerContext = ResourceViewer.show({ name: model.getName(), resource: model.resource, size: model.getSize(), etag: model.getETag(), mime: model.getMime() }, binaryContainer, scrollbar, {
 			openInternalClb: () => this.handleOpenInternalCallback(input, options),
 			openExternalClb: this.environmentService.configuration.remoteAuthority ? undefined : resource => this.callbacks.openExternal(resource),
 			metadataClb: meta => this.handleMetadataChanged(meta)
-		}, this.instantiationService);
+		});
 	}
 
-	private async handleOpenInternalCallback(input: EditorInput, options: EditorOptions): Promise<void> {
+	private async handleOpenInternalCallback(input: EditorInput, options: EditorOptions | undefined): Promise<void> {
 		await this.callbacks.openInternal(input, options);
 
 		// Signal to listeners that the binary editor has been opened in-place
@@ -124,8 +123,10 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		// Clear Meta
 		this.handleMetadataChanged(undefined);
 
-		// Clear Resource Viewer
-		clearNode(this.binaryContainer);
+		// Clear the rest
+		if (this.binaryContainer) {
+			clearNode(this.binaryContainer);
+		}
 		dispose(this.resourceViewerContext);
 		this.resourceViewerContext = undefined;
 
@@ -135,23 +136,121 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	layout(dimension: Dimension): void {
 
 		// Pass on to Binary Container
-		size(this.binaryContainer, dimension.width, dimension.height);
-		this.scrollbar.scanDomNode();
+		const [binaryContainer, scrollbar] = assertAllDefined(this.binaryContainer, this.scrollbar);
+		size(binaryContainer, dimension.width, dimension.height);
+		scrollbar.scanDomNode();
 		if (this.resourceViewerContext && this.resourceViewerContext.layout) {
 			this.resourceViewerContext.layout(dimension);
 		}
 	}
 
 	focus(): void {
-		this.binaryContainer.focus();
+		const binaryContainer = assertIsDefined(this.binaryContainer);
+
+		binaryContainer.focus();
 	}
 
 	dispose(): void {
-		this.binaryContainer.remove();
+		if (this.binaryContainer) {
+			this.binaryContainer.remove();
+		}
 
 		dispose(this.resourceViewerContext);
 		this.resourceViewerContext = undefined;
 
 		super.dispose();
+	}
+}
+
+export interface IResourceDescriptor {
+	readonly resource: URI;
+	readonly name: string;
+	readonly size?: number;
+	readonly etag?: string;
+	readonly mime: string;
+}
+
+interface ResourceViewerContext extends IDisposable {
+	layout?(dimension: Dimension): void;
+}
+
+interface ResourceViewerDelegate {
+	openInternalClb(uri: URI): void;
+	openExternalClb?(uri: URI): void;
+	metadataClb(meta: string): void;
+}
+
+class ResourceViewer {
+
+	private static readonly MAX_OPEN_INTERNAL_SIZE = BinarySize.MB * 200; // max size until we offer an action to open internally
+
+	static show(
+		descriptor: IResourceDescriptor,
+		container: HTMLElement,
+		scrollbar: DomScrollableElement,
+		delegate: ResourceViewerDelegate,
+	): ResourceViewerContext {
+
+		// Ensure CSS class
+		container.className = 'monaco-binary-resource-editor';
+
+		// Large Files
+		if (typeof descriptor.size === 'number' && descriptor.size > ResourceViewer.MAX_OPEN_INTERNAL_SIZE) {
+			return FileTooLargeFileView.create(container, descriptor.size, scrollbar, delegate);
+		}
+
+		// Seemingly Binary Files
+		return FileSeemsBinaryFileView.create(container, descriptor, scrollbar, delegate);
+	}
+}
+
+class FileTooLargeFileView {
+	static create(
+		container: HTMLElement,
+		descriptorSize: number,
+		scrollbar: DomScrollableElement,
+		delegate: ResourceViewerDelegate
+	) {
+		const size = BinarySize.formatSize(descriptorSize);
+		delegate.metadataClb(size);
+
+		clearNode(container);
+
+		const label = document.createElement('span');
+		label.textContent = nls.localize('nativeFileTooLargeError', "The file is not displayed in the editor because it is too large ({0}).", size);
+		container.appendChild(label);
+
+		scrollbar.scanDomNode();
+
+		return Disposable.None;
+	}
+}
+
+class FileSeemsBinaryFileView {
+	static create(
+		container: HTMLElement,
+		descriptor: IResourceDescriptor,
+		scrollbar: DomScrollableElement,
+		delegate: ResourceViewerDelegate
+	) {
+		delegate.metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
+
+		clearNode(container);
+
+		const disposables = new DisposableStore();
+
+		const label = document.createElement('p');
+		label.textContent = nls.localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
+		container.appendChild(label);
+
+		const link = append(label, $('a.embedded-link'));
+		link.setAttribute('role', 'button');
+		link.textContent = nls.localize('openAsText', "Do you want to open it anyway?");
+
+		disposables.add(addDisposableListener(link, EventType.CLICK, () => delegate.openInternalClb(descriptor.resource)));
+
+		scrollbar.scanDomNode();
+
+		return disposables;
 	}
 }

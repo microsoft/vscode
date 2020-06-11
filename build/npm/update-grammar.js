@@ -132,7 +132,7 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'mas
 					if (packageJsonPathOverride) {
 						packageJsonPath += packageJsonPathOverride;
 					}
-					packageJsonPath += '/package.json';
+					packageJsonPath += 'package.json';
 					for (let i = 0; i < cgmanifestRead.registrations.length; i++) {
 						if (cgmanifestRead.registrations[i].component.git.repositoryUrl.substr(cgmanifestRead.registrations[i].component.git.repositoryUrl.length - repoId.length, repoId.length) === repoId) {
 							cgmanifestRead.registrations[i].component.git.commitHash = info.commitSha;

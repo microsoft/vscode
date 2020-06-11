@@ -11,33 +11,30 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 /**
  * Shows a message when opening a large file which has been memory optimized (and features disabled).
  */
 export class LargeFileOptimizationsWarner extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.largeFileOptimizationsWarner';
-
-	private _isDisabled: boolean;
+	public static readonly ID = 'editor.contrib.largeFileOptimizationsWarner';
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IStorageService private readonly _storageService: IStorageService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 
-		this._isDisabled = Boolean(this._storageService.getBoolean('editor.neverPromptForLargeFiles', StorageScope.GLOBAL, false));
+		// opt-in to syncing
+		const neverShowAgainId = 'editor.contrib.largeFileOptimizationsWarner';
+		storageKeysSyncRegistryService.registerStorageKey({ key: neverShowAgainId, version: 1 });
 
 		this._register(this._editor.onDidChangeModel((e) => {
 			const model = this._editor.getModel();
 			if (!model) {
-				return;
-			}
-			if (this._isDisabled) {
 				return;
 			}
 
@@ -55,13 +52,6 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 
 				this._notificationService.prompt(Severity.Info, message, [
 					{
-						label: nls.localize('dontShowAgain', "Don't Show Again"),
-						run: () => {
-							this._isDisabled = true;
-							this._storageService.store('editor.neverPromptForLargeFiles', true, StorageScope.GLOBAL);
-						}
-					},
-					{
 						label: nls.localize('removeOptimizations', "Forcefully enable features"),
 						run: () => {
 							this._configurationService.updateValue(`editor.largeFileOptimizations`, false).then(() => {
@@ -71,14 +61,10 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 							});
 						}
 					}
-				]);
+				], { neverShowAgain: { id: neverShowAgainId } });
 			}
 		}));
 	}
-
-	public getId(): string {
-		return LargeFileOptimizationsWarner.ID;
-	}
 }
 
-registerEditorContribution(LargeFileOptimizationsWarner);
+registerEditorContribution(LargeFileOptimizationsWarner.ID, LargeFileOptimizationsWarner);

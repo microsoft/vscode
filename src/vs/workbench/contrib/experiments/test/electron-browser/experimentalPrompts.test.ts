@@ -12,23 +12,27 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ExperimentalPrompts } from 'vs/workbench/contrib/experiments/electron-browser/experimentalPrompt';
+import { ExperimentalPrompts } from 'vs/workbench/contrib/experiments/browser/experimentalPrompt';
 import { ExperimentActionType, ExperimentState, IExperiment, IExperimentActionPromptProperties, IExperimentService, LocalizedPromptText } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
-import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 suite('Experimental Prompts', () => {
 	let instantiationService: TestInstantiationService;
 	let experimentService: TestExperimentService;
 	let experimentalPrompt: ExperimentalPrompts;
+	let commandService: TestCommandService;
 	let onExperimentEnabledEvent: Emitter<IExperiment>;
 
-	let storageData: { [key: string]: any } = {};
+	let storageData: { [key: string]: any; } = {};
 	const promptText = 'Hello there! Can you see this?';
 	const experiment: IExperiment =
 	{
 		id: 'experiment1',
 		enabled: true,
+		raw: undefined,
 		state: ExperimentState.Run,
 		action: {
 			type: ExperimentActionType.Prompt,
@@ -70,6 +74,8 @@ suite('Experimental Prompts', () => {
 		experimentService = instantiationService.createInstance(TestExperimentService);
 		experimentService.onExperimentEnabled = onExperimentEnabledEvent.event;
 		instantiationService.stub(IExperimentService, experimentService);
+		commandService = instantiationService.createInstance(TestCommandService);
+		instantiationService.stub(ICommandService, commandService);
 	});
 
 	teardown(() => {
@@ -79,32 +85,6 @@ suite('Experimental Prompts', () => {
 		if (experimentalPrompt) {
 			experimentalPrompt.dispose();
 		}
-	});
-
-
-	test('Show experimental prompt if experiment should be run. Choosing option with link should mark experiment as complete', () => {
-
-		storageData = {
-			enabled: true,
-			state: ExperimentState.Run
-		};
-
-		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], options: IPromptOptions) => {
-				assert.equal(b, promptText);
-				assert.equal(c.length, 2);
-				c[0].run();
-				return undefined!;
-			}
-		});
-
-		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
-		onExperimentEnabledEvent.fire(experiment);
-
-		return Promise.resolve(null).then(result => {
-			assert.equal(storageData['state'], ExperimentState.Complete);
-		});
-
 	});
 
 	test('Show experimental prompt if experiment should be run. Choosing negative option should mark experiment as complete', () => {
@@ -127,6 +107,45 @@ suite('Experimental Prompts', () => {
 		onExperimentEnabledEvent.fire(experiment);
 
 		return Promise.resolve(null).then(result => {
+			assert.equal(storageData['state'], ExperimentState.Complete);
+		});
+
+	});
+
+	test('runs experiment command', () => {
+
+		storageData = {
+			enabled: true,
+			state: ExperimentState.Run
+		};
+
+		const stub = instantiationService.stub(ICommandService, 'executeCommand', () => undefined);
+		instantiationService.stub(INotificationService, {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], options: IPromptOptions) => {
+				c[0].run();
+				return undefined!;
+			}
+		});
+
+		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
+		onExperimentEnabledEvent.fire({
+			...experiment,
+			action: {
+				type: ExperimentActionType.Prompt,
+				properties: {
+					promptText,
+					commands: [
+						{
+							text: 'Yes',
+							codeCommand: { id: 'greet', arguments: ['world'] }
+						}
+					]
+				}
+			}
+		});
+
+		return Promise.resolve(null).then(result => {
+			assert.deepStrictEqual(stub.args[0], ['greet', 'world']);
 			assert.equal(storageData['state'], ExperimentState.Complete);
 		});
 

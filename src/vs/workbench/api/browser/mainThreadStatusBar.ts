@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { MainThreadStatusBarShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { dispose } from 'vs/base/common/lifecycle';
+import { Command } from 'vs/editor/common/modes';
+import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
@@ -24,8 +26,19 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this.entries.clear();
 	}
 
-	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void {
-		const entry: IStatusbarEntry = { text, tooltip, command, color };
+	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, alignment: MainThreadStatusBarAlignment, priority: number | undefined, accessibilityInformation: IAccessibilityInformation): void {
+		// if there are icons in the text use the tooltip for the aria label
+		let ariaLabel: string;
+		if (accessibilityInformation) {
+			ariaLabel = accessibilityInformation.label;
+		} else {
+			ariaLabel = text.indexOf('$(') === -1 ? text : tooltip || text;
+		}
+		const entry: IStatusbarEntry = { text, tooltip, command, color, ariaLabel };
+
+		if (typeof priority === 'undefined') {
+			priority = 0;
+		}
 
 		// Reset existing entry if alignment or priority changed
 		let existingEntry = this.entries.get(id);

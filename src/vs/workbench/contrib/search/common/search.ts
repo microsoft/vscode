@@ -6,7 +6,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { SymbolKind, Location, ProviderResult } from 'vs/editor/common/modes';
+import { SymbolKind, Location, ProviderResult, SymbolTag } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -14,11 +14,14 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IRange } from 'vs/editor/common/core/range';
+import { isNumber } from 'vs/base/common/types';
 
 export interface IWorkspaceSymbol {
 	name: string;
 	containerName?: string;
 	kind: SymbolKind;
+	tags?: SymbolTag[];
 	location: Location;
 }
 
@@ -73,6 +76,10 @@ export function getWorkspaceSymbols(query: string, token: CancellationToken = Ca
 export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigurationProperties {
 	quickOpen: {
 		includeSymbols: boolean;
+		includeHistory: boolean;
+		history: {
+			filterSortOrder: 'default' | 'recency'
+		}
 	};
 }
 
@@ -93,4 +100,67 @@ export function getOutOfWorkspaceEditorResources(accessor: ServicesAccessor): UR
 		.filter(resource => !!resource && !contextService.isInsideWorkspace(resource) && fileService.canHandleResource(resource));
 
 	return resources as URI[];
+}
+
+// Supports patterns of <path><#|:|(><line><#|:|,><col?>
+const LINE_COLON_PATTERN = /\s?[#:\(](?:line )?(\d*)(?:[#:,](\d*))?\)?\s*$/;
+
+export interface IFilterAndRange {
+	filter: string;
+	range: IRange;
+}
+
+export function extractRangeFromFilter(filter: string, unless?: string[]): IFilterAndRange | undefined {
+	if (!filter || unless?.some(value => filter.indexOf(value) !== -1)) {
+		return undefined;
+	}
+
+	let range: IRange | undefined = undefined;
+
+	// Find Line/Column number from search value using RegExp
+	const patternMatch = LINE_COLON_PATTERN.exec(filter);
+
+	if (patternMatch) {
+		const startLineNumber = parseInt(patternMatch[1] ?? '', 10);
+
+		// Line Number
+		if (isNumber(startLineNumber)) {
+			range = {
+				startLineNumber: startLineNumber,
+				startColumn: 1,
+				endLineNumber: startLineNumber,
+				endColumn: 1
+			};
+
+			// Column Number
+			const startColumn = parseInt(patternMatch[2] ?? '', 10);
+			if (isNumber(startColumn)) {
+				range = {
+					startLineNumber: range.startLineNumber,
+					startColumn: startColumn,
+					endLineNumber: range.endLineNumber,
+					endColumn: startColumn
+				};
+			}
+		}
+
+		// User has typed "something:" or "something#" without a line number, in this case treat as start of file
+		else if (patternMatch[1] === '') {
+			range = {
+				startLineNumber: 1,
+				startColumn: 1,
+				endLineNumber: 1,
+				endColumn: 1
+			};
+		}
+	}
+
+	if (patternMatch && range) {
+		return {
+			filter: filter.substr(0, patternMatch.index), // clear range suffix from search value
+			range
+		};
+	}
+
+	return undefined;
 }

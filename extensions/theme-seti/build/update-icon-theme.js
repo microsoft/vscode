@@ -10,8 +10,8 @@ let fs = require('fs');
 let https = require('https');
 let url = require('url');
 
-// list of languagesIs not shipped with VSCode. The information is used to associate an icon with a langauge association
-let nonBuiltInLanguages = { // { fileNames, extensions }
+// list of languagesId not shipped with VSCode. The information is used to associate an icon with a language association
+let nonBuiltInLanguages = { // { fileNames, extensions  }
 	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
 	"argdown": { extensions: ['ad', 'adown', 'argdown', 'argdn'] },
 	"elm": { extensions: ['elm'] },
@@ -35,7 +35,14 @@ let nonBuiltInLanguages = { // { fileNames, extensions }
 	"todo": { fileNames: ['todo'] }
 };
 
-let FROM_DISK = false; // set to true to take content from a repo checkedout next to the vscode repo
+// list of languagesId that inherit the icon from another language
+let inheritIconFromLanguage = {
+	"jsonc": 'json',
+	"postcss": 'css',
+	"django-html": 'html'
+}
+
+let FROM_DISK = true; // set to true to take content from a repo checked out next to the vscode repo
 
 let font, fontMappingsFile, fileAssociationFile, colorsFile;
 if (!FROM_DISK) {
@@ -109,7 +116,7 @@ function downloadBinary(source, dest) {
 	return new Promise((c, e) => {
 		https.get(source, function (response) {
 			switch (response.statusCode) {
-				case 200:
+				case 200: {
 					let file = fs.createWriteStream(dest);
 					response.on('data', function (chunk) {
 						file.write(chunk);
@@ -121,6 +128,7 @@ function downloadBinary(source, dest) {
 						e(err.message);
 					});
 					break;
+				}
 				case 301:
 				case 302:
 				case 303:
@@ -355,6 +363,16 @@ exports.update = function () {
 						}
 					}
 				}
+			}
+			for (let lang in inheritIconFromLanguage) {
+				let superLang = inheritIconFromLanguage[lang];
+				let def = lang2Def[superLang];
+				if (def) {
+					lang2Def[lang] = def;
+				} else {
+					console.log('skipping icon def for ' + lang + ': no icon for ' + superLang + ' defined');
+				}
+
 			}
 
 

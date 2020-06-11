@@ -5,6 +5,7 @@
 
 import 'vs/css!./walkThroughPart';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -12,7 +13,7 @@ import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/com
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughInput';
+import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as marked from 'vs/base/common/marked/marked';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -26,7 +27,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Event } from 'vs/base/common/event';
 import { isObject } from 'vs/base/common/types';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
@@ -37,6 +38,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Dimension, size } from 'vs/base/browser/dom';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { domEvent } from 'vs/base/browser/event';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -58,11 +61,11 @@ export class WalkThroughPart extends BaseEditor {
 
 	private readonly disposables = new DisposableStore();
 	private contentDisposables: IDisposable[] = [];
-	private content: HTMLDivElement;
-	private scrollbar: DomScrollableElement;
+	private content!: HTMLDivElement;
+	private scrollbar!: DomScrollableElement;
 	private editorFocus: IContextKey<boolean>;
-	private lastFocus: HTMLElement;
-	private size: Dimension;
+	private lastFocus: HTMLElement | undefined;
+	private size: Dimension | undefined;
 	private editorMemento: IEditorMemento<IWalkThroughEditorViewState>;
 
 	constructor(
@@ -110,6 +113,14 @@ export class WalkThroughPart extends BaseEditor {
 			const height = scrollDimensions.height;
 			this.input.relativeScrollPosition(scrollTop / scrollHeight, (scrollTop + height) / scrollHeight);
 		}
+	}
+
+	private onTouchChange(event: GestureEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop - event.translationY });
 	}
 
 	private addEventListener<K extends keyof HTMLElementEventMap, E extends HTMLElement>(element: E, type: K, listener: (this: E, ev: HTMLElementEventMap[K]) => any, useCapture?: boolean): IDisposable;
@@ -251,7 +262,7 @@ export class WalkThroughPart extends BaseEditor {
 		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + scrollDimensions.height });
 	}
 
-	setInput(input: WalkThroughInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	setInput(input: WalkThroughInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}
@@ -268,8 +279,8 @@ export class WalkThroughPart extends BaseEditor {
 					return;
 				}
 
-				const content = model.main.textEditorModel.getLinesContent().join('\n');
-				if (!strings.endsWith(input.getResource().path, '.md')) {
+				const content = model.main.textEditorModel.getValue(EndOfLinePreference.LF);
+				if (!strings.endsWith(input.resource.path, '.md')) {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();
 					this.decorateContent();
@@ -301,12 +312,6 @@ export class WalkThroughPart extends BaseEditor {
 					const div = innerContent.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
 
 					const options = this.getEditorOptions(snippet.textEditorModel.getModeId());
-					/* __GDPR__FRAGMENT__
-						"EditorTelemetryData" : {
-							"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-						}
-					*/
 					const telemetryData = {
 						target: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 						snippet: i
@@ -318,7 +323,7 @@ export class WalkThroughPart extends BaseEditor {
 					this.contentDisposables.push(editor);
 
 					const updateHeight = (initial: boolean) => {
-						const lineHeight = editor.getConfiguration().lineHeight;
+						const lineHeight = editor.getOption(EditorOption.lineHeight);
 						const height = `${Math.max(model.getLineCount() + 1, 4) * lineHeight}px`;
 						if (div.style.height !== height) {
 							div.style.height = height;
@@ -335,7 +340,7 @@ export class WalkThroughPart extends BaseEditor {
 						if (innerContent) {
 							const targetTop = div.getBoundingClientRect().top;
 							const containerTop = innerContent.getBoundingClientRect().top;
-							const lineHeight = editor.getConfiguration().lineHeight;
+							const lineHeight = editor.getOption(EditorOption.lineHeight);
 							const lineTop = (targetTop + (e.position.lineNumber - 1) * lineHeight) - containerTop;
 							const lineBottom = lineTop + lineHeight;
 							const scrollDimensions = this.scrollbar.getScrollDimensions();
@@ -356,43 +361,33 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
+					type WalkThroughSnippetInteractionClassification = {
+						from?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						snippet: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					};
+					type WalkThroughSnippetInteractionEvent = {
+						from?: string,
+						type: string,
+						snippet: number
+					};
+
 					this.contentDisposables.push(Event.once(editor.onMouseDown)(() => {
-						/* __GDPR__
-							"walkThroughSnippetInteraction" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'mouseDown',
 							snippet: i
 						});
 					}));
 					this.contentDisposables.push(Event.once(editor.onKeyDown)(() => {
-						/* __GDPR__
-							"walkThroughSnippetInteraction" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'keyDown',
 							snippet: i
 						});
 					}));
 					this.contentDisposables.push(Event.once(editor.onDidChangeModelContent)(() => {
-						/* __GDPR__
-							"walkThroughSnippetInteraction" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'changeModelContent',
 							snippet: i
@@ -412,6 +407,8 @@ export class WalkThroughPart extends BaseEditor {
 				this.scrollbar.scanDomNode();
 				this.loadTextEditorViewState(input);
 				this.updatedScrollPosition();
+				this.contentDisposables.push(Gesture.addTarget(innerContent));
+				this.contentDisposables.push(domEvent(innerContent, TouchEventType.Change)(this.onTouchChange, this, this.disposables));
 			});
 	}
 
@@ -425,10 +422,11 @@ export class WalkThroughPart extends BaseEditor {
 				horizontal: 'auto',
 				useShadows: true,
 				verticalHasArrows: false,
-				horizontalHasArrows: false
+				horizontalHasArrows: false,
+				alwaysConsumeMouseWheel: false
 			},
 			overviewRulerLanes: 3,
-			fixedOverflowWidgets: true,
+			fixedOverflowWidgets: false,
 			lineNumbersMinChars: 1,
 			minimap: { enabled: false },
 		};

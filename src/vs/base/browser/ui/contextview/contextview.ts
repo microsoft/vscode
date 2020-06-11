@@ -5,8 +5,10 @@
 
 import 'vs/css!./contextview';
 import * as DOM from 'vs/base/browser/dom';
-import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export interface IAnchor {
 	x: number;
@@ -36,7 +38,7 @@ export interface IDelegate {
 }
 
 export interface IContextViewProvider {
-	showContextView(delegate: IDelegate): void;
+	showContextView(delegate: IDelegate, container?: HTMLElement): void;
 	hideContextView(): void;
 	layout(): void;
 }
@@ -100,27 +102,29 @@ export class ContextView extends Disposable {
 	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
 	private static readonly BUBBLE_DOWN_EVENTS = ['click'];
 
-	private container: HTMLElement | null;
+	private container: HTMLElement | null = null;
 	private view: HTMLElement;
-	private delegate: IDelegate | null;
-	private toDisposeOnClean: IDisposable | null;
-	private toDisposeOnSetContainer: IDisposable;
+	private useFixedPosition: boolean;
+	private delegate: IDelegate | null = null;
+	private toDisposeOnClean: IDisposable = Disposable.None;
+	private toDisposeOnSetContainer: IDisposable = Disposable.None;
 
-	constructor(container: HTMLElement) {
+	constructor(container: HTMLElement, useFixedPosition: boolean) {
 		super();
 
 		this.view = DOM.$('.context-view');
+		this.useFixedPosition = false;
 
 		DOM.hide(this.view);
 
-		this.setContainer(container);
+		this.setContainer(container, useFixedPosition);
 
-		this._register(toDisposable(() => this.setContainer(null)));
+		this._register(toDisposable(() => this.setContainer(null, false)));
 	}
 
-	setContainer(container: HTMLElement | null): void {
+	setContainer(container: HTMLElement | null, useFixedPosition: boolean): void {
 		if (this.container) {
-			dispose(this.toDisposeOnSetContainer);
+			this.toDisposeOnSetContainer.dispose();
 			this.container.removeChild(this.view);
 			this.container = null;
 		}
@@ -144,6 +148,8 @@ export class ContextView extends Disposable {
 
 			this.toDisposeOnSetContainer = toDisposeOnSetContainer;
 		}
+
+		this.useFixedPosition = useFixedPosition;
 	}
 
 	show(delegate: IDelegate): void {
@@ -159,7 +165,7 @@ export class ContextView extends Disposable {
 		DOM.show(this.view);
 
 		// Render content
-		this.toDisposeOnClean = delegate.render(this.view);
+		this.toDisposeOnClean = delegate.render(this.view) || Disposable.None;
 
 		// Set active delegate
 		this.delegate = delegate;
@@ -178,7 +184,7 @@ export class ContextView extends Disposable {
 			return;
 		}
 
-		if (this.delegate!.canRelayout === false) {
+		if (this.delegate!.canRelayout === false && !(platform.isIOS && BrowserFeatures.pointerEvents)) {
 			this.hide();
 			return;
 		}
@@ -252,10 +258,11 @@ export class ContextView extends Disposable {
 		DOM.removeClasses(this.view, 'top', 'bottom', 'left', 'right');
 		DOM.addClass(this.view, anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
 		DOM.addClass(this.view, anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
+		DOM.toggleClass(this.view, 'fixed', this.useFixedPosition);
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container!);
-		this.view.style.top = `${top - containerPosition.top}px`;
-		this.view.style.left = `${left - containerPosition.left}px`;
+		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top)}px`;
+		this.view.style.left = `${left - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).left : containerPosition.left)}px`;
 		this.view.style.width = 'initial';
 	}
 
@@ -263,14 +270,11 @@ export class ContextView extends Disposable {
 		const delegate = this.delegate;
 		this.delegate = null;
 
-		if (delegate && delegate.onHide) {
+		if (delegate?.onHide) {
 			delegate.onHide(data);
 		}
 
-		if (this.toDisposeOnClean) {
-			this.toDisposeOnClean.dispose();
-			this.toDisposeOnClean = null;
-		}
+		this.toDisposeOnClean.dispose();
 
 		DOM.hide(this.view);
 	}

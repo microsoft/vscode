@@ -6,11 +6,11 @@
 				"git": {
 					"name": "language-php",
 					"repositoryUrl": "https://github.com/atom/language-php",
-					"commitHash": "0efbd42e73b52347f95ac5f00c9f288ed4958832"
+					"commitHash": "882f6c0e19f0ebf9dafa443bf4c3fc5626f76aed"
 				}
 			},
 			"license": "MIT",
-			"version": "0.44.1"
+			"version": "0.44.4"
 		}
 	],
 	"version": 1

@@ -10,10 +10,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class IPadShowKeyboard extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.iPadShowKeyboard';
+	public static readonly ID = 'editor.contrib.iPadShowKeyboard';
 
 	private readonly editor: ICodeEditor;
 	private widget: ShowKeyboardWidget | null;
@@ -21,6 +22,7 @@ export class IPadShowKeyboard extends Disposable implements IEditorContribution 
 	constructor(editor: ICodeEditor) {
 		super();
 		this.editor = editor;
+		this.widget = null;
 		if (browser.isIPad) {
 			this._register(editor.onDidChangeConfiguration(() => this.update()));
 			this.update();
@@ -28,7 +30,7 @@ export class IPadShowKeyboard extends Disposable implements IEditorContribution 
 	}
 
 	private update(): void {
-		const shouldHaveWidget = (!this.editor.getConfiguration().readOnly);
+		const shouldHaveWidget = (!this.editor.getOption(EditorOption.readOnly));
 
 		if (!this.widget && shouldHaveWidget) {
 
@@ -40,10 +42,6 @@ export class IPadShowKeyboard extends Disposable implements IEditorContribution 
 			this.widget = null;
 
 		}
-	}
-
-	public getId(): string {
-		return IPadShowKeyboard.ID;
 	}
 
 	public dispose(): void {
@@ -101,4 +99,4 @@ class ShowKeyboardWidget extends Disposable implements IOverlayWidget {
 	}
 }
 
-registerEditorContribution(IPadShowKeyboard);
+registerEditorContribution(IPadShowKeyboard.ID, IPadShowKeyboard);

@@ -33,7 +33,7 @@ export interface IWorkspaceCommentThreadsEvent {
 }
 
 export interface ICommentService {
-	_serviceBrand: any;
+	readonly _serviceBrand: undefined;
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
@@ -54,14 +54,13 @@ export interface ICommentService {
 	disposeCommentThread(ownerId: string, threadId: string): void;
 	getComments(resource: URI): Promise<(ICommentInfo | null)[]>;
 	getCommentingRanges(resource: URI): Promise<IRange[]>;
-	getReactionGroup(owner: string): CommentReaction[] | undefined;
 	hasReactionHandler(owner: string): boolean;
 	toggleReaction(owner: string, resource: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction): Promise<void>;
 	setActiveCommentThread(commentThread: CommentThread | null): void;
 }
 
 export class CommentService extends Disposable implements ICommentService {
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidSetDataProvider: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidSetDataProvider: Event<void> = this._onDidSetDataProvider.event;
@@ -161,9 +160,7 @@ export class CommentService extends Disposable implements ICommentService {
 			return this._commentMenus.get(owner)!;
 		}
 
-		let controller = this._commentControls.get(owner);
-
-		let menu = this.instantiationService.createInstance(CommentMenus, controller!);
+		let menu = this.instantiationService.createInstance(CommentMenus);
 		this._commentMenus.set(owner, menu);
 		return menu;
 	}
@@ -181,22 +178,6 @@ export class CommentService extends Disposable implements ICommentService {
 		} else {
 			throw new Error('Not supported');
 		}
-	}
-
-	getReactionGroup(owner: string): CommentReaction[] | undefined {
-		const commentProvider = this._commentControls.get(owner);
-
-		if (commentProvider) {
-			return commentProvider.getReactionGroup();
-		}
-
-		const commentController = this._commentControls.get(owner);
-
-		if (commentController) {
-			return commentController.getReactionGroup();
-		}
-
-		return undefined;
 	}
 
 	hasReactionHandler(owner: string): boolean {

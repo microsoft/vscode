@@ -6,12 +6,14 @@
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { CoreEditorCommand, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IEditorMouseEvent, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
+import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import * as platform from 'vs/base/common/platform';
 
 export interface IMouseDispatchData {
 	position: Position;
@@ -35,30 +37,30 @@ export interface IMouseDispatchData {
 export interface ICommandDelegate {
 	executeEditorCommand(editorCommand: CoreEditorCommand, args: any): void;
 
-	paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null): void;
-	type(source: string, text: string): void;
-	replacePreviousChar(source: string, text: string, replaceCharCnt: number): void;
-	compositionStart(source: string): void;
-	compositionEnd(source: string): void;
-	cut(source: string): void;
+	paste(text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void;
+	type(text: string): void;
+	replacePreviousChar(text: string, replaceCharCnt: number): void;
+	startComposition(): void;
+	endComposition(): void;
+	cut(): void;
 }
 
 export class ViewController {
 
 	private readonly configuration: IConfiguration;
 	private readonly viewModel: IViewModel;
-	private readonly outgoingEvents: ViewOutgoingEvents;
+	private readonly userInputEvents: ViewUserInputEvents;
 	private readonly commandDelegate: ICommandDelegate;
 
 	constructor(
 		configuration: IConfiguration,
 		viewModel: IViewModel,
-		outgoingEvents: ViewOutgoingEvents,
+		userInputEvents: ViewUserInputEvents,
 		commandDelegate: ICommandDelegate
 	) {
 		this.configuration = configuration;
 		this.viewModel = viewModel;
-		this.outgoingEvents = outgoingEvents;
+		this.userInputEvents = userInputEvents;
 		this.commandDelegate = commandDelegate;
 	}
 
@@ -67,33 +69,33 @@ export class ViewController {
 		this.commandDelegate.executeEditorCommand(editorCommand, args);
 	}
 
-	public paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null): void {
-		this.commandDelegate.paste(source, text, pasteOnNewLine, multicursorText);
+	public paste(text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void {
+		this.commandDelegate.paste(text, pasteOnNewLine, multicursorText, mode);
 	}
 
-	public type(source: string, text: string): void {
-		this.commandDelegate.type(source, text);
+	public type(text: string): void {
+		this.commandDelegate.type(text);
 	}
 
-	public replacePreviousChar(source: string, text: string, replaceCharCnt: number): void {
-		this.commandDelegate.replacePreviousChar(source, text, replaceCharCnt);
+	public replacePreviousChar(text: string, replaceCharCnt: number): void {
+		this.commandDelegate.replacePreviousChar(text, replaceCharCnt);
 	}
 
-	public compositionStart(source: string): void {
-		this.commandDelegate.compositionStart(source);
+	public compositionStart(): void {
+		this.commandDelegate.startComposition();
 	}
 
-	public compositionEnd(source: string): void {
-		this.commandDelegate.compositionEnd(source);
+	public compositionEnd(): void {
+		this.commandDelegate.endComposition();
 	}
 
-	public cut(source: string): void {
-		this.commandDelegate.cut(source);
+	public cut(): void {
+		this.commandDelegate.cut();
 	}
 
-	public setSelection(source: string, modelSelection: Selection): void {
+	public setSelection(modelSelection: Selection): void {
 		this.commandDelegate.executeEditorCommand(CoreNavigationCommands.SetSelection, {
-			source: source,
+			source: 'keyboard',
 			selection: modelSelection
 		});
 	}
@@ -107,7 +109,7 @@ export class ViewController {
 	}
 
 	private _hasMulticursorModifier(data: IMouseDispatchData): boolean {
-		switch (this.configuration.editor.multiCursorModifier) {
+		switch (this.configuration.options.get(EditorOption.multiCursorModifier)) {
 			case 'altKey':
 				return data.altKey;
 			case 'ctrlKey':
@@ -119,7 +121,7 @@ export class ViewController {
 	}
 
 	private _hasNonMulticursorModifier(data: IMouseDispatchData): boolean {
-		switch (this.configuration.editor.multiCursorModifier) {
+		switch (this.configuration.options.get(EditorOption.multiCursorModifier)) {
 			case 'altKey':
 				return data.ctrlKey || data.metaKey;
 			case 'ctrlKey':
@@ -131,12 +133,11 @@ export class ViewController {
 	}
 
 	public dispatchMouse(data: IMouseDispatchData): void {
-		if (data.middleButton) {
-			if (data.inSelectionMode) {
-				this._columnSelect(data.position, data.mouseColumn);
-			} else {
-				this.moveTo(data.position);
-			}
+		const options = this.configuration.options;
+		const selectionClipboardIsOn = (platform.isLinux && options.get(EditorOption.selectionClipboard));
+		const columnSelection = options.get(EditorOption.columnSelection);
+		if (data.middleButton && !selectionClipboardIsOn) {
+			this._columnSelect(data.position, data.mouseColumn, data.inSelectionMode);
 		} else if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line
 			if (this._hasMulticursorModifier(data)) {
@@ -182,7 +183,7 @@ export class ViewController {
 			if (this._hasMulticursorModifier(data)) {
 				if (!this._hasNonMulticursorModifier(data)) {
 					if (data.shiftKey) {
-						this._columnSelect(data.position, data.mouseColumn);
+						this._columnSelect(data.position, data.mouseColumn, true);
 					} else {
 						// Do multi-cursor operations only when purely alt is pressed
 						if (data.inSelectionMode) {
@@ -195,9 +196,13 @@ export class ViewController {
 			} else {
 				if (data.inSelectionMode) {
 					if (data.altKey) {
-						this._columnSelect(data.position, data.mouseColumn);
+						this._columnSelect(data.position, data.mouseColumn, true);
 					} else {
-						this._moveToSelect(data.position);
+						if (columnSelection) {
+							this._columnSelect(data.position, data.mouseColumn, true);
+						} else {
+							this._moveToSelect(data.position);
+						}
 					}
 				} else {
 					this.moveTo(data.position);
@@ -222,12 +227,13 @@ export class ViewController {
 		this._execMouseCommand(CoreNavigationCommands.MoveToSelect, this._usualArgs(viewPosition));
 	}
 
-	private _columnSelect(viewPosition: Position, mouseColumn: number): void {
+	private _columnSelect(viewPosition: Position, mouseColumn: number, doColumnSelect: boolean): void {
 		viewPosition = this._validateViewColumn(viewPosition);
 		this._execMouseCommand(CoreNavigationCommands.ColumnSelect, {
 			position: this._convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition,
-			mouseColumn: mouseColumn
+			mouseColumn: mouseColumn,
+			doColumnSelect: doColumnSelect
 		});
 	}
 
@@ -283,42 +289,42 @@ export class ViewController {
 	}
 
 	public emitKeyDown(e: IKeyboardEvent): void {
-		this.outgoingEvents.emitKeyDown(e);
+		this.userInputEvents.emitKeyDown(e);
 	}
 
 	public emitKeyUp(e: IKeyboardEvent): void {
-		this.outgoingEvents.emitKeyUp(e);
+		this.userInputEvents.emitKeyUp(e);
 	}
 
 	public emitContextMenu(e: IEditorMouseEvent): void {
-		this.outgoingEvents.emitContextMenu(e);
+		this.userInputEvents.emitContextMenu(e);
 	}
 
 	public emitMouseMove(e: IEditorMouseEvent): void {
-		this.outgoingEvents.emitMouseMove(e);
+		this.userInputEvents.emitMouseMove(e);
 	}
 
 	public emitMouseLeave(e: IPartialEditorMouseEvent): void {
-		this.outgoingEvents.emitMouseLeave(e);
+		this.userInputEvents.emitMouseLeave(e);
 	}
 
 	public emitMouseUp(e: IEditorMouseEvent): void {
-		this.outgoingEvents.emitMouseUp(e);
+		this.userInputEvents.emitMouseUp(e);
 	}
 
 	public emitMouseDown(e: IEditorMouseEvent): void {
-		this.outgoingEvents.emitMouseDown(e);
+		this.userInputEvents.emitMouseDown(e);
 	}
 
 	public emitMouseDrag(e: IEditorMouseEvent): void {
-		this.outgoingEvents.emitMouseDrag(e);
+		this.userInputEvents.emitMouseDrag(e);
 	}
 
 	public emitMouseDrop(e: IPartialEditorMouseEvent): void {
-		this.outgoingEvents.emitMouseDrop(e);
+		this.userInputEvents.emitMouseDrop(e);
 	}
 
 	public emitMouseWheel(e: IMouseWheelEvent): void {
-		this.outgoingEvents.emitMouseWheel(e);
+		this.userInputEvents.emitMouseWheel(e);
 	}
 }

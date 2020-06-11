@@ -11,8 +11,8 @@ export const IDownloadService = createDecorator<IDownloadService>('downloadServi
 
 export interface IDownloadService {
 
-	_serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
-	download(uri: URI, to?: string, cancellationToken?: CancellationToken): Promise<string>;
+	download(uri: URI, to: URI, cancellationToken?: CancellationToken): Promise<void>;
 
 }

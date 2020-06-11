@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const file = 'file';
-
 export const untitled = 'untitled';
-
+export const git = 'git';
 export const walkThroughSnippet = 'walkThroughSnippet';
 
 export const supportedSchemes = [

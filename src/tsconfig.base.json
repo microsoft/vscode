@@ -2,15 +2,10 @@
 	"compilerOptions": {
 		"module": "amd",
 		"moduleResolution": "node",
-		"noImplicitAny": true,
-		"target": "es5",
 		"experimentalDecorators": true,
 		"noImplicitReturns": true,
 		"noUnusedLocals": true,
-		"noImplicitThis": true,
-		"alwaysStrict": true,
-		"strictBindCallApply": true,
-		"strictNullChecks": true,
+		"strict": true,
 		"forceConsistentCasingInFileNames": true,
 		"baseUrl": ".",
 		"paths": {
@@ -18,13 +13,13 @@
 				"./vs/*"
 			]
 		},
-		"types": [
-			"keytar",
-			"minimist",
-			"mocha",
-			"semver",
-			"sinon",
-			"winreg"
+		"lib": [
+			"ES2015",
+			"ES2017.String",
+			"ES2018.Promise",
+			"DOM",
+			"DOM.Iterable",
+			"WebWorker.ImportScripts"
 		]
 	}
 }

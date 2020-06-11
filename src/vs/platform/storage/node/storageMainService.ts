@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorage, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
@@ -16,7 +17,7 @@ export const IStorageMainService = createDecorator<IStorageMainService>('storage
 
 export interface IStorageMainService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -33,6 +34,16 @@ export interface IStorageMainService {
 	 * persist the data properly.
 	 */
 	readonly onWillSaveState: Event<void>;
+
+	/**
+	 * Access to all cached items of this storage service.
+	 */
+	readonly items: Map<string, string>;
+
+	/**
+	 * Required call to ensure the service can be used.
+	 */
+	initialize(): Promise<void>;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -75,25 +86,25 @@ export interface IStorageChangeEvent {
 
 export class StorageMainService extends Disposable implements IStorageMainService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	declare readonly _serviceBrand: undefined;
 
-	private static STORAGE_NAME = 'state.vscdb';
+	private static readonly STORAGE_NAME = 'state.vscdb';
 
-	private readonly _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
-	readonly onDidChangeStorage: Event<IStorageChangeEvent> = this._onDidChangeStorage.event;
+	private readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
+	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
-	private readonly _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
-	readonly onWillSaveState: Event<void> = this._onWillSaveState.event;
+	private readonly _onWillSaveState = this._register(new Emitter<void>());
+	readonly onWillSaveState = this._onWillSaveState.event;
 
 	get items(): Map<string, string> { return this.storage.items; }
 
 	private storage: IStorage;
 
-	private initializePromise: Promise<void>;
+	private initializePromise: Promise<void> | undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService
 	) {
 		super();
 

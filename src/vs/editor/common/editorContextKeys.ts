@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export namespace EditorContextKeys {
+
+	export const editorSimpleInput = new RawContextKey<boolean>('editorSimpleInput', false);
 	/**
 	 * A context key that is set when the editor's text has focus (cursor is blinking).
+	 * Is false when focus is in simple editor widgets (repl input, scm commit input).
 	 */
 	export const editorTextFocus = new RawContextKey<boolean>('editorTextFocus', false);
 	/**
@@ -21,16 +24,26 @@ export namespace EditorContextKeys {
 	export const textInputFocus = new RawContextKey<boolean>('textInputFocus', false);
 
 	export const readOnly = new RawContextKey<boolean>('editorReadonly', false);
-	export const writable: ContextKeyExpr = readOnly.toNegated();
+	export const columnSelection = new RawContextKey<boolean>('editorColumnSelection', false);
+	export const writable = readOnly.toNegated();
 	export const hasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false);
-	export const hasOnlyEmptySelection: ContextKeyExpr = hasNonEmptySelection.toNegated();
+	export const hasOnlyEmptySelection = hasNonEmptySelection.toNegated();
 	export const hasMultipleSelections = new RawContextKey<boolean>('editorHasMultipleSelections', false);
-	export const hasSingleSelection: ContextKeyExpr = hasMultipleSelections.toNegated();
+	export const hasSingleSelection = hasMultipleSelections.toNegated();
 	export const tabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false);
-	export const tabDoesNotMoveFocus: ContextKeyExpr = tabMovesFocus.toNegated();
-	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', false);
+	export const tabDoesNotMoveFocus = tabMovesFocus.toNegated();
+	export const isInWalkThroughSnippet = new RawContextKey<boolean>('isInEmbeddedEditor', false);
 	export const canUndo = new RawContextKey<boolean>('canUndo', false);
 	export const canRedo = new RawContextKey<boolean>('canRedo', false);
+
+	export const hoverVisible = new RawContextKey<boolean>('editorHoverVisible', false);
+
+	/**
+	 * A context key that is set when an editor is part of a larger editor, like notebooks or
+	 * (future) a diff editor
+	 */
+	export const inCompositeEditor = new RawContextKey<boolean>('inCompositeEditor', undefined);
+	export const notInCompositeEditor = inCompositeEditor.toNegated();
 
 	// -- mode context keys
 	export const languageId = new RawContextKey<string>('editorLangId', '');

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { VSBuffer, bufferToReadable, readableToBuffer, bufferToStream, streamToBuffer, writeableBufferStream } from 'vs/base/common/buffer';
+import { VSBuffer, bufferToReadable, readableToBuffer, bufferToStream, streamToBuffer, newWriteableBufferStream } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
 
 suite('Buffer', () => {
@@ -30,7 +30,7 @@ suite('Buffer', () => {
 	});
 
 	test('bufferWriteableStream - basics (no error)', async () => {
-		const stream = writeableBufferStream();
+		const stream = newWriteableBufferStream();
 
 		let chunks: VSBuffer[] = [];
 		stream.on('data', data => {
@@ -60,7 +60,7 @@ suite('Buffer', () => {
 	});
 
 	test('bufferWriteableStream - basics (error)', async () => {
-		const stream = writeableBufferStream();
+		const stream = newWriteableBufferStream();
 
 		let chunks: VSBuffer[] = [];
 		stream.on('data', data => {
@@ -89,7 +89,7 @@ suite('Buffer', () => {
 	});
 
 	test('bufferWriteableStream - buffers data when no listener', async () => {
-		const stream = writeableBufferStream();
+		const stream = newWriteableBufferStream();
 
 		await timeout(0);
 		stream.write(VSBuffer.fromString('Hello'));
@@ -118,7 +118,7 @@ suite('Buffer', () => {
 	});
 
 	test('bufferWriteableStream - buffers errors when no listener', async () => {
-		const stream = writeableBufferStream();
+		const stream = newWriteableBufferStream();
 
 		await timeout(0);
 		stream.write(VSBuffer.fromString('Hello'));
@@ -149,7 +149,7 @@ suite('Buffer', () => {
 	});
 
 	test('bufferWriteableStream - buffers end when no listener', async () => {
-		const stream = writeableBufferStream();
+		const stream = newWriteableBufferStream();
 
 		await timeout(0);
 		stream.write(VSBuffer.fromString('Hello'));
@@ -178,7 +178,7 @@ suite('Buffer', () => {
 	});
 
 	test('bufferWriteableStream - nothing happens after end()', async () => {
-		const stream = writeableBufferStream();
+		const stream = newWriteableBufferStream();
 
 		let chunks: VSBuffer[] = [];
 		stream.on('data', data => {
@@ -222,7 +222,7 @@ suite('Buffer', () => {
 	});
 
 	test('bufferWriteableStream - pause/resume (simple)', async () => {
-		const stream = writeableBufferStream();
+		const stream = newWriteableBufferStream();
 
 		let chunks: VSBuffer[] = [];
 		stream.on('data', data => {
@@ -259,7 +259,7 @@ suite('Buffer', () => {
 	});
 
 	test('bufferWriteableStream - pause/resume (pause after first write)', async () => {
-		const stream = writeableBufferStream();
+		const stream = newWriteableBufferStream();
 
 		let chunks: VSBuffer[] = [];
 		stream.on('data', data => {
@@ -299,7 +299,7 @@ suite('Buffer', () => {
 	});
 
 	test('bufferWriteableStream - pause/resume (error)', async () => {
-		const stream = writeableBufferStream();
+		const stream = newWriteableBufferStream();
 
 		let chunks: VSBuffer[] = [];
 		stream.on('data', data => {
@@ -336,7 +336,7 @@ suite('Buffer', () => {
 	});
 
 	test('bufferWriteableStream - destroy', async () => {
-		const stream = writeableBufferStream();
+		const stream = newWriteableBufferStream();
 
 		let chunks: VSBuffer[] = [];
 		stream.on('data', data => {

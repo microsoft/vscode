@@ -12,7 +12,7 @@ export function stringify(obj: any): string {
 
 export function parse(text: string): any {
 	let data = JSON.parse(text);
-	data = revive(data, 0);
+	data = revive(data);
 	return data;
 }
 
@@ -32,8 +32,7 @@ function replacer(key: string, value: any): any {
 	return value;
 }
 
-export function revive(obj: any, depth: number): any {
-
+export function revive(obj: any, depth = 0): any {
 	if (!obj || depth > 200) {
 		return obj;
 	}

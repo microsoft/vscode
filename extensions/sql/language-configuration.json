@@ -12,8 +12,9 @@
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
-		["\"", "\""],
-		["'", "'"]
+		{ "open": "\"", "close": "\"", "notIn": ["string"] },
+		{ "open": "N'", "close": "'", "notIn": ["string", "comment"] },
+		{ "open": "'", "close": "'", "notIn": ["string", "comment"] }
 	],
 	"surroundingPairs": [
 		["{", "}"],

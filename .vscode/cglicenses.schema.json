@@ -1,23 +1,61 @@
 {
 	"type": "array",
 	"items": {
-		"type": "object",
-		"required": [
-			"name",
-			"licenseDetail"
-		],
-		"properties": {
-			"name": {
-				"type": "string",
-				"description": "The name of the dependency"
+		"oneOf": [
+			{
+				"type": "object",
+				"required": [
+					"name",
+					"prependLicenseText"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "The name of the dependency"
+					},
+					"fullLicenseText": {
+						"type": "array",
+						"description": "The complete license text of the dependency",
+						"items": {
+							"type": "string"
+						}
+					},
+					"prependLicenseText": {
+						"type": "array",
+						"description": "A piece of text to prepend to the auto-detected license text of the dependency",
+						"items": {
+							"type": "string"
+						}
+					}
+				}
 			},
-			"licenseDetail": {
-				"type": "array",
-				"description": "The complete license text of the dependency",
-				"items": {
-					"type": "string"
+			{
+				"type": "object",
+				"required": [
+					"name",
+					"fullLicenseText"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "The name of the dependency"
+					},
+					"fullLicenseText": {
+						"type": "array",
+						"description": "The complete license text of the dependency",
+						"items": {
+							"type": "string"
+						}
+					},
+					"prependLicenseText": {
+						"type": "array",
+						"description": "A piece of text to prepend to the auto-detected license text of the dependency",
+						"items": {
+							"type": "string"
+						}
+					}
 				}
 			}
-		}
+		]
 	}
 }

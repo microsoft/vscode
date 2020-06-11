@@ -125,10 +125,14 @@ export class Colorizer {
 			[],
 			tabSize,
 			0,
+			0,
+			0,
+			0,
 			-1,
 			'none',
 			false,
-			false
+			false,
+			null
 		));
 		return renderResult.html;
 	}
@@ -192,10 +196,14 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 			[],
 			tabSize,
 			0,
+			0,
+			0,
+			0,
 			-1,
 			'none',
 			false,
-			false
+			false,
+			null
 		));
 
 		html = html.concat(renderResult.html);
@@ -228,10 +236,14 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 			[],
 			tabSize,
 			0,
+			0,
+			0,
+			0,
 			-1,
 			'none',
 			false,
-			false
+			false,
+			null
 		));
 
 		html = html.concat(renderResult.html);

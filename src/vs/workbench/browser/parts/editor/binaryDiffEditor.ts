@@ -29,8 +29,8 @@ export class BinaryResourceDiffEditor extends SideBySideEditor {
 	}
 
 	getMetadata(): string | undefined {
-		const master = this.masterEditor;
-		const details = this.detailsEditor;
+		const master = this.masterEditorPane;
+		const details = this.detailsEditorPane;
 
 		if (master instanceof BaseBinaryResourceEditor && details instanceof BaseBinaryResourceEditor) {
 			return nls.localize('metadataDiff', "{0} ↔ {1}", details.getMetadata(), master.getMetadata());

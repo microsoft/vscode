@@ -14,12 +14,12 @@ suite('Glob', () => {
 	// 	let patterns = [
 	// 		'{**/*.cs,**/*.json,**/*.csproj,**/*.sln}',
 	// 		'{**/*.cs,**/*.csproj,**/*.sln}',
-	// 		'{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs}',
+	// 		'{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs}',
 	// 		'**/*.go',
 	// 		'{**/*.ps,**/*.ps1}',
 	// 		'{**/*.c,**/*.cpp,**/*.h}',
 	// 		'{**/*.fsx,**/*.fsi,**/*.fs,**/*.ml,**/*.mli}',
-	// 		'{**/*.js,**/*.jsx,**/*.es6,**/*.mjs}',
+	// 		'{**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs}',
 	// 		'{**/*.ts,**/*.tsx}',
 	// 		'{**/*.php}',
 	// 		'{**/*.php}',
@@ -239,10 +239,7 @@ suite('Glob', () => {
 		assertGlobMatch(p, 'some/folder/project.json');
 		assertNoGlobMatch(p, 'some/folder/file_project.json');
 		assertNoGlobMatch(p, 'some/folder/fileproject.json');
-		// assertNoGlobMatch(p, '/rrproject.json'); TODO@ben this still fails if T1-3 are disabled
 		assertNoGlobMatch(p, 'some/rrproject.json');
-		// assertNoGlobMatch(p, 'rrproject.json');
-		// assertNoGlobMatch(p, '\\rrproject.json');
 		assertNoGlobMatch(p, 'some\\rrproject.json');
 
 		p = 'test/**';
@@ -812,10 +809,10 @@ suite('Glob', () => {
 			'{**/bar/**,**/baz/**}': true,
 			'**/bulb/**': false
 		}, ['foo', 'bar', 'baz'], [
-				['bar/foo', '**/foo/**'],
-				['foo/bar', '{**/bar/**,**/baz/**}'],
-				['bar/nope', null!]
-			]);
+			['bar/foo', '**/foo/**'],
+			['foo/bar', '{**/bar/**,**/baz/**}'],
+			['bar/nope', null!]
+		]);
 
 		const siblings = ['baz', 'baz.zip', 'nope'];
 		const hasSibling = (name: string) => siblings.indexOf(name) !== -1;
@@ -823,15 +820,15 @@ suite('Glob', () => {
 			'**/foo/**': { when: '$(basename).zip' },
 			'**/bar/**': true
 		}, ['bar'], [
-				['bar/foo', null!],
-				['bar/foo/baz', null!],
-				['bar/foo/nope', null!],
-				['foo/bar', '**/bar/**'],
-			], [
-				null!,
-				hasSibling,
-				hasSibling
-			]);
+			['bar/foo', null!],
+			['bar/foo/baz', null!],
+			['bar/foo/nope', null!],
+			['foo/bar', '**/bar/**'],
+		], [
+			null!,
+			hasSibling,
+			hasSibling
+		]);
 	});
 
 	function testOptimizationForBasenames(pattern: string | glob.IExpression, basenameTerms: string[], matches: [string, string | boolean][], siblingsFns: ((name: string) => boolean)[] = []) {
@@ -917,11 +914,11 @@ suite('Glob', () => {
 			// '{**/bar/bar/**,**/baz/bar/**}': true,
 			'**/bulb/bar/**': false
 		}, ['*/foo/bar'], [
-				[nativeSep('bar/foo/bar'), '**/foo/bar/**'],
-				// Not supported
-				// [nativeSep('foo/bar/bar'), '{**/bar/bar/**,**/baz/bar/**}'],
-				[nativeSep('/foo/bar/nope'), null!]
-			]);
+			[nativeSep('bar/foo/bar'), '**/foo/bar/**'],
+			// Not supported
+			// [nativeSep('foo/bar/bar'), '{**/bar/bar/**,**/baz/bar/**}'],
+			[nativeSep('/foo/bar/nope'), null!]
+		]);
 
 		const siblings = ['baz', 'baz.zip', 'nope'];
 		let hasSibling = (name: string) => siblings.indexOf(name) !== -1;
@@ -929,15 +926,15 @@ suite('Glob', () => {
 			'**/foo/123/**': { when: '$(basename).zip' },
 			'**/bar/123/**': true
 		}, ['*/bar/123'], [
-				[nativeSep('bar/foo/123'), null!],
-				[nativeSep('bar/foo/123/baz'), null!],
-				[nativeSep('bar/foo/123/nope'), null!],
-				[nativeSep('foo/bar/123'), '**/bar/123/**'],
-			], [
-				null!,
-				hasSibling,
-				hasSibling
-			]);
+			[nativeSep('bar/foo/123'), null!],
+			[nativeSep('bar/foo/123/baz'), null!],
+			[nativeSep('bar/foo/123/nope'), null!],
+			[nativeSep('foo/bar/123'), '**/bar/123/**'],
+		], [
+			null!,
+			hasSibling,
+			hasSibling
+		]);
 	});
 
 	function testOptimizationForPaths(pattern: string | glob.IExpression, pathTerms: string[], matches: [string, string | boolean][], siblingsFns: ((name: string) => boolean)[] = []) {

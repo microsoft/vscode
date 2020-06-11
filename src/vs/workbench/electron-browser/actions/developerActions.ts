@@ -4,33 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
-
-export class ToggleDevToolsAction extends Action {
-
-	static readonly ID = 'workbench.action.toggleDevTools';
-	static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
-
-	constructor(id: string, label: string, @IWindowService private readonly windowsService: IWindowService) {
-		super(id, label);
-	}
-
-	run(): Promise<void> {
-		return this.windowsService.toggleDevTools();
-	}
-}
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 
 export class ToggleSharedProcessAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleSharedProcess';
-	static LABEL = nls.localize('toggleSharedProcess', "Toggle Shared Process");
+	static readonly LABEL = nls.localize('toggleSharedProcess', "Toggle Shared Process");
 
-	constructor(id: string, label: string, @IWindowsService private readonly windowsService: IWindowsService) {
+	constructor(
+		id: string,
+		label: string,
+		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService
+	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		return this.windowsService.toggleSharedProcess();
+		return this.sharedProcessService.toggleSharedProcessWindow();
 	}
 }
+
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+
+const developerCategory = nls.localize('developer', "Developer");
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSharedProcessAction), 'Developer: Toggle Shared Process', developerCategory);

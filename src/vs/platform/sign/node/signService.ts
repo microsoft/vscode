@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { memoize } from 'vs/base/common/decorators';
+
+declare module vsda {
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	export class signer {
+		sign(arg: any): any;
+	}
+}
 
 export class SignService implements ISignService {
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
-	// Cache the 'vsda' import, because when the same missing module is imported multiple times,
-	// the ones after the first will not throw an error. And this will break the contract of the sign method.
-	@memoize
-	private vsda(): Promise<typeof import('vsda')> {
-		return import('vsda');
+	private vsda(): Promise<typeof vsda> {
+		return new Promise((resolve, reject) => require(['vsda'], resolve, reject));
 	}
 
 	async sign(value: string): Promise<string> {
@@ -24,9 +27,8 @@ export class SignService implements ISignService {
 				return signer.sign(value);
 			}
 		} catch (e) {
-			console.error('signer.sign: ' + e);
+			// ignore errors silently
 		}
-
 		return value;
 	}
 }

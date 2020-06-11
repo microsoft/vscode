@@ -17,7 +17,7 @@ const gunzip = require('gulp-gunzip');
 const untar = require('gulp-untar');
 const File = require('vinyl');
 const fs = require('fs');
-const remote = require('gulp-remote-src');
+const remote = require('gulp-remote-retry-src');
 const rename = require('gulp-rename');
 const filter = require('gulp-filter');
 const cp = require('child_process');
@@ -31,6 +31,7 @@ const BUILD_TARGETS = [
 	{ platform: 'linux', arch: 'ia32', pkgTarget: 'node8-linux-x86' },
 	{ platform: 'linux', arch: 'x64', pkgTarget: 'node8-linux-x64' },
 	{ platform: 'linux', arch: 'armhf', pkgTarget: 'node8-linux-armv7' },
+	{ platform: 'linux', arch: 'arm64', pkgTarget: 'node8-linux-arm64' },
 	{ platform: 'linux', arch: 'alpine', pkgTarget: 'node8-linux-alpine' },
 ];
 
@@ -41,6 +42,7 @@ gulp.task('vscode-reh-win32-x64-min', noop);
 gulp.task('vscode-reh-darwin-min', noop);
 gulp.task('vscode-reh-linux-x64-min', noop);
 gulp.task('vscode-reh-linux-armhf-min', noop);
+gulp.task('vscode-reh-linux-arm64-min', noop);
 gulp.task('vscode-reh-linux-alpine-min', noop);
 
 gulp.task('vscode-reh-web-win32-ia32-min', noop);
@@ -116,7 +118,7 @@ function mixinServer(watch) {
 	const packageJSONPath = path.join(path.dirname(__dirname), 'package.json');
 	function exec(cmdLine) {
 		console.log(cmdLine);
-		cp.execSync(cmdLine, { stdio: "inherit" });
+		cp.execSync(cmdLine, { stdio: 'inherit' });
 	}
 	function checkout() {
 		const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString());

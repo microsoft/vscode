@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { CachedResponse } from '../tsServer/cachedResponse';
 import { ServerResponse } from '../typescriptService';
 

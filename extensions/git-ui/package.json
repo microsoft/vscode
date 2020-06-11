@@ -7,7 +7,9 @@
   "engines": {
     "vscode": "^1.5.0"
   },
-  "extensionKind": "ui",
+  "extensionKind": [
+    "ui"
+  ],
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enableProposedApi": true,
   "categories": [
@@ -23,6 +25,6 @@
     "watch": "gulp watch-extension:git-ui"
   },
   "devDependencies": {
-    "@types/node": "^10.14.8"
+    "@types/node": "^12.11.7"
   }
 }

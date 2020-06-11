@@ -28,6 +28,7 @@ export class FoldingRegions {
 		this._endIndexes = endIndexes;
 		this._collapseStates = new Uint32Array(Math.ceil(startIndexes.length / 32));
 		this._types = types;
+		this._parentsComputed = false;
 	}
 
 	private ensureParentIndices() {
@@ -149,6 +150,26 @@ export class FoldingRegions {
 			res[i] = `[${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
 		}
 		return res.join(', ');
+	}
+
+	public equals(b: FoldingRegions) {
+		if (this.length !== b.length) {
+			return false;
+		}
+
+		for (let i = 0; i < this.length; i++) {
+			if (this.getStartLineNumber(i) !== b.getStartLineNumber(i)) {
+				return false;
+			}
+			if (this.getEndLineNumber(i) !== b.getEndLineNumber(i)) {
+				return false;
+			}
+			if (this.getType(i) !== b.getType(i)) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }
 

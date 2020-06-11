@@ -201,7 +201,7 @@ export class XLF {
 		for (let file in this.files) {
 			this.appendNewLine(`<file original="${file}" source-language="en" datatype="plaintext"><body>`, 2);
 			for (let item of this.files[file]) {
-				this.addStringItem(item);
+				this.addStringItem(file, item);
 			}
 			this.appendNewLine('</body></file>', 2);
 		}
@@ -243,9 +243,12 @@ export class XLF {
 		}
 	}
 
-	private addStringItem(item: Item): void {
-		if (!item.id || !item.message) {
-			throw new Error(`No item ID or value specified: ${JSON.stringify(item)}`);
+	private addStringItem(file: string, item: Item): void {
+		if (!item.id || item.message === undefined || item.message === null) {
+			throw new Error(`No item ID or value specified: ${JSON.stringify(item)}. File: ${file}`);
+		}
+		if (item.message.length === 0) {
+			log(`Item with id ${item.id} in file ${file} has an empty message.`);
 		}
 
 		this.appendNewLine(`<trans-unit id="${item.id}">`, 4);
@@ -701,7 +704,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 			}
 			return _xlf;
 		}
-		gulp.src([`./extensions/${extensionName}/package.nls.json`, `./extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }).pipe(through(function (file: File) {
+		gulp.src([`.build/extensions/${extensionName}/package.nls.json`, `.build/extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }).pipe(through(function (file: File) {
 			if (file.isBuffer()) {
 				const buffer: Buffer = file.contents as Buffer;
 				const basename = path.basename(file.path);
@@ -721,7 +724,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 					getXlf().addFile(`extensions/${extensionName}/package`, keys, messages);
 				} else if (basename === 'nls.metadata.json') {
 					const json: BundledExtensionFormat = JSON.parse(buffer.toString('utf8'));
-					const relPath = path.relative(`./extensions/${extensionName}`, path.dirname(file.path));
+					const relPath = path.relative(`.build/extensions/${extensionName}`, path.dirname(file.path));
 					for (let file in json) {
 						const fileContent = json[file];
 						getXlf().addFile(`extensions/${extensionName}/${relPath}/${file}`, fileContent.keys, fileContent.messages);
@@ -1045,8 +1048,8 @@ export function pullCoreAndExtensionsXlfFiles(apiHostname: string, username: str
 
 		// extensions
 		let extensionsToLocalize = Object.create(null);
-		glob.sync('./extensions/**/*.nls.json').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
-		glob.sync('./extensions/*/node_modules/vscode-nls').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
+		glob.sync('.build/extensions/**/*.nls.json').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
+		glob.sync('.build/extensions/*/node_modules/vscode-nls').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
 
 		Object.keys(extensionsToLocalize).forEach(extension => {
 			_coreAndExtensionResources.push({ name: extension, project: extensionsProject });
@@ -1245,7 +1248,7 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 
 				this.queue(translatedMainFile);
 				for (let extension in extensionsPacks) {
-					const translatedExtFile = createI18nFile(`./extensions/${extension}`, extensionsPacks[extension]);
+					const translatedExtFile = createI18nFile(`extensions/${extension}`, extensionsPacks[extension]);
 					this.queue(translatedExtFile);
 
 					const externalExtensionId = externalExtensions[extension];

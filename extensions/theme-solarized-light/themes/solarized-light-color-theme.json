@@ -3,14 +3,12 @@
 	"tokenColors": [
 		{
 			"settings": {
-				"background": "#FDF6E3",
 				"foreground": "#657B83"
 			}
 		},
 		{
 			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
-				"background": "#FDF6E3",
 				"foreground": "#657B83"
 			}
 		},
@@ -184,7 +182,10 @@
 		},
 		{
 			"name": "Library constant",
-			"scope": "support.constant",
+			"scope": [
+				"support.constant",
+				"support.variable"
+			],
 			"settings": {}
 		},
 		{
@@ -350,6 +351,7 @@
 		"editorWhitespace.foreground": "#586E7580",
 		"editor.lineHighlightBackground": "#EEE8D5",
 		"editor.selectionBackground": "#EEE8D5",
+		"minimap.selectionHighlight": "#EEE8D5",
 		"editorIndentGuide.background": "#586E7580",
 		"editorIndentGuide.activeBackground": "#081E2580",
 		"editorHoverWidget.background": "#CCC4B0",
@@ -485,5 +487,6 @@
 
 		// Interactive Playground
 		"walkThrough.embeddedEditorBackground": "#00000014"
-	}
+	},
+	"semanticHighlighting": true
 }

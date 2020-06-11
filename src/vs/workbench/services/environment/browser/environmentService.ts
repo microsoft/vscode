@@ -3,152 +3,284 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWindowConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
-import { IEnvironmentService, IExtensionHostDebugParams, IDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ExportData } from 'vs/base/common/performance';
-import { LogLevel } from 'vs/platform/log/common/log';
-import { joinPath } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
+import { joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { BACKUPS, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
+import { IPath } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService, IEnvironmentConfiguration } from 'vs/workbench/services/environment/common/environmentService';
+import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import product from 'vs/platform/product/common/product';
+import { memoize } from 'vs/base/common/decorators';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { LIGHT } from 'vs/platform/theme/common/themeService';
+import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 
-export class BrowserWindowConfiguration implements IWindowConfiguration {
+export class BrowserEnvironmentConfiguration implements IEnvironmentConfiguration {
 
-	_: any[];
+	constructor(
+		private readonly options: IBrowserWorkbenchEnvironmentConstructionOptions,
+		private readonly payload: Map<string, string> | undefined,
+		private readonly backupHome: URI
+	) { }
 
-	machineId: string;
-	windowId: number;
-	logLevel: LogLevel;
+	@memoize
+	get sessionId(): string { return generateUuid(); }
 
-	mainPid: number;
+	@memoize
+	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
 
-	appRoot: string;
-	execPath: string;
-	isInitialStartup?: boolean;
+	@memoize
+	get backupWorkspaceResource(): URI { return joinPath(this.backupHome, this.options.workspaceId); }
 
-	userEnv: IProcessEnvironment;
-	nodeCachedDataDir?: string;
+	@memoize
+	get filesToOpenOrCreate(): IPath[] | undefined {
+		if (this.payload) {
+			const fileToOpen = this.payload.get('openFile');
+			if (fileToOpen) {
+				const fileUri = URI.parse(fileToOpen);
 
-	backupPath?: string;
+				// Support: --goto parameter to open on line/col
+				if (this.payload.has('gotoLineMode')) {
+					const pathColumnAware = parseLineAndColumnAware(fileUri.path);
 
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: ISingleFolderWorkspaceIdentifier;
+					return [{
+						fileUri: fileUri.with({ path: pathColumnAware.path }),
+						lineNumber: pathColumnAware.line,
+						columnNumber: pathColumnAware.column
+					}];
+				}
 
-	remoteAuthority: string;
+				return [{ fileUri }];
+			}
+		}
 
-	zoomLevel?: number;
-	fullscreen?: boolean;
-	maximized?: boolean;
-	highContrast?: boolean;
-	frameless?: boolean;
-	accessibilitySupport?: boolean;
-	partsSplashPath?: string;
+		return undefined;
+	}
 
-	perfStartTime?: number;
-	perfAppReady?: number;
-	perfWindowLoadTime?: number;
-	perfEntries: ExportData;
+	@memoize
+	get filesToDiff(): IPath[] | undefined {
+		if (this.payload) {
+			const fileToDiffDetail = this.payload.get('diffFileDetail');
+			const fileToDiffMaster = this.payload.get('diffFileMaster');
+			if (fileToDiffDetail && fileToDiffMaster) {
+				return [
+					{ fileUri: URI.parse(fileToDiffDetail) },
+					{ fileUri: URI.parse(fileToDiffMaster) }
+				];
+			}
+		}
 
-	filesToOpenOrCreate?: IPath[];
-	filesToDiff?: IPath[];
-	filesToWait?: IPathsToWaitFor;
-	termProgram?: string;
+		return undefined;
+	}
+
+	get highContrast() {
+		return false; // could investigate to detect high contrast theme automatically
+	}
+
+	get defaultThemeType() {
+		return LIGHT;
+	}
 }
 
-export interface IBrowserWindowConfiguration {
+interface IBrowserWorkbenchEnvironmentConstructionOptions extends IWorkbenchConstructionOptions {
 	workspaceId: string;
-	remoteAuthority?: string;
-	webviewEndpoint?: string;
+	logsPath: URI;
 }
 
-export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
-	_serviceBrand: ServiceIdentifier<IEnvironmentService>;
+interface IExtensionHostDebugEnvironment {
+	params: IExtensionHostDebugParams;
+	isExtensionDevelopment: boolean;
+	extensionDevelopmentLocationURI?: URI[];
+	extensionTestsLocationURI?: URI;
+	extensionEnabledProposedApi?: string[];
+}
 
-	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
+export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
 
-	constructor(configuration: IBrowserWindowConfiguration) {
-		this.args = { _: [] };
-		this.appRoot = '/web/';
-		this.appNameLong = 'Visual Studio Code - Web';
+	declare readonly _serviceBrand: undefined;
 
-		this.configuration.remoteAuthority = configuration.remoteAuthority;
-		this.userRoamingDataHome = URI.file('/User').with({ scheme: Schemas.userData });
-		this.settingsResource = joinPath(this.userRoamingDataHome, 'settings.json');
-		this.keybindingsResource = joinPath(this.userRoamingDataHome, 'keybindings.json');
-		this.keyboardLayoutResource = joinPath(this.userRoamingDataHome, 'keyboardLayout.json');
-		this.localeResource = joinPath(this.userRoamingDataHome, 'locale.json');
-		this.backupHome = joinPath(this.userRoamingDataHome, BACKUPS);
-		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, configuration.workspaceId);
+	private _configuration: IEnvironmentConfiguration | undefined = undefined;
+	get configuration(): IEnvironmentConfiguration {
+		if (!this._configuration) {
+			this._configuration = new BrowserEnvironmentConfiguration(this.options, this.payload, this.backupHome);
+		}
 
-		this.logsPath = '/web/logs';
+		return this._configuration;
+	}
 
-		this.debugExtensionHost = {
-			port: null,
-			break: false
+	@memoize
+	get isBuilt(): boolean { return !!product.commit; }
+
+	@memoize
+	get logsPath(): string { return this.options.logsPath.path; }
+
+	get logLevel(): string | undefined { return this.payload?.get('logLevel'); }
+
+	@memoize
+	get logFile(): URI { return joinPath(this.options.logsPath, 'window.log'); }
+
+	@memoize
+	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.userData }); }
+
+	@memoize
+	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
+
+	@memoize
+	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
+
+	@memoize
+	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
+
+	/*
+	 * In Web every workspace can potentially have scoped user-data and/or extensions and if Sync state is shared then it can make
+	 * Sync error prone - say removing extensions from another workspace. Hence scope Sync state per workspace.
+	 * Sync scoped to a workspace is capable of handling opening same workspace in multiple windows.
+	 */
+	@memoize
+	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync', this.options.workspaceId); }
+
+	@memoize
+	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }
+
+	@memoize
+	get sync(): 'on' | 'off' | undefined { return undefined; }
+
+	@memoize
+	get enableSyncByDefault(): boolean { return !!this.options.enableSyncByDefault; }
+
+	@memoize
+	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
+
+	@memoize
+	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
+
+	@memoize
+	get backupHome(): URI { return joinPath(this.userRoamingDataHome, BACKUPS); }
+
+	@memoize
+	get untitledWorkspacesHome(): URI { return joinPath(this.userRoamingDataHome, 'Workspaces'); }
+
+	@memoize
+	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
+
+	private _extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
+	get debugExtensionHost(): IExtensionHostDebugParams {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.params;
+	}
+
+	get isExtensionDevelopment(): boolean {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.isExtensionDevelopment;
+	}
+
+	get extensionDevelopmentLocationURI(): URI[] | undefined {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.extensionDevelopmentLocationURI;
+	}
+
+	get extensionTestsLocationURI(): URI | undefined {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.extensionTestsLocationURI;
+	}
+
+	get extensionEnabledProposedApi(): string[] | undefined {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.extensionEnabledProposedApi;
+	}
+
+	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
+
+	@memoize
+	get webviewExternalEndpoint(): string {
+		// TODO@matt: get fallback from product.json
+		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}').replace('{{commit}}', product.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
+	}
+
+	@memoize
+	get webviewResourceRoot(): string {
+		return `${this.webviewExternalEndpoint}/vscode-resource/{{resource}}`;
+	}
+
+	@memoize
+	get webviewCspSource(): string {
+		return this.webviewExternalEndpoint.replace('{{uuid}}', '*');
+	}
+
+	get disableTelemetry(): boolean { return false; }
+
+	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }
+	get logExtensionHostCommunication(): boolean { return this.payload?.get('logExtensionHostCommunication') === 'true'; }
+
+	private payload: Map<string, string> | undefined;
+
+	constructor(readonly options: IBrowserWorkbenchEnvironmentConstructionOptions) {
+		if (options.workspaceProvider && Array.isArray(options.workspaceProvider.payload)) {
+			try {
+				this.payload = new Map(options.workspaceProvider.payload);
+			} catch (error) {
+				onUnexpectedError(error); // possible invalid payload for map
+			}
+		}
+	}
+
+	private resolveExtensionHostDebugEnvironment(): IExtensionHostDebugEnvironment {
+		const extensionHostDebugEnvironment: IExtensionHostDebugEnvironment = {
+			params: {
+				port: null,
+				break: false
+			},
+			isExtensionDevelopment: false,
+			extensionDevelopmentLocationURI: undefined
 		};
 
-		this.webviewEndpoint = configuration.webviewEndpoint;
-		this.untitledWorkspacesHome = URI.from({ scheme: Schemas.untitled, path: 'Workspaces' });
+		// Fill in selected extra environmental properties
+		if (this.payload) {
+			for (const [key, value] of this.payload) {
+				switch (key) {
+					case 'extensionDevelopmentPath':
+						extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [URI.parse(value)];
+						extensionHostDebugEnvironment.isExtensionDevelopment = true;
+						break;
+					case 'extensionTestsPath':
+						extensionHostDebugEnvironment.extensionTestsLocationURI = URI.parse(value);
+						break;
+					case 'debugId':
+						extensionHostDebugEnvironment.params.debugId = value;
+						break;
+					case 'inspect-brk-extensions':
+						extensionHostDebugEnvironment.params.port = parseInt(value);
+						extensionHostDebugEnvironment.params.break = true;
+						break;
+					case 'inspect-extensions':
+						extensionHostDebugEnvironment.params.port = parseInt(value);
+						break;
+					case 'enableProposedApi':
+						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];
+						break;
+				}
+			}
+		}
+
+		return extensionHostDebugEnvironment;
 	}
 
-	untitledWorkspacesHome: URI;
-	extensionTestsLocationURI?: URI;
-	args: any;
-	execPath: string;
-	cliPath: string;
-	appRoot: string;
-	userHome: string;
-	userDataPath: string;
-	appNameLong: string;
-	appQuality?: string;
-	appSettingsHome: URI;
-	userRoamingDataHome: URI;
-	settingsResource: URI;
-	keybindingsResource: URI;
-	keyboardLayoutResource: URI;
-	localeResource: URI;
-	machineSettingsHome: URI;
-	machineSettingsResource: URI;
-	globalStorageHome: string;
-	workspaceStorageHome: string;
-	backupHome: URI;
-	backupWorkspacesPath: string;
-	workspacesHome: string;
-	isExtensionDevelopment: boolean;
-	disableExtensions: boolean | string[];
-	builtinExtensionsPath: string;
-	extensionsPath: string;
-	extensionDevelopmentLocationURI?: URI[];
-	extensionTestsPath?: string;
-	debugExtensionHost: IExtensionHostDebugParams;
-	debugSearch: IDebugParams;
-	logExtensionHostCommunication: boolean;
-	isBuilt: boolean;
-	wait: boolean;
-	status: boolean;
-	log?: string;
-	logsPath: string;
-	verbose: boolean;
-	skipGettingStarted: boolean;
-	skipReleaseNotes: boolean;
-	skipAddToRecentlyOpened: boolean;
-	mainIPCHandle: string;
-	sharedIPCHandle: string;
-	nodeCachedDataDir?: string;
-	installSourcePath: string;
-	disableUpdates: boolean;
-	disableCrashReporter: boolean;
-	driverHandle?: string;
-	driverVerbose: boolean;
-	webviewEndpoint?: string;
-
-	get webviewResourceRoot(): string {
-		return this.webviewEndpoint ? this.webviewEndpoint + '/vscode-resource{{resource}}' : 'vscode-resource:{{resource}}';
-	}
-
-	get webviewCspSource(): string {
-		return this.webviewEndpoint ? this.webviewEndpoint : 'vscode-resource:';
-	}
+	get skipReleaseNotes(): boolean { return false; }
 }

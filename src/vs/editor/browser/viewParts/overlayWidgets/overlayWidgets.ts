@@ -10,6 +10,8 @@ import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/v
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 interface IWidgetData {
 	widget: IOverlayWidget;
@@ -35,12 +37,15 @@ export class ViewOverlayWidgets extends ViewPart {
 	constructor(context: ViewContext) {
 		super(context);
 
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
 		this._widgets = {};
-		this._verticalScrollbarWidth = this._context.configuration.editor.layoutInfo.verticalScrollbarWidth;
-		this._minimapWidth = this._context.configuration.editor.layoutInfo.minimapWidth;
-		this._horizontalScrollbarHeight = this._context.configuration.editor.layoutInfo.horizontalScrollbarHeight;
-		this._editorHeight = this._context.configuration.editor.layoutInfo.height;
-		this._editorWidth = this._context.configuration.editor.layoutInfo.width;
+		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
+		this._minimapWidth = layoutInfo.minimap.minimapWidth;
+		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
+		this._editorHeight = layoutInfo.height;
+		this._editorWidth = layoutInfo.width;
 
 		this._domNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this._domNode, PartFingerprint.OverlayWidgets);
@@ -59,15 +64,15 @@ export class ViewOverlayWidgets extends ViewPart {
 	// ---- begin view event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.layoutInfo) {
-			this._verticalScrollbarWidth = this._context.configuration.editor.layoutInfo.verticalScrollbarWidth;
-			this._minimapWidth = this._context.configuration.editor.layoutInfo.minimapWidth;
-			this._horizontalScrollbarHeight = this._context.configuration.editor.layoutInfo.horizontalScrollbarHeight;
-			this._editorHeight = this._context.configuration.editor.layoutInfo.height;
-			this._editorWidth = this._context.configuration.editor.layoutInfo.width;
-			return true;
-		}
-		return false;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
+		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
+		this._minimapWidth = layoutInfo.minimap.minimapWidth;
+		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
+		this._editorHeight = layoutInfo.height;
+		this._editorWidth = layoutInfo.width;
+		return true;
 	}
 
 	// ---- end view event handlers

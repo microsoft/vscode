@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Quality } from '../../application';
+import { Application, Quality } from '../../../../automation';
 
 export function setup() {
 	describe('Extensions', () => {
@@ -24,7 +24,7 @@ export function setup() {
 			if (app.remote) {
 				await app.reload();
 			}
-			await app.workbench.quickopen.runCommand('Smoke Test Check');
+			await app.workbench.quickaccess.runCommand('Smoke Test Check');
 			await app.workbench.statusbar.waitForStatusbarText('smoke test', 'VS Code Smoke Test Check');
 		});
 	});

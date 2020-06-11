@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, ConfigurationModelParser, Configuration } from 'vs/platform/configuration/common/configurationModels';
+import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, ConfigurationModelParser, Configuration, mergeChanges, AllKeysConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { join } from 'vs/base/common/path';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 suite('ConfigurationModel', () => {
 
@@ -103,7 +106,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration model for an existing identifier', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 } } }]);
+			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
 
 		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1 });
 	});
@@ -111,7 +114,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration model for an identifier that does not exist', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 } } }]);
+			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
 
 		assert.deepEqual(testObject.override('xyz').contents, { 'a': { 'b': 1 }, 'f': 1 });
 	});
@@ -119,7 +122,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration when one of the keys does not exist in base', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'g': 1 } }]);
+			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'g': 1 }, keys: ['a', 'g'] }]);
 
 		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1, 'g': 1 });
 	});
@@ -127,7 +130,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration when one of the key in base is not of object type', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'f': { 'g': 1 } } }]);
+			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'f': { 'g': 1 } }, keys: ['a', 'f'] }]);
 
 		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': { 'g': 1 } });
 	});
@@ -135,7 +138,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration when one of the key in overriding contents is not of object type', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'f': 1 } }]);
+			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'f': 1 }, keys: ['a', 'f'] }]);
 
 		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1 });
 	});
@@ -143,7 +146,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration if the value of overriding identifier is not object', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
-			[{ identifiers: ['c'], contents: 'abc' }]);
+			[{ identifiers: ['c'], contents: 'abc', keys: [] }]);
 
 		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
 	});
@@ -151,7 +154,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration if the value of overriding identifier is an empty object', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
-			[{ identifiers: ['c'], contents: {} }]);
+			[{ identifiers: ['c'], contents: {}, keys: [] }]);
 
 		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
 	});
@@ -176,34 +179,34 @@ suite('ConfigurationModel', () => {
 	});
 
 	test('simple merge overrides', () => {
-		let base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': 2 } }]);
-		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'b': 2 } }]);
+		let base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': 2 }, keys: ['a'] }]);
+		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'b': 2 }, keys: ['b'] }]);
 		let result = base.merge(add);
 
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 } });
-		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': 2, 'b': 2 } }]);
+		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': 2, 'b': 2 }, keys: ['a'] }]);
 		assert.deepEqual(result.override('c').contents, { 'a': 2, 'b': 2 });
 		assert.deepEqual(result.keys, ['a.b']);
 	});
 
 	test('recursive merge overrides', () => {
-		let base = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } } }]);
-		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } } }]);
+		let base = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
+		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } }, keys: ['a'] }]);
 		let result = base.merge(add);
 
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
-		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } } }]);
+		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } }, keys: ['a'] }]);
 		assert.deepEqual(result.override('c').contents, { 'a': { 'b': 2, 'd': 1, 'e': 2 }, 'f': 1 });
 		assert.deepEqual(result.keys, ['a.b', 'f']);
 	});
 
 	test('merge overrides when frozen', () => {
-		let model1 = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } } }]).freeze();
-		let model2 = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } } }]).freeze();
+		let model1 = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]).freeze();
+		let model2 = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } }, keys: ['a'] }]).freeze();
 		let result = new ConfigurationModel().merge(model1, model2);
 
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
-		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } } }]);
+		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } }, keys: ['a'] }]);
 		assert.deepEqual(result.override('c').contents, { 'a': { 'b': 2, 'd': 1, 'e': 2 }, 'f': 1 });
 		assert.deepEqual(result.keys, ['a.b', 'f']);
 	});
@@ -223,30 +226,13 @@ suite('ConfigurationModel', () => {
 	});
 
 	test('Test override gives all content merged with overrides', () => {
-		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, [], [{ identifiers: ['b'], contents: { 'a': 2 } }]);
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, [], [{ identifiers: ['b'], contents: { 'a': 2 }, keys: ['a'] }]);
 
 		assert.deepEqual(testObject.override('b').contents, { 'a': 2, 'c': 1 });
 	});
 });
 
 suite('CustomConfigurationModel', () => {
-
-	suiteSetup(() => {
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-			'id': 'a',
-			'order': 1,
-			'title': 'a',
-			'type': 'object',
-			'properties': {
-				'a': {
-					'description': 'a',
-					'type': 'boolean',
-					'default': true,
-					'overridable': true
-				}
-			}
-		});
-	});
 
 	test('simple merge using models', () => {
 		let base = new ConfigurationModelParser('base');
@@ -352,6 +338,19 @@ suite('CustomConfigurationModel', () => {
 				'a': {
 					'description': 'a',
 					'type': 'boolean',
+					'default': true,
+				}
+			}
+		});
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'a',
+			'order': 1,
+			'title': 'a',
+			'type': 'object',
+			'properties': {
+				'a': {
+					'description': 'a',
+					'type': 'boolean',
 					'default': false,
 				}
 			}
@@ -360,115 +359,18 @@ suite('CustomConfigurationModel', () => {
 	});
 });
 
-suite('ConfigurationChangeEvent', () => {
-
-	test('changeEvent affecting keys for all resources', () => {
-		let testObject = new ConfigurationChangeEvent();
-
-		testObject.change(['window.zoomLevel', 'workbench.editor.enablePreview', 'files', '[markdown]']);
-
-		assert.deepEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview', 'files', '[markdown]']);
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
-		assert.ok(testObject.affectsConfiguration('window'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor'));
-		assert.ok(testObject.affectsConfiguration('workbench'));
-		assert.ok(testObject.affectsConfiguration('files'));
-		assert.ok(!testObject.affectsConfiguration('files.exclude'));
-		assert.ok(testObject.affectsConfiguration('[markdown]'));
-	});
-
-	test('changeEvent affecting a root key and its children', () => {
-		let testObject = new ConfigurationChangeEvent();
-
-		testObject.change(['launch', 'launch.version', 'tasks']);
-
-		assert.deepEqual(testObject.affectedKeys, ['launch.version', 'tasks']);
-		assert.ok(testObject.affectsConfiguration('launch'));
-		assert.ok(testObject.affectsConfiguration('launch.version'));
-		assert.ok(testObject.affectsConfiguration('tasks'));
-	});
-
-	test('changeEvent affecting keys for resources', () => {
-		let testObject = new ConfigurationChangeEvent();
-
-		testObject.change(['window.title']);
-		testObject.change(['window.zoomLevel'], URI.file('file1'));
-		testObject.change(['workbench.editor.enablePreview'], URI.file('file2'));
-		testObject.change(['window.restoreFullscreen'], URI.file('file1'));
-		testObject.change(['window.restoreWindows'], URI.file('file2'));
-
-		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
-
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file('file1')));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', URI.file('file2')));
-
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen'));
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file1')));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file2')));
-
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows'));
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', URI.file('file1')));
-
-		assert.ok(testObject.affectsConfiguration('window.title'));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file2')));
-
-		assert.ok(testObject.affectsConfiguration('window'));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('file2')));
-
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('file1')));
-
-		assert.ok(testObject.affectsConfiguration('workbench.editor'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor', URI.file('file1')));
-
-		assert.ok(testObject.affectsConfiguration('workbench'));
-		assert.ok(testObject.affectsConfiguration('workbench', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('workbench', URI.file('file1')));
-
-		assert.ok(!testObject.affectsConfiguration('files'));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file('file1')));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file('file2')));
-	});
-
-	test('merging change events', () => {
-		let event1 = new ConfigurationChangeEvent().change(['window.zoomLevel', 'files']);
-		let event2 = new ConfigurationChangeEvent().change(['window.title'], URI.file('file1')).change(['[markdown]']);
-
-		let actual = event1.change(event2);
-
-		assert.deepEqual(actual.affectedKeys, ['window.zoomLevel', 'files', '[markdown]', 'window.title']);
-
-		assert.ok(actual.affectsConfiguration('window.zoomLevel'));
-		assert.ok(actual.affectsConfiguration('window.zoomLevel', URI.file('file1')));
-		assert.ok(actual.affectsConfiguration('window.zoomLevel', URI.file('file2')));
-
-		assert.ok(actual.affectsConfiguration('window'));
-		assert.ok(actual.affectsConfiguration('window', URI.file('file1')));
-		assert.ok(actual.affectsConfiguration('window', URI.file('file2')));
-
-		assert.ok(actual.affectsConfiguration('files'));
-		assert.ok(actual.affectsConfiguration('files', URI.file('file1')));
-		assert.ok(actual.affectsConfiguration('files', URI.file('file2')));
-
-		assert.ok(actual.affectsConfiguration('window.title'));
-		assert.ok(actual.affectsConfiguration('window.title', URI.file('file1')));
-		assert.ok(!actual.affectsConfiguration('window.title', URI.file('file2')));
-
-		assert.ok(actual.affectsConfiguration('[markdown]'));
-		assert.ok(actual.affectsConfiguration('[markdown]', URI.file('file1')));
-		assert.ok(actual.affectsConfiguration('[markdown]', URI.file('file2')));
-	});
-
-});
-
 suite('Configuration', () => {
+
+	test('Test inspect for overrideIdentifiers', () => {
+		const defaultConfigurationModel = parseConfigurationModel({ '[l1]': { 'a': 1 }, '[l2]': { 'b': 1 } });
+		const userConfigurationModel = parseConfigurationModel({ '[l3]': { 'a': 2 } });
+		const workspaceConfigurationModel = parseConfigurationModel({ '[l1]': { 'a': 3 }, '[l4]': { 'a': 3 } });
+		const testObject: Configuration = new Configuration(defaultConfigurationModel, userConfigurationModel, new ConfigurationModel(), workspaceConfigurationModel);
+
+		const { overrideIdentifiers } = testObject.inspect('a', {}, undefined);
+
+		assert.deepEqual(overrideIdentifiers, ['l1', 'l3', 'l4']);
+	});
 
 	test('Test update value', () => {
 		const parser = new ConfigurationModelParser('test');
@@ -491,5 +393,558 @@ suite('Configuration', () => {
 		assert.equal(testObject.getValue('a', {}, undefined), 2);
 	});
 
+	test('Test compare and update default configuration', () => {
+		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		testObject.updateDefaultConfiguration(toConfigurationModel({
+			'editor.lineNumbers': 'on',
+		}));
+
+		const actual = testObject.compareAndUpdateDefaultConfiguration(toConfigurationModel({
+			'editor.lineNumbers': 'off',
+			'[markdown]': {
+				'editor.wordWrap': 'off'
+			}
+		}), ['editor.lineNumbers', '[markdown]']);
+
+		assert.deepEqual(actual, { keys: ['editor.lineNumbers', '[markdown]'], overrides: [['markdown', ['editor.wordWrap']]] });
+
+	});
+
+	test('Test compare and update user configuration', () => {
+		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		testObject.updateLocalUserConfiguration(toConfigurationModel({
+			'editor.lineNumbers': 'off',
+			'editor.fontSize': 12,
+			'[typescript]': {
+				'editor.wordWrap': 'off'
+			}
+		}));
+
+		const actual = testObject.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
+			'editor.lineNumbers': 'on',
+			'window.zoomLevel': 1,
+			'[typescript]': {
+				'editor.wordWrap': 'on',
+				'editor.insertSpaces': false
+			}
+		}));
+
+		assert.deepEqual(actual, { keys: ['window.zoomLevel', 'editor.lineNumbers', '[typescript]', 'editor.fontSize'], overrides: [['typescript', ['editor.insertSpaces', 'editor.wordWrap']]] });
+
+	});
+
+	test('Test compare and update workspace configuration', () => {
+		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		testObject.updateWorkspaceConfiguration(toConfigurationModel({
+			'editor.lineNumbers': 'off',
+			'editor.fontSize': 12,
+			'[typescript]': {
+				'editor.wordWrap': 'off'
+			}
+		}));
+
+		const actual = testObject.compareAndUpdateWorkspaceConfiguration(toConfigurationModel({
+			'editor.lineNumbers': 'on',
+			'window.zoomLevel': 1,
+			'[typescript]': {
+				'editor.wordWrap': 'on',
+				'editor.insertSpaces': false
+			}
+		}));
+
+		assert.deepEqual(actual, { keys: ['window.zoomLevel', 'editor.lineNumbers', '[typescript]', 'editor.fontSize'], overrides: [['typescript', ['editor.insertSpaces', 'editor.wordWrap']]] });
+
+	});
+
+	test('Test compare and update workspace folder configuration', () => {
+		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		testObject.updateFolderConfiguration(URI.file('file1'), toConfigurationModel({
+			'editor.lineNumbers': 'off',
+			'editor.fontSize': 12,
+			'[typescript]': {
+				'editor.wordWrap': 'off'
+			}
+		}));
+
+		const actual = testObject.compareAndUpdateFolderConfiguration(URI.file('file1'), toConfigurationModel({
+			'editor.lineNumbers': 'on',
+			'window.zoomLevel': 1,
+			'[typescript]': {
+				'editor.wordWrap': 'on',
+				'editor.insertSpaces': false
+			}
+		}));
+
+		assert.deepEqual(actual, { keys: ['window.zoomLevel', 'editor.lineNumbers', '[typescript]', 'editor.fontSize'], overrides: [['typescript', ['editor.insertSpaces', 'editor.wordWrap']]] });
+
+	});
+
+	test('Test compare and delete workspace folder configuration', () => {
+		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		testObject.updateFolderConfiguration(URI.file('file1'), toConfigurationModel({
+			'editor.lineNumbers': 'off',
+			'editor.fontSize': 12,
+			'[typescript]': {
+				'editor.wordWrap': 'off'
+			}
+		}));
+
+		const actual = testObject.compareAndDeleteFolderConfiguration(URI.file('file1'));
+
+		assert.deepEqual(actual, { keys: ['editor.lineNumbers', 'editor.fontSize', '[typescript]'], overrides: [['typescript', ['editor.wordWrap']]] });
+
+	});
+
+	function parseConfigurationModel(content: any): ConfigurationModel {
+		const parser = new ConfigurationModelParser('test');
+		parser.parseContent(JSON.stringify(content));
+		return parser.configurationModel;
+	}
 
 });
+
+suite('ConfigurationChangeEvent', () => {
+
+	test('changeEvent affecting keys with new configuration', () => {
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
+			'window.zoomLevel': 1,
+			'workbench.editor.enablePreview': false,
+			'files.autoSave': 'off',
+		}));
+		let testObject = new ConfigurationChangeEvent(change, undefined, configuration);
+
+		assert.deepEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview', 'files.autoSave']);
+
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
+		assert.ok(testObject.affectsConfiguration('window'));
+
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
+		assert.ok(testObject.affectsConfiguration('workbench.editor'));
+		assert.ok(testObject.affectsConfiguration('workbench'));
+
+		assert.ok(testObject.affectsConfiguration('files'));
+		assert.ok(testObject.affectsConfiguration('files.autoSave'));
+		assert.ok(!testObject.affectsConfiguration('files.exclude'));
+
+		assert.ok(!testObject.affectsConfiguration('[markdown]'));
+		assert.ok(!testObject.affectsConfiguration('editor'));
+	});
+
+	test('changeEvent affecting keys when configuration changed', () => {
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		configuration.updateLocalUserConfiguration(toConfigurationModel({
+			'window.zoomLevel': 2,
+			'workbench.editor.enablePreview': true,
+			'files.autoSave': 'off',
+		}));
+		const data = configuration.toData();
+		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
+			'window.zoomLevel': 1,
+			'workbench.editor.enablePreview': false,
+			'files.autoSave': 'off',
+		}));
+		let testObject = new ConfigurationChangeEvent(change, { data }, configuration);
+
+		assert.deepEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview']);
+
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
+		assert.ok(testObject.affectsConfiguration('window'));
+
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
+		assert.ok(testObject.affectsConfiguration('workbench.editor'));
+		assert.ok(testObject.affectsConfiguration('workbench'));
+
+		assert.ok(!testObject.affectsConfiguration('files'));
+		assert.ok(!testObject.affectsConfiguration('[markdown]'));
+		assert.ok(!testObject.affectsConfiguration('editor'));
+	});
+
+	test('changeEvent affecting overrides with new configuration', () => {
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
+			'files.autoSave': 'off',
+			'[markdown]': {
+				'editor.wordWrap': 'off'
+			}
+		}));
+		let testObject = new ConfigurationChangeEvent(change, undefined, configuration);
+
+		assert.deepEqual(testObject.affectedKeys, ['files.autoSave', '[markdown]', 'editor.wordWrap']);
+
+		assert.ok(testObject.affectsConfiguration('files'));
+		assert.ok(testObject.affectsConfiguration('files.autoSave'));
+		assert.ok(!testObject.affectsConfiguration('files.exclude'));
+
+		assert.ok(testObject.affectsConfiguration('[markdown]'));
+		assert.ok(!testObject.affectsConfiguration('[markdown].editor'));
+		assert.ok(!testObject.affectsConfiguration('[markdown].workbench'));
+
+		assert.ok(testObject.affectsConfiguration('editor'));
+		assert.ok(testObject.affectsConfiguration('editor.wordWrap'));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'markdown' }));
+		assert.ok(!testObject.affectsConfiguration('editor', { overrideIdentifier: 'json' }));
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'markdown' }));
+
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize'));
+		assert.ok(!testObject.affectsConfiguration('window'));
+	});
+
+	test('changeEvent affecting overrides when configuration changed', () => {
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		configuration.updateLocalUserConfiguration(toConfigurationModel({
+			'workbench.editor.enablePreview': true,
+			'[markdown]': {
+				'editor.fontSize': 12,
+				'editor.wordWrap': 'off'
+			},
+			'files.autoSave': 'off',
+		}));
+		const data = configuration.toData();
+		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
+			'files.autoSave': 'off',
+			'[markdown]': {
+				'editor.fontSize': 13,
+				'editor.wordWrap': 'off'
+			},
+			'window.zoomLevel': 1,
+		}));
+		let testObject = new ConfigurationChangeEvent(change, { data }, configuration);
+
+		assert.deepEqual(testObject.affectedKeys, ['window.zoomLevel', '[markdown]', 'workbench.editor.enablePreview', 'editor.fontSize']);
+
+		assert.ok(!testObject.affectsConfiguration('files'));
+
+		assert.ok(testObject.affectsConfiguration('[markdown]'));
+		assert.ok(!testObject.affectsConfiguration('[markdown].editor'));
+		assert.ok(!testObject.affectsConfiguration('[markdown].editor.fontSize'));
+		assert.ok(!testObject.affectsConfiguration('[markdown].editor.wordWrap'));
+		assert.ok(!testObject.affectsConfiguration('[markdown].workbench'));
+
+		assert.ok(testObject.affectsConfiguration('editor'));
+		assert.ok(testObject.affectsConfiguration('editor', { overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'markdown' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap'));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { overrideIdentifier: 'markdown' }));
+		assert.ok(!testObject.affectsConfiguration('editor', { overrideIdentifier: 'json' }));
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { overrideIdentifier: 'json' }));
+
+		assert.ok(testObject.affectsConfiguration('window'));
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
+		assert.ok(testObject.affectsConfiguration('window', { overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { overrideIdentifier: 'markdown' }));
+
+		assert.ok(testObject.affectsConfiguration('workbench'));
+		assert.ok(testObject.affectsConfiguration('workbench.editor'));
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
+		assert.ok(testObject.affectsConfiguration('workbench', { overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('workbench.editor', { overrideIdentifier: 'markdown' }));
+	});
+
+	test('changeEvent affecting workspace folders', () => {
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		configuration.updateWorkspaceConfiguration(toConfigurationModel({ 'window.title': 'custom' }));
+		configuration.updateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'window.zoomLevel': 2, 'window.restoreFullscreen': true }));
+		configuration.updateFolderConfiguration(URI.file('folder2'), toConfigurationModel({ 'workbench.editor.enablePreview': true, 'window.restoreWindows': true }));
+		const data = configuration.toData();
+		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('folder1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('folder2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
+		const change = mergeChanges(
+			configuration.compareAndUpdateWorkspaceConfiguration(toConfigurationModel({ 'window.title': 'native' })),
+			configuration.compareAndUpdateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'window.zoomLevel': 1, 'window.restoreFullscreen': false })),
+			configuration.compareAndUpdateFolderConfiguration(URI.file('folder2'), toConfigurationModel({ 'workbench.editor.enablePreview': false, 'window.restoreWindows': false }))
+		);
+		let testObject = new ConfigurationChangeEvent(change, { data, workspace }, configuration, workspace);
+
+		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
+
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('folder1') }));
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file(join('folder1', 'file1')) }));
+		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file(join('folder2', 'file2')) }));
+		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file(join('folder3', 'file3')) }));
+
+		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen'));
+		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file(join('folder1', 'file1')) }));
+		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('folder1') }));
+		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file(join('folder2', 'file2')) }));
+		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file(join('folder3', 'file3')) }));
+
+		assert.ok(testObject.affectsConfiguration('window.restoreWindows'));
+		assert.ok(testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('folder2') }));
+		assert.ok(testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file(join('folder2', 'file2')) }));
+		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file(join('folder1', 'file1')) }));
+		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file(join('folder3', 'file3')) }));
+
+		assert.ok(testObject.affectsConfiguration('window.title'));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('folder1') }));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file(join('folder1', 'file1')) }));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('folder2') }));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file(join('folder2', 'file2')) }));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('folder3') }));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file(join('folder3', 'file3')) }));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file1') }));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file2') }));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file3') }));
+
+		assert.ok(testObject.affectsConfiguration('window'));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('folder1') }));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file(join('folder1', 'file1')) }));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('folder2') }));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file(join('folder2', 'file2')) }));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('folder3') }));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file(join('folder3', 'file3')) }));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file1') }));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file2') }));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file3') }));
+
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('folder2') }));
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file(join('folder2', 'file2')) }));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('folder1') }));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file(join('folder1', 'file1')) }));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('folder3') }));
+
+		assert.ok(testObject.affectsConfiguration('workbench.editor'));
+		assert.ok(testObject.affectsConfiguration('workbench.editor', { resource: URI.file('folder2') }));
+		assert.ok(testObject.affectsConfiguration('workbench.editor', { resource: URI.file(join('folder2', 'file2')) }));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor', { resource: URI.file('folder1') }));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor', { resource: URI.file(join('folder1', 'file1')) }));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor', { resource: URI.file('folder3') }));
+
+		assert.ok(testObject.affectsConfiguration('workbench'));
+		assert.ok(testObject.affectsConfiguration('workbench', { resource: URI.file('folder2') }));
+		assert.ok(testObject.affectsConfiguration('workbench', { resource: URI.file(join('folder2', 'file2')) }));
+		assert.ok(!testObject.affectsConfiguration('workbench', { resource: URI.file('folder1') }));
+		assert.ok(!testObject.affectsConfiguration('workbench', { resource: URI.file('folder3') }));
+
+		assert.ok(!testObject.affectsConfiguration('files'));
+		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('folder1') }));
+		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file(join('folder1', 'file1')) }));
+		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('folder2') }));
+		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file(join('folder2', 'file2')) }));
+		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('folder3') }));
+		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file(join('folder3', 'file3')) }));
+	});
+
+	test('changeEvent - all', () => {
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		configuration.updateFolderConfiguration(URI.file('file1'), toConfigurationModel({ 'window.zoomLevel': 2, 'window.restoreFullscreen': true }));
+		const data = configuration.toData();
+		const change = mergeChanges(
+			configuration.compareAndUpdateDefaultConfiguration(toConfigurationModel({
+				'editor.lineNumbers': 'off',
+				'[markdown]': {
+					'editor.wordWrap': 'off'
+				}
+			}), ['editor.lineNumbers', '[markdown]']),
+			configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
+				'[json]': {
+					'editor.lineNumbers': 'relative'
+				}
+			})),
+			configuration.compareAndUpdateWorkspaceConfiguration(toConfigurationModel({ 'window.title': 'custom' })),
+			configuration.compareAndDeleteFolderConfiguration(URI.file('file1')),
+			configuration.compareAndUpdateFolderConfiguration(URI.file('file2'), toConfigurationModel({ 'workbench.editor.enablePreview': true, 'window.restoreWindows': true })));
+		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('file1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('file2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
+		const testObject = new ConfigurationChangeEvent(change, { data, workspace }, configuration, workspace);
+
+		assert.deepEqual(testObject.affectedKeys, ['editor.lineNumbers', '[markdown]', '[json]', 'window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows', 'editor.wordWrap']);
+
+		assert.ok(testObject.affectsConfiguration('window.title'));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file1') }));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file2') }));
+
+		assert.ok(testObject.affectsConfiguration('window'));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file1') }));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file2') }));
+
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file2') }));
+
+		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen'));
+		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file2') }));
+
+		assert.ok(testObject.affectsConfiguration('window.restoreWindows'));
+		assert.ok(testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('file1') }));
+
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('file1') }));
+
+		assert.ok(testObject.affectsConfiguration('workbench.editor'));
+		assert.ok(testObject.affectsConfiguration('workbench.editor', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor', { resource: URI.file('file1') }));
+
+		assert.ok(testObject.affectsConfiguration('workbench'));
+		assert.ok(testObject.affectsConfiguration('workbench', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('workbench', { resource: URI.file('file1') }));
+
+		assert.ok(!testObject.affectsConfiguration('files'));
+		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('file2') }));
+
+		assert.ok(testObject.affectsConfiguration('editor'));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1') }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2') }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1'), overrideIdentifier: 'json' }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1'), overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1'), overrideIdentifier: 'typescript' }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2'), overrideIdentifier: 'json' }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2'), overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2'), overrideIdentifier: 'typescript' }));
+
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers'));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1') }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2') }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1'), overrideIdentifier: 'json' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1'), overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1'), overrideIdentifier: 'typescript' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2'), overrideIdentifier: 'json' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2'), overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2'), overrideIdentifier: 'typescript' }));
+
+		assert.ok(testObject.affectsConfiguration('editor.wordWrap'));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1'), overrideIdentifier: 'json' }));
+		assert.ok(testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1'), overrideIdentifier: 'markdown' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1'), overrideIdentifier: 'typescript' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2'), overrideIdentifier: 'json' }));
+		assert.ok(testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2'), overrideIdentifier: 'markdown' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2'), overrideIdentifier: 'typescript' }));
+
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize'));
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { resource: URI.file('file2') }));
+	});
+
+	test('changeEvent affecting tasks and launches', () => {
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
+			'launch': {
+				'configuraiton': {}
+			},
+			'launch.version': 1,
+			'tasks': {
+				'version': 2
+			}
+		}));
+		let testObject = new ConfigurationChangeEvent(change, undefined, configuration);
+
+		assert.deepEqual(testObject.affectedKeys, ['launch', 'launch.version', 'tasks']);
+		assert.ok(testObject.affectsConfiguration('launch'));
+		assert.ok(testObject.affectsConfiguration('launch.version'));
+		assert.ok(testObject.affectsConfiguration('tasks'));
+	});
+
+});
+
+suite('AllKeysConfigurationChangeEvent', () => {
+
+	test('changeEvent', () => {
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		configuration.updateDefaultConfiguration(toConfigurationModel({
+			'editor.lineNumbers': 'off',
+			'[markdown]': {
+				'editor.wordWrap': 'off'
+			}
+		}));
+		configuration.updateLocalUserConfiguration(toConfigurationModel({
+			'[json]': {
+				'editor.lineNumbers': 'relative'
+			}
+		}));
+		configuration.updateWorkspaceConfiguration(toConfigurationModel({ 'window.title': 'custom' }));
+		configuration.updateFolderConfiguration(URI.file('file1'), toConfigurationModel({ 'window.zoomLevel': 2, 'window.restoreFullscreen': true }));
+		configuration.updateFolderConfiguration(URI.file('file2'), toConfigurationModel({ 'workbench.editor.enablePreview': true, 'window.restoreWindows': true }));
+		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('file1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('file2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
+		let testObject = new AllKeysConfigurationChangeEvent(configuration, workspace, ConfigurationTarget.USER, null);
+
+		assert.deepEqual(testObject.affectedKeys, ['editor.lineNumbers', '[markdown]', '[json]', 'window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
+
+		assert.ok(testObject.affectsConfiguration('window.title'));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file1') }));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file2') }));
+
+		assert.ok(testObject.affectsConfiguration('window'));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file1') }));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file2') }));
+
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file2') }));
+
+		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen'));
+		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file2') }));
+
+		assert.ok(testObject.affectsConfiguration('window.restoreWindows'));
+		assert.ok(testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('file1') }));
+
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('file1') }));
+
+		assert.ok(testObject.affectsConfiguration('workbench.editor'));
+		assert.ok(testObject.affectsConfiguration('workbench.editor', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor', { resource: URI.file('file1') }));
+
+		assert.ok(testObject.affectsConfiguration('workbench'));
+		assert.ok(testObject.affectsConfiguration('workbench', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('workbench', { resource: URI.file('file1') }));
+
+		assert.ok(!testObject.affectsConfiguration('files'));
+		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('file2') }));
+
+		assert.ok(testObject.affectsConfiguration('editor'));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1') }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2') }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1'), overrideIdentifier: 'json' }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1'), overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file1'), overrideIdentifier: 'typescript' }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2'), overrideIdentifier: 'json' }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2'), overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor', { resource: URI.file('file2'), overrideIdentifier: 'typescript' }));
+
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers'));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1') }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2') }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1'), overrideIdentifier: 'json' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1'), overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file1'), overrideIdentifier: 'typescript' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2'), overrideIdentifier: 'json' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2'), overrideIdentifier: 'markdown' }));
+		assert.ok(testObject.affectsConfiguration('editor.lineNumbers', { resource: URI.file('file2'), overrideIdentifier: 'typescript' }));
+
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap'));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1'), overrideIdentifier: 'json' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1'), overrideIdentifier: 'markdown' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file1'), overrideIdentifier: 'typescript' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2'), overrideIdentifier: 'json' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2'), overrideIdentifier: 'markdown' }));
+		assert.ok(!testObject.affectsConfiguration('editor.wordWrap', { resource: URI.file('file2'), overrideIdentifier: 'typescript' }));
+
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize'));
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('editor.fontSize', { resource: URI.file('file2') }));
+	});
+});
+
+function toConfigurationModel(obj: any): ConfigurationModel {
+	const parser = new ConfigurationModelParser('test');
+	parser.parseContent(JSON.stringify(obj));
+	return parser.configurationModel;
+}

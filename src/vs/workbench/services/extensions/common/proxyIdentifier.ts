@@ -23,7 +23,6 @@ export interface IRPCProtocol {
 export class ProxyIdentifier<T> {
 	public static count = 0;
 	_proxyIdentifierBrand: void;
-	_suppressCompilerUnusedWarning: T;
 
 	public readonly isMain: boolean;
 	public readonly sid: string;

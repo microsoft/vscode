@@ -70,10 +70,6 @@ export interface CustomExecutionDTO {
 	customExecution: 'customExecution';
 }
 
-export interface CustomExecution2DTO {
-	customExecution: 'customExecution2';
-}
-
 export interface TaskSourceDTO {
 	label: string;
 	extensionId?: string;
@@ -82,17 +78,18 @@ export interface TaskSourceDTO {
 
 export interface TaskHandleDTO {
 	id: string;
-	workspaceFolder: UriComponents;
+	workspaceFolder: UriComponents | string;
 }
 
 export interface TaskDTO {
 	_id: string;
 	name?: string;
-	execution: ProcessExecutionDTO | ShellExecutionDTO | CustomExecutionDTO | CustomExecution2DTO | undefined;
+	execution: ProcessExecutionDTO | ShellExecutionDTO | CustomExecutionDTO | undefined;
 	definition: TaskDefinitionDTO;
 	isBackground?: boolean;
 	source: TaskSourceDTO;
 	group?: string;
+	detail?: string;
 	presentationOptions?: TaskPresentationOptionsDTO;
 	problemMatchers: string[];
 	hasDefinedMatchers: boolean;

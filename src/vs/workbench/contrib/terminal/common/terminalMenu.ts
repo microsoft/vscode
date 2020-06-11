@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
+import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export function setupTerminalMenu() {

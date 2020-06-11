@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as chokidar from 'vscode-chokidar';
+import * as chokidar from 'chokidar';
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
@@ -17,6 +17,9 @@ import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/platform/files/node/watcher/unix/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
+import { equals } from 'vs/base/common/arrays';
+
+process.noAsar = true; // disable ASAR support in watcher process
 
 interface IWatcher {
 	requests: ExtendedWatcherRequest[];
@@ -32,46 +35,47 @@ export class ChokidarWatcherService implements IWatcherService {
 	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static readonly EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
 
-	private _watchers: { [watchPath: string]: IWatcher };
-	private _watcherCount: number;
+	private _watchers: { [watchPath: string]: IWatcher } = Object.create(null);
+	private _watcherCount = 0;
 
 	private _pollingInterval?: number;
 	private _usePolling?: boolean;
-	private _verboseLogging: boolean;
+	private _verboseLogging: boolean | undefined;
 
-	private spamCheckStartTime: number;
-	private spamWarningLogged: boolean;
-	private enospcErrorLogged: boolean;
+	private spamCheckStartTime: number | undefined;
+	private spamWarningLogged: boolean | undefined;
+	private enospcErrorLogged: boolean | undefined;
 
-	private _onWatchEvent = new Emitter<IDiskFileChange[]>();
+	private readonly _onWatchEvent = new Emitter<IDiskFileChange[]>();
 	readonly onWatchEvent = this._onWatchEvent.event;
 
-	private _onLogMessage = new Emitter<ILogMessage>();
+	private readonly _onLogMessage = new Emitter<ILogMessage>();
 	readonly onLogMessage: Event<ILogMessage> = this._onLogMessage.event;
 
-	public watch(options: IWatcherOptions): Event<IDiskFileChange[]> {
+	watch(options: IWatcherOptions): Event<IDiskFileChange[]> {
 		this._pollingInterval = options.pollingInterval;
 		this._usePolling = options.usePolling;
 		this._watchers = Object.create(null);
 		this._watcherCount = 0;
+
 		return this.onWatchEvent;
 	}
 
-	public setVerboseLogging(enabled: boolean): Promise<void> {
+	setVerboseLogging(enabled: boolean): Promise<void> {
 		this._verboseLogging = enabled;
 
 		return Promise.resolve();
 	}
 
-	public setRoots(requests: IWatcherRequest[]): Promise<void> {
+	setRoots(requests: IWatcherRequest[]): Promise<void> {
 		const watchers = Object.create(null);
 		const newRequests: string[] = [];
 
 		const requestsByBasePath = normalizeRoots(requests);
 
 		// evaluate new & remaining watchers
-		for (let basePath in requestsByBasePath) {
-			let watcher = this._watchers[basePath];
+		for (const basePath in requestsByBasePath) {
+			const watcher = this._watchers[basePath];
 			if (watcher && isEqualRequests(watcher.requests, requestsByBasePath[basePath])) {
 				watchers[basePath] = watcher;
 				delete this._watchers[basePath];
@@ -79,13 +83,15 @@ export class ChokidarWatcherService implements IWatcherService {
 				newRequests.push(basePath);
 			}
 		}
+
 		// stop all old watchers
-		for (let path in this._watchers) {
+		for (const path in this._watchers) {
 			this._watchers[path].stop();
 		}
+
 		// start all new watchers
-		for (let basePath of newRequests) {
-			let requests = requestsByBasePath[basePath];
+		for (const basePath of newRequests) {
+			const requests = requestsByBasePath[basePath];
 			watchers[basePath] = this._watch(basePath, requests);
 		}
 
@@ -94,20 +100,14 @@ export class ChokidarWatcherService implements IWatcherService {
 	}
 
 	// for test purposes
-	public get wacherCount() {
+	get wacherCount() {
 		return this._watcherCount;
 	}
 
 	private _watch(basePath: string, requests: IWatcherRequest[]): IWatcher {
-		if (this._verboseLogging) {
-			this.log(`Start watching: ${basePath}]`);
-		}
 
 		const pollingInterval = this._pollingInterval || 5000;
 		const usePolling = this._usePolling;
-		if (usePolling && this._verboseLogging) {
-			this.log(`Use polling instead of fs.watch: Polling interval ${pollingInterval} ms`);
-		}
 
 		const watcherOpts: chokidar.WatchOptions = {
 			ignoreInitial: true,
@@ -120,9 +120,10 @@ export class ChokidarWatcherService implements IWatcherService {
 		};
 
 		const excludes: string[] = [];
-		// if there's only one request, use the built-in ignore-filterering
+
 		const isSingleFolder = requests.length === 1;
 		if (isSingleFolder) {
+			// if there's only one request, use the built-in ignore-filterering
 			excludes.push(...requests[0].excludes);
 		}
 
@@ -132,6 +133,9 @@ export class ChokidarWatcherService implements IWatcherService {
 				excludes.push('/proc/**', '/sys/**');
 			}
 		}
+
+		excludes.push('**/*.asar'); // Ensure we never recurse into ASAR archives
+
 		watcherOpts.ignored = excludes;
 
 		// Chokidar fails when the basePath does not match case-identical to the path on disk
@@ -143,6 +147,10 @@ export class ChokidarWatcherService implements IWatcherService {
 
 		if (realBasePathDiffers) {
 			this.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
+		}
+
+		if (this._verboseLogging) {
+			this.log(`Start watching with chockidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
 		}
 
 		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
@@ -219,7 +227,7 @@ export class ChokidarWatcherService implements IWatcherService {
 				}
 			}
 
-			let event = { type: eventType, path };
+			const event = { type: eventType, path };
 
 			// Logging
 			if (this._verboseLogging) {
@@ -231,7 +239,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			if (undeliveredFileEvents.length === 0) {
 				this.spamWarningLogged = false;
 				this.spamCheckStartTime = now;
-			} else if (!this.spamWarningLogged && this.spamCheckStartTime + ChokidarWatcherService.EVENT_SPAM_WARNING_THRESHOLD < now) {
+			} else if (!this.spamWarningLogged && typeof this.spamCheckStartTime === 'number' && this.spamCheckStartTime + ChokidarWatcherService.EVENT_SPAM_WARNING_THRESHOLD < now) {
 				this.spamWarningLogged = true;
 				this.warn(`Watcher is busy catching up with ${undeliveredFileEvents.length} file changes in 60 seconds. Latest changed path is "${event.path}"`);
 			}
@@ -283,12 +291,14 @@ export class ChokidarWatcherService implements IWatcherService {
 		return watcher;
 	}
 
-	public stop(): Promise<void> {
-		for (let path in this._watchers) {
-			let watcher = this._watchers[path];
+	stop(): Promise<void> {
+		for (const path in this._watchers) {
+			const watcher = this._watchers[path];
 			watcher.stop();
 		}
+
 		this._watchers = Object.create(null);
+
 		return Promise.resolve();
 	}
 
@@ -306,25 +316,28 @@ export class ChokidarWatcherService implements IWatcherService {
 }
 
 function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
-	for (let request of requests) {
+	for (const request of requests) {
 		if (request.path === path) {
 			return false;
 		}
+
 		if (extpath.isEqualOrParent(path, request.path)) {
 			if (!request.parsedPattern) {
 				if (request.excludes && request.excludes.length > 0) {
-					let pattern = `{${request.excludes.join(',')}}`;
+					const pattern = `{${request.excludes.join(',')}}`;
 					request.parsedPattern = glob.parse(pattern);
 				} else {
 					request.parsedPattern = () => false;
 				}
 			}
+
 			const relPath = path.substr(request.path.length + 1);
 			if (!request.parsedPattern(relPath)) {
 				return false;
 			}
 		}
 	}
+
 	return true;
 }
 
@@ -334,11 +347,12 @@ function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
  */
 export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string]: IWatcherRequest[] } {
 	requests = requests.sort((r1, r2) => r1.path.localeCompare(r2.path));
+
 	let prevRequest: IWatcherRequest | null = null;
-	let result: { [basePath: string]: IWatcherRequest[] } = Object.create(null);
-	for (let request of requests) {
-		let basePath = request.path;
-		let ignored = (request.excludes || []).sort();
+	const result: { [basePath: string]: IWatcherRequest[] } = Object.create(null);
+	for (const request of requests) {
+		const basePath = request.path;
+		const ignored = (request.excludes || []).sort();
 		if (prevRequest && (extpath.isEqualOrParent(basePath, prevRequest.path))) {
 			if (!isEqualIgnore(ignored, prevRequest.excludes)) {
 				result[prevRequest.path].push({ path: basePath, excludes: ignored });
@@ -348,29 +362,14 @@ export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string
 			result[basePath] = [prevRequest];
 		}
 	}
+
 	return result;
 }
 
-function isEqualRequests(r1: IWatcherRequest[], r2: IWatcherRequest[]) {
-	if (r1.length !== r2.length) {
-		return false;
-	}
-	for (let k = 0; k < r1.length; k++) {
-		if (r1[k].path !== r2[k].path || !isEqualIgnore(r1[k].excludes, r2[k].excludes)) {
-			return false;
-		}
-	}
-	return true;
+function isEqualRequests(r1: readonly IWatcherRequest[], r2: readonly IWatcherRequest[]) {
+	return equals(r1, r2, (a, b) => a.path === b.path && isEqualIgnore(a.excludes, b.excludes));
 }
 
-function isEqualIgnore(i1: string[], i2: string[]) {
-	if (i1.length !== i2.length) {
-		return false;
-	}
-	for (let k = 0; k < i1.length; k++) {
-		if (i1[k] !== i2[k]) {
-			return false;
-		}
-	}
-	return true;
+function isEqualIgnore(i1: readonly string[], i2: readonly string[]) {
+	return equals(i1, i2);
 }

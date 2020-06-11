@@ -10,6 +10,7 @@
 	"activationEvents": [
 		"onDebugResolve"
 	],
+	"enableProposedApi": true,
 	"main": "./out/extension",
 	"scripts": {
 		"compile": "gulp compile-extension:debug-server-ready",
@@ -105,6 +106,6 @@
 		"vscode-nls": "^4.0.0"
 	},
 	"devDependencies": {
-		"@types/node": "^10.14.8"
+		"@types/node": "^12.11.7"
 	}
 }

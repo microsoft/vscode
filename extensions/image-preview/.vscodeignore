@@ -1,0 +1,10 @@
+test/**
+src/**
+tsconfig.json
+out/test/**
+out/**
+extension.webpack.config.js
+cgmanifest.json
+yarn.lock
+preview-src/**
+webpack.config.js

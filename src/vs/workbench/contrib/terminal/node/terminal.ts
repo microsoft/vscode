@@ -64,18 +64,17 @@ function getSystemShellWindows(): string {
 let detectedDistro = LinuxDistro.Unknown;
 if (platform.isLinux) {
 	const file = '/etc/os-release';
-	fileExists(file).then(exists => {
+	fileExists(file).then(async exists => {
 		if (!exists) {
 			return;
 		}
-		readFile(file).then(b => {
-			const contents = b.toString();
-			if (/NAME="?Fedora"?/.test(contents)) {
-				detectedDistro = LinuxDistro.Fedora;
-			} else if (/NAME="?Ubuntu"?/.test(contents)) {
-				detectedDistro = LinuxDistro.Ubuntu;
-			}
-		});
+		const buffer = await readFile(file);
+		const contents = buffer.toString();
+		if (/NAME="?Fedora"?/.test(contents)) {
+			detectedDistro = LinuxDistro.Fedora;
+		} else if (/NAME="?Ubuntu"?/.test(contents)) {
+			detectedDistro = LinuxDistro.Ubuntu;
+		}
 	});
 }
 
@@ -110,8 +109,8 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 
 	const expectedLocations: { [key: string]: string[] } = {
 		'Command Prompt': [`${system32Path}\\cmd.exe`],
-		PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
-		'PowerShell Core': [await getShellPathFromRegistry('pwsh')],
+		'Windows PowerShell': [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
+		'PowerShell': [await getShellPathFromRegistry('pwsh')],
 		'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
 		'Git Bash': [
 			`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
@@ -120,15 +119,16 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
 			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 		],
-		Cygwin: [
-			`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
-			`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
-		]
+		// See #75945
+		// Cygwin: [
+		// 	`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
+		// 	`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
+		// ]
 	};
-	const promises: PromiseLike<IShellDefinition | undefined>[] = [];
+	const promises: Promise<IShellDefinition | undefined>[] = [];
 	Object.keys(expectedLocations).forEach(key => promises.push(validateShellPaths(key, expectedLocations[key])));
-
-	return Promise.all(promises).then(coalesce);
+	const shells = await Promise.all(promises);
+	return coalesce(shells);
 }
 
 async function detectAvailableUnixShells(): Promise<IShellDefinition[]> {

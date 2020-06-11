@@ -7,12 +7,11 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import * as pfs from 'vs/base/node/pfs';
 import { IFileMatch, IProgressMessage, ITextQuery, ITextSearchStats, ITextSearchMatch, ISerializedFileMatch, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
 import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
-import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
+import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 
 export class TextSearchEngineAdapter {
 
-	constructor(private query: ITextQuery) {
-	}
+	constructor(private query: ITextQuery) { }
 
 	search(token: CancellationToken, onResult: (matches: ISerializedFileMatch[]) => void, onMessage: (message: IProgressMessage) => void): Promise<ISerializedSearchSuccess> {
 		if ((!this.query.folderQueries || !this.query.folderQueries.length) && (!this.query.extraFileResources || !this.query.extraFileResources.length)) {
@@ -30,7 +29,7 @@ export class TextSearchEngineAdapter {
 				onMessage({ message: msg });
 			}
 		};
-		const textSearchManager = new TextSearchManager(this.query, new RipgrepTextSearchEngine(pretendOutputChannel), pfs);
+		const textSearchManager = new NativeTextSearchManager(this.query, new RipgrepTextSearchEngine(pretendOutputChannel), pfs);
 		return new Promise((resolve, reject) => {
 			return textSearchManager
 				.search(

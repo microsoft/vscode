@@ -13,15 +13,19 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/electron-browser/timerService';
-import { repeat } from 'vs/base/common/strings';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import * as perf from 'vs/base/common/performance';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/common/product';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class PerfviewContrib {
 
@@ -45,14 +49,26 @@ export class PerfviewInput extends ResourceEditorInput {
 	static readonly Uri = URI.from({ scheme: 'perf', path: 'Startup Performance' });
 
 	constructor(
-		@ITextModelService textModelResolverService: ITextModelService
+		@ITextModelService textModelResolverService: ITextModelService,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IFileService fileService: IFileService,
+		@ILabelService labelService: ILabelService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
 		super(
+			PerfviewInput.Uri,
 			localize('name', "Startup Performance"),
 			undefined,
-			PerfviewInput.Uri,
 			undefined,
-			textModelResolverService
+			textModelResolverService,
+			textFileService,
+			editorService,
+			editorGroupService,
+			fileService,
+			labelService,
+			filesConfigurationService
 		);
 	}
 
@@ -127,7 +143,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _addSummary(md: MarkdownBuilder, metrics: IStartupMetrics): void {
 		md.heading(2, 'System Info');
-		md.li(`${product.nameShort}: ${pkg.version} (${product.commit || '0000000'})`);
+		md.li(`${product.nameShort}: ${product.version} (${product.commit || '0000000'})`);
 		md.li(`OS: ${metrics.platform}(${metrics.release})`);
 		if (metrics.cpus) {
 			md.li(`CPUs: ${metrics.cpus.model}(${metrics.cpus.count} x ${metrics.cpus.speed})`);
@@ -152,8 +168,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		table.push(['nls:start => nls:end', metrics.timers.ellapsedNlsGeneration, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['require(main.bundle.js)', metrics.initialStartup ? perf.getDuration('willLoadMainBundle', 'didLoadMainBundle') : undefined, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['app.isReady => window.loadUrl()', metrics.timers.ellapsedWindowLoad, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['window.loadUrl() => begin to require(workbench.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
-		table.push(['require(workbench.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
+		table.push(['window.loadUrl() => begin to require(workbench.desktop.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
+		table.push(['require(workbench.desktop.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
 		table.push(['require & init workspace storage', metrics.timers.ellapsedWorkspaceStorageInit, '[renderer]', undefined]);
 		table.push(['init workspace service', metrics.timers.ellapsedWorkspaceServiceInit, '[renderer]', undefined]);
 		table.push(['register extensions & spawn extension host', metrics.timers.ellapsedExtensions, '[renderer]', undefined]);
@@ -178,10 +194,10 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			if (!times) {
 				continue;
 			}
-			if (times.startup) {
-				eager.push([id, times.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationEvent]);
+			if (times.activationReason.startup) {
+				eager.push([id, times.activationReason.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationReason.activationEvent, times.activationReason.extensionId.value]);
 			} else {
-				normal.push([id, times.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationEvent]);
+				normal.push([id, times.activationReason.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationReason.activationEvent, times.activationReason.extensionId.value]);
 			}
 		}
 
@@ -189,7 +205,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		if (table.length > 0) {
 			md.heading(2, 'Extension Activation Stats');
 			md.table(
-				['Extension', 'Eager', 'Load Code', 'Call Activate', 'Finish Activate', 'Event'],
+				['Extension', 'Eager', 'Load Code', 'Call Activate', 'Finish Activate', 'Event', 'By'],
 				table
 			);
 		}
@@ -201,7 +217,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		md.value += `Name\tTimestamp\tDelta\tTotal\n`;
 		let lastStartTime = -1;
 		let total = 0;
-		for (const { name, timestamp: startTime } of perf.getEntries()) {
+		for (const { name, startTime } of perf.getEntries()) {
 			let delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
 			total += delta;
 			md.value += `${name}\t${startTime}\t${delta}\t${total}\n`;
@@ -262,11 +278,11 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 }
 
 abstract class LoaderStats {
-	readonly amdLoad: (string | number)[][];
-	readonly amdInvoke: (string | number)[][];
-	readonly nodeRequire: (string | number)[][];
-	readonly nodeEval: (string | number)[][];
-	readonly nodeRequireTotal: number;
+	abstract get amdLoad(): (string | number)[][];
+	abstract get amdInvoke(): (string | number)[][];
+	abstract get nodeRequire(): (string | number)[][];
+	abstract get nodeEval(): (string | number)[][];
+	abstract get nodeRequireTotal(): number;
 
 
 	static get(): LoaderStats {
@@ -360,7 +376,7 @@ class MarkdownBuilder {
 	value: string = '';
 
 	heading(level: number, value: string): this {
-		this.value += `${repeat('#', level)} ${value}\n\n`;
+		this.value += `${'#'.repeat(level)} ${value}\n\n`;
 		return this;
 	}
 
@@ -390,16 +406,16 @@ class MarkdownBuilder {
 		});
 
 		// header
-		header.forEach((cell, ci) => { this.value += `| ${cell + repeat(' ', lengths[ci] - cell.toString().length)} `; });
+		header.forEach((cell, ci) => { this.value += `| ${cell + ' '.repeat(lengths[ci] - cell.toString().length)} `; });
 		this.value += '|\n';
-		header.forEach((_cell, ci) => { this.value += `| ${repeat('-', lengths[ci])} `; });
+		header.forEach((_cell, ci) => { this.value += `| ${'-'.repeat(lengths[ci])} `; });
 		this.value += '|\n';
 
 		// cells
 		rows.forEach(row => {
 			row.forEach((cell, ci) => {
 				if (typeof cell !== 'undefined') {
-					this.value += `| ${cell + repeat(' ', lengths[ci] - cell.toString().length)} `;
+					this.value += `| ${cell + ' '.repeat(lengths[ci] - cell.toString().length)} `;
 				}
 			});
 			this.value += '|\n';

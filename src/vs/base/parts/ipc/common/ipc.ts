@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter, Relay } from 'vs/base/common/event';
-import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Event, Emitter, Relay, EventMultiplexer } from 'vs/base/common/event';
+import { IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
-import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { getRandomElement } from 'vs/base/common/arrays';
+import { isFunction, isUndefinedOrNull } from 'vs/base/common/types';
+import { revive } from 'vs/base/common/marshalling';
+import { isUpperAsciiLetter } from 'vs/base/common/strings';
 
 /**
  * An `IChannel` is an abstraction over a collection of commands.
@@ -23,7 +26,7 @@ export interface IChannel {
 }
 
 /**
- * An `IServerChannel` is the couter part to `IChannel`,
+ * An `IServerChannel` is the counter part to `IChannel`,
  * on the server-side. You should implement this interface
  * if you'd like to handle remote promises or events.
  */
@@ -31,7 +34,6 @@ export interface IServerChannel<TContext = string> {
 	call<T>(ctx: TContext, command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T>;
 	listen<T>(ctx: TContext, event: string, arg?: any): Event<T>;
 }
-
 
 export const enum RequestType {
 	Promise = 100,
@@ -97,7 +99,8 @@ export interface Client<TContext> {
 
 export interface IConnectionHub<TContext> {
 	readonly connections: Connection<TContext>[];
-	readonly onDidChangeConnections: Event<Connection<TContext>>;
+	readonly onDidAddConnection: Event<Connection<TContext>>;
+	readonly onDidRemoveConnection: Event<Connection<TContext>>;
 }
 
 /**
@@ -118,7 +121,7 @@ export interface IClientRouter<TContext = string> {
  * order to pick the right one.
  */
 export interface IRoutingChannelClient<TContext = string> {
-	getChannel<T extends IChannel>(channelName: string, router: IClientRouter<TContext>): T;
+	getChannel<T extends IChannel>(channelName: string, router?: IClientRouter<TContext>): T;
 }
 
 interface IReader {
@@ -189,7 +192,7 @@ const BufferPresets = {
 	Object: createOneByteBuffer(DataType.Object),
 };
 
-declare var Buffer: any;
+declare const Buffer: any;
 const hasBuffer = (typeof Buffer !== 'undefined');
 
 function serialize(writer: IWriter, data: any): void {
@@ -268,7 +271,9 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
 		this.channels.set(channelName, channel);
-		this.flushPendingRequests(channelName);
+
+		// https://github.com/microsoft/vscode/issues/72531
+		setTimeout(() => this.flushPendingRequests(channelName), 0);
 	}
 
 	private sendResponse(response: IRawResponse): void {
@@ -441,7 +446,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	private lastRequestId: number = 0;
 	private protocolListener: IDisposable | null;
 
-	private _onDidInitialize = new Emitter<void>();
+	private readonly _onDidInitialize = new Emitter<void>();
 	readonly onDidInitialize = this._onDidInitialize.event;
 
 	constructor(private protocol: IMessagePassingProtocol) {
@@ -523,7 +528,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			this.activeRequests.add(disposable);
 		});
 
-		return result.finally(() => this.activeRequests.delete(disposable));
+		return result.finally(() => { this.activeRequests.delete(disposable); });
 	}
 
 	private requestEvent(channelName: string, name: string, arg?: any): Event<any> {
@@ -553,7 +558,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			}
 		});
 
-		const handler: IHandler = (res: IRawEventFireResponse) => emitter.fire(res.data);
+		const handler: IHandler = (res: IRawResponse) => emitter.fire((res as IRawEventFireResponse).data);
 		this.handlers.set(id, handler);
 
 		return emitter.event;
@@ -659,8 +664,11 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	private channels = new Map<string, IServerChannel<TContext>>();
 	private _connections = new Set<Connection<TContext>>();
 
-	private _onDidChangeConnections = new Emitter<Connection<TContext>>();
-	readonly onDidChangeConnections: Event<Connection<TContext>> = this._onDidChangeConnections.event;
+	private readonly _onDidAddConnection = new Emitter<Connection<TContext>>();
+	readonly onDidAddConnection: Event<Connection<TContext>> = this._onDidAddConnection.event;
+
+	private readonly _onDidRemoveConnection = new Emitter<Connection<TContext>>();
+	readonly onDidRemoveConnection: Event<Connection<TContext>> = this._onDidRemoveConnection.event;
 
 	get connections(): Connection<TContext>[] {
 		const result: Connection<TContext>[] = [];
@@ -683,36 +691,117 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 				const connection: Connection<TContext> = { channelServer, channelClient, ctx };
 				this._connections.add(connection);
-				this._onDidChangeConnections.fire(connection);
+				this._onDidAddConnection.fire(connection);
 
 				onDidClientDisconnect(() => {
 					channelServer.dispose();
 					channelClient.dispose();
 					this._connections.delete(connection);
+					this._onDidRemoveConnection.fire(connection);
 				});
 			});
 		});
 	}
 
-	getChannel<T extends IChannel>(channelName: string, router: IClientRouter<TContext>): T {
+	/**
+	 * Get a channel from a remote client. When passed a router,
+	 * one can specify which client it wants to call and listen to/from.
+	 * Otherwise, when calling without a router, a random client will
+	 * be selected and when listening without a router, every client
+	 * will be listened to.
+	 */
+	getChannel<T extends IChannel>(channelName: string, router: IClientRouter<TContext>): T;
+	getChannel<T extends IChannel>(channelName: string, clientFilter: (client: Client<TContext>) => boolean): T;
+	getChannel<T extends IChannel>(channelName: string, routerOrClientFilter: IClientRouter<TContext> | ((client: Client<TContext>) => boolean)): T {
 		const that = this;
 
 		return {
-			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
-				const channelPromise = router.routeCall(that, command, arg)
+			call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
+				let connectionPromise: Promise<Client<TContext>>;
+
+				if (isFunction(routerOrClientFilter)) {
+					// when no router is provided, we go random client picking
+					let connection = getRandomElement(that.connections.filter(routerOrClientFilter));
+
+					connectionPromise = connection
+						// if we found a client, let's call on it
+						? Promise.resolve(connection)
+						// else, let's wait for a client to come along
+						: Event.toPromise(Event.filter(that.onDidAddConnection, routerOrClientFilter));
+				} else {
+					connectionPromise = routerOrClientFilter.routeCall(that, command, arg);
+				}
+
+				const channelPromise = connectionPromise
 					.then(connection => (connection as Connection<TContext>).channelClient.getChannel(channelName));
 
 				return getDelayedChannel(channelPromise)
 					.call(command, arg, cancellationToken);
 			},
-			listen(event: string, arg: any) {
-				const channelPromise = router.routeEvent(that, event, arg)
+			listen(event: string, arg: any): Event<T> {
+				if (isFunction(routerOrClientFilter)) {
+					return that.getMulticastEvent(channelName, routerOrClientFilter, event, arg);
+				}
+
+				const channelPromise = routerOrClientFilter.routeEvent(that, event, arg)
 					.then(connection => (connection as Connection<TContext>).channelClient.getChannel(channelName));
 
 				return getDelayedChannel(channelPromise)
 					.listen(event, arg);
 			}
 		} as T;
+	}
+
+	private getMulticastEvent<T extends IChannel>(channelName: string, clientFilter: (client: Client<TContext>) => boolean, eventName: string, arg: any): Event<T> {
+		const that = this;
+		let disposables = new DisposableStore();
+
+		// Create an emitter which hooks up to all clients
+		// as soon as first listener is added. It also
+		// disconnects from all clients as soon as the last listener
+		// is removed.
+		const emitter = new Emitter<T>({
+			onFirstListenerAdd: () => {
+				disposables = new DisposableStore();
+
+				// The event multiplexer is useful since the active
+				// client list is dynamic. We need to hook up and disconnection
+				// to/from clients as they come and go.
+				const eventMultiplexer = new EventMultiplexer<T>();
+				const map = new Map<Connection<TContext>, IDisposable>();
+
+				const onDidAddConnection = (connection: Connection<TContext>) => {
+					const channel = connection.channelClient.getChannel(channelName);
+					const event = channel.listen<T>(eventName, arg);
+					const disposable = eventMultiplexer.add(event);
+
+					map.set(connection, disposable);
+				};
+
+				const onDidRemoveConnection = (connection: Connection<TContext>) => {
+					const disposable = map.get(connection);
+
+					if (!disposable) {
+						return;
+					}
+
+					disposable.dispose();
+					map.delete(connection);
+				};
+
+				that.connections.filter(clientFilter).forEach(onDidAddConnection);
+				Event.filter(that.onDidAddConnection, clientFilter)(onDidAddConnection, undefined, disposables);
+				that.onDidRemoveConnection(onDidRemoveConnection, undefined, disposables);
+				eventMultiplexer.event(emitter.fire, emitter, disposables);
+
+				disposables.add(eventMultiplexer);
+			},
+			onLastListenerRemove: () => {
+				disposables.dispose();
+			}
+		});
+
+		return emitter.event;
 	}
 
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
@@ -726,7 +815,8 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	dispose(): void {
 		this.channels.clear();
 		this._connections.clear();
-		this._onDidChangeConnections.dispose();
+		this._onDidAddConnection.dispose();
+		this._onDidRemoveConnection.dispose();
 	}
 }
 
@@ -827,7 +917,146 @@ export class StaticRouter<TContext = string> implements IClientRouter<TContext> 
 			}
 		}
 
-		await Event.toPromise(hub.onDidChangeConnections);
+		await Event.toPromise(hub.onDidAddConnection);
 		return await this.route(hub);
 	}
 }
+
+
+//#region createChannelReceiver / createChannelSender
+
+/**
+ * Use both `createChannelReceiver` and `createChannelSender`
+ * for automated process <=> process communication over methods
+ * and events. You do not need to spell out each method on both
+ * sides, a proxy will take care of this.
+ *
+ * Rules:
+ * - if marshalling is enabled, only `URI` and `RegExp` is converted
+ *   automatically for you
+ * - events must follow the naming convention `onUppercase`
+ * - `CancellationToken` is currently not supported
+ * - if a context is provided, you can use `AddFirstParameterToFunctions`
+ *   utility to signal this in the receiving side type
+ */
+
+export interface IBaseChannelOptions {
+
+	/**
+	 * Disables automatic marshalling of `URI`.
+	 * If marshalling is disabled, `UriComponents`
+	 * must be used instead.
+	 */
+	disableMarshalling?: boolean;
+}
+
+export interface IChannelReceiverOptions extends IBaseChannelOptions { }
+
+export function createChannelReceiver(service: unknown, options?: IChannelReceiverOptions): IServerChannel {
+	const handler = service as { [key: string]: unknown };
+	const disableMarshalling = options && options.disableMarshalling;
+
+	// Buffer any event that should be supported by
+	// iterating over all property keys and finding them
+	const mapEventNameToEvent = new Map<string, Event<unknown>>();
+	for (const key in handler) {
+		if (propertyIsEvent(key)) {
+			mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true));
+		}
+	}
+
+	return new class implements IServerChannel {
+
+		listen<T>(_: unknown, event: string): Event<T> {
+			const eventImpl = mapEventNameToEvent.get(event);
+			if (eventImpl) {
+				return eventImpl as Event<T>;
+			}
+
+			throw new Error(`Event not found: ${event}`);
+		}
+
+		call(_: unknown, command: string, args?: any[]): Promise<any> {
+			const target = handler[command];
+			if (typeof target === 'function') {
+
+				// Revive unless marshalling disabled
+				if (!disableMarshalling && Array.isArray(args)) {
+					for (let i = 0; i < args.length; i++) {
+						args[i] = revive(args[i]);
+					}
+				}
+
+				return target.apply(handler, args);
+			}
+
+			throw new Error(`Method not found: ${command}`);
+		}
+	};
+}
+
+export interface IChannelSenderOptions extends IBaseChannelOptions {
+
+	/**
+	 * If provided, will add the value of `context`
+	 * to each method call to the target.
+	 */
+	context?: unknown;
+
+	/**
+	 * If provided, will not proxy any of the properties
+	 * that are part of the Map but rather return that value.
+	 */
+	properties?: Map<string, unknown>;
+}
+
+export function createChannelSender<T>(channel: IChannel, options?: IChannelSenderOptions): T {
+	const disableMarshalling = options && options.disableMarshalling;
+
+	return new Proxy({}, {
+		get(_target: T, propKey: PropertyKey) {
+			if (typeof propKey === 'string') {
+
+				// Check for predefined values
+				if (options?.properties?.has(propKey)) {
+					return options.properties.get(propKey);
+				}
+
+				// Event
+				if (propertyIsEvent(propKey)) {
+					return channel.listen(propKey);
+				}
+
+				// Function
+				return async function (...args: any[]) {
+
+					// Add context if any
+					let methodArgs: any[];
+					if (options && !isUndefinedOrNull(options.context)) {
+						methodArgs = [options.context, ...args];
+					} else {
+						methodArgs = args;
+					}
+
+					const result = await channel.call(propKey, methodArgs);
+
+					// Revive unless marshalling disabled
+					if (!disableMarshalling) {
+						return revive(result);
+					}
+
+					return result;
+				};
+			}
+
+			throw new Error(`Property not found: ${String(propKey)}`);
+		}
+	}) as T;
+}
+
+function propertyIsEvent(name: string): boolean {
+	// Assume a property is an event if it has a form of "onSomething"
+	return name[0] === 'o' && name[1] === 'n' && isUpperAsciiLetter(name.charCodeAt(2));
+}
+
+//#endregion

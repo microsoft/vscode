@@ -16,11 +16,11 @@ export class FileWatcher extends Disposable {
 
 	private isDisposed: boolean;
 	private restartCounter: number;
-	private service: WatcherChannelClient;
+	private service: WatcherChannelClient | undefined;
 
 	constructor(
 		private folders: IWatcherRequest[],
-		private onFileChanges: (changes: IDiskFileChange[]) => void,
+		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
 		private onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
 		private watcherOptions: IWatcherOptions = {}
@@ -67,7 +67,7 @@ export class FileWatcher extends Disposable {
 
 		this.service.setVerboseLogging(this.verboseLogging);
 
-		this._register(this.service.watch(this.watcherOptions)(e => !this.isDisposed && this.onFileChanges(e)));
+		this._register(this.service.watch(this.watcherOptions)(e => !this.isDisposed && this.onDidFilesChange(e)));
 
 		this._register(this.service.onLogMessage(m => this.onLogMessage(m)));
 
@@ -81,13 +81,18 @@ export class FileWatcher extends Disposable {
 
 	setVerboseLogging(verboseLogging: boolean): void {
 		this.verboseLogging = verboseLogging;
-		this.service.setVerboseLogging(verboseLogging);
+
+		if (this.service) {
+			this.service.setVerboseLogging(verboseLogging);
+		}
 	}
 
 	setFolders(folders: IWatcherRequest[]): void {
 		this.folders = folders;
 
-		this.service.setRoots(folders);
+		if (this.service) {
+			this.service.setRoots(folders);
+		}
 	}
 
 	dispose(): void {

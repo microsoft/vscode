@@ -13,7 +13,6 @@ Error.stackTraceLimit = 100;
 
 // Workaround for Electron not installing a handler to ignore SIGPIPE
 // (https://github.com/electron/electron/issues/13254)
-// @ts-ignore
 process.on('SIGPIPE', () => {
 	console.error(new Error('Unexpected SIGPIPE'));
 });
@@ -21,12 +20,12 @@ process.on('SIGPIPE', () => {
 //#endregion
 
 //#region Add support for redirecting the loading of node modules
+
 exports.injectNodeModuleLookupPath = function (injectPath) {
 	if (!injectPath) {
 		throw new Error('Missing injectPath');
 	}
 
-	// @ts-ignore
 	const Module = require('module');
 	const path = require('path');
 
@@ -36,29 +35,52 @@ exports.injectNodeModuleLookupPath = function (injectPath) {
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
 
 	// @ts-ignore
-	Module._resolveLookupPaths = function (moduleName, parent, newReturn) {
-		const result = originalResolveLookupPaths(moduleName, parent, newReturn);
-
-		const paths = newReturn ? result : result[1];
-		for (let i = 0, len = paths.length; i < len; i++) {
-			if (paths[i] === nodeModulesPath) {
-				paths.splice(i, 0, injectPath);
-				break;
+	Module._resolveLookupPaths = function (moduleName, parent) {
+		const paths = originalResolveLookupPaths(moduleName, parent);
+		if (Array.isArray(paths)) {
+			for (let i = 0, len = paths.length; i < len; i++) {
+				if (paths[i] === nodeModulesPath) {
+					paths.splice(i, 0, injectPath);
+					break;
+				}
 			}
 		}
 
-		return result;
+		return paths;
 	};
 };
+
+//#endregion
+
+//#region Remove global paths from the node lookup paths
+
+exports.removeGlobalNodeModuleLookupPaths = function () {
+	const Module = require('module');
+	// @ts-ignore
+	const globalPaths = Module.globalPaths;
+
+	// @ts-ignore
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
+
+	// @ts-ignore
+	Module._resolveLookupPaths = function (moduleName, parent) {
+		const paths = originalResolveLookupPaths(moduleName, parent);
+		let commonSuffixLength = 0;
+		while (commonSuffixLength < paths.length && paths[paths.length - 1 - commonSuffixLength] === globalPaths[globalPaths.length - 1 - commonSuffixLength]) {
+			commonSuffixLength++;
+		}
+		return paths.slice(0, paths.length - commonSuffixLength);
+	};
+};
+
 //#endregion
 
 //#region Add support for using node_modules.asar
+
 /**
  * @param {string=} nodeModulesPath
  */
 exports.enableASARSupport = function (nodeModulesPath) {
-
-	// @ts-ignore
 	const Module = require('module');
 	const path = require('path');
 
@@ -71,24 +93,27 @@ exports.enableASARSupport = function (nodeModulesPath) {
 
 	// @ts-ignore
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
-	// @ts-ignore
-	Module._resolveLookupPaths = function (request, parent, newReturn) {
-		const result = originalResolveLookupPaths(request, parent, newReturn);
 
-		const paths = newReturn ? result : result[1];
-		for (let i = 0, len = paths.length; i < len; i++) {
-			if (paths[i] === NODE_MODULES_PATH) {
-				paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-				break;
+	// @ts-ignore
+	Module._resolveLookupPaths = function (request, parent) {
+		const paths = originalResolveLookupPaths(request, parent);
+		if (Array.isArray(paths)) {
+			for (let i = 0, len = paths.length; i < len; i++) {
+				if (paths[i] === NODE_MODULES_PATH) {
+					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
+					break;
+				}
 			}
 		}
 
-		return result;
+		return paths;
 	};
 };
+
 //#endregion
 
 //#region URI helpers
+
 /**
  * @param {string} _path
  * @returns {string}
@@ -111,9 +136,11 @@ exports.uriFromPath = function (_path) {
 
 	return uri.replace(/#/g, '%23');
 };
+
 //#endregion
 
 //#region FS helpers
+
 /**
  * @param {string} file
  * @returns {Promise<string>}
@@ -155,34 +182,16 @@ exports.writeFile = function (file, content) {
  * @param {string} dir
  * @returns {Promise<string>}
  */
-function mkdir(dir) {
+exports.mkdirp = function mkdirp(dir) {
 	const fs = require('fs');
 
-	return new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
-}
-
-/**
- * @param {string} dir
- * @returns {Promise<string>}
- */
-exports.mkdirp = function mkdirp(dir) {
-	const path = require('path');
-
-	return mkdir(dir).then(null, err => {
-		if (err && err.code === 'ENOENT') {
-			const parent = path.dirname(dir);
-
-			if (parent !== dir) { // if not arrived at root
-				return mkdirp(parent).then(() => mkdir(dir));
-			}
-		}
-
-		throw err;
-	});
+	return new Promise((c, e) => fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
 };
+
 //#endregion
 
 //#region NLS helpers
+
 /**
  * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean }}
  */
@@ -203,7 +212,7 @@ exports.setupNLS = function () {
 		const bundles = Object.create(null);
 
 		nlsConfig.loadBundle = function (bundle, language, cb) {
-			let result = bundles[bundle];
+			const result = bundles[bundle];
 			if (result) {
 				cb(undefined, result);
 
@@ -212,7 +221,7 @@ exports.setupNLS = function () {
 
 			const bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.json');
 			exports.readFile(bundleFile).then(function (content) {
-				let json = JSON.parse(content);
+				const json = JSON.parse(content);
 				bundles[bundle] = json;
 
 				cb(undefined, json);
@@ -230,14 +239,15 @@ exports.setupNLS = function () {
 
 	return nlsConfig;
 };
+
 //#endregion
 
 //#region Portable helpers
+
 /**
  * @returns {{ portableDataPath: string, isPortable: boolean }}
  */
 exports.configurePortable = function () {
-	// @ts-ignore
 	const product = require('../product.json');
 	const path = require('path');
 	const fs = require('fs');
@@ -265,6 +275,7 @@ exports.configurePortable = function () {
 			return path.join(getApplicationPath(), 'data');
 		}
 
+		// @ts-ignore
 		const portableDataName = product.portable || `${product.applicationName}-portable-data`;
 		return path.join(path.dirname(getApplicationPath()), portableDataName);
 	}
@@ -281,7 +292,12 @@ exports.configurePortable = function () {
 	}
 
 	if (isTempPortable) {
-		process.env[process.platform === 'win32' ? 'TEMP' : 'TMPDIR'] = portableTempPath;
+		if (process.platform === 'win32') {
+			process.env['TMP'] = portableTempPath;
+			process.env['TEMP'] = portableTempPath;
+		} else {
+			process.env['TMPDIR'] = portableTempPath;
+		}
 	}
 
 	return {
@@ -289,16 +305,17 @@ exports.configurePortable = function () {
 		isPortable
 	};
 };
+
 //#endregion
 
 //#region ApplicationInsights
-/**
- * Prevents appinsights from monkey patching modules.
- * This should be called before importing the applicationinsights module
- */
+
+// Prevents appinsights from monkey patching modules.
+// This should be called before importing the applicationinsights module
 exports.avoidMonkeyPatchFromAppInsights = function () {
 	// @ts-ignore
 	process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = true; // Skip monkey patching of 3rd party modules by appinsights
 	global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
 };
+
 //#endregion

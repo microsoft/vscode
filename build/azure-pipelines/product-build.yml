@@ -36,6 +36,17 @@ jobs:
   steps:
   - template: win32/product-build-win32.yml
 
+- job: WindowsARM64
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'))
+  pool:
+    vmImage: VS2017-Win2016
+  variables:
+    VSCODE_ARCH: arm64
+  dependsOn:
+  - Compile
+  steps:
+  - template: win32/product-build-win32-arm64.yml
+
 - job: Linux
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
   pool:
@@ -56,7 +67,7 @@ jobs:
   - template: linux/snap-build-linux.yml
 
 - job: LinuxArmhf
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -66,8 +77,19 @@ jobs:
   steps:
   - template: linux/product-build-linux-multiarch.yml
 
+- job: LinuxArm64
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: arm64
+  dependsOn:
+  - Compile
+  steps:
+  - template: linux/product-build-linux-multiarch.yml
+
 - job: LinuxAlpine
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -91,7 +113,7 @@ jobs:
 - job: macOS
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
   pool:
-    vmImage: macOS 10.13
+    vmImage: macOS-latest
   dependsOn:
   - Compile
   steps:
@@ -107,6 +129,7 @@ jobs:
   - Linux
   - LinuxSnap
   - LinuxArmhf
+  - LinuxArm64
   - LinuxAlpine
   - macOS
   steps:
@@ -122,10 +145,15 @@ jobs:
   - Linux
   - LinuxSnap
   - LinuxArmhf
+  - LinuxArm64
   - LinuxAlpine
+  - LinuxWeb
   - macOS
   steps:
   - template: sync-mooncake.yml
+
+trigger: none
+pr: none
 
 schedules:
 - cron: "0 5 * * Mon-Fri"

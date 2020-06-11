@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IUpdateRequest, IStorageDatabase } from 'vs/base/parts/storage/common/storage';
-import { serializableToMap, mapToSerializable } from 'vs/base/common/map';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+
+export enum WorkspaceStorageSettings {
+	WORKSPACE_FIRST_OPEN = 'workbench.workspaceFirstOpen'
+}
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
@@ -26,7 +26,7 @@ export interface IWillSaveStateEvent {
 
 export interface IStorageService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -101,6 +101,18 @@ export interface IStorageService {
 	 * Log the contents of the storage to the console.
 	 */
 	logStorage(): void;
+
+	/**
+	 * Migrate the storage contents to another workspace.
+	 */
+	migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void>;
+
+	/**
+	 * Allows to flush state, e.g. in cases where a shutdown is
+	 * imminent. This will send out the onWillSaveState to ask
+	 * everyone for latest state.
+	 */
+	flush(): void;
 }
 
 export const enum StorageScope {
@@ -117,21 +129,22 @@ export const enum StorageScope {
 }
 
 export interface IWorkspaceStorageChangeEvent {
-	key: string;
-	scope: StorageScope;
+	readonly key: string;
+	readonly scope: StorageScope;
 }
 
 export class InMemoryStorageService extends Disposable implements IStorageService {
 
-	_serviceBrand = null as any;
+	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
-	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent> = this._onDidChangeStorage.event;
+	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
-	readonly onWillSaveState = Event.None;
+	protected readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
+	readonly onWillSaveState = this._onWillSaveState.event;
 
-	private globalCache: Map<string, string> = new Map<string, string>();
-	private workspaceCache: Map<string, string> = new Map<string, string>();
+	private readonly globalCache = new Map<string, string>();
+	private readonly workspaceCache = new Map<string, string>();
 
 	private getCache(scope: StorageScope): Map<string, string> {
 		return scope === StorageScope.GLOBAL ? this.globalCache : this.workspaceCache;
@@ -210,63 +223,13 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 	logStorage(): void {
 		logStorage(this.globalCache, this.workspaceCache, 'inMemory', 'inMemory');
 	}
-}
 
-export class FileStorageDatabase extends Disposable implements IStorageDatabase {
-
-	readonly onDidChangeItemsExternal = Event.None; // TODO@Ben implement global UI storage events
-
-	private cache: Map<string, string> | undefined;
-
-	private pendingUpdate: Promise<void> = Promise.resolve();
-
-	constructor(
-		private readonly file: URI,
-		private readonly fileService: IFileService
-	) {
-		super();
+	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
+		// not supported
 	}
 
-	async getItems(): Promise<Map<string, string>> {
-		if (!this.cache) {
-			try {
-				this.cache = await this.doGetItemsFromFile();
-			} catch (error) {
-				this.cache = new Map();
-			}
-		}
-
-		return this.cache;
-	}
-
-	private async doGetItemsFromFile(): Promise<Map<string, string>> {
-		await this.pendingUpdate;
-
-		const itemsRaw = await this.fileService.readFile(this.file);
-
-		return serializableToMap(JSON.parse(itemsRaw.value.toString()));
-	}
-
-	async updateItems(request: IUpdateRequest): Promise<void> {
-		const items = await this.getItems();
-
-		if (request.insert) {
-			request.insert.forEach((value, key) => items.set(key, value));
-		}
-
-		if (request.delete) {
-			request.delete.forEach(key => items.delete(key));
-		}
-
-		await this.pendingUpdate;
-
-		this.pendingUpdate = this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(mapToSerializable(items)))).then();
-
-		return this.pendingUpdate;
-	}
-
-	close(): Promise<void> {
-		return this.pendingUpdate;
+	flush(): void {
+		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
 	}
 }
 

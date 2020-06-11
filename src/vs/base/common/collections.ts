@@ -7,23 +7,20 @@
  * An interface for a JavaScript object that
  * acts a dictionary. The keys are strings.
  */
-export interface IStringDictionary<V> {
-	[name: string]: V;
-}
+export type IStringDictionary<V> = Record<string, V>;
+
 
 /**
  * An interface for a JavaScript object that
  * acts a dictionary. The keys are numbers.
  */
-export interface INumberDictionary<V> {
-	[idx: number]: V;
-}
+export type INumberDictionary<V> = Record<number, V>;
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
  * Returns an array which contains all values that reside
- * in the given set.
+ * in the given dictionary.
  */
 export function values<T>(from: IStringDictionary<T> | INumberDictionary<T>): T[] {
 	const result: T[] = [];
@@ -35,27 +32,8 @@ export function values<T>(from: IStringDictionary<T> | INumberDictionary<T>): T[
 	return result;
 }
 
-export function size<T>(from: IStringDictionary<T> | INumberDictionary<T>): number {
-	let count = 0;
-	for (let key in from) {
-		if (hasOwnProperty.call(from, key)) {
-			count += 1;
-		}
-	}
-	return count;
-}
-
-export function first<T>(from: IStringDictionary<T> | INumberDictionary<T>): T | undefined {
-	for (const key in from) {
-		if (hasOwnProperty.call(from, key)) {
-			return (from as any)[key];
-		}
-	}
-	return undefined;
-}
-
 /**
- * Iterates over each entry in the provided set. The iterator allows
+ * Iterates over each entry in the provided dictionary. The iterator allows
  * to remove elements and will stop when the callback returns {{false}}.
  */
 export function forEach<T>(from: IStringDictionary<T> | INumberDictionary<T>, callback: (entry: { key: any; value: T; }, remove: () => void) => any): void {
@@ -97,6 +75,7 @@ export function fromMap<T>(original: Map<string, T>): IStringDictionary<T> {
 	}
 	return result;
 }
+
 
 export class SetMap<K, V> {
 

@@ -182,11 +182,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
-	public collectValueSuggestions(
-		_fileName: string,
-		location: Location,
-		result: ISuggestionsCollector
-	): Thenable<any> | null {
+	public async collectValueSuggestions(_fileName: string, location: Location, result: ISuggestionsCollector): Promise<any> {
 		if (!this.onlineEnabled()) {
 			return null;
 		}
@@ -194,34 +190,30 @@ export class PackageJSONContribution implements IJSONContribution {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
-				return this.npmView(currentKey).then(info => {
-					const latest = info.distTagsLatest;
-					if (latest) {
-						let name = JSON.stringify(latest);
-						let proposal = new CompletionItem(name);
-						proposal.kind = CompletionItemKind.Property;
-						proposal.insertText = name;
-						proposal.documentation = localize('json.npm.latestversion', 'The currently latest version of the package');
-						result.add(proposal);
+				const info = await this.fetchPackageInfo(currentKey);
+				if (info && info.distTagsLatest) {
 
-						name = JSON.stringify('^' + latest);
-						proposal = new CompletionItem(name);
-						proposal.kind = CompletionItemKind.Property;
-						proposal.insertText = name;
-						proposal.documentation = localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)');
-						result.add(proposal);
+					let name = JSON.stringify(info.distTagsLatest);
+					let proposal = new CompletionItem(name);
+					proposal.kind = CompletionItemKind.Property;
+					proposal.insertText = name;
+					proposal.documentation = localize('json.npm.latestversion', 'The currently latest version of the package');
+					result.add(proposal);
 
-						name = JSON.stringify('~' + latest);
-						proposal = new CompletionItem(name);
-						proposal.kind = CompletionItemKind.Property;
-						proposal.insertText = name;
-						proposal.documentation = localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)');
-						result.add(proposal);
-					}
-					return 0;
-				}, () => {
-					return 0;
-				});
+					name = JSON.stringify('^' + info.distTagsLatest);
+					proposal = new CompletionItem(name);
+					proposal.kind = CompletionItemKind.Property;
+					proposal.insertText = name;
+					proposal.documentation = localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)');
+					result.add(proposal);
+
+					name = JSON.stringify('~' + info.distTagsLatest);
+					proposal = new CompletionItem(name);
+					proposal.kind = CompletionItemKind.Property;
+					proposal.insertText = name;
+					proposal.documentation = localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)');
+					result.add(proposal);
+				}
 			}
 		}
 		return null;
@@ -243,37 +235,73 @@ export class PackageJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	private getInfo(pack: string): Thenable<string[]> {
-		return this.npmView(pack).then(info => {
+	private async getInfo(pack: string): Promise<string[]> {
+		let info = await this.fetchPackageInfo(pack);
+		if (info) {
 			const result: string[] = [];
 			result.push(info.description || '');
 			result.push(info.distTagsLatest ? localize('json.npm.version.hover', 'Latest version: {0}', info.distTagsLatest) : '');
 			result.push(info.homepage || '');
 			return result;
-		}, () => {
-			return [];
+		}
+
+		return [];
+	}
+
+	private async fetchPackageInfo(pack: string): Promise<ViewPackageInfo | undefined> {
+		let info = await this.npmView(pack);
+		if (!info) {
+			info = await this.npmjsView(pack);
+		}
+		return info;
+	}
+
+
+	private npmView(pack: string): Promise<ViewPackageInfo | undefined> {
+		return new Promise((resolve, _reject) => {
+			const command = 'npm view --json ' + pack + ' description dist-tags.latest homepage';
+			cp.exec(command, (error, stdout) => {
+				if (!error) {
+					try {
+						const content = JSON.parse(stdout);
+						resolve({
+							description: content['description'],
+							distTagsLatest: content['dist-tags.latest'],
+							homepage: content['homepage']
+						});
+						return;
+					} catch (e) {
+						// ignore
+					}
+				}
+				resolve(undefined);
+			});
 		});
 	}
 
-	private npmView(pack: string): Promise<ViewPackageInfo> {
-		return new Promise((resolve, reject) => {
-			const command = 'npm view --json ' + pack + ' description dist-tags.latest homepage';
-			cp.exec(command, (error, stdout) => {
-				if (error) {
-					return reject();
-				}
-				try {
-					const content = JSON.parse(stdout);
-					resolve({
-						description: content['description'],
-						distTagsLatest: content['dist-tags.latest'],
-						homepage: content['homepage']
-					});
-				} catch (e) {
-					reject();
-				}
+	private async npmjsView(pack: string): Promise<ViewPackageInfo | undefined> {
+		const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(pack).replace(/%40/g, '@');
+		try {
+			const success = await this.xhr({
+				url: queryUrl,
+				agent: USER_AGENT
 			});
-		});
+			const obj = JSON.parse(success.responseText);
+			if (obj) {
+				const latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
+				if (latest) {
+					return {
+						description: obj.description || '',
+						distTagsLatest: latest,
+						homepage: obj.homepage || ''
+					};
+				}
+			}
+		}
+		catch (e) {
+			//ignore
+		}
+		return undefined;
 	}
 
 	public getInfoContribution(_fileName: string, location: Location): Thenable<MarkedString[] | null> | null {

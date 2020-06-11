@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename, posix, extname } from 'vs/base/common/path';
-import { endsWith, startsWithUTF8BOM, startsWith } from 'vs/base/common/strings';
+import { startsWithUTF8BOM } from 'vs/base/common/strings';
 import { coalesce } from 'vs/base/common/arrays';
 import { match } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
@@ -185,7 +185,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 		// Longest extension match
 		if (association.extension) {
 			if (!extensionMatch || association.extension.length > extensionMatch.extension!.length) {
-				if (endsWith(filename, association.extensionLowercase!)) {
+				if (filename.endsWith(association.extensionLowercase!)) {
 					extensionMatch = association;
 				}
 			}
@@ -259,10 +259,17 @@ export function suggestFilename(mode: string | undefined, prefix: string): strin
 		.map(assoc => assoc.extension);
 
 	const extensionsWithDotFirst = coalesce(extensions)
-		.filter(assoc => startsWith(assoc, '.'));
+		.filter(assoc => assoc.startsWith('.'));
 
 	if (extensionsWithDotFirst.length > 0) {
-		return prefix + extensionsWithDotFirst[0];
+		const candidateExtension = extensionsWithDotFirst[0];
+		if (prefix.endsWith(candidateExtension)) {
+			// do not add the prefix if it already exists
+			// https://github.com/microsoft/vscode/issues/83603
+			return prefix;
+		}
+
+		return prefix + candidateExtension;
 	}
 
 	return extensions[0] || prefix;
@@ -327,4 +334,14 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 export function getMediaMime(path: string): string | undefined {
 	const ext = extname(path);
 	return mapExtToMediaMimes[ext.toLowerCase()];
+}
+
+export function getExtensionForMimeType(mimeType: string): string | undefined {
+	for (const extension in mapExtToMediaMimes) {
+		if (mapExtToMediaMimes[extension] === mimeType) {
+			return extension;
+		}
+	}
+
+	return undefined;
 }

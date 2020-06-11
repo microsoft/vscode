@@ -7,8 +7,8 @@ let err = false;
 
 const majorNodeVersion = parseInt(/^(\d+)\./.exec(process.versions.node)[1]);
 
-if (majorNodeVersion < 8 || majorNodeVersion >= 11) {
-	console.error('\033[1;31m*** Please use node >=8 and <11.\033[0;0m');
+if (majorNodeVersion < 10 || majorNodeVersion >= 13) {
+	console.error('\033[1;31m*** Please use node >=10 and <=12.\033[0;0m');
 	err = true;
 }
 
@@ -23,7 +23,7 @@ if (majorYarnVersion < 1 || minorYarnVersion < 10) {
 	err = true;
 }
 
-if (!/yarn\.js$|yarnpkg$/.test(process.env['npm_execpath'])) {
+if (!/yarn[\w-.]*\.js$|yarnpkg$/.test(process.env['npm_execpath'])) {
 	console.error('\033[1;31m*** Please use yarn to install dependencies.\033[0;0m');
 	err = true;
 }

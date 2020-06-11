@@ -3,17 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IAccessibilityService, AccessibilitySupport, CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
+import { Event, Emitter } from 'vs/base/common/event';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export class BrowserAccessibilityService extends Disposable implements IAccessibilityService {
+export class AccessibilityService extends Disposable implements IAccessibilityService {
+	declare readonly _serviceBrand: undefined;
 
-	_serviceBrand: any;
+	private _accessibilityModeEnabledContext: IContextKey<boolean>;
+	protected _accessibilitySupport = AccessibilitySupport.Unknown;
+	protected readonly _onDidChangeScreenReaderOptimized = new Emitter<void>();
 
-	private _accessibilitySupport = AccessibilitySupport.Unknown;
-	private readonly _onDidChangeAccessibilitySupport = new Emitter<void>();
-	readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
+	constructor(
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService protected readonly _configurationService: IConfigurationService,
+	) {
+		super();
+		this._accessibilityModeEnabledContext = CONTEXT_ACCESSIBILITY_MODE_ENABLED.bindTo(this._contextKeyService);
+		const updateContextKey = () => this._accessibilityModeEnabledContext.set(this.isScreenReaderOptimized());
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.accessibilitySupport')) {
+				updateContextKey();
+				this._onDidChangeScreenReaderOptimized.fire();
+			}
+		}));
+		updateContextKey();
+		this.onDidChangeScreenReaderOptimized(() => updateContextKey());
+	}
+
+	get onDidChangeScreenReaderOptimized(): Event<void> {
+		return this._onDidChangeScreenReaderOptimized.event;
+	}
+
+	isScreenReaderOptimized(): boolean {
+		const config = this._configurationService.getValue('editor.accessibilitySupport');
+		return config === 'on' || (config === 'auto' && this._accessibilitySupport === AccessibilitySupport.Enabled);
+	}
+
+	getAccessibilitySupport(): AccessibilitySupport {
+		return this._accessibilitySupport;
+	}
 
 	alwaysUnderlineAccessKeys(): Promise<boolean> {
 		return Promise.resolve(false);
@@ -25,10 +56,6 @@ export class BrowserAccessibilityService extends Disposable implements IAccessib
 		}
 
 		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeAccessibilitySupport.fire();
-	}
-
-	getAccessibilitySupport(): AccessibilitySupport {
-		return this._accessibilitySupport;
+		this._onDidChangeScreenReaderOptimized.fire();
 	}
 }

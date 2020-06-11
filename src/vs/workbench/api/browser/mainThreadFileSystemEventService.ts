@@ -3,21 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileChangeType, IFileService, FileOperation } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { localize } from 'vs/nls';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
 
-	private readonly _listener = new Array<IDisposable>();
+	private readonly _listener = new DisposableStore();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService fileService: IFileService,
-		@ITextFileService textfileService: ITextFileService,
+		@ITextFileService textFileService: ITextFileService,
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
 	) {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
@@ -28,7 +33,7 @@ export class MainThreadFileSystemEventService {
 			changed: [],
 			deleted: []
 		};
-		fileService.onFileChanges(event => {
+		this._listener.add(fileService.onDidFilesChange(event => {
 			for (let change of event.changes) {
 				switch (change.type) {
 					case FileChangeType.ADDED:
@@ -47,22 +52,34 @@ export class MainThreadFileSystemEventService {
 			events.created.length = 0;
 			events.changed.length = 0;
 			events.deleted.length = 0;
-		}, undefined, this._listener);
+		}));
 
-		// file operation events - (changes the editor makes)
-		fileService.onAfterOperation(e => {
-			if (e.isOperation(FileOperation.MOVE)) {
-				proxy.$onFileRename(e.resource, e.target.resource);
+
+		// BEFORE file operation
+		workingCopyFileService.addFileOperationParticipant({
+			participate: (target, source, operation, progress, timeout, token) => {
+				return proxy.$onWillRunFileOperation(operation, target, source, timeout, token);
 			}
-		}, undefined, this._listener);
+		});
 
-		textfileService.onWillMove(e => {
-			const promise = proxy.$onWillRename(e.oldResource, e.newResource);
-			e.waitUntil(promise);
-		}, undefined, this._listener);
+		// AFTER file operation
+		this._listener.add(textFileService.onDidCreateTextFile(e => proxy.$onDidRunFileOperation(FileOperation.CREATE, e.resource, undefined)));
+		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => proxy.$onDidRunFileOperation(e.operation, e.target, e.source)));
 	}
 
 	dispose(): void {
-		dispose(this._listener);
+		this._listener.dispose();
 	}
 }
+
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	id: 'files',
+	properties: {
+		'files.participants.timeout': {
+			type: 'number',
+			default: 5000,
+			markdownDescription: localize('files.participants.timeout', "Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants."),
+		}
+	}
+});

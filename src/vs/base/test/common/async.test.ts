@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import * as async from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 suite('Async', () => {
 
@@ -556,5 +557,135 @@ suite('Async', () => {
 		} catch (error) {
 			assert.equal(error, error);
 		}
+	});
+
+	test('TaskSequentializer - pending basics', async function () {
+		const sequentializer = new async.TaskSequentializer();
+
+		assert.ok(!sequentializer.hasPending());
+		assert.ok(!sequentializer.hasPending(2323));
+		assert.ok(!sequentializer.pending);
+
+		// pending removes itself after done
+		await sequentializer.setPending(1, Promise.resolve());
+		assert.ok(!sequentializer.hasPending());
+		assert.ok(!sequentializer.hasPending(1));
+		assert.ok(!sequentializer.pending);
+
+		// pending removes itself after done (use async.timeout)
+		sequentializer.setPending(2, async.timeout(1));
+		assert.ok(sequentializer.hasPending());
+		assert.ok(sequentializer.hasPending(2));
+		assert.ok(!sequentializer.hasPending(1));
+		assert.ok(sequentializer.pending);
+
+		await async.timeout(2);
+		assert.ok(!sequentializer.hasPending());
+		assert.ok(!sequentializer.hasPending(2));
+		assert.ok(!sequentializer.pending);
+	});
+
+	test('TaskSequentializer - pending and next (finishes instantly)', async function () {
+		const sequentializer = new async.TaskSequentializer();
+
+		let pendingDone = false;
+		sequentializer.setPending(1, async.timeout(1).then(() => { pendingDone = true; return; }));
+
+		// next finishes instantly
+		let nextDone = false;
+		const res = sequentializer.setNext(() => Promise.resolve(null).then(() => { nextDone = true; return; }));
+
+		await res;
+		assert.ok(pendingDone);
+		assert.ok(nextDone);
+	});
+
+	test('TaskSequentializer - pending and next (finishes after timeout)', async function () {
+		const sequentializer = new async.TaskSequentializer();
+
+		let pendingDone = false;
+		sequentializer.setPending(1, async.timeout(1).then(() => { pendingDone = true; return; }));
+
+		// next finishes after async.timeout
+		let nextDone = false;
+		const res = sequentializer.setNext(() => async.timeout(1).then(() => { nextDone = true; return; }));
+
+		await res;
+		assert.ok(pendingDone);
+		assert.ok(nextDone);
+	});
+
+	test('TaskSequentializer - pending and multiple next (last one wins)', async function () {
+		const sequentializer = new async.TaskSequentializer();
+
+		let pendingDone = false;
+		sequentializer.setPending(1, async.timeout(1).then(() => { pendingDone = true; return; }));
+
+		// next finishes after async.timeout
+		let firstDone = false;
+		let firstRes = sequentializer.setNext(() => async.timeout(2).then(() => { firstDone = true; return; }));
+
+		let secondDone = false;
+		let secondRes = sequentializer.setNext(() => async.timeout(3).then(() => { secondDone = true; return; }));
+
+		let thirdDone = false;
+		let thirdRes = sequentializer.setNext(() => async.timeout(4).then(() => { thirdDone = true; return; }));
+
+		await Promise.all([firstRes, secondRes, thirdRes]);
+		assert.ok(pendingDone);
+		assert.ok(!firstDone);
+		assert.ok(!secondDone);
+		assert.ok(thirdDone);
+	});
+
+	test('TaskSequentializer - cancel pending', async function () {
+		const sequentializer = new async.TaskSequentializer();
+
+		let pendingCancelled = false;
+		sequentializer.setPending(1, async.timeout(1), () => pendingCancelled = true);
+		sequentializer.cancelPending();
+
+		assert.ok(pendingCancelled);
+	});
+
+	test('raceCancellation', async () => {
+		const cts = new CancellationTokenSource();
+
+		const now = Date.now();
+
+		const p = async.raceCancellation(async.timeout(100), cts.token);
+		cts.cancel();
+
+		await p;
+
+		assert.ok(Date.now() - now < 100);
+	});
+
+	test('raceTimeout', async () => {
+		const cts = new CancellationTokenSource();
+
+		// timeout wins
+		let now = Date.now();
+		let timedout = false;
+
+		const p1 = async.raceTimeout(async.timeout(100), 1, () => timedout = true);
+		cts.cancel();
+
+		await p1;
+
+		assert.ok(Date.now() - now < 100);
+		assert.equal(timedout, true);
+
+		// promise wins
+		now = Date.now();
+		timedout = false;
+
+		const p2 = async.raceTimeout(async.timeout(1), 100, () => timedout = true);
+		cts.cancel();
+
+		await p2;
+
+		assert.ok(Date.now() - now < 100);
+		assert.equal(timedout, false);
 	});
 });

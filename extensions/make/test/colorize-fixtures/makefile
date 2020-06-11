@@ -76,6 +76,7 @@ var:=123
 var!=echo val
 var:=val \
 notvar=butval
+var:=$(val:.c=.o)
 
 var-$(nested-var)=val
 

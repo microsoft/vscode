@@ -78,7 +78,9 @@ export interface LanguageConfiguration {
 	 *
 	 * @deprecated Will be replaced by a better API soon.
 	 */
-	__electricCharacterSupport?: IBracketElectricCharacterContribution;
+	__electricCharacterSupport?: {
+		docComment?: IDocComment;
+	};
 }
 
 /**
@@ -155,10 +157,6 @@ export interface OnEnterRule {
 	action: EnterAction;
 }
 
-export interface IBracketElectricCharacterContribution {
-	docComment?: IDocComment;
-}
-
 /**
  * Definition of documentation comments (e.g. Javadoc/JSdoc)
  */
@@ -233,6 +231,28 @@ export interface EnterAction {
 /**
  * @internal
  */
+export interface CompleteEnterAction {
+	/**
+	 * Describe what to do with the indentation.
+	 */
+	indentAction: IndentAction;
+	/**
+	 * Describes text to be appended after the new line and after the indentation.
+	 */
+	appendText: string;
+	/**
+	 * Describes the number of characters to remove from the new line's indentation.
+	 */
+	removeText: number;
+	/**
+	 * The line's indentation minus removeText
+	 */
+	indentation: string;
+}
+
+/**
+ * @internal
+ */
 export class StandardAutoClosingPairConditional {
 	_standardAutoClosingPairConditionalBrand: void;
 
@@ -249,7 +269,7 @@ export class StandardAutoClosingPairConditional {
 
 		if (Array.isArray(source.notIn)) {
 			for (let i = 0, len = source.notIn.length; i < len; i++) {
-				let notIn = source.notIn[i];
+				const notIn: string = source.notIn[i];
 				switch (notIn) {
 					case 'string':
 						this._standardTokenMask |= StandardTokenType.String;

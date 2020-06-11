@@ -5,39 +5,59 @@
 
 import { equals } from 'vs/base/common/arrays';
 import { UriComponents } from 'vs/base/common/uri';
+import { escapeCodicons } from 'vs/base/common/codicons';
 
 export interface IMarkdownString {
-	value: string;
-	isTrusted?: boolean;
+	readonly value: string;
+	readonly isTrusted?: boolean;
+	readonly supportThemeIcons?: boolean;
 	uris?: { [href: string]: UriComponents };
 }
 
 export class MarkdownString implements IMarkdownString {
+	private readonly _isTrusted: boolean;
+	private readonly _supportThemeIcons: boolean;
 
-	value: string;
-	isTrusted?: boolean;
+	constructor(
+		private _value: string = '',
+		isTrustedOrOptions: boolean | { isTrusted?: boolean, supportThemeIcons?: boolean } = false,
+	) {
+		if (typeof isTrustedOrOptions === 'boolean') {
+			this._isTrusted = isTrustedOrOptions;
+			this._supportThemeIcons = false;
+		}
+		else {
+			this._isTrusted = isTrustedOrOptions.isTrusted ?? false;
+			this._supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
+		}
 
-	constructor(value: string = '') {
-		this.value = value;
 	}
+
+	get value() { return this._value; }
+	get isTrusted() { return this._isTrusted; }
+	get supportThemeIcons() { return this._supportThemeIcons; }
 
 	appendText(value: string): MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this.value += value.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
+		this._value += (this._supportThemeIcons ? escapeCodicons(value) : value)
+			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
+			.replace('\n', '\n\n');
+
 		return this;
 	}
 
 	appendMarkdown(value: string): MarkdownString {
-		this.value += value;
+		this._value += value;
+
 		return this;
 	}
 
 	appendCodeblock(langId: string, code: string): MarkdownString {
-		this.value += '\n```';
-		this.value += langId;
-		this.value += '\n';
-		this.value += code;
-		this.value += '\n```\n';
+		this._value += '\n```';
+		this._value += langId;
+		this._value += '\n';
+		this._value += code;
+		this._value += '\n```\n';
 		return this;
 	}
 }
@@ -57,7 +77,8 @@ export function isMarkdownString(thing: any): thing is IMarkdownString {
 		return true;
 	} else if (thing && typeof thing === 'object') {
 		return typeof (<IMarkdownString>thing).value === 'string'
-			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || (<IMarkdownString>thing).isTrusted === undefined);
+			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || (<IMarkdownString>thing).isTrusted === undefined)
+			&& (typeof (<IMarkdownString>thing).supportThemeIcons === 'boolean' || (<IMarkdownString>thing).supportThemeIcons === undefined);
 	}
 	return false;
 }
@@ -82,7 +103,7 @@ function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
 	} else if (!a || !b) {
 		return false;
 	} else {
-		return a.value === b.value && a.isTrusted === b.isTrusted;
+		return a.value === b.value && a.isTrusted === b.isTrusted && a.supportThemeIcons === b.supportThemeIcons;
 	}
 }
 

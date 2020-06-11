@@ -4,43 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/issueReporter';
-import { shell, ipcRenderer, webFrame, clipboard } from 'electron';
-import { localize } from 'vs/nls';
-import { $ } from 'vs/base/browser/dom';
-import * as collections from 'vs/base/common/collections';
-import * as browser from 'vs/base/browser/browser';
-import { escape } from 'vs/base/common/strings';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
+import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import * as os from 'os';
-import { debounce } from 'vs/base/common/decorators';
-import * as platform from 'vs/base/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
-import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
-import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
-import { MainProcessService, IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
-import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
-import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
-import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
+import * as browser from 'vs/base/browser/browser';
+import { $, windowOpenNoOpener, addClass } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { withUndefinedAsNull } from 'vs/base/common/types';
-import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
+import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
+import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
+import * as collections from 'vs/base/common/collections';
+import { debounce } from 'vs/base/common/decorators';
+import { Disposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import { escape } from 'vs/base/common/strings';
+import { getDelayedChannel, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
+import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
+import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
+import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
+import { localize } from 'vs/nls';
+import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
+import { getLogLevel, ILogService } from 'vs/platform/log/common/log';
+import { FollowerLogService, LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import product from 'vs/platform/product/common/product';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { combinedAppender, LogAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
+import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -50,12 +49,15 @@ interface SearchResult {
 	state?: string;
 }
 
-export interface IssueReporterConfiguration extends IWindowConfiguration {
+export interface IssueReporterConfiguration extends INativeWindowConfiguration {
 	data: IssueReporterData;
 	features: IssueReporterFeatures;
 }
 
 export function startup(configuration: IssueReporterConfiguration) {
+	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
+	addClass(document.body, platformClass); // used by our fonts
+
 	document.body.innerHTML = BaseHtml();
 	const issueReporter = new IssueReporter(configuration);
 	issueReporter.render();
@@ -64,9 +66,10 @@ export function startup(configuration: IssueReporterConfiguration) {
 }
 
 export class IssueReporter extends Disposable {
-	private environmentService: IEnvironmentService;
-	private telemetryService: ITelemetryService;
-	private logService: ILogService;
+	private environmentService!: INativeEnvironmentService;
+	private electronService!: IElectronService;
+	private telemetryService!: ITelemetryService;
+	private logService!: ILogService;
 	private readonly issueReporterModel: IssueReporterModel;
 	private numberOfSearchResultsDisplayed = 0;
 	private receivedSystemInfo = false;
@@ -74,7 +77,7 @@ export class IssueReporter extends Disposable {
 	private shouldQueueSearch = false;
 	private hasBeenSubmitted = false;
 
-	private readonly previewButton: Button;
+	private readonly previewButton!: Button;
 
 	constructor(configuration: IssueReporterConfiguration) {
 		super();
@@ -82,20 +85,39 @@ export class IssueReporter extends Disposable {
 		this.initServices(configuration);
 
 		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
+
+		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
-				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
+				vscodeVersion: `${product.nameShort} ${product.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
 				os: `${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
 			},
 			extensionsDisabled: !!this.environmentService.disableExtensions,
-			fileOnExtension: configuration.data.extensionId ? true : undefined,
-			selectedExtension: configuration.data.extensionId ? configuration.data.enabledExtensions.filter(extension => extension.id === configuration.data.extensionId)[0] : undefined
+			fileOnExtension: configuration.data.extensionId ? !targetExtension?.isBuiltin : undefined,
+			selectedExtension: targetExtension,
 		});
 
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
 			this.previewButton = new Button(issueReporterElement);
+		}
+
+		const issueTitle = configuration.data.issueTitle;
+		if (issueTitle) {
+			const issueTitleElement = this.getElementById<HTMLInputElement>('issue-title');
+			if (issueTitleElement) {
+				issueTitleElement.value = issueTitle;
+			}
+		}
+
+		const issueBody = configuration.data.issueBody;
+		if (issueBody) {
+			const description = this.getElementById<HTMLTextAreaElement>('description');
+			if (description) {
+				description.value = issueBody;
+				this.issueReporterModel.update({ issueDescription: issueBody });
+			}
 		}
 
 		ipcRenderer.on('vscode:issuePerformanceInfoResponse', (_: unknown, info: Partial<IssueReporterData>) => {
@@ -186,8 +208,16 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputErrorBorder) {
-			content.push(`.invalid-input, .invalid-input:focus { border: 1px solid ${styles.inputErrorBorder} !important; }`);
-			content.push(`.validation-error, .required-input { color: ${styles.inputErrorBorder}; }`);
+			content.push(`.invalid-input, .invalid-input:focus, .validation-error { border: 1px solid ${styles.inputErrorBorder} !important; }`);
+			content.push(`.required-input { color: ${styles.inputErrorBorder}; }`);
+		}
+
+		if (styles.inputErrorBackground) {
+			content.push(`.validation-error { background: ${styles.inputErrorBackground}; }`);
+		}
+
+		if (styles.inputErrorForeground) {
+			content.push(`.validation-error { color: ${styles.inputErrorForeground}; }`);
 		}
 
 		if (styles.inputActiveBorder) {
@@ -227,28 +257,29 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.buttonHoverBackground) {
-			content.push(`.monaco-text-button:hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
+			content.push(`.monaco-text-button:not(.disabled):hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
 		}
 
 		styleTag.innerHTML = content.join('\n');
 		document.head.appendChild(styleTag);
-		document.body.style.color = withUndefinedAsNull(styles.color);
+		document.body.style.color = styles.color || '';
 	}
 
 	private handleExtensionData(extensions: IssueReporterExtensionData[]) {
-		const { nonThemes, themes } = collections.groupBy(extensions, ext => {
+		const installedExtensions = extensions.filter(x => !x.isBuiltin);
+		const { nonThemes, themes } = collections.groupBy(installedExtensions, ext => {
 			return ext.isTheme ? 'themes' : 'nonThemes';
 		});
 
 		const numberOfThemeExtesions = themes && themes.length;
-		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes, allExtensions: extensions });
+		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes, allExtensions: installedExtensions });
 		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
 
-		if (this.environmentService.disableExtensions || extensions.length === 0) {
+		if (this.environmentService.disableExtensions || installedExtensions.length === 0) {
 			(<HTMLButtonElement>this.getElementById('disableExtensions')).disabled = true;
 		}
 
-		this.updateExtensionSelector(extensions);
+		this.updateExtensionSelector(installedExtensions);
 	}
 
 	private handleSettingsSearchData(data: ISettingsSearchIssueReporterData): void {
@@ -292,28 +323,32 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
-	private initServices(configuration: IWindowConfiguration): void {
+	private initServices(configuration: INativeWindowConfiguration): void {
 		const serviceCollection = new ServiceCollection();
 		const mainProcessService = new MainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
-		serviceCollection.set(IWindowsService, new WindowsService(mainProcessService));
+		this.electronService = new ElectronService(configuration.windowId, mainProcessService) as IElectronService;
+		serviceCollection.set(IElectronService, this.electronService);
+
 		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
 
 		const logService = new SpdLogService(`issuereporter${configuration.windowId}`, this.environmentService.logsPath, getLogLevel(this.environmentService));
-		const logLevelClient = new LogLevelSetterChannelClient(mainProcessService.getChannel('loglevel'));
-		this.logService = new FollowerLogService(logLevelClient, logService);
+		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));
+		this.logService = new FollowerLogService(loggerClient, logService);
 
-		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
+		const sharedProcessService = createChannelSender<ISharedProcessService>(mainProcessService.getChannel('sharedProcess'));
+
+		const sharedProcess = sharedProcessService.whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${configuration.windowId}`));
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService));
-			const commonProperties = resolveCommonProperties(product.commit || 'Commit unknown', pkg.version, configuration.machineId, this.environmentService.installSourcePath);
-			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
-			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
+			const commonProperties = resolveCommonProperties(product.commit || 'Commit unknown', product.version, configuration.machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
+			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
+			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, sendErrorTelemetry: true };
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
 			this._register(telemetryService);
@@ -345,8 +380,8 @@ export class IssueReporter extends Disposable {
 
 		const showInfoElements = document.getElementsByClassName('showInfo');
 		for (let i = 0; i < showInfoElements.length; i++) {
-			const showInfo = showInfoElements.item(i);
-			showInfo!.addEventListener('click', (e: MouseEvent) => {
+			const showInfo = showInfoElements.item(i)!;
+			(showInfo as HTMLAnchorElement).addEventListener('click', (e: MouseEvent) => {
 				e.preventDefault();
 				const label = (<HTMLDivElement>e.target);
 				if (label) {
@@ -432,9 +467,14 @@ export class IssueReporter extends Disposable {
 			sendWorkbenchCommand('workbench.action.reloadWindowWithExtensionsDisabled');
 		});
 
-		this.addEventListener('disableExtensions', 'keydown', (e: KeyboardEvent) => {
+		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
+			const url = (<HTMLElement>e.target).innerText;
+			windowOpenNoOpener(url);
+		});
+
+		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
 			e.stopPropagation();
-			if (e.keyCode === 13 || e.keyCode === 32) {
+			if ((e as KeyboardEvent).keyCode === 13 || (e as KeyboardEvent).keyCode === 32) {
 				sendWorkbenchCommand('workbench.extensions.action.disableAll');
 				sendWorkbenchCommand('workbench.action.reloadWindow');
 			}
@@ -647,8 +687,8 @@ export class IssueReporter extends Disposable {
 					issueState = $('span.issue-state');
 
 					const issueIcon = $('span.issue-icon');
-					const octicon = new OcticonLabel(issueIcon);
-					octicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
+					const codicon = new CodiconLabel(issueIcon);
+					codicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
 
 					const issueStateLabel = $('span.issue-state.label');
 					issueStateLabel.textContent = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");
@@ -683,7 +723,7 @@ export class IssueReporter extends Disposable {
 		type IssueReporterSearchError = {
 			message: string;
 		};
-		this.telemetryService.publicLog2<IssueReporterSearchError, IssueReporterSearchErrorClassification>('issueReporterSearchError', { message: error.message });
+		this.telemetryService.publicLogError2<IssueReporterSearchError, IssueReporterSearchErrorClassification>('issueReporterSearchError', { message: error.message });
 	}
 
 	private setUpTypes(): void {
@@ -718,10 +758,14 @@ export class IssueReporter extends Disposable {
 
 	private setSourceOptions(): void {
 		const sourceSelect = this.getElementById('issue-source')! as HTMLSelectElement;
-		const { issueType, fileOnExtension } = this.issueReporterModel.getData();
+		const { issueType, fileOnExtension, selectedExtension } = this.issueReporterModel.getData();
 		let selected = sourceSelect.selectedIndex;
-		if (selected === -1 && fileOnExtension !== undefined) {
-			selected = fileOnExtension ? 2 : 1;
+		if (selected === -1) {
+			if (fileOnExtension !== undefined) {
+				selected = fileOnExtension ? 2 : 1;
+			} else if (selectedExtension?.isBuiltin) {
+				selected = 1;
+			}
 		}
 
 		sourceSelect.innerHTML = '';
@@ -904,9 +948,9 @@ export class IssueReporter extends Disposable {
 
 	private async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
 		return new Promise((resolve, reject) => {
-			ipcRenderer.once('vscode:issueReporterClipboardResponse', (_: unknown, shouldWrite: boolean) => {
+			ipcRenderer.once('vscode:issueReporterClipboardResponse', async (event: unknown, shouldWrite: boolean) => {
 				if (shouldWrite) {
-					clipboard.writeText(issueBody);
+					await this.electronService.writeClipboardText(issueBody);
 					resolve(baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`);
 				} else {
 					reject();
@@ -940,7 +984,7 @@ export class IssueReporter extends Disposable {
 			}
 		}
 
-		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
+		const queryStringPrefix = product.reportIssueUrl && product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
 		return `${repositoryUrl}${queryStringPrefix}title=${encodeURIComponent(issueTitle)}`;
 	}
 
@@ -1028,15 +1072,63 @@ export class IssueReporter extends Disposable {
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
 				if (matches.length) {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
+					this.validateSelectedExtension();
 
 					const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
 					this.searchExtensionIssues(title);
 				} else {
 					this.issueReporterModel.update({ selectedExtension: undefined });
 					this.clearSearchResults();
+					this.validateSelectedExtension();
 				}
 			});
 		}
+
+		this.addEventListener('problem-source', 'change', (_) => {
+			this.validateSelectedExtension();
+		});
+	}
+
+	private validateSelectedExtension(): void {
+		const extensionValidationMessage = this.getElementById('extension-selection-validation-error')!;
+		const extensionValidationNoUrlsMessage = this.getElementById('extension-selection-validation-error-no-url')!;
+		hide(extensionValidationMessage);
+		hide(extensionValidationNoUrlsMessage);
+
+		if (!this.issueReporterModel.getData().selectedExtension) {
+			this.previewButton.enabled = true;
+			return;
+		}
+
+		const hasValidGitHubUrl = this.getExtensionGitHubUrl();
+		if (hasValidGitHubUrl) {
+			this.previewButton.enabled = true;
+		} else {
+			this.setExtensionValidationMessage();
+			this.previewButton.enabled = false;
+		}
+	}
+
+	private setExtensionValidationMessage(): void {
+		const extensionValidationMessage = this.getElementById('extension-selection-validation-error')!;
+		const extensionValidationNoUrlsMessage = this.getElementById('extension-selection-validation-error-no-url')!;
+		const bugsUrl = this.getExtensionBugsUrl();
+		if (bugsUrl) {
+			show(extensionValidationMessage);
+			const link = this.getElementById('extensionBugsLink')!;
+			link.textContent = bugsUrl;
+			return;
+		}
+
+		const extensionUrl = this.getExtensionRepositoryUrl();
+		if (extensionUrl) {
+			show(extensionValidationMessage);
+			const link = this.getElementById('extensionBugsLink');
+			link!.textContent = extensionUrl;
+			return;
+		}
+
+		show(extensionValidationNoUrlsMessage);
 	}
 
 	private updateProcessInfo(state: IssueReporterModelData) {
@@ -1109,26 +1201,16 @@ export class IssueReporter extends Disposable {
 		event.stopPropagation();
 		// Exclude right click
 		if (event.which < 3) {
-			shell.openExternal((<HTMLAnchorElement>event.target).href);
+			windowOpenNoOpener((<HTMLAnchorElement>event.target).href);
 			this.telemetryService.publicLog2('issueReporterViewSimilarIssue');
 		}
 	}
 
-	private getElementById(elementId: string): HTMLElement | undefined {
-		const element = document.getElementById(elementId);
+	private getElementById<T extends HTMLElement = HTMLElement>(elementId: string): T | undefined {
+		const element = document.getElementById(elementId) as T | undefined;
 		if (element) {
 			return element;
 		} else {
-			const error = new Error(`${elementId} not found.`);
-			this.logService.error(error);
-			type IssueReporterGetElementErrorClassification = {
-				message: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
-			};
-			type IssueReporterGetElementErrorEvent = {
-				message: string;
-			};
-			this.telemetryService.publicLog2<IssueReporterGetElementErrorEvent, IssueReporterGetElementErrorClassification>('issueReporterGetElementError', { message: error.message });
-
 			return undefined;
 		}
 	}

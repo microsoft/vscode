@@ -9,6 +9,7 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/plat
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
+import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
 let textMateScopes = [
 	'comment',
@@ -115,10 +116,23 @@ let textMateScopes = [
 
 export const textmateColorsSchemaId = 'vscode://schemas/textmate-colors';
 export const textmateColorSettingsSchemaId = `${textmateColorsSchemaId}#definitions/settings`;
+export const textmateColorGroupSchemaId = `${textmateColorsSchemaId}#definitions/colorGroup`;
 
 const textmateColorSchema: IJSONSchema = {
 	type: 'array',
 	definitions: {
+		colorGroup: {
+			default: '#FF0000',
+			anyOf: [
+				{
+					type: 'string',
+					format: 'color-hex'
+				},
+				{
+					$ref: '#definitions/settings'
+				}
+			]
+		},
 		settings: {
 			type: 'object',
 			description: nls.localize('schema.token.settings', 'Colors and styles for the token.'),
@@ -192,6 +206,7 @@ export const colorThemeSchemaId = 'vscode://schemas/color-theme';
 const colorThemeSchema: IJSONSchema = {
 	type: 'object',
 	allowComments: true,
+	allowTrailingCommas: true,
 	properties: {
 		colors: {
 			description: nls.localize('schema.workbenchColors', 'Colors in the workbench'),
@@ -208,6 +223,15 @@ const colorThemeSchema: IJSONSchema = {
 				$ref: textmateColorsSchemaId
 			}
 			]
+		},
+		semanticHighlighting: {
+			type: 'boolean',
+			description: nls.localize('schema.supportsSemanticHighlighting', 'Whether semantic highlighting should be enabled for this theme.')
+		},
+		semanticTokenColors: {
+			type: 'object',
+			description: nls.localize('schema.semanticTokenColors', 'Colors for semantic tokens'),
+			$ref: tokenStylingSchemaId
 		}
 	}
 };

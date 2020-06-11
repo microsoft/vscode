@@ -127,6 +127,32 @@ export class Range {
 	}
 
 	/**
+	 * Test if `range` is strictly in this range. `range` must start after and end before this range for the result to be true.
+	 */
+	public strictContainsRange(range: IRange): boolean {
+		return Range.strictContainsRange(this, range);
+	}
+
+	/**
+	 * Test if `otherRange` is strinctly in `range` (must start after, and end before). If the ranges are equal, will return false.
+	 */
+	public static strictContainsRange(range: IRange, otherRange: IRange): boolean {
+		if (otherRange.startLineNumber < range.startLineNumber || otherRange.endLineNumber < range.startLineNumber) {
+			return false;
+		}
+		if (otherRange.startLineNumber > range.endLineNumber || otherRange.endLineNumber > range.endLineNumber) {
+			return false;
+		}
+		if (otherRange.startLineNumber === range.startLineNumber && otherRange.startColumn <= range.startColumn) {
+			return false;
+		}
+		if (otherRange.endLineNumber === range.endLineNumber && otherRange.endColumn >= range.endColumn) {
+			return false;
+		}
+		return true;
+	}
+
+	/**
 	 * A reunion of the two ranges.
 	 * The smallest position will be used as the start point, and the largest one as the end point.
 	 */
@@ -238,14 +264,28 @@ export class Range {
 	 * Return the end position (which will be after or equal to the start position)
 	 */
 	public getEndPosition(): Position {
-		return new Position(this.endLineNumber, this.endColumn);
+		return Range.getEndPosition(this);
+	}
+
+	/**
+	 * Return the end position (which will be after or equal to the start position)
+	 */
+	public static getEndPosition(range: IRange): Position {
+		return new Position(range.endLineNumber, range.endColumn);
 	}
 
 	/**
 	 * Return the start position (which will be before or equal to the end position)
 	 */
 	public getStartPosition(): Position {
-		return new Position(this.startLineNumber, this.startColumn);
+		return Range.getStartPosition(this);
+	}
+
+	/**
+	 * Return the start position (which will be before or equal to the end position)
+	 */
+	public static getStartPosition(range: IRange): Position {
+		return new Position(range.startLineNumber, range.startColumn);
 	}
 
 	/**

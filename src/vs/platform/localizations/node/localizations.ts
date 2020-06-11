@@ -8,11 +8,12 @@ import { createHash } from 'crypto';
 import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { Queue } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isValidLocalization, ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { distinct, equals } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
@@ -34,7 +35,7 @@ if (product.quality !== 'stable') {
 
 export class LocalizationsService extends Disposable implements ILocalizationsService {
 
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly cache: LanguagePacksCache;
 
@@ -43,7 +44,7 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: INativeEnvironmentService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -93,10 +94,10 @@ class LanguagePacksCache extends Disposable {
 	private languagePacks: { [language: string]: ILanguagePack } = {};
 	private languagePacksFilePath: string;
 	private languagePacksFileLimiter: Queue<any>;
-	private initializedCache: boolean;
+	private initializedCache: boolean | undefined;
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: INativeEnvironmentService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();

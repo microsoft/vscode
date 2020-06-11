@@ -3,88 +3,67 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, window, InputBoxOptions } from 'vscode';
-import { denodeify } from './util';
+import { window, InputBoxOptions, Uri, OutputChannel, Disposable, workspace } from 'vscode';
+import { IDisposable, EmptyDisposable, toDisposable } from './util';
 import * as path from 'path';
-import * as http from 'http';
-import * as os from 'os';
-import * as fs from 'fs';
-import * as crypto from 'crypto';
+import { IIPCHandler, IIPCServer, createIPCServer } from './ipc/ipcServer';
+import { CredentialsProvider, Credentials } from './api/git';
 
-const randomBytes = denodeify<Buffer>(crypto.randomBytes);
+export class Askpass implements IIPCHandler {
 
-export interface AskpassEnvironment {
-	GIT_ASKPASS: string;
-	ELECTRON_RUN_AS_NODE?: string;
-	VSCODE_GIT_ASKPASS_NODE?: string;
-	VSCODE_GIT_ASKPASS_MAIN?: string;
-	VSCODE_GIT_ASKPASS_HANDLE?: string;
-}
+	private disposable: IDisposable = EmptyDisposable;
+	private cache = new Map<string, Credentials>();
+	private credentialsProviders = new Set<CredentialsProvider>();
 
-function getIPCHandlePath(nonce: string): string {
-	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\vscode-git-askpass-${nonce}-sock`;
-	}
-
-	if (process.env['XDG_RUNTIME_DIR']) {
-		return path.join(process.env['XDG_RUNTIME_DIR'] as string, `vscode-git-askpass-${nonce}.sock`);
-	}
-
-	return path.join(os.tmpdir(), `vscode-git-askpass-${nonce}.sock`);
-}
-
-export class Askpass implements Disposable {
-
-	private server: http.Server;
-	private ipcHandlePathPromise: Promise<string>;
-	private ipcHandlePath: string | undefined;
-	private enabled = true;
-
-	constructor() {
-		this.server = http.createServer((req, res) => this.onRequest(req, res));
-		this.ipcHandlePathPromise = this.setup().catch(err => {
-			console.error(err);
-			return '';
-		});
-	}
-
-	private async setup(): Promise<string> {
-		const buffer = await randomBytes(20);
-		const nonce = buffer.toString('hex');
-		const ipcHandlePath = getIPCHandlePath(nonce);
-		this.ipcHandlePath = ipcHandlePath;
-
+	static async create(outputChannel: OutputChannel, context?: string): Promise<Askpass> {
 		try {
-			this.server.listen(ipcHandlePath);
-			this.server.on('error', err => console.error(err));
+			return new Askpass(await createIPCServer(context));
 		} catch (err) {
-			console.error('Could not launch git askpass helper.');
-			this.enabled = false;
+			outputChannel.appendLine(`[error] Failed to create git askpass IPC: ${err}`);
+			return new Askpass();
+		}
+	}
+
+	private constructor(private ipc?: IIPCServer) {
+		if (ipc) {
+			this.disposable = ipc.registerHandler('askpass', this);
+		}
+	}
+
+	async handle({ request, host }: { request: string, host: string }): Promise<string> {
+		const config = workspace.getConfiguration('git', null);
+		const enabled = config.get<boolean>('enabled');
+
+		if (!enabled) {
+			return '';
 		}
 
-		return ipcHandlePath;
-	}
+		const uri = Uri.parse(host);
+		const authority = uri.authority.replace(/^.*@/, '');
+		const password = /password/i.test(request);
+		const cached = this.cache.get(authority);
 
-	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
-		const chunks: string[] = [];
-		req.setEncoding('utf8');
-		req.on('data', (d: string) => chunks.push(d));
-		req.on('end', () => {
-			const { request, host } = JSON.parse(chunks.join(''));
+		if (cached && password) {
+			this.cache.delete(authority);
+			return cached.password;
+		}
 
-			this.prompt(host, request).then(result => {
-				res.writeHead(200);
-				res.end(JSON.stringify(result));
-			}, () => {
-				res.writeHead(500);
-				res.end();
-			});
-		});
-	}
+		if (!password) {
+			for (const credentialsProvider of this.credentialsProviders) {
+				try {
+					const credentials = await credentialsProvider.getCredentials(uri);
 
-	private async prompt(host: string, request: string): Promise<string> {
+					if (credentials) {
+						this.cache.set(authority, credentials);
+						setTimeout(() => this.cache.delete(authority), 60_000);
+						return credentials.username;
+					}
+				} catch { }
+			}
+		}
+
 		const options: InputBoxOptions = {
-			password: /password/i.test(request),
+			password,
 			placeHolder: request,
 			prompt: `Git: ${host}`,
 			ignoreFocusOut: true
@@ -93,27 +72,27 @@ export class Askpass implements Disposable {
 		return await window.showInputBox(options) || '';
 	}
 
-	async getEnv(): Promise<AskpassEnvironment> {
-		if (!this.enabled) {
+	getEnv(): { [key: string]: string; } {
+		if (!this.ipc) {
 			return {
 				GIT_ASKPASS: path.join(__dirname, 'askpass-empty.sh')
 			};
 		}
 
 		return {
-			ELECTRON_RUN_AS_NODE: '1',
+			...this.ipc.getEnv(),
 			GIT_ASKPASS: path.join(__dirname, 'askpass.sh'),
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
-			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js'),
-			VSCODE_GIT_ASKPASS_HANDLE: await this.ipcHandlePathPromise
+			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js')
 		};
 	}
 
-	dispose(): void {
-		this.server.close();
+	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
+		this.credentialsProviders.add(provider);
+		return toDisposable(() => this.credentialsProviders.delete(provider));
+	}
 
-		if (this.ipcHandlePath && process.platform !== 'win32') {
-			fs.unlinkSync(this.ipcHandlePath);
-		}
+	dispose(): void {
+		this.disposable.dispose();
 	}
 }

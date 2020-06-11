@@ -24,7 +24,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 
 class InPlaceReplaceController implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.inPlaceReplaceController';
+	public static readonly ID = 'editor.contrib.inPlaceReplaceController';
 
 	static get(editor: ICodeEditor): InPlaceReplaceController {
 		return editor.getContribution<InPlaceReplaceController>(InPlaceReplaceController.ID);
@@ -37,8 +37,8 @@ class InPlaceReplaceController implements IEditorContribution {
 	private readonly editor: ICodeEditor;
 	private readonly editorWorkerService: IEditorWorkerService;
 	private decorationIds: string[] = [];
-	private currentRequest: CancelablePromise<IInplaceReplaceSupportResult | null>;
-	private decorationRemover: CancelablePromise<void>;
+	private currentRequest?: CancelablePromise<IInplaceReplaceSupportResult | null>;
+	private decorationRemover?: CancelablePromise<void>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -49,10 +49,6 @@ class InPlaceReplaceController implements IEditorContribution {
 	}
 
 	public dispose(): void {
-	}
-
-	public getId(): string {
-		return InPlaceReplaceController.ID;
 	}
 
 	public run(source: string, up: boolean): Promise<void> | undefined {
@@ -183,7 +179,7 @@ class InPlaceReplaceDown extends EditorAction {
 	}
 }
 
-registerEditorContribution(InPlaceReplaceController);
+registerEditorContribution(InPlaceReplaceController.ID, InPlaceReplaceController);
 registerEditorAction(InPlaceReplaceUp);
 registerEditorAction(InPlaceReplaceDown);
 

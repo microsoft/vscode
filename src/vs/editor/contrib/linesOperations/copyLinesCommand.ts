@@ -5,25 +5,29 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 
-export class CopyLinesCommand implements editorCommon.ICommand {
+export class CopyLinesCommand implements ICommand {
 
 	private readonly _selection: Selection;
 	private readonly _isCopyingDown: boolean;
 
 	private _selectionDirection: SelectionDirection;
-	private _selectionId: string;
+	private _selectionId: string | null;
 	private _startLineNumberDelta: number;
 	private _endLineNumberDelta: number;
 
 	constructor(selection: Selection, isCopyingDown: boolean) {
 		this._selection = selection;
 		this._isCopyingDown = isCopyingDown;
+		this._selectionDirection = SelectionDirection.LTR;
+		this._selectionId = null;
+		this._startLineNumberDelta = 0;
+		this._endLineNumberDelta = 0;
 	}
 
-	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		let s = this._selection;
 
 		this._startLineNumberDelta = 0;
@@ -57,8 +61,8 @@ export class CopyLinesCommand implements editorCommon.ICommand {
 		this._selectionDirection = this._selection.getDirection();
 	}
 
-	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		let result = helper.getTrackedSelection(this._selectionId);
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		let result = helper.getTrackedSelection(this._selectionId!);
 
 		if (this._startLineNumberDelta !== 0 || this._endLineNumberDelta !== 0) {
 			let startLineNumber = result.startLineNumber;

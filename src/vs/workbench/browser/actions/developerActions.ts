@@ -3,39 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/actions';
+
 import { Action } from 'vs/base/common/actions';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { domEvent } from 'vs/base/browser/event';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { timeout } from 'vs/base/common/async';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { clamp } from 'vs/base/common/numbers';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
-export class InspectContextKeysAction extends Action {
+class InspectContextKeysAction extends Action {
 
 	static readonly ID = 'workbench.action.inspectContextKeys';
-	static LABEL = nls.localize('inspect context keys', "Inspect Context Keys");
+	static readonly LABEL = nls.localize('inspect context keys', "Inspect Context Keys");
 
 	constructor(
 		id: string,
 		label: string,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	async run(): Promise<void> {
 		const disposables = new DisposableStore();
 
 		const stylesheet = createStyleSheet();
@@ -76,19 +82,16 @@ export class InspectContextKeysAction extends Action {
 
 			const context = this.contextKeyService.getContext(e.target as HTMLElement) as Context;
 			console.log(context.collectAllValues());
-			this.windowService.openDevTools();
 
 			dispose(disposables);
 		}, null, disposables);
-
-		return Promise.resolve();
 	}
 }
 
-export class ToggleScreencastModeAction extends Action {
+class ToggleScreencastModeAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleScreencastMode';
-	static LABEL = nls.localize('toggle screencast mode', "Toggle Screencast Mode");
+	static readonly LABEL = nls.localize('toggle screencast mode', "Toggle Screencast Mode");
 
 	static disposable: IDisposable | undefined;
 
@@ -96,7 +99,8 @@ export class ToggleScreencastModeAction extends Action {
 		id: string,
 		label: string,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@ILayoutService private readonly layoutService: ILayoutService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
@@ -108,26 +112,17 @@ export class ToggleScreencastModeAction extends Action {
 			return;
 		}
 
-		const container = this.layoutService.getWorkbenchElement();
+		const disposables = new DisposableStore();
 
-		const mouseMarker = append(container, $('div'));
-		mouseMarker.style.position = 'absolute';
-		mouseMarker.style.border = '2px solid red';
-		mouseMarker.style.borderRadius = '20px';
-		mouseMarker.style.width = '20px';
-		mouseMarker.style.height = '20px';
-		mouseMarker.style.top = '0';
-		mouseMarker.style.left = '0';
-		mouseMarker.style.zIndex = '100000';
-		mouseMarker.style.content = ' ';
-		mouseMarker.style.pointerEvents = 'none';
-		mouseMarker.style.display = 'none';
+		const container = this.layoutService.container;
+		const mouseMarker = append(container, $('.screencast-mouse'));
+		disposables.add(toDisposable(() => mouseMarker.remove()));
 
 		const onMouseDown = domEvent(container, 'mousedown', true);
 		const onMouseUp = domEvent(container, 'mouseup', true);
 		const onMouseMove = domEvent(container, 'mousemove', true);
 
-		const mouseListener = onMouseDown(e => {
+		disposables.add(onMouseDown(e => {
 			mouseMarker.style.top = `${e.clientY - 10}px`;
 			mouseMarker.style.left = `${e.clientX - 10}px`;
 			mouseMarker.style.display = 'block';
@@ -141,82 +136,152 @@ export class ToggleScreencastModeAction extends Action {
 				mouseMarker.style.display = 'none';
 				mouseMoveListener.dispose();
 			});
-		});
+		}));
 
-		const keyboardMarker = append(container, $('div'));
-		keyboardMarker.style.position = 'absolute';
-		keyboardMarker.style.backgroundColor = 'rgba(0, 0, 0 ,0.5)';
-		keyboardMarker.style.width = '100%';
-		keyboardMarker.style.height = '100px';
-		keyboardMarker.style.bottom = '20%';
-		keyboardMarker.style.left = '0';
-		keyboardMarker.style.zIndex = '100000';
-		keyboardMarker.style.pointerEvents = 'none';
-		keyboardMarker.style.color = 'white';
-		keyboardMarker.style.lineHeight = '100px';
-		keyboardMarker.style.textAlign = 'center';
-		keyboardMarker.style.fontSize = '56px';
-		keyboardMarker.style.display = 'none';
+		const keyboardMarker = append(container, $('.screencast-keyboard'));
+		disposables.add(toDisposable(() => keyboardMarker.remove()));
 
-		const onKeyDown = domEvent(container, 'keydown', true);
+		const updateKeyboardFontSize = () => {
+			keyboardMarker.style.fontSize = `${clamp(this.configurationService.getValue<number>('screencastMode.fontSize') || 56, 20, 100)}px`;
+		};
+
+		const updateKeyboardMarker = () => {
+			keyboardMarker.style.bottom = `${clamp(this.configurationService.getValue<number>('screencastMode.verticalOffset') || 0, 0, 90)}%`;
+		};
+
+		updateKeyboardFontSize();
+		updateKeyboardMarker();
+
+		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('screencastMode.verticalOffset')) {
+				updateKeyboardMarker();
+			}
+
+			if (e.affectsConfiguration('screencastMode.fontSize')) {
+				updateKeyboardFontSize();
+			}
+		}));
+
+		const onKeyDown = domEvent(window, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
+		let length = 0;
 
-		const keyboardListener = onKeyDown(e => {
+		disposables.add(onKeyDown(e => {
 			keyboardTimeout.dispose();
 
 			const event = new StandardKeyboardEvent(e);
-			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
-			const label = keybinding.getLabel();
+			const shortcut = this.keybindingService.softDispatch(event, event.target);
 
-			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
-				keyboardMarker.textContent += ' ' + label;
-			} else {
-				keyboardMarker.textContent = label;
+			if (shortcut || !this.configurationService.getValue<boolean>('screencastMode.onlyKeyboardShortcuts')) {
+				if (
+					event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
+					|| length > 20
+					|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
+				) {
+					keyboardMarker.innerHTML = '';
+					length = 0;
+				}
+
+				const keybinding = this.keybindingService.resolveKeyboardEvent(event);
+				const label = keybinding.getLabel();
+				const key = $('span.key', {}, label || '');
+				length++;
+				append(keyboardMarker, key);
 			}
-
-			keyboardMarker.style.display = 'block';
 
 			const promise = timeout(800);
 			keyboardTimeout = toDisposable(() => promise.cancel());
 
 			promise.then(() => {
 				keyboardMarker.textContent = '';
-				keyboardMarker.style.display = 'none';
+				length = 0;
 			});
-		});
+		}));
 
-		ToggleScreencastModeAction.disposable = toDisposable(() => {
-			mouseListener.dispose();
-			keyboardListener.dispose();
-			mouseMarker.remove();
-			keyboardMarker.remove();
-		});
+		ToggleScreencastModeAction.disposable = disposables;
 	}
 }
 
-export class LogStorageAction extends Action {
+class LogStorageAction extends Action {
 
 	static readonly ID = 'workbench.action.logStorage';
-	static LABEL = nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents");
+	static readonly LABEL = nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents");
 
 	constructor(
 		id: string,
 		label: string,
-		@IStorageService private readonly storageService: IStorageService,
-		@IWindowService private readonly windowService: IWindowService
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	async run(): Promise<void> {
 		this.storageService.logStorage();
-
-		return this.windowService.openDevTools();
 	}
 }
 
+class LogWorkingCopiesAction extends Action {
+
+	static readonly ID = 'workbench.action.logWorkingCopies';
+	static readonly LABEL = nls.localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies");
+
+	constructor(
+		id: string,
+		label: string,
+		@ILogService private logService: ILogService,
+		@IWorkingCopyService private workingCopyService: IWorkingCopyService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const msg = [
+			`Dirty Working Copies:`,
+			...this.workingCopyService.dirtyWorkingCopies.map(workingCopy => workingCopy.resource.toString(true)),
+			``,
+			`All Working Copies:`,
+			...this.workingCopyService.workingCopies.map(workingCopy => workingCopy.resource.toString(true)),
+		];
+
+		this.logService.info(msg.join('\n'));
+	}
+}
+
+// --- Actions Registration
+
 const developerCategory = nls.localize('developer', "Developer");
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(InspectContextKeysAction, InspectContextKeysAction.ID, InspectContextKeysAction.LABEL), 'Developer: Inspect Context Keys', developerCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleScreencastModeAction, ToggleScreencastModeAction.ID, ToggleScreencastModeAction.LABEL), 'Developer: Toggle Screencast Mode', developerCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage Database Contents', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(InspectContextKeysAction), 'Developer: Inspect Context Keys', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleScreencastModeAction), 'Developer: Toggle Screencast Mode', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(LogStorageAction), 'Developer: Log Storage Database Contents', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(LogWorkingCopiesAction), 'Developer: Log Working Copies', developerCategory);
+
+// Screencast Mode
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	id: 'screencastMode',
+	order: 9,
+	title: nls.localize('screencastModeConfigurationTitle', "Screencast Mode"),
+	type: 'object',
+	properties: {
+		'screencastMode.verticalOffset': {
+			type: 'number',
+			default: 20,
+			minimum: 0,
+			maximum: 90,
+			description: nls.localize('screencastMode.location.verticalPosition', "Controls the vertical offset of the screencast mode overlay from the bottom as a percentage of the workbench height.")
+		},
+		'screencastMode.fontSize': {
+			type: 'number',
+			default: 56,
+			minimum: 20,
+			maximum: 100,
+			description: nls.localize('screencastMode.fontSize', "Controls the font size (in pixels) of the screencast mode keyboard.")
+		},
+		'screencastMode.onlyKeyboardShortcuts': {
+			type: 'boolean',
+			description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in Screencast Mode."),
+			default: false
+		}
+	}
+});

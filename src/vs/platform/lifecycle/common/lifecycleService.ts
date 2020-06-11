@@ -3,34 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Barrier } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILifecycleService, BeforeShutdownEvent, WillShutdownEvent, StartupKind, LifecyclePhase, LifecyclePhaseToString } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { mark } from 'vs/base/common/performance';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export abstract class AbstractLifecycleService extends Disposable implements ILifecycleService {
 
-	_serviceBrand: ServiceIdentifier<ILifecycleService>;
+	declare readonly _serviceBrand: undefined;
 
 	protected readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
-	readonly onBeforeShutdown: Event<BeforeShutdownEvent> = this._onBeforeShutdown.event;
+	readonly onBeforeShutdown = this._onBeforeShutdown.event;
 
 	protected readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
-	readonly onWillShutdown: Event<WillShutdownEvent> = this._onWillShutdown.event;
+	readonly onWillShutdown = this._onWillShutdown.event;
 
 	protected readonly _onShutdown = this._register(new Emitter<void>());
-	readonly onShutdown: Event<void> = this._onShutdown.event;
+	readonly onShutdown = this._onShutdown.event;
 
-	protected _startupKind: StartupKind;
+	protected _startupKind: StartupKind = StartupKind.NewWindow;
 	get startupKind(): StartupKind { return this._startupKind; }
 
 	private _phase: LifecyclePhase = LifecyclePhase.Starting;
 	get phase(): LifecyclePhase { return this._phase; }
 
-	private phaseWhen = new Map<LifecyclePhase, Barrier>();
+	private readonly phaseWhen = new Map<LifecyclePhase, Barrier>();
 
 	constructor(
 		@ILogService protected readonly logService: ILogService

@@ -7,15 +7,45 @@
 	width: 100%;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key {
 	margin-right: 3px;
 	margin-left: 2px;
 }
 
+/* Deal with overflow */
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-connector,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
+	white-space: pre;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value {
+	max-width: 90%;
+}
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
+	max-width: 10%;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
+	max-width: 50%;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-connector,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
 	display: inline-block;
-	line-height: 22px;
+	line-height: 24px;
+}
+
+/* Use monospace to display glob patterns in exclude widget */
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-value,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-sibling {
 	font-family: var(--monaco-monospace-font);
 }
 
@@ -30,11 +60,12 @@
 	display: none;
 	position: absolute;
 	right: 0px;
-	margin-top: 1px;
+	top: 0px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row {
 	position: relative;
+	max-height: 24px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row:focus {
@@ -48,29 +79,16 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .action-label {
 	width: 16px;
-	height: 16px;
+	height: 20px;
 	padding: 2px;
 	margin-right: 2px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .setting-listAction-edit {
 	margin-right: 4px;
-}
-
-.vs .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .setting-listAction-edit {
-	background: url("edit-light.svg") center center no-repeat;
-}
-
-.vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .setting-listAction-edit {
-	background: url("edit-dark.svg") center center no-repeat;
-}
-
-.vs .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .setting-listAction-remove {
-	background: url("remove-light.svg") center center no-repeat;
-}
-
-.vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .setting-listAction-remove {
-	background: url("remove-dark.svg") center center no-repeat;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .monaco-text-button {
@@ -83,6 +101,8 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .monaco-text-button.setting-list-addButton {
+	display: inline-block;
+	margin-top: 4px;
 	margin-right: 10px;
 }
 
@@ -91,8 +111,9 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-siblingInput {
-	height: 22px;
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-siblingInput,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input {
+	height: 24px;
 	max-width: 320px;
 	flex: 1;
 	margin-right: 10px;
@@ -102,6 +123,14 @@
 	margin-right: 10px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget {
 	margin-bottom: 1px;
+	padding: 1px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input select {
+	width: 100%;
+	height: 24px;
 }

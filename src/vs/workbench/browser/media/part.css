@@ -3,12 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .part {
-	position: absolute; /* only position absolute when grid is not used (TODO@sbatten TODO@ben remove eventually) */
-}
-
 .monaco-workbench .part {
 	box-sizing:	border-box;
+	overflow: hidden;
+}
+
+.monaco-workbench .part > .drop-block-overlay.visible {
+	visibility: visible;
+}
+
+.monaco-workbench .part > .drop-block-overlay {
+	position: absolute;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	visibility: hidden;
+	opacity: 0;
+	z-index: 10;
 }
 
 .monaco-workbench .part > .title {
@@ -42,8 +53,7 @@
 	font-size: 11px;
 	cursor: default;
 	font-weight: normal;
-	-webkit-margin-before: 0;
-	-webkit-margin-after: 0;
+	margin: 0;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
@@ -73,6 +83,10 @@
 
 .monaco-workbench .part > .title > .title-actions .action-label .label {
 	display: none;
+}
+
+.monaco-workbench .part > .title > .title-actions .action-label.codicon {
+	color: inherit;
 }
 
 .monaco-workbench .part > .content {

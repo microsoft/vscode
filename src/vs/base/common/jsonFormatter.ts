@@ -228,7 +228,7 @@ function computeIndentLevel(content: string, options: FormattingOptions): number
 	return Math.floor(nChars / tabSize);
 }
 
-function getEOL(options: FormattingOptions, text: string): string {
+export function getEOL(options: FormattingOptions, text: string): string {
 	for (let i = 0; i < text.length; i++) {
 		const ch = text.charAt(i);
 		if (ch === '\r') {

@@ -8,6 +8,9 @@
 
 const bootstrap = require('./bootstrap');
 
+// Remove global paths from the node module lookup
+bootstrap.removeGlobalNodeModuleLookupPaths();
+
 // Enable ASAR in our forked processes
 bootstrap.enableASARSupport();
 
@@ -18,11 +21,6 @@ if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
 // Configure: pipe logging to parent process
 if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 	pipeLoggingToParent();
-}
-
-// Disable IO if configured
-if (!process.env['VSCODE_ALLOW_IO']) {
-	disableSTDIO();
 }
 
 // Handle Exceptions
@@ -111,6 +109,9 @@ function pipeLoggingToParent() {
 		return res;
 	}
 
+	/**
+	 * @param {{ type: string; severity: string; arguments: string; }} arg
+	 */
 	function safeSend(arg) {
 		try {
 			process.send(arg);
@@ -119,6 +120,9 @@ function pipeLoggingToParent() {
 		}
 	}
 
+	/**
+	 * @param {unknown} obj
+	 */
 	function isObject(obj) {
 		return typeof obj === 'object'
 			&& obj !== null
@@ -141,30 +145,14 @@ function pipeLoggingToParent() {
 	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeToArray(arguments) }); };
 }
 
-function disableSTDIO() {
-
-	// const stdout, stderr and stdin be no-op streams. This prevents an issue where we would get an EBADF
-	// error when we are inside a forked process and this process tries to access those channels.
-	const stream = require('stream');
-	const writable = new stream.Writable({
-		write: function () { /* No OP */ }
-	});
-
-	process['__defineGetter__']('stdout', function () { return writable; });
-	process['__defineGetter__']('stderr', function () { return writable; });
-	process['__defineGetter__']('stdin', function () { return writable; });
-}
-
 function handleExceptions() {
 
 	// Handle uncaught exceptions
-	// @ts-ignore
 	process.on('uncaughtException', function (err) {
 		console.error('Uncaught Exception: ', err);
 	});
 
 	// Handle unhandled promise rejections
-	// @ts-ignore
 	process.on('unhandledRejection', function (reason) {
 		console.error('Unhandled Promise Rejection: ', reason);
 	});

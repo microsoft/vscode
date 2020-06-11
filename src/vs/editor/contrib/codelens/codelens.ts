@@ -22,14 +22,14 @@ export class CodeLensModel {
 
 	lenses: CodeLensItem[] = [];
 
-	private readonly _dispoables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 
 	dispose(): void {
-		this._dispoables.dispose();
+		this._disposables.dispose();
 	}
 
 	add(list: CodeLensList, provider: CodeLensProvider): void {
-		this._dispoables.add(list);
+		this._disposables.add(list);
 		for (const symbol of list.lenses) {
 			this.lenses.push({ symbol, provider });
 		}
@@ -89,8 +89,10 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 	}
 
 	const result: CodeLens[] = [];
+	const disposables = new DisposableStore();
 	return getCodeLensData(model, CancellationToken.None).then(value => {
 
+		disposables.add(value);
 		let resolve: Promise<any>[] = [];
 
 		for (const item of value.lenses) {
@@ -101,9 +103,13 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 			}
 		}
 
-		return Promise.all(resolve).finally(() => setTimeout(() => value.dispose(), 0));
+		return Promise.all(resolve);
 
 	}).then(() => {
 		return result;
+	}).finally(() => {
+		// make sure to return results, then (on next tick)
+		// dispose the results
+		setTimeout(() => disposables.dispose(), 100);
 	});
 });

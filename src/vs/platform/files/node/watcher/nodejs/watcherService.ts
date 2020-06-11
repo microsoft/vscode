@@ -13,14 +13,14 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { join, basename } from 'vs/base/common/path';
 
 export class FileWatcher extends Disposable {
-	private isDisposed: boolean;
+	private isDisposed: boolean | undefined;
 
 	private fileChangesDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(CHANGE_BUFFER_DELAY * 2 /* sync on delay from underlying library */));
 	private fileChangesBuffer: IDiskFileChange[] = [];
 
 	constructor(
 		private path: string,
-		private onFileChanges: (changes: IDiskFileChange[]) => void,
+		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
 		private onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean
 	) {
@@ -35,14 +35,14 @@ export class FileWatcher extends Disposable {
 
 	private async startWatching(): Promise<void> {
 		try {
-			const { stat, isSymbolicLink } = await statLink(this.path);
+			const { stat, symbolicLink } = await statLink(this.path);
 
 			if (this.isDisposed) {
 				return;
 			}
 
 			let pathToWatch = this.path;
-			if (isSymbolicLink) {
+			if (symbolicLink) {
 				try {
 					pathToWatch = await realpath(pathToWatch);
 				} catch (error) {
@@ -101,7 +101,7 @@ export class FileWatcher extends Disposable {
 
 			// Fire
 			if (normalizedFileChanges.length > 0) {
-				this.onFileChanges(normalizedFileChanges);
+				this.onDidFilesChange(normalizedFileChanges);
 			}
 
 			return Promise.resolve();

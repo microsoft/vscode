@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.minifyTask = exports.optimizeTask = exports.loaderConfig = void 0;
 const es = require("event-stream");
 const gulp = require("gulp");
 const concat = require("gulp-concat");
@@ -17,7 +18,7 @@ const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const path = require("path");
 const pump = require("pump");
-const uglifyes = require("uglify-es");
+const terser = require("terser");
 const VinylFile = require("vinyl");
 const bundle = require("./bundle");
 const i18n_1 = require("./i18n");
@@ -67,12 +68,7 @@ function loader(src, bundledFileHeader, bundleLoader) {
             this.emit('data', data);
         }
     }))
-        .pipe(util.loadSourcemaps())
-        .pipe(concat('vs/loader.js'))
-        .pipe(es.mapSync(function (f) {
-        f.sourceMap.sourceRoot = util.toFileUri(path.join(REPO_ROOT_PATH, 'src'));
-        return f;
-    })));
+        .pipe(concat('vs/loader.js')));
 }
 function toConcatStream(src, bundledFileHeader, sources, dest) {
     const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
@@ -197,7 +193,7 @@ function uglifyWithCopyrights() {
             return false;
         };
     };
-    const minify = composer(uglifyes);
+    const minify = composer(terser);
     const input = es.through();
     const output = input
         .pipe(flatmap((stream, f) => {

@@ -1,13 +1,12 @@
 {
+	"extends": "../../shared.tsconfig.json",
 	"compilerOptions": {
 		"outDir": "./dist/",
-		"module": "commonjs",
-		"target": "es6",
 		"jsx": "react",
-		"sourceMap": true,
-		"strict": true,
-		"strictBindCallApply": true,
-		"noImplicitAny": true,
-		"noUnusedLocals": true
+		"lib": [
+			"es2018",
+			"DOM",
+			"DOM.Iterable"
+		]
 	}
 }

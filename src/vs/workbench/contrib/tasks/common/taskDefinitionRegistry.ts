@@ -33,7 +33,7 @@ const taskDefinitionSchema: IJSONSchema = {
 			type: 'object',
 			description: nls.localize('TaskDefinition.properties', 'Additional properties of the task type'),
 			additionalProperties: {
-				$ref: 'http://json-schema.org/draft-04/schema#'
+				$ref: 'http://json-schema.org/draft-07/schema#'
 			}
 		}
 	}
@@ -89,7 +89,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
 	private taskTypes: IStringDictionary<Tasks.TaskDefinition>;
 	private readyPromise: Promise<void>;
-	private _schema: IJSONSchema;
+	private _schema: IJSONSchema | undefined;
 
 	constructor() {
 		this.taskTypes = Object.create(null);

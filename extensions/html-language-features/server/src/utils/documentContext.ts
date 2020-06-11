@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DocumentContext } from 'vscode-html-languageservice';
+import { DocumentContext, WorkspaceFolder } from '../modes/languageModes';
 import { endsWith, startsWith } from '../utils/strings';
 import * as url from 'url';
-import { WorkspaceFolder } from 'vscode-languageserver';
 
 export function getDocumentContext(documentUri: string, workspaceFolders: WorkspaceFolder[]): DocumentContext {
 	function getRootFolder(): string | undefined {
@@ -32,7 +31,11 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 					}
 				}
 			}
-			return url.resolve(base, ref);
+			try {
+				return url.resolve(base, ref);
+			} catch {
+				return '';
+			}
 		},
 	};
 }

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommit, parseGitmodules, parseLsTree, parseLsFiles } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles } from '../git';
 import * as assert from 'assert';
+import { splitInChunks } from '../util';
 
 suite('git', () => {
 	suite('GitStatusParser', () => {
@@ -188,44 +189,62 @@ suite('git', () => {
 	suite('parseGitCommit', () => {
 		test('single parent commit', function () {
 			const GIT_OUTPUT_SINGLE_PARENT = `52c293a05038d865604c2284aa8698bd087915a1
+John Doe
 john.doe@mail.com
+1580811030
+1580811031
 8e5a374372b8393906c7e380dbb09349c5385554
-This is a commit message.`;
+This is a commit message.\x00`;
 
-			assert.deepEqual(parseGitCommit(GIT_OUTPUT_SINGLE_PARENT), {
+			assert.deepEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
 				message: 'This is a commit message.',
 				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
 				authorEmail: 'john.doe@mail.com',
-			});
+				commitDate: new Date(1580811031000),
+			}]);
 		});
 
 		test('multiple parent commits', function () {
 			const GIT_OUTPUT_MULTIPLE_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
+John Doe
 john.doe@mail.com
+1580811030
+1580811031
 8e5a374372b8393906c7e380dbb09349c5385554 df27d8c75b129ab9b178b386077da2822101b217
-This is a commit message.`;
+This is a commit message.\x00`;
 
-			assert.deepEqual(parseGitCommit(GIT_OUTPUT_MULTIPLE_PARENTS), {
+			assert.deepEqual(parseGitCommits(GIT_OUTPUT_MULTIPLE_PARENTS), [{
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
 				message: 'This is a commit message.',
 				parents: ['8e5a374372b8393906c7e380dbb09349c5385554', 'df27d8c75b129ab9b178b386077da2822101b217'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
 				authorEmail: 'john.doe@mail.com',
-			});
+				commitDate: new Date(1580811031000),
+			}]);
 		});
 
 		test('no parent commits', function () {
 			const GIT_OUTPUT_NO_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
+John Doe
 john.doe@mail.com
+1580811030
+1580811031
 
-This is a commit message.`;
+This is a commit message.\x00`;
 
-			assert.deepEqual(parseGitCommit(GIT_OUTPUT_NO_PARENTS), {
+			assert.deepEqual(parseGitCommits(GIT_OUTPUT_NO_PARENTS), [{
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
 				message: 'This is a commit message.',
 				parents: [],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
 				authorEmail: 'john.doe@mail.com',
-			});
+				commitDate: new Date(1580811031000),
+			}]);
 		});
 	});
 
@@ -290,6 +309,80 @@ This is a commit message.`;
 				{ mode: '100644', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', stage: '0', file: 'what.txt' },
 				{ mode: '100644', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', stage: '0', file: 'what.txt2' },
 			]);
+		});
+	});
+
+	suite('splitInChunks', () => {
+		test('unit tests', function () {
+			assert.deepEqual(
+				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 6)],
+				[['hello'], ['there'], ['cool'], ['stuff']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 10)],
+				[['hello', 'there'], ['cool', 'stuff']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 12)],
+				[['hello', 'there'], ['cool', 'stuff']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 14)],
+				[['hello', 'there', 'cool'], ['stuff']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 2000)],
+				[['hello', 'there', 'cool', 'stuff']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 1)],
+				[['0'], ['01'], ['012'], ['0'], ['01'], ['012'], ['0'], ['01'], ['012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 2)],
+				[['0'], ['01'], ['012'], ['0'], ['01'], ['012'], ['0'], ['01'], ['012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 3)],
+				[['0', '01'], ['012'], ['0', '01'], ['012'], ['0', '01'], ['012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 4)],
+				[['0', '01'], ['012', '0'], ['01'], ['012', '0'], ['01'], ['012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 5)],
+				[['0', '01'], ['012', '0'], ['01', '012'], ['0', '01'], ['012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 6)],
+				[['0', '01', '012'], ['0', '01', '012'], ['0', '01', '012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 7)],
+				[['0', '01', '012', '0'], ['01', '012', '0'], ['01', '012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 8)],
+				[['0', '01', '012', '0'], ['01', '012', '0', '01'], ['012']]
+			);
+
+			assert.deepEqual(
+				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
+				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
+			);
 		});
 	});
 });

@@ -7,12 +7,7 @@
 	position: relative;
 	display: block;
 	padding: 0;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
-	line-height: auto !important;
+	box-sizing:	border-box;
 
 	/* Customizable */
 	font-size: inherit;
@@ -37,11 +32,7 @@
 
 .monaco-inputbox > .wrapper > .input {
 	display: inline-block;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
+	box-sizing:	border-box;
 	width: 100%;
 	height: 100%;
 	line-height: inherit;
@@ -58,7 +49,17 @@
 
 .monaco-inputbox > .wrapper > textarea.input {
 	display: block;
-	overflow: hidden;
+	-ms-overflow-style: none; /* IE 10+: hide scrollbars */
+	scrollbar-width: none; /* Firefox: hide scrollbars */
+	outline: none;
+}
+
+.monaco-inputbox > .wrapper > textarea.input::-webkit-scrollbar {
+	display: none; /* Chrome + Safari: hide scrollbar */
+}
+
+.monaco-inputbox > .wrapper > textarea.input.empty {
+	white-space: nowrap;
 }
 
 .monaco-inputbox > .wrapper > .mirror {
@@ -67,11 +68,7 @@
 	width: 100%;
 	top: 0;
 	left: 0;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
+	box-sizing: border-box;
 	white-space: pre-wrap;
 	visibility: hidden;
 	word-wrap: break-word;
@@ -88,11 +85,7 @@
 	overflow: hidden;
 	text-align: left;
 	width: 100%;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
+	box-sizing:	border-box;
 	padding: 0.4em;
 	font-size: 12px;
 	line-height: 17px;
@@ -112,7 +105,7 @@
 	margin-left: 2px;
 }
 
-.monaco-inputbox .monaco-action-bar .action-item .icon {
+.monaco-inputbox .monaco-action-bar .action-item .codicon {
 	background-repeat: no-repeat;
 	width: 16px;
 	height: 16px;

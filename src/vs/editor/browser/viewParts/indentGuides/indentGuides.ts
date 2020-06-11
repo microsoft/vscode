@@ -11,6 +11,8 @@ import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
@@ -21,15 +23,23 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	private _renderResult: string[] | null;
 	private _enabled: boolean;
 	private _activeIndentEnabled: boolean;
+	private _maxIndentLeft: number;
 
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
 		this._primaryLineNumber = 0;
-		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
-		this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
-		this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
+
+		const options = this._context.configuration.options;
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
+		const fontInfo = options.get(EditorOption.fontInfo);
+
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._spaceWidth = fontInfo.spaceWidth;
+		this._enabled = options.get(EditorOption.renderIndentGuides);
+		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);
+		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
+
 		this._renderResult = null;
 
 		this._context.addEventHandler(this);
@@ -44,16 +54,15 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.fontInfo) {
-			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
-		}
-		if (e.viewInfo) {
-			this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
-			this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
-		}
+		const options = this._context.configuration.options;
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
+		const fontInfo = options.get(EditorOption.fontInfo);
+
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._spaceWidth = fontInfo.spaceWidth;
+		this._enabled = options.get(EditorOption.renderIndentGuides);
+		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);
+		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		return true;
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
@@ -103,7 +112,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const { indentSize } = this._context.model.getOptions();
+		const { indentSize } = this._context.model.getTextModelOptions();
 		const indentWidth = indentSize * this._spaceWidth;
 		const scrollWidth = ctx.scrollWidth;
 		const lineHeight = this._lineHeight;
@@ -127,14 +136,16 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			const indent = indents[lineIndex];
 
 			let result = '';
-			const leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
-			let left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
-			for (let i = 1; i <= indent; i++) {
-				const className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
-				result += `<div class="${className}" style="left:${left}px;height:${lineHeight}px;width:${indentWidth}px"></div>`;
-				left += indentWidth;
-				if (left > scrollWidth) {
-					break;
+			if (indent >= 1) {
+				const leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
+				let left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
+				for (let i = 1; i <= indent; i++) {
+					const className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
+					result += `<div class="${className}" style="left:${left}px;height:${lineHeight}px;width:${indentWidth}px"></div>`;
+					left += indentWidth;
+					if (left > scrollWidth || (this._maxIndentLeft > 0 && left > this._maxIndentLeft)) {
+						break;
+					}
 				}
 			}
 

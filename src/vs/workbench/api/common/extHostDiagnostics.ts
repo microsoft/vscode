@@ -5,38 +5,36 @@
 
 import { localize } from 'vs/nls';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { URI } from 'vs/base/common/uri';
-import * as vscode from 'vscode';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import type * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
 import * as converter from './extHostTypeConverters';
 import { mergeSort } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
-import { keys } from 'vs/base/common/map';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ResourceMap } from 'vs/base/common/map';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
-	private readonly _name: string;
-	private readonly _owner: string;
-	private readonly _maxDiagnosticsPerFile: number;
-	private readonly _onDidChangeDiagnostics: Emitter<(vscode.Uri | string)[]>;
-	private readonly _proxy: MainThreadDiagnosticsShape;
-
 	private _isDisposed = false;
-	private _data = new Map<string, vscode.Diagnostic[]>();
+	private _data = new ResourceMap<vscode.Diagnostic[]>();
 
-	constructor(name: string, owner: string, maxDiagnosticsPerFile: number, proxy: MainThreadDiagnosticsShape, onDidChangeDiagnostics: Emitter<(vscode.Uri | string)[]>) {
-		this._name = name;
-		this._owner = owner;
-		this._maxDiagnosticsPerFile = maxDiagnosticsPerFile;
-		this._proxy = proxy;
-		this._onDidChangeDiagnostics = onDidChangeDiagnostics;
-	}
+	constructor(
+		private readonly _name: string,
+		private readonly _owner: string,
+		private readonly _maxDiagnosticsPerFile: number,
+		private readonly _proxy: MainThreadDiagnosticsShape | undefined,
+		private readonly _onDidChangeDiagnostics: Emitter<vscode.Uri[]>
+	) { }
 
 	dispose(): void {
 		if (!this._isDisposed) {
-			this._onDidChangeDiagnostics.fire(keys(this._data));
-			this._proxy.$clear(this._owner);
+			this._onDidChangeDiagnostics.fire([...this._data.keys()]);
+			if (this._proxy) {
+				this._proxy.$clear(this._owner);
+			}
 			this._data = undefined!;
 			this._isDisposed = true;
 		}
@@ -62,7 +60,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		this._checkDisposed();
 		let toSync: vscode.Uri[] = [];
 
-		if (first instanceof URI) {
+		if (URI.isUri(first)) {
 
 			if (!diagnostics) {
 				// remove this entry
@@ -71,7 +69,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			}
 
 			// update single row
-			this._data.set(first.toString(), diagnostics.slice());
+			this._data.set(first, diagnostics.slice());
 			toSync = [first];
 
 		} else if (Array.isArray(first)) {
@@ -85,8 +83,8 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			for (const tuple of first) {
 				const [uri, diagnostics] = tuple;
 				if (!lastUri || uri.toString() !== lastUri.toString()) {
-					if (lastUri && this._data.get(lastUri.toString())!.length === 0) {
-						this._data.delete(lastUri.toString());
+					if (lastUri && this._data.get(lastUri)!.length === 0) {
+						this._data.delete(lastUri);
 					}
 					lastUri = uri;
 					toSync.push(uri);
@@ -112,10 +110,13 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		this._onDidChangeDiagnostics.fire(toSync);
 
 		// compute change and send to main side
+		if (!this._proxy) {
+			return;
+		}
 		const entries: [URI, IMarkerData[]][] = [];
 		for (let uri of toSync) {
 			let marker: IMarkerData[] = [];
-			const diagnostics = this._data.get(uri.toString());
+			const diagnostics = this._data.get(uri);
 			if (diagnostics) {
 
 				// no more than N diagnostics per file
@@ -149,35 +150,37 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 			entries.push([uri, marker]);
 		}
-
 		this._proxy.$changeMany(this._owner, entries);
 	}
 
 	delete(uri: vscode.Uri): void {
 		this._checkDisposed();
 		this._onDidChangeDiagnostics.fire([uri]);
-		this._data.delete(uri.toString());
-		this._proxy.$changeMany(this._owner, [[uri, undefined]]);
+		this._data.delete(uri);
+		if (this._proxy) {
+			this._proxy.$changeMany(this._owner, [[uri, undefined]]);
+		}
 	}
 
 	clear(): void {
 		this._checkDisposed();
-		this._onDidChangeDiagnostics.fire(keys(this._data));
+		this._onDidChangeDiagnostics.fire([...this._data.keys()]);
 		this._data.clear();
-		this._proxy.$clear(this._owner);
+		if (this._proxy) {
+			this._proxy.$clear(this._owner);
+		}
 	}
 
 	forEach(callback: (uri: URI, diagnostics: ReadonlyArray<vscode.Diagnostic>, collection: DiagnosticCollection) => any, thisArg?: any): void {
 		this._checkDisposed();
-		this._data.forEach((value, key) => {
-			const uri = URI.parse(key);
+		this._data.forEach((value, uri) => {
 			callback.apply(thisArg, [uri, this.get(uri), this]);
 		});
 	}
 
 	get(uri: URI): ReadonlyArray<vscode.Diagnostic> {
 		this._checkDisposed();
-		const result = this._data.get(uri.toString());
+		const result = this._data.get(uri);
 		if (Array.isArray(result)) {
 			return <ReadonlyArray<vscode.Diagnostic>>Object.freeze(result.slice(0));
 		}
@@ -186,7 +189,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	has(uri: URI): boolean {
 		this._checkDisposed();
-		return Array.isArray(this._data.get(uri.toString()));
+		return Array.isArray(this._data.get(uri));
 	}
 
 	private _checkDisposed() {
@@ -213,9 +216,9 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private readonly _proxy: MainThreadDiagnosticsShape;
 	private readonly _collections = new Map<string, DiagnosticCollection>();
-	private readonly _onDidChangeDiagnostics = new Emitter<(vscode.Uri | string)[]>();
+	private readonly _onDidChangeDiagnostics = new Emitter<vscode.Uri[]>();
 
-	static _debouncer(last: (vscode.Uri | string)[], current: (vscode.Uri | string)[]): (vscode.Uri | string)[] {
+	static _debouncer(last: (vscode.Uri | string)[] | undefined, current: (vscode.Uri | string)[]): (vscode.Uri | string)[] {
 		if (!last) {
 			return current;
 		} else {
@@ -245,12 +248,29 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	readonly onDidChangeDiagnostics: Event<vscode.DiagnosticChangeEvent> = Event.map(Event.debounce(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._debouncer, 50), ExtHostDiagnostics._mapper);
 
-	constructor(mainContext: IMainContext) {
+	constructor(mainContext: IMainContext, @ILogService private readonly _logService: ILogService) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);
 	}
 
-	createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
-		let { _collections, _proxy, _onDidChangeDiagnostics } = this;
+	createDiagnosticCollection(extensionId: ExtensionIdentifier, name?: string): vscode.DiagnosticCollection {
+
+		const { _collections, _proxy, _onDidChangeDiagnostics, _logService } = this;
+
+		const loggingProxy = new class implements MainThreadDiagnosticsShape {
+			$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void {
+				_proxy.$changeMany(owner, entries);
+				_logService.trace('[DiagnosticCollection] change many (extension, owner, uris)', extensionId.value, owner, entries.length === 0 ? 'CLEARING' : entries);
+			}
+			$clear(owner: string): void {
+				_proxy.$clear(owner);
+				_logService.trace('[DiagnosticCollection] remove all (extension, owner)', extensionId.value, owner);
+			}
+			dispose(): void {
+				_proxy.dispose();
+			}
+		};
+
+
 		let owner: string;
 		if (!name) {
 			name = '_generated_diagnostic_collection_name_#' + ExtHostDiagnostics._idPool++;
@@ -258,7 +278,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		} else if (!_collections.has(name)) {
 			owner = name;
 		} else {
-			console.warn(`DiagnosticCollection with name '${name}' does already exist.`);
+			this._logService.warn(`DiagnosticCollection with name '${name}' does already exist.`);
 			do {
 				owner = name + ExtHostDiagnostics._idPool++;
 			} while (_collections.has(owner));
@@ -266,7 +286,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 		const result = new class extends DiagnosticCollection {
 			constructor() {
-				super(name!, owner, ExtHostDiagnostics._maxDiagnosticsPerFile, _proxy, _onDidChangeDiagnostics);
+				super(name!, owner, ExtHostDiagnostics._maxDiagnosticsPerFile, loggingProxy, _onDidChangeDiagnostics);
 				_collections.set(owner, this);
 			}
 			dispose() {
@@ -310,5 +330,21 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 			}
 		});
 		return res;
+	}
+
+	private _mirrorCollection: vscode.DiagnosticCollection | undefined;
+
+	$acceptMarkersChange(data: [UriComponents, IMarkerData[]][]): void {
+
+		if (!this._mirrorCollection) {
+			const name = '_generated_mirror';
+			const collection = new DiagnosticCollection(name, name, ExtHostDiagnostics._maxDiagnosticsPerFile, undefined, this._onDidChangeDiagnostics);
+			this._collections.set(name, collection);
+			this._mirrorCollection = collection;
+		}
+
+		for (const [uri, markers] of data) {
+			this._mirrorCollection.set(URI.revive(uri), markers.map(converter.Diagnostic.to));
+		}
 	}
 }

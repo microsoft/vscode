@@ -12,8 +12,11 @@ import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 export const CONTEXT = 'context.toolbar';
+
+const toolBarMoreIcon = registerIcon('toolbar-more', Codicon.more);
 
 export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
@@ -33,7 +36,7 @@ export class ToolBar extends Disposable {
 	private actionBar: ActionBar;
 	private toggleMenuAction: ToggleMenuAction;
 	private toggleMenuActionViewItem = this._register(new MutableDisposable<DropdownMenuActionViewItem>());
-	private hasSecondaryActions: boolean;
+	private hasSecondaryActions: boolean = false;
 	private lookupKeybindings: boolean;
 
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
@@ -52,7 +55,7 @@ export class ToolBar extends Disposable {
 			orientation: options.orientation,
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
-			actionViewItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: IAction) => {
 
 				// Return special action item for the toggle menu action
 				if (action.id === ToggleMenuAction.ID) {
@@ -65,8 +68,9 @@ export class ToolBar extends Disposable {
 						this.options.actionViewItemProvider,
 						this.actionRunner,
 						this.options.getKeyBinding,
-						'toolbar-toggle-more',
-						this.options.anchorAlignmentProvider
+						toolBarMoreIcon.classNames,
+						this.options.anchorAlignmentProvider,
+						true
 					);
 					this.toggleMenuActionViewItem.value.setActionContext(this.actionBar.context);
 
@@ -86,7 +90,7 @@ export class ToolBar extends Disposable {
 		return this.actionBar.actionRunner;
 	}
 
-	set context(context: any) {
+	set context(context: unknown) {
 		this.actionBar.context = context;
 		if (this.toggleMenuActionViewItem.value) {
 			this.toggleMenuActionViewItem.value.setActionContext(context);
@@ -129,9 +133,9 @@ export class ToolBar extends Disposable {
 	}
 
 	private getKeybindingLabel(action: IAction): string | undefined {
-		const key = this.lookupKeybindings && this.options.getKeyBinding ? this.options.getKeyBinding(action) : undefined;
+		const key = this.lookupKeybindings ? this.options.getKeyBinding?.(action) : undefined;
 
-		return withNullAsUndefined(key && key.getLabel());
+		return withNullAsUndefined(key?.getLabel());
 	}
 
 	addPrimaryAction(primaryAction: IAction): () => void {
@@ -162,13 +166,12 @@ class ToggleMenuAction extends Action {
 		title = title || nls.localize('moreActions', "More Actions...");
 		super(ToggleMenuAction.ID, title, undefined, true);
 
+		this._menuActions = [];
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		this.toggleDropdownMenu();
-
-		return Promise.resolve(true);
 	}
 
 	get menuActions(): ReadonlyArray<IAction> {

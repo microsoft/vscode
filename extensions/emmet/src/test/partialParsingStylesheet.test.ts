@@ -40,7 +40,7 @@ p {
 				new vscode.Range(3, 13, 3, 14),		// p just before ending of block comment
 				new vscode.Range(6, 2, 6, 3)		// p after ending of block
 
-			]
+			];
 			rangesForEmmet.forEach(range => {
 				assert.equal(isValid(doc, range, 'css'), true);
 			});

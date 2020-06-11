@@ -3,25 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'vs/base/common/resources';
+import { basename, extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
-import { isFalsyOrEmpty, mergeSort } from 'vs/base/common/arrays';
-import { values } from 'vs/base/common/map';
-import { memoize } from 'vs/base/common/decorators';
+import { mergeSort, isNonEmptyArray, flatten } from 'vs/base/common/arrays';
+import { ResourceMap } from 'vs/base/common/map';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Hasher } from 'vs/base/common/hash';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 
-function compareUris(a: URI, b: URI) {
-	const astr = a.toString();
-	const bstr = b.toString();
-	return astr === bstr ? 0 : (astr < bstr ? -1 : 1);
-}
 
 export function compareMarkersByUri(a: IMarker, b: IMarker) {
-	return compareUris(a.resource, b.resource);
+	return extUri.compare(a.resource, b.resource);
 }
 
 function compareResourceMarkers(a: ResourceMarkers, b: ResourceMarkers): number {
@@ -37,20 +31,60 @@ function compareResourceMarkers(a: ResourceMarkers, b: ResourceMarkers): number 
 	return res;
 }
 
-function compareMarkers(a: Marker, b: Marker): number {
-	return MarkerSeverity.compare(a.marker.severity, b.marker.severity)
-		|| Range.compareRangesUsingStarts(a.marker, b.marker);
-}
 
 export class ResourceMarkers {
 
-	@memoize
-	get path(): string { return this.resource.fsPath; }
+	readonly path: string;
 
-	@memoize
-	get name(): string { return basename(this.resource); }
+	readonly name: string;
 
-	constructor(readonly id: string, readonly resource: URI, readonly markers: Marker[]) { }
+	private _markersMap = new ResourceMap<Marker[]>();
+	private _cachedMarkers: Marker[] | undefined;
+	private _total: number = 0;
+
+	constructor(readonly id: string, readonly resource: URI) {
+		this.path = this.resource.fsPath;
+		this.name = basename(this.resource);
+	}
+
+	get markers(): readonly Marker[] {
+		if (!this._cachedMarkers) {
+			this._cachedMarkers = mergeSort(flatten([...this._markersMap.values()]), ResourceMarkers._compareMarkers);
+		}
+		return this._cachedMarkers;
+	}
+
+	has(uri: URI) {
+		return this._markersMap.has(uri);
+	}
+
+	set(uri: URI, marker: Marker[]) {
+		this.delete(uri);
+		if (isNonEmptyArray(marker)) {
+			this._markersMap.set(uri, marker);
+			this._total += marker.length;
+			this._cachedMarkers = undefined;
+		}
+	}
+
+	delete(uri: URI) {
+		let array = this._markersMap.get(uri);
+		if (array) {
+			this._total -= array.length;
+			this._cachedMarkers = undefined;
+			this._markersMap.delete(uri);
+		}
+	}
+
+	get total() {
+		return this._total;
+	}
+
+	private static _compareMarkers(a: Marker, b: Marker): number {
+		return MarkerSeverity.compare(a.marker.severity, b.marker.severity)
+			|| extUri.compare(a.resource, b.resource)
+			|| Range.compareRangesUsingStarts(a.marker, b.marker);
+	}
 }
 
 export class Marker {
@@ -58,7 +92,7 @@ export class Marker {
 	get resource(): URI { return this.marker.resource; }
 	get range(): IRange { return this.marker; }
 
-	private _lines: string[];
+	private _lines: string[] | undefined;
 	get lines(): string[] {
 		if (!this._lines) {
 			this._lines = this.marker.message.split(/\r\n|\r|\n/g);
@@ -90,18 +124,23 @@ export class RelatedInformation {
 	) { }
 }
 
+export interface MarkerChangesEvent {
+	readonly added: Set<ResourceMarkers>;
+	readonly removed: Set<ResourceMarkers>;
+	readonly updated: Set<ResourceMarkers>;
+}
+
 export class MarkersModel {
 
 	private cachedSortedResources: ResourceMarkers[] | undefined = undefined;
 
-	private readonly _onDidChange = new Emitter<URI>();
-	readonly onDidChange: Event<URI> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<MarkerChangesEvent>();
+	readonly onDidChange: Event<MarkerChangesEvent> = this._onDidChange.event;
 
 	get resourceMarkers(): ResourceMarkers[] {
 		if (!this.cachedSortedResources) {
-			this.cachedSortedResources = values(this.resourcesByUri).sort(compareResourceMarkers);
+			this.cachedSortedResources = [...this.resourcesByUri.values()].sort(compareResourceMarkers);
 		}
-
 		return this.cachedSortedResources;
 	}
 
@@ -111,37 +150,70 @@ export class MarkersModel {
 		this.resourcesByUri = new Map<string, ResourceMarkers>();
 	}
 
-	getResourceMarkers(resource: URI): ResourceMarkers | null {
-		return withUndefinedAsNull(this.resourcesByUri.get(resource.toString()));
+	private _total: number = 0;
+	get total(): number {
+		return this._total;
 	}
 
-	setResourceMarkers(resource: URI, rawMarkers: IMarker[]): void {
-		if (isFalsyOrEmpty(rawMarkers)) {
-			this.resourcesByUri.delete(resource.toString());
-		} else {
+	getResourceMarkers(resource: URI): ResourceMarkers | null {
+		return withUndefinedAsNull(this.resourcesByUri.get(extUri.getComparisonKey(resource, true)));
+	}
 
-			const resourceMarkersId = this.id(resource.toString());
-			const markersCountByKey = new Map<string, number>();
-			const markers = mergeSort(rawMarkers.map((rawMarker) => {
-				const key = IMarkerData.makeKey(rawMarker);
-				const index = markersCountByKey.get(key) || 0;
-				markersCountByKey.set(key, index + 1);
+	setResourceMarkers(resourcesMarkers: [URI, IMarker[]][]): void {
+		const change: MarkerChangesEvent = { added: new Set(), removed: new Set(), updated: new Set() };
+		for (const [resource, rawMarkers] of resourcesMarkers) {
 
-				const markerId = this.id(resourceMarkersId, key, index);
+			const key = extUri.getComparisonKey(resource, true);
+			let resourceMarkers = this.resourcesByUri.get(key);
 
-				let relatedInformation: RelatedInformation[] | undefined = undefined;
-				if (rawMarker.relatedInformation) {
-					relatedInformation = rawMarker.relatedInformation.map((r, index) => new RelatedInformation(this.id(markerId, r.resource.toString(), r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn, index), rawMarker, r));
+			if (isNonEmptyArray(rawMarkers)) {
+				// update, add
+				if (!resourceMarkers) {
+					const resourceMarkersId = this.id(resource.toString());
+					resourceMarkers = new ResourceMarkers(resourceMarkersId, resource.with({ fragment: null }));
+					this.resourcesByUri.set(key, resourceMarkers);
+					change.added.add(resourceMarkers);
+				} else {
+					change.updated.add(resourceMarkers);
 				}
+				const markersCountByKey = new Map<string, number>();
+				const markers = rawMarkers.map((rawMarker) => {
+					const key = IMarkerData.makeKey(rawMarker);
+					const index = markersCountByKey.get(key) || 0;
+					markersCountByKey.set(key, index + 1);
 
-				return new Marker(markerId, rawMarker, relatedInformation);
-			}), compareMarkers);
+					const markerId = this.id(resourceMarkers!.id, key, index, rawMarker.resource.toString());
 
-			this.resourcesByUri.set(resource.toString(), new ResourceMarkers(resourceMarkersId, resource, markers));
+					let relatedInformation: RelatedInformation[] | undefined = undefined;
+					if (rawMarker.relatedInformation) {
+						relatedInformation = rawMarker.relatedInformation.map((r, index) => new RelatedInformation(this.id(markerId, r.resource.toString(), r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn, index), rawMarker, r));
+					}
+
+					return new Marker(markerId, rawMarker, relatedInformation);
+				});
+
+				this._total -= resourceMarkers.total;
+				resourceMarkers.set(resource, markers);
+				this._total += resourceMarkers.total;
+
+			} else if (resourceMarkers) {
+				// clear
+				this._total -= resourceMarkers.total;
+				resourceMarkers.delete(resource);
+				this._total += resourceMarkers.total;
+				if (resourceMarkers.total === 0) {
+					this.resourcesByUri.delete(key);
+					change.removed.add(resourceMarkers);
+				} else {
+					change.updated.add(resourceMarkers);
+				}
+			}
 		}
 
 		this.cachedSortedResources = undefined;
-		this._onDidChange.fire(resource);
+		if (change.added.size || change.removed.size || change.updated.size) {
+			this._onDidChange.fire(change);
+		}
 	}
 
 	private id(...values: (string | number)[]): string {

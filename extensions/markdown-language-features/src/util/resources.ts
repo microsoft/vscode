@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 
 export interface WebviewResourceProvider {
-	toWebviewResource(resource: vscode.Uri): vscode.Uri;
+	asWebviewUri(resource: vscode.Uri): vscode.Uri;
 
 	readonly cspSource: string;
 }

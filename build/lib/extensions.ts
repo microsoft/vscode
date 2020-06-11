@@ -13,7 +13,7 @@ import * as File from 'vinyl';
 import * as vsce from 'vsce';
 import { createStatsStream } from './stats';
 import * as util2 from './util';
-import remote = require('gulp-remote-src');
+import remote = require('gulp-remote-retry-src');
 const vzip = require('gulp-vinyl-zip');
 import filter = require('gulp-filter');
 import rename = require('gulp-rename');
@@ -30,11 +30,20 @@ const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${
 
 function fromLocal(extensionPath: string): Stream {
 	const webpackFilename = path.join(extensionPath, 'extension.webpack.config.js');
-	if (fs.existsSync(webpackFilename)) {
-		return fromLocalWebpack(extensionPath);
-	} else {
-		return fromLocalNormal(extensionPath);
-	}
+	const input = fs.existsSync(webpackFilename)
+		? fromLocalWebpack(extensionPath)
+		: fromLocalNormal(extensionPath);
+
+	const tmLanguageJsonFilter = filter('**/*.tmLanguage.json', { restore: true });
+
+	return input
+		.pipe(tmLanguageJsonFilter)
+		.pipe(buffer())
+		.pipe(es.mapSync((f: File) => {
+			f.contents = Buffer.from(JSON.stringify(JSON.parse(f.contents.toString('utf8'))));
+			return f;
+		}))
+		.pipe(tmLanguageJsonFilter.restore);
 }
 
 function fromLocalWebpack(extensionPath: string): Stream {
@@ -206,10 +215,12 @@ export function fromMarketplace(extensionName: string, version: string, metadata
 
 const excludedExtensions = [
 	'vscode-api-tests',
+	'vscode-web-playground',
 	'vscode-colorize-tests',
 	'vscode-test-resolver',
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',
+	'vscode-notebook-tests'
 ];
 
 interface IBuiltInExtension {
@@ -219,7 +230,7 @@ interface IBuiltInExtension {
 	metadata: any;
 }
 
-const builtInExtensions: IBuiltInExtension[] = require('../builtInExtensions.json');
+const builtInExtensions: IBuiltInExtension[] = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8')).builtInExtensions;
 
 export function packageLocalExtensionsStream(): NodeJS.ReadWriteStream {
 	const localExtensionDescriptions = (<string[]>glob.sync('extensions/*/package.json'))

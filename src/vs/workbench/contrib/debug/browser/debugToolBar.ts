@@ -18,8 +18,7 @@ import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/d
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Themable } from 'vs/workbench/common/theme';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -36,17 +35,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
 
-export const debugToolBarBackground = registerColor('debugToolBar.background', {
-	dark: '#333333',
-	light: '#F3F3F3',
-	hc: '#000000'
-}, localize('debugToolBarBackground', "Debug toolbar background color."));
-export const debugToolBarBorder = registerColor('debugToolBar.border', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('debugToolBarBorder', "Debug toolbar border color."));
-
 export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 	private $el: HTMLElement;
@@ -55,10 +43,11 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private activeActions: IAction[];
 	private updateScheduler: RunOnceScheduler;
 	private debugToolBarMenu: IMenu;
-	private disposeOnUpdate: IDisposable;
+	private disposeOnUpdate: IDisposable | undefined;
+	private yCoordinate = 0;
 
-	private isVisible: boolean;
-	private isBuilt: boolean;
+	private isVisible = false;
+	private isBuilt = false;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
@@ -77,9 +66,9 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		super(themeService);
 
 		this.$el = dom.$('div.debug-toolbar');
-		this.$el.style.top = `${layoutService.getTitleBarOffset()}px`;
+		this.$el.style.top = `${layoutService.offset?.top ?? 0}px`;
 
-		this.dragArea = dom.append(this.$el, dom.$('div.drag-area'));
+		this.dragArea = dom.append(this.$el, dom.$('div.drag-area.codicon.codicon-gripper'));
 
 		const actionBarContainer = dom.append(this.$el, dom.$('div.action-bar-container'));
 		this.debugToolBarMenu = menuService.createMenu(MenuId.DebugToolBar, contextKeyService);
@@ -122,17 +111,16 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}, 20));
 
 		this.updateStyles();
-
 		this.registerListeners();
-
 		this.hide();
-		this.isBuilt = false;
 	}
 
 	private registerListeners(): void {
 		this._register(this.debugService.onDidChangeState(() => this.updateScheduler.schedule()));
 		this._register(this.debugService.getViewModel().onDidFocusSession(() => this.updateScheduler.schedule()));
+		this._register(this.debugService.onDidNewSession(() => this.updateScheduler.schedule()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
+		this._register(this.debugToolBarMenu.onDidChange(() => this.updateScheduler.schedule()));
 		this._register(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
@@ -146,7 +134,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}));
 		this._register(dom.addDisposableListener(window, dom.EventType.RESIZE, () => this.setCoordinates()));
 
-		this._register(dom.addDisposableListener(this.dragArea, dom.EventType.MOUSE_UP, (event: MouseEvent) => {
+		this._register(dom.addDisposableGenericMouseUpListner(this.dragArea, (event: MouseEvent) => {
 			const mouseClickEvent = new StandardMouseEvent(event);
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
@@ -156,18 +144,18 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			}
 		}));
 
-		this._register(dom.addDisposableListener(this.dragArea, dom.EventType.MOUSE_DOWN, (event: MouseEvent) => {
+		this._register(dom.addDisposableGenericMouseDownListner(this.dragArea, (event: MouseEvent) => {
 			dom.addClass(this.dragArea, 'dragged');
 
-			const mouseMoveListener = dom.addDisposableListener(window, 'mousemove', (e: MouseEvent) => {
+			const mouseMoveListener = dom.addDisposableGenericMouseMoveListner(window, (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
 				// Reduce x by width of drag handle to reduce jarring #16604
-				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - this.layoutService.getTitleBarOffset());
+				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - (this.layoutService.offset?.top ?? 0));
 			});
 
-			const mouseUpListener = dom.addDisposableListener(window, 'mouseup', (e: MouseEvent) => {
+			const mouseUpListener = dom.addDisposableGenericMouseUpListner(window, (e: MouseEvent) => {
 				this.storePosition();
 				dom.removeClass(this.dragArea, 'dragged');
 
@@ -176,7 +164,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			});
 		}));
 
-		this._register(this.layoutService.onTitleBarVisibilityChange(() => this.setYCoordinate()));
+		this._register(this.layoutService.onPartVisibilityChange(() => this.setYCoordinate()));
 		this._register(browser.onDidChangeZoomLevel(() => this.setYCoordinate()));
 	}
 
@@ -192,10 +180,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		super.updateStyles();
 
 		if (this.$el) {
-			this.$el.style.backgroundColor = this.getColor(debugToolBarBackground);
+			this.$el.style.backgroundColor = this.getColor(debugToolBarBackground) || '';
 
 			const widgetShadowColor = this.getColor(widgetShadow);
-			this.$el.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null;
+			this.$el.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : '';
 
 			const contrastBorderColor = this.getColor(contrastBorder);
 			const borderColor = this.getColor(debugToolBarBorder);
@@ -209,9 +197,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
-	private setYCoordinate(y = 0): void {
-		const titlebarOffset = this.layoutService.getTitleBarOffset();
+	private setYCoordinate(y = this.yCoordinate): void {
+		const titlebarOffset = this.layoutService.offset?.top ?? 0;
 		this.$el.style.top = `${titlebarOffset + y}px`;
+		this.yCoordinate = y;
 	}
 
 	private setCoordinates(x?: number, y?: number): void {
@@ -251,7 +240,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 		if (!this.isBuilt) {
 			this.isBuilt = true;
-			this.layoutService.getWorkbenchElement().appendChild(this.$el);
+			this.layoutService.container.appendChild(this.$el);
 		}
 
 		this.isVisible = true;
@@ -264,7 +253,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		dom.hide(this.$el);
 	}
 
-	public static getActions(menu: IMenu, debugService: IDebugService, instantiationService: IInstantiationService): { actions: IAction[], disposable: IDisposable } {
+	static getActions(menu: IMenu, debugService: IDebugService, instantiationService: IInstantiationService): { actions: IAction[], disposable: IDisposable } {
 		const actions: IAction[] = [];
 		const disposable = createAndFillInActionBarActions(menu, undefined, actions, () => false);
 		if (debugService.getViewModel().isMultiSessionView()) {
@@ -277,15 +266,139 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		};
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 
 		if (this.$el) {
 			this.$el.remove();
-			delete this.$el;
 		}
 		if (this.disposeOnUpdate) {
 			dispose(this.disposeOnUpdate);
 		}
 	}
 }
+
+export const debugToolBarBackground = registerColor('debugToolBar.background', {
+	dark: '#333333',
+	light: '#F3F3F3',
+	hc: '#000000'
+}, localize('debugToolBarBackground', "Debug toolbar background color."));
+
+export const debugToolBarBorder = registerColor('debugToolBar.border', {
+	dark: null,
+	light: null,
+	hc: null
+}, localize('debugToolBarBorder', "Debug toolbar border color."));
+
+export const debugIconStartForeground = registerColor('debugIcon.startForeground', {
+	dark: '#89D185',
+	light: '#388A34',
+	hc: '#89D185'
+}, localize('debugIcon.startForeground', "Debug toolbar icon for start debugging."));
+
+export const debugIconPauseForeground = registerColor('debugIcon.pauseForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.pauseForeground', "Debug toolbar icon for pause."));
+
+export const debugIconStopForeground = registerColor('debugIcon.stopForeground', {
+	dark: '#F48771',
+	light: '#A1260D',
+	hc: '#F48771'
+}, localize('debugIcon.stopForeground', "Debug toolbar icon for stop."));
+
+export const debugIconDisconnectForeground = registerColor('debugIcon.disconnectForeground', {
+	dark: '#F48771',
+	light: '#A1260D',
+	hc: '#F48771'
+}, localize('debugIcon.disconnectForeground', "Debug toolbar icon for disconnect."));
+
+export const debugIconRestartForeground = registerColor('debugIcon.restartForeground', {
+	dark: '#89D185',
+	light: '#388A34',
+	hc: '#89D185'
+}, localize('debugIcon.restartForeground', "Debug toolbar icon for restart."));
+
+export const debugIconStepOverForeground = registerColor('debugIcon.stepOverForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepOverForeground', "Debug toolbar icon for step over."));
+
+export const debugIconStepIntoForeground = registerColor('debugIcon.stepIntoForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepIntoForeground', "Debug toolbar icon for step into."));
+
+export const debugIconStepOutForeground = registerColor('debugIcon.stepOutForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepOutForeground', "Debug toolbar icon for step over."));
+
+export const debugIconContinueForeground = registerColor('debugIcon.continueForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.continueForeground', "Debug toolbar icon for continue."));
+
+export const debugIconStepBackForeground = registerColor('debugIcon.stepBackForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepBackForeground', "Debug toolbar icon for step back."));
+
+registerThemingParticipant((theme, collector) => {
+
+	const debugIconStartColor = theme.getColor(debugIconStartForeground);
+	if (debugIconStartColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-start { color: ${debugIconStartColor} !important; }`);
+	}
+
+	const debugIconPauseColor = theme.getColor(debugIconPauseForeground);
+	if (debugIconPauseColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-pause { color: ${debugIconPauseColor} !important; }`);
+	}
+
+	const debugIconStopColor = theme.getColor(debugIconStopForeground);
+	if (debugIconStopColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-stop { color: ${debugIconStopColor} !important; }`);
+	}
+
+	const debugIconDisconnectColor = theme.getColor(debugIconDisconnectForeground);
+	if (debugIconDisconnectColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-disconnect { color: ${debugIconDisconnectColor} !important; }`);
+	}
+
+	const debugIconRestartColor = theme.getColor(debugIconRestartForeground);
+	if (debugIconRestartColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-restart, .monaco-workbench .codicon-debug-restart-frame { color: ${debugIconRestartColor} !important; }`);
+	}
+
+	const debugIconStepOverColor = theme.getColor(debugIconStepOverForeground);
+	if (debugIconStepOverColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-step-over { color: ${debugIconStepOverColor} !important; }`);
+	}
+
+	const debugIconStepIntoColor = theme.getColor(debugIconStepIntoForeground);
+	if (debugIconStepIntoColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-step-into { color: ${debugIconStepIntoColor} !important; }`);
+	}
+
+	const debugIconStepOutColor = theme.getColor(debugIconStepOutForeground);
+	if (debugIconStepOutColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-step-out { color: ${debugIconStepOutColor} !important; }`);
+	}
+
+	const debugIconContinueColor = theme.getColor(debugIconContinueForeground);
+	if (debugIconContinueColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-continue,.monaco-workbench .codicon-debug-reverse-continue { color: ${debugIconContinueColor} !important; }`);
+	}
+
+	const debugIconStepBackColor = theme.getColor(debugIconStepBackForeground);
+	if (debugIconStepBackColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-step-back { color: ${debugIconStepBackColor} !important; }`);
+	}
+});

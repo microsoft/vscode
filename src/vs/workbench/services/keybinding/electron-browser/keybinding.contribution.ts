@@ -15,12 +15,20 @@ const keyboardConfiguration: IConfigurationNode = {
 	'order': 15,
 	'type': 'object',
 	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-	'overridable': true,
 	'properties': {
 		'keyboard.touchbar.enabled': {
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('touchbar.enabled', "Enables the macOS touchbar buttons on the keyboard if available."),
+			'included': OS === OperatingSystem.Macintosh && parseFloat(release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
+		},
+		'keyboard.touchbar.ignored': {
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': [],
+			'markdownDescription': nls.localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`.'),
 			'included': OS === OperatingSystem.Macintosh && parseFloat(release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
 		}
 	}

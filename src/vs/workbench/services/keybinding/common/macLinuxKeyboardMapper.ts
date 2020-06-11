@@ -459,7 +459,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		}
 
 		// Try to identify keyboard layouts where characters A-Z are missing
-		// and forcefully map them to their corresponding scan codes if that is the case
+		// and forcibly map them to their corresponding scan codes if that is the case
 		const missingLatinLettersOverride: { [scanCode: string]: IMacLinuxKeyMapping; } = {};
 
 		{

@@ -13,62 +13,43 @@ export class MoveCaretCommand implements ICommand {
 	private readonly _selection: Selection;
 	private readonly _isMovingLeft: boolean;
 
-	private _cutStartIndex: number;
-	private _cutEndIndex: number;
-	private _moved: boolean;
-
-	private _selectionId: string;
-
 	constructor(selection: Selection, isMovingLeft: boolean) {
 		this._selection = selection;
 		this._isMovingLeft = isMovingLeft;
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		let s = this._selection;
-		this._selectionId = builder.trackSelection(s);
-		if (s.startLineNumber !== s.endLineNumber) {
+		if (this._selection.startLineNumber !== this._selection.endLineNumber || this._selection.isEmpty()) {
 			return;
 		}
-		if (this._isMovingLeft && s.startColumn === 0) {
-			return;
-		} else if (!this._isMovingLeft && s.endColumn === model.getLineMaxColumn(s.startLineNumber)) {
+		const lineNumber = this._selection.startLineNumber;
+		const startColumn = this._selection.startColumn;
+		const endColumn = this._selection.endColumn;
+		if (this._isMovingLeft && startColumn === 1) {
 			return;
 		}
-
-		let lineNumber = s.selectionStartLineNumber;
-		let lineContent = model.getLineContent(lineNumber);
-
-		let left: string;
-		let middle: string;
-		let right: string;
+		if (!this._isMovingLeft && endColumn === model.getLineMaxColumn(lineNumber)) {
+			return;
+		}
 
 		if (this._isMovingLeft) {
-			left = lineContent.substring(0, s.startColumn - 2);
-			middle = lineContent.substring(s.startColumn - 1, s.endColumn - 1);
-			right = lineContent.substring(s.startColumn - 2, s.startColumn - 1) + lineContent.substring(s.endColumn - 1);
+			const rangeBefore = new Range(lineNumber, startColumn - 1, lineNumber, startColumn);
+			const charBefore = model.getValueInRange(rangeBefore);
+			builder.addEditOperation(rangeBefore, null);
+			builder.addEditOperation(new Range(lineNumber, endColumn, lineNumber, endColumn), charBefore);
 		} else {
-			left = lineContent.substring(0, s.startColumn - 1) + lineContent.substring(s.endColumn - 1, s.endColumn);
-			middle = lineContent.substring(s.startColumn - 1, s.endColumn - 1);
-			right = lineContent.substring(s.endColumn);
+			const rangeAfter = new Range(lineNumber, endColumn, lineNumber, endColumn + 1);
+			const charAfter = model.getValueInRange(rangeAfter);
+			builder.addEditOperation(rangeAfter, null);
+			builder.addEditOperation(new Range(lineNumber, startColumn, lineNumber, startColumn), charAfter);
 		}
-
-		let newLineContent = left + middle + right;
-
-		builder.addEditOperation(new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)), null);
-		builder.addEditOperation(new Range(lineNumber, 1, lineNumber, 1), newLineContent);
-
-		this._cutStartIndex = s.startColumn + (this._isMovingLeft ? -1 : 1);
-		this._cutEndIndex = this._cutStartIndex + s.endColumn - s.startColumn;
-		this._moved = true;
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		let result = helper.getTrackedSelection(this._selectionId);
-		if (this._moved) {
-			result = result.setStartPosition(result.startLineNumber, this._cutStartIndex);
-			result = result.setEndPosition(result.startLineNumber, this._cutEndIndex);
+		if (this._isMovingLeft) {
+			return new Selection(this._selection.startLineNumber, this._selection.startColumn - 1, this._selection.endLineNumber, this._selection.endColumn - 1);
+		} else {
+			return new Selection(this._selection.startLineNumber, this._selection.startColumn + 1, this._selection.endLineNumber, this._selection.endColumn + 1);
 		}
-		return result;
 	}
 }

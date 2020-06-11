@@ -16,6 +16,7 @@ import * as strings from 'vs/base/common/strings';
 import { ITextAreaWrapper, ITypeData, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export interface ICompositionData {
 	data: string;
@@ -32,26 +33,70 @@ const enum ReadFromTextArea {
 
 export interface IPasteData {
 	text: string;
+	metadata: ClipboardStoredMetadata | null;
+}
+
+export interface ClipboardDataToCopy {
+	isFromEmptySelection: boolean;
+	multicursorText: string[] | null | undefined;
+	text: string;
+	html: string | null | undefined;
+	mode: string | null;
+}
+
+export interface ClipboardStoredMetadata {
+	version: 1;
+	isFromEmptySelection: boolean | undefined;
+	multicursorText: string[] | null | undefined;
+	mode: string | null;
 }
 
 export interface ITextAreaInputHost {
-	getPlainTextToCopy(): string;
-	getHTMLToCopy(): string | null;
+	getDataToCopy(html: boolean): ClipboardDataToCopy;
 	getScreenReaderContent(currentState: TextAreaState): TextAreaState;
 	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 }
 
-const enum TextAreaInputEventType {
-	none,
-	compositionstart,
-	compositionupdate,
-	compositionend,
-	input,
-	cut,
-	copy,
-	paste,
-	focus,
-	blur
+interface CompositionEvent extends UIEvent {
+	readonly data: string;
+	readonly locale: string;
+}
+
+interface InMemoryClipboardMetadata {
+	lastCopiedValue: string;
+	data: ClipboardStoredMetadata;
+}
+
+/**
+ * Every time we write to the clipboard, we record a bit of extra metadata here.
+ * Every time we read from the cipboard, if the text matches our last written text,
+ * we can fetch the previous metadata.
+ */
+class InMemoryClipboardMetadataManager {
+	public static readonly INSTANCE = new InMemoryClipboardMetadataManager();
+
+	private _lastState: InMemoryClipboardMetadata | null;
+
+	constructor() {
+		this._lastState = null;
+	}
+
+	public set(lastCopiedValue: string, data: ClipboardStoredMetadata): void {
+		this._lastState = { lastCopiedValue, data };
+	}
+
+	public get(pastedText: string): ClipboardStoredMetadata | null {
+		if (this._lastState && this._lastState.lastCopiedValue === pastedText) {
+			// match!
+			return this._lastState.data;
+		}
+		this._lastState = null;
+		return null;
+	}
+}
+
+export interface ICompositionStartEvent {
+	moveOneCharacterLeft: boolean;
 }
 
 /**
@@ -85,8 +130,8 @@ export class TextAreaInput extends Disposable {
 	private _onType = this._register(new Emitter<ITypeData>());
 	public readonly onType: Event<ITypeData> = this._onType.event;
 
-	private _onCompositionStart = this._register(new Emitter<void>());
-	public readonly onCompositionStart: Event<void> = this._onCompositionStart.event;
+	private _onCompositionStart = this._register(new Emitter<ICompositionStartEvent>());
+	public readonly onCompositionStart: Event<ICompositionStartEvent> = this._onCompositionStart.event;
 
 	private _onCompositionUpdate = this._register(new Emitter<ICompositionData>());
 	public readonly onCompositionUpdate: Event<ICompositionData> = this._onCompositionUpdate.event;
@@ -101,7 +146,6 @@ export class TextAreaInput extends Disposable {
 
 	private readonly _host: ITextAreaInputHost;
 	private readonly _textArea: TextAreaWrapper;
-	private _lastTextAreaEvent: TextAreaInputEventType;
 	private readonly _asyncTriggerCut: RunOnceScheduler;
 
 	private _textAreaState: TextAreaState;
@@ -111,23 +155,25 @@ export class TextAreaInput extends Disposable {
 	private _isDoingComposition: boolean;
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(host: ITextAreaInputHost, textArea: FastDomNode<HTMLTextAreaElement>) {
+	constructor(host: ITextAreaInputHost, private textArea: FastDomNode<HTMLTextAreaElement>) {
 		super();
 		this._host = host;
 		this._textArea = this._register(new TextAreaWrapper(textArea));
-		this._lastTextAreaEvent = TextAreaInputEventType.none;
 		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
 
 		this._textAreaState = TextAreaState.EMPTY;
+		this._selectionChangeListener = null;
 		this.writeScreenReaderContent('ctor');
 
 		this._hasFocus = false;
 		this._isDoingComposition = false;
 		this._nextCommand = ReadFromTextArea.Type;
 
+		let lastKeyDown: IKeyboardEvent | null = null;
+
 		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keydown', (e: IKeyboardEvent) => {
-			if (this._isDoingComposition &&
-				(e.keyCode === KeyCode.KEY_IN_COMPOSITION || e.keyCode === KeyCode.Backspace)) {
+			if (e.keyCode === KeyCode.KEY_IN_COMPOSITION
+				|| (this._isDoingComposition && e.keyCode === KeyCode.Backspace)) {
 				// Stop propagation for keyDown events if the IME is processing key input
 				e.stopPropagation();
 			}
@@ -137,6 +183,8 @@ export class TextAreaInput extends Disposable {
 				// See https://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
 				e.preventDefault();
 			}
+
+			lastKeyDown = e;
 			this._onKeyDown.fire(e);
 		}));
 
@@ -145,28 +193,49 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionstart', (e: CompositionEvent) => {
-			this._lastTextAreaEvent = TextAreaInputEventType.compositionstart;
-
 			if (this._isDoingComposition) {
 				return;
 			}
 			this._isDoingComposition = true;
 
-			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-			if (!browser.isEdgeOrIE) {
+			let moveOneCharacterLeft = false;
+			if (
+				platform.isMacintosh
+				&& lastKeyDown
+				&& lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
+				&& this._textAreaState.selectionStart === this._textAreaState.selectionEnd
+				&& this._textAreaState.selectionStart > 0
+				&& this._textAreaState.value.substr(this._textAreaState.selectionStart - 1, 1) === e.data
+			) {
+				// Handling long press case on macOS + arrow key => pretend the character was selected
+				if (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft') {
+					moveOneCharacterLeft = true;
+				}
+			}
+
+			if (moveOneCharacterLeft) {
+				this._textAreaState = new TextAreaState(
+					this._textAreaState.value,
+					this._textAreaState.selectionStart - 1,
+					this._textAreaState.selectionEnd,
+					this._textAreaState.selectionStartPosition ? new Position(this._textAreaState.selectionStartPosition.lineNumber, this._textAreaState.selectionStartPosition.column - 1) : null,
+					this._textAreaState.selectionEndPosition
+				);
+			} else if (!browser.isEdge) {
+				// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
 				this._setAndWriteTextAreaState('compositionstart', TextAreaState.EMPTY);
 			}
 
-			this._onCompositionStart.fire();
+			this._onCompositionStart.fire({ moveOneCharacterLeft });
 		}));
 
 		/**
 		 * Deduce the typed input from a text area's value and the last observed state.
 		 */
-		const deduceInputFromTextAreaValue = (couldBeEmojiInput: boolean, couldBeTypingAtOffset0: boolean): [TextAreaState, ITypeData] => {
+		const deduceInputFromTextAreaValue = (couldBeEmojiInput: boolean): [TextAreaState, ITypeData] => {
 			const oldState = this._textAreaState;
 			const newState = TextAreaState.readFromTextArea(this._textArea);
-			return [newState, TextAreaState.deduceInput(oldState, newState, couldBeEmojiInput, couldBeTypingAtOffset0)];
+			return [newState, TextAreaState.deduceInput(oldState, newState, couldBeEmojiInput)];
 		};
 
 		/**
@@ -187,15 +256,7 @@ export class TextAreaInput extends Disposable {
 			// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
 			// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
 			// which breaks this path of code.
-			if (browser.isEdgeOrIE && locale === 'ja') {
-				return true;
-			}
-
-			// https://github.com/Microsoft/monaco-editor/issues/545
-			// On IE11, we can't trust composition data when typing Chinese as IE11 doesn't emit correct
-			// events when users type numbers in IME.
-			// Chinese: zh-Hans-CN, zh-Hans-SG, zh-Hant-TW, zh-Hant-HK
-			if (browser.isIE && locale.indexOf('zh-Han') === 0) {
+			if (browser.isEdge && locale === 'ja') {
 				return true;
 			}
 
@@ -203,10 +264,8 @@ export class TextAreaInput extends Disposable {
 		};
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
-			this._lastTextAreaEvent = TextAreaInputEventType.compositionupdate;
-
 			if (compositionDataInValid(e.locale)) {
-				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false, /*couldBeTypingAtOffset0*/false);
+				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 				this._onCompositionUpdate.fire(e);
@@ -220,11 +279,14 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
-			this._lastTextAreaEvent = TextAreaInputEventType.compositionend;
-
+			// https://github.com/microsoft/monaco-editor/issues/1663
+			// On iOS 13.2, Chinese system IME randomly trigger an additional compositionend event with empty data
+			if (!this._isDoingComposition) {
+				return;
+			}
 			if (compositionDataInValid(e.locale)) {
 				// https://github.com/Microsoft/monaco-editor/issues/339
-				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false, /*couldBeTypingAtOffset0*/false);
+				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 			} else {
@@ -235,7 +297,7 @@ export class TextAreaInput extends Disposable {
 
 			// Due to isEdgeOrIE (where the textarea was not cleared initially) and isChrome (the textarea is not updated correctly when composition ends)
 			// we cannot assume the text at the end consists only of the composited text
-			if (browser.isEdgeOrIE || browser.isChrome) {
+			if (browser.isEdge || browser.isChrome) {
 				this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
 			}
 
@@ -248,10 +310,6 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'input', () => {
-			// We want to find out if this is the first `input` after a `focus`.
-			const previousEventWasFocus = (this._lastTextAreaEvent === TextAreaInputEventType.focus);
-			this._lastTextAreaEvent = TextAreaInputEventType.input;
-
 			// Pretend here we touched the text area, as the `input` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received input event');
@@ -260,7 +318,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/platform.isMacintosh, /*couldBeTypingAtOffset0*/previousEventWasFocus && platform.isMacintosh);
+			const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/platform.isMacintosh);
 			if (typeInput.replaceCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
 				// Ignore invalid input but keep it around for next time
 				return;
@@ -272,10 +330,8 @@ export class TextAreaInput extends Disposable {
 					this._onType.fire(typeInput);
 				}
 			} else {
-				if (typeInput.text !== '') {
-					this._onPaste.fire({
-						text: typeInput.text
-					});
+				if (typeInput.text !== '' || typeInput.replaceCharCnt !== 0) {
+					this._firePaste(typeInput.text, null);
 				}
 				this._nextCommand = ReadFromTextArea.Type;
 			}
@@ -284,8 +340,6 @@ export class TextAreaInput extends Disposable {
 		// --- Clipboard operations
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'cut', (e: ClipboardEvent) => {
-			this._lastTextAreaEvent = TextAreaInputEventType.cut;
-
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received cut event');
@@ -295,24 +349,18 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'copy', (e: ClipboardEvent) => {
-			this._lastTextAreaEvent = TextAreaInputEventType.copy;
-
 			this._ensureClipboardGetsEditorSelection(e);
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'paste', (e: ClipboardEvent) => {
-			this._lastTextAreaEvent = TextAreaInputEventType.paste;
-
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');
 
 			if (ClipboardEventUtils.canUseTextData(e)) {
-				const pastePlainText = ClipboardEventUtils.getTextData(e);
+				const [pastePlainText, metadata] = ClipboardEventUtils.getTextData(e);
 				if (pastePlainText !== '') {
-					this._onPaste.fire({
-						text: pastePlainText
-					});
+					this._firePaste(pastePlainText, metadata);
 				}
 			} else {
 				if (this._textArea.getSelectionStart() !== this._textArea.getSelectionEnd()) {
@@ -324,17 +372,15 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'focus', () => {
-			this._lastTextAreaEvent = TextAreaInputEventType.focus;
 			this._setHasFocus(true);
 		}));
 		this._register(dom.addDisposableListener(textArea.domNode, 'blur', () => {
-			this._lastTextAreaEvent = TextAreaInputEventType.blur;
 			this._setHasFocus(false);
 		}));
 	}
 
 	private _installSelectionChangeListener(): IDisposable {
-		// See https://github.com/Microsoft/vscode/issues/27216
+		// See https://github.com/Microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
 		// When using a Braille display, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event.
 		//
@@ -360,8 +406,8 @@ export class TextAreaInput extends Disposable {
 			if (this._isDoingComposition) {
 				return;
 			}
-			if (!browser.isChrome || !platform.isWindows) {
-				// Support only for Chrome on Windows until testing happens on other browsers + OS configurations
+			if (!browser.isChrome) {
+				// Support only for Chrome until testing happens on other browsers
 				return;
 			}
 
@@ -428,10 +474,24 @@ export class TextAreaInput extends Disposable {
 		// Setting this._hasFocus and writing the screen reader content
 		// will result in a focus() and setSelectionRange() in the textarea
 		this._setHasFocus(true);
+
+		// If the editor is off DOM, focus cannot be really set, so let's double check that we have managed to set the focus
+		this.refreshFocusState();
 	}
 
 	public isFocused(): boolean {
 		return this._hasFocus;
+	}
+
+	public refreshFocusState(): void {
+		const shadowRoot = dom.getShadowRoot(this.textArea.domNode);
+		if (shadowRoot) {
+			this._setHasFocus(shadowRoot.activeElement === this.textArea.domNode);
+		} else if (dom.isInDOM(this.textArea.domNode)) {
+			this._setHasFocus(document.activeElement === this.textArea.domNode);
+		} else {
+			this._setHasFocus(false);
+		}
 	}
 
 	private _setHasFocus(newHasFocus: boolean): void {
@@ -485,19 +545,39 @@ export class TextAreaInput extends Disposable {
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		const copyPlainText = this._host.getPlainTextToCopy();
+		const dataToCopy = this._host.getDataToCopy(ClipboardEventUtils.canUseTextData(e) && BrowserFeatures.clipboard.richText);
+		const storedMetadata: ClipboardStoredMetadata = {
+			version: 1,
+			isFromEmptySelection: dataToCopy.isFromEmptySelection,
+			multicursorText: dataToCopy.multicursorText,
+			mode: dataToCopy.mode
+		};
+		InMemoryClipboardMetadataManager.INSTANCE.set(
+			// When writing "LINE\r\n" to the clipboard and then pasting,
+			// Firefox pastes "LINE\n", so let's work around this quirk
+			(browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
+			storedMetadata
+		);
+
 		if (!ClipboardEventUtils.canUseTextData(e)) {
 			// Looks like an old browser. The strategy is to place the text
 			// we'd like to be copied to the clipboard in the textarea and select it.
-			this._setAndWriteTextAreaState('copy or cut', TextAreaState.selectedText(copyPlainText));
+			this._setAndWriteTextAreaState('copy or cut', TextAreaState.selectedText(dataToCopy.text));
 			return;
 		}
 
-		let copyHTML: string | null = null;
-		if (browser.hasClipboardSupport() && (copyPlainText.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
-			copyHTML = this._host.getHTMLToCopy();
+		ClipboardEventUtils.setTextData(e, dataToCopy.text, dataToCopy.html, storedMetadata);
+	}
+
+	private _firePaste(text: string, metadata: ClipboardStoredMetadata | null): void {
+		if (!metadata) {
+			// try the in-memory store
+			metadata = InMemoryClipboardMetadataManager.INSTANCE.get(text);
 		}
-		ClipboardEventUtils.setTextData(e, copyPlainText, copyHTML);
+		this._onPaste.fire({
+			text: text,
+			metadata: metadata
+		});
 	}
 }
 
@@ -513,26 +593,43 @@ class ClipboardEventUtils {
 		return false;
 	}
 
-	public static getTextData(e: ClipboardEvent): string {
+	public static getTextData(e: ClipboardEvent): [string, ClipboardStoredMetadata | null] {
 		if (e.clipboardData) {
 			e.preventDefault();
-			return e.clipboardData.getData('text/plain');
+
+			const text = e.clipboardData.getData('text/plain');
+			let metadata: ClipboardStoredMetadata | null = null;
+			const rawmetadata = e.clipboardData.getData('vscode-editor-data');
+			if (typeof rawmetadata === 'string') {
+				try {
+					metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
+					if (metadata.version !== 1) {
+						metadata = null;
+					}
+				} catch (err) {
+					// no problem!
+				}
+			}
+
+			return [text, metadata];
 		}
 
 		if ((<any>window).clipboardData) {
 			e.preventDefault();
-			return (<any>window).clipboardData.getData('Text');
+			const text: string = (<any>window).clipboardData.getData('Text');
+			return [text, null];
 		}
 
 		throw new Error('ClipboardEventUtils.getTextData: Cannot use text data!');
 	}
 
-	public static setTextData(e: ClipboardEvent, text: string, richText: string | null): void {
+	public static setTextData(e: ClipboardEvent, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
 		if (e.clipboardData) {
 			e.clipboardData.setData('text/plain', text);
-			if (richText !== null) {
-				e.clipboardData.setData('text/html', richText);
+			if (typeof html === 'string') {
+				e.clipboardData.setData('text/html', html);
 			}
+			e.clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
 			e.preventDefault();
 			return;
 		}
@@ -597,7 +694,15 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 	public setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void {
 		const textArea = this._actual.domNode;
 
-		const currentIsFocused = (document.activeElement === textArea);
+		let activeElement: Element | null = null;
+		const shadowRoot = dom.getShadowRoot(textArea);
+		if (shadowRoot) {
+			activeElement = shadowRoot.activeElement;
+		} else {
+			activeElement = document.activeElement;
+		}
+
+		const currentIsFocused = (activeElement === textArea);
 		const currentSelectionStart = textArea.selectionStart;
 		const currentSelectionEnd = textArea.selectionEnd;
 
