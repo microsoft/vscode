@@ -16,7 +16,7 @@ import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { Position, Parts, IWorkbenchLayoutService, positionFromString, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, WillSaveStateReason, WorkspaceStorageSettings } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -54,7 +54,6 @@ export enum Settings {
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
-	WORKSPACE_FIRST_OPEN = 'workbench.workspaceFirstOpen'
 }
 
 enum Storage {
@@ -104,7 +103,7 @@ interface SideBarActivityState {
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	//#region Events
 
@@ -476,6 +475,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
+
+		// Default Layout
 		this.applyDefaultLayout(this.environmentService, this.storageService);
 
 		// Fullscreen
@@ -560,7 +561,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		const firstOpen = storageService.getBoolean(Settings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE);
+		const firstOpen = storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE);
 		if (!firstOpen) {
 			return;
 		}
@@ -773,7 +774,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[] } | undefined {
 		const defaultLayout = this.environmentService.options?.defaultLayout;
-		if (defaultLayout?.editors?.length && this.storageService.getBoolean(Settings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE)) {
+		if (defaultLayout?.editors?.length && this.storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE)) {
 			this._openedDefaultEditors = true;
 
 			return {

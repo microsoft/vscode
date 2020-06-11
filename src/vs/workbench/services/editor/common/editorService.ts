@@ -87,7 +87,7 @@ export interface ICustomEditorViewTypesHandler {
 
 export interface IEditorService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emitted when the currently active editor changes.

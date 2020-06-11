@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -407,32 +407,52 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.mapResourceToPendingModelLoaders.clear();
 
 		// dispose the dispose listeners
-		this.mapResourceToDisposeListener.forEach(l => l.dispose());
+		this.mapResourceToDisposeListener.forEach(listener => listener.dispose());
 		this.mapResourceToDisposeListener.clear();
 
 		// dispose the model change listeners
-		this.mapResourceToModelListeners.forEach(l => l.dispose());
+		this.mapResourceToModelListeners.forEach(listener => listener.dispose());
 		this.mapResourceToModelListeners.clear();
 	}
 
-	disposeModel(model: TextFileEditorModel): void {
-		if (!model) {
-			return; // we need data!
+	canDispose(model: TextFileEditorModel): true | Promise<true> {
+
+		// quick return if model already disposed or not dirty and not loading
+		if (
+			model.isDisposed() ||
+			(!this.mapResourceToPendingModelLoaders.has(model.resource) && !model.isDirty())
+		) {
+			return true;
 		}
 
-		if (model.isDisposed()) {
-			return; // already disposed
+		// promise based return in all other cases
+		return this.doCanDispose(model);
+	}
+
+	private async doCanDispose(model: TextFileEditorModel): Promise<true> {
+
+		// pending model load: wait for the load to finish before trying again
+		const pendingModelLoad = this.mapResourceToPendingModelLoaders.get(model.resource);
+		if (pendingModelLoad) {
+			try {
+				await pendingModelLoad;
+			} catch (error) {
+				// ignore any error
+			}
+
+			return this.canDispose(model);
 		}
 
-		if (this.mapResourceToPendingModelLoaders.has(model.resource)) {
-			return; // not yet loaded
-		}
-
+		// dirty model: we do not allow to dispose dirty models to prevent
+		// data loss cases. dirty models can only be disposed when they are
+		// either saved or reverted
 		if (model.isDirty()) {
-			return; // not saved
+			await Event.toPromise(model.onDidChangeDirty);
+
+			return this.canDispose(model);
 		}
 
-		model.dispose();
+		return true;
 	}
 
 	dispose(): void {

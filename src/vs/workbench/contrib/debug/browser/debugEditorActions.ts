@@ -181,7 +181,7 @@ class SelectionToReplAction extends EditorAction {
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
 		await session.addReplExpression(viewModel.focusedStackFrame!, text);
-		await viewsService.openView(REPL_VIEW_ID, true);
+		await viewsService.openView(REPL_VIEW_ID, false);
 	}
 }
 
@@ -268,10 +268,10 @@ class StepIntoTargetsAction extends EditorAction {
 		const session = debugService.getViewModel().focusedSession;
 		const frame = debugService.getViewModel().focusedStackFrame;
 
-		if (session && frame && editor.hasModel()) {
+		if (session && frame && editor.hasModel() && editor.getModel().uri.toString() === frame.source.uri.toString()) {
 			const targets = await session.stepInTargets(frame.frameId);
-			const position = editor.getPosition();
-			const cursorCoords = editor.getScrolledVisiblePosition(position);
+			editor.revealLineInCenterIfOutsideViewport(frame.range.startLineNumber);
+			const cursorCoords = editor.getScrolledVisiblePosition({ lineNumber: frame.range.startLineNumber, column: frame.range.startColumn });
 			const editorCoords = getDomNodePagePosition(editor.getDomNode());
 			const x = editorCoords.left + cursorCoords.left;
 			const y = editorCoords.top + cursorCoords.top + cursorCoords.height;

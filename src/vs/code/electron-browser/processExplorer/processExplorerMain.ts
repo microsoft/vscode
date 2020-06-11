@@ -16,7 +16,7 @@ import * as platform from 'vs/base/common/platform';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
-import { addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 
@@ -389,6 +389,9 @@ function createCloseListener(): void {
 }
 
 export function startup(data: ProcessExplorerData): void {
+	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
+	addClass(document.body, platformClass); // used by our fonts
+
 	applyStyles(data.styles);
 	applyZoom(data.zoomLevel);
 	createCloseListener();

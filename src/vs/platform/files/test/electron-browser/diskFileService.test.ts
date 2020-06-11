@@ -1838,7 +1838,8 @@ suite('Disk File Service', function () {
 		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'small-copy.txt');
 
-		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
+		const targetContents = readFileSync(target.fsPath).toString();
+		assert.equal(readFileSync(source.fsPath).toString(), targetContents);
 	}
 
 	test('writeFile (large file - stream) - default', async () => {
@@ -1864,7 +1865,8 @@ suite('Disk File Service', function () {
 		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'lorem-copy.txt');
 
-		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
+		const targetContents = readFileSync(target.fsPath).toString();
+		assert.equal(readFileSync(source.fsPath).toString(), targetContents);
 	}
 
 	test('writeFile (file is created including parents)', async () => {

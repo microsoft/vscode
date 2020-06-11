@@ -17,7 +17,7 @@ import {
 	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -340,7 +340,16 @@ class Extensions extends Disposable {
 	}
 
 	async queryInstalled(): Promise<IExtension[]> {
-		const installed = await this.server.extensionManagementService.getInstalled();
+		const all = await this.server.extensionManagementService.getInstalled();
+
+		// dedup user and system extensions by giving priority to user extensions.
+		const installed = groupByExtension(all, r => r.identifier).reduce((result, extensions) => {
+			const extension = extensions.length === 1 ? extensions[0]
+				: extensions.find(e => e.type === ExtensionType.User) || extensions.find(e => e.type === ExtensionType.System);
+			result.push(extension!);
+			return result;
+		}, []);
+
 		const byId = index(this.installed, e => e.local ? e.local.identifier.id : e.identifier.id);
 		this.installed = installed.map(local => {
 			const extension = byId[local.identifier.id] || this.instantiationService.createInstance(Extension, this.stateProvider, this.server, local, undefined);
@@ -476,7 +485,7 @@ class Extensions extends Disposable {
 export class ExtensionsWorkbenchService extends Disposable implements IExtensionsWorkbenchService, IURLHandler {
 
 	private static readonly SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly localExtensions: Extensions | null = null;
 	private readonly remoteExtensions: Extensions | null = null;
@@ -542,8 +551,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	get local(): IExtension[] {
-		const result = [...this.installed];
-		const byId = groupByExtension(result, r => r.identifier);
+		const byId = groupByExtension(this.installed, r => r.identifier);
 		return byId.reduce((result, extensions) => { result.push(this.getPrimaryExtension(extensions)); return result; }, []);
 	}
 
@@ -784,10 +792,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	install(extension: URI | IExtension): Promise<IExtension> {
 		if (extension instanceof URI) {
-			return this.installWithProgress(async () => {
-				const { identifier } = await this.extensionService.install(extension);
-				return this.local.filter(local => areSameExtensions(local.identifier, identifier))[0];
-			});
+			return this.installWithProgress(() => this.installFromVSIX(extension));
 		}
 
 		if (extension.isMalicious) {
@@ -800,10 +805,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return Promise.reject(new Error('Missing gallery'));
 		}
 
-		return this.installWithProgress(async () => {
-			await this.installFromGallery(extension, gallery);
-			return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
-		}, gallery.displayName);
+		return this.installWithProgress(() => this.installFromGallery(extension, gallery), gallery.displayName);
 	}
 
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void> {
@@ -840,11 +842,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					return Promise.reject(new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extension.gallery!.identifier.id, version)));
 				}
 				return this.installWithProgress(async () => {
-					await this.installFromGallery(extension, gallery);
+					const installed = await this.installFromGallery(extension, gallery);
 					if (extension.latestVersion !== version) {
 						this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(gallery.identifier, version));
 					}
-					return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
+					return installed;
 				}
 					, gallery.displayName);
 			});
@@ -905,7 +907,19 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}, () => installTask());
 	}
 
-	private async installFromGallery(extension: IExtension, gallery: IGalleryExtension): Promise<void> {
+	private async installFromVSIX(vsix: URI): Promise<IExtension> {
+		const manifest = await this.extensionService.getManifest(vsix);
+		const existingExtension = this.local.find(local => areSameExtensions(local.identifier, { id: getGalleryExtensionId(manifest.publisher, manifest.name) }));
+		const { identifier } = await this.extensionService.install(vsix);
+
+		if (existingExtension && existingExtension.latestVersion !== manifest.version) {
+			this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(identifier, manifest.version));
+		}
+
+		return this.local.filter(local => areSameExtensions(local.identifier, identifier))[0];
+	}
+
+	private async installFromGallery(extension: IExtension, gallery: IGalleryExtension): Promise<IExtension> {
 		this.installing.push(extension);
 		this._onChange.fire(extension);
 		try {
@@ -914,6 +928,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			const ids: string[] | undefined = extension.identifier.uuid ? [extension.identifier.uuid] : undefined;
 			const names: string[] | undefined = extension.identifier.uuid ? undefined : [extension.identifier.id];
 			this.queryGallery({ names, ids, pageSize: 1 }, CancellationToken.None);
+			return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
 		} finally {
 			this.installing = this.installing.filter(e => e !== extension);
 			this._onChange.fire(this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0]);

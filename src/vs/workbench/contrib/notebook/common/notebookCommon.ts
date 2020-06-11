@@ -250,7 +250,7 @@ export interface IMetadata {
 export interface INotebookTextModel {
 	handle: number;
 	viewType: string;
-	// metadata: IMetadata;
+	metadata: NotebookDocumentMetadata
 	readonly uri: URI;
 	readonly versionId: number;
 	languages: string[];
@@ -385,11 +385,12 @@ export interface NotebookDataDto {
 export namespace CellUri {
 
 	export const scheme = 'vscode-notebook-cell';
+	const _regex = /^\d{7,}/;
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
 			scheme,
-			fragment: `${handle}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+			fragment: `${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
 		});
 	}
 
@@ -397,14 +398,15 @@ export namespace CellUri {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
-		const handle = parseInt(cell.fragment);
-		if (isNaN(handle)) {
+		const match = _regex.exec(cell.fragment);
+		if (!match) {
 			return undefined;
 		}
+		const handle = Number(match[0]);
 		return {
 			handle,
 			notebook: cell.with({
-				scheme: cell.fragment.substr(handle.toString().length) || Schemas.file,
+				scheme: cell.fragment.substr(match[0].length) || Schemas.file,
 				fragment: null
 			})
 		};
@@ -558,6 +560,11 @@ export interface INotebookTextModelBackup {
 	cells: ICellDto2[]
 }
 
+export interface NotebookDocumentBackupData {
+	readonly viewType: string;
+	readonly name: string;
+}
+
 export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
@@ -567,4 +574,9 @@ export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	getId(): string;
 	hasFocus(): boolean;
 	hasModel(): boolean;
+}
+
+export enum NotebookEditorPriority {
+	default = 'default',
+	option = 'option',
 }

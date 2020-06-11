@@ -210,12 +210,6 @@
 	color: inherit;
 }
 
-.scm-viewlet .list-view-mode .monaco-tl-twistie:not(.force-twistie):not(.collapsible) {
-	background-image: none !important;
-	width: 8px !important;
-	margin-right: 0 !important;
-}
-
 .scm-viewlet .scm-status.show-file-icons.hide-arrows.tree-view-mode .monaco-tl-indent .indent-guide:first-child {
 	border: none;
 }

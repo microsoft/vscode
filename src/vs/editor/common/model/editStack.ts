@@ -168,6 +168,11 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 		this._data = SingleModelEditStackData.create(model, beforeCursorState);
 	}
 
+	public toString(): string {
+		const data = (this._data instanceof SingleModelEditStackData ? this._data : SingleModelEditStackData.deserialize(this._data));
+		return data.changes.map(change => change.toString()).join(', ');
+	}
+
 	public matchesResource(resource: URI): boolean {
 		const uri = (URI.isUri(this.model) ? this.model : this.model.uri);
 		return (uri.toString() === resource.toString());

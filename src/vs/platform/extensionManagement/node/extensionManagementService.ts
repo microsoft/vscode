@@ -62,7 +62,7 @@ interface InstallableExtension {
 
 export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly extensionsScanner: ExtensionsScanner;
 	private reportedExtensions: Promise<IReportedExtension[]> | undefined;
@@ -175,7 +175,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 									if (identifierWithVersion.equals(new ExtensionIdentifierWithVersion(existing.identifier, existing.manifest.version))) {
 										return this.extensionsScanner.removeExtension(existing, 'existing').then(null, e => Promise.reject(new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", manifest.displayName || manifest.name))));
 									} else if (semver.gt(existing.manifest.version, manifest.version)) {
-										return this.uninstall(existing, true);
+										return this.uninstallExtension(existing);
 									}
 								} else {
 									// Remove the extension with same version if it is already uninstalled.
@@ -294,7 +294,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 							.then(local => this.extensionsDownloader.delete(URI.file(installableExtension.zipPath)).finally(() => { }).then(() => local));
 					})
 					.then(local => this.installDependenciesAndPackExtensions(local, existingExtension)
-						.then(() => local, error => this.uninstall(local, true).then(() => Promise.reject(error), () => Promise.reject(error))))
+						.then(() => local, error => this.uninstall(local).then(() => Promise.reject(error), () => Promise.reject(error))))
 					.then(
 						async local => {
 							if (existingExtension && semver.neq(existingExtension.manifest.version, extension.version)) {
@@ -465,11 +465,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return this.getInstalled(ExtensionType.User)
 			.then(installed =>
 				Promise.all(installed.filter(local => extensions.some(galleryExtension => new ExtensionIdentifierWithVersion(local.identifier, local.manifest.version).equals(new ExtensionIdentifierWithVersion(galleryExtension.identifier, galleryExtension.version)))) // Check with version because we want to rollback the exact version
-					.map(local => this.uninstall(local, true))))
+					.map(local => this.uninstall(local))))
 			.then(() => undefined, () => undefined);
 	}
 
-	uninstall(extension: ILocalExtension, force = false): Promise<void> {
+	uninstall(extension: ILocalExtension): Promise<void> {
 		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
 		return this.toNonCancellablePromise(this.getInstalled(ExtensionType.User)
 			.then(installed => {

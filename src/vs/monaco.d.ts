@@ -2629,7 +2629,7 @@ declare namespace monaco.editor {
 		*/
 		renderFinalNewline?: boolean;
 		/**
-		 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS), NEXT LINE (NEL).
+		 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
 		 * Defaults to 'prompt'.
 		 */
 		unusualLineTerminators?: 'off' | 'prompt' | 'auto';

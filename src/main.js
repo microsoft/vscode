@@ -89,7 +89,6 @@ protocol.registerSchemesAsPrivileged([
 		scheme: 'vscode-resource',
 		privileges: {
 			secure: true,
-			standard: true,
 			supportFetchAPI: true,
 			corsEnabled: true,
 		}

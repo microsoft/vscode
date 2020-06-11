@@ -28,7 +28,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IHostService protected readonly hostService: IHostService,

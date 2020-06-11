@@ -19,11 +19,12 @@ import { URI } from 'vs/base/common/uri';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { isEqual } from 'vs/base/common/resources';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
-import { Throttler } from 'vs/base/common/async';
+import { Throttler, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { platform, PlatformToString } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 type SyncClassification = {
 	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -37,6 +38,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	_serviceBrand: any;
 
 	private readonly syncThrottler: Throttler;
+	private syncPromise: CancelablePromise<void> | undefined;
 	private readonly synchronisers: IUserDataSynchroniser[];
 
 	private _status: SyncStatus = SyncStatus.Uninitialized;
@@ -141,10 +143,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.recoveredSettings = true;
 		}
 
-		await this.syncThrottler.queue(() => this.doSync());
+		await this.syncThrottler.queue(() => {
+			this.syncPromise = createCancelablePromise(token => this.doSync(token));
+			return this.syncPromise;
+		});
 	}
 
-	private async doSync(): Promise<void> {
+	private async doSync(token: CancellationToken): Promise<void> {
 		const startTime = new Date().getTime();
 		this._syncErrors = [];
 		try {
@@ -171,6 +176,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			const machines = await this.userDataSyncMachinesService.getMachines(manifest || undefined);
 			const currentMachine = machines.find(machine => machine.isCurrent);
 
+			// Return if cancellation is requested
+			if (token.isCancellationRequested) {
+				return;
+			}
+
 			// Check if sync was turned off from other machine
 			if (currentMachine?.disabled) {
 				// Unset the current machine
@@ -180,6 +190,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 
 			for (const synchroniser of this.synchronisers) {
+				// Return if cancellation is requested
+				if (token.isCancellationRequested) {
+					return;
+				}
 				try {
 					await synchroniser.sync(manifest);
 				} catch (e) {
@@ -193,14 +207,30 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				manifest = await this.userDataSyncStoreService.manifest();
 			}
 
+			// Return if cancellation is requested
+			if (token.isCancellationRequested) {
+				return;
+			}
+
 			// Update local session id
 			if (manifest && manifest.session !== sessionId) {
 				this.storageService.store(SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL);
 			}
 
+			// Return if cancellation is requested
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			// Add current machine
 			if (!currentMachine) {
 				const name = this.computeDefaultMachineName(machines);
 				await this.userDataSyncMachinesService.addCurrentMachine(name, manifest || undefined);
+			}
+
+			// Return if cancellation is requested
+			if (token.isCancellationRequested) {
+				return;
 			}
 
 			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
@@ -228,9 +258,17 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async stop(): Promise<void> {
 		await this.checkEnablement();
+
+		if (this.syncPromise) {
+			this.syncPromise.cancel();
+			this.logService.info('Canelled sync that is in progress');
+			this.syncPromise = undefined;
+		}
+
 		if (this.status === SyncStatus.Idle) {
 			return;
 		}
+
 		for (const synchroniser of this.synchronisers) {
 			try {
 				if (synchroniser.status !== SyncStatus.Idle) {
@@ -240,6 +278,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.logService.error(e);
 			}
 		}
+
 	}
 
 	async acceptConflict(conflict: URI, content: string): Promise<void> {
@@ -330,6 +369,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.logService.error(e);
 			}
 		}
+		this.logService.info('Did reset the local sync state.');
 	}
 
 	private async hasPreviouslySynced(): Promise<boolean> {
@@ -345,6 +385,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		await this.checkEnablement();
 		try {
 			await this.userDataSyncStoreService.clear();
+			this.logService.info('Cleared data on server');
 		} catch (e) {
 			this.logService.error(e);
 		}

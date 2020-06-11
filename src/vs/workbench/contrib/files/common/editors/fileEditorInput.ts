@@ -41,10 +41,11 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	private model: ITextFileEditorModel | undefined = undefined;
 	private cachedTextFileModelReference: IReference<ITextFileEditorModel> | undefined = undefined;
 
-	private modelListeners: DisposableStore = this._register(new DisposableStore());
+	private readonly modelListeners: DisposableStore = this._register(new DisposableStore());
 
 	constructor(
 		resource: URI,
+		preferredLabel: URI | undefined,
 		preferredEncoding: string | undefined,
 		preferredMode: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -56,7 +57,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
+		super(resource, preferredLabel, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 
 		this.model = this.textFileService.files.get(resource);
 
@@ -85,12 +86,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 		// Once the text file model is created, we keep it inside
 		// the input to be able to implement some methods properly
-		// TODO@ben once we are certain that models will only be
-		// created with canonical URIs, this should use the URI
-		// identity service. But as long as there is a chance
-		// that a model is created with same path but different
-		// case, we can only accept that model here if the URIs
-		// are 100% identical.
 		if (extUri.isEqual(model.resource, this.resource)) {
 			this.model = model;
 
@@ -117,6 +112,37 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			this.modelListeners.clear();
 			this.model = undefined;
 		}));
+	}
+
+	getTypeId(): string {
+		return FILE_EDITOR_INPUT_ID;
+	}
+
+	getName(): string {
+		return this.decorateLabel(super.getName());
+	}
+
+	getTitle(verbosity: Verbosity): string {
+		return this.decorateLabel(super.getTitle(verbosity));
+	}
+
+	private decorateLabel(label: string): string {
+		const orphaned = this.model?.hasState(TextFileEditorModelState.ORPHAN);
+		const readonly = this.isReadonly();
+
+		if (orphaned && readonly) {
+			return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
+		}
+
+		if (orphaned) {
+			return localize('orphanedFile', "{0} (deleted)", label);
+		}
+
+		if (readonly) {
+			return localize('readonlyFile', "{0} (read-only)", label);
+		}
+
+		return label;
 	}
 
 	getEncoding(): string | undefined {
@@ -167,37 +193,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	setForceOpenAsBinary(): void {
 		this.forceOpenAs = ForceOpenAs.Binary;
-	}
-
-	getTypeId(): string {
-		return FILE_EDITOR_INPUT_ID;
-	}
-
-	getName(): string {
-		return this.decorateLabel(super.getName());
-	}
-
-	getTitle(verbosity: Verbosity): string {
-		return this.decorateLabel(super.getTitle(verbosity));
-	}
-
-	private decorateLabel(label: string): string {
-		const orphaned = this.model?.hasState(TextFileEditorModelState.ORPHAN);
-		const readonly = this.isReadonly();
-
-		if (orphaned && readonly) {
-			return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
-		}
-
-		if (orphaned) {
-			return localize('orphanedFile', "{0} (deleted)", label);
-		}
-
-		if (readonly) {
-			return localize('readonlyFile', "{0} (read-only)", label);
-		}
-
-		return label;
 	}
 
 	isDirty(): boolean {

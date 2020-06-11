@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IUserDataSyncEnablementService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncEnablementService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNCED_DATA_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -13,7 +13,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { flatten } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -27,6 +27,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Action } from 'vs/base/common/actions';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -78,10 +79,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	constructor(
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IAuthenticationTokenService private readonly authenticationTokenService: IAuthenticationTokenService,
+		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService productService: IProductService,
@@ -103,8 +105,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 			this.syncStatusContext.set(this.userDataSyncService.status);
 			this._register(userDataSyncService.onDidChangeStatus(status => this.syncStatusContext.set(status)));
-			this.syncEnablementContext.set(this.userDataSyncEnablementService.isEnabled());
-			this._register(this.userDataSyncEnablementService.onDidChangeEnablement(enabled => this.syncEnablementContext.set(enabled)));
+			this.syncEnablementContext.set(userDataSyncEnablementService.isEnabled());
+			this._register(userDataSyncEnablementService.onDidChangeEnablement(enabled => this.syncEnablementContext.set(enabled)));
 
 			extensionService.whenInstalledExtensionsRegistered().then(() => {
 				if (this.authenticationProviders.every(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {
@@ -136,11 +138,12 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 						this.authenticationService.onDidRegisterAuthenticationProvider,
 						this.authenticationService.onDidUnregisterAuthenticationProvider,
 					), authenticationProviderId => this.isSupportedAuthenticationProviderId(authenticationProviderId)),
-				this.authenticationTokenService.onTokenFailed)
+				Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => !isSuccessive))
 				(() => this.update()));
 
 		this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
 		this._register(this.storageService.onDidChangeStorage(e => this.onDidChangeStorage(e)));
+		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => isSuccessive)(() => this.onDidSuccessiveAuthFailures()));
 	}
 
 	private async update(): Promise<void> {
@@ -189,7 +192,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				this.logService.error(e);
 			}
 		}
-		await this.authenticationTokenService.setToken(value);
+		await this.userDataSyncAccountService.updateAccount(value);
 	}
 
 	private updateAccountStatus(current: UserDataSyncAccount | undefined): void {
@@ -199,10 +202,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
 			this.logService.debug('Sync account status changed', previous, accountStatus);
-
-			if (previous === AccountStatus.Available && accountStatus === AccountStatus.Unavailable) {
-				this.turnoff(false);
-			}
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);
@@ -222,36 +221,39 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		await this.handleFirstTimeSync();
-		this.userDataSyncEnablementService.setEnablement(true);
+		this.userDataAutoSyncService.enable();
 		this.notificationService.info(localize('sync turned on', "Preferences sync is turned on"));
 	}
 
 	async turnoff(everywhere: boolean): Promise<void> {
+		this.userDataAutoSyncService.disable();
+
 		if (everywhere) {
 			this.telemetryService.publicLog2('sync/turnOffEveryWhere');
 			await this.userDataSyncService.reset();
 		} else {
 			await this.userDataSyncService.resetLocal();
 		}
-		this.userDataSyncEnablementService.setEnablement(false);
 	}
 
 	private async handleFirstTimeSync(): Promise<void> {
 		const isFirstTimeSyncingWithAnotherMachine = await this.userDataSyncService.isFirstTimeSyncingWithAnotherMachine();
 		if (!isFirstTimeSyncingWithAnotherMachine) {
+			await this.userDataSyncService.sync();
 			return;
 		}
+
 		const result = await this.dialogService.show(
 			Severity.Info,
 			localize('Replace or Merge', "Replace or Merge"),
 			[
 				localize('show synced data', "Show Synced Data"),
-				localize('cancel', "Cancel"),
 				localize('merge', "Merge"),
 				localize('replace local', "Replace Local"),
+				localize('cancel', "Cancel"),
 			],
 			{
-				cancelId: 1,
+				cancelId: 3,
 				detail: localize('first time sync detail', "It looks like you last synced from another machine.\nWould you like to replace or merge with the synced data?"),
 			}
 		);
@@ -261,15 +263,16 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				await this.commandService.executeCommand(SHOW_SYNCED_DATA_COMMAND_ID);
 				throw canceled();
 			case 1:
-				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
-				throw canceled();
-			case 2:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
+				await this.userDataSyncService.sync();
 				break;
-			case 3:
+			case 2:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'replace-local' });
 				await this.userDataSyncService.pull();
 				break;
+			case 3:
+				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
+				throw canceled();
 		}
 	}
 
@@ -281,7 +284,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		return account.sessionId === this.currentSessionId;
 	}
 
-	async pickAccount(): Promise<void> {
+	async signIn(): Promise<void> {
 		await this.pick();
 	}
 
@@ -383,6 +386,20 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.currentSessionId = sessionId;
 		this.telemetryService.publicLog2<UserAccountEvent, UserAccountClassification>('sync.userAccount', { id: accountId });
 		await this.update();
+	}
+
+	private async onDidSuccessiveAuthFailures(): Promise<void> {
+		this.telemetryService.publicLog2('sync/successiveAuthFailures');
+		this.currentSessionId = undefined;
+		await this.update();
+
+		this.notificationService.notify({
+			severity: Severity.Error,
+			message: localize('successive auth failures', "Preferences sync was turned off because of successive authorization failures. Please sign in again to continue synchronizing"),
+			actions: {
+				primary: [new Action('sign in', localize('sign in', "Sign in"), undefined, true, () => this.signIn())]
+			}
+		});
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {

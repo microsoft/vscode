@@ -22,7 +22,7 @@ import { FileOperation, IFileStatWithMetadata } from 'vs/platform/files/common/f
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -40,7 +40,7 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 
 export class TestContextService implements IWorkspaceContextService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private workspace: Workspace;
 	private options: object;
@@ -126,7 +126,7 @@ export class TestWorkingCopyService extends WorkingCopyService { }
 
 export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	onWillRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
 	onDidFailWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;

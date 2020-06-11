@@ -53,7 +53,7 @@ export interface WorkspaceFolderTaskResult extends WorkspaceTaskResult {
 export const USER_TASKS_GROUP_KEY = 'settings';
 
 export interface ITaskService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	onDidStateChange: Event<TaskEvent>;
 	supportsMultipleTaskExecutions: boolean;
 

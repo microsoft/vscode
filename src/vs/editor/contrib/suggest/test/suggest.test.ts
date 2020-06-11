@@ -52,7 +52,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet inline', async function () {
-		const items = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Inline));
+		const { items } = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Inline));
 		assert.equal(items.length, 3);
 		assert.equal(items[0].completion.label, 'aaa');
 		assert.equal(items[1].completion.label, 'fff');
@@ -60,7 +60,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet top', async function () {
-		const items = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Top));
+		const { items } = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Top));
 		assert.equal(items.length, 3);
 		assert.equal(items[0].completion.label, 'aaa');
 		assert.equal(items[1].completion.label, 'zzz');
@@ -68,7 +68,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet bottom', async function () {
-		const items = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Bottom));
+		const { items } = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Bottom));
 		assert.equal(items.length, 3);
 		assert.equal(items[0].completion.label, 'fff');
 		assert.equal(items[1].completion.label, 'aaa');
@@ -76,7 +76,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet none', async function () {
-		const items = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)));
 		assert.equal(items.length, 1);
 		assert.equal(items[0].completion.label, 'fff');
 	});
@@ -99,7 +99,7 @@ suite('Suggest', function () {
 		};
 		const registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
 
-		provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(undefined, undefined, new Set<CompletionItemProvider>().add(foo))).then(items => {
+		provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(undefined, undefined, new Set<CompletionItemProvider>().add(foo))).then(({ items }) => {
 			registration.dispose();
 
 			assert.equal(items.length, 1);
@@ -138,7 +138,7 @@ suite('Suggest', function () {
 		};
 
 		const registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
-		const items = await provideSuggestionItems(model, new Position(0, 0), new CompletionOptions(undefined, undefined, new Set<CompletionItemProvider>().add(foo)));
+		const { items } = await provideSuggestionItems(model, new Position(0, 0), new CompletionOptions(undefined, undefined, new Set<CompletionItemProvider>().add(foo)));
 		registration.dispose();
 
 		assert.equal(items.length, 2);

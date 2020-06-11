@@ -27,7 +27,7 @@ import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManage
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
-import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
 
@@ -281,7 +281,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private _webviewFindWidget: WebviewFindWidget | undefined;
 	private _findStarted: boolean = false;
 
-	public readonly extension: WebviewExtensionDescription | undefined;
 	private readonly _protocolProvider: WebviewProtocolProvider;
 
 	private readonly _domReady: Promise<void>;

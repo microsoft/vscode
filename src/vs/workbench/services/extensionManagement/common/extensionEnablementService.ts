@@ -23,7 +23,7 @@ const SOURCE = 'IWorkbenchExtensionEnablementService';
 
 export class ExtensionEnablementService extends Disposable implements IWorkbenchExtensionEnablementService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onEnablementChanged = new Emitter<readonly IExtension[]>();
 	public readonly onEnablementChanged: Event<readonly IExtension[]> = this._onEnablementChanged.event;
@@ -121,6 +121,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		return enablementState === EnablementState.EnabledWorkspace || enablementState === EnablementState.EnabledGlobally;
 	}
 
+	isDisabledGlobally(extension: IExtension): boolean {
+		return this._isDisabledGlobally(extension.identifier);
+	}
+
 	private _isDisabledInEnv(extension: IExtension): boolean {
 		if (this.allUserExtensionsDisabled) {
 			return extension.type === ExtensionType.User;
@@ -168,10 +172,14 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				return EnablementState.DisabledWorkspace;
 			}
 		}
-		if (this.globalExtensionEnablementService.getDisabledExtensions().filter(e => areSameExtensions(e, identifier))[0]) {
+		if (this._isDisabledGlobally(identifier)) {
 			return EnablementState.DisabledGlobally;
 		}
 		return EnablementState.EnabledGlobally;
+	}
+
+	private _isDisabledGlobally(identifier: IExtensionIdentifier): boolean {
+		return this.globalExtensionEnablementService.getDisabledExtensions().some(e => areSameExtensions(e, identifier));
 	}
 
 	private _enableExtension(identifier: IExtensionIdentifier): Promise<boolean> {

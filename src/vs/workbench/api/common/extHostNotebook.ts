@@ -73,6 +73,7 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 
 	get source() {
 		// todo@jrieken remove this
+		console.warn('USE cell.document.getText() instead');
 		return this._documentData.getText();
 	}
 
@@ -314,11 +315,12 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 
 			}
 
-			this.cells.splice(splice[0], splice[1], ...newCells);
+			const deletedItems = this.cells.splice(splice[0], splice[1], ...newCells);
 
 			const event: vscode.NotebookCellsChangeData = {
 				start: splice[0],
 				deletedCount: splice[1],
+				deletedItems,
 				items: newCells
 			};
 
@@ -339,10 +341,12 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		const changes: vscode.NotebookCellsChangeData[] = [{
 			start: index,
 			deletedCount: 1,
+			deletedItems: cells,
 			items: []
 		}, {
 			start: newIdx,
 			deletedCount: 0,
+			deletedItems: [],
 			items: cells
 		}];
 		this._emitter.emitModelChange({
@@ -675,6 +679,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	get activeNotebookEditor() {
 		return this._activeNotebookEditor;
+	}
+
+	get notebookDocuments() {
+		return [...this._documents.values()];
 	}
 
 	private _onDidOpenNotebookDocument = new Emitter<vscode.NotebookDocument>();

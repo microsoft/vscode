@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as uuid from 'uuid';
+import { v4 as uuid } from 'uuid';
 import { keychain } from './common/keychain';
 import { GitHubServer, NETWORK_ERROR } from './githubServer';
 import Logger from './common/logger';

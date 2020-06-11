@@ -6,11 +6,9 @@
 import { Delayer, disposableTimeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IUserDataSyncLogService, IUserDataSyncService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService, ALL_SYNC_RESOURCES, getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
-import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { IUserDataSyncLogService, IUserDataSyncService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService, ALL_SYNC_RESOURCES, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 type AutoSyncClassification = {
 	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -31,20 +29,19 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	readonly onError: Event<UserDataSyncError> = this._onError.event;
 
 	constructor(
+		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@IAuthenticationTokenService private readonly authTokenService: IAuthenticationTokenService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IProductService private readonly productService: IProductService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataSyncAccountService private readonly authTokenService: IUserDataSyncAccountService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 		this.syncTriggerDelayer = this._register(new Delayer<void>(0));
 
-		if (getUserDataSyncStore(this.productService, this.configurationService)) {
+		if (userDataSyncStoreService.userDataSyncStore) {
 			this.updateAutoSync();
-			this._register(Event.any(authTokenService.onDidChangeToken, this.userDataSyncEnablementService.onDidChangeEnablement)(() => this.updateAutoSync()));
+			this._register(Event.any(authTokenService.onDidChangeAccount, this.userDataSyncEnablementService.onDidChangeEnablement)(() => this.updateAutoSync()));
 			this._register(Event.filter(this.userDataSyncEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerAutoSync([RESOURCE_ENABLEMENT_SOURCE])));
 		}
 	}
@@ -61,11 +58,22 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				}
 			}
 		} else {
+			this.syncTriggerDelayer.cancel();
 			if (this.autoSync.value !== undefined) {
 				this.logService.info('Auto Sync: Disabled because', reason);
 				this.autoSync.clear();
 			}
 		}
+	}
+
+	enable(): void {
+		this.userDataSyncEnablementService.setEnablement(true);
+		this.updateAutoSync();
+	}
+
+	disable(): void {
+		this.userDataSyncEnablementService.setEnablement(false);
+		this.updateAutoSync();
 	}
 
 	// For tests purpose only
@@ -75,7 +83,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		if (!this.userDataSyncEnablementService.isEnabled()) {
 			return { enabled: false, reason: 'sync is disabled' };
 		}
-		if (!this.authTokenService.token) {
+		if (!this.authTokenService.account) {
 			return { enabled: false, reason: 'token is not avaialable' };
 		}
 		return { enabled: true };
@@ -93,11 +101,10 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		if (userDataSyncError.code === UserDataSyncErrorCode.TurnedOff || userDataSyncError.code === UserDataSyncErrorCode.SessionExpired) {
 			this.logService.info('Auto Sync: Sync is turned off in the cloud.');
 			await this.userDataSyncService.resetLocal();
-			this.logService.info('Auto Sync: Did reset the local sync state.');
-			this.userDataSyncEnablementService.setEnablement(false);
+			this.disable();
 			this.logService.info('Auto Sync: Turned off sync because sync is turned off in the cloud');
 		} else if (userDataSyncError.code === UserDataSyncErrorCode.LocalTooManyRequests) {
-			this.userDataSyncEnablementService.setEnablement(false);
+			this.disable();
 			this.logService.info('Auto Sync: Turned off sync because of making too many requests to server');
 		} else {
 			this.logService.error(userDataSyncError);
@@ -125,15 +132,20 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 		this.sources.push(...sources);
 		return this.syncTriggerDelayer.trigger(async () => {
+			this.logService.trace('activity sources', ...this.sources);
 			this.telemetryService.publicLog2<{ sources: string[] }, AutoSyncClassification>('sync/triggered', { sources: this.sources });
 			this.sources = [];
 			if (this.autoSync.value) {
 				await this.autoSync.value.sync('Activity');
 			}
 		}, this.successiveFailures
-			? 1000 * 1 * Math.min(Math.pow(2, this.successiveFailures), 60) /* Delay exponentially until max 1 minute */
-			: 1000); /* Debounce for a second if there are no failures */
+			? this.getSyncTriggerDelayTime() * 1 * Math.min(Math.pow(2, this.successiveFailures), 60) /* Delay exponentially until max 1 minute */
+			: this.getSyncTriggerDelayTime());
 
+	}
+
+	protected getSyncTriggerDelayTime(): number {
+		return 1000; /* Debounce for a second if there are no failures */
 	}
 
 }

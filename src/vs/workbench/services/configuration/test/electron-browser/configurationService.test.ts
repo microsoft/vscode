@@ -1660,7 +1660,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 suite('WorkspaceConfigurationService - Remote Folder', () => {
 
-	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: WorkspaceService, globalSettingsFile: string, remoteSettingsFile: string, instantiationService: TestInstantiationService, resolveRemoteEnvironment: () => void;
+	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: WorkspaceService, globalSettingsFile: string, remoteSettingsFile: string, remoteSettingsResource: URI, instantiationService: TestInstantiationService, resolveRemoteEnvironment: () => void;
 	const remoteAuthority = 'configuraiton-tests';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
@@ -1702,10 +1702,11 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 				workspaceDir = folderDir;
 				globalSettingsFile = path.join(parentDir, 'settings.json');
 				remoteSettingsFile = path.join(parentDir, 'remote-settings.json');
+				remoteSettingsResource = URI.file(remoteSettingsFile).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
 				instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				const environmentService = new TestEnvironmentService(URI.file(parentDir));
-				const remoteEnvironmentPromise = new Promise<Partial<IRemoteAgentEnvironment>>(c => resolveRemoteEnvironment = () => c({ settingsPath: URI.file(remoteSettingsFile).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority }) }));
+				const remoteEnvironmentPromise = new Promise<Partial<IRemoteAgentEnvironment>>(c => resolveRemoteEnvironment = () => c({ settingsPath: remoteSettingsResource }));
 				const remoteAgentService = instantiationService.stub(IRemoteAgentService, <Partial<IRemoteAgentService>>{ getEnvironment: () => remoteEnvironmentPromise });
 				const fileService = new FileService(new NullLogService());
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
@@ -1805,26 +1806,26 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		return promise;
 	});
 
-	// test('update remote settings', async () => {
-	// 	registerRemoteFileSystemProvider();
-	// 	resolveRemoteEnvironment();
-	// 	await initialize();
-	// 	assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
-	// 	const promise = new Promise((c, e) => {
-	// 		testObject.onDidChangeConfiguration(event => {
-	// 			try {
-	// 				assert.equal(event.source, ConfigurationTarget.USER);
-	// 				assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
-	// 				assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
-	// 				c();
-	// 			} catch (error) {
-	// 				e(error);
-	// 			}
-	// 		});
-	// 	});
-	// 	fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
-	// 	return promise;
-	// });
+	test('update remote settings', async () => {
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
+		const promise = new Promise((c, e) => {
+			testObject.onDidChangeConfiguration(event => {
+				try {
+					assert.equal(event.source, ConfigurationTarget.USER);
+					assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+					assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
+					c();
+				} catch (error) {
+					e(error);
+				}
+			});
+		});
+		await instantiationService.get(IFileService).writeFile(remoteSettingsResource, VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
+		return promise;
+	});
 
 	test('machine settings in local user settings does not override defaults', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.remote.machineSetting": "globalValue" }');

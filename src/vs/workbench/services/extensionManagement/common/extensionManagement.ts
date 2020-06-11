@@ -20,7 +20,7 @@ export interface IExtensionManagementServer {
 }
 
 export interface IExtensionManagementServerService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	readonly localExtensionManagementServer: IExtensionManagementServer | null;
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
 	getExtensionManagementServer(location: URI): IExtensionManagementServer | null;
@@ -38,7 +38,7 @@ export const enum EnablementState {
 export const IWorkbenchExtensionEnablementService = createDecorator<IWorkbenchExtensionEnablementService>('extensionEnablementService');
 
 export interface IWorkbenchExtensionEnablementService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly allUserExtensionsDisabled: boolean;
 
@@ -61,6 +61,14 @@ export interface IWorkbenchExtensionEnablementService {
 	 * Returns `true` if the given extension identifier is enabled.
 	 */
 	isEnabled(extension: IExtension): boolean;
+
+	/**
+	 * Returns `true` if the given extension identifier is disabled globally.
+	 * Extensions can be disabled globally or in workspace or both.
+	 * If an extension is disabled in both then enablement state shows only workspace.
+	 * This will
+	 */
+	isDisabledGlobally(extension: IExtension): boolean;
 
 	/**
 	 * Enable or disable the given extension.
@@ -115,7 +123,7 @@ export interface IExtensionRecommendationReson {
 export const IExtensionRecommendationsService = createDecorator<IExtensionRecommendationsService>('extensionRecommendationsService');
 
 export interface IExtensionRecommendationsService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	getAllRecommendationsWithReason(): IStringDictionary<IExtensionRecommendationReson>;
 	getFileBasedRecommendations(): IExtensionRecommendation[];

@@ -8,7 +8,7 @@ import { ElectronService, IElectronService } from 'vs/platform/electron/electron
 import { ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import * as os from 'os';
 import * as browser from 'vs/base/browser/browser';
-import { $, windowOpenNoOpener } from 'vs/base/browser/dom';
+import { $, windowOpenNoOpener, addClass } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
@@ -55,6 +55,9 @@ export interface IssueReporterConfiguration extends INativeWindowConfiguration {
 }
 
 export function startup(configuration: IssueReporterConfiguration) {
+	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
+	addClass(document.body, platformClass); // used by our fonts
+
 	document.body.innerHTML = BaseHtml();
 	const issueReporter = new IssueReporter(configuration);
 	issueReporter.render();

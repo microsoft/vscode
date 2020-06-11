@@ -10,6 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, IColorTheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { Emitter } from 'vs/base/common/event';
+import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 
 interface WebviewThemeData {
 	readonly activeTheme: string;
@@ -64,7 +65,7 @@ export class WebviewThemeDataProvider extends Disposable {
 		}, {} as { [key: string]: string; });
 
 		const styles = {
-			'vscode-font-family': 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
+			'vscode-font-family': DEFAULT_FONT_FAMILY,
 			'vscode-font-weight': 'normal',
 			'vscode-font-size': '13px',
 			'vscode-editor-font-family': editorFontFamily,

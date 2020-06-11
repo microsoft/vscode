@@ -11,7 +11,7 @@ import { notebookProviderExtensionPoint, notebookRendererExtensionPoint, INotebo
 import { NotebookProviderInfo, NotebookEditorDescriptor } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, CellOutputKind, ITransformedDisplayOutputDto, IDisplayOutput, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, IOrderedMimeType, mimeTypeSupportedByCore, IOutputRenderRequestOutputInfo, IOutputRenderRequestCellInfo, NotebookCellOutputsSplice, ICellEditOperation, CellEditType, ICellInsertEdit, IOutputRenderResponse, IProcessedOutput, BUILTIN_RENDERER_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, CellOutputKind, ITransformedDisplayOutputDto, IDisplayOutput, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, IOrderedMimeType, mimeTypeSupportedByCore, IOutputRenderRequestOutputInfo, IOutputRenderRequestCellInfo, NotebookCellOutputsSplice, ICellEditOperation, CellEditType, ICellInsertEdit, IOutputRenderResponse, IProcessedOutput, BUILTIN_RENDERER_ID, NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { Iterable } from 'vs/base/common/iterator';
@@ -57,6 +57,7 @@ export class NotebookProviderInfoStore implements IDisposable {
 					id: notebookContribution.viewType,
 					displayName: notebookContribution.displayName,
 					selector: notebookContribution.selector || [],
+					priority: this.convertPriority(notebookContribution.priority),
 					providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
 					providerExtensionLocation: extension.description.extensionLocation
 				}));
@@ -66,6 +67,19 @@ export class NotebookProviderInfoStore implements IDisposable {
 		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL);
 		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this.contributedEditors.values());
 		this._memento.saveMemento();
+	}
+
+	private convertPriority(priority?: string) {
+		if (!priority) {
+			return NotebookEditorPriority.default;
+		}
+
+		if (priority === NotebookEditorPriority.default) {
+			return NotebookEditorPriority.default;
+		}
+
+		return NotebookEditorPriority.option;
+
 	}
 
 	dispose(): void {
@@ -136,7 +150,7 @@ class ModelData implements IDisposable {
 	}
 }
 export class NotebookService extends Disposable implements INotebookService, ICustomEditorViewTypesHandler {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
 	private readonly _notebookRenderers = new Map<string, INotebookRendererInfo>();
 	private readonly _notebookKernels = new Map<string, INotebookKernelInfo>();
@@ -151,6 +165,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	public readonly onNotebookEditorAdd: Event<INotebookEditor> = this._onNotebookEditorAdd.event;
 	private readonly _onNotebookEditorsRemove: Emitter<INotebookEditor[]> = this._register(new Emitter<INotebookEditor[]>());
 	public readonly onNotebookEditorsRemove: Event<INotebookEditor[]> = this._onNotebookEditorsRemove.event;
+	private readonly _onNotebookDocumentAdd: Emitter<URI[]> = this._register(new Emitter<URI[]>());
+	public readonly onNotebookDocumentAdd: Event<URI[]> = this._onNotebookDocumentAdd.event;
 	private readonly _onNotebookDocumentRemove: Emitter<URI[]> = this._register(new Emitter<URI[]>());
 	public readonly onNotebookDocumentRemove: Event<URI[]> = this._onNotebookDocumentRemove.event;
 	private readonly _notebookEditors = new Map<string, INotebookEditor>();
@@ -326,7 +342,6 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		}
 
 		const notebookModel = await provider.controller.createNotebook(viewType, uri, { metadata, languages, cells }, false, editorId);
-		await this.transformTextModelOutputs(notebookModel!);
 		if (!notebookModel) {
 			return undefined;
 		}
@@ -338,6 +353,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			(model) => this._onWillDisposeDocument(model),
 		);
 		this._models.set(modelId, modelData);
+		this._onNotebookDocumentAdd.fire([notebookModel.uri]);
+		// after the document is added to the store and sent to ext host, we transform the ouputs
+		await this.transformTextModelOutputs(notebookModel!);
 		return modelData.model;
 	}
 
@@ -348,7 +366,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		}
 
 		const notebookModel = await provider.controller.createNotebook(viewType, uri, undefined, forceReload, editorId);
-		await this.transformTextModelOutputs(notebookModel!);
+		if (!notebookModel) {
+			return undefined;
+		}
 
 		// new notebook model created
 		const modelId = MODEL_ID(uri);
@@ -358,6 +378,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		);
 
 		this._models.set(modelId, modelData);
+		this._onNotebookDocumentAdd.fire([notebookModel!.uri]);
+		// after the document is added to the store and sent to ext host, we transform the ouputs
+		await this.transformTextModelOutputs(notebookModel!);
 		return modelData.model;
 	}
 

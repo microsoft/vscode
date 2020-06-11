@@ -267,7 +267,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this.cells = [cell];
 		this._mapping.set(cell.handle, cell);
 
-		let dirtyStateListener = Event.any(cell.onDidChangeContent, cell.onDidChangeOutputs)(() => {
+		let dirtyStateListener = cell.onDidChangeContent(() => {
 			this._isUntitled = false;
 			this._onDidChangeContent.fire();
 		});
@@ -301,7 +301,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		for (let i = 0; i < cells.length; i++) {
 			this._mapping.set(cells[i].handle, cells[i]);
-			let dirtyStateListener = Event.any(cells[i].onDidChangeContent, cells[i].onDidChangeOutputs)(() => {
+			let dirtyStateListener = cells[i].onDidChangeContent(() => {
 				this._onDidChangeContent.fire();
 			});
 

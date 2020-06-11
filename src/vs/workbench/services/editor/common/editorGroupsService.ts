@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/editorCommon';
@@ -140,7 +140,7 @@ export const enum GroupsOrder {
 
 export interface IEditorGroupsService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * An event for when the active editor group changes. The active editor
@@ -386,6 +386,11 @@ export interface IEditorGroup {
 	 * An event that is fired when the group gets disposed.
 	 */
 	readonly onWillDispose: Event<void>;
+
+	/**
+	 * An event that is fired when an editor is about to close.
+	 */
+	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
 	 * A unique identifier of this group that remains identical even if the

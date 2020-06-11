@@ -10,7 +10,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class IssueService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
 		return createChannelSender<IIssueService>(mainProcessService.getChannel('issue'));

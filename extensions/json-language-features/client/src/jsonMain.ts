@@ -57,6 +57,7 @@ interface IPackageInfo {
 	name: string;
 	version: string;
 	aiKey: string;
+	main: string;
 }
 
 interface Settings {
@@ -91,11 +92,11 @@ export function activate(context: ExtensionContext) {
 
 	let rangeFormatting: Disposable | undefined = undefined;
 
-	const packageInfo = getPackageInfo(context);
-	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+	let clientPackageJSON = getPackageInfo(context);
+	telemetryReporter = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
 
-	const serverMain = readJSONFile(context.asAbsolutePath('./server/package.json')).main;
-	const serverModule = context.asAbsolutePath(path.join('server', serverMain));
+	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/jsonServerMain`;
+	const serverModule = context.asAbsolutePath(serverMain);
 
 	// The debug options for the server
 	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (9000 + Math.round(Math.random() * 10000))] };
@@ -119,6 +120,7 @@ export function activate(context: ExtensionContext) {
 	toDispose.push(schemaResolutionErrorStatusBarItem);
 
 	const fileSchemaErrors = new Map<string, string>();
+	let schemaDownloadEnabled = true;
 
 	// Options to control the language client
 	const clientOptions: LanguageClientOptions = {
@@ -139,7 +141,7 @@ export function activate(context: ExtensionContext) {
 				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
 			},
 			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
-				const schemaErrorIndex = diagnostics.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
+				const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
 
 				if (schemaErrorIndex === -1) {
 					fileSchemaErrors.delete(uri.toString());
@@ -148,6 +150,10 @@ export function activate(context: ExtensionContext) {
 
 				const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
 				fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
+
+				if (!schemaDownloadEnabled) {
+					diagnostics = diagnostics.filter(d => !isSchemaResolveError(d));
+				}
 
 				if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri.toString()) {
 					schemaResolutionErrorStatusBarItem.show();
@@ -204,20 +210,19 @@ export function activate(context: ExtensionContext) {
 	toDispose.push(disposable);
 	client.onReady().then(() => {
 		const schemaDocuments: { [uri: string]: boolean } = {};
-		let schemaDownloadEnabled = true;
 
 		// handle content request
 		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
 			const uri = Uri.parse(uriPath);
 			if (uri.scheme === 'untitled') {
-				return Promise.reject(new Error(localize('untitled.schema', 'Unable to load {0}', uri.toString())));
+				return Promise.reject(new ResponseError(3, localize('untitled.schema', 'Unable to load {0}', uri.toString())));
 			}
 			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 				return workspace.openTextDocument(uri).then(doc => {
 					schemaDocuments[uri.toString()] = true;
 					return doc.getText();
 				}, error => {
-					return Promise.reject(error);
+					return Promise.reject(new ResponseError(2, error.toString()));
 				});
 			} else if (schemaDownloadEnabled) {
 				if (telemetryReporter && uri.authority === 'schema.management.azure.com') {
@@ -239,7 +244,7 @@ export function activate(context: ExtensionContext) {
 					return Promise.reject(new ResponseError(error.status, getErrorStatusDescription(error.status) + '\n' + extraInfo));
 				});
 			} else {
-				return Promise.reject(localize('schemaDownloadDisabled', 'Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload));
+				return Promise.reject(new ResponseError(1, localize('schemaDownloadDisabled', 'Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload)));
 			}
 		});
 
@@ -280,7 +285,7 @@ export function activate(context: ExtensionContext) {
 				schemaResolutionErrorStatusBarItem.text = '$(watch)';
 				const activeDocUri = window.activeTextEditor.document.uri.toString();
 				client.sendRequest(ForceValidateRequest.type, activeDocUri).then((diagnostics) => {
-					const schemaErrorIndex = diagnostics.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
+					const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
 					if (schemaErrorIndex !== -1) {
 						// Show schema resolution errors in status bar only; ref: #51032
 						const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
@@ -516,24 +521,13 @@ function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri) {
 	return url;
 }
 
-function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
-	const extensionPackage = readJSONFile(context.asAbsolutePath('./package.json'));
-	if (extensionPackage) {
-		return {
-			name: extensionPackage.name,
-			version: extensionPackage.version,
-			aiKey: extensionPackage.aiKey
-		};
-	}
-	return undefined;
-}
-
-function readJSONFile(location: string) {
+function getPackageInfo(context: ExtensionContext): IPackageInfo {
+	const location = context.asAbsolutePath('./package.json');
 	try {
 		return JSON.parse(fs.readFileSync(location).toString());
 	} catch (e) {
 		console.log(`Problems reading ${location}: ${e}`);
-		return {};
+		return { name: '', version: '', aiKey: '', main: '' };
 	}
 }
 
@@ -545,4 +539,8 @@ function updateMarkdownString(h: MarkdownString): MarkdownString {
 	const n = new MarkdownString(h.value, true);
 	n.isTrusted = h.isTrusted;
 	return n;
+}
+
+function isSchemaResolveError(d: Diagnostic) {
+	return d.code === /* SchemaResolveError */ 0x300;
 }

@@ -133,7 +133,7 @@ suite('MainThreadEditors', () => {
 
 		});
 		services.set(IPanelService, new class extends mock<IPanelService>() implements IPanelService {
-			_serviceBrand: undefined;
+			declare readonly _serviceBrand: undefined;
 			onDidPanelOpen = Event.None;
 			onDidPanelClose = Event.None;
 			getActivePanel() {

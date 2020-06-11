@@ -1290,7 +1290,7 @@ declare module 'vscode' {
 		 * The path segments are normalized in the following ways:
 		 * - sequences of path separators (`/` or `\`) are replaced with a single separator
 		 * - for `file`-uris on windows, the backslash-character (`\`) is considered a path-separator
-		 * - the `..`-segment denotes the parent segment, the `.` denotes the current segement
+		 * - the `..`-segment denotes the parent segment, the `.` denotes the current segment
 		 * - paths have a root which always remains, for instance on windows drive-letters are roots
 		 * so that is true: `joinPath(Uri.file('file:///c:/root'), '../../other').fsPath === 'c:/other'`
 		 *
@@ -2413,6 +2413,11 @@ declare module 'vscode' {
 		 * markdown supports links that execute commands, e.g. `[Run it](command:myCommandId)`.
 		 */
 		isTrusted?: boolean;
+
+		/**
+		 * Indicates that this markdown string can contain [ThemeIcons](#ThemeIcon), e.g. `$(zap)`.
+		 */
+		readonly supportThemeIcons?: boolean;
 
 		/**
 		 * Creates a new markdown string with the given value.
@@ -4376,7 +4381,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The call hierarchy provider interface describes the constract between extensions
+	 * The call hierarchy provider interface describes the contract between extensions
 	 * and the call hierarchy feature which allows to browse calls and caller of function,
 	 * methods, constructor etc.
 	 */
@@ -5922,7 +5927,7 @@ declare module 'vscode' {
 	 */
 	export enum TaskScope {
 		/**
-		 * The task is a global task. Global tasks are currrently not supported.
+		 * The task is a global task. Global tasks are currently not supported.
 		 */
 		Global = 1,
 
@@ -6896,12 +6901,15 @@ declare module 'vscode' {
 		 * This is called when a user first opens a resource for a `CustomTextEditorProvider`, or if they reopen an
 		 * existing editor using this `CustomTextEditorProvider`.
 		 *
-		 * To resolve a custom editor, the provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
-		 * for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
 		 *
 		 * @param document Document for the resource to resolve.
-		 * @param webviewPanel Webview to resolve.
+		 *
+		 * @param webviewPanel The webview panel used to display the editor UI for this resource.
+		 *
+		 * During resolve, the provider must fill in the initial html for the content webview panel and hook up all
+		 * the event listeners on it that it is interested in. The provider can also hold onto the `WebviewPanel` to
+		 * use later for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
+		 *
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
 		 * @return Thenable indicating that the custom editor has been resolved.
@@ -6963,7 +6971,7 @@ declare module 'vscode' {
 		/**
 		 * Display name describing the edit.
 		 *
-		 * This is shown in the UI to users.
+		 * This will be shown to users in the UI for undo/redo operations.
 		 */
 		readonly label?: string;
 	}
@@ -7010,7 +7018,9 @@ declare module 'vscode' {
 		 *
 		 * Note that your extension is free to ignore this and use its own strategy for backup.
 		 *
-		 * For editors for workspace resource, this destination will be in the workspace storage. The path may not
+		 * If the editor is for a resource from the current workspace, `destination` will point to a file inside
+		 * `ExtensionContext.storagePath`. The parent folder of `destination` may not exist, so make sure to created it
+		 * before writing the backup to this location.
 		 */
 		readonly destination: Uri;
 	}
@@ -7023,7 +7033,7 @@ declare module 'vscode' {
 		 * The id of the backup to restore the document from or `undefined` if there is no backup.
 		 *
 		 * If this is provided, your extension should restore the editor from the backup instead of reading the file
-		 * the user's workspace.
+		 * from the user's workspace.
 		 */
 		readonly backupId?: string;
 	}
@@ -7043,10 +7053,12 @@ declare module 'vscode' {
 		/**
 		 * Create a new document for a given resource.
 		 *
-		 * `openCustomDocument` is called when the first editor for a given resource is opened, and the resolve document
-		 * is passed to `resolveCustomEditor`. The resolved `CustomDocument` is re-used for subsequent editor opens.
-		 * If all editors for a given resource are closed, the `CustomDocument` is disposed of. Opening an editor at
-		 * this point will trigger another call to `openCustomDocument`.
+		 * `openCustomDocument` is called when the first time an editor for a given resource is opened. The opened
+		 * document is then passed to `resolveCustomEditor` so that the editor can be shown to the user.
+		 *
+		 * Already opened `CustomDocument` are re-used if the user opened additional editors. When all editors for a
+		 * given resource are closed, the `CustomDocument` is disposed of. Opening an editor at this point will
+		 * trigger another call to `openCustomDocument`.
 		 *
 		 * @param uri Uri of the document to open.
 		 * @param openContext Additional information about the opening custom document.
@@ -7061,12 +7073,14 @@ declare module 'vscode' {
 		 *
 		 * This is called whenever the user opens a new editor for this `CustomEditorProvider`.
 		 *
-		 * To resolve a custom editor, the provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
-		 * for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
-		 *
 		 * @param document Document for the resource being resolved.
-		 * @param webviewPanel Webview to resolve.
+		 *
+		 * @param webviewPanel The webview panel used to display the editor UI for this resource.
+		 *
+		 * During resolve, the provider must fill in the initial html for the content webview panel and hook up all
+		 * the event listeners on it that it is interested in. The provider can also hold onto the `WebviewPanel` to
+		 * use later for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
+		 *
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
 		 * @return Optional thenable indicating that the custom editor has been resolved.
@@ -7075,7 +7089,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Provider for editiable custom editors that use a custom document model.
+	 * Provider for editable custom editors that use a custom document model.
 	 *
 	 * Custom editors use [`CustomDocument`](#CustomDocument) as their document model instead of a [`TextDocument`](#TextDocument).
 	 * This gives extensions full control over actions such as edit, save, and backup.
@@ -7167,9 +7181,10 @@ declare module 'vscode' {
 		 * your extension should first check to see if any backups exist for the resource. If there is a backup, your
 		 * extension should load the file contents from there instead of from the resource in the workspace.
 		 *
-		 * `backup` is triggered whenever an edit it made. Calls to `backup` are debounced so that if multiple edits are
-		 * made in quick succession, `backup` is only triggered after the last one. `backup` is not invoked when
-		 * `auto save` is enabled (since auto save already persists resource ).
+		 * `backup` is triggered approximately one second after the the user stops editing the document. If the user
+		 * rapidly edits the document, `backup` will not be invoked until the editing stops.
+		 *
+		 * `backup` is not invoked when `auto save` is enabled (since auto save already persists the resource).
 		 *
 		 * @param document Document to backup.
 		 * @param context Information that can be used to backup the document.
@@ -7308,7 +7323,7 @@ declare module 'vscode' {
 		 *
 		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
 		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
-		 * the port fowarding tunnel is managed by VS Code and the tunnel can be closed by the user.
+		 * the port forwarding tunnel is managed by VS Code and the tunnel can be closed by the user.
 		 *
 		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri` on them.
 		 *
@@ -8033,6 +8048,9 @@ declare module 'vscode' {
 		 * @return Disposable that unregisters the provider.
 		 */
 		export function registerCustomEditorProvider(viewType: string, provider: CustomTextEditorProvider | CustomReadonlyEditorProvider | CustomEditorProvider, options?: {
+			/**
+			 * Content settings for the webview panels created for this custom editor.
+			 */
 			readonly webviewOptions?: WebviewPanelOptions;
 
 			/**
@@ -8041,12 +8059,13 @@ declare module 'vscode' {
 			 * Indicates that the provider allows multiple editor instances to be open at the same time for
 			 * the same resource.
 			 *
-			 * If not set, VS Code only allows one editor instance to be open at a time for each resource. If the
+			 * By default, VS Code only allows one editor instance to be open at a time for each resource. If the
 			 * user tries to open a second editor instance for the resource, the first one is instead moved to where
 			 * the second one was to be opened.
 			 *
-			 * When set, users can split and create copies of the custom editor. The custom editor must make sure it
-			 * can properly synchronize the states of all editor instances for a resource so that they are consistent.
+			 * When `supportsMultipleEditorsPerDocument` is enabled, users can split and create copies of the custom
+			 * editor. In this case, the custom editor must make sure it can properly synchronize the states of all
+			 * editor instances for a resource so that they are consistent.
 			 */
 			readonly supportsMultipleEditorsPerDocument?: boolean;
 		}): Disposable;
@@ -8394,8 +8413,9 @@ declare module 'vscode' {
 	interface Pseudoterminal {
 		/**
 		 * An event that when fired will write data to the terminal. Unlike
-		 * [Terminal.sendText](#Terminal.sendText) which sends text to the underlying _process_
-		 * (the pty "slave"), this will write the text to the terminal itself (the pty "master").
+		 * [Terminal.sendText](#Terminal.sendText) which sends text to the underlying child
+		 * pseudo-device (the child), this will write the text to parent pseudo-device (the
+		 * _terminal_ itself).
 		 *
 		 * Note writing `\n` will just move the cursor down 1 row, you need to write `\r` as well
 		 * to move the cursor to the left-most cell.
@@ -9606,7 +9626,7 @@ declare module 'vscode' {
 		 * files change on disk, e.g triggered by another application, or when using the
 		 * [`workspace.fs`](#FileSystem)-api.
 		 *
-		 * *Note 2:* When this event is fired, edits to files thare are being created cannot be applied.
+		 * *Note 2:* When this event is fired, edits to files that are are being created cannot be applied.
 		 */
 		export const onWillCreateFiles: Event<FileWillCreateEvent>;
 
@@ -9675,7 +9695,7 @@ declare module 'vscode' {
 		 * is returned. Dots in the section-identifier are interpreted as child-access,
 		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
 		 *
-		 * When a scope is provided configuraiton confined to that scope is returned. Scope can be a resource or a language identifier or both.
+		 * When a scope is provided configuration confined to that scope is returned. Scope can be a resource or a language identifier or both.
 		 *
 		 * @param section A dot-separated identifier.
 		 * @param scope A scope for which the configuration is asked for.
@@ -11001,7 +11021,7 @@ declare module 'vscode' {
 		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
 		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
 		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
-		 * @param parentSessionOrOptions Debug sesison options. When passed a parent [debug session](#DebugSession), assumes options with just this parent session.
+		 * @param parentSessionOrOptions Debug session options. When passed a parent [debug session](#DebugSession), assumes options with just this parent session.
 		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
 		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
@@ -11180,7 +11200,7 @@ declare module 'vscode' {
 		/**
 		 * Dispose this comment thread.
 		 *
-		 * Once disposed, this comment thread will be removed from visible editors and Comment Panel when approriate.
+		 * Once disposed, this comment thread will be removed from visible editors and Comment Panel when appropriate.
 		 */
 		dispose(): void;
 	}

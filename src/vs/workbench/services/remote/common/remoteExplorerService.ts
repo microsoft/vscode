@@ -224,7 +224,7 @@ export class TunnelModel extends Disposable {
 }
 
 export interface IRemoteExplorerService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	onDidChangeTargetType: Event<string[]>;
 	targetType: string[];
 	readonly tunnelModel: TunnelModel;

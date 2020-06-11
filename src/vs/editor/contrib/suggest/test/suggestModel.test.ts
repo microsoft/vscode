@@ -33,6 +33,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export interface Ctor<T> {
 	new(): T;
@@ -51,7 +52,7 @@ function createMockEditor(model: TextModel): ITestCodeEditor {
 			[IStorageService, new InMemoryStorageService()],
 			[IKeybindingService, new MockKeybindingService()],
 			[ISuggestMemoryService, new class implements ISuggestMemoryService {
-				_serviceBrand: undefined;
+				declare readonly _serviceBrand: undefined;
 				memorize(): void {
 				}
 				select(): number {
@@ -196,12 +197,19 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return new Promise((resolve, reject) => {
 			const editor = createMockEditor(model);
-			const oracle = new SuggestModel(editor, new class extends mock<IEditorWorkerService>() {
-				computeWordRanges() {
-					return Promise.resolve({});
+			const oracle = new SuggestModel(
+				editor,
+				new class extends mock<IEditorWorkerService>() {
+					computeWordRanges() {
+						return Promise.resolve({});
+					}
+				},
+				new class extends mock<IClipboardService>() {
+					readText() {
+						return Promise.resolve('CLIPPY');
+					}
 				}
-
-			});
+			);
 			disposables.push(oracle, editor);
 
 			try {

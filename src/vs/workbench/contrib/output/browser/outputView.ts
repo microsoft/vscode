@@ -157,7 +157,7 @@ export class OutputViewPane extends ViewPane {
 	}
 
 	private createInput(channel: IOutputChannel): ResourceEditorInput {
-		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output model title', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), channel.uri, undefined);
+		return this.instantiationService.createInstance(ResourceEditorInput, channel.uri, nls.localize('output model title', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), undefined);
 	}
 
 }

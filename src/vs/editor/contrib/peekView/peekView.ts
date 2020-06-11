@@ -30,12 +30,12 @@ import { Codicon } from 'vs/base/common/codicons';
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
 export interface IPeekViewService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	addExclusiveWidget(editor: ICodeEditor, widget: PeekViewWidget): void;
 }
 
 registerSingleton(IPeekViewService, class implements IPeekViewService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable; }>();
 
@@ -103,7 +103,7 @@ const defaultOptions: IPeekViewOptions = {
 
 export abstract class PeekViewWidget extends ZoneWidget {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidClose = new Emitter<PeekViewWidget>();
 	readonly onDidClose = this._onDidClose.event;

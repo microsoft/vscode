@@ -86,7 +86,14 @@ const DefaultOptions = {
 export class ElementsDragAndDropData<T, TContext = void> implements IDragAndDropData {
 
 	readonly elements: T[];
-	context: TContext | undefined;
+
+	private _context: TContext | undefined;
+	public get context(): TContext | undefined {
+		return this._context;
+	}
+	public set context(value: TContext | undefined) {
+		this._context = value;
+	}
 
 	constructor(elements: T[]) {
 		this.elements = elements;
