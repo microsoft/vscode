@@ -16,7 +16,7 @@ suite('Debug - View Model', () => {
 		model = new ViewModel(new MockContextKeyService());
 	});
 
-	test('focused stack frame', () => {
+	test.skip('focused stack frame', () => {
 		assert.equal(model.focusedStackFrame, null);
 		assert.equal(model.focusedThread, null);
 		const session = new MockSession();
