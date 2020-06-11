@@ -12,7 +12,6 @@ server/bin/**
 server/build/**
 server/yarn.lock
 server/.npmignore
-polyfills/**
 yarn.lock
 CONTRIBUTING.md
 server/extension.webpack.config.js
