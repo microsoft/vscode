@@ -13,7 +13,7 @@ function regexConcat(re: RegExp[], flags?: string, sep: string = '') {
 const LINK_SEARCHES = [
 	/\{@(link|linkplain|linkcode)\s+([^}]*)\}/, // {@link <link>}
 	/(\[[^\]]*\]\([^)]*\))/, // match markdown url so we dont replace it twice [<text>](<link>)
-	/(?=(?:workspace|project|file):\/\/)([^\s{}\)\[\]]+)/, // match supported top level links
+	/(?=(?:file):\/\/)([^\s{}\)\[\]]+)/, // match supported top level links
 ];
 
 const LINK_REGEXP = regexConcat(LINK_SEARCHES, 'gi', '|');
@@ -39,25 +39,12 @@ function parseLinkMatch(match: unknown, definition?: Proto.DefinitionResponse['b
 		case 'http':
 		case 'https':
 			return [link, text || linkSegment];
-		case 'workspace': {
-			link = uri.path;
-			if (!text) {
-				text = linkSegment;
-			}
-			rootUri = (vscode.workspace.workspaceFolders || []).find(workspaceFolder => workspaceFolder.name === uri.authority)?.uri;
-			if (!rootUri) {
-				// when workspace not found
-				return [linkSegment, `~_${linkSegment}_~`, `Unknown Workspace: ${uri.authority}`];
-			}
-			break;
-		}
-		case 'file':
-		case 'project': {
+		case 'file': {
 			const isRelativeAuthority = uri.authority === '.' || uri.authority === '..';
 			const definitionFile = definition?.[0]?.file;
 
 			rootUri = definitionFile ? vscode.Uri.file(definitionFile) : editor.document.uri;
-			link = isRelativeAuthority || uri.scheme === 'project' ? uri.authority + uri.path : uri.path;
+			link = isRelativeAuthority ? uri.authority + uri.path : uri.path;
 
 			if (isRelativeAuthority || /^\/?\.\.?\//.test(link)) {
 				// when definition is not provided we can not reliably render a relative path due to a limitation of
@@ -74,8 +61,6 @@ function parseLinkMatch(match: unknown, definition?: Proto.DefinitionResponse['b
 				rootUri = rootUri.with({
 					path: path.dirname(rootUri.path)
 				});
-			} else if (uri.scheme === 'project') {
-				rootUri = vscode.workspace.getWorkspaceFolder(rootUri)?.uri;
 			} else {
 				rootUri = vscode.Uri.parse('file:///', true);
 			}
@@ -96,7 +81,7 @@ function parseLinkMatch(match: unknown, definition?: Proto.DefinitionResponse['b
 }
 
 function parseMarkdownLink(str: string) {
-	const [, text, link] = str.match(/\[([^\]]*)\]\((?=\s*(?:workspace|project|file):\/\/)([^\)]*)\)/) || [];
+	const [, text, link] = str.match(/\[([^\]]*)\]\((?=\s*(?:file):\/\/)([^\)]*)\)/) || [];
 	if (!link) {
 		return;
 	}
