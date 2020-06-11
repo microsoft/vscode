@@ -5,10 +5,11 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { VSBuffer, VSBufferWriteableStream, newWriteableBufferStream, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { VSBuffer, newWriteableBufferStream, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IFileSystemProviderWithOpenReadWriteCloseCapability, FileReadStreamOptions, createFileSystemProviderError, FileSystemProviderErrorCode, ensureFileSystemProviderError } from 'vs/platform/files/common/files';
 import { canceled } from 'vs/base/common/errors';
+import { IErrorTransformer, IDataTransformer, ReadableStream, WriteableStream, newWriteableStream } from 'vs/base/common/stream';
 
 export interface ICreateReadStreamOptions extends FileReadStreamOptions {
 
@@ -16,21 +17,46 @@ export interface ICreateReadStreamOptions extends FileReadStreamOptions {
 	 * The size of the buffer to use before sending to the stream.
 	 */
 	bufferSize: number;
+
+	/**
+	 * Allows to massage any possibly error that happens during reading.
+	 */
+	errorTransformer?: IErrorTransformer;
 }
 
-export function createReadStream(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, options: ICreateReadStreamOptions, token?: CancellationToken): VSBufferReadableStream {
+export function createVSBufferReadStream(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, options: ICreateReadStreamOptions, token?: CancellationToken): VSBufferReadableStream {
 	const stream = newWriteableBufferStream();
 
-	// do not await reading but simply return the stream directly since it operates
-	// via events. finally end the stream and send through the possible error
-	let error: Error | undefined = undefined;
-
-	doReadFileIntoStream(provider, resource, stream, options, token).then(undefined, err => error = err).finally(() => stream.end(error));
+	readFileIntoStream(provider, resource, stream, data => data, options, token);
 
 	return stream;
 }
 
-async function doReadFileIntoStream(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, stream: VSBufferWriteableStream, options: ICreateReadStreamOptions, token?: CancellationToken): Promise<void> {
+export function createUint8ArrayReadStream(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, options: ICreateReadStreamOptions, token?: CancellationToken): ReadableStream<Uint8Array> {
+	const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+
+	readFileIntoStream(provider, resource, stream, data => data.buffer, options, token);
+
+	return stream;
+}
+
+async function readFileIntoStream<T>(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, stream: WriteableStream<T>, transformer: IDataTransformer<VSBuffer, T>, options: ICreateReadStreamOptions, token?: CancellationToken): Promise<void> {
+	let error: Error | undefined = undefined;
+
+	try {
+		await doReadFileIntoStream(provider, resource, stream, transformer, options, token);
+	} catch (err) {
+		error = err;
+	} finally {
+		if (error && options.errorTransformer) {
+			error = options.errorTransformer(error);
+		}
+
+		stream.end(error);
+	}
+}
+
+async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, stream: WriteableStream<T>, transformer: IDataTransformer<VSBuffer, T>, options: ICreateReadStreamOptions, token?: CancellationToken): Promise<void> {
 
 	// Check for cancellation
 	throwIfCancelled(token);
@@ -65,7 +91,7 @@ async function doReadFileIntoStream(provider: IFileSystemProviderWithOpenReadWri
 
 			// when buffer full, create a new one and emit it through stream
 			if (posInBuffer === buffer.byteLength) {
-				stream.write(buffer);
+				stream.write(transformer(buffer));
 
 				buffer = VSBuffer.alloc(Math.min(options.bufferSize, typeof allowedRemainingBytes === 'number' ? allowedRemainingBytes : options.bufferSize));
 
@@ -80,7 +106,7 @@ async function doReadFileIntoStream(provider: IFileSystemProviderWithOpenReadWri
 				lastChunkLength = Math.min(posInBuffer, allowedRemainingBytes);
 			}
 
-			stream.write(buffer.slice(0, lastChunkLength));
+			stream.write(transformer(buffer.slice(0, lastChunkLength)));
 		}
 	} catch (error) {
 		throw ensureFileSystemProviderError(error);

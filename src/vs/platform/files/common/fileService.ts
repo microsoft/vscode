@@ -18,7 +18,7 @@ import { isReadableStream, transform, ReadableStreamEvents, consumeReadableWithL
 import { Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
-import { createReadStream } from 'vs/platform/files/common/io';
+import { createVSBufferReadStream } from 'vs/platform/files/common/io';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -461,23 +461,18 @@ export class FileService extends Disposable implements IFileService {
 	private readFileStreamed(provider: IFileSystemProviderWithFileReadStreamCapability, resource: URI, token: CancellationToken, options: IReadFileOptions = Object.create(null)): VSBufferReadableStream {
 		const fileStream = provider.readFileStream(resource, options, token);
 
-		return this.transformFileReadStream(resource, fileStream, options);
-	}
-
-	private readFileBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, token: CancellationToken, options: IReadFileOptions = Object.create(null)): VSBufferReadableStream {
-		const fileStream = createReadStream(provider, resource, {
-			...options,
-			bufferSize: this.BUFFER_SIZE
-		}, token);
-
-		return this.transformFileReadStream(resource, fileStream, options);
-	}
-
-	private transformFileReadStream(resource: URI, stream: ReadableStreamEvents<Uint8Array | VSBuffer>, options: IReadFileOptions): VSBufferReadableStream {
-		return transform(stream, {
+		return transform(fileStream, {
 			data: data => data instanceof VSBuffer ? data : VSBuffer.wrap(data),
 			error: error => new FileOperationError(localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options)
 		}, data => VSBuffer.concat(data));
+	}
+
+	private readFileBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, token: CancellationToken, options: IReadFileOptions = Object.create(null)): VSBufferReadableStream {
+		return createVSBufferReadStream(provider, resource, {
+			...options,
+			bufferSize: this.BUFFER_SIZE,
+			errorTransformer: error => new FileOperationError(localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options)
+		}, token);
 	}
 
 	private async readFileUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options?: IReadFileOptions): Promise<VSBufferReadableStream> {

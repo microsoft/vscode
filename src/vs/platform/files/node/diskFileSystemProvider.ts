@@ -22,10 +22,9 @@ import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watche
 import { FileWatcher as WindowsWatcherService } from 'vs/platform/files/node/watcher/win32/watcherService';
 import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
 import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ReadableStreamEvents, transform } from 'vs/base/common/stream';
-import { createReadStream } from 'vs/platform/files/common/io';
+import { ReadableStreamEvents } from 'vs/base/common/stream';
+import { createUint8ArrayReadStream } from 'vs/platform/files/common/io';
 import { insert } from 'vs/base/common/arrays';
 
 export interface IWatcherOptions {
@@ -155,12 +154,10 @@ export class DiskFileSystemProvider extends Disposable implements
 	}
 
 	readFileStream(resource: URI, opts: FileReadStreamOptions, token?: CancellationToken): ReadableStreamEvents<Uint8Array> {
-		const fileStream = createReadStream(this, resource, {
+		return createUint8ArrayReadStream(this, resource, {
 			...opts,
 			bufferSize: this.BUFFER_SIZE
 		}, token);
-
-		return transform(fileStream, { data: data => data.buffer }, data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
