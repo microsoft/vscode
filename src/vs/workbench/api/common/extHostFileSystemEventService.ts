@@ -8,7 +8,7 @@ import { IRelativePattern, parse } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import type * as vscode from 'vscode';
-import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, MainThreadTextEditorsShape, IWorkspaceFileEditDto, IWorkspaceTextEditDto, UriComponentsPair } from './extHost.protocol';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, MainThreadTextEditorsShape, IWorkspaceFileEditDto, IWorkspaceTextEditDto, SourceTargetPair } from './extHost.protocol';
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -142,7 +142,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	//--- file operations
 
-	$onDidRunFileOperation(operation: FileOperation, files: UriComponentsPair[]): void {
+	$onDidRunFileOperation(operation: FileOperation, files: SourceTargetPair[]): void {
 		switch (operation) {
 			case FileOperation.MOVE:
 				this._onDidRenameFile.fire(Object.freeze({ files: files.map(f => ({ oldUri: URI.revive(f.source!), newUri: URI.revive(f.target) })) }));
@@ -179,7 +179,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		};
 	}
 
-	async $onWillRunFileOperation(operation: FileOperation, files: UriComponentsPair[], timeout: number, token: CancellationToken): Promise<any> {
+	async $onWillRunFileOperation(operation: FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<any> {
 		switch (operation) {
 			case FileOperation.MOVE:
 				await this._fireWillEvent(this._onWillRenameFile, { files: files.map(f => ({ oldUri: URI.revive(f.source!), newUri: URI.revive(f.target) })) }, timeout, token);
