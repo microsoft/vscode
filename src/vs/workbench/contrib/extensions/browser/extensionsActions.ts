@@ -60,6 +60,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { Codicon } from 'vs/base/common/codicons';
+import { EXTENSIONS_INSTALLVSIX_COMMAND_ID } from 'vs/workbench/contrib/extensions/browser/extensions.contribution';
 
 export function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -2954,50 +2955,26 @@ export class InstallVSIXAction extends Action {
 	constructor(
 		id = InstallVSIXAction.ID,
 		label = InstallVSIXAction.LABEL,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IHostService private readonly hostService: IHostService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@ICommandService private readonly commandService: ICommandService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService
 	) {
 		super(id, label, 'extension-action install-vsix', true);
 	}
 
-	async run(vsixPaths?: URI[]): Promise<void> {
-		if (!vsixPaths) {
-			vsixPaths = await this.fileDialogService.showOpenDialog({
-				title: localize('installFromVSIX', "Install from VSIX"),
-				filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
-				canSelectFiles: true,
-				openLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
-			});
+	async run(): Promise<void> {
+		const vsixPaths = await this.fileDialogService.showOpenDialog({
+			title: localize('installFromVSIX', "Install from VSIX"),
+			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
+			canSelectFiles: true,
+			openLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
+		});
 
-			if (!vsixPaths) {
-				return;
-			}
+		if (!vsixPaths) {
+			return;
 		}
 
 		// Install extension(s), display notification(s), display @installed extensions
-		await Promise.all(vsixPaths.map(async (vsix) => await this.extensionsWorkbenchService.install(vsix)))
-			.then(async (extensions) => {
-				for (const extension of extensions) {
-					const requireReload = !(extension.local && this.extensionService.canAddExtension(toExtensionDescription(extension.local)));
-					const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.displayName || extension.name)
-						: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.displayName || extension.name);
-					const actions = requireReload ? [{
-						label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
-						run: () => this.hostService.reload()
-					}] : [];
-					this.notificationService.prompt(
-						Severity.Info,
-						message,
-						actions,
-						{ sticky: true }
-					);
-				}
-				await this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run(true);
-			});
+		await this.commandService.executeCommand(EXTENSIONS_INSTALLVSIX_COMMAND_ID, vsixPaths);
 	}
 }
 

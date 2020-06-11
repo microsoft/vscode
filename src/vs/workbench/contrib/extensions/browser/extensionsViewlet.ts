@@ -60,6 +60,8 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { URI } from 'vs/base/common/uri';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { EXTENSIONS_INSTALLVSIX_COMMAND_ID } from 'vs/workbench/contrib/extensions/browser/extensions.contribution';
 
 const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
@@ -360,7 +362,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
@@ -471,7 +474,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 						try {
 							// Attempt to install the extension(s)
-							await this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL).run(vsixPaths);
+							await this.commandService.executeCommand(EXTENSIONS_INSTALLVSIX_COMMAND_ID, vsixPaths);
 						}
 						catch (err) {
 							this.notificationService.error(err);
