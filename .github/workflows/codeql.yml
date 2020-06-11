@@ -1,10 +1,6 @@
 name: "Code scanning - action"
 
-on:
-  push:
-  pull_request:
-  schedule:
-    - cron: '0 19 * * 0'
+on: [push, pull_request]
 
 jobs:
   CodeQL-Build:
@@ -24,7 +20,7 @@ jobs:
     # the head of the pull request instead of the merge commit.
     - run: git checkout HEAD^2
       if: ${{ github.event_name == 'pull_request' }}
-      
+
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v1
