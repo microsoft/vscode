@@ -289,7 +289,7 @@
 		"description": "Create a new Promise"
 	},
 	"Async Function Statement": {
-		"prefix": "async",
+		"prefix": "async function",
 		"body": [
 			"async function ${1:name}(${2:params}:${3:type}) {",
 			"\t$0",
@@ -298,7 +298,7 @@
 		"description": "Async Function Statement"
 	},
 	"Async Function Expression": {
-		"prefix": "async",
+		"prefix": "async function",
 		"body": [
 			"async (${1:params}:${2:type}) => {",
 			"\t$0",
