@@ -313,19 +313,13 @@ export class LinkDetector implements IEditorContribution {
 				if (modelUri.scheme === Schemas.file) {
 					const parsedUri = URI.parse(uriToUse);
 					const isRelativeAuthority = parsedUri.authority === '.' || parsedUri.authority === '..';
-					let pathToUse = isRelativeAuthority || parsedUri.scheme === Schemas.project ? parsedUri.authority + parsedUri.path : parsedUri.path;
+					let pathToUse = isRelativeAuthority ? parsedUri.authority + parsedUri.path : parsedUri.path;
 					let rootUri: URI | undefined;
 
 					switch (parsedUri.scheme) {
-						case Schemas.file:
-						case Schemas.project:
-						case Schemas.workspace: {
-							if (parsedUri.scheme === Schemas.workspace) {
-								rootUri = (this.workspaceService.getWorkspace().folders || []).find(workspaceFolder => workspaceFolder.name === parsedUri.authority)?.uri;
-							} else if (isRelativeAuthority || /^\/?\.\.?\//.test(pathToUse)) {
+						case Schemas.file: {
+							if (isRelativeAuthority || /^\/?\.\.?\//.test(pathToUse)) {
 								rootUri = resources.dirname(modelUri);
-							} else if (parsedUri.scheme === Schemas.project) {
-								rootUri = this.workspaceService.getWorkspaceFolder(modelUri)?.uri;
 							} else {
 								rootUri = ROOT_FILE_URI;
 							}
