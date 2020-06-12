@@ -11,7 +11,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import * as nls from 'vs/nls';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
-let hasReceivedResponse: boolean = false;
+let hasReceivedResponseFromRemoteExtHost: boolean = false;
 
 export class TerminalProcessExtHostProxy extends Disposable implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 
@@ -65,7 +65,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	}
 
 	public emitTitle(title: string): void {
-		hasReceivedResponse = true;
+		hasReceivedResponseFromRemoteExtHost = true;
 		this._onProcessTitleChanged.fire(title);
 	}
 
@@ -108,20 +108,23 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		// Request a process if needed, if this is a virtual process this step can be skipped as
 		// there is no real "process" and we know it's ready on the ext host already.
 		if (this._shellLaunchConfig.isExtensionTerminal) {
-			this._terminalService.requestStartExtensionTerminal(this, this._cols, this._rows);
-		} else {
-			const env = await this._remoteAgentService.getEnvironment();
-			if (!env) {
-				throw new Error('Could not fetch environment');
-			}
-			this._terminalService.requestSpawnExtHostProcess(this, this._shellLaunchConfig, this._activeWorkspaceRootUri, this._cols, this._rows, this._configHelper.checkWorkspaceShellPermissions(env.os));
-			if (!hasReceivedResponse) {
-				setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);
-			}
+			return this._terminalService.requestStartExtensionTerminal(this, this._cols, this._rows);
 		}
 
-		// TODO: Wait and return
-		return undefined;
+		// Add a loading title if the extension host has not started yet as there could be a
+		// decent wait for the user
+		if (!hasReceivedResponseFromRemoteExtHost) {
+			setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);
+		}
+
+		// Fetch the environment to check shell permissions
+		const env = await this._remoteAgentService.getEnvironment();
+		if (!env) {
+			// Extension host processes are only allowed in remote extension hosts currently
+			throw new Error('Could not fetch remote environment');
+		}
+
+		return this._terminalService.requestSpawnExtHostProcess(this, this._shellLaunchConfig, this._activeWorkspaceRootUri, this._cols, this._rows, this._configHelper.checkWorkspaceShellPermissions(env.os));
 	}
 
 	public shutdown(immediate: boolean): void {

@@ -164,10 +164,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		this.processState = ProcessState.LAUNCHING;
-		const error = await this._process.start();
-		if (error) {
-			return error;
-		}
 
 		this._process.onProcessData(data => {
 			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
@@ -203,6 +199,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this.processState = ProcessState.RUNNING;
 			}
 		}, LAUNCHING_DURATION);
+
+		const error = await this._process.start();
+		if (error) {
+			return error;
+		}
 
 		return undefined;
 	}

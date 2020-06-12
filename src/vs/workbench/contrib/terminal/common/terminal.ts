@@ -70,7 +70,6 @@ export const TERMINAL_ACTION_CATEGORY = nls.localize('terminalCategory', "Termin
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
-export const LEGACY_CONSOLE_MODE_EXIT_CODE = 3221225786; // microsoft/vscode#73790
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
@@ -361,12 +360,14 @@ export interface ISpawnExtHostProcessRequest {
 	cols: number;
 	rows: number;
 	isWorkspaceShellAllowed: boolean;
+	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
 export interface IStartExtensionTerminalRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	cols: number;
 	rows: number;
+	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
 export interface IAvailableShellsRequest {

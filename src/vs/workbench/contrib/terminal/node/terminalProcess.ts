@@ -103,11 +103,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		try {
 			const result = await stat(this._initialCwd);
 			if (!result.isDirectory()) {
-				return { message: localize('launchFail.cwdNotDirectory', 'Starting directory (cwd) "{0}" is not a directory', this._initialCwd.toString()) };
+				return { message: localize('launchFail.cwdNotDirectory', "Starting directory (cwd) \"{0}\" is not a directory", this._initialCwd.toString()) };
 			}
 		} catch (err) {
 			if (err?.code === 'ENOENT') {
-				return { message: localize('launchFail.cwdDoesNotExist', 'Starting directory (cwd) "{0}" does not exist', this._initialCwd.toString()) };
+				return { message: localize('launchFail.cwdDoesNotExist', "Starting directory (cwd) \"{0}\" does not exist", this._initialCwd.toString()) };
 			}
 		}
 		return undefined;
@@ -121,7 +121,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		try {
 			const result = await stat(slc.executable);
 			if (!result.isFile() && !result.isSymbolicLink()) {
-				return { message: localize('launchFail.executableIsNotFileOrSymlink', 'Shell path "{0}" is not a file of a symlink', slc.executable) };
+				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Shell path \"{0}\" is not a file of a symlink", slc.executable) };
 			}
 		} catch (err) {
 			if (err?.code === 'ENOENT') {
@@ -130,7 +130,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
 				const executable = await findExecutable(slc.executable!, cwd, envPaths);
 				if (!executable) {
-					return { message: localize('launchFail.executableDoesNotExist', 'Shell path "{0}" does not exist', slc.executable) };
+					return { message: localize('launchFail.executableDoesNotExist', "Shell path \"{0}\" does not exist", slc.executable) };
 				}
 			}
 		}
@@ -153,7 +153,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 		});
 		ptyProcess.onExit(e => {
-			console.log('onExit', e);
 			this._exitCode = e.exitCode;
 			this._queueProcessExit();
 		});
