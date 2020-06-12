@@ -423,10 +423,10 @@ export class FoldingController extends Disposable implements IEditorContribution
 					let isCollapsed = region.isCollapsed;
 					if (iconClicked || isCollapsed) {
 						let surrounding = e.event.altKey;
+						let toToggle = [];
 						if (surrounding) {
 							let filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region!) && !region!.containedBy(otherRegion);
 							let toMaybeToggle = foldingModel.getRegionsInside(null, filter);
-							let toToggle = [];
 							for (const r of toMaybeToggle) {
 								if (r.isCollapsed) {
 									toToggle.push(r);
@@ -436,10 +436,8 @@ export class FoldingController extends Disposable implements IEditorContribution
 							if (toToggle.length === 0) {
 								toToggle = toMaybeToggle;
 							}
-							foldingModel.toggleCollapseState(toToggle);
 						}
 						else {
-							let toToggle = [];
 							let recursive = e.event.middleButton || e.event.shiftKey;
 							if (recursive) {
 								for (const r of foldingModel.getRegionsInside(region)) {
@@ -452,8 +450,8 @@ export class FoldingController extends Disposable implements IEditorContribution
 							if (isCollapsed || !recursive || toToggle.length === 0) {
 								toToggle.push(region);
 							}
-							foldingModel.toggleCollapseState(toToggle);
 						}
+						foldingModel.toggleCollapseState(toToggle);
 						this.reveal({ lineNumber, column: 1 });
 					}
 				}
