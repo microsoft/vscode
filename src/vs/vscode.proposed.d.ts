@@ -1644,9 +1644,6 @@ declare module 'vscode' {
 		export let visibleNotebookEditors: NotebookEditor[];
 		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
 
-		// remove activeNotebookDocument, now that there is activeNotebookEditor.document
-		export let activeNotebookDocument: NotebookDocument | undefined;
-
 		export let activeNotebookEditor: NotebookEditor | undefined;
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;

@@ -71,12 +71,6 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 		return this._notebook;
 	}
 
-	get source() {
-		// todo@jrieken remove this
-		console.warn('USE cell.document.getText() instead');
-		return this._documentData.getText();
-	}
-
 	constructor(
 		private readonly _notebook: ExtHostNotebookDocument,
 		readonly handle: number,
@@ -669,12 +663,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return this._outputDisplayOrder;
 	}
 
-	private _activeNotebookDocument: ExtHostNotebookDocument | undefined;
-
-	get activeNotebookDocument() {
-		return this._activeNotebookDocument;
-	}
-
 	private _activeNotebookEditor: ExtHostNotebookEditor | undefined;
 
 	get activeNotebookEditor() {
@@ -1169,7 +1157,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 					if (this.activeNotebookEditor?.id === editor.editor.id) {
 						this._activeNotebookEditor = undefined;
-						this._activeNotebookDocument = undefined;
 					}
 
 					removedEditors.push(editor);
@@ -1202,7 +1189,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			if (delta.newActiveEditor) {
 				this._activeNotebookEditor = this._editors.get(delta.newActiveEditor)?.editor;
 				this._activeNotebookEditor?._acceptActive(true);
-				this._activeNotebookDocument = this._activeNotebookEditor ? this._documents.get(this._activeNotebookEditor!.uri.toString()) : undefined;
 				[...this._editors.values()].forEach((e) => {
 					if (e.editor !== this.activeNotebookEditor) {
 						e.editor._acceptActive(false);
@@ -1211,7 +1197,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			} else {
 				// clear active notebook as current active editor is non-notebook editor
 				this._activeNotebookEditor = undefined;
-				this._activeNotebookDocument = undefined;
 
 				[...this._editors.values()].forEach((e) => {
 					e.editor._acceptActive(false);
