@@ -1289,6 +1289,13 @@ declare module 'vscode' {
 		traceback: string[];
 	}
 
+	export interface NotebookCellOutputMetadata {
+		/**
+		 * Additional attributes of a cell metadata.
+		 */
+		custom?: { [key: string]: any };
+	}
+
 	export interface CellDisplayOutput {
 		outputKind: CellOutputKind.Rich;
 		/**
@@ -1309,6 +1316,8 @@ declare module 'vscode' {
 		 * }
 		 */
 		data: { [key: string]: any; };
+
+		readonly metadata?: NotebookCellOutputMetadata;
 	}
 
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;

@@ -153,12 +153,21 @@ export interface IErrorOutput {
 	traceback?: string[];
 }
 
+export interface NotebookCellOutputMetadata {
+	/**
+	 * Additional attributes of a cell metadata.
+	 */
+	custom?: { [key: string]: any };
+}
+
 export interface IDisplayOutput {
 	outputKind: CellOutputKind.Rich;
 	/**
 	 * { mime_type: value }
 	 */
 	data: { [key: string]: any; }
+
+	metadata?: NotebookCellOutputMetadata;
 }
 
 export enum MimeTypeRendererResolver {
@@ -177,6 +186,7 @@ export interface IOrderedMimeType {
 export interface ITransformedDisplayOutputDto {
 	outputKind: CellOutputKind.Rich;
 	data: { [key: string]: any; }
+	metadata?: NotebookCellOutputMetadata;
 
 	orderedMimeTypes?: IOrderedMimeType[];
 	pickedMimeTypeIndex?: number;
