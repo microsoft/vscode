@@ -25,6 +25,7 @@ interface IResourceUriProvider {
 interface IStaticExtension {
 	packageJSON: IExtensionManifest;
 	extensionLocation: URI;
+	isBuiltin?: boolean;
 }
 
 interface ICommontTelemetryPropertiesResolver {

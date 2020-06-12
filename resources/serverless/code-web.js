@@ -122,7 +122,8 @@ async function initialize() {
 				packageJSON.extensionKind = ['web']; // enable for Web
 				staticExtensions.push({
 					packageJSON,
-					extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/static-extension/${extensionFolder}` }
+					extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/static-extension/${extensionFolder}` },
+					isBuiltin: true
 				});
 			} catch (e) {
 				console.log(e);
