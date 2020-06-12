@@ -202,6 +202,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	}
 
 	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
+
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
 		'enable-proposed-api'
 	];
@@ -230,6 +231,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				}
 			}
 		}
+
 		// Append main process flags to process.argv
 		else if (SUPPORTED_MAIN_PROCESS_SWITCHES.indexOf(argvKey) !== -1) {
 			if (argvKey === 'enable-proposed-api') {
