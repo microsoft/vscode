@@ -112,16 +112,10 @@
 	max-width: 100px;
 }
 
-.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
-.monaco-workbench.vs-dark  .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
 .monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .icon-container > .icon,
 .monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .icon-container > .icon,
-.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .header-container,
-.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .header-container,
-.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .description,
-.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .description,
-.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .footer > .author,
-.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .footer > .author {
+.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .header-container .codicon,
+.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .header-container .codicon {
 	opacity: 0.5;
 }
 

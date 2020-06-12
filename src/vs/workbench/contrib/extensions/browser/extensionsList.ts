@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/extension';
-import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
+import { append, $, addClass, removeClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -21,6 +21,9 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 
 export interface IExtensionsViewState {
 	onFocus: Event<IExtension>;
@@ -58,6 +61,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IThemeService private readonly themeService: IThemeService,
 	) { }
 
 	get templateId() { return 'extension'; }
@@ -120,10 +124,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, extensionTooltipAction]);
 
 		actionbar.push(actions, actionOptions);
-		const disposables = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers, extensionTooltipAction);
+		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers, extensionTooltipAction);
 
 		return {
-			root, element, icon, name, installCount, ratings, author, description, disposables: [disposables], actionbar,
+			root, element, icon, name, installCount, ratings, author, description, disposables: [disposable], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
@@ -155,18 +159,31 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
 
+		let isDisabled: boolean = false;
 		const updateEnablement = async () => {
 			const runningExtensions = await this.extensionService.getExtensions();
+			isDisabled = false;
 			if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {
 				const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension.identifier))[0];
-				const isSameExtensionRunning = runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation);
-				toggleClass(data.root, 'disabled', !isSameExtensionRunning);
+				isDisabled = !(runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation));
+			}
+
+		};
+		const updateStyles = () => {
+			data.author.style.color = '';
+			data.root.style.color = '';
+			if (isDisabled) {
+				addClass(data.root, 'disabled');
+				data.root.style.color = this.getDisabledForeground();
 			} else {
 				removeClass(data.root, 'disabled');
+				data.author.style.color = this.getAuthorForeground();
 			}
 		};
-		updateEnablement();
-		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
+
+		updateEnablement().then(() => updateStyles());
+		this.extensionService.onDidChangeExtensions(() => updateEnablement().then(() => updateStyles()), this, data.extensionDisposables);
+		this.themeService.onDidColorThemeChange(() => updateStyles(), this, data.extensionDisposables);
 
 		const onError = Event.once(domEvent(data.icon, 'error'));
 		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
@@ -202,6 +219,18 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			}
 		}, this, data.extensionDisposables);
 
+	}
+
+	private getAuthorForeground(): string {
+		const colorTheme = this.themeService.getColorTheme();
+		const foregroundColor = colorTheme.getColor(foreground);
+		return foregroundColor ? foregroundColor.transparent(.9).makeOpaque(WORKBENCH_BACKGROUND(colorTheme)).toString() : '';
+	}
+
+	private getDisabledForeground(): string {
+		const colorTheme = this.themeService.getColorTheme();
+		const foregroundColor = colorTheme.getColor(foreground);
+		return foregroundColor ? foregroundColor.transparent(.5).makeOpaque(WORKBENCH_BACKGROUND(colorTheme)).toString() : '';
 	}
 
 	disposeTemplate(data: ITemplateData): void {
