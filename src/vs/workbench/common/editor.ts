@@ -411,7 +411,9 @@ export interface IEditorInput extends IDisposable {
 	getAriaLabel(): string;
 
 	/**
-	 * Resolves the input.
+	 * Returns a type of `IEditorModel` that represents the resolved input.
+	 * Subclasses should override to provide a meaningful model or return
+	 * `null` if the editor does not require a model.
 	 */
 	resolve(): Promise<IEditorModel | null>;
 
@@ -474,6 +476,21 @@ export interface IEditorInput extends IDisposable {
 	 * current one with that editor and optional options.
 	 */
 	move(group: GroupIdentifier, target: URI): IMoveResult | undefined;
+
+	/**
+	 * Called when this input was closed in a group. The second parameter
+	 * is a hint wether the editor is still opened in other groups. This
+	 * may include normal editors as well as side-by-side or diff editors.
+	 *
+	 * Subclasses can override what should happen. By default, an editor
+	 * input will dispose when it is closed.
+	 */
+	close(group: GroupIdentifier, openedInOtherGroups: boolean): void;
+
+	/**
+	 * Subclasses can set this to false if it does not make sense to split the editor input.
+	 */
+	supportsSplitEditor(): boolean;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -545,10 +562,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return { typeId: this.getTypeId() };
 	}
 
-	/**
-	 * Returns a type of EditorModel that represents the resolved input. Subclasses should
-	 * override to provide a meaningful model.
-	 */
 	abstract resolve(): Promise<IEditorModel | null>;
 
 	isReadonly(): boolean {
@@ -581,14 +594,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return undefined;
 	}
 
-	/**
-	 * Called when this input was closed in a group. The second parameter
-	 * is a hint wether the editor is still opened in other groups. This
-	 * may include normal editors as well as side-by-side or diff editors.
-	 *
-	 * Subclasses can override what should happen. By default, an editor
-	 * input will dispose when it is closed.
-	 */
 	close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
 		// TODO@ben revisit this behaviour, should just dispose by default after adoption
 		if (!openedInOtherGroups) {
@@ -596,9 +601,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		}
 	}
 
-	/**
-	 * Subclasses can set this to false if it does not make sense to split the editor input.
-	 */
 	supportsSplitEditor(): boolean {
 		return true;
 	}
