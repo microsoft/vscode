@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EditorInput, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor';
 
 export class RuntimeExtensionsInput extends EditorInput {
 
@@ -35,12 +35,6 @@ export class RuntimeExtensionsInput extends EditorInput {
 
 	supportsSplitEditor(): boolean {
 		return false;
-	}
-
-	close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
-		if (!openedInOtherGroups) {
-			this.dispose(); // Only dispose if not opened anymore because all runtime extensions inputs are shared
-		}
 	}
 
 	matches(other: unknown): boolean {

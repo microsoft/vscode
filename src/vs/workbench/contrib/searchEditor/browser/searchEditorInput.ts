@@ -180,10 +180,6 @@ export class SearchEditorInput extends EditorInput {
 		return localize('searchTitle', "Search");
 	}
 
-	async resolve() {
-		return null;
-	}
-
 	setDirty(dirty: boolean) {
 		this.dirty = dirty;
 		this._onDidChangeDirty.fire();

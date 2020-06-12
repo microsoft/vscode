@@ -598,6 +598,9 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
 		// TODO@ben revisit this behaviour, should just dispose by default after adoption
+		// However this requires that we never open the same input in multiple editor groups
+		// which today we cannot enforce (e.g. when opening the same editor in an empty
+		// group via quick open editor history)
 		if (!openedInOtherGroups) {
 			this.dispose();
 		}
@@ -796,10 +799,6 @@ export class SideBySideEditorInput extends EditorInput {
 		// Reemit some events from the master side to the outside
 		this._register(this.master.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		this._register(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
-	}
-
-	async resolve(): Promise<EditorModel | null> {
-		return null;
 	}
 
 	matches(otherInput: unknown): boolean {
