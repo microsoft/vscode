@@ -82,6 +82,7 @@ class NotebookEditorFactory implements IEditorInputFactory {
 			resource: input.resource,
 			name: input.name,
 			viewType: input.viewType,
+			group: input.group
 		});
 	}
 	deserialize(instantiationService: IInstantiationService, raw: string) {
@@ -98,6 +99,9 @@ class NotebookEditorFactory implements IEditorInputFactory {
 		// if we have two editors open with the same resource (in different editor groups), we should then create two different
 		// editor inputs, instead of `getOrCreate`.
 		const input = NotebookEditorInput.create(instantiationService, resource, name, viewType);
+		if (typeof data.group === 'number') {
+			input.updateGroup(data.group);
+		}
 		return input;
 	}
 
@@ -207,24 +211,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 					};
 				});
 			},
-			open: (input, options, group, context, id) => {
-				return this.onEditorOpening(input, options, group, context, id);
-			}
-		}));
-
-		// this does NOT work
-		this._register(this.editorService.overrideOpenEditor({
-			open: (input, options, group, context, id) => {
-				if (input instanceof NotebookEditorInput && context === OpenEditorContext.MOVE_EDITOR) {
-					// transfer ownership of editor widget
-					const widgetRef = NotebookRegistry.getNotebookEditorWidget(input);
-					if (widgetRef) {
-						NotebookRegistry.releaseNotebookEditorWidget(input);
-						NotebookRegistry.claimNotebookEditorWidget(input, widgetRef);
-					}
-				}
-				return undefined;
-			}
+			open: (editor, options, group, context, id) => this.onEditorOpening(editor, options, group, context, id)
 		}));
 	}
 
@@ -247,9 +234,37 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		return this.notebookService.getContributedNotebookProviders(resource);
 	}
 
-	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, _context: OpenEditorContext, id: string | undefined): IOpenEditorOverride | undefined {
+	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorContext, id: string | undefined): IOpenEditorOverride | undefined {
+		if (originalInput instanceof NotebookEditorInput) {
+			if ((originalInput.group === group.id || originalInput.group === undefined) && (originalInput.viewType === id || typeof id !== 'string')) {
+				// No need to do anything
+				originalInput.updateGroup(group.id);
+				return {
+					override: this.editorService.openEditor(originalInput, new NotebookEditorOptions(options || {}).with({ override: false }), group)
+				};
+			} else {
+				// Create a copy of the input.
+				// Unlike normal editor inputs, we do not want to share custom editor inputs
+				// between multiple editors / groups.
+				const copiedInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource, originalInput.name, originalInput.viewType);
+				copiedInput.updateGroup(group.id);
 
-		if (originalInput instanceof NotebookEditorInput || !originalInput.resource) {
+				if (context === OpenEditorContext.MOVE_EDITOR) {
+					// transfer ownership of editor widget
+					const widgetRef = NotebookRegistry.getNotebookEditorWidget(originalInput);
+					if (widgetRef) {
+						NotebookRegistry.releaseNotebookEditorWidget(originalInput);
+						NotebookRegistry.claimNotebookEditorWidget(copiedInput, widgetRef);
+					}
+				}
+
+				return {
+					override: this.editorService.openEditor(copiedInput, new NotebookEditorOptions(options || {}).with({ override: false }), group)
+				};
+			}
+		}
+
+		if (!originalInput.resource) {
 			return undefined;
 		}
 
@@ -304,12 +319,14 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		const infos = this.notebookService.getContributedNotebookProviders(notebookUri);
-		const info = infos.find(info => !id || id === info.id);
+		const info = infos.find(info => !id || info.id === id);
+
 		if (!info) {
 			return undefined;
 		}
 
 		const input = NotebookEditorInput.create(this.instantiationService, notebookUri, originalInput.getName(), info.id);
+		input.updateGroup(group.id);
 
 		/**
 		 * Scenario: we are reopening a file editor input which is pinned, we should open in a new editor tab.
@@ -320,14 +337,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			index = group.isPinned(originalInput) ? originalEditorIndex + 1 : originalEditorIndex;
 		}
 
-		const notebookEditorOptions = new NotebookEditorOptions({
-			...options,
-			cellOptions: notebookCellOptions,
-			override: false, index
-		});
-
-		const override = this.editorService.openEditor(input, notebookEditorOptions, group);
-		return { override };
+		return { override: this.editorService.openEditor(input, new NotebookEditorOptions(options || {}).with({ override: false, index }), group) };
 	}
 }
 

@@ -28,6 +28,7 @@ export class NotebookEditorInput extends EditorInput {
 
 	private _modelReference: IReference<INotebookEditorModel> | undefined;
 	private _defaultDirtyState: boolean = false;
+	private _group: GroupIdentifier | undefined;
 
 	constructor(
 		public resource: URI,
@@ -51,6 +52,16 @@ export class NotebookEditorInput extends EditorInput {
 	getName(): string {
 		return this.name;
 	}
+
+
+	get group(): GroupIdentifier | undefined {
+		return this._group;
+	}
+
+	updateGroup(group: GroupIdentifier): void {
+		this._group = group;
+	}
+
 
 	isDirty() {
 		if (!this._modelReference) {
@@ -159,6 +170,10 @@ export class NotebookEditorInput extends EditorInput {
 			&& this.viewType === otherInput.viewType
 			&& isEqual(this.resource, otherInput.resource);
 	}
+
+	// close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
+	// 	super.close(group, openedInOtherGroups);
+	// }
 
 	dispose() {
 		if (this._modelReference) {
