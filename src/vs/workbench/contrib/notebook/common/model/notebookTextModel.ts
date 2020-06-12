@@ -393,7 +393,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	changeCellLanguage(handle: number, languageId: string) {
 		let cell = this._mapping.get(handle);
-		if (cell) {
+		if (cell && cell.language !== languageId) {
 			cell.language = languageId;
 
 			this._increaseVersionId();
