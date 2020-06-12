@@ -164,6 +164,7 @@ export const createEditorFromSearchResult =
 		const telemetryService = accessor.get(ITelemetryService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const labelService = accessor.get(ILabelService);
+		const configurationService = accessor.get(IConfigurationService);
 
 
 		telemetryService.publicLog2('searchEditor/createEditorFromSearchResult');
@@ -171,8 +172,15 @@ export const createEditorFromSearchResult =
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 
 		const { text, matchRanges, config } = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter);
+		const contextLines = configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor.defaultNumberOfContextLines;
 
-		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text, config });
-		await editorService.openEditor(input, { pinned: true });
-		input.setMatchRanges(matchRanges);
+		if (searchResult.isDirty || contextLines === 0 || contextLines === null) {
+			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text, config });
+			await editorService.openEditor(input, { pinned: true });
+			input.setMatchRanges(matchRanges);
+		} else {
+			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text: '', config: { ...config, contextLines } });
+			const editor = await editorService.openEditor(input, { pinned: true }) as SearchEditor;
+			editor.triggerSearch({ focusResults: true });
+		}
 	};
