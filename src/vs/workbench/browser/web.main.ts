@@ -160,10 +160,7 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
-		const productService = {
-			_serviceBrand: undefined,
-			...product
-		};
+		const productService: IProductService = { _serviceBrand: undefined, ...product };
 		serviceCollection.set(IProductService, productService);
 
 		// Remote
