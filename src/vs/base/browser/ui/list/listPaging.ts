@@ -7,7 +7,7 @@ import 'vs/css!./list';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
 import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent } from './list';
-import { List, IListStyles, IListOptions, IListAccessibilityProvider } from './listWidget';
+import { List, IListStyles, IListOptions, IListAccessibilityProvider, IListOptionsUpdate } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
 import { Event } from 'vs/base/common/event';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -134,6 +134,10 @@ export class PagedList<T> implements IDisposable {
 		const modelProvider = () => this.model;
 		const pagedRenderers = renderers.map(r => new PagedRenderer<T, ITemplateData<T>>(r, modelProvider));
 		this.list = new List(user, container, virtualDelegate, pagedRenderers, fromPagedListOptions(modelProvider, options));
+	}
+
+	updateOptions(options: IListOptionsUpdate) {
+		this.list.updateOptions(options);
 	}
 
 	getHTMLElement(): HTMLElement {

@@ -140,6 +140,8 @@ export class ExplorerView extends ViewPane {
 	private compressedFocusFirstContext: IContextKey<boolean>;
 	private compressedFocusLastContext: IContextKey<boolean>;
 
+	private horizontalScrolling: boolean | undefined;
+
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
 	private dragHandler!: DelayedDragHandler;
@@ -309,8 +311,19 @@ export class ExplorerView extends ViewPane {
 
 	async setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void> {
 		if (isEditing) {
+			this.horizontalScrolling = this.tree.options.horizontalScrolling;
+
+			if (this.horizontalScrolling) {
+				this.tree.updateOptions({ horizontalScrolling: false });
+			}
+
 			await this.tree.expand(stat.parent!);
 		} else {
+			if (this.horizontalScrolling !== undefined) {
+				this.tree.updateOptions({ horizontalScrolling: this.horizontalScrolling });
+			}
+
+			this.horizontalScrolling = undefined;
 			DOM.removeClass(this.treeContainer, 'highlight');
 		}
 
