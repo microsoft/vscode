@@ -34,7 +34,7 @@ import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output
 import { localize } from 'vs/nls';
 
 export interface IRemoteInitData {
-	readonly connectionData: IRemoteConnectionData | undefined;
+	readonly connectionData: IRemoteConnectionData | null;
 	readonly remoteEnvironment: IRemoteAgentEnvironment;
 }
 

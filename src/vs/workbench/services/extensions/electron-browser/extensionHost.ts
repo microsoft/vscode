@@ -440,7 +440,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					},
 					remote: {
 						authority: this._environmentService.configuration.remoteAuthority,
-						connectionData: undefined,
+						connectionData: null,
 						isRemote: false
 					},
 					resolvedExtensions: [],

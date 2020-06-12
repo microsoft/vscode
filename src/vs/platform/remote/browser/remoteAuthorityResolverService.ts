@@ -6,16 +6,21 @@
 import { ResolvedAuthority, IRemoteAuthorityResolverService, ResolverResult, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAuthorities } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverService {
+export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeConnectionData = this._register(new Emitter<void>());
+	public readonly onDidChangeConnectionData = this._onDidChangeConnectionData.event;
+
 	private readonly _cache: Map<string, ResolverResult>;
 	private readonly _connectionTokens: Map<string, string>;
 
-	constructor(
-		resourceUriProvider: ((uri: URI) => URI) | undefined
-	) {
+	constructor(resourceUriProvider: ((uri: URI) => URI) | undefined) {
+		super();
 		this._cache = new Map<string, ResolverResult>();
 		this._connectionTokens = new Map<string, string>();
 		if (resourceUriProvider) {
@@ -28,6 +33,7 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 			const result = this._doResolveAuthority(authority);
 			RemoteAuthorities.set(authority, result.authority.host, result.authority.port);
 			this._cache.set(authority, result);
+			this._onDidChangeConnectionData.fire();
 		}
 		return this._cache.get(authority)!;
 	}
@@ -65,5 +71,6 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 	_setAuthorityConnectionToken(authority: string, connectionToken: string): void {
 		this._connectionTokens.set(authority, connectionToken);
 		RemoteAuthorities.setConnectionToken(authority, connectionToken);
+		this._onDidChangeConnectionData.fire();
 	}
 }

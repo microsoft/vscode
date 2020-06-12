@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
 
 export const IRemoteAuthorityResolverService = createDecorator<IRemoteAuthorityResolverService>('remoteAuthorityResolverService');
 
@@ -84,6 +85,8 @@ export class RemoteAuthorityResolverError extends Error {
 export interface IRemoteAuthorityResolverService {
 
 	readonly _serviceBrand: undefined;
+
+	readonly onDidChangeConnectionData: Event<void>;
 
 	resolveAuthority(authority: string): Promise<ResolverResult>;
 	getConnectionData(authority: string): IRemoteConnectionData | null;

@@ -6,6 +6,8 @@
 import { ResolvedAuthority, IRemoteAuthorityResolverService, ResolverResult, ResolvedOptions, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import * as errors from 'vs/base/common/errors';
 import { RemoteAuthorities } from 'vs/base/common/network';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
 
 class PendingResolveAuthorityRequest {
 
@@ -29,14 +31,18 @@ class PendingResolveAuthorityRequest {
 	}
 }
 
-export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverService {
+export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeConnectionData = this._register(new Emitter<void>());
+	public readonly onDidChangeConnectionData = this._onDidChangeConnectionData.event;
 
 	private readonly _resolveAuthorityRequests: Map<string, PendingResolveAuthorityRequest>;
 	private readonly _connectionTokens: Map<string, string>;
 
 	constructor() {
+		super();
 		this._resolveAuthorityRequests = new Map<string, PendingResolveAuthorityRequest>();
 		this._connectionTokens = new Map<string, string>();
 	}
@@ -82,6 +88,7 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 			const request = this._resolveAuthorityRequests.get(resolvedAuthority.authority)!;
 			RemoteAuthorities.set(resolvedAuthority.authority, resolvedAuthority.host, resolvedAuthority.port);
 			request.resolve({ authority: resolvedAuthority, options });
+			this._onDidChangeConnectionData.fire();
 		}
 	}
 
@@ -95,5 +102,6 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 	_setAuthorityConnectionToken(authority: string, connectionToken: string): void {
 		this._connectionTokens.set(authority, connectionToken);
 		RemoteAuthorities.setConnectionToken(authority, connectionToken);
+		this._onDidChangeConnectionData.fire();
 	}
 }

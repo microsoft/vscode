@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import { originalFSPath, joinPath } from 'vs/base/common/resources';
 import { Barrier, timeout } from 'vs/base/common/async';
-import { dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -26,7 +26,7 @@ import { Schemas } from 'vs/base/common/network';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { RemoteAuthorityResolverError, ExtensionMode } from 'vs/workbench/api/common/extHostTypes';
-import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
@@ -34,6 +34,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
+import { Emitter, Event } from 'vs/base/common/event';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -65,11 +66,14 @@ type TelemetryActivationEventFragment = {
 	reasonId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
 };
 
-export abstract class AbstractExtHostExtensionService implements ExtHostExtensionServiceShape {
+export abstract class AbstractExtHostExtensionService extends Disposable implements ExtHostExtensionServiceShape {
 
 	readonly _serviceBrand: undefined;
 
 	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 7000;
+
+	private readonly _onDidChangeRemoteConnectionData = this._register(new Emitter<void>());
+	public readonly onDidChangeRemoteConnectionData = this._onDidChangeRemoteConnectionData.event;
 
 	protected readonly _hostUtils: IHostUtils;
 	protected readonly _initData: IInitData;
@@ -97,6 +101,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver; };
 
 	private _started: boolean;
+	private _remoteConnectionData: IRemoteConnectionData | null;
 
 	private readonly _disposables: DisposableStore;
 
@@ -112,6 +117,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		@IExtHostTunnelService extHostTunnelService: IExtHostTunnelService,
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService
 	) {
+		super();
 		this._hostUtils = hostUtils;
 		this._extHostContext = extHostContext;
 		this._initData = initData;
@@ -164,6 +170,11 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		this._extensionPathIndex = null;
 		this._resolvers = Object.create(null);
 		this._started = false;
+		this._remoteConnectionData = this._initData.remote.connectionData;
+	}
+
+	public getRemoteConnectionData(): IRemoteConnectionData | null {
+		return this._remoteConnectionData;
 	}
 
 	public async initialize(): Promise<void> {
@@ -793,6 +804,11 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		return buff;
 	}
 
+	public async $updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void> {
+		this._remoteConnectionData = connectionData;
+		this._onDidChangeRemoteConnectionData.fire();
+	}
+
 	public abstract async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 }
 
@@ -836,4 +852,7 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 	getExtensionRegistry(): Promise<ExtensionDescriptionRegistry>;
 	getExtensionPathIndex(): Promise<TernarySearchTree<string, IExtensionDescription>>;
 	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
+
+	onDidChangeRemoteConnectionData: Event<void>;
+	getRemoteConnectionData(): IRemoteConnectionData | null;
 }

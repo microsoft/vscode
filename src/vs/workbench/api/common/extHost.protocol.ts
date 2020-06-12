@@ -99,7 +99,7 @@ export interface IInitData {
 	logsLocation: URI;
 	logFile: URI;
 	autoStart: boolean;
-	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | undefined; };
+	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null; };
 	uiKind: UIKind;
 }
 
@@ -1046,6 +1046,7 @@ export interface ExtHostExtensionServiceShape {
 	$activateByEvent(activationEvent: string): Promise<void>;
 	$activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	$setRemoteEnvironment(env: { [key: string]: string | null; }): Promise<void>;
+	$updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void>;
 
 	$deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
 
