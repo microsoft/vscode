@@ -163,7 +163,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		});
 	}
 
-	protected postMessage(channel: string, data?: any): void {
+	protected doPostMessage(channel: string, data?: any): void {
 		if (this.element) {
 			this.element.contentWindow!.postMessage({ channel, args: data }, '*');
 		}

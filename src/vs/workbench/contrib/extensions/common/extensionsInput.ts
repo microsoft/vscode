@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
 
 export class ExtensionsInput extends EditorInput {
 
@@ -15,7 +16,7 @@ export class ExtensionsInput extends EditorInput {
 
 	get resource() {
 		return URI.from({
-			scheme: 'extension',
+			scheme: Schemas.extension,
 			path: this.extension.identifier.id
 		});
 	}

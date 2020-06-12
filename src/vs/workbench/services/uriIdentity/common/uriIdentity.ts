@@ -7,10 +7,6 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtUri } from 'vs/base/common/resources';
 
-export interface IUriIdentity {
-	readonly pathHierarchical: boolean;
-	readonly ignorePathCasing: boolean;
-}
 
 export const IUriIdentityService = createDecorator<IUriIdentityService>('IUriIdentityService');
 

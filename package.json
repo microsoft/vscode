@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.47.0",
-  "distro": "4d6673b9633db97033218c940d382d79e4d0db7b",
+  "distro": "4eca5644666fe6fde9d765e71d0ca870f3c076a6",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -32,7 +32,7 @@
     "valid-layers-check": "node build/lib/layersChecker.js",
     "strict-function-types-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictFunctionTypes",
     "update-distro": "node build/npm/update-distro.js",
-    "web": "node scripts/code-web.js",
+    "web": "node resources/serverless/code-web.js",
     "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions"
   },
   "dependencies": {
@@ -56,7 +56,7 @@
     "vscode-nsfw": "1.2.8",
     "vscode-oniguruma": "1.3.1",
     "vscode-proxy-agent": "^0.5.2",
-    "vscode-ripgrep": "^1.5.9",
+    "vscode-ripgrep": "^1.5.8",
     "vscode-sqlite3": "4.0.10",
     "vscode-textmate": "5.1.1",
     "xterm": "4.7.0-beta.3",

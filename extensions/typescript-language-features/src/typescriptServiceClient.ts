@@ -27,6 +27,7 @@ import Tracer from './utils/tracer';
 import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
 import { TypeScriptVersionManager } from './utils/versionManager';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
+import { EventName } from './protocol.const';
 
 const localize = nls.loadMessageBundle();
 
@@ -760,9 +761,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private dispatchEvent(event: Proto.Event) {
 		switch (event.event) {
-			case 'syntaxDiag':
-			case 'semanticDiag':
-			case 'suggestionDiag':
+			case EventName.syntaxDiag:
+			case EventName.semanticDiag:
+			case EventName.suggestionDiag:
 				// This event also roughly signals that projects have been loaded successfully (since the TS server is synchronous)
 				this.loadingIndicator.reset();
 
@@ -776,17 +777,17 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 				break;
 
-			case 'configFileDiag':
+			case EventName.configFileDiag:
 				this._onConfigDiagnosticsReceived.fire(event as Proto.ConfigFileDiagnosticEvent);
 				break;
 
-			case 'telemetry':
+			case EventName.telemetry:
 				{
 					const body = (event as Proto.TelemetryEvent).body;
 					this.dispatchTelemetryEvent(body);
 					break;
 				}
-			case 'projectLanguageServiceState':
+			case EventName.projectLanguageServiceState:
 				{
 					const body = (event as Proto.ProjectLanguageServiceStateEvent).body!;
 					if (this.serverState.type === ServerState.Type.Running) {
@@ -795,33 +796,33 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this._onProjectLanguageServiceStateChanged.fire(body);
 					break;
 				}
-			case 'projectsUpdatedInBackground':
+			case EventName.projectsUpdatedInBackground:
 				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
 				const resources = body.openFiles.map(file => this.toResource(file));
 				this.bufferSyncSupport.getErr(resources);
 				break;
 
-			case 'beginInstallTypes':
+			case EventName.beginInstallTypes:
 				this._onDidBeginInstallTypings.fire((event as Proto.BeginInstallTypesEvent).body);
 				break;
 
-			case 'endInstallTypes':
+			case EventName.endInstallTypes:
 				this._onDidEndInstallTypings.fire((event as Proto.EndInstallTypesEvent).body);
 				break;
 
-			case 'typesInstallerInitializationFailed':
+			case EventName.typesInstallerInitializationFailed:
 				this._onTypesInstallerInitializationFailed.fire((event as Proto.TypesInstallerInitializationFailedEvent).body);
 				break;
 
-			case 'surveyReady':
+			case EventName.surveyReady:
 				this._onSurveyReady.fire((event as Proto.SurveyReadyEvent).body);
 				break;
 
-			case 'projectLoadingStart':
+			case EventName.projectLoadingStart:
 				this.loadingIndicator.startedLoadingProject((event as Proto.ProjectLoadingStartEvent).body.projectName);
 				break;
 
-			case 'projectLoadingFinish':
+			case EventName.projectLoadingFinish:
 				this.loadingIndicator.finishedLoadingProject((event as Proto.ProjectLoadingFinishEvent).body.projectName);
 				break;
 		}

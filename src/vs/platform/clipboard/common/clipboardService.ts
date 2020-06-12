@@ -48,8 +48,6 @@ export interface IClipboardService {
 	hasResources(): Promise<boolean>;
 
 
-	/** @deprecated */
-	readTextSync(): string | undefined;
 
 	/** @deprecated */
 	readFindTextSync(): string;

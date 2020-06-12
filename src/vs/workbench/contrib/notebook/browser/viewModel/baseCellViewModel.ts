@@ -8,6 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
@@ -151,6 +152,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		this._textEditor = editor;
+		this._textModel = this._textEditor.getModel() || undefined;
 
 		if (this._editorViewStates) {
 			this.restoreViewState(this._editorViewStates);
@@ -185,6 +187,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._textEditor = undefined;
+		this._textModel = undefined;
 		this._cursorChangeListener?.dispose();
 		this._cursorChangeListener = null;
 		this._onDidChangeEditorAttachState.fire();
@@ -264,6 +267,14 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._textEditor?.setSelection(range);
 	}
 
+	setSelections(selections: Selection[]) {
+		this._textEditor?.setSelections(selections);
+	}
+
+	getSelections() {
+		return this._textEditor?.getSelections() || [];
+	}
+
 	getSelectionsStartPosition(): IPosition[] | undefined {
 		if (this._textEditor) {
 			const selections = this._textEditor.getSelections();
@@ -326,6 +337,8 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this.model.textBuffer;
 	}
 
+	abstract resolveTextModel(): Promise<model.ITextModel>;
+
 	protected cellStartFind(value: string): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
 
@@ -365,6 +378,10 @@ export abstract class BaseCellViewModel extends Disposable {
 				hasExecutionOrder
 			}
 		};
+	}
+
+	dispose() {
+		super.dispose();
 	}
 
 	toJSON(): any {

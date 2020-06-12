@@ -217,7 +217,7 @@
 			"type": "node",
 			"request": "launch",
 			"name": "VS Code (Web)",
-			"program": "${workspaceFolder}/scripts/code-web.js",
+			"program": "${workspaceFolder}/resources/serverless/code-web.js",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 2
@@ -247,6 +247,18 @@
 			"request": "launch",
 			"name": "VS Code (Web, Chrome)",
 			"url": "http://localhost:8080",
+			"preLaunchTask": "Run web",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 3
+			}
+		},
+		{
+			"type": "pwa-msedge",
+			"request": "launch",
+			"name": "VS Code (Web, Edge)",
+			"url": "http://localhost:8080",
+			"pauseForSourceMap": false,
 			"preLaunchTask": "Run web",
 			"presentation": {
 				"group": "0_vscode",

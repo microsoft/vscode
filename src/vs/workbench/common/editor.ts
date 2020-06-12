@@ -235,7 +235,7 @@ export interface IEditorInputFactory {
 	 * Returns a string representation of the provided editor input that contains enough information
 	 * to deserialize back to the original editor input from the deserialize() method.
 	 */
-	serialize(editorInput: EditorInput): string | undefined;
+	serialize(editorInput: IEditorInput): string | undefined;
 
 	/**
 	 * Returns an editor input from the provided serialized form of the editor input. This form matches
@@ -579,6 +579,21 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		return undefined;
+	}
+
+	/**
+	 * Called when this input was closed in a group. The second parameter
+	 * is a hint wether the editor is still opened in other groups. This
+	 * may include normal editors as well as side-by-side or diff editors.
+	 *
+	 * Subclasses can override what should happen. By default, an editor
+	 * input will dispose when it is closed.
+	 */
+	close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
+		// TODO@ben revisit this behaviour, should just dispose by default after adoption
+		if (!openedInOtherGroups) {
+			this.dispose();
+		}
 	}
 
 	/**
@@ -1394,4 +1409,24 @@ export const enum EditorsOrder {
 	 * Editors sorted by sequential order
 	 */
 	SEQUENTIAL
+}
+
+export function computeEditorAriaLabel(input: IEditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
+	let ariaLabel = input.getAriaLabel();
+	if (group && !group.isPinned(input)) {
+		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
+	}
+
+	if (group && group.isSticky(index ?? input)) {
+		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
+	}
+
+	// Apply group information to help identify in
+	// which group we are (only if more than one group
+	// is actually opened)
+	if (group && groupCount > 1) {
+		ariaLabel = `${ariaLabel}, ${group.ariaLabel}`;
+	}
+
+	return ariaLabel;
 }

@@ -5,11 +5,20 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, GroupIdentifier } from 'vs/workbench/common/editor';
 
 export class RuntimeExtensionsInput extends EditorInput {
 
 	static readonly ID = 'workbench.runtimeExtensions.input';
+
+	static _instance: RuntimeExtensionsInput;
+	static get instance() {
+		if (!RuntimeExtensionsInput._instance || RuntimeExtensionsInput._instance.isDisposed()) {
+			RuntimeExtensionsInput._instance = new RuntimeExtensionsInput();
+		}
+
+		return RuntimeExtensionsInput._instance;
+	}
 
 	readonly resource = URI.from({
 		scheme: 'runtime-extensions',
@@ -25,17 +34,20 @@ export class RuntimeExtensionsInput extends EditorInput {
 	}
 
 	matches(other: unknown): boolean {
-		if (!(other instanceof RuntimeExtensionsInput)) {
-			return false;
-		}
-		return true;
+		return other instanceof RuntimeExtensionsInput;
 	}
 
-	resolve(): Promise<any> {
-		return Promise.resolve(null);
+	async resolve(): Promise<null> {
+		return null;
 	}
 
 	supportsSplitEditor(): boolean {
 		return false;
+	}
+
+	close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
+		if (!openedInOtherGroups) {
+			this.dispose(); // Only dispose if not opened anymore because all runtime extensions inputs are shared
+		}
 	}
 }

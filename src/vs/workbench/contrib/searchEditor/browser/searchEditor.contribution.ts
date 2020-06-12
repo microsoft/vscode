@@ -109,7 +109,9 @@ workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContrib
 type SerializedSearchEditor = { modelUri: string, dirty: boolean, config: SearchConfiguration, name: string, matchRanges: Range[], backingUri: string };
 class SearchEditorInputFactory implements IEditorInputFactory {
 
-	canSerialize() { return true; }
+	canSerialize(input: SearchEditorInput) {
+		return !input.isDisposed();
+	}
 
 	serialize(input: SearchEditorInput) {
 		let modelUri = undefined;
@@ -211,6 +213,7 @@ CommandsRegistry.registerCommand(
 //#region Actions
 const category = localize('search', "Search Editor");
 
+export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean, focusResults: boolean }>;
 const openArgDescription = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
 	args: [{
@@ -226,6 +229,8 @@ const openArgDescription = {
 				regexp: { type: 'boolean' },
 				useIgnores: { type: 'boolean' },
 				showIncludesExcludes: { type: 'boolean' },
+				triggerSearch: { type: 'boolean' },
+				focusResults: { type: 'boolean' },
 			}
 		}
 	}]
@@ -241,7 +246,7 @@ registerAction2(class extends Action2 {
 			description: openArgDescription
 		});
 	}
-	async run(accessor: ServicesAccessor, args: Partial<SearchConfiguration>) {
+	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
 		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, args);
 	}
 });
@@ -256,7 +261,7 @@ registerAction2(class extends Action2 {
 			description: openArgDescription
 		});
 	}
-	async run(accessor: ServicesAccessor, args: Partial<SearchConfiguration>) {
+	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
 		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, args, true);
 	}
 });
@@ -269,9 +274,12 @@ registerAction2(class extends Action2 {
 			category,
 			f1: true,
 			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				primary: KeyMod.Alt | KeyCode.Enter,
 				when: ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey),
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: KeybindingWeight.WorkbenchContrib,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.Enter
+				}
 			},
 		});
 	}

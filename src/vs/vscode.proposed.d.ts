@@ -974,9 +974,9 @@ declare module 'vscode' {
 
 	namespace window {
 		/**
-		 * An event which fires when the terminal's pty slave pseudo-device is written to. In other
-		 * words, this provides access to the raw data stream from the process running within the
-		 * terminal, including VT sequences.
+		 * An event which fires when the terminal's child pseudo-device is written to (the shell).
+		 * In other words, this provides access to the raw data stream from the process running
+		 * within the terminal, including VT sequences.
 		 */
 		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
 	}
@@ -1255,18 +1255,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Allow theme icons in hovers: https://github.com/microsoft/vscode/issues/84695
-
-	export interface MarkdownString {
-
-		/**
-		 * Indicates that this markdown string can contain [ThemeIcons](#ThemeIcon), e.g. `$(zap)`.
-		 */
-		readonly supportThemeIcons?: boolean;
-	}
-
-	//#endregion
-
 	//#region @rebornix: Notebook
 
 	export enum CellKind {
@@ -1301,6 +1289,13 @@ declare module 'vscode' {
 		traceback: string[];
 	}
 
+	export interface NotebookCellOutputMetadata {
+		/**
+		 * Additional attributes of a cell metadata.
+		 */
+		custom?: { [key: string]: any };
+	}
+
 	export interface CellDisplayOutput {
 		outputKind: CellOutputKind.Rich;
 		/**
@@ -1321,6 +1316,8 @@ declare module 'vscode' {
 		 * }
 		 */
 		data: { [key: string]: any; };
+
+		readonly metadata?: NotebookCellOutputMetadata;
 	}
 
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
@@ -1392,8 +1389,6 @@ declare module 'vscode' {
 		readonly uri: Uri;
 		readonly cellKind: CellKind;
 		readonly document: TextDocument;
-		// API remove `source` or doc it as shorthand for document.getText()
-		readonly source: string;
 		language: string;
 		outputs: CellOutput[];
 		metadata: NotebookCellMetadata;
@@ -1441,6 +1436,7 @@ declare module 'vscode' {
 	export interface NotebookDocument {
 		readonly uri: Uri;
 		readonly fileName: string;
+		readonly viewType: string;
 		readonly isDirty: boolean;
 		readonly cells: NotebookCell[];
 		languages: string[];
@@ -1536,6 +1532,7 @@ declare module 'vscode' {
 	export interface NotebookCellsChangeData {
 		readonly start: number;
 		readonly deletedCount: number;
+		readonly deletedItems: NotebookCell[];
 		readonly items: NotebookCell[];
 	}
 
@@ -1638,11 +1635,14 @@ declare module 'vscode' {
 
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+
+		/**
+		 * All currently known notebook documents.
+		 */
+		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
+
 		export let visibleNotebookEditors: NotebookEditor[];
 		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
-
-		// remove activeNotebookDocument, now that there is activeNotebookEditor.document
-		export let activeNotebookDocument: NotebookDocument | undefined;
 
 		export let activeNotebookEditor: NotebookEditor | undefined;
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;

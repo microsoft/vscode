@@ -727,7 +727,7 @@ suite('ExtensionsActions', () => {
 					.then(extensions => {
 						const testObject: ExtensionsActions.EnableGloballyAction = instantiationService.createInstance(ExtensionsActions.EnableGloballyAction);
 						testObject.extension = extensions[0];
-						assert.ok(!testObject.enabled);
+						assert.ok(testObject.enabled);
 					});
 			});
 	});

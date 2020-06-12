@@ -79,11 +79,6 @@ export class NativeClipboardService implements IClipboardService {
 	}
 
 	/** @deprecated */
-	readTextSync(): string {
-		return clipboard.readText();
-	}
-
-	/** @deprecated */
 	readFindTextSync(): string {
 		if (isMacintosh) {
 			return clipboard.readFindText();

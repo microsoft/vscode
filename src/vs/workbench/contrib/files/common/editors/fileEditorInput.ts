@@ -86,12 +86,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 		// Once the text file model is created, we keep it inside
 		// the input to be able to implement some methods properly
-		// TODO@ben once we are certain that models will only be
-		// created with canonical URIs, this should use the URI
-		// identity service. But as long as there is a chance
-		// that a model is created with same path but different
-		// case, we can only accept that model here if the URIs
-		// are 100% identical.
 		if (extUri.isEqual(model.resource, this.resource)) {
 			this.model = model;
 
@@ -307,6 +301,12 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		}
 
 		return undefined;
+	}
+
+	close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
+		if (!openedInOtherGroups) {
+			this.dispose(); // Only dispose if not opened anymore because all file inputs are shared
+		}
 	}
 
 	matches(otherInput: unknown): boolean {

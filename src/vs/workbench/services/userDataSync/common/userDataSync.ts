@@ -28,7 +28,7 @@ export interface IUserDataSyncWorkbenchService {
 
 	turnOn(): Promise<void>;
 	turnoff(everyWhere: boolean): Promise<void>;
-	pickAccount(): Promise<void>;
+	signIn(): Promise<void>;
 }
 
 export function getSyncAreaLabel(source: SyncResource): string {

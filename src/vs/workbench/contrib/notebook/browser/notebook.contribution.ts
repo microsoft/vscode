@@ -31,7 +31,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellUri, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, NotebookDocumentBackupData, NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
@@ -197,6 +197,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			const visibleNotebookEditors = editorService.visibleEditorPanes
 				.filter(pane => (pane as any).isNotebookEditor)
 				.map(pane => pane.getControl() as INotebookEditor)
+				.filter(control => !!control)
 				.map(editor => editor.getId());
 
 			this.notebookService.updateVisibleNotebookEditor(visibleNotebookEditors);
@@ -297,23 +298,25 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				// user pick a non-notebook editor for this resource
 				return undefined;
 			}
+
+			// user might pick a notebook editor
+
+			const associatedEditors = distinct([
+				...this.getUserAssociatedNotebookEditors(resource),
+				...this.getContributedEditors(resource)
+			], editor => editor.id).filter(editor => editor.priority === NotebookEditorPriority.default);
+
+			if (!associatedEditors.length) {
+				// there is no notebook editor contribution which is enabled by default
+				return;
+			}
+
 		} else {
 			const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, resource) && (editor instanceof NotebookEditorInput) && editor.viewType === id);
 
 			if (existingEditors.length) {
 				// switch to this cell
 				return { override: this.editorService.openEditor(existingEditors[0], new NotebookEditorOptions(options || {}).with({ override: false }), group) };
-			}
-		}
-
-		if (this._resourceMapping.has(resource)) {
-			const input = this._resourceMapping.get(resource);
-
-			if (!input!.isDisposed()) {
-				input?.updateGroup(group.id);
-				return { override: this.editorService.openEditor(input!, new NotebookEditorOptions(options || {}).with({ override: false }), group) };
-			} else {
-				this._resourceMapping.delete(resource);
 			}
 		}
 

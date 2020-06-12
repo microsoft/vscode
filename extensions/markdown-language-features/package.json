@@ -12,6 +12,7 @@
 		"vscode": "^1.20.0"
 	},
 	"main": "./out/extension",
+	"browser": "./dist/extension.js",
 	"categories": [
 		"Programming Languages"
 	],
@@ -327,7 +328,9 @@
 		"watch": "npm run build-preview && gulp watch-extension:markdown-language-features",
 		"vscode:prepublish": "npm run build-ext && npm run build-preview",
 		"build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
-		"build-preview": "webpack --mode production"
+		"build-preview": "webpack --mode production",
+		"compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
+		"watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
 	},
 	"dependencies": {
 		"highlight.js": "9.15.10",
