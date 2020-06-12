@@ -136,13 +136,13 @@ export interface IWorkingCopyFileService {
 	copy(files: { source: URI, target: URI }[], overwrite?: boolean): Promise<IFileStatWithMetadata[]>;
 
 	/**
-	 * Will delete working copies matching the provided resource and children
-	 * using the associated file service for that resource.
+	 * Will delete working copies matching the provided resources and children
+	 * using the associated file service for those resources.
 	 *
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
+	delete(resources: URI[], options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
 
 	//#endregion
 
@@ -287,30 +287,30 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return Promise.all(stats);
 	}
 
-	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
+	async delete(resource: URI[], options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
 
 		// validate delete operation before starting
-		const validateDelete = await this.fileService.canDelete(resource, options);
+		const validateDelete = await this.fileService.canDelete(resource[0], options);
 		if (validateDelete instanceof Error) {
 			throw validateDelete;
 		}
 
 		// file operation participant
-		await this.runFileOperationParticipants([{ target: resource, source: undefined }], FileOperation.DELETE);
+		await this.runFileOperationParticipants([{ target: resource[0], source: undefined }], FileOperation.DELETE);
 
 		// before events
-		const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, files: [{ target: resource }] };
+		const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, files: [{ target: resource[0] }] };
 		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 
 		// Check for any existing dirty working copies for the resource
 		// and do a soft revert before deleting to be able to close
 		// any opened editor with these working copies
-		const dirtyWorkingCopies = this.getDirty(resource);
+		const dirtyWorkingCopies = this.getDirty(resource[0]);
 		await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
 
 		// Now actually delete from disk
 		try {
-			await this.fileService.del(resource, options);
+			await this.fileService.del(resource[0], options);
 		} catch (error) {
 
 			// error event

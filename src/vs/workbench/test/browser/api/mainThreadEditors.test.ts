@@ -117,8 +117,10 @@ suite('MainThreadEditors', () => {
 				copiedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}
-			delete(resource: URI) {
-				deletedResources.add(resource);
+			delete(resources: URI[]) {
+				for (const resource of resources) {
+					deletedResources.add(resource);
+				}
 				return Promise.resolve(undefined);
 			}
 		});

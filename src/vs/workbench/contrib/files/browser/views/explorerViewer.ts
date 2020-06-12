@@ -1010,7 +1010,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 						continue;
 					}
 
-					await this.workingCopyFileService.delete(joinPath(target.resource, entry.name), { recursive: true });
+					await this.workingCopyFileService.delete([joinPath(target.resource, entry.name)], { recursive: true });
 				}
 
 				// Upload entry

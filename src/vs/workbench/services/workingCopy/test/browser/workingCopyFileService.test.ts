@@ -62,11 +62,12 @@ suite('WorkingCopyFileService', () => {
 			eventCounter++;
 		});
 
-		await accessor.workingCopyFileService.delete(model.resource);
+		await accessor.workingCopyFileService.delete([model.resource]);
 		assert.ok(!accessor.workingCopyService.isDirty(model.resource));
 
 		assert.equal(eventCounter, 3);
 
+		model.dispose();
 		participant.dispose();
 		listener1.dispose();
 		listener2.dispose();
