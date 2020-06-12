@@ -242,6 +242,10 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 
+	get viewType() {
+		return this._notebook.viewType;
+	}
+
 	get notebook() {
 		return this._notebook;
 	}

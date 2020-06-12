@@ -8,20 +8,11 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, INotebookKernelInfoDto, INotebookTextModelBackup, IEditor, ICellEditOperation, NotebookCellOutputsSplice, IOrderedMimeType, IProcessedOutput, INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, INotebookKernelInfoDto, INotebookTextModelBackup, IEditor, ICellEditOperation, NotebookCellOutputsSplice, IOrderedMimeType, IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookEditorModelManager } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { IReference } from 'vs/base/common/lifecycle';
-
-
-export const INotebookEditorModelResolverService = createDecorator<INotebookEditorModelResolverService>('INotebookEditorModelResolverService');
-
-export interface INotebookEditorModelResolverService {
-	readonly _serviceBrand: undefined;
-	resolve(resource: URI, viewType: string, editorId?: string): Promise<IReference<INotebookEditorModel>>;
-}
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
