@@ -225,18 +225,18 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const listActiveSelectionBackgroundColor = theme.getColor(listActiveSelectionBackground);
 	if (listActiveSelectionForegroundColor && listActiveSelectionBackgroundColor) {
 		const authorForeground = listActiveSelectionForegroundColor.transparent(.9).makeOpaque(listActiveSelectionBackgroundColor);
-		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row:not(.disabled).selected.focused .author { color: ${authorForeground}; }`);
+		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row:not(.disabled).selected .author { color: ${authorForeground}; }`);
 		const disabledExtensionForeground = listActiveSelectionForegroundColor.transparent(.5).makeOpaque(listActiveSelectionBackgroundColor);
-		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row.disabled.selected.focused { color: ${disabledExtensionForeground}; }`);
+		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row.disabled.selected { color: ${disabledExtensionForeground}; }`);
 	}
 
 	const listInactiveSelectionForegroundColor = theme.getColor(listInactiveSelectionForeground);
 	const listInactiveSelectionBackgroundColor = theme.getColor(listInactiveSelectionBackground);
 	if (listInactiveSelectionForegroundColor && listInactiveSelectionBackgroundColor) {
 		const authorForeground = listInactiveSelectionForegroundColor.transparent(.9).makeOpaque(listInactiveSelectionBackgroundColor);
-		collector.addRule(`.extensions-list .monaco-list .monaco-list-row:not(.disabled).selected.focused .author { color: ${authorForeground}; }`);
+		collector.addRule(`.extensions-list .monaco-list .monaco-list-row:not(.disabled).selected .author { color: ${authorForeground}; }`);
 		const disabledExtensionForeground = listInactiveSelectionForegroundColor.transparent(.5).makeOpaque(listInactiveSelectionBackgroundColor);
-		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled.selected.focused { color: ${disabledExtensionForeground}; }`);
+		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled.selected { color: ${disabledExtensionForeground}; }`);
 	}
 
 	const listFocusForegroundColor = theme.getColor(listFocusForeground);
