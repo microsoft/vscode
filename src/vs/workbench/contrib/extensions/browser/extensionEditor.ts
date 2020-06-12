@@ -903,6 +903,7 @@ export class ExtensionEditor extends BaseEditor {
 					this.renderViews(content, manifest, layout),
 					this.renderLocalizations(content, manifest, layout),
 					this.renderCustomEditors(content, manifest, layout),
+					this.renderActivationEvents(content, manifest, layout),
 				];
 
 				scrollableContent.scanDomNode();
@@ -1386,6 +1387,26 @@ export class ExtensionEditor extends BaseEditor {
 				))
 			)
 		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderActivationEvents(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const events = manifest?.activationEvents || [];
+		if (!Array.isArray(events) || !events.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('activation events', "Activation events ({0})", events.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('events', "Events")),
+				),
+				...events.map(event => $('tr', undefined,
+					$('td', undefined, $('code', undefined, event)
+					)))));
 
 		append(container, details);
 		return true;
