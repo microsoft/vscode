@@ -29,6 +29,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { Memento } from 'vs/workbench/common/memento';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { generateUuid } from 'vs/base/common/uuid';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -435,14 +436,14 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			outputs.forEach((output, index) => {
 				if (output.outputKind === CellOutputKind.Rich) {
 					// TODO no string[] casting
-					const ret = this._transformMimeTypes(output, textModel.metadata.displayOrder as string[] || []);
+					const ret = this._transformMimeTypes(output, output.outputId, textModel.metadata.displayOrder as string[] || []);
 					const orderedMimeTypes = ret.orderedMimeTypes!;
 					const pickedMimeTypeIndex = ret.pickedMimeTypeIndex!;
 					output.pickedMimeTypeIndex = pickedMimeTypeIndex;
 					output.orderedMimeTypes = orderedMimeTypes;
 
 					if (orderedMimeTypes[pickedMimeTypeIndex!].rendererId && orderedMimeTypes[pickedMimeTypeIndex].rendererId !== BUILTIN_RENDERER_ID) {
-						outputRequest.push({ index, handlerId: orderedMimeTypes[pickedMimeTypeIndex].rendererId!, mimeType: orderedMimeTypes[pickedMimeTypeIndex].mimeType });
+						outputRequest.push({ index, handlerId: orderedMimeTypes[pickedMimeTypeIndex].rendererId!, mimeType: orderedMimeTypes[pickedMimeTypeIndex].mimeType, outputId: output.outputId });
 						renderers.add(orderedMimeTypes[pickedMimeTypeIndex].rendererId!);
 					}
 				}
@@ -469,14 +470,14 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					const outputRequest: IOutputRenderRequestOutputInfo[] = [];
 					outputs.map((output, index) => {
 						if (output.outputKind === CellOutputKind.Rich) {
-							const ret = this._transformMimeTypes(output, textModel.metadata.displayOrder as string[] || []);
+							const ret = this._transformMimeTypes(output, output.outputId, textModel.metadata.displayOrder as string[] || []);
 							const orderedMimeTypes = ret.orderedMimeTypes!;
 							const pickedMimeTypeIndex = ret.pickedMimeTypeIndex!;
 							output.pickedMimeTypeIndex = pickedMimeTypeIndex;
 							output.orderedMimeTypes = orderedMimeTypes;
 
 							if (orderedMimeTypes[pickedMimeTypeIndex!].rendererId && orderedMimeTypes[pickedMimeTypeIndex].rendererId !== BUILTIN_RENDERER_ID) {
-								outputRequest.push({ index, handlerId: orderedMimeTypes[pickedMimeTypeIndex].rendererId!, mimeType: orderedMimeTypes[pickedMimeTypeIndex].mimeType, output: output });
+								outputRequest.push({ index, handlerId: orderedMimeTypes[pickedMimeTypeIndex].rendererId!, mimeType: orderedMimeTypes[pickedMimeTypeIndex].mimeType, output: output, outputId: output.outputId });
 								renderers.add(orderedMimeTypes[pickedMimeTypeIndex].rendererId!);
 							}
 						}
@@ -505,14 +506,14 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			const outputRequest: IOutputRenderRequestOutputInfo[] = [];
 			outputs.map((output, index) => {
 				if (output.outputKind === CellOutputKind.Rich) {
-					const ret = this._transformMimeTypes(output, textModel.metadata.displayOrder as string[] || []);
+					const ret = this._transformMimeTypes(output, output.outputId, textModel.metadata.displayOrder as string[] || []);
 					const orderedMimeTypes = ret.orderedMimeTypes!;
 					const pickedMimeTypeIndex = ret.pickedMimeTypeIndex!;
 					output.pickedMimeTypeIndex = pickedMimeTypeIndex;
 					output.orderedMimeTypes = orderedMimeTypes;
 
 					if (orderedMimeTypes[pickedMimeTypeIndex!].rendererId && orderedMimeTypes[pickedMimeTypeIndex].rendererId !== BUILTIN_RENDERER_ID) {
-						outputRequest.push({ index, handlerId: orderedMimeTypes[pickedMimeTypeIndex].rendererId!, mimeType: orderedMimeTypes[pickedMimeTypeIndex].mimeType, output: output });
+						outputRequest.push({ index, handlerId: orderedMimeTypes[pickedMimeTypeIndex].rendererId!, mimeType: orderedMimeTypes[pickedMimeTypeIndex].mimeType, output: output, outputId: output.outputId });
 						renderers.add(orderedMimeTypes[pickedMimeTypeIndex].rendererId!);
 					}
 				}
@@ -536,6 +537,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 				outputs: [
 					{
 						index: 0,
+						outputId: generateUuid(),
 						handlerId: rendererId,
 						mimeType: mimeType,
 						output: output
@@ -560,7 +562,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return;
 	}
 
-	private _transformMimeTypes(output: IDisplayOutput, documentDisplayOrder: string[]): ITransformedDisplayOutputDto {
+	private _transformMimeTypes(output: IDisplayOutput, outputId: string, documentDisplayOrder: string[]): ITransformedDisplayOutputDto {
 		let mimeTypes = Object.keys(output.data);
 		let coreDisplayOrder = this._displayOrder;
 		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], documentDisplayOrder, coreDisplayOrder?.defaultOrder || []);
@@ -605,6 +607,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		return {
 			outputKind: output.outputKind,
+			outputId,
 			data: output.data,
 			orderedMimeTypes: orderMimeTypes,
 			pickedMimeTypeIndex: 0

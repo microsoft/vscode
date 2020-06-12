@@ -541,7 +541,7 @@ ${loaderJs}
 			}
 		}
 
-		let outputId = UUID.generateUuid();
+		let outputId = output.outputKind === CellOutputKind.Rich ? output.outputId : UUID.generateUuid();
 		let apiNamespace: string | undefined;
 		if (output.outputKind === CellOutputKind.Rich && output.pickedMimeTypeIndex !== undefined) {
 			const pickedMimeTypeRenderer = output.orderedMimeTypes?.[output.pickedMimeTypeIndex];

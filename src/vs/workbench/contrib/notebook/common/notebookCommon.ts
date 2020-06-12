@@ -186,6 +186,7 @@ export interface IOrderedMimeType {
 
 export interface ITransformedDisplayOutputDto {
 	outputKind: CellOutputKind.Rich;
+	outputId: string;
 	data: { [key: string]: any; }
 	metadata?: NotebookCellOutputMetadata;
 
@@ -206,6 +207,7 @@ export type IRawOutput = IDisplayOutput | IStreamOutput | IErrorOutput;
 
 export interface IOutputRenderRequestOutputInfo {
 	index: number;
+	outputId: string;
 	handlerId: string;
 	mimeType: string;
 	output?: IRawOutput;
@@ -222,6 +224,7 @@ export interface IOutputRenderRequest<T> {
 
 export interface IOutputRenderResponseOutputInfo {
 	index: number;
+	outputId: string;
 	mimeType: string;
 	handlerId: string;
 	transformedOutput: string;
