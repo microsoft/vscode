@@ -554,6 +554,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public async tryResolveTask(configuringTask: ConfiguringTask): Promise<Task | undefined> {
+		await Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), this.extensionService.whenInstalledExtensionsRegistered()]);
 		let matchingProvider: ITaskProvider | undefined;
 		for (const [handle, provider] of this._providers) {
 			if (configuringTask.type === this._providerTypes.get(handle)) {
