@@ -446,39 +446,13 @@ export class ClearSearchResultsAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewsService);
-		this.enabled = !!searchView && (!searchView.allSearchFieldsClear() || searchView.hasSearchResults());
+		this.enabled = !!searchView && (!searchView.allSearchFieldsClear() || searchView.hasSearchResults() || !searchView.allFilePatternFieldsClear());
 	}
 
 	run(): Promise<void> {
 		const searchView = getSearchView(this.viewsService);
 		if (searchView) {
 			searchView.clearSearchResults();
-		}
-		return Promise.resolve();
-	}
-}
-
-export class ClearSearchPatternInputsAction extends Action {
-
-	static readonly ID: string = 'search.action.clearSearchPatternInputs';
-	static LABEL: string = nls.localize('ClearSearchPatternInputsAction.label', "Clear Search Pattern Inputs");
-
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService
-	) {
-		super(id, label, 'search-action ' + searchClearIcon.classNames);
-		this.update();
-	}
-
-	update(): void {
-		const searchView = getSearchView(this.viewsService);
-		this.enabled = !!searchView && (!searchView.allSearchPatternFieldsClear());
-	}
-
-	run(): Promise<void> {
-		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			searchView.clearSearchPatternInputs();
 		}
 		return Promise.resolve();
 	}
