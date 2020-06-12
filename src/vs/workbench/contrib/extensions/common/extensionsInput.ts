@@ -12,7 +12,6 @@ import { IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 export class ExtensionsInput extends EditorInput {
 
 	static readonly ID = 'workbench.extensions.input2';
-	get extension(): IExtension { return this._extension; }
 
 	get resource() {
 		return URI.from({
@@ -22,7 +21,7 @@ export class ExtensionsInput extends EditorInput {
 	}
 
 	constructor(
-		private readonly _extension: IExtension
+		public readonly extension: IExtension
 	) {
 		super();
 	}
@@ -33,6 +32,14 @@ export class ExtensionsInput extends EditorInput {
 
 	getName(): string {
 		return localize('extensionsInputName', "Extension: {0}", this.extension.displayName);
+	}
+
+	async resolve(): Promise<null> {
+		return null;
+	}
+
+	supportsSplitEditor(): boolean {
+		return false;
 	}
 
 	matches(other: unknown): boolean {
@@ -48,13 +55,5 @@ export class ExtensionsInput extends EditorInput {
 
 		// TODO@joao is this correct?
 		return this.extension === otherExtensionInput.extension;
-	}
-
-	resolve(): Promise<any> {
-		return Promise.resolve(null);
-	}
-
-	supportsSplitEditor(): boolean {
-		return false;
 	}
 }
