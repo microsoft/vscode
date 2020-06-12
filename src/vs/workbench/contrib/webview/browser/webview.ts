@@ -96,7 +96,7 @@ export interface Webview extends IDisposable {
 	readonly onMessage: Event<any>;
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
 
-	sendMessage(data: any): void;
+	postMessage(data: any): void;
 
 	focus(): void;
 	reload(): void;

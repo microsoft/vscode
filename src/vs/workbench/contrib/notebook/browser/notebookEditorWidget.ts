@@ -1193,7 +1193,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	postMessage(message: any) {
-		this.webview?.webview.sendMessage(message);
+		this.webview?.webview.postMessage(message);
 	}
 
 	//#endregion
