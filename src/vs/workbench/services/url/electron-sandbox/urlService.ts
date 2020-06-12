@@ -8,7 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
 import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/common/opener';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
@@ -26,7 +26,8 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IOpenerService openerService: IOpenerService,
-		@IElectronService private electronService: IElectronService
+		@IElectronService private readonly electronService: IElectronService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -51,7 +52,7 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 
 	async open(resource: URI | string, options?: IRelayOpenURLOptions): Promise<boolean> {
 
-		if (!matchesScheme(resource, product.urlProtocol)) {
+		if (!matchesScheme(resource, this.productService.urlProtocol)) {
 			return false;
 		}
 

@@ -219,11 +219,11 @@ export abstract class ReferenceCollection<T> {
 
 	private readonly references: Map<string, { readonly object: T; counter: number; }> = new Map();
 
-	acquire(key: string): IReference<T> {
+	acquire(key: string, ...args: any[]): IReference<T> {
 		let reference = this.references.get(key);
 
 		if (!reference) {
-			reference = { counter: 0, object: this.createReferencedObject(key) };
+			reference = { counter: 0, object: this.createReferencedObject(key, ...args) };
 			this.references.set(key, reference);
 		}
 
@@ -240,7 +240,7 @@ export abstract class ReferenceCollection<T> {
 		return { object, dispose };
 	}
 
-	protected abstract createReferencedObject(key: string): T;
+	protected abstract createReferencedObject(key: string, ...args: any[]): T;
 	protected abstract destroyReferencedObject(key: string, object: T): void;
 }
 

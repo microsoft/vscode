@@ -48,7 +48,6 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, NotebookCellRunState, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { containsDragType } from 'vs/workbench/browser/dnd';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 
 const $ = DOM.$;
@@ -463,8 +462,6 @@ interface CellDragEvent {
 }
 
 export class CellDragAndDropController extends Disposable {
-	private static DATA_TYPE = 'vscode_notebook_cell';
-
 	// TODO@roblourens - should probably use dataTransfer here, but any dataTransfer set makes the editor think I am dropping a file, need
 	// to figure out how to prevent that
 	private currentDraggedCell: ICellViewModel | undefined;
@@ -575,7 +572,7 @@ export class CellDragAndDropController extends Disposable {
 			return;
 		}
 
-		if (!this.currentDraggedCell || !containsDragType(event.browserEvent, CellDragAndDropController.DATA_TYPE)) {
+		if (!this.currentDraggedCell) {
 			event.browserEvent.dataTransfer.dropEffect = 'none';
 			return;
 		}
@@ -651,8 +648,6 @@ export class CellDragAndDropController extends Disposable {
 			if (!event.dataTransfer) {
 				return;
 			}
-
-			event.dataTransfer.setData(CellDragAndDropController.DATA_TYPE, 'true');
 
 			this.currentDraggedCell = templateData.currentRenderedCell!;
 			this.currentDraggedCell.dragging = true;

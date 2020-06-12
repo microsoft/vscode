@@ -26,7 +26,7 @@ const serverConfig = withDefaults({
 	},
 	resolve: {
 		alias: {
-			'vscode-nls': path.resolve(__dirname, '../polyfills/vscode-nls.js')
+			'vscode-nls': path.resolve(__dirname, '../../../build/polyfills/vscode-nls.js')
 		}
 	}
 });

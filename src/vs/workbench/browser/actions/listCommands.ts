@@ -494,6 +494,40 @@ function listFocusLast(accessor: ServicesAccessor, options?: { fromFocused: bool
 	}
 }
 
+
+function focusElement(accessor: ServicesAccessor, retainCurrentFocus: boolean): void {
+	const focused = accessor.get(IListService).lastFocusedList;
+	const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', retainCurrentFocus);
+	// List
+	if (focused instanceof List || focused instanceof PagedList) {
+		const list = focused;
+		list.setSelection(list.getFocus(), fakeKeyboardEvent);
+		list.open(list.getFocus(), fakeKeyboardEvent);
+	}
+
+	// Trees
+	else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+		const list = focused;
+		const focus = list.getFocus();
+
+		if (focus.length > 0) {
+			let toggleCollapsed = true;
+
+			if (list.expandOnlyOnTwistieClick === true) {
+				toggleCollapsed = false;
+			} else if (typeof list.expandOnlyOnTwistieClick !== 'boolean' && list.expandOnlyOnTwistieClick(focus[0])) {
+				toggleCollapsed = false;
+			}
+
+			if (toggleCollapsed) {
+				list.toggleCollapsed(focus[0]);
+			}
+		}
+		list.setSelection(focus, fakeKeyboardEvent);
+		list.open(focus, fakeKeyboardEvent);
+	}
+}
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.select',
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -504,38 +538,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow]
 	},
 	handler: (accessor) => {
-		const focused = accessor.get(IListService).lastFocusedList;
-		const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', false);
+		focusElement(accessor, false);
+	}
+});
 
-		// List
-		if (focused instanceof List || focused instanceof PagedList) {
-			const list = focused;
-			list.setSelection(list.getFocus(), fakeKeyboardEvent);
-			list.open(list.getFocus(), fakeKeyboardEvent);
-		}
-
-		// Tree
-		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-			const list = focused;
-			const focus = list.getFocus();
-
-			if (focus.length > 0) {
-				let toggleCollapsed = true;
-
-				if (list.expandOnlyOnTwistieClick === true) {
-					toggleCollapsed = false;
-				} else if (typeof list.expandOnlyOnTwistieClick !== 'boolean' && list.expandOnlyOnTwistieClick(focus[0])) {
-					toggleCollapsed = false;
-				}
-
-				if (toggleCollapsed) {
-					list.toggleCollapsed(focus[0]);
-				}
-			}
-
-			list.setSelection(focus, fakeKeyboardEvent);
-			list.open(focus, fakeKeyboardEvent);
-		}
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.selectAndPreserveFocus',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	handler: accessor => {
+		focusElement(accessor, true);
 	}
 });
 

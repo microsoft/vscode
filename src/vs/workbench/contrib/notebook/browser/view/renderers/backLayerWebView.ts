@@ -714,7 +714,7 @@ ${loaderJs}
 	}
 
 	private _sendMessageToWebview(message: ToWebviewMessage) {
-		this.webview.sendMessage(message);
+		this.webview.postMessage(message);
 	}
 
 	clearPreloadsCache() {

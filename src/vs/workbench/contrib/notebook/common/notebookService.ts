@@ -14,6 +14,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookEditorModelManager } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 
+
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
 export interface IMainNotebookController {

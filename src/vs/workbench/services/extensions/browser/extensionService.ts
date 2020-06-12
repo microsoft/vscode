@@ -28,6 +28,7 @@ import { Schemas } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 import { DeltaExtensionsResult } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -42,6 +43,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@IStaticExtensionsService private readonly _staticExtensions: IStaticExtensionsService,
@@ -74,10 +76,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	private _createProvider(remoteAuthority: string): IInitDataProvider {
 		return {
 			remoteAuthority: remoteAuthority,
-			getInitData: () => {
-				return this.whenInstalledExtensionsRegistered().then(() => {
-					return this._remoteExtensionsEnvironmentData!;
-				});
+			getInitData: async () => {
+				await this.whenInstalledExtensionsRegistered();
+				const connectionData = this._remoteAuthorityResolverService.getConnectionData(remoteAuthority);
+				const remoteEnvironment = this._remoteExtensionsEnvironmentData!;
+				return { connectionData, remoteEnvironment };
 			}
 		};
 	}

@@ -222,6 +222,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			hidden: false
 		},
 
+		views: {
+			defaults: undefined as (string[] | undefined)
+		},
+
 		zenMode: {
 			active: false,
 			restore: false,
@@ -556,7 +560,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private applyDefaultLayout(environmentService: IWorkbenchEnvironmentService, storageService: IStorageService) {
-		const defaultLayout = environmentService.options?.defaultLayout;
+		let defaultLayout = environmentService.options?.defaultLayout;
 		if (!defaultLayout) {
 			return;
 		}
@@ -565,6 +569,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (!firstOpen) {
 			return;
 		}
+
+		const { views } = defaultLayout;
+		if (views?.length) {
+			this.state.views.defaults = views.map(v => v.id);
+
+			return;
+		}
+
+		// Everything below here is deprecated and will be removed once Codespaces migrates
 
 		const { sidebar } = defaultLayout;
 		if (sidebar) {

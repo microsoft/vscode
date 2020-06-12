@@ -138,7 +138,8 @@
 
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before,
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after,
-.monaco-workbench .part.panel > .composite.title.dragged-over > .panel-switcher-container > .monaco-action-bar .action-item:last-of-type::after {
+.monaco-workbench .part.panel > .composite.title.dragged-over-head > .panel-switcher-container > .monaco-action-bar .action-item:first-of-type::before,
+.monaco-workbench .part.panel > .composite.title.dragged-over-tail > .panel-switcher-container > .monaco-action-bar .action-item:last-of-type::after {
 	opacity: 1;
 }
 

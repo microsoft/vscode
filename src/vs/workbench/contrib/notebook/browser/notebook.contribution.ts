@@ -42,6 +42,7 @@ import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/not
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
+import { INotebookEditorModelResolverService, NotebookModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 
 // Editor Contribution
 
@@ -320,17 +321,6 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			}
 		}
 
-		if (this._resourceMapping.has(resource)) {
-			const input = this._resourceMapping.get(resource);
-
-			if (!input!.isDisposed()) {
-				input?.updateGroup(group.id);
-				return { override: this.editorService.openEditor(input!, new NotebookEditorOptions(options || {}).with({ override: false }), group) };
-			} else {
-				this._resourceMapping.delete(resource);
-			}
-		}
-
 		let info: NotebookProviderInfo | undefined;
 		const data = CellUri.parse(resource);
 		if (data) {
@@ -442,6 +432,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContributio
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
 
 registerSingleton(INotebookService, NotebookService);
+registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverService, true);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({

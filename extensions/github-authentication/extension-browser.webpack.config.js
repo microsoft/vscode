@@ -41,8 +41,8 @@ module.exports = withDefaults({
 	resolve: {
 		alias: {
 			'node-fetch': path.resolve(__dirname, 'node_modules/node-fetch/browser.js'),
-			'vscode-extension-telemetry': path.resolve(__dirname, 'polyfills/vscode-extension-telemetry.js'),
-			'vscode-nls': path.resolve(__dirname, 'polyfills/vscode-nls.js'),
+			'vscode-extension-telemetry': path.resolve(__dirname, '../../build/polyfills/vscode-extension-telemetry.js'),
+			'vscode-nls': path.resolve(__dirname, '../../build/polyfills/vscode-nls.js'),
 			'uuid': path.resolve(__dirname, 'node_modules/uuid/dist/esm-browser/index.js')
 		},
 	}

@@ -380,7 +380,7 @@ class RequestRouter {
 }
 
 
-const syntaxCommands: ReadonlySet<keyof TypeScriptRequests> = new Set<keyof TypeScriptRequests>([
+const syntaxAlwaysCommands: ReadonlySet<keyof TypeScriptRequests> = new Set<keyof TypeScriptRequests>([
 	'navtree',
 	'getOutliningSpans',
 	'jsxClosingTag',
@@ -407,7 +407,7 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 
 		this.router = new RequestRouter(
 			[
-				{ server: this.syntaxServer, canRun: (command) => syntaxCommands.has(command) },
+				{ server: this.syntaxServer, canRun: (command) => syntaxAlwaysCommands.has(command) },
 				{ server: this.semanticServer, canRun: undefined /* gets all other commands */ }
 			],
 			delegate);
@@ -527,10 +527,31 @@ export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServ
 
 export class ProjectLoadingRoutingSyntaxTsServer extends Disposable implements ITypeScriptServer {
 
+	/**
+	 * Commands that should always be run on the semantic server.
+	 */
 	private static readonly semanticCommands = new Set<keyof TypeScriptRequests>([
 		'geterr',
 		'geterrForProject',
 		'projectInfo'
+	]);
+
+	/**
+	 * Commands that can be run on the syntax server but would benefit from being upgraded to the semantic server.
+	 */
+	private syntaxAllowedCommands = new Set<keyof TypeScriptRequests>([
+		'completions',
+		'completionEntryDetails',
+		'completionInfo',
+		'definition',
+		'definitionAndBoundSpan',
+		'documentHighlights',
+		'implementation',
+		'navto',
+		'quickinfo',
+		'references',
+		'rename',
+		'signatureHelp',
 	]);
 
 	private readonly syntaxServer: ITypeScriptServer;
@@ -553,13 +574,13 @@ export class ProjectLoadingRoutingSyntaxTsServer extends Disposable implements I
 				{
 					server: this.syntaxServer,
 					canRun: (command) => {
-						if (syntaxCommands.has(command)) {
+						if (syntaxAlwaysCommands.has(command)) {
 							return true;
 						}
 						if (ProjectLoadingRoutingSyntaxTsServer.semanticCommands.has(command)) {
 							return false;
 						}
-						if (this._projectLoading) {
+						if (this.projectLoading && this.syntaxAllowedCommands.has(command)) {
 							return true;
 						}
 						return false;
@@ -599,6 +620,8 @@ export class ProjectLoadingRoutingSyntaxTsServer extends Disposable implements I
 
 		this._register(this.semanticServer.onError(e => this._onError.fire(e)));
 	}
+
+	private get projectLoading() { return this._projectLoading; }
 
 	private readonly _onEvent = this._register(new vscode.EventEmitter<Proto.Event>());
 	public readonly onEvent = this._onEvent.event;

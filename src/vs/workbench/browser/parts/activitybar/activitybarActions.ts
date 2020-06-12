@@ -11,7 +11,7 @@ import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch
 import { Action, IAction } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
-import { SyncActionDescriptor, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -28,8 +28,11 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Codicon } from 'vs/base/common/codicons';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { isMacintosh } from 'vs/base/common/platform';
+import { ContextSubMenu } from 'vs/base/browser/contextmenu';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { distinct } from 'vs/base/common/arrays';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -103,6 +106,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IMenuService protected menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -132,16 +136,60 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		}));
 	}
 
-	private showContextMenu(): void {
+	private async getActions(accountsMenu: IMenu) {
+		const otherCommands = accountsMenu.getActions();
+		const providers = this.authenticationService.getProviderIds();
+		const allSessions = providers.map(async id => {
+			const sessions = await this.authenticationService.getSessions(id);
+			const uniqueSessions = distinct(sessions, session => session.account.displayName);
+			return {
+				providerId: id,
+				sessions: uniqueSessions
+			};
+		});
+
+		const result = await Promise.all(allSessions);
+		let menus: (IAction | ContextSubMenu)[] = [];
+		result.forEach(sessionInfo => {
+			const providerDisplayName = this.authenticationService.getDisplayName(sessionInfo.providerId);
+			sessionInfo.sessions.forEach(session => {
+				const accountName = session.account.displayName;
+				const menu = new ContextSubMenu(`${accountName} (${providerDisplayName})`, [
+					new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
+						return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
+					}),
+					new Action('signOut', nls.localize('signOut', "Sign Out"), '', true, _ => {
+						return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
+					})
+				]);
+				menus.push(menu);
+			});
+		});
+
+		if (menus.length) {
+			menus.push(new Separator());
+		}
+
+		otherCommands.forEach(group => {
+			const actions = group[1];
+			menus = menus.concat(actions);
+			menus.push(new Separator());
+		});
+
+		return menus;
+	}
+
+	private async showContextMenu(): Promise<void> {
 		const accountsActions: IAction[] = [];
 		const accountsMenu = this.menuService.createMenu(MenuId.AccountsContext, this.contextKeyService);
 		const actionsDisposable = createAndFillInActionBarActions(accountsMenu, undefined, { primary: [], secondary: accountsActions });
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container);
 		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
+		const actions = await this.getActions(accountsMenu);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => location,
-			getActions: () => accountsActions,
+			getActions: () => actions,
 			onHide: () => {
 				accountsMenu.dispose();
 				dispose(actionsDisposable);

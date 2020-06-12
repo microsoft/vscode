@@ -144,7 +144,7 @@ suite('ExtHostSearch', () => {
 			constructor() {
 				super(
 					rpcProtocol,
-					new class extends mock<IExtHostInitDataService>() { remote = { isRemote: false, authority: undefined }; },
+					new class extends mock<IExtHostInitDataService>() { remote = { isRemote: false, authority: undefined, connectionData: null }; },
 					new URITransformerService(null),
 					logService
 				);

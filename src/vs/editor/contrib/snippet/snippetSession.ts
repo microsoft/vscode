@@ -64,9 +64,7 @@ export class OneSnippet {
 
 	dispose(): void {
 		if (this._placeholderDecorations) {
-			let toRemove: string[] = [];
-			this._placeholderDecorations.forEach(handle => toRemove.push(handle));
-			this._editor.deltaDecorations(toRemove, []);
+			this._editor.deltaDecorations([...this._placeholderDecorations.values()], []);
 		}
 		this._placeholderGroups.length = 0;
 	}
@@ -169,11 +167,11 @@ export class OneSnippet {
 
 			// change stickness to never grow when typing at its edges
 			// so that in-active tabstops never grow
-			this._placeholderDecorations!.forEach((id, placeholder) => {
+			for (const [placeholder, id] of this._placeholderDecorations!) {
 				if (!activePlaceholders.has(placeholder)) {
 					accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.inactiveFinal : OneSnippet._decor.inactive);
 				}
-			});
+			}
 
 			return selections;
 		})!;
@@ -304,14 +302,14 @@ export class OneSnippet {
 	public getEnclosingRange(): Range | undefined {
 		let result: Range | undefined;
 		const model = this._editor.getModel();
-		this._placeholderDecorations!.forEach((decorationId) => {
+		for (const decorationId of this._placeholderDecorations!.values()) {
 			const placeholderRange = withNullAsUndefined(model.getDecorationRange(decorationId));
 			if (!result) {
 				result = placeholderRange;
 			} else {
 				result = result.plusRange(placeholderRange!);
 			}
-		});
+		}
 		return result;
 	}
 }
@@ -600,8 +598,7 @@ export class SnippetSession {
 			// that contain at least one selection. for all remaining snippets
 			// the same placeholder (and their ranges) must be used.
 			if (allPossibleSelections.size === 0) {
-				possibleSelections.forEach((ranges, index) => {
-
+				for (const [index, ranges] of possibleSelections) {
 					ranges.sort(Range.compareRangesUsingStarts);
 					for (const selection of selections) {
 						if (ranges[0].containsRange(selection)) {
@@ -609,7 +606,7 @@ export class SnippetSession {
 							break;
 						}
 					}
-				});
+				}
 			}
 
 			if (allPossibleSelections.size === 0) {
@@ -630,11 +627,10 @@ export class SnippetSession {
 		// selection
 		selections.sort(Range.compareRangesUsingStarts);
 
-		allPossibleSelections.forEach((ranges, index) => {
-
+		for (let [index, ranges] of allPossibleSelections) {
 			if (ranges.length !== selections.length) {
 				allPossibleSelections.delete(index);
-				return;
+				continue;
 			}
 
 			ranges.sort(Range.compareRangesUsingStarts);
@@ -642,10 +638,10 @@ export class SnippetSession {
 			for (let i = 0; i < ranges.length; i++) {
 				if (!ranges[i].containsRange(selections[i])) {
 					allPossibleSelections.delete(index);
-					return;
+					continue;
 				}
 			}
-		});
+		}
 
 		// from all possible selections we have deleted those
 		// that don't match with the current selection. if we don't

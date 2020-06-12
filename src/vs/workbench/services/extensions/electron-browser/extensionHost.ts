@@ -25,7 +25,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
@@ -85,7 +85,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
-		@IHostService private readonly _hostService: IHostService
+		@IHostService private readonly _hostService: IHostService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -150,7 +151,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						VERBOSE_LOGGING: true,
 						VSCODE_IPC_HOOK_EXTHOST: pipeName,
 						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
-						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || product.quality !== 'stable' || this._environmentService.verbose),
+						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
 						VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
 					}),
 					// We only detach the extension host on windows. Linux and Mac orphan by default
@@ -175,8 +176,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				const crashesDirectory = this._environmentService.crashReporterDirectory;
 				if (crashesDirectory) {
 					const crashReporterOptions: CrashReporterStartOptions = {
-						companyName: product.crashReporter?.companyName || 'Microsoft',
-						productName: product.crashReporter?.productName || product.nameShort,
+						companyName: this._productService.crashReporter?.companyName || 'Microsoft',
+						productName: this._productService.crashReporter?.productName || this._productService.nameShort,
 						submitURL: '',
 						uploadToServer: false,
 						crashesDirectory
@@ -414,15 +415,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 			.then(([telemetryInfo, extensionDescriptions]) => {
 				const workspace = this._contextService.getWorkspace();
 				const r: IInitData = {
-					commit: product.commit,
-					version: product.version,
+					commit: this._productService.commit,
+					version: this._productService.version,
 					parentPid: process.pid,
 					environment: {
 						isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
 						appSettingsHome: this._environmentService.appSettingsHome ? this._environmentService.appSettingsHome : undefined,
-						appName: product.nameLong,
-						appUriScheme: product.urlProtocol,
+						appName: this._productService.nameLong,
+						appUriScheme: this._productService.urlProtocol,
 						appLanguage: platform.language,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
@@ -439,6 +440,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					},
 					remote: {
 						authority: this._environmentService.configuration.remoteAuthority,
+						connectionData: null,
 						isRemote: false
 					},
 					resolvedExtensions: [],

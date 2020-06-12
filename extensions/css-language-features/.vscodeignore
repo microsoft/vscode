@@ -13,7 +13,6 @@ server/bin/**
 server/build/**
 server/yarn.lock
 server/.npmignore
-polyfills/**
 yarn.lock
 server/extension.webpack.config.js
 extension.webpack.config.js

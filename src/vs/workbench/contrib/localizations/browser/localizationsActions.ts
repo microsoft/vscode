@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -37,8 +37,7 @@ export class ConfigureLocaleAction extends Action {
 	}
 
 	private async getLanguageOptions(): Promise<IQuickPickItem[]> {
-		// Contributed languages are those installed via extension packs, so does not include English
-		const availableLanguages = ['en', ...await this.localizationService.getLanguageIds(LanguageType.Contributed)];
+		const availableLanguages = await this.localizationService.getLanguageIds();
 		availableLanguages.sort();
 
 		return availableLanguages

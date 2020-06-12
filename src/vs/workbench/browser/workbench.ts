@@ -45,7 +45,8 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Extensions as PanelExtensions, PanelRegistry } from 'vs/workbench/browser/panel';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class Workbench extends Layout {
 
@@ -164,7 +165,11 @@ export class Workbench extends Layout {
 
 				// Restore
 				try {
-					await this.restoreWorkbench(accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IViewDescriptorService), accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(ILogService), lifecycleService);
+					await this.restoreWorkbench(
+						accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExtensionService), accessor.get(IViewDescriptorService),
+						accessor.get(IViewsService), accessor.get(IViewletService), accessor.get(IPanelService),
+						accessor.get(ILogService), lifecycleService
+					);
 				} catch (error) {
 					onUnexpectedError(error);
 				}
@@ -401,7 +406,9 @@ export class Workbench extends Layout {
 	private async restoreWorkbench(
 		editorService: IEditorService,
 		editorGroupService: IEditorGroupsService,
+		extensionService: IExtensionService,
 		viewDescriptorService: IViewDescriptorService,
+		viewsService: IViewsService,
 		viewletService: IViewletService,
 		panelService: IPanelService,
 		logService: ILogService,
@@ -430,6 +437,60 @@ export class Workbench extends Layout {
 
 			mark('didRestoreEditors');
 		})());
+
+		if (this.state.views.defaults?.length) {
+			mark('willOpenDefaultViews');
+
+			const defaultViews = [...this.state.views.defaults];
+
+			let locationsRestored: boolean[] = [];
+
+			async function tryOpenView(viewId: string, index: number) {
+				const location = viewDescriptorService.getViewLocationById(viewId);
+				// eslint-disable-next-line eqeqeq
+				if (location != null) {
+					// If the view is in the same location that has already been restored, remove it and continue
+					if (locationsRestored[location]) {
+						defaultViews.splice(index, 1);
+
+						return;
+					}
+
+					const view = await viewsService.openView(viewId);
+					if (view) {
+						locationsRestored[location] = true;
+						defaultViews.splice(index, 1);
+					}
+				}
+			}
+
+			let i = -1;
+			for (const viewId of defaultViews) {
+				await tryOpenView(viewId, ++i);
+			}
+
+			// If we still have views left over, wait until all extensions have been registered and try again
+			if (defaultViews.length) {
+				await extensionService.whenInstalledExtensionsRegistered();
+
+				let i = -1;
+				for (const viewId of defaultViews) {
+					await tryOpenView(viewId, ++i);
+				}
+			}
+
+			// If we opened a view in the sidebar, stop any restore there
+			if (locationsRestored[ViewContainerLocation.Sidebar]) {
+				this.state.sideBar.viewletToRestore = undefined;
+			}
+
+			// If we opened a view in the panel, stop any restore there
+			if (locationsRestored[ViewContainerLocation.Panel]) {
+				this.state.panel.panelToRestore = undefined;
+			}
+
+			mark('didOpenDefaultViews');
+		}
 
 		// Restore Sidebar
 		if (this.state.sideBar.viewletToRestore) {

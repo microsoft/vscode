@@ -434,7 +434,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		parent.appendChild(this.element);
 	}
 
-	protected async postMessage(channel: string, data?: any): Promise<void> {
+	protected async doPostMessage(channel: string, data?: any): Promise<void> {
 		await Promise.all([
 			this._protocolProvider.synchronize(),
 			this._domReady,
