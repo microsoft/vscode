@@ -22,7 +22,7 @@ import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSy
 import { Throttler, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { platform, PlatformToString } from 'vs/base/common/platform';
+import { platform, PlatformToString, isWeb, Platform } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -461,7 +461,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private computeDefaultMachineName(machines: IUserDataSyncMachine[]): string {
-		const namePrefix = `${this.productService.nameLong} (${PlatformToString(platform)})`;
+		const namePrefix = `${this.productService.nameLong} (${PlatformToString(isWeb ? Platform.Web : platform)})`;
 		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s#(\\d)`);
 
 		let nameIndex = 0;
