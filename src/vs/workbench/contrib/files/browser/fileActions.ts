@@ -222,7 +222,7 @@ async function deleteFiles(workingCopyFileService: IWorkingCopyFileService, dial
 
 	// Call function
 	try {
-		await Promise.all(distinctElements.map(e => workingCopyFileService.delete([e.resource], { useTrash: useTrash, recursive: true })));
+		await workingCopyFileService.delete(distinctElements.map(e => e.resource), { useTrash: useTrash, recursive: true });
 	} catch (error) {
 
 		// Handle error to delete file(s) from a modal confirmation dialog
