@@ -296,34 +296,38 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 			if (validateDelete instanceof Error) {
 				throw validateDelete;
 			}
-
-			// file operation participant
-			await this.runFileOperationParticipants([{ target: resource, source: undefined }], FileOperation.DELETE);
-
-			// before events
-			const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, files: [{ target: resource }] };
-			await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
-
-			// Check for any existing dirty working copies for the resource
-			// and do a soft revert before deleting to be able to close
-			// any opened editor with these working copies
-			const dirtyWorkingCopies = this.getDirty(resource);
-			await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
-
-			// Now actually delete from disk
-			try {
-				await this.fileService.del(resource, options);
-			} catch (error) {
-
-				// error event
-				await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
-
-				throw error;
-			}
-
-			// after event
-			await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 		}
+
+		// file operation participant
+		const filesToDelete = resources.map(r => ({ target: r }));
+		await this.runFileOperationParticipants(filesToDelete, FileOperation.DELETE);
+
+		// before events
+		const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, files: filesToDelete };
+		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+
+		try {
+			for (const resource of resources) {
+
+				// Check for any existing dirty working copies for the resource
+				// and do a soft revert before deleting to be able to close
+				// any opened editor with these working copies
+				const dirtyWorkingCopies = this.getDirty(resource);
+				await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
+
+				// Now actually delete from disk
+				await this.fileService.del(resource, options);
+			}
+		} catch (error) {
+
+			// error event
+			await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+
+			throw error;
+		}
+
+		// after event
+		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 	}
 
 

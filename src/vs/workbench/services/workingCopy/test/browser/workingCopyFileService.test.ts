@@ -325,25 +325,34 @@ suite('WorkingCopyFileService', () => {
 		let correlationId: number | undefined = undefined;
 
 		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async ([{ target }], operation) => {
-				assert.equal(models.findIndex(m => m.resource.toString() === target.toString()) !== -1, true);
-				// assert.equal(target.toString(), models.resource.toString());
+			participate: async (files, operation) => {
+				for (let i = 0; i < models.length; i++) {
+					const model = models[i];
+					const file = files[i];
+					assert.equal(file.target.toString(), model.resource.toString());
+				}
 				assert.equal(operation, FileOperation.DELETE);
 				eventCounter++;
 			}
 		});
 
 		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
-			assert.equal(models.findIndex(m => m.resource.toString() === e.files[0].target.toString()) !== -1, true);
-			// assert.equal(e.files[0].target.toString(), models.resource.toString());
+			for (let i = 0; i < models.length; i++) {
+				const model = models[i];
+				const file = e.files[i];
+				assert.equal(file.target.toString(), model.resource.toString());
+			}
 			assert.equal(e.operation, FileOperation.DELETE);
 			correlationId = e.correlationId;
 			eventCounter++;
 		});
 
 		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			assert.equal(models.findIndex(m => m.resource.toString() === e.files[0].target.toString()) !== -1, true);
-			// assert.equal(e.files[0].target.toString(), models.resource.toString());
+			for (let i = 0; i < models.length; i++) {
+				const model = models[i];
+				const file = e.files[i];
+				assert.equal(file.target.toString(), model.resource.toString());
+			}
 			assert.equal(e.operation, FileOperation.DELETE);
 			assert.equal(e.correlationId, correlationId);
 			eventCounter++;
@@ -355,7 +364,7 @@ suite('WorkingCopyFileService', () => {
 			model.dispose();
 		}
 
-		assert.equal(eventCounter, 3 * models.length);
+		assert.equal(eventCounter, 3);
 
 		participant.dispose();
 		listener1.dispose();
