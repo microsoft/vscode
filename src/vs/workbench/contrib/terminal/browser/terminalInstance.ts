@@ -910,11 +910,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 		}
 
-		// Create the process asynchronously to allow the terminal's container
-		// to be created so dimensions are accurate
+		// Create the process asynchronously to allow the terminal's container to be created so
+		// dimensions are accurate
 		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
-				// TODO: Tear down
 				this._onProcessExit(error);
 			}
 		});
