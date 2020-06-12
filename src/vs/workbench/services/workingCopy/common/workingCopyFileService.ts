@@ -32,12 +32,12 @@ export interface WorkingCopyFileEvent extends IWaitUntil {
 	readonly operation: FileOperation;
 
 	/**
-	 * The target resources the event is about.
 	 * The source resources that are defined for move operations.
+	 * The target resources the event is about.
 	 */
 	readonly files: {
-		readonly target: URI;
 		readonly source?: URI;
+		readonly target: URI;
 	}[]
 }
 
@@ -48,7 +48,7 @@ export interface IWorkingCopyFileOperationParticipant {
 	 * change the working copies before they are being saved to disk.
 	 */
 	participate(
-		files: { target: URI, source: URI | undefined }[],
+		files: { source?: URI, target: URI }[],
 		operation: FileOperation,
 		progress: IProgress<IProgressStep>,
 		timeout: number,
@@ -112,7 +112,7 @@ export interface IWorkingCopyFileService {
 	/**
 	 * Execute all known file operation participants.
 	 */
-	runFileOperationParticipants(files: { target: URI, source: URI | undefined }[], operation: FileOperation): Promise<void>
+	runFileOperationParticipants(files: { source?: URI, target: URI }[], operation: FileOperation): Promise<void>
 
 
 	//#region File operations
@@ -332,7 +332,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return this.fileOperationParticipants.addFileOperationParticipant(participant);
 	}
 
-	runFileOperationParticipants(files: { target: URI, source: URI | undefined }[], operation: FileOperation): Promise<void> {
+	runFileOperationParticipants(files: { source?: URI, target: URI }[], operation: FileOperation): Promise<void> {
 		return this.fileOperationParticipants.participate(files, operation);
 	}
 

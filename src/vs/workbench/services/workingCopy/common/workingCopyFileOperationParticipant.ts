@@ -33,7 +33,7 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 		return toDisposable(() => remove());
 	}
 
-	async participate(files: { target: URI, source: URI | undefined }[], operation: FileOperation): Promise<void> {
+	async participate(files: { source?: URI, target: URI }[], operation: FileOperation): Promise<void> {
 		const timeout = this.configurationService.getValue<number>('files.participants.timeout');
 		if (timeout <= 0) {
 			return; // disabled
