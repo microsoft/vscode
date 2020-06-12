@@ -851,6 +851,13 @@ declare module 'vscode' {
 
 	//#region debug
 
+	export interface DebugSessionOptions {
+		/**
+		 * Controls whether this session should run without debugging, thus ignoring breakpoints.
+		 */
+		noDebug?: boolean;
+	}
+
 	// deprecated debug API
 
 	export interface DebugConfigurationProvider {
