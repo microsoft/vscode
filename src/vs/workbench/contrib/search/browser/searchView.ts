@@ -1018,7 +1018,7 @@ export class SearchView extends ViewPane {
 			this.searchWidget.searchInput.getValue() === '';
 	}
 
-	allSearhPatternFieldsClear(): boolean {
+	allSearchPatternFieldsClear(): boolean {
 		return this.searchExcludePattern.getValue() === '' &&
 			this.searchIncludePattern.getValue() === '';
 	}

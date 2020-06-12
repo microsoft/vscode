@@ -472,7 +472,7 @@ export class ClearSearchPatternInputsAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewsService);
-		this.enabled = !!searchView && (!searchView.allSearhPatternFieldsClear());
+		this.enabled = !!searchView && (!searchView.allSearchPatternFieldsClear());
 	}
 
 	run(): Promise<void> {
