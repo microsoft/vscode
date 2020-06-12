@@ -50,6 +50,8 @@ export class StatefullMarkdownCell extends Disposable {
 			if (e.editStateChanged) {
 				this.localDisposables.clear();
 				this.viewUpdate();
+			} else if (e.contentChanged) {
+				this.viewUpdate();
 			}
 		}));
 
