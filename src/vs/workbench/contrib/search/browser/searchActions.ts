@@ -458,6 +458,32 @@ export class ClearSearchResultsAction extends Action {
 	}
 }
 
+export class ClearSearchPatternInputsAction extends Action {
+
+	static readonly ID: string = 'search.action.clearSearchPatternInputs';
+	static LABEL: string = nls.localize('ClearSearchPatternInputsAction.label', "Clear Search Pattern Inputs");
+
+	constructor(id: string, label: string,
+		@IViewsService private readonly viewsService: IViewsService
+	) {
+		super(id, label, 'search-action ' + searchClearIcon.classNames);
+		this.update();
+	}
+
+	update(): void {
+		const searchView = getSearchView(this.viewsService);
+		this.enabled = !!searchView && (!searchView.allSearhPatternFieldsClear());
+	}
+
+	run(): Promise<void> {
+		const searchView = getSearchView(this.viewsService);
+		if (searchView) {
+			searchView.clearSearchPatternInputs();
+		}
+		return Promise.resolve();
+	}
+}
+
 export class CancelSearchAction extends Action {
 
 	static readonly ID: string = 'search.action.cancelSearch';
