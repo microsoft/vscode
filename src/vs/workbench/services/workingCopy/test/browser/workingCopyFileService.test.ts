@@ -28,47 +28,15 @@ suite('WorkingCopyFileService', () => {
 	});
 
 	test('delete - dirty file', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		await testDelete([toResource.call(this, '/path/file.txt')]);
+	});
 
-		await model.load();
-		model!.textEditorModel!.setValue('foo');
-		assert.ok(accessor.workingCopyService.isDirty(model.resource));
-
-		let eventCounter = 0;
-		let correlationId: number | undefined = undefined;
-
-		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async ([{ target }], operation) => {
-				assert.equal(target.toString(), model.resource.toString());
-				assert.equal(operation, FileOperation.DELETE);
-				eventCounter++;
-			}
-		});
-
-		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
-			assert.equal(e.files[0].target.toString(), model.resource.toString());
-			assert.equal(e.operation, FileOperation.DELETE);
-			correlationId = e.correlationId;
-			eventCounter++;
-		});
-
-		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			assert.equal(e.files[0].target.toString(), model.resource.toString());
-			assert.equal(e.operation, FileOperation.DELETE);
-			assert.equal(e.correlationId, correlationId);
-			eventCounter++;
-		});
-
-		await accessor.workingCopyFileService.delete([model.resource]);
-		assert.ok(!accessor.workingCopyService.isDirty(model.resource));
-
-		assert.equal(eventCounter, 3);
-
-		model.dispose();
-		participant.dispose();
-		listener1.dispose();
-		listener2.dispose();
+	test('delete multiple - dirty files', async function () {
+		await testDelete([
+			toResource.call(this, '/path/file1.txt'),
+			toResource.call(this, '/path/file2.txt'),
+			toResource.call(this, '/path/file3.txt'),
+			toResource.call(this, '/path/file4.txt')]);
 	});
 
 	test('move - dirty file', async function () {
@@ -340,4 +308,58 @@ suite('WorkingCopyFileService', () => {
 		listener1.dispose();
 		listener2.dispose();
 	}
+
+	async function testDelete(resources: URI[]) {
+
+		const models = await Promise.all(resources.map(async resource => {
+			const model = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8', undefined);
+			(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+
+			await model.load();
+			model!.textEditorModel!.setValue('foo');
+			assert.ok(accessor.workingCopyService.isDirty(model.resource));
+			return model;
+		}));
+
+		let eventCounter = 0;
+		let correlationId: number | undefined = undefined;
+
+		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
+			participate: async ([{ target }], operation) => {
+				assert.equal(models.findIndex(m => m.resource.toString() === target.toString()) !== -1, true);
+				// assert.equal(target.toString(), models.resource.toString());
+				assert.equal(operation, FileOperation.DELETE);
+				eventCounter++;
+			}
+		});
+
+		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
+			assert.equal(models.findIndex(m => m.resource.toString() === e.files[0].target.toString()) !== -1, true);
+			// assert.equal(e.files[0].target.toString(), models.resource.toString());
+			assert.equal(e.operation, FileOperation.DELETE);
+			correlationId = e.correlationId;
+			eventCounter++;
+		});
+
+		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
+			assert.equal(models.findIndex(m => m.resource.toString() === e.files[0].target.toString()) !== -1, true);
+			// assert.equal(e.files[0].target.toString(), models.resource.toString());
+			assert.equal(e.operation, FileOperation.DELETE);
+			assert.equal(e.correlationId, correlationId);
+			eventCounter++;
+		});
+
+		await accessor.workingCopyFileService.delete(models.map(m => m.resource));
+		for (const model of models) {
+			assert.ok(!accessor.workingCopyService.isDirty(model.resource));
+			model.dispose();
+		}
+
+		assert.equal(eventCounter, 3 * models.length);
+
+		participant.dispose();
+		listener1.dispose();
+		listener2.dispose();
+	}
+
 });

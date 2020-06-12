@@ -287,40 +287,43 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return Promise.all(stats);
 	}
 
-	async delete(resource: URI[], options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
+	async delete(resources: URI[], options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
 
-		// validate delete operation before starting
-		const validateDelete = await this.fileService.canDelete(resource[0], options);
-		if (validateDelete instanceof Error) {
-			throw validateDelete;
+		for (const resource of resources) {
+
+			// validate delete operation before starting
+			const validateDelete = await this.fileService.canDelete(resource, options);
+			if (validateDelete instanceof Error) {
+				throw validateDelete;
+			}
+
+			// file operation participant
+			await this.runFileOperationParticipants([{ target: resource, source: undefined }], FileOperation.DELETE);
+
+			// before events
+			const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, files: [{ target: resource }] };
+			await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+
+			// Check for any existing dirty working copies for the resource
+			// and do a soft revert before deleting to be able to close
+			// any opened editor with these working copies
+			const dirtyWorkingCopies = this.getDirty(resource);
+			await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
+
+			// Now actually delete from disk
+			try {
+				await this.fileService.del(resource, options);
+			} catch (error) {
+
+				// error event
+				await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+
+				throw error;
+			}
+
+			// after event
+			await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 		}
-
-		// file operation participant
-		await this.runFileOperationParticipants([{ target: resource[0], source: undefined }], FileOperation.DELETE);
-
-		// before events
-		const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, files: [{ target: resource[0] }] };
-		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
-
-		// Check for any existing dirty working copies for the resource
-		// and do a soft revert before deleting to be able to close
-		// any opened editor with these working copies
-		const dirtyWorkingCopies = this.getDirty(resource[0]);
-		await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
-
-		// Now actually delete from disk
-		try {
-			await this.fileService.del(resource[0], options);
-		} catch (error) {
-
-			// error event
-			await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
-
-			throw error;
-		}
-
-		// after event
-		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 	}
 
 
