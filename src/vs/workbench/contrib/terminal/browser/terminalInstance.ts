@@ -966,7 +966,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Create exit code message
 		switch (typeof exitCodeOrError) {
 			case 'number':
+				// Only show the error if the exit code is non-zero
 				this._exitCode = exitCodeOrError;
+				if (this._exitCode === 0) {
+					break;
+				}
 
 				let commandLine: string | undefined = undefined;
 				if (this._shellLaunchConfig.executable) {

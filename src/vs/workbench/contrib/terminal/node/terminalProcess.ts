@@ -78,7 +78,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		const results = await Promise.all([this._validateCwd(), this._validateExecutable()]);
 		const firstError = results.find(r => r !== undefined);
 		if (firstError) {
-			// TODO: Anything else we need to do here?
+			// TODO: Anything else we need to do here to tear down the terminal instance?
 			// this._processStartupComplete = Promise.resolve(undefined);
 			// this._onProcessExit.fire(0);
 
@@ -89,10 +89,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this.setupPtyProcess(this._shellLaunchConfig, this._ptyOptions);
 			return undefined;
 		} catch (err) {
-
-			// TODO: Anything else we need to do here?
-
-			// TODO: Extract code and message from the native exception, currently they're combined
+			// TODO: Anything else we need to do here to tear down the terminal instance?
 			// A native exception occurred
 			this._logService.trace('IPty#spawn native exception', err);
 			return { message: `A native exception occurred during launch (${err.message})` };
