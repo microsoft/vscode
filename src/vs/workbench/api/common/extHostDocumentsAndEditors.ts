@@ -152,9 +152,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	}
 
 	allEditors(): ExtHostTextEditor[] {
-		const result: ExtHostTextEditor[] = [];
-		this._editors.forEach(data => result.push(data));
-		return result;
+		return [...this._editors.values()];
 	}
 }
 

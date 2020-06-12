@@ -266,11 +266,11 @@ class MainThreadDocumentAndEditorStateComputer {
 			}
 
 			if (candidate) {
-				editors.forEach(snapshot => {
+				for (const snapshot of editors.values()) {
 					if (candidate === snapshot.editor) {
 						activeEditor = snapshot.id;
 					}
-				});
+				}
 			}
 		}
 

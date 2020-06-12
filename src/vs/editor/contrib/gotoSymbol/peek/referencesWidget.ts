@@ -111,19 +111,21 @@ class DecorationsManager implements IDisposable {
 			return;
 		}
 
-		this._decorations.forEach((reference, decorationId) => {
+		for (let [decorationId, reference] of this._decorations) {
+
 			const newRange = model.getDecorationRange(decorationId);
 
 			if (!newRange) {
-				return;
+				continue;
 			}
 
 			let ignore = false;
-
 			if (Range.equalsRange(newRange, reference.range)) {
-				return;
+				continue;
 
-			} else if (Range.spansMultipleLines(newRange)) {
+			}
+
+			if (Range.spansMultipleLines(newRange)) {
 				ignore = true;
 
 			} else {
@@ -141,7 +143,7 @@ class DecorationsManager implements IDisposable {
 			} else {
 				reference.range = newRange;
 			}
-		});
+		}
 
 		for (let i = 0, len = toRemove.length; i < len; i++) {
 			this._decorations.delete(toRemove[i]);
@@ -150,11 +152,7 @@ class DecorationsManager implements IDisposable {
 	}
 
 	removeDecorations(): void {
-		let toRemove: string[] = [];
-		this._decorations.forEach((value, key) => {
-			toRemove.push(key);
-		});
-		this._editor.deltaDecorations(toRemove, []);
+		this._editor.deltaDecorations([...this._decorations.keys()], []);
 		this._decorations.clear();
 	}
 }
