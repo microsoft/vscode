@@ -42,6 +42,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { TerminalLaunchTroubleshootAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -996,7 +997,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				break;
 			case 'object':
 				this._exitCode = exitCodeOrError.code;
-				exitCodeMessage = `${nls.localize('launchError.failed', "The terminal failed to launch:")} ${exitCodeOrError.message}`;
+				exitCodeMessage = `${nls.localize('launchError.failed', "The terminal process failed to launch:")} ${exitCodeOrError.message}`;
 				break;
 		}
 
@@ -1024,14 +1025,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		} else {
 			this.dispose();
 			if (exitCodeMessage) {
-				if (this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
-					this._notificationService.error(exitCodeMessage);
+				const failedDuringLaunch = this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH;
+				if (failedDuringLaunch || this._configHelper.config.showExitAlert) {
+					// Always show launch failures
+					this._notificationService.notify({
+						message: exitCodeMessage,
+						severity: Severity.Error,
+						actions: { primary: [this._instantiationService.createInstance(TerminalLaunchTroubleshootAction)] }
+					});
 				} else {
-					if (this._configHelper.config.showExitAlert) {
-						this._notificationService.error(exitCodeMessage);
-					} else {
-						console.warn(exitCodeMessage);
-					}
+					// Log to help surface the error in case users report issues with showExitAlert
+					// disabled
+					this._logService.warn(exitCodeMessage);
 				}
 			}
 		}
