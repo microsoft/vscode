@@ -27,7 +27,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { assertIsDefined } from 'vs/base/common/types';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { OPEN_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 
 const $ = dom.$;
 
@@ -43,7 +43,7 @@ const openFileNonMacOnly: WatermarkEntry = { text: nls.localize('watermark.openF
 const openFolderNonMacOnly: WatermarkEntry = { text: nls.localize('watermark.openFolder', "Open Folder"), id: OpenFolderAction.ID, mac: false };
 const openFileOrFolderMacOnly: WatermarkEntry = { text: nls.localize('watermark.openFileFolder', "Open File or Folder"), id: OpenFileFolderAction.ID, mac: true };
 const openRecent: WatermarkEntry = { text: nls.localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
-const newUntitledFile: WatermarkEntry = { text: nls.localize('watermark.newUntitledFile', "New Untitled File"), id: OPEN_UNTITLED_FILE_COMMAND_ID };
+const newUntitledFile: WatermarkEntry = { text: nls.localize('watermark.newUntitledFile', "New Untitled File"), id: NEW_UNTITLED_FILE_COMMAND_ID };
 const newUntitledFileMacOnly: WatermarkEntry = assign({ mac: true }, newUntitledFile);
 const toggleTerminal: WatermarkEntry = { text: nls.localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: TERMINAL_COMMAND_ID.TOGGLE };
 const findInFiles: WatermarkEntry = { text: nls.localize('watermark.findInFiles', "Find in Files"), id: FindInFilesActionId };

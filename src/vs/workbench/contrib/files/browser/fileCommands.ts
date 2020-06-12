@@ -85,7 +85,7 @@ export const PREVIOUS_COMPRESSED_FOLDER = 'previousCompressedFolder';
 export const NEXT_COMPRESSED_FOLDER = 'nextCompressedFolder';
 export const FIRST_COMPRESSED_FOLDER = 'firstCompressedFolder';
 export const LAST_COMPRESSED_FOLDER = 'lastCompressedFolder';
-export const OPEN_UNTITLED_FILE_COMMAND_ID = 'workbench.action.files.newUntitledFile';
+export const NEW_UNTITLED_FILE_COMMAND_ID = 'workbench.action.files.newUntitledFile';
 export const OPEN_UNTITLED_FILE_LABEL = nls.localize('newUntitledFile', "New Untitled File");
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
@@ -604,7 +604,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: null,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_N,
-	id: OPEN_UNTITLED_FILE_COMMAND_ID,
+	id: NEW_UNTITLED_FILE_COMMAND_ID,
 	handler: async (accessor, viewType?: string) => {
 		const editorService = accessor.get(IEditorService);
 
