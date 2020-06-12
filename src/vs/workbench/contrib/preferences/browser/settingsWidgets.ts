@@ -292,6 +292,10 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		addButtonLabel: string
 	};
 
+	protected renderHeader(): HTMLElement | undefined {
+		return;
+	}
+
 	protected renderList(): void {
 		const focused = DOM.isAncestor(document.activeElement, this.listElement);
 
@@ -301,11 +305,19 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		const newMode = this.model.items.some(item => !!(item.editing && this.isItemNew(item)));
 		DOM.toggleClass(this.container, 'setting-list-new-mode', newMode);
 
+		const header = this.renderHeader();
+		const ITEM_HEIGHT = 24;
+		let listHeight = ITEM_HEIGHT * this.model.items.length;
+
+		if (header) {
+			listHeight += ITEM_HEIGHT;
+			this.listElement.appendChild(header);
+		}
+
 		this.model.items
 			.map((item, i) => this.renderDataOrEditItem(item, i, focused))
 			.forEach(itemElement => this.listElement.appendChild(itemElement));
 
-		const listHeight = 24 * this.model.items.length;
 		this.listElement.style.height = listHeight + 'px';
 	}
 
@@ -647,15 +659,29 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		return ['setting-list-object-widget'];
 	}
 
+	protected renderHeader() {
+		if (this.model.items.length > 0) {
+			const header = $('.setting-list-row-header');
+			const keyHeader = DOM.append(header, $('.setting-list-object-key'));
+			const valueHeader = DOM.append(header, $('.setting-list-object-value'));
+			const { keyHeaderText, valueHeaderText } = this.getLocalizedStrings();
+
+			keyHeader.textContent = keyHeaderText;
+			valueHeader.textContent = valueHeaderText;
+
+			return header;
+		}
+
+		return;
+	}
+
 	protected renderItem(item: IObjectDataItem): HTMLElement {
 		const rowElement = $('.setting-list-row');
 
 		const keyElement = DOM.append(rowElement, $('.setting-list-object-key'));
-		const connector = DOM.append(rowElement, $('.setting-list-object-connector'));
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
 
 		keyElement.textContent = item.key.data;
-		connector.textContent = this.getLocalizedStrings().connector;
 		valueElement.textContent = item.value.data;
 
 		return rowElement;
@@ -754,9 +780,10 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 			editActionTooltip: localize('editItem', "Edit Item"),
 			complexEditActionTooltip: localize('editItemInSettingsJson', "Edit Item in settings.json"),
 			addButtonLabel: localize('addItem', "Add Item"),
+			keyHeaderText: localize('objectKeyHeader', "Item"),
+			valueHeaderText: localize('objectValueHeader', "Value"),
 			keyInputPlaceholder: localize('objectKeyInputPlaceholder', "Key"),
 			valueInputPlaceholder: localize('objectValueInputPlaceholder', "Value"),
-			connector: ' → ',
 		};
 	}
 

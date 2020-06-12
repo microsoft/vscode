@@ -17,7 +17,6 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-connector,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
 	white-space: pre;
 	overflow: hidden;
@@ -31,13 +30,12 @@
 }
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
-	max-width: 50%;
+	flex: 1;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-connector,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
 	display: inline-block;
 	line-height: 24px;
@@ -63,9 +61,25 @@
 	top: 0px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row-header {
 	position: relative;
 	max-height: 24px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row-header {
+	font-weight: bold;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row-header {
+	display: flex;
+	padding: 0 8px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row-header,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row:nth-child(odd):not(:hover) {
+	background-color: rgba(130, 130, 130, 0.04);
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row:focus {
