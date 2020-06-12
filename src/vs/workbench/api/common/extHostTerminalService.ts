@@ -243,6 +243,10 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 
 	constructor(private readonly _pty: vscode.Pseudoterminal) { }
 
+	async start(): Promise<undefined> {
+		return undefined;
+	}
+
 	shutdown(): void {
 		this._pty.close();
 	}
