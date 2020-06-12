@@ -28,14 +28,14 @@ export class TelemetryService implements ITelemetryService {
 	static readonly IDLE_START_EVENT_NAME = 'UserIdleStart';
 	static readonly IDLE_STOP_EVENT_NAME = 'UserIdleStop';
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _appender: ITelemetryAppender;
 	private _commonProperties: Promise<{ [name: string]: any; }>;
 	private _piiPaths: string[];
 	private _userOptIn: boolean;
 	private _enabled: boolean;
-	private _sendErrorTelemetry: boolean;
+	public readonly sendErrorTelemetry: boolean;
 
 	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
@@ -49,7 +49,7 @@ export class TelemetryService implements ITelemetryService {
 		this._piiPaths = config.piiPaths || [];
 		this._userOptIn = true;
 		this._enabled = true;
-		this._sendErrorTelemetry = !!config.sendErrorTelemetry;
+		this.sendErrorTelemetry = !!config.sendErrorTelemetry;
 
 		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
@@ -148,7 +148,7 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<any> {
-		if (!this._sendErrorTelemetry) {
+		if (!this.sendErrorTelemetry) {
 			return Promise.resolve(undefined);
 		}
 

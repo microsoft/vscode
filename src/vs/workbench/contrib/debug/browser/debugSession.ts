@@ -35,6 +35,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { localize } from 'vs/nls';
 import { canceled } from 'vs/base/common/errors';
+import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 export class DebugSession implements IDebugSession {
 
@@ -96,6 +97,11 @@ export class DebugSession implements IDebugSession {
 				this.shutdown();
 				dispose(toDispose);
 			}));
+		}
+
+		const compoundRoot = this._options.compoundRoot;
+		if (compoundRoot) {
+			toDispose.push(compoundRoot.onDidSessionStop(() => this.terminate()));
 		}
 	}
 
@@ -279,6 +285,10 @@ export class DebugSession implements IDebugSession {
 		} else {
 			await this.raw.disconnect(restart);
 		}
+
+		if (!restart) {
+			this._options.compoundRoot?.sessionStopped();
+		}
 	}
 
 	/**
@@ -291,6 +301,10 @@ export class DebugSession implements IDebugSession {
 
 		this.cancelAllRequests();
 		await this.raw.disconnect(restart);
+
+		if (!restart) {
+			this._options.compoundRoot?.sessionStopped();
+		}
 	}
 
 	/**
@@ -488,12 +502,12 @@ export class DebugSession implements IDebugSession {
 		await this.raw.next({ threadId });
 	}
 
-	async stepIn(threadId: number): Promise<void> {
+	async stepIn(threadId: number, targetId?: number): Promise<void> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'stepIn'));
 		}
 
-		await this.raw.stepIn({ threadId });
+		await this.raw.stepIn({ threadId, targetId });
 	}
 
 	async stepOut(threadId: number): Promise<void> {
@@ -610,6 +624,15 @@ export class DebugSession implements IDebugSession {
 			column: position.column,
 			line: position.lineNumber,
 		}, token);
+	}
+
+	async stepInTargets(frameId: number): Promise<{ id: number, label: string }[]> {
+		if (!this.raw) {
+			return Promise.reject(new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'stepInTargets')));
+		}
+
+		const response = await this.raw.stepInTargets({ frameId });
+		return response.body.targets;
 	}
 
 	async cancel(progressId: string): Promise<DebugProtocol.CancelResponse> {
@@ -848,7 +871,12 @@ export class DebugSession implements IDebugSession {
 					// and the user opted in telemetry
 					if (this.raw.customTelemetryService && this.telemetryService.isOptedIn) {
 						// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
-						this.raw.customTelemetryService.publicLog(event.body.output, event.body.data);
+						let data = event.body.data;
+						if (!this.raw.customTelemetryService.sendErrorTelemetry && event.body.data) {
+							data = filterExceptionsFromTelemetry(event.body.data);
+						}
+
+						this.raw.customTelemetryService.publicLog(event.body.output, data);
 					}
 
 					return;

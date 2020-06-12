@@ -203,8 +203,7 @@
 }
 
 .monaco-editor .find-widget .monaco-sash {
-	width: 2px !important;
-	margin-left: -4px;
+	left: 0 !important;
 }
 
 .monaco-editor.hc-black .find-widget .button:before {

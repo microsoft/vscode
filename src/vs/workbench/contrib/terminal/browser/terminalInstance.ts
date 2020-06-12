@@ -408,7 +408,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					return false;
 				});
 			}
-			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!, this._configHelper);
+			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!);
 			this._linkManager.onBeforeHandleLink(e => {
 				e.terminal = this;
 				this._onBeforeHandleLink.fire(e);
@@ -656,14 +656,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		};
 	}
 
-	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
-		return this._linkManager!.registerCustomLinkHandler(regex, (_, url) => handler(url), matchIndex, validationCallback);
-	}
-
-	public deregisterLinkMatcher(linkMatcherId: number): void {
-		this._xtermReadyPromise.then(xterm => xterm.deregisterLinkMatcher(linkMatcherId));
-	}
-
 	public hasSelection(): boolean {
 		return this._xterm ? this._xterm.hasSelection() : false;
 	}
@@ -905,7 +897,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						this._windowsShellHelper = this._terminalInstanceService.createWindowsShellHelper(this._processManager.shellProcessId, xterm);
 						this._windowsShellHelper.onShellNameChange(title => {
 							this.setShellType(this.getShellType(title));
-							if (this.isTitleSetByProcess) {
+							if (this.isTitleSetByProcess && !this._configHelper.config.experimentalUseTitleEvent) {
 								this.setTitle(title, TitleEventSource.Process);
 							}
 						});
@@ -1484,8 +1476,8 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const border = theme.getColor(activeContrastBorder);
 	if (border) {
 		collector.addRule(`
-			.hc-black .monaco-workbench .pane-body.integrated-terminal .xterm.focus::before,
-			.hc-black .monaco-workbench .pane-body.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
+			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm.focus::before,
+			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
 		);
 	}
 

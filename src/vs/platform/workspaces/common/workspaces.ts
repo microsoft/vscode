@@ -29,7 +29,7 @@ export const IWorkspacesService = createDecorator<IWorkspacesService>('workspace
 
 export interface IWorkspacesService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	// Workspaces Management
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null>;

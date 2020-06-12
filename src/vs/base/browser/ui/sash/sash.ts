@@ -38,9 +38,18 @@ export interface ISashEvent {
 }
 
 export interface ISashOptions {
-	orientation?: Orientation;
-	orthogonalStartSash?: Sash;
-	orthogonalEndSash?: Sash;
+	readonly orientation: Orientation;
+	readonly orthogonalStartSash?: Sash;
+	readonly orthogonalEndSash?: Sash;
+	readonly size?: number;
+}
+
+export interface IVerticalSashOptions extends ISashOptions {
+	readonly orientation: Orientation.VERTICAL;
+}
+
+export interface IHorizontalSashOptions extends ISashOptions {
+	readonly orientation: Orientation.HORIZONTAL;
 }
 
 export const enum Orientation {
@@ -68,7 +77,7 @@ export class Sash extends Disposable {
 	private layoutProvider: ISashLayoutProvider;
 	private hidden: boolean;
 	private orientation!: Orientation;
-	private size = globalSize;
+	private size: number;
 
 	private _state: SashState = SashState.Enabled;
 	get state(): SashState { return this._state; }
@@ -134,7 +143,9 @@ export class Sash extends Disposable {
 		this._orthogonalEndSash = sash;
 	}
 
-	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions = {}) {
+	constructor(container: HTMLElement, layoutProvider: IVerticalSashLayoutProvider, options: ISashOptions);
+	constructor(container: HTMLElement, layoutProvider: IHorizontalSashLayoutProvider, options: ISashOptions);
+	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions) {
 		super();
 
 		this.el = append(container, $('.monaco-sash'));
@@ -149,10 +160,21 @@ export class Sash extends Disposable {
 		this._register(Gesture.addTarget(this.el));
 		this._register(domEvent(this.el, EventType.Start)(this.onTouchStart, this));
 
-		this._register(onDidChangeGlobalSize.event(size => {
-			this.size = size;
-			this.layout();
-		}));
+		if (typeof options.size === 'number') {
+			this.size = options.size;
+
+			if (options.orientation === Orientation.VERTICAL) {
+				this.el.style.width = `${this.size}px`;
+			} else {
+				this.el.style.height = `${this.size}px`;
+			}
+		} else {
+			this.size = globalSize;
+			this._register(onDidChangeGlobalSize.event(size => {
+				this.size = size;
+				this.layout();
+			}));
+		}
 
 		this.hidden = false;
 		this.layoutProvider = layoutProvider;
@@ -160,13 +182,7 @@ export class Sash extends Disposable {
 		this.orthogonalStartSash = options.orthogonalStartSash;
 		this.orthogonalEndSash = options.orthogonalEndSash;
 
-		this.setOrientation(options.orientation || Orientation.VERTICAL);
-
-		toggleClass(this.el, 'debug', DEBUG);
-	}
-
-	setOrientation(orientation: Orientation): void {
-		this.orientation = orientation;
+		this.orientation = options.orientation || Orientation.VERTICAL;
 
 		if (this.orientation === Orientation.HORIZONTAL) {
 			addClass(this.el, 'horizontal');
@@ -175,6 +191,8 @@ export class Sash extends Disposable {
 			removeClass(this.el, 'horizontal');
 			addClass(this.el, 'vertical');
 		}
+
+		toggleClass(this.el, 'debug', DEBUG);
 
 		this.layout();
 	}

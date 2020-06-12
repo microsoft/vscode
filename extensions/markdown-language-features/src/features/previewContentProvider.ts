@@ -111,7 +111,7 @@ export class MarkdownContentProvider {
 
 	private extensionResourcePath(resourceProvider: WebviewResourceProvider, mediaFile: string): string {
 		const webviewResource = resourceProvider.asWebviewUri(
-			vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))));
+			vscode.Uri.joinPath(this.context.extensionUri, 'media', mediaFile));
 		return webviewResource.toString();
 	}
 
@@ -152,9 +152,9 @@ export class MarkdownContentProvider {
 
 	private getSettingsOverrideStyles(config: MarkdownPreviewConfiguration): string {
 		return [
-			config.fontFamily ? `--vscode-markdown-font-family: ${config.fontFamily};` : '',
-			isNaN(config.fontSize) ? '' : `--vscode-markdown-font-size: ${config.fontSize}px;`,
-			isNaN(config.lineHeight) ? '' : `--vscode-markdown-line-height: ${config.lineHeight};`,
+			config.fontFamily ? `--markdown-font-family: ${config.fontFamily};` : '',
+			isNaN(config.fontSize) ? '' : `--markdown-font-size: ${config.fontSize}px;`,
+			isNaN(config.lineHeight) ? '' : `--markdown-line-height: ${config.lineHeight};`,
 		].join(' ');
 	}
 

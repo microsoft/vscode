@@ -3,7 +3,11 @@
   "version": "0.0.1",
   "description": "Dependencies shared by all extensions",
   "dependencies": {
+<<<<<<< HEAD
     "typescript": "https://typescript.visualstudio.com/cf7ac146-d525-443c-b23c-0d58337efebc/_apis/build/builds/74212/artifacts?artifactName=tgz&fileId=2056AC579024F64F4D733979778E0700E6D317EE140EA5F9D238E4B88C38090F02&fileName=/typescript-4.0.0-insiders.20200518.tgz"
+=======
+    "typescript": "3.9.4"
+>>>>>>> master
   },
   "scripts": {
     "postinstall": "node ./postinstall"

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, IOutput, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, IProcessedOutput, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { URI } from 'vs/base/common/uri';
 import * as model from 'vs/editor/common/model';
@@ -24,9 +24,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeLanguage = new Emitter<string>();
 	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
 
-	private _outputs: IOutput[];
+	private _outputs: IProcessedOutput[];
 
-	get outputs(): IOutput[] {
+	get outputs(): IProcessedOutput[] {
 		return this._outputs;
 	}
 
@@ -75,7 +75,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		private _source: string | string[],
 		private _language: string,
 		public cellKind: CellKind,
-		outputs: IOutput[],
+		outputs: IProcessedOutput[],
 		metadata: NotebookCellMetadata | undefined
 	) {
 		super();

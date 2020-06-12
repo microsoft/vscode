@@ -46,12 +46,9 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 			file = undefined;
 		} else {
 			const document = this.getDocument();
-			if (!document) {
-				return [];
-			}
+			file = document ? await this.toOpenedFiledPath(document) : undefined;
 
-			file = await this.toOpenedFiledPath(document);
-			if (!file) {
+			if (!file && this.client.apiVersion.lt(API.v390)) {
 				return [];
 			}
 		}

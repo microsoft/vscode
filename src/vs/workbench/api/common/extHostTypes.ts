@@ -2766,3 +2766,17 @@ export enum ExtensionMode {
 }
 
 //#endregion ExtensionContext
+
+
+//#region Authentication
+export class AuthenticationSession implements vscode.AuthenticationSession2 {
+	constructor(public id: string, public accessToken: string, public account: { displayName: string, id: string }, public scopes: string[]) { }
+}
+
+//#endregion Authentication
+export enum StandardTokenType {
+	Other = 0,
+	Comment = 1,
+	String = 2,
+	RegEx = 4
+}

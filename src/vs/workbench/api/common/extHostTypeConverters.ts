@@ -95,11 +95,22 @@ export namespace Range {
 	}
 }
 
+export namespace TokenType {
+	export function to(type: modes.StandardTokenType): types.StandardTokenType {
+		switch (type) {
+			case modes.StandardTokenType.Comment: return types.StandardTokenType.Comment;
+			case modes.StandardTokenType.Other: return types.StandardTokenType.Other;
+			case modes.StandardTokenType.RegEx: return types.StandardTokenType.RegEx;
+			case modes.StandardTokenType.String: return types.StandardTokenType.String;
+		}
+	}
+}
+
 export namespace Position {
 	export function to(position: IPosition): types.Position {
 		return new types.Position(position.lineNumber - 1, position.column - 1);
 	}
-	export function from(position: types.Position): IPosition {
+	export function from(position: types.Position | vscode.Position): IPosition {
 		return { lineNumber: position.line + 1, column: position.character + 1 };
 	}
 }

@@ -6,7 +6,7 @@
 import { TableOfContentsProviderRegistry, ITableOfContentsProvider, ITableOfContentsEntry } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-
+import { Codicon } from 'vs/base/common/codicons';
 
 TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements ITableOfContentsProvider {
 	async provideTableOfContents(editor: NotebookEditor) {
@@ -14,9 +14,9 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 			return undefined;
 		}
 		// return an entry per markdown header
-		const editorWidget = editor.getControl();
+		const notebookWidget = editor.getControl();
 		const result: ITableOfContentsEntry[] = [];
-		for (let cell of editor.viewModel.viewCells) {
+		for (const cell of editor.viewModel.viewCells) {
 			const content = cell.getText();
 			const regexp = cell.cellKind === CellKind.Markdown
 				? /^[ \t]*(\#+)(.+)$/gm // md: header
@@ -26,11 +26,16 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 			if (matches && matches.length) {
 				for (let j = 0; j < matches.length; j++) {
 					result.push({
+						icon: cell.cellKind === CellKind.Markdown ? Codicon.markdown : Codicon.code,
 						label: matches[j].replace(/^[ \t]*(\#+)/, ''),
-						reveal: () => {
-							editorWidget.revealInCenterIfOutsideViewport(cell);
-							editorWidget.selectElement(cell);
-							// editor.focusNotebookCell(cell, 'container');
+						pick() {
+							notebookWidget?.revealInCenterIfOutsideViewport(cell);
+							notebookWidget?.selectElement(cell);
+							notebookWidget?.focusNotebookCell(cell, cell.cellKind === CellKind.Markdown ? 'container' : 'editor');
+						},
+						preview() {
+							notebookWidget?.revealInCenterIfOutsideViewport(cell);
+							notebookWidget?.selectElement(cell);
 						}
 					});
 				}

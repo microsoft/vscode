@@ -16,16 +16,22 @@ import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { renderCodicons, markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
+import { resolvePath } from 'vs/base/common/resources';
+
+export interface MarkedOptions extends marked.MarkedOptions {
+	baseUrl?: never;
+}
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderer?: (modeId: string, value: string) => Promise<string>;
 	codeBlockRenderCallback?: () => void;
+	baseUrl?: URI;
 }
 
 /**
  * Create html nodes for the given content element.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: marked.MarkedOptions = {}): HTMLElement {
+export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): HTMLElement {
 	const element = createElement(options);
 
 	const _uriMassage = function (part: string): string {
@@ -82,6 +88,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		if (href) {
 			({ href, dimensions } = parseHrefAndDimensions(href));
 			href = _href(href, true);
+			if (options.baseUrl) {
+				href = resolvePath(options.baseUrl, href).toString();
+			}
 			attributes.push(`src="${href}"`);
 		}
 		if (text) {
@@ -101,6 +110,12 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			text = removeMarkdownEscapes(text);
 		}
 		href = _href(href, false);
+		if (options.baseUrl) {
+			const hasScheme = /^\w[\w\d+.-]*:/.test(href);
+			if (!hasScheme) {
+				href = resolvePath(options.baseUrl, href).toString();
+			}
+		}
 		title = removeMarkdownEscapes(title);
 		href = removeMarkdownEscapes(href);
 		if (
@@ -173,6 +188,13 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		}));
 	}
 
+	// Use our own sanitizer so that we can let through only spans.
+	// Otherwise, we'd be letting all html be rendered.
+	// If we want to allow markdown permitted tags, then we can delete sanitizer and sanitize.
+	markedOptions.sanitizer = (html: string): string => {
+		const match = markdown.isTrusted ? html.match(/^(<span[^<]+>)|(<\/\s*span>)$/) : undefined;
+		return match ? html : '';
+	};
 	markedOptions.sanitize = true;
 	markedOptions.renderer = renderer;
 
@@ -188,18 +210,32 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		markedOptions
 	);
 
+	function filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
+		if (token.tag === 'span' && markdown.isTrusted) {
+			if (token.attrs['style'] && Object.keys(token.attrs).length === 1) {
+				return !!token.attrs['style'].match(/^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/);
+			}
+			return false;
+		}
+		return true;
+	}
+
 	element.innerHTML = insane(renderedMarkdown, {
 		allowedSchemes,
+		// allowedTags should included everything that markdown renders to.
+		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
+		// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
+		allowedTags: ['ul', 'li', 'p', 'code', 'blockquote', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'em', 'pre', 'table', 'tr', 'td', 'div', 'del', 'a', 'strong', 'br', 'img', 'span'],
 		allowedAttributes: {
 			'a': ['href', 'name', 'target', 'data-href'],
-			'iframe': ['allowfullscreen', 'frameborder', 'src'],
 			'img': ['src', 'title', 'alt', 'width', 'height'],
 			'div': ['class', 'data-code'],
-			'span': ['class'],
+			'span': ['class', 'style'],
 			// https://github.com/microsoft/vscode/issues/95937
 			'th': ['align'],
 			'td': ['align']
-		}
+		},
+		filter
 	});
 
 	signalInnerHTML!();

@@ -1122,6 +1122,7 @@ export class DirtyDiffModel extends Disposable {
 
 			return this.textModelResolverService.createModelReference(originalUri).then(ref => {
 				if (!this._editorModel) { // disposed
+					ref.dispose();
 					return null;
 				}
 
