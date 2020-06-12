@@ -105,25 +105,25 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined {
-		let dap = this.debugAdapterFactories.get(session.configuration.type);
-		if (dap) {
-			return dap.createDebugAdapter(session);
+		let factory = this.debugAdapterFactories.get(session.configuration.type);
+		if (factory) {
+			return factory.createDebugAdapter(session);
 		}
 		return undefined;
 	}
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		let dap = this.debugAdapterFactories.get(debugType);
-		if (dap) {
-			return dap.substituteVariables(folder, config);
+		let factory = this.debugAdapterFactories.get(debugType);
+		if (factory) {
+			return factory.substituteVariables(folder, config);
 		}
 		return Promise.resolve(config);
 	}
 
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
-		let tl = this.debugAdapterFactories.get(debugType);
-		if (tl) {
-			return tl.runInTerminal(args);
+		let factory = this.debugAdapterFactories.get(debugType);
+		if (factory) {
+			return factory.runInTerminal(args);
 		}
 		return Promise.resolve(void 0);
 	}
@@ -257,7 +257,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		const debugDynamicExtensionsTypes = extensions.map(e => {
 			const activationEvent = e.activationEvents && e.activationEvents.find(e => e.includes(onDebugDynamicConfigurationsName));
 			if (activationEvent) {
-				const type = activationEvent.substr(onDebugDynamicConfigurationsName.length);
+				const type = activationEvent.substr(onDebugDynamicConfigurationsName.length + 1);
 				return type || (e.contributes && e.contributes.debuggers && e.contributes.debuggers.length ? e.contributes.debuggers[0].type : undefined);
 			}
 

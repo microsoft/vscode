@@ -124,4 +124,14 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 			return editor;
 		});
 	}
+
+	public static canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
+		if (editorInput instanceof CustomEditorInput) {
+			if (editorInput.resource.path === backupResource.path && backupResource.authority === editorInput.viewType) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 }

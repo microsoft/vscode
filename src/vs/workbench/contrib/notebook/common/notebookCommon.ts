@@ -153,12 +153,21 @@ export interface IErrorOutput {
 	traceback?: string[];
 }
 
+export interface NotebookCellOutputMetadata {
+	/**
+	 * Additional attributes of a cell metadata.
+	 */
+	custom?: { [key: string]: any };
+}
+
 export interface IDisplayOutput {
 	outputKind: CellOutputKind.Rich;
 	/**
 	 * { mime_type: value }
 	 */
 	data: { [key: string]: any; }
+
+	metadata?: NotebookCellOutputMetadata;
 }
 
 export enum MimeTypeRendererResolver {
@@ -177,6 +186,7 @@ export interface IOrderedMimeType {
 export interface ITransformedDisplayOutputDto {
 	outputKind: CellOutputKind.Rich;
 	data: { [key: string]: any; }
+	metadata?: NotebookCellOutputMetadata;
 
 	orderedMimeTypes?: IOrderedMimeType[];
 	pickedMimeTypeIndex?: number;
@@ -250,7 +260,7 @@ export interface IMetadata {
 export interface INotebookTextModel {
 	handle: number;
 	viewType: string;
-	// metadata: IMetadata;
+	metadata: NotebookDocumentMetadata
 	readonly uri: URI;
 	readonly versionId: number;
 	languages: string[];
@@ -560,6 +570,11 @@ export interface INotebookTextModelBackup {
 	cells: ICellDto2[]
 }
 
+export interface NotebookDocumentBackupData {
+	readonly viewType: string;
+	readonly name: string;
+}
+
 export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
@@ -569,4 +584,9 @@ export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	getId(): string;
 	hasFocus(): boolean;
 	hasModel(): boolean;
+}
+
+export enum NotebookEditorPriority {
+	default = 'default',
+	option = 'option',
 }

@@ -530,11 +530,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			editorsToClose.push(editor.master, editor.details);
 		}
 
-		// Dispose the editor when it is no longer open in any group including diff editors
+		// Forward close to editor input for handling within
 		editorsToClose.forEach(editorToClose => {
-			if (!this.accessor.groups.some(groupView => groupView.group.contains(editorToClose, true /* include side by side editor master & details */))) {
-				editorToClose.dispose();
-			}
+			const openedInOtherGroups = this.accessor.groups.some(groupView => groupView.group.contains(editorToClose, true /* include side by side editor master & details */));
+
+			editorToClose.close(this._group.id, openedInOtherGroups);
 		});
 
 		/* __GDPR__

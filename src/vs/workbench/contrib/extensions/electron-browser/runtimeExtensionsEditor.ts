@@ -494,14 +494,13 @@ export class ShowRuntimeExtensionsAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super(id, label);
 	}
 
 	public async run(e?: any): Promise<any> {
-		await this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
+		await this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true });
 	}
 }
 

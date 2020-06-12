@@ -15,7 +15,7 @@ import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, File
 import { Schemas } from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { basename, joinPath } from 'vs/base/common/resources';
+import { basename, joinPath, extUri } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry, ICustomEditorViewTypesHandler, ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
@@ -491,22 +491,22 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] {
-		const ret = [];
+		const overrides = [];
 		for (const handler of this.openEditorHandlers) {
-			const handlers = handler.getEditorOverrides ? handler.getEditorOverrides(resource, options, group).map(val => { return [handler, val] as [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]; }) : [];
-			ret.push(...handlers);
+			const handlers = handler.getEditorOverrides ? handler.getEditorOverrides(resource, options, group).map(val => [handler, val] as [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]) : [];
+			overrides.push(...handlers);
 		}
 
-		return ret;
+		return overrides;
 	}
 
 	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {
-		if (event.options?.ignoreOverrides) {
-			return;
+		if (event.options?.override === false) {
+			return; // return early when overrides are explicitly disabled
 		}
 
 		for (const handler of this.openEditorHandlers) {
-			const result = handler.open(event.editor, event.options, group, event.context ?? OpenEditorContext.NEW_EDITOR, event.options?.overrideId);
+			const result = handler.open(event.editor, event.options, group, event.context ?? OpenEditorContext.NEW_EDITOR, event.options?.override);
 			const override = result?.override;
 			if (override) {
 				event.prevent((() => override.then(editor => withNullAsUndefined(editor))));
@@ -883,11 +883,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// File
 				if (resourceEditorInput.forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(canonicalResource)) {
-					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
+					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, resourceEditorInput.resource, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
 				}
 
 				// Resource
-				return this.instantiationService.createInstance(ResourceEditorInput, resourceEditorInput.label, resourceEditorInput.description, canonicalResource, resourceEditorInput.mode);
+				return this.instantiationService.createInstance(ResourceEditorInput, canonicalResource, resourceEditorInput.label, resourceEditorInput.description, resourceEditorInput.mode);
 			}, cachedInput => {
 
 				// Untitled
@@ -897,6 +897,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// Files
 				else if (!(cachedInput instanceof ResourceEditorInput)) {
+					cachedInput.setLabel(resourceEditorInput.resource);
+
 					if (resourceEditorInput.encoding) {
 						cachedInput.setPreferredEncoding(resourceEditorInput.encoding);
 					}
@@ -936,19 +938,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private asCanonicalEditorResource(resource: URI): URI {
-		// We prefer to use the canonical form unless we know that a model
-		// for the given URI already exists.
-		// If no model exists, we do not trust the resource that is being
-		// passed in as being the truth (e.g. in terms of path casing) and
-		// as such we ask the URI service to give us the canconical form of
-		// the URI. As such we ensure that any editor that is being opened
-		// will use the same canonical form of the URI.
-		let canonicalResource: URI;
-		if (this.modelService?.getModel(resource)) {
-			// TODO@Ben remove this check once canonical URIs are adopted in ITextModelResolerService
-			canonicalResource = resource;
-		} else {
-			canonicalResource = this.uriIdentityService.asCanonicalUri(resource);
+		const canonicalResource: URI = this.uriIdentityService.asCanonicalUri(resource);
+
+		// In the unlikely case that a model exists for the original resource but
+		// differs from the canonical resource, we print a warning as this means
+		// the model will not be able to be opened as editor.
+		if (!extUri.isEqual(resource, canonicalResource) && this.modelService?.getModel(resource)) {
+			console.warn(`EditorService: a model exists for a resource that is not canonical: ${resource.toString(true)}`);
 		}
 
 		return canonicalResource;

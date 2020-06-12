@@ -22,6 +22,7 @@ import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
+import { IExtUri } from 'vs/base/common/resources';
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
@@ -166,7 +167,7 @@ export interface IFileEditorInputFactory {
 	/**
 	 * Creates new new editor input capable of showing files.
 	 */
-	createFileEditorInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileEditorInput(resource: URI, label: URI | undefined, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
 	/**
 	 * Check if the provided object is a file editor input.
@@ -176,6 +177,7 @@ export interface IFileEditorInputFactory {
 
 interface ICustomEditorInputFactory {
 	createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput>;
+	canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean;
 }
 
 export interface IEditorInputFactoryRegistry {
@@ -193,12 +195,12 @@ export interface IEditorInputFactoryRegistry {
 	/**
 	 * Registers the custom editor input factory to use for custom inputs.
 	 */
-	registerCustomEditorInputFactory(factory: ICustomEditorInputFactory): void;
+	registerCustomEditorInputFactory(scheme: string, factory: ICustomEditorInputFactory): void;
 
 	/**
 	 * Returns the custom editor input factory to use for custom inputs.
 	 */
-	getCustomEditorInputFactory(): ICustomEditorInputFactory;
+	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined;
 
 	/**
 	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
@@ -233,7 +235,7 @@ export interface IEditorInputFactory {
 	 * Returns a string representation of the provided editor input that contains enough information
 	 * to deserialize back to the original editor input from the deserialize() method.
 	 */
-	serialize(editorInput: EditorInput): string | undefined;
+	serialize(editorInput: IEditorInput): string | undefined;
 
 	/**
 	 * Returns an editor input from the provided serialized form of the editor input. This form matches
@@ -580,6 +582,21 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 
 	/**
+	 * Called when this input was closed in a group. The second parameter
+	 * is a hint wether the editor is still opened in other groups. This
+	 * may include normal editors as well as side-by-side or diff editors.
+	 *
+	 * Subclasses can override what should happen. By default, an editor
+	 * input will dispose when it is closed.
+	 */
+	close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
+		// TODO@ben revisit this behaviour, should just dispose by default after adoption
+		if (!openedInOtherGroups) {
+			this.dispose();
+		}
+	}
+
+	/**
 	 * Subclasses can set this to false if it does not make sense to split the editor input.
 	 */
 	supportsSplitEditor(): boolean {
@@ -650,12 +667,17 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	readonly resource: URI;
 
 	/**
-	 * Sets the preferred encoding to use for this input.
+	 * Sets the preferred label to use for this file input.
+	 */
+	setLabel(label: URI): void;
+
+	/**
+	 * Sets the preferred encoding to use for this file input.
 	 */
 	setPreferredEncoding(encoding: string): void;
 
 	/**
-	 * Sets the preferred language mode to use for this input.
+	 * Sets the preferred language mode to use for this file input.
 	 */
 	setPreferredMode(mode: string): void;
 
@@ -665,7 +687,7 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	setForceOpenAsBinary(): void;
 
 	/**
-	 * Figure out if the input has been resolved or not.
+	 * Figure out if the file input has been resolved or not.
 	 */
 	isResolved(): boolean;
 }
@@ -925,14 +947,12 @@ export class EditorOptions implements IEditorOptions {
 	ignoreError: boolean | undefined;
 
 	/**
-	 * Does not use editor overrides while opening the editor.
+	 * Allows to override the editor that should be used to display the input:
+	 * - `undefined`: let the editor decide for itself
+	 * - `false`: disable overrides
+	 * - `string`: specific override by id
 	 */
-	ignoreOverrides: boolean | undefined;
-
-	/**
-	 * An optional id to override the editor used to edit the resource, e.g. custom editor.
-	 */
-	overrideId: string | undefined;
+	override?: false | string;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.
@@ -990,12 +1010,8 @@ export class EditorOptions implements IEditorOptions {
 			this.index = options.index;
 		}
 
-		if (typeof options.ignoreOverrides === 'boolean') {
-			this.ignoreOverrides = options.ignoreOverrides;
-		}
-
-		if (typeof options.overrideId === 'string') {
-			this.overrideId = options.overrideId;
+		if (typeof options.override === 'string' || options.override === false) {
+			this.override = options.override;
 		}
 
 		if (typeof options.context === 'number') {
@@ -1031,7 +1047,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 			return undefined;
 		}
 
-		return TextEditorOptions.create({ ...input.options, overrideId: input.overrideId });
+		return TextEditorOptions.create(input.options);
 	}
 
 	/**
@@ -1274,13 +1290,13 @@ export interface IEditorMemento<T> {
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
 	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
 
-	moveEditorState(source: URI, target: URI): void;
+	moveEditorState(source: URI, target: URI, comparer: IExtUri): void;
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
 	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
-	private customEditorInputFactory: ICustomEditorInputFactory | undefined;
+	private customEditorInputFactoryInstances: Map<string, ICustomEditorInputFactory> = new Map();
 
 	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
 	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
@@ -1308,12 +1324,12 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 		return assertIsDefined(this.fileEditorInputFactory);
 	}
 
-	registerCustomEditorInputFactory(factory: ICustomEditorInputFactory): void {
-		this.customEditorInputFactory = factory;
+	registerCustomEditorInputFactory(scheme: string, factory: ICustomEditorInputFactory): void {
+		this.customEditorInputFactoryInstances.set(scheme, factory);
 	}
 
-	getCustomEditorInputFactory(): ICustomEditorInputFactory {
-		return assertIsDefined(this.customEditorInputFactory);
+	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined {
+		return this.customEditorInputFactoryInstances.get(scheme);
 	}
 
 	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): IDisposable {
@@ -1362,14 +1378,18 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 				startLineNumber: path.lineNumber,
 				startColumn: path.columnNumber || 1
 			},
-			pinned: true
-		} : { pinned: true };
+			pinned: true,
+			override: path.overrideId
+		} : {
+				pinned: true,
+				override: path.overrideId
+			};
 
 		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {
 			input = { resource, options, forceUntitled: true };
 		} else {
-			input = { resource, options, forceFile: true, overrideId: path.overrideId };
+			input = { resource, options, forceFile: true };
 		}
 
 		return input;
@@ -1389,4 +1409,24 @@ export const enum EditorsOrder {
 	 * Editors sorted by sequential order
 	 */
 	SEQUENTIAL
+}
+
+export function computeEditorAriaLabel(input: IEditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
+	let ariaLabel = input.getAriaLabel();
+	if (group && !group.isPinned(input)) {
+		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
+	}
+
+	if (group && group.isSticky(index ?? input)) {
+		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
+	}
+
+	// Apply group information to help identify in
+	// which group we are (only if more than one group
+	// is actually opened)
+	if (group && groupCount > 1) {
+		ariaLabel = `${ariaLabel}, ${group.ariaLabel}`;
+	}
+
+	return ariaLabel;
 }

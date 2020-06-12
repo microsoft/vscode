@@ -42,7 +42,7 @@ import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workben
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { fromNow } from 'vs/base/common/date';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -109,7 +109,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOutputService private readonly outputService: IOutputService,
-		@IAuthenticationTokenService readonly authTokenService: IAuthenticationTokenService,
+		@IUserDataSyncAccountService readonly authTokenService: IUserDataSyncAccountService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
@@ -266,7 +266,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private onAutoSyncError(error: UserDataSyncError): boolean {
+	private onAutoSyncError(error: UserDataSyncError): void {
 		switch (error.code) {
 			case UserDataSyncErrorCode.TurnedOff:
 			case UserDataSyncErrorCode.SessionExpired:
@@ -277,21 +277,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Preferences Sync..."), undefined, true, () => this.turnOn())]
 					}
 				});
-				return true;
+				break;
 			case UserDataSyncErrorCode.TooLarge:
 				if (error.resource === SyncResource.Keybindings || error.resource === SyncResource.Settings) {
 					this.disableSync(error.resource);
 					const sourceArea = getSyncAreaLabel(error.resource);
-					this.notificationService.notify({
-						severity: Severity.Error,
-						message: localize('too large', "Disabled syncing {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea.toLowerCase(), sourceArea.toLowerCase(), '100kb'),
-						actions: {
-							primary: [new Action('open sync file', localize('open file', "Open {0} File", sourceArea), undefined, true,
-								() => error.resource === SyncResource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
-						}
-					});
+					this.handleTooLargeError(error.resource, localize('too large', "Disabled syncing {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea.toLowerCase(), sourceArea.toLowerCase(), '100kb'));
 				}
-				return true;
+				break;
 			case UserDataSyncErrorCode.Incompatible:
 			case UserDataSyncErrorCode.Gone:
 			case UserDataSyncErrorCode.UpgradeRequired:
@@ -300,9 +293,19 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					severity: Severity.Error,
 					message: localize('error upgrade required', "Preferences sync is disabled because the current version ({0}, {1}) is not compatible with the sync service. Please update before turning on sync.", this.productService.version, this.productService.commit),
 				});
-				return true;
+				break;
 		}
-		return false;
+	}
+
+	private handleTooLargeError(resource: SyncResource, message: string): void {
+		this.notificationService.notify({
+			severity: Severity.Error,
+			message,
+			actions: {
+				primary: [new Action('open sync file', localize('open file', "Open {0} File", getSyncAreaLabel(resource)), undefined, true,
+					() => resource === SyncResource.Settings ? this.preferencesService.openGlobalSettings(true) : this.preferencesService.openGlobalKeybindingSettings(true))]
+			}
+		});
 	}
 
 	private readonly invalidContentErrorDisposables = new Map<SyncResource, IDisposable>();
@@ -416,8 +419,23 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			if (isPromiseCanceledError(e)) {
 				return;
 			}
-			if (e instanceof UserDataSyncError && this.onAutoSyncError(e)) {
-				return;
+			if (e instanceof UserDataSyncError) {
+				switch (e.code) {
+					case UserDataSyncErrorCode.TooLarge:
+						if (e.resource === SyncResource.Keybindings || e.resource === SyncResource.Settings) {
+							this.handleTooLargeError(e.resource, localize('too large while starting sync', "Preferences sync cannot be turned on because size of the {0} file to sync is larger than {1}. Please open the file and reduce the size and turn on sync", getSyncAreaLabel(e.resource).toLowerCase(), '100kb'));
+							return;
+						}
+						break;
+					case UserDataSyncErrorCode.Incompatible:
+					case UserDataSyncErrorCode.Gone:
+					case UserDataSyncErrorCode.UpgradeRequired:
+						this.notificationService.notify({
+							severity: Severity.Error,
+							message: localize('error upgrade required while starting sync', "Preferences sync cannot be turned on because the current version ({0}, {1}) is not compatible with the sync service. Please update before turning on sync.", this.productService.version, this.productService.commit),
+						});
+						return;
+				}
 			}
 			this.notificationService.error(localize('turn on failed', "Error while starting Sync: {0}", toErrorMessage(e)));
 		} finally {
@@ -719,7 +737,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 			async run(): Promise<any> {
 				try {
-					await that.userDataSyncWorkbenchService.pickAccount();
+					await that.userDataSyncWorkbenchService.signIn();
 				} catch (e) {
 					that.notificationService.error(e);
 				}

@@ -48,6 +48,22 @@ interface WebviewContent {
 	readonly state: string | undefined;
 }
 
+namespace WebviewState {
+	export const enum Type { Initializing, Ready }
+
+	export class Initializing {
+		readonly type = Type.Initializing;
+
+		constructor(
+			public readonly pendingMessages: Array<{ readonly channel: string, readonly data?: any }>
+		) { }
+	}
+
+	export const Ready = { type: Type.Ready } as const;
+
+	export type State = typeof Ready | Initializing;
+}
+
 export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private _element: T | undefined;
@@ -56,10 +72,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private _focused: boolean | undefined;
 	protected get focused(): boolean { return !!this._focused; }
 
-	private readonly _ready: Promise<void>;
+	private _state: WebviewState.State = new WebviewState.Initializing([]);
 
 	protected content: WebviewContent;
-
 
 	constructor(
 		// TODO: matb, this should not be protected. The only reason it needs to be is that the base class ends up using it in the call to createElement
@@ -82,15 +97,18 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 		this._element = this.createElement(options, contentOptions);
 
-		this._ready = new Promise(resolve => {
-			const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
-				if (this.element) {
-					addClass(this.element, 'ready');
-				}
-				subscription.dispose();
-				resolve();
-			}));
-		});
+		const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
+			if (this.element) {
+				addClass(this.element, 'ready');
+			}
+
+			if (this._state.type === WebviewState.Type.Initializing) {
+				this._state.pendingMessages.forEach(({ channel, data }) => this.doPostMessage(channel, data));
+			}
+			this._state = WebviewState.Ready;
+
+			subscription.dispose();
+		}));
 
 		this._register(this.on('no-csp-found', () => {
 			this.handleNoCspFound();
@@ -176,14 +194,16 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	public readonly onDidBlur = this._onDidBlur.event;
 
-	public sendMessage(data: any): void {
+	public postMessage(data: any): void {
 		this._send('message', data);
 	}
 
 	protected _send(channel: string, data?: any): void {
-		this._ready
-			.then(() => this.postMessage(channel, data))
-			.catch(err => console.error(err));
+		if (this._state.type === WebviewState.Type.Initializing) {
+			this._state.pendingMessages.push({ channel, data });
+		} else {
+			this.doPostMessage(channel, data);
+		}
 	}
 
 	protected abstract readonly extraContentOptions: { readonly [key: string]: string };
@@ -192,7 +212,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	protected abstract on<T = unknown>(channel: string, handler: (data: T) => void): IDisposable;
 
-	protected abstract postMessage(channel: string, data?: any): void;
+	protected abstract doPostMessage(channel: string, data?: any): void;
 
 	private _hasAlertedAboutMissingCsp = false;
 	private handleNoCspFound(): void {

@@ -764,8 +764,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 					let reveal = task.command.presentation!.reveal;
 					if ((reveal === RevealKind.Silent) && ((exitCode !== 0) || (watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 						(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
-						this.terminalService.setActiveInstance(terminal!);
-						this.terminalService.showPanel(false);
+						try {
+							this.terminalService.setActiveInstance(terminal!);
+							this.terminalService.showPanel(false);
+						} catch (e) {
+							// If the terminal has already been disposed, then setting the active instance will fail. #99828
+							// There is nothing else to do here.
+						}
 					}
 					watchingProblemMatcher.done();
 					watchingProblemMatcher.dispose();
@@ -843,8 +848,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this.viewsService.openView(Constants.MARKERS_VIEW_ID);
 					} else if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
 						(startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
-						this.terminalService.setActiveInstance(terminal);
-						this.terminalService.showPanel(false);
+						try {
+							this.terminalService.setActiveInstance(terminal);
+							this.terminalService.showPanel(false);
+						} catch (e) {
+							// If the terminal has already been disposed, then setting the active instance will fail. #99828
+							// There is nothing else to do here.
+						}
 					}
 					// Hack to work around #92868 until terminal is fixed.
 					setTimeout(() => {

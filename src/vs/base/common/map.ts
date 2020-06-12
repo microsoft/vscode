@@ -481,14 +481,40 @@ export class TernarySearchTree<K, V> {
 	}
 }
 
+interface ResourceMapKeyFn {
+	(resource: URI): string;
+}
+
 export class ResourceMap<T> implements Map<URI, T> {
+
+	private static readonly defaultToKey = (resource: URI) => resource.toString();
 
 	readonly [Symbol.toStringTag] = 'ResourceMap';
 
-	protected readonly map: Map<string, T>;
+	private readonly map: Map<string, T>;
+	private readonly toKey: ResourceMapKeyFn;
 
-	constructor(other?: ResourceMap<T>) {
-		this.map = other ? new Map(other.map) : new Map();
+	/**
+	 *
+	 * @param toKey Custom uri identity function, e.g use an existing `IExtUri#getComparison`-util
+	 */
+	constructor(toKey?: ResourceMapKeyFn);
+
+	/**
+	 *
+	 * @param other Another resource which this maps is created from
+	 * @param toKey Custom uri identity function, e.g use an existing `IExtUri#getComparison`-util
+	 */
+	constructor(other?: ResourceMap<T>, toKey?: ResourceMapKeyFn);
+
+	constructor(mapOrKeyFn?: ResourceMap<T> | ResourceMapKeyFn, toKey?: ResourceMapKeyFn) {
+		if (mapOrKeyFn instanceof ResourceMap) {
+			this.map = new Map(mapOrKeyFn.map);
+			this.toKey = toKey ?? ResourceMap.defaultToKey;
+		} else {
+			this.map = new Map();
+			this.toKey = mapOrKeyFn ?? ResourceMap.defaultToKey;
+		}
 	}
 
 	set(resource: URI, value: T): this {
@@ -545,10 +571,6 @@ export class ResourceMap<T> implements Map<URI, T> {
 		for (let item of this.map) {
 			yield [URI.parse(item[0]), item[1]];
 		}
-	}
-
-	private toKey(resource: URI): string {
-		return resource.toString();
 	}
 }
 

@@ -11,6 +11,7 @@ import { IUserDataSyncService, SyncResource, IUserDataSyncEnablementService } fr
 
 class TestUserDataAutoSyncService extends UserDataAutoSyncService {
 	protected startAutoSync(): boolean { return false; }
+	protected getSyncTriggerDelayTime(): number { return 50; }
 }
 
 suite('UserDataAutoSyncService', () => {

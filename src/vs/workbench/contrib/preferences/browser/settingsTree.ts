@@ -30,7 +30,7 @@ import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
-import { isArray } from 'vs/base/common/types';
+import { isArray, isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -45,7 +45,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, IListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -53,6 +53,7 @@ import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from 'vs/pl
 import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
 import { Codicon } from 'vs/base/common/codicons';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 const $ = DOM.$;
 
@@ -73,6 +74,103 @@ function getExcludeDisplayValue(element: SettingsTreeSettingElement): IListDataI
 				sibling
 			};
 		});
+}
+
+function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
+	const enumDescriptions = schema.enumDescriptions ?? [];
+
+	return (schema.enum ?? []).map((value, idx) => {
+		const description = idx < enumDescriptions.length
+			? enumDescriptions[idx]
+			: undefined;
+
+		return { value, description };
+	});
+}
+
+function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectDataItem[] {
+	const data = element.isConfigured ?
+		{ ...element.defaultValue, ...element.scopeValue } :
+		element.defaultValue;
+
+	const items: IObjectDataItem[] = [];
+
+	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
+
+	const patternsAndSchemas = Object
+		.entries(objectPatternProperties ?? {})
+		.map(([pattern, schema]) => ({
+			pattern: new RegExp(pattern),
+			schema
+		}));
+
+	const allKeys = new Set<string>(Object.keys(data).concat(Object.keys(objectProperties ?? {})));
+	const wellDefinedKeys: { key: string, description?: string }[] = [];
+	const patternKeysWithSchema = new Map<string, IJSONSchema>();
+	const additionalKeys: string[] = [];
+	const additionalValueEnums = getEnumOptionsFromSchema(
+		typeof objectAdditionalProperties === 'boolean'
+			? {}
+			: objectAdditionalProperties ?? {}
+	);
+
+	// copy the keys into appropriate buckets
+	allKeys.forEach(key => {
+		if (key in (objectProperties ?? {})) {
+			wellDefinedKeys.push({ key, description: objectProperties![key].description });
+			return;
+		}
+
+		const schema = patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
+
+		if (isDefined(schema)) {
+			patternKeysWithSchema.set(key, schema);
+		} else {
+			additionalKeys.push(key);
+		}
+	});
+
+	const wellDefinedKeyEnumOptions = wellDefinedKeys.map(({ key, description }) => ({ value: key, description }));
+	wellDefinedKeys.forEach(({ key }) => {
+		const valueEnumOptions = getEnumOptionsFromSchema(objectProperties![key]);
+		items.push({
+			key: {
+				type: 'enum',
+				data: key,
+				options: wellDefinedKeyEnumOptions,
+			},
+			value: {
+				type: valueEnumOptions.length > 0 ? 'enum' : 'string',
+				data: data[key] ?? objectProperties![key].default,
+				options: valueEnumOptions,
+			},
+		});
+	});
+
+	patternKeysWithSchema.forEach((schema, key) => {
+		const valueEnumOptions = getEnumOptionsFromSchema(schema);
+		items.push({
+			key: { type: 'string', data: key },
+			value: {
+				type: valueEnumOptions.length > 0 ? 'enum' : 'string',
+				data: data[key],
+				options: valueEnumOptions,
+			},
+		});
+	});
+
+	additionalKeys.forEach(key => {
+		items.push({
+			key: { type: 'string', data: key },
+			value: {
+				type: additionalValueEnums.length > 0 ? 'enum' : 'string',
+				data: data[key],
+				options: additionalValueEnums,
+			},
+		});
+	});
+
+	return items;
 }
 
 function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
@@ -242,6 +340,10 @@ interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
 	excludeWidget: ListSettingWidget;
 }
 
+interface ISettingObjectItemTemplate extends ISettingItemTemplate<void> {
+	objectWidget: ObjectSettingWidget;
+}
+
 interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
 	button: Button;
 	context?: SettingsTreeNewExtensionsElement;
@@ -258,6 +360,7 @@ const SETTINGS_ENUM_TEMPLATE_ID = 'settings.enum.template';
 const SETTINGS_BOOL_TEMPLATE_ID = 'settings.bool.template';
 const SETTINGS_ARRAY_TEMPLATE_ID = 'settings.array.template';
 const SETTINGS_EXCLUDE_TEMPLATE_ID = 'settings.exclude.template';
+const SETTINGS_OBJECT_TEMPLATE_ID = 'settings.object.template';
 const SETTINGS_COMPLEX_TEMPLATE_ID = 'settings.complex.template';
 const SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID = 'settings.newExtensions.template';
 const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.group.template';
@@ -797,7 +900,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		});
 	}
 
-	private computeNewList(template: ISettingListItemTemplate, e: IListChangeEvent): string[] | undefined | null {
+	private computeNewList(template: ISettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined | null {
 		if (template.context) {
 			let newValue: string[] = [];
 			if (isArray(template.context.scopeValue)) {
@@ -808,23 +911,23 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 			if (e.targetIndex !== undefined) {
 				// Delete value
-				if (!e.value && e.originalValue && e.targetIndex > -1) {
+				if (!e.item?.value && e.originalItem.value && e.targetIndex > -1) {
 					newValue.splice(e.targetIndex, 1);
 				}
 				// Update value
-				else if (e.value && e.originalValue) {
+				else if (e.item?.value && e.originalItem.value) {
 					if (e.targetIndex > -1) {
-						newValue[e.targetIndex] = e.value;
+						newValue[e.targetIndex] = e.item.value;
 					}
 					// For some reason, we are updating and cannot find original value
 					// Just append the value in this case
 					else {
-						newValue.push(e.value);
+						newValue.push(e.item.value);
 					}
 				}
 				// Add value
-				else if (e.value && !e.originalValue && e.targetIndex >= newValue.length) {
-					newValue.push(e.value);
+				else if (e.item?.value && !e.originalItem.value && e.targetIndex >= newValue.length) {
+					newValue.push(e.item.value);
 				}
 			}
 			if (
@@ -860,6 +963,61 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 	}
 }
 
+export class SettingObjectRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingObjectItemTemplate> {
+	templateId = SETTINGS_OBJECT_TEMPLATE_ID;
+
+	renderTemplate(container: HTMLElement): ISettingObjectItemTemplate {
+		const common = this.renderCommonTemplate(null, container, 'list');
+
+		const objectWidget = this._instantiationService.createInstance(ObjectSettingWidget, common.controlElement);
+		objectWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		common.toDispose.add(objectWidget);
+
+		const template: ISettingObjectItemTemplate = {
+			...common,
+			objectWidget: objectWidget,
+		};
+
+		this.addSettingElementFocusHandler(template);
+
+		common.toDispose.add(objectWidget.onDidChangeList(e => this.onDidChangeMap(template, e)));
+
+		return template;
+	}
+
+	private onDidChangeMap(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
+		if (template.context) {
+			const newValue = { ...template.context.scopeValue };
+
+			// first delete the existing entry, if present
+			if (e.originalItem.key.data) {
+				delete newValue[e.originalItem.key.data];
+			}
+
+			// then add the new or updated entry, if present
+			if (e.item?.key.data && e.item.value.data) {
+				newValue[e.item.key.data] = e.item.value.data;
+			}
+
+			this._onDidChangeSetting.fire({
+				key: template.context.setting.key,
+				value: Object.keys(newValue).length === 0 ? undefined : newValue,
+				type: template.context.valueType
+			});
+		}
+	}
+
+	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingObjectItemTemplate): void {
+		super.renderSettingElement(element, index, templateData);
+	}
+
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: string) => void): void {
+		const value = getObjectDisplayValue(dataElement);
+		template.objectWidget.setValue(value);
+		template.context = dataElement;
+	}
+}
+
 export class SettingExcludeRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExcludeItemTemplate> {
 	templateId = SETTINGS_EXCLUDE_TEMPLATE_ID;
 
@@ -882,27 +1040,27 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 		return template;
 	}
 
-	private onDidChangeExclude(template: ISettingExcludeItemTemplate, e: IListChangeEvent): void {
+	private onDidChangeExclude(template: ISettingExcludeItemTemplate, e: ISettingListChangeEvent<IListDataItem>): void {
 		if (template.context) {
 			const newValue = { ...template.context.scopeValue };
 
 			// first delete the existing entry, if present
-			if (e.originalValue) {
-				if (e.originalValue in template.context.defaultValue) {
+			if (e.originalItem.value) {
+				if (e.originalItem.value in template.context.defaultValue) {
 					// delete a default by overriding it
-					newValue[e.originalValue] = false;
+					newValue[e.originalItem.value] = false;
 				} else {
-					delete newValue[e.originalValue];
+					delete newValue[e.originalItem.value];
 				}
 			}
 
 			// then add the new or updated entry, if present
-			if (e.value) {
-				if (e.value in template.context.defaultValue && !e.sibling) {
+			if (e.item?.value) {
+				if (e.item.value in template.context.defaultValue && !e.item.sibling) {
 					// add a default by deleting its override
-					delete newValue[e.value];
+					delete newValue[e.item.value];
 				} else {
-					newValue[e.value] = e.sibling ? { when: e.sibling } : true;
+					newValue[e.item.value] = e.item.sibling ? { when: e.item.sibling } : true;
 				}
 			}
 
@@ -1286,6 +1444,7 @@ export class SettingTreeRenderers {
 			this._instantiationService.createInstance(SettingTextRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingExcludeRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingEnumRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingObjectRenderer, this.settingActions, actionFactory),
 		];
 
 		this.onDidClickOverrideElement = Event.any(...settingRenderers.map(r => r.onDidClickOverrideElement));
@@ -1522,6 +1681,10 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 
 			if (element.valueType === SettingValueType.Exclude) {
 				return SETTINGS_EXCLUDE_TEMPLATE_ID;
+			}
+
+			if (element.valueType === SettingValueType.Object) {
+				return SETTINGS_OBJECT_TEMPLATE_ID;
 			}
 
 			return SETTINGS_COMPLEX_TEMPLATE_ID;

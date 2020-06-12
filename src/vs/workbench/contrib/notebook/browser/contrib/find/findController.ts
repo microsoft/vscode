@@ -133,7 +133,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		this._findMatches[cellIndex].cell.editState = CellEditState.Editing;
 		this._notebookEditor.selectElement(this._findMatches[cellIndex].cell);
 		this._notebookEditor.setCellSelection(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
-		this._notebookEditor.revealRangeInCenterIfOutsideViewport(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
+		this._notebookEditor.revealRangeInCenterIfOutsideViewportAsync(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
 	}
 
 	hide() {

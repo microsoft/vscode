@@ -11,7 +11,6 @@ import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { StartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 
@@ -65,13 +64,11 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 						return TriggerAction.CLOSE_PICKER;
 					},
 					accept: async () => {
-						if (StartAction.isEnabled(this.debugService)) {
-							this.debugService.getConfigurationManager().selectConfiguration(config.launch, config.name);
-							try {
-								await this.debugService.startDebugging(config.launch);
-							} catch (error) {
-								this.notificationService.error(error);
-							}
+						this.debugService.getConfigurationManager().selectConfiguration(config.launch, config.name);
+						try {
+							await this.debugService.startDebugging(config.launch);
+						} catch (error) {
+							this.notificationService.error(error);
 						}
 					}
 				});
