@@ -1427,6 +1427,7 @@ declare module 'vscode' {
 	export interface NotebookDocument {
 		readonly uri: Uri;
 		readonly fileName: string;
+		readonly viewType: string;
 		readonly isDirty: boolean;
 		readonly cells: NotebookCell[];
 		languages: string[];
