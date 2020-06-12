@@ -562,8 +562,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return { typeId: this.getTypeId() };
 	}
 
-	abstract resolve(): Promise<IEditorModel | null>;
-
 	isReadonly(): boolean {
 		return true;
 	}
@@ -578,6 +576,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	isSaving(): boolean {
 		return false;
+	}
+
+	async resolve(): Promise<IEditorModel | null> {
+		return null;
 	}
 
 	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {

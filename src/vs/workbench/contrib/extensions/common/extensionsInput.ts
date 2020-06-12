@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 export class ExtensionsInput extends EditorInput {
 
@@ -34,26 +35,15 @@ export class ExtensionsInput extends EditorInput {
 		return localize('extensionsInputName', "Extension: {0}", this.extension.displayName);
 	}
 
-	async resolve(): Promise<null> {
-		return null;
-	}
-
 	supportsSplitEditor(): boolean {
 		return false;
 	}
 
 	matches(other: unknown): boolean {
-		if (super.matches(other) === true) {
+		if (super.matches(other)) {
 			return true;
 		}
 
-		if (!(other instanceof ExtensionsInput)) {
-			return false;
-		}
-
-		const otherExtensionInput = other as ExtensionsInput;
-
-		// TODO@joao is this correct?
-		return this.extension === otherExtensionInput.extension;
+		return other instanceof ExtensionsInput && areSameExtensions(this.extension.identifier, other.extension.identifier);
 	}
 }

@@ -33,14 +33,6 @@ export class RuntimeExtensionsInput extends EditorInput {
 		return nls.localize('extensionsInputName', "Running Extensions");
 	}
 
-	matches(other: unknown): boolean {
-		return other instanceof RuntimeExtensionsInput;
-	}
-
-	async resolve(): Promise<null> {
-		return null;
-	}
-
 	supportsSplitEditor(): boolean {
 		return false;
 	}
@@ -49,5 +41,9 @@ export class RuntimeExtensionsInput extends EditorInput {
 		if (!openedInOtherGroups) {
 			this.dispose(); // Only dispose if not opened anymore because all runtime extensions inputs are shared
 		}
+	}
+
+	matches(other: unknown): boolean {
+		return other instanceof RuntimeExtensionsInput;
 	}
 }
