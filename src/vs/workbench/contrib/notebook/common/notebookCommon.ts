@@ -559,6 +559,7 @@ export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' 
 
 
 export interface INotebookEditorModel extends IEditorModel {
+	viewType: string;
 	notebook: NotebookTextModel;
 	isDirty(): boolean;
 	save(): Promise<boolean>;
