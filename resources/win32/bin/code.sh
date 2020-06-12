@@ -15,7 +15,8 @@ VSCODE_PATH="$(dirname "$(dirname "$(realpath "$0")")")"
 ELECTRON="$VSCODE_PATH/$NAME.exe"
 if grep -qi Microsoft /proc/version; then
 	# in a wsl shell
-	WSL_BUILD=$(uname -r | sed -E 's/^[0-9.]+-([0-9]+)-Microsoft.*|([0-9]+).([0-9]+).([0-9]+)-microsoft-standard.*|.*/\1\2\3\4/')
+	WSL_BUILD=$(wmic.exe os get version | awk -F '.' '{print $3}')
+	read MAJOR_VERSION MINOR_VERSION SUBLEVEL_VERSION <<<$(uname -r | sed -e 's/[^0-9.]//g' | awk -F '.' '{print $1, $2, $3}')
 	if [ -z "$WSL_BUILD" ]; then
 		WSL_BUILD=0
 	fi
@@ -30,7 +31,7 @@ if grep -qi Microsoft /proc/version; then
 		# use the Remote WSL extension if installed
 		WSL_EXT_ID="ms-vscode-remote.remote-wsl"
 
-		if [ $WSL_BUILD -ge 41955 -a $WSL_BUILD -lt 41959 ]; then
+		if [ $MAJOR_VERSION -eq 4 ] && [ $MINOR_VERSION -eq 19 ] && [ $SUBLEVEL_VERSION -ge 55 ] || [ $SUBLEVEL_VERSION -le 59 ] ; then
 			# WSL2 workaround for https://github.com/microsoft/WSL/issues/4337
 			CWD="$(pwd)"
 			cd "$VSCODE_PATH"
