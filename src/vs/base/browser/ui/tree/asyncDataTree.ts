@@ -407,6 +407,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.updateOptions(options);
 	}
 
+	get options(): IAsyncDataTreeOptions<T, TFilterData> {
+		return this.tree.options as IAsyncDataTreeOptions<T, TFilterData>;
+	}
+
 	// Widget
 
 	getHTMLElement(): HTMLElement {

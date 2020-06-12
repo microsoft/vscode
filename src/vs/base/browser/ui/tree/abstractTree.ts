@@ -962,6 +962,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly filterOnType?: boolean;
 	readonly openOnSingleClick?: boolean;
 	readonly smoothScrolling?: boolean;
+	readonly horizontalScrolling?: boolean;
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {

@@ -227,7 +227,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private setRowLineHeight: boolean;
 	private setRowHeight: boolean;
 	private supportDynamicHeights: boolean;
-	private horizontalScrolling: boolean;
 	private additionalScrollHeight: number;
 	private accessibilityProvider: ListViewAccessibilityProvider<T>;
 	private scrollWidth: number | undefined;
@@ -248,6 +247,35 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	get onDidScroll(): Event<ScrollEvent> { return this.scrollableElement.onScroll; }
 	get onWillScroll(): Event<ScrollEvent> { return this.scrollableElement.onWillScroll; }
 	get containerDomNode(): HTMLElement { return this.rowsContainer; }
+
+	private _horizontalScrolling: boolean = false;
+	private get horizontalScrolling(): boolean { return this._horizontalScrolling; }
+	private set horizontalScrolling(value: boolean) {
+		if (value === this._horizontalScrolling) {
+			return;
+		}
+
+		if (value && this.supportDynamicHeights) {
+			throw new Error('Horizontal scrolling and dynamic heights not supported simultaneously');
+		}
+
+		this._horizontalScrolling = value;
+		DOM.toggleClass(this.domNode, 'horizontal-scrolling', this._horizontalScrolling);
+
+		if (this._horizontalScrolling) {
+			for (const item of this.items) {
+				this.measureItemWidth(item);
+			}
+
+			this.updateScrollWidth();
+			this.scrollableElement.setScrollDimensions({ width: DOM.getContentWidth(this.domNode) });
+			this.rowsContainer.style.width = `${Math.max(this.scrollWidth || 0, this.renderWidth)}px`;
+		} else {
+			this.scrollableElementWidthDelayer.cancel();
+			this.scrollableElement.setScrollDimensions({ width: this.renderWidth, scrollWidth: this.renderWidth });
+			this.rowsContainer.style.width = '';
+		}
+	}
 
 	constructor(
 		container: HTMLElement,
@@ -280,8 +308,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		DOM.toggleClass(this.domNode, 'mouse-support', typeof options.mouseSupport === 'boolean' ? options.mouseSupport : true);
 
-		this.horizontalScrolling = getOrDefault(options, o => o.horizontalScrolling, DefaultOptions.horizontalScrolling);
-		DOM.toggleClass(this.domNode, 'horizontal-scrolling', this.horizontalScrolling);
+		this._horizontalScrolling = getOrDefault(options, o => o.horizontalScrolling, DefaultOptions.horizontalScrolling);
+		DOM.toggleClass(this.domNode, 'horizontal-scrolling', this._horizontalScrolling);
 
 		this.additionalScrollHeight = typeof options.additionalScrollHeight === 'undefined' ? 0 : options.additionalScrollHeight;
 
@@ -338,27 +366,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.scrollable.setSmoothScrollDuration(options.smoothScrolling ? 125 : 0);
 		}
 
-		if (options.horizontalScrolling !== undefined && options.horizontalScrolling !== this.horizontalScrolling) {
-			if (options.horizontalScrolling && this.supportDynamicHeights) {
-				throw new Error('Horizontal scrolling and dynamic heights not supported simultaneously');
-			}
-
+		if (options.horizontalScrolling !== undefined) {
 			this.horizontalScrolling = options.horizontalScrolling;
-			DOM.toggleClass(this.domNode, 'horizontal-scrolling', this.horizontalScrolling);
-
-			if (this.horizontalScrolling) {
-				for (const item of this.items) {
-					this.measureItemWidth(item);
-				}
-
-				this.updateScrollWidth();
-				this.scrollableElement.setScrollDimensions({ width: DOM.getContentWidth(this.domNode) });
-				this.rowsContainer.style.width = `${Math.max(this.scrollWidth || 0, this.renderWidth)}px`;
-			} else {
-				this.scrollableElementWidthDelayer.cancel();
-				this.scrollableElement.setScrollDimensions({ width: this.renderWidth, scrollWidth: this.renderWidth });
-				this.rowsContainer.style.width = '';
-			}
 		}
 	}
 
