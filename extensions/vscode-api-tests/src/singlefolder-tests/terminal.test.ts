@@ -22,6 +22,8 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
 		// Disable exit alerts as tests may trigger then and we're not testing the notifications
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
+		// Canvas can cause problems when running in a container
+		await config.update('rendererType', 'dom', ConfigurationTarget.Global);
 	});
 
 	suite('Terminal', () => {
@@ -79,6 +81,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					TEST: '`'
 				}
 			});
+			terminal.show();
 			doesNotThrow(() => {
 				// Print an environment variable value so the echo statement doesn't get matched
 				if (process.platform === 'win32') {
