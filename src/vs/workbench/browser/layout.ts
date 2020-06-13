@@ -45,7 +45,6 @@ import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activity
 import { URI } from 'vs/base/common/uri';
 import { IViewDescriptorService, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { ILogService } from 'vs/platform/log/common/log';
 import { mark } from 'vs/base/common/performance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -133,11 +132,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	//#endregion
 
+	readonly container: HTMLElement = document.createElement('div');
+
 	private _dimension!: IDimension;
 	get dimension(): IDimension { return this._dimension; }
-
-	private _container: HTMLElement = document.createElement('div');
-	get container(): HTMLElement { return this._container; }
 
 	get offset() {
 		return {
@@ -152,7 +150,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 	}
 
-	private parts: Map<string, Part> = new Map<string, Part>();
+	private readonly parts = new Map<string, Part>();
 
 	private workbenchGrid!: SerializableGrid<ISerializableView>;
 
@@ -166,7 +164,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private statusBarPartView!: ISerializableView;
 
 	private environmentService!: IWorkbenchEnvironmentService;
-	private logService!: ILogService;
 	private extensionService!: IExtensionService;
 	private configurationService!: IConfigurationService;
 	private lifecycleService!: ILifecycleService;
@@ -242,8 +239,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			transitionDisposables: new DisposableStore(),
 			setNotificationsFilter: false,
 			editorWidgetSet: new Set<IEditor>()
-		},
-
+		}
 	};
 
 	constructor(
@@ -263,7 +259,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.storageService = accessor.get(IStorageService);
 		this.backupFileService = accessor.get(IBackupFileService);
 		this.themeService = accessor.get(IThemeService);
-		this.logService = accessor.get(ILogService);
 		this.extensionService = accessor.get(IExtensionService);
 
 		// Parts
@@ -821,7 +816,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return undefined;
 	}
 
-	protected async restore(): Promise<void> {
+	protected async restoreWorkbenchLayout(): Promise<void> {
 		const restorePromises: Promise<void>[] = [];
 
 		// Restore editors

@@ -20,7 +20,7 @@ import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common
 import { Position, Parts, IWorkbenchLayoutService, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, WillSaveStateReason, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -139,7 +139,8 @@ export class Workbench extends Layout {
 				this.initLayout(accessor);
 
 				// Registries
-				this.startRegistries(accessor);
+				Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
+				Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
 
 				// Context Keys
 				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
@@ -207,11 +208,6 @@ export class Workbench extends Layout {
 		});
 
 		return instantiationService;
-	}
-
-	private startRegistries(accessor: ServicesAccessor): void {
-		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
-		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
 	}
 
 	private registerListeners(
@@ -392,7 +388,7 @@ export class Workbench extends Layout {
 		registerNotificationCommands(notificationsCenter, notificationsToasts);
 	}
 
-	protected async restoreWorkbench(
+	private async restoreWorkbench(
 		logService: ILogService,
 		lifecycleService: ILifecycleService
 	): Promise<void> {
@@ -401,7 +397,7 @@ export class Workbench extends Layout {
 		const restoreTimeoutHandle = setTimeout(() => logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.'), 10000);
 
 		try {
-			await super.restore();
+			await super.restoreWorkbenchLayout();
 
 			clearTimeout(restoreTimeoutHandle);
 		} catch (error) {
