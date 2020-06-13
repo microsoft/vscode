@@ -1,6 +1,6 @@
 # 川建国你好，川建国再见
 
-![Image text](https://raw.githubusercontent.com/hongmaju/light7Local/master/img/productShow/20170518152848.png)
+![Image text](https://pgw.udn.com.tw/gw/photo.php?u=https://uc.udn.com.tw/photo/2019/03/05/draft/6004469.png&x=0&y=0&sw=0&sh=0&sl=W&fw=800&exp=3600&w=930)
 
 [VS Code](http://code.visualstudio.com) is a new type of tool that combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. Code provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools.
 
