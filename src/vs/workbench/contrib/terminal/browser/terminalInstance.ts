@@ -487,7 +487,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Check if custom Terminal title exists and set same
 		if (this._title.length > 0) {
-			xterm.textarea.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabel', "Terminal {0}, {1}", this._id, this._title));
+			xterm.textarea.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", this._id, this._title));
 		} else {
 			xterm.textarea.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", this._id));
 		}
