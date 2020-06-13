@@ -697,7 +697,7 @@ export type NotebookCellOutputsSplice = [
 ];
 
 export interface MainThreadNotebookShape extends IDisposable {
-	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, kernelInfoDto: INotebookKernelInfoDto | undefined): Promise<void>;
+	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, kernelInfoDto: INotebookKernelInfoDto | undefined): Promise<void>;
 	$onNotebookChange(viewType: string, resource: UriComponents): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 	$registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: UriComponents[]): Promise<void>;
@@ -1581,11 +1581,13 @@ export interface INotebookDocumentsAndEditorsDelta {
 }
 
 export interface ExtHostNotebookShape {
-	$resolveNotebookData(viewType: string, uri: UriComponents): Promise<NotebookDataDto | undefined>;
+	$resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto | undefined>;
 	$executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
 	$executeNotebook2(kernelId: string, viewType: string, uri: UriComponents, cellHandle: number | undefined, token: CancellationToken): Promise<void>;
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
+	$revert(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<void>;
+	$backup(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string | undefined>;
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void;
 	$renderOutputs(uriComponents: UriComponents, id: string, request: IOutputRenderRequest<UriComponents>): Promise<IOutputRenderResponse<UriComponents> | undefined>;
 	$renderOutputs2<T>(uriComponents: UriComponents, id: string, request: IOutputRenderRequest<T>): Promise<IOutputRenderResponse<T> | undefined>;

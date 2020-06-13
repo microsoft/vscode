@@ -20,6 +20,10 @@ import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData
 import { NotImplementedProxy } from 'vs/base/common/types';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
+import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
+import { joinPath } from 'vs/base/common/resources';
+import { Schemas } from 'vs/base/common/network';
+import { hash } from 'vs/base/common/hash';
 
 interface IObservable<T> {
 	proxy: T;
@@ -223,6 +227,10 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		return this._versionId;
 	}
 
+	private _backupCounter = 1;
+
+	private _backup?: vscode.NotebookDocumentBackup;
+
 	private _disposed = false;
 
 	constructor(
@@ -231,7 +239,8 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		private _emitter: INotebookEventEmitter,
 		public viewType: string,
 		public uri: URI,
-		public renderingHandler: ExtHostNotebookOutputRenderingHandler
+		public renderingHandler: ExtHostNotebookOutputRenderingHandler,
+		private readonly _storagePath: URI | undefined
 	) {
 		super();
 
@@ -244,6 +253,24 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 
 	private updateMetadata() {
 		this._proxy.$updateNotebookMetadata(this.viewType, this.uri, this._metadata);
+	}
+
+	getNewBackupUri(): URI {
+		if (!this._storagePath) {
+			throw new Error('Backup requires a valid storage path');
+		}
+		const fileName = hashPath(this.uri) + (this._backupCounter++);
+		return joinPath(this._storagePath, fileName);
+	}
+
+	updateBackup(backup: vscode.NotebookDocumentBackup): void {
+		this._backup?.delete();
+		this._backup = backup;
+	}
+
+	disposeBackup(): void {
+		this._backup?.delete();
+		this._backup = undefined;
 	}
 
 	dispose() {
@@ -681,7 +708,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>();
 	onDidChangeVisibleNotebookEditors = this._onDidChangeVisibleNotebookEditors.event;
 
-	constructor(mainContext: IMainContext, commands: ExtHostCommands, private _documentsAndEditors: ExtHostDocumentsAndEditors, private readonly _webviewInitData: WebviewInitData) {
+	constructor(
+		mainContext: IMainContext,
+		commands: ExtHostCommands,
+		private _documentsAndEditors: ExtHostDocumentsAndEditors,
+		private readonly _webviewInitData: WebviewInitData,
+		private readonly _extensionStoragePaths?: IExtensionStoragePaths,
+	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
 
 		commands.registerArgumentProcessor({
@@ -820,7 +853,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			? provider.onDidChangeNotebook(e => this._proxy.$onNotebookChange(viewType, e.document.uri))
 			: Disposable.None;
 
-		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
+		const supportBackup = !!provider.backupNotebook && !!provider.revertNotebook;
+
+		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, supportBackup, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
 		return new extHostTypes.Disposable(() => {
 			listener.dispose();
 			this._notebookContentProviders.delete(viewType);
@@ -843,11 +878,16 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 	}
 
-	async $resolveNotebookData(viewType: string, uri: UriComponents): Promise<NotebookDataDto | undefined> {
+	async $resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto | undefined> {
 		const provider = this._notebookContentProviders.get(viewType);
 		const revivedUri = URI.revive(uri);
 
 		if (provider) {
+			let storageRoot: URI | undefined;
+			if (this._extensionStoragePaths) {
+				storageRoot = URI.file(this._extensionStoragePaths.workspaceValue(provider.extension) ?? this._extensionStoragePaths.globalValue(provider.extension));
+			}
+
 			let document = this._documents.get(URI.revive(uri).toString());
 
 			if (!document) {
@@ -862,11 +902,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void {
 						that._onDidChangeCellLanguage.fire(event);
 					}
-				}, viewType, revivedUri, this);
+				}, viewType, revivedUri, this, storageRoot);
 				this._unInitializedDocuments.set(revivedUri.toString(), document);
 			}
 
-			const rawCells = await provider.provider.openNotebook(URI.revive(uri));
+			const rawCells = await provider.provider.openNotebook(URI.revive(uri), { backupId });
 			const dto = {
 				metadata: {
 					...notebookDocumentMetadataDefaults,
@@ -961,6 +1001,29 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		return false;
+	}
+
+	async $revert(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<void> {
+		const document = this._documents.get(URI.revive(uri).toString());
+		const provider = this._notebookContentProviders.get(viewType);
+
+		if (document && provider && provider.provider.revertNotebook) {
+			await provider.provider.revertNotebook(document, cancellation);
+			document.disposeBackup();
+		}
+	}
+
+	async $backup(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string | undefined> {
+		const document = this._documents.get(URI.revive(uri).toString());
+		const provider = this._notebookContentProviders.get(viewType);
+
+		if (document && provider && provider.provider.backupNotebook) {
+			const backup = await provider.provider.backupNotebook(document, { destination: document.getNewBackupUri() }, cancellation);
+			document.updateBackup(backup);
+			return backup.id;
+		}
+
+		return;
 	}
 
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void {
@@ -1082,8 +1145,15 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				const revivedUri = URI.revive(modelData.uri);
 				const revivedUriStr = revivedUri.toString();
 				const viewType = modelData.viewType;
+				const entry = this._notebookContentProviders.get(viewType);
+				let storageRoot: URI | undefined;
+				if (entry && this._extensionStoragePaths) {
+					storageRoot = URI.file(this._extensionStoragePaths.workspaceValue(entry.extension) ?? this._extensionStoragePaths.globalValue(entry.extension));
+				}
+
 				if (!this._documents.has(revivedUriStr)) {
 					const that = this;
+
 					let document = this._unInitializedDocuments.get(revivedUriStr) ?? new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, {
 						emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
 							that._onDidChangeNotebookCells.fire(event);
@@ -1094,7 +1164,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 						emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void {
 							that._onDidChangeCellLanguage.fire(event);
 						}
-					}, viewType, revivedUri, this);
+					}, viewType, revivedUri, this, storageRoot);
 
 					this._unInitializedDocuments.delete(revivedUriStr);
 					if (modelData.metadata) {
@@ -1207,4 +1277,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor);
 		}
 	}
+}
+
+function hashPath(resource: URI): string {
+	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
+	return hash(str) + '';
 }

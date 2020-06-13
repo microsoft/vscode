@@ -579,6 +579,7 @@ export interface INotebookTextModelBackup {
 export interface NotebookDocumentBackupData {
 	readonly viewType: string;
 	readonly name: string;
+	readonly backupId?: string;
 }
 
 export interface IEditor extends editorCommon.ICompositeCodeEditor {
