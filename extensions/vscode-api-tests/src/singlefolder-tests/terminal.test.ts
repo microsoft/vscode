@@ -79,7 +79,6 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					TEST: '`'
 				}
 			});
-			terminal.show();
 			doesNotThrow(() => {
 				// Print an environment variable value so the echo statement doesn't get matched
 				if (process.platform === 'win32') {
