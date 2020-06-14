@@ -1805,6 +1805,7 @@
           ".gitignore_global",
           ".gitignore"
         ],
+        "filenamePatterns": ["**/.git/info/exclude"],
         "configuration": "./languages/ignore.language-configuration.json"
       }
     ],
