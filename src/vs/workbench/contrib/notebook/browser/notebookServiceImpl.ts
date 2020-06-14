@@ -359,13 +359,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return modelData.model;
 	}
 
-	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string): Promise<NotebookTextModel | undefined> {
+	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined> {
 		const provider = this._notebookProviders.get(viewType);
 		if (!provider) {
 			return undefined;
 		}
 
-		const notebookModel = await provider.controller.createNotebook(viewType, uri, undefined, forceReload, editorId);
+		const notebookModel = await provider.controller.createNotebook(viewType, uri, undefined, forceReload, editorId, backupId);
 		if (!notebookModel) {
 			return undefined;
 		}
@@ -736,6 +736,26 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		}
 
 		return false;
+	}
+
+	async backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined> {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			return provider.controller.backup(uri, token);
+		}
+
+		return;
+	}
+
+	async revert(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			return provider.controller.revert(uri, token);
+		}
+
+		return;
 	}
 
 	onDidReceiveMessage(viewType: string, editorId: string, message: any): void {

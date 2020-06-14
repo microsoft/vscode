@@ -19,13 +19,15 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 
 export interface IMainNotebookController {
 	kernel: INotebookKernelInfoDto | undefined;
-	createNotebook(viewType: string, uri: URI, backup: INotebookTextModelBackup | undefined, forceReload: boolean, editorId?: string): Promise<NotebookTextModel | undefined>;
+	createNotebook(viewType: string, uri: URI, backup: INotebookTextModelBackup | undefined, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined>;
 	executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
 	onDidReceiveMessage(editorId: string, message: any): void;
 	executeNotebookCell(uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
 	removeNotebookDocument(notebook: INotebookTextModel): Promise<void>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
+	backup(uri: URI, token: CancellationToken): Promise<string | undefined>;
+	revert(uri: URI, token: CancellationToken): Promise<void>;
 }
 
 export interface INotebookService {
@@ -50,7 +52,7 @@ export interface INotebookService {
 	unregisterNotebookKernel(id: string): void;
 	getContributedNotebookKernels(viewType: string, resource: URI): readonly INotebookKernelInfo[];
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
-	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string): Promise<NotebookTextModel | undefined>;
+	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined>;
 	createNotebookFromBackup(viewType: string, uri: URI, metadata: NotebookDocumentMetadata, languages: string[], cells: ICellDto2[], editorId?: string): Promise<NotebookTextModel | undefined>;
 	executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
 	executeNotebookCell(viewType: string, uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
@@ -64,6 +66,8 @@ export interface INotebookService {
 	updateVisibleNotebookEditor(editors: string[]): void;
 	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean>;
+	backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined>;
+	revert(viewType: string, uri: URI, token: CancellationToken): Promise<void>;
 	onDidReceiveMessage(viewType: string, editorId: string, message: any): void;
 	setToCopy(items: NotebookCellTextModel[]): void;
 	getToCopy(): NotebookCellTextModel[] | undefined;
