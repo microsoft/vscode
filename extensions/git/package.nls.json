@@ -149,6 +149,7 @@
 	"config.terminalAuthentication": "Controls whether to enable VS Code to be the authentication handler for git processes spawned in the integrated terminal. Note: terminals need to be restarted to pick up a change in this setting.",
 	"colors.added": "Color for added resources.",
 	"colors.modified": "Color for modified resources.",
+	"colors.stagedAdded": "Color for staged resources.",
 	"colors.deleted": "Color for deleted resources.",
 	"colors.untracked": "Color for untracked resources.",
 	"colors.ignored": "Color for ignored resources.",

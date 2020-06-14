@@ -1713,6 +1713,15 @@
         }
       },
       {
+        "id": "gitDecoration.stagedAddedResourceForeground",
+        "description": "%colors.stagedAdded%",
+        "defaults": {
+          "light": "#025289",
+          "dark": "#00A5FF",
+          "highContrast": "#00A5FF"
+        }
+      },
+      {
         "id": "gitDecoration.deletedResourceForeground",
         "description": "%colors.deleted%",
         "defaults": {

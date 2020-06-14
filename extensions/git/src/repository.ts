@@ -170,6 +170,7 @@ export class Resource implements SourceControlResourceState {
 	get letter(): string {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
+				return 'S';
 			case Status.MODIFIED:
 				return 'M';
 			case Status.INDEX_ADDED:
@@ -203,6 +204,7 @@ export class Resource implements SourceControlResourceState {
 	get color(): ThemeColor {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
+				return new ThemeColor('gitDecoration.stagedAddedResourceForeground');
 			case Status.MODIFIED:
 				return new ThemeColor('gitDecoration.modifiedResourceForeground');
 			case Status.INDEX_DELETED:
