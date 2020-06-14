@@ -50,30 +50,44 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 		});
 
 		test('echo works in the default shell', (done) => {
+			console.log(1);
 			disposables.push(window.onDidOpenTerminal(term => {
+				console.log(2);
 				try {
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
 					return;
 				}
+				console.log(3);
 				let data = '';
 				const dataDisposable = window.onDidWriteTerminalData(e => {
+					console.log(4);
 					try {
 						equal(terminal, e.terminal);
 					} catch (e) {
 						done(e);
 						return;
 					}
+					console.log(5);
 					data += e.data;
+					console.log(6);
 					if (data.indexOf(expected) !== 0) {
+						console.log(7);
 						dataDisposable.dispose();
+						console.log(8);
 						terminal.dispose();
-						disposables.push(window.onDidCloseTerminal(() => done()));
+						console.log(9);
+						disposables.push(window.onDidCloseTerminal(() => {
+							console.log(10);
+							done();
+						}));
+						console.log(11);
 					}
 				});
 				disposables.push(dataDisposable);
 			}));
+			console.log(12);
 			// Use a single character to avoid winpty/conpty issues with injected sequences
 			const expected = '`';
 			const terminal = window.createTerminal({
@@ -81,14 +95,18 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					TEST: '`'
 				}
 			});
+			console.log(13);
 			terminal.show();
+			console.log(14);
 			doesNotThrow(() => {
+				console.log(15);
 				// Print an environment variable value so the echo statement doesn't get matched
 				if (process.platform === 'win32') {
 					terminal.sendText(`$env:TEST`);
 				} else {
 					terminal.sendText(`echo $TEST`);
 				}
+				console.log(16);
 			});
 		});
 
