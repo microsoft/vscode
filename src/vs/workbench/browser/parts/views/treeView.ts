@@ -453,9 +453,7 @@ export class TreeView extends Disposable implements ITreeView {
 			multipleSelectionSupport: this.canSelectMany,
 			overrideStyles: {
 				listBackground: this.viewLocation === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
-			},
-			openOnFocus: false,
-			openOnSelection: false
+			}
 		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
 		aligner.tree = this.tree;
 		const actionRunner = new MultipleSelectionActionRunner(this.notificationService, () => this.tree!.getSelection());
