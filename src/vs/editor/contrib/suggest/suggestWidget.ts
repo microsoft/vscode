@@ -605,7 +605,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		this.list = new List('SuggestWidget', this.listElement, this, [renderer], {
 			useShadows: false,
-			openController: { shouldOpen: () => false },
 			mouseSupport: false,
 			accessibilityProvider: {
 				getRole: () => 'option',

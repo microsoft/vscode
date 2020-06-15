@@ -6,7 +6,7 @@
 import 'vs/css!./list';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent } from './list';
 import { List, IListStyles, IListOptions, IListAccessibilityProvider, IListOptionsUpdate } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
 import { Event } from 'vs/base/common/event';
@@ -166,6 +166,10 @@ export class PagedList<T> implements IDisposable {
 
 	get onDidDispose(): Event<void> {
 		return this.list.onDidDispose;
+	}
+
+	get onMouseDblClick(): Event<IListMouseEvent<T>> {
+		return Event.map(this.list.onMouseDblClick, ({ element, index, browserEvent }) => ({ element: element === undefined ? undefined : this._model.get(element), index, browserEvent }));
 	}
 
 	get onDidChangeFocus(): Event<IListEvent<T>> {

@@ -6,7 +6,7 @@
 import { createStyleSheet } from 'vs/base/browser/dom';
 import { IListMouseEvent, IListTouchEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer, PagedList, IPagedListOptions } from 'vs/base/browser/ui/list/listPaging';
-import { DefaultStyleController, IListOptions, IMultipleSelectionController, IOpenController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, IListAccessibilityProvider, IListOptionsUpdate } from 'vs/base/browser/ui/list/listWidget';
+import { DefaultStyleController, IListOptions, IMultipleSelectionController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, IListAccessibilityProvider, IListOptionsUpdate } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -166,44 +166,6 @@ class MultipleSelectionController<T> extends Disposable implements IMultipleSele
 	}
 }
 
-class WorkbenchOpenController extends Disposable implements IOpenController {
-	private openOnSingleClick: boolean;
-
-	constructor(private configurationService: IConfigurationService, private existingOpenController?: IOpenController) {
-		super();
-
-		this.openOnSingleClick = useSingleClickToOpen(configurationService);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(openModeSettingKey)) {
-				this.openOnSingleClick = useSingleClickToOpen(this.configurationService);
-			}
-		}));
-	}
-
-	shouldOpen(event: UIEvent): boolean {
-		if (event instanceof MouseEvent) {
-			const isLeftButton = event.button === 0;
-			const isDoubleClick = event.detail === 2;
-			if (isLeftButton && !this.openOnSingleClick && !isDoubleClick) {
-				return false;
-			}
-
-			if (isLeftButton /* left mouse button */ || event.button === 1 /* middle mouse button */) {
-				return this.existingOpenController ? this.existingOpenController.shouldOpen(event) : true;
-			}
-
-			return false;
-		}
-
-		return this.existingOpenController ? this.existingOpenController.shouldOpen(event) : true;
-	}
-}
-
 function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationService: IConfigurationService, keybindingService: IKeybindingService): [IListOptions<T>, IDisposable] {
 	const disposables = new DisposableStore();
 	const result = { ...options };
@@ -213,10 +175,6 @@ function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationServic
 		result.multipleSelectionController = multipleSelectionController;
 		disposables.add(multipleSelectionController);
 	}
-
-	const openController = new WorkbenchOpenController(configurationService, options.openController);
-	result.openController = openController;
-	disposables.add(openController);
 
 	result.keyboardNavigationDelegate = {
 		mightProducePrintableCharacter(e) {
@@ -486,6 +444,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 			onDidChangeFocus: Event<{ browserEvent?: UIEvent }>,
 			onDidChangeSelection: Event<{ browserEvent?: UIEvent }>,
 			onDidOpen: Event<{ browserEvent?: UIEvent }>,
+			onMouseDblClick: Event<{ browserEvent?: MouseEvent }>,
 			readonly openOnSingleClick?: boolean
 		},
 		options?: IResourceNavigatorOptions
@@ -506,6 +465,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 			this._register(this.treeOrList.onDidChangeSelection(e => this.onSelection(e.browserEvent)));
 		}
 
+		this._register(this.treeOrList.onMouseDblClick(e => this.onMouseDblClick(e.browserEvent)));
 		this._register(this.treeOrList.onDidOpen(e => this.onSelection(e.browserEvent)));
 	}
 
@@ -544,6 +504,19 @@ abstract class ResourceNavigator<T> extends Disposable {
 			const sideBySide = browserEvent instanceof MouseEvent && (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
 			this.open(preserveFocus, isDoubleClick || isMiddleClick, sideBySide, browserEvent);
 		}
+	}
+
+	private onMouseDblClick(browserEvent?: MouseEvent): void {
+		if (!browserEvent) {
+			return;
+		}
+
+		if (this.options.openOnSingleClick) {
+			return;
+		}
+
+		const sideBySide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
+		this.open(true, true, sideBySide, browserEvent);
 	}
 
 	private open(preserveFocus: boolean, pinned: boolean, sideBySide: boolean, browserEvent?: UIEvent): void {
