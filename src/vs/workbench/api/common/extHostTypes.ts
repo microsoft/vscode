@@ -2750,7 +2750,7 @@ export enum ExtensionMode {
 	 * The extension is installed normally (for example, from the marketplace
 	 * or VSIX) in VS Code.
 	 */
-	Release = 1,
+	Production = 1,
 
 	/**
 	 * The extension is running from an `--extensionDevelopmentPath` provided
