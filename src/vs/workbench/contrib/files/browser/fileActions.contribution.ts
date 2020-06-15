@@ -49,7 +49,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowOpenedFileInNewWi
 MenuRegistry.addCommand({
 	id: NEW_UNTITLED_FILE_COMMAND_ID,
 	title: { value: NEW_UNTITLED_FILE_LABEL, original: 'New Untitled File' },
-	category: category
+	category
 });
 
 const workspacesCategory = nls.localize('workspaces', "Workspaces");
