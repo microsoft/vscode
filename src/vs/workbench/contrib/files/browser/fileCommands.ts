@@ -605,17 +605,33 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: null,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_N,
 	id: NEW_UNTITLED_FILE_COMMAND_ID,
-	handler: async (accessor, viewType?: string) => {
+	description: {
+		description: NEW_UNTITLED_FILE_LABEL,
+		args: [
+			{
+				name: 'viewType', description: 'The editor view type', schema: {
+					'type': 'object',
+					'required': ['viewType'],
+					'properties': {
+						'viewType': {
+							'type': 'string'
+						}
+					}
+				}
+			}
+		]
+	},
+	handler: async (accessor, args?: { viewType: string }) => {
 		const editorService = accessor.get(IEditorService);
 
-		if (viewType) {
+		if (args) {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 			const configurationService = accessor.get(IConfigurationService);
 			const quickInputService = accessor.get(IQuickInputService);
 
 			const textInput = editorService.createEditorInput({ options: { pinned: true } });
 			const group = editorGroupsService.activeGroup;
-			await openEditorWith(textInput, viewType, { pinned: true }, group, editorService, configurationService, quickInputService);
+			await openEditorWith(textInput, args.viewType, { pinned: true }, group, editorService, configurationService, quickInputService);
 		} else {
 			await editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
 		}
