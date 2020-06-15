@@ -85,6 +85,7 @@ export interface ICommonElectronService {
 	closeWindow(): Promise<void>;
 	closeWindowById(windowId: number): Promise<void>;
 	quit(): Promise<void>;
+	exit(code: number): Promise<void>;
 
 	// Development
 	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
