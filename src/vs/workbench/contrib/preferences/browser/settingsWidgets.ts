@@ -734,6 +734,10 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		const rowElement = $('.setting-list-edit-row');
 
 		const keyWidget = this.renderEditWidget(item.key, rowElement);
+
+		// We have only rendered the key
+		rowElement.querySelector('.setting-list-object-input')?.classList.add('setting-list-object-input-key');
+
 		const valueWidget = this.renderEditWidget(item.value, rowElement);
 
 		const updatedItem = () => {
