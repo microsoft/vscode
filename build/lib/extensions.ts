@@ -284,10 +284,25 @@ export function packageLocalWebExtensionsStream(): NodeJS.ReadWriteStream {
 
 export function packageMarketplaceExtensionsStream(): NodeJS.ReadWriteStream {
 	const extensions = builtInExtensions.map(extension => {
-		return fromMarketplace(extension.name, extension.version, extension.metadata)
-			.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-	});
+			return fromMarketplace(extension.name, extension.version, extension.metadata)
+				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+		});
 
 	return es.merge(extensions)
 		.pipe(util2.setExecutableBit(['**/*.sh']));
+}
+
+export function packageMarketplaceWebExtensionsStream(builtInExtensions: IBuiltInExtension[]): NodeJS.ReadWriteStream {
+	const extensions = builtInExtensions
+		.map(extension => {
+			const input = fromMarketplace(extension.name, extension.version, extension.metadata);
+			return updateExtensionPackageJSON(input, (data: any) => {
+				if (data.main) {
+					data.browser = data.main;
+				}
+				data.extensionKind = ['web'];
+				return data;
+			}).pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+		});
+	return es.merge(extensions);
 }
