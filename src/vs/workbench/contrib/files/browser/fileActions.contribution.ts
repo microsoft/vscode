@@ -46,12 +46,6 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(CompareWithClipboardA
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAutoSaveAction), 'File: Toggle Auto Save', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowOpenedFileInNewWindow, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_O) }), 'File: Open Active File in New Window', category.value);
 
-MenuRegistry.addCommand({
-	id: NEW_UNTITLED_FILE_COMMAND_ID,
-	title: { value: NEW_UNTITLED_FILE_LABEL, original: 'New Untitled File' },
-	category
-});
-
 const workspacesCategory = nls.localize('workspaces', "Workspaces");
 registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenWorkspaceAction), 'Workspaces: Open Workspace...', workspacesCategory);
 
@@ -66,6 +60,11 @@ if (isMacintosh) {
 // Commands
 CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
 CommandsRegistry.registerCommand('_files.newWindow', newWindowCommand);
+MenuRegistry.addCommand({
+	id: NEW_UNTITLED_FILE_COMMAND_ID,
+	title: { value: NEW_UNTITLED_FILE_LABEL, original: 'New Untitled File' },
+	category
+});
 
 const explorerCommandsWeightBonus = 10; // give our commands a little bit more weight over other default list/tree commands
 
