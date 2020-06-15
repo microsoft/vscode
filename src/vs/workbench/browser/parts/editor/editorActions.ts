@@ -491,27 +491,26 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
 
 	async run(context?: IEditorIdentifier): Promise<void> {
-		const { group, editor } = getTarget(this.editorService, this.editorGroupService, context);
+		const { group, editor } = this.getTarget(context);
 		if (group && editor) {
 			return group.closeEditors({ direction: CloseDirection.LEFT, except: editor, excludeSticky: true });
 		}
 	}
-}
 
-function getTarget(editorService: IEditorService, editorGroupService: IEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput | null, group: IEditorGroup | undefined } {
-	if (context) {
-		return { editor: context.editor, group: editorGroupService.getGroup(context.groupId) };
+	private getTarget(context?: IEditorIdentifier): { editor: IEditorInput | null, group: IEditorGroup | undefined } {
+		if (context) {
+			return { editor: context.editor, group: this.editorGroupService.getGroup(context.groupId) };
+		}
+
+		// Fallback to active group
+		return { group: this.editorGroupService.activeGroup, editor: this.editorGroupService.activeGroup.activeEditor };
 	}
-
-	// Fallback to active group
-	return { group: editorGroupService.activeGroup, editor: editorGroupService.activeGroup.activeEditor };
 }
 
 abstract class BaseCloseAllAction extends Action {
