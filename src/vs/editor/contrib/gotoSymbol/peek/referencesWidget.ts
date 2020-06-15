@@ -6,7 +6,6 @@
 import 'vs/css!./referencesWidget';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { GestureEvent } from 'vs/base/browser/touch';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -317,6 +316,8 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			accessibilityProvider: new AccessibilityProvider(),
 			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
 			identityProvider: new IdentityProvider(),
+			openOnSingleClick: true,
+			openOnFocus: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
 			}
@@ -372,22 +373,13 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				this._onDidSelectReference.fire({ element, kind, source: 'tree' });
 			}
 		};
-		this._tree.onDidChangeFocus(e => {
-			onEvent(e.elements[0], 'show');
-		});
 		this._tree.onDidOpen(e => {
-			if (e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey)) {
-				// modifier-click -> open to the side
-				onEvent(e.elements[0], 'side');
-			} else if (e.browserEvent instanceof KeyboardEvent || (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2) || (<GestureEvent>e.browserEvent).tapCount === 2) {
-				// keybinding (list service command)
-				// OR double click
-				// OR double tap
-				// -> close widget and goto target
-				onEvent(e.elements[0], 'goto');
+			if (e.sideBySide) {
+				onEvent(e.element, 'side');
+			} else if (e.editorOptions.pinned) {
+				onEvent(e.element, 'goto');
 			} else {
-				// preview location
-				onEvent(e.elements[0], 'show');
+				onEvent(e.element, 'show');
 			}
 		});
 

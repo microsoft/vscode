@@ -36,6 +36,9 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 		this._container = container;
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('terminal-env-var-info', 'codicon', `codicon-${this._info.getIcon()}`);
+		if (this.requiresAction) {
+			this._domNode.classList.add('requires-action');
+		}
 		container.appendChild(this._domNode);
 
 

@@ -86,13 +86,26 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	capabilities = 0;
 
 	async backup(): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
-		return {
-			meta: {
-				name: this._name,
-				viewType: this._notebook.viewType
-			},
-			content: this._notebook.createSnapshot(true)
-		};
+		if (this._notebook.supportBackup) {
+			const tokenSource = new CancellationTokenSource();
+			const backupId = await this.notebookService.backup(this.viewType, this.resource, tokenSource.token);
+
+			return {
+				meta: {
+					name: this._name,
+					viewType: this._notebook.viewType,
+					backupId: backupId
+				}
+			};
+		} else {
+			return {
+				meta: {
+					name: this._name,
+					viewType: this._notebook.viewType
+				},
+				content: this._notebook.createSnapshot(true)
+			};
+		}
 	}
 
 	async revert(options?: IRevertOptions | undefined): Promise<void> {
@@ -101,27 +114,33 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			return;
 		}
 
-		await this.load({ forceReadFromDisk: true });
+		if (this._notebook.supportBackup) {
+			const tokenSource = new CancellationTokenSource();
+			await this.notebookService.revert(this.viewType, this.resource, tokenSource.token);
+		} else {
+			await this.load({ forceReadFromDisk: true });
+		}
+
 		this._dirty = false;
 		this._onDidChangeDirty.fire();
-		return;
 	}
 
 	async load(options?: INotebookLoadOptions): Promise<NotebookEditorModel> {
 		if (options?.forceReadFromDisk) {
-			return this.loadFromProvider(true);
+			return this.loadFromProvider(true, undefined, undefined);
 		}
+
 		if (this.isResolved()) {
 			return this;
 		}
 
-		const backup = await this.backupFileService.resolve(this._workingCopyResource);
+		const backup = await this.backupFileService.resolve<NotebookDocumentBackupData>(this._workingCopyResource);
 
 		if (this.isResolved()) {
 			return this; // Make sure meanwhile someone else did not succeed in loading
 		}
 
-		if (backup) {
+		if (backup && backup.meta?.backupId === undefined) {
 			try {
 				return await this.loadFromBackup(backup.value.create(DefaultEndOfLine.LF), options?.editorId);
 			} catch (error) {
@@ -129,7 +148,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			}
 		}
 
-		return this.loadFromProvider(false, options?.editorId);
+		return this.loadFromProvider(false, options?.editorId, backup?.meta?.backupId);
 	}
 
 	private async loadFromBackup(content: ITextBuffer, editorId?: string): Promise<NotebookEditorModel> {
@@ -155,8 +174,8 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		return this;
 	}
 
-	private async loadFromProvider(forceReloadFromDisk: boolean, editorId?: string) {
-		const notebook = await this.notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, editorId);
+	private async loadFromProvider(forceReloadFromDisk: boolean, editorId: string | undefined, backupId: string | undefined) {
+		const notebook = await this.notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, editorId, backupId);
 		this._notebook = notebook!;
 
 		this._name = basename(this._notebook!.uri);
@@ -168,6 +187,11 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		this._register(this._notebook.onDidChangeUnknown(() => {
 			this.setDirty(true);
 		}));
+
+		if (backupId) {
+			await this.backupFileService.discardBackup(this._workingCopyResource);
+			this.setDirty(true);
+		}
 
 		return this;
 	}

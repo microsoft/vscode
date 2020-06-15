@@ -854,6 +854,7 @@ declare module 'vscode' {
 	export interface DebugSessionOptions {
 		/**
 		 * Controls whether this session should run without debugging, thus ignoring breakpoints.
+		 * When this property is not specified, the value from the parent session (if there is one) is used.
 		 */
 		noDebug?: boolean;
 	}
@@ -1526,14 +1527,21 @@ declare module 'vscode' {
 		subTypes?: string[];
 	}
 
+	export interface NotebookRenderRequest {
+		output: CellDisplayOutput;
+		mimeType: string;
+		outputId: string;
+	}
+
 	export interface NotebookOutputRenderer {
 		/**
 		 *
 		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
 		 *
 		 */
-		render(document: NotebookDocument, output: CellDisplayOutput, mimeType: string): string;
-		preloads?: Uri[];
+		render(document: NotebookDocument, request: NotebookRenderRequest): string;
+
+		readonly preloads?: Uri[];
 	}
 
 	export interface NotebookCellsChangeData {
@@ -1603,14 +1611,38 @@ declare module 'vscode' {
 		readonly document: NotebookDocument;
 	}
 
+	interface NotebookDocumentBackup {
+		/**
+		 * Unique identifier for the backup.
+		 *
+		 * This id is passed back to your extension in `openCustomDocument` when opening a custom editor from a backup.
+		 */
+		readonly id: string;
+
+		/**
+		 * Delete the current backup.
+		 *
+		 * This is called by VS Code when it is clear the current backup is no longer needed, such as when a new backup
+		 * is made or when the file is saved.
+		 */
+		delete(): void;
+	}
+
+	interface NotebookDocumentBackupContext {
+		readonly destination: Uri;
+	}
+
+	interface NotebookDocumentOpenContext {
+		readonly backupId?: string;
+	}
+
 	export interface NotebookContentProvider {
-		openNotebook(uri: Uri): NotebookData | Promise<NotebookData>;
+		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		readonly onDidChangeNotebook: Event<NotebookDocumentEditEvent>;
-
-		// revert?(document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
-		// backup?(document: NotebookDocument, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
+		revertNotebook?(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		backupNotebook?(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
 
 		kernel?: NotebookKernel;
 	}
@@ -1664,43 +1696,6 @@ declare module 'vscode' {
 		 * @param selector
 		 */
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
-	}
-
-	//#endregion
-
-	//#region @connor4312 extension mode: https://github.com/microsoft/vscode/issues/95926
-
-	/**
-	 * The ExtensionMode is provided on the `ExtensionContext` and indicates the
-	 * mode the specific extension is running in.
-	 */
-	export enum ExtensionMode {
-		/**
-		 * The extension is installed normally (for example, from the marketplace
-		 * or VSIX) in VS Code.
-		 */
-		Release = 1,
-
-		/**
-		 * The extension is running from an `--extensionDevelopmentPath` provided
-		 * when launching VS Code.
-		 */
-		Development = 2,
-
-		/**
-		 * The extension is running from an `--extensionDevelopmentPath` and
-		 * the extension host is running unit tests.
-		 */
-		Test = 3,
-	}
-
-	export interface ExtensionContext {
-		/**
-		 * The mode the extension is running in. This is specific to the current
-		 * extension. One extension may be in `ExtensionMode.Development` while
-		 * other extensions in the host run in `ExtensionMode.Release`.
-		 */
-		readonly extensionMode: ExtensionMode;
 	}
 
 	//#endregion

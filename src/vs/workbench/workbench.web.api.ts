@@ -442,10 +442,11 @@ export {
 	IHomeIndicator,
 
 	// Default layout
+	IDefaultView,
 	IDefaultEditor,
 	IDefaultLayout,
 	IDefaultPanelLayout,
-	IDefaultSideBarLayout,
+	IDefaultSideBarLayout
 };
 
 //#endregion
