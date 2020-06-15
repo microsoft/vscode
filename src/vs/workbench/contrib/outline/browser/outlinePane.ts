@@ -344,7 +344,8 @@ export class OutlinePane extends ViewPane {
 				hideTwistiesOfChildlessElements: true,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
-				}
+				},
+				openOnSingleClick: true
 			}
 		);
 

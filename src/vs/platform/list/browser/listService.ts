@@ -437,7 +437,6 @@ abstract class ResourceNavigator<T> extends Disposable {
 
 	constructor(
 		private readonly widget: ListWidget,
-		configurationService?: IConfigurationService,
 		options?: IResourceNavigatorOptions
 	) {
 		super();
@@ -456,9 +455,9 @@ abstract class ResourceNavigator<T> extends Disposable {
 
 		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent }) => this.onMouseDblClick(e.browserEvent)));
 
-		if (configurationService) {
-			this._register(configurationService.onDidChangeConfiguration(() => {
-				this.openOnSingleClick = configurationService.getValue(openModeSettingKey) !== 'doubleClick';
+		if (typeof options?.openOnSingleClick !== 'boolean' && options?.configurationService) {
+			this._register(options?.configurationService.onDidChangeConfiguration(() => {
+				this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
 			}));
 		}
 	}
@@ -525,26 +524,21 @@ abstract class ResourceNavigator<T> extends Disposable {
 	}
 }
 
-interface IListResourceNavigatorOptions extends IResourceNavigatorOptions {
-	readonly configurationService?: IConfigurationService;
-}
-
 export class ListResourceNavigator<T> extends ResourceNavigator<number> {
 	constructor(
 		list: List<T> | PagedList<T>,
-		options?: IListResourceNavigatorOptions
+		options?: IResourceNavigatorOptions
 	) {
-		super(list, options?.configurationService, options);
+		super(list, options);
 	}
 }
 
 class TreeResourceNavigator<T, TFilterData> extends ResourceNavigator<T> {
 	constructor(
 		tree: ObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | DataTree<any, T, TFilterData> | AsyncDataTree<any, T, TFilterData> | CompressibleAsyncDataTree<any, T, TFilterData>,
-		configurationService: IConfigurationService,
 		options: IResourceNavigatorOptions
 	) {
-		super(tree, configurationService, options);
+		super(tree, options);
 	}
 }
 
@@ -928,7 +922,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 			accessibilityService.onDidChangeScreenReaderOptimized(() => updateKeyboardNavigation())
 		);
 
-		this.navigator = new TreeResourceNavigator(tree, configurationService, options);
+		this.navigator = new TreeResourceNavigator(tree, { configurationService, ...options });
 		this.disposables.push(this.navigator);
 	}
 
