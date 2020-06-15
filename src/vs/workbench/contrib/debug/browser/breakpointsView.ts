@@ -110,24 +110,27 @@ export class BreakpointsView extends ViewPane {
 
 		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
+		this.list.onMouseMiddleClick(async ({ element }) => {
+			if (element instanceof Breakpoint) {
+				await this.debugService.removeBreakpoints(element.getId());
+			} else if (element instanceof FunctionBreakpoint) {
+				await this.debugService.removeFunctionBreakpoints(element.getId());
+			} else if (element instanceof DataBreakpoint) {
+				await this.debugService.removeDataBreakpoints(element.getId());
+			}
+		});
+
 		const resourceNavigator = this._register(new ListResourceNavigator(this.list, { configurationService: this.configurationService }));
 		this._register(resourceNavigator.onDidOpen(async e => {
-			if (!e.element) {
+			if (e.element === null) {
+				return;
+			}
+
+			if (e.browserEvent instanceof MouseEvent && e.browserEvent.button === 1) { // middle click
 				return;
 			}
 
 			const element = this.list.element(e.element);
-
-			if (e.browserEvent instanceof MouseEvent && e.browserEvent.button === 1) { // middle click
-				if (element instanceof Breakpoint) {
-					await this.debugService.removeBreakpoints(element.getId());
-				} else if (element instanceof FunctionBreakpoint) {
-					await this.debugService.removeFunctionBreakpoints(element.getId());
-				} else if (element instanceof DataBreakpoint) {
-					await this.debugService.removeDataBreakpoints(element.getId());
-				}
-				return;
-			}
 
 			if (element instanceof Breakpoint) {
 				openBreakpointSource(element, e.sideBySide, e.editorOptions.preserveFocus || false, this.debugService, this.editorService);
