@@ -82,6 +82,7 @@ export interface ICommonElectronService {
 	toggleWindowTabsBar(): Promise<void>;
 
 	// Lifecycle
+	notifyReady(): Promise<void>
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
 	reload(options?: { disableExtensions?: boolean }): Promise<void>;
 	closeWindow(): Promise<void>;

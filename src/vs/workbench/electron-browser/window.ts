@@ -397,8 +397,8 @@ export class NativeWindow extends Disposable {
 		// Handle open calls
 		this.setupOpenHandlers();
 
-		// Emit event when vscode is ready
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipcRenderer.send('vscode:workbenchReady', this.electronService.windowId));
+		// Notify main side when window ready
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.electronService.notifyReady());
 
 		// Integrity warning
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));

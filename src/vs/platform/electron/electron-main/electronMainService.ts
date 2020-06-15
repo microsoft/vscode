@@ -370,6 +370,13 @@ export class ElectronMainService implements IElectronMainService {
 
 	//#region Lifecycle
 
+	async notifyReady(windowId: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window) {
+			window.setReady();
+		}
+	}
+
 	async relaunch(windowId: number | undefined, options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
 		return this.lifecycleMainService.relaunch(options);
 	}
