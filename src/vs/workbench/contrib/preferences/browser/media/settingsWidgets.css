@@ -78,7 +78,7 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row-header,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row:nth-child(odd):not(:hover) {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row:nth-child(odd):not(:hover):not(:focus):not(.selected) {
 	background-color: rgba(130, 130, 130, 0.04);
 }
 
