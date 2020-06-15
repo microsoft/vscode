@@ -80,6 +80,8 @@ import { INativeEnvironmentService } from 'vs/platform/environment/node/environm
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
+import { createServer, AddressInfo } from 'net';
+import { IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -831,20 +833,80 @@ class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHost
 		super();
 	}
 
-	async call(ctx: TContext, command: string, arg?: any): Promise<any> {
+	call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		if (command === 'openExtensionDevelopmentHostWindow') {
-			const env = arg[1];
-			const pargs = parseArgs(arg[0], OPTIONS);
-			const extDevPaths = pargs.extensionDevelopmentPath;
-			if (extDevPaths) {
-				this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
-					context: OpenContext.API,
-					cli: pargs,
-					userEnv: Object.keys(env).length > 0 ? env : undefined
-				});
-			}
+			return this.openExtensionDevelopmentHostWindow(arg[0], arg[1], arg[2]);
 		} else {
 			return super.call(ctx, command, arg);
 		}
+	}
+
+	private async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
+		const pargs = parseArgs(args, OPTIONS);
+		const extDevPaths = pargs.extensionDevelopmentPath;
+		if (!extDevPaths) {
+			return {};
+		}
+
+		const [codeWindow] = this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
+			context: OpenContext.API,
+			cli: pargs,
+			userEnv: Object.keys(env).length > 0 ? env : undefined
+		});
+
+		if (!debugRenderer) {
+			return {};
+		}
+
+		const debug = codeWindow.win.webContents.debugger;
+
+		let listeners = debug.isAttached() ? Infinity : 0;
+		const server = createServer(listener => {
+			if (listeners++ === 0) {
+				debug.attach();
+			}
+
+			let closed = false;
+			const writeMessage = (message: object) => {
+				if (!closed) { // in case sendCommand promises settle after closed
+					listener.write(JSON.stringify(message) + '\0'); // null-delimited, CDP-compatible
+				}
+			};
+
+			const onMessage = (_event: Event, method: string, params: unknown) =>
+				writeMessage(({ method, params }));
+
+			codeWindow.win.on('close', () => {
+				debug.removeListener('message', onMessage);
+				listener.end();
+				closed = true;
+			});
+
+			debug.addListener('message', onMessage);
+
+			let buf = Buffer.alloc(0);
+			listener.on('data', data => {
+				buf = Buffer.concat([buf, data]);
+				for (let delimiter = buf.indexOf(0); delimiter !== -1; delimiter = buf.indexOf(0)) {
+					const data = JSON.parse(buf.slice(0, delimiter).toString('utf8'));
+					buf = buf.slice(delimiter + 1);
+					debug.sendCommand(data.method, data.params)
+						.then(result => writeMessage({ id: data.id, result }))
+						.catch(error => writeMessage({ id: data.id, error: { code: 0, message: error.message } }));
+				}
+			});
+
+			listener.on('close', () => {
+				closed = true;
+				if (--listeners === 0) {
+					debug.detach();
+				}
+			});
+		});
+
+		await new Promise(r => server.listen(0, r));
+		codeWindow.win.on('close', () => server.close());
+
+		return { rendererDebugPort: (server.address() as AddressInfo).port };
 	}
 }
