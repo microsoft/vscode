@@ -444,7 +444,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 
 		this.openOnFocus = options?.openOnFocus ?? false;
 		this.openOnSelection = options?.openOnSelection ?? true;
-		this.openOnSingleClick = options?.openOnSingleClick ?? false;
+		this.openOnSingleClick = options?.openOnSingleClick ?? true;
 
 		if (this.openOnFocus) {
 			this._register(this.widget.onDidChangeFocus(e => this.onFocus(e.browserEvent)));
