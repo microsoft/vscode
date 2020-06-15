@@ -854,6 +854,7 @@ declare module 'vscode' {
 	export interface DebugSessionOptions {
 		/**
 		 * Controls whether this session should run without debugging, thus ignoring breakpoints.
+		 * When this property is not specified, the value from the parent session (if there is one) is used.
 		 */
 		noDebug?: boolean;
 	}
