@@ -31,9 +31,6 @@ function focusDown(accessor: ServicesAccessor, arg2?: number, loop: boolean = fa
 	const focused = accessor.get(IListService).lastFocusedList;
 	const count = typeof arg2 === 'number' ? arg2 : 1;
 
-	// Ensure DOM Focus
-	ensureDOMFocus(focused);
-
 	// List
 	if (focused instanceof List || focused instanceof PagedList) {
 		const list = focused;
@@ -57,6 +54,9 @@ function focusDown(accessor: ServicesAccessor, arg2?: number, loop: boolean = fa
 			tree.reveal(listFocus[0]);
 		}
 	}
+
+	// Ensure DOM Focus
+	ensureDOMFocus(focused);
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -135,9 +135,6 @@ function focusUp(accessor: ServicesAccessor, arg2?: number, loop: boolean = fals
 	const focused = accessor.get(IListService).lastFocusedList;
 	const count = typeof arg2 === 'number' ? arg2 : 1;
 
-	// Ensure DOM Focus
-	ensureDOMFocus(focused);
-
 	// List
 	if (focused instanceof List || focused instanceof PagedList) {
 		const list = focused;
@@ -161,6 +158,9 @@ function focusUp(accessor: ServicesAccessor, arg2?: number, loop: boolean = fals
 			tree.reveal(listFocus[0]);
 		}
 	}
+
+	// Ensure DOM Focus
+	ensureDOMFocus(focused);
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -354,9 +354,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor) => {
 		const focused = accessor.get(IListService).lastFocusedList;
 
-		// Ensure DOM Focus
-		ensureDOMFocus(focused);
-
 		// List
 		if (focused instanceof List || focused instanceof PagedList) {
 			const list = focused;
@@ -373,6 +370,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			list.focusPreviousPage(fakeKeyboardEvent);
 			list.reveal(list.getFocus()[0]);
 		}
+
+		// Ensure DOM Focus
+		ensureDOMFocus(focused);
 	}
 });
 
@@ -383,9 +383,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.PageDown,
 	handler: (accessor) => {
 		const focused = accessor.get(IListService).lastFocusedList;
-
-		// Ensure DOM Focus
-		ensureDOMFocus(focused);
 
 		// List
 		if (focused instanceof List || focused instanceof PagedList) {
@@ -403,6 +400,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			list.focusNextPage(fakeKeyboardEvent);
 			list.reveal(list.getFocus()[0]);
 		}
+
+		// Ensure DOM Focus
+		ensureDOMFocus(focused);
 	}
 });
 
@@ -425,9 +425,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 function listFocusFirst(accessor: ServicesAccessor, options?: { fromFocused: boolean }): void {
 	const focused = accessor.get(IListService).lastFocusedList;
 
-	// Ensure DOM Focus
-	ensureDOMFocus(focused);
-
 	// List
 	if (focused instanceof List || focused instanceof PagedList) {
 		const list = focused;
@@ -448,6 +445,9 @@ function listFocusFirst(accessor: ServicesAccessor, options?: { fromFocused: boo
 			tree.reveal(focus[0]);
 		}
 	}
+
+	// Ensure DOM Focus
+	ensureDOMFocus(focused);
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -469,9 +469,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 function listFocusLast(accessor: ServicesAccessor, options?: { fromFocused: boolean }): void {
 	const focused = accessor.get(IListService).lastFocusedList;
 
-	// Ensure DOM Focus
-	ensureDOMFocus(focused);
-
 	// List
 	if (focused instanceof List || focused instanceof PagedList) {
 		const list = focused;
@@ -492,6 +489,9 @@ function listFocusLast(accessor: ServicesAccessor, options?: { fromFocused: bool
 			tree.reveal(focus[0]);
 		}
 	}
+
+	// Ensure DOM Focus
+	ensureDOMFocus(focused);
 }
 
 
