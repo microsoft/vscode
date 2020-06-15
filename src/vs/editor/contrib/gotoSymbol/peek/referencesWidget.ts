@@ -6,7 +6,6 @@
 import 'vs/css!./referencesWidget';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { GestureEvent } from 'vs/base/browser/touch';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
