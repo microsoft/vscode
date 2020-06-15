@@ -108,7 +108,7 @@ export async function openEditorWith(
 		picker.show();
 	});
 
-	return pickedItem?.handler.open(input!, { ...options, override: pickedItem.id }, group, OpenEditorContext.NEW_EDITOR)?.override;
+	return pickedItem?.handler.open(input, { ...options, override: pickedItem.id }, group, OpenEditorContext.NEW_EDITOR)?.override;
 }
 
 export const defaultEditorOverrideEntry = Object.freeze({
