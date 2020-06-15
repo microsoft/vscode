@@ -525,7 +525,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	// override
 	domFocus() {
-		if (document.activeElement && this.view.domNode.contains(document.activeElement)) {
+		const focused = this.getFocusedElements()[0];
+		const focusedDomElement = this.domElementOfElement(focused);
+
+		if (document.activeElement && focusedDomElement && focusedDomElement.contains(document.activeElement)) {
 			// for example, when focus goes into monaco editor, if we refocus the list view, the editor will lose focus.
 			return;
 		}
