@@ -349,8 +349,20 @@ export abstract class AbstractScrollableElement extends Widget {
 				classifier.accept(Date.now(), e.deltaX / window.devicePixelRatio, e.deltaY / window.devicePixelRatio);
 			} else {
 				if (platform.isLinux) {
-					// There's a problem with floating point on Linux
-					classifier.accept(Date.now(), Math.ceil(e.deltaX / window.devicePixelRatio), Math.ceil(e.deltaY / window.devicePixelRatio));
+					// There's a problem with floating point on Linux.
+					// The normal deltaY on Linux is 53
+					//
+					// let unmultipliedDeltaY = e.deltaY / window.devicePixelRatio;
+					// if (unmultipliedDeltaY > 52.99 && unmultipliedDeltaY <= 53) {
+					// 	// This is physical mouse wheel
+					// 	classifier.accept(Date.now(), e.deltaX, Math.ceil(unmultipliedDeltaY));
+					// } else {
+					// 	// This is touchpad
+					// 	classifier.accept(Date.now(), e.deltaX, e.deltaY);
+					// }
+					//
+					let unmultipliedDeltaY = Math.ceil(e.deltaY / window.devicePixelRatio);
+					classifier.accept(Date.now(), e.deltaX, unmultipliedDeltaY == 53 ? unmultipliedDeltaY : e.deltaY);
 				} else {
 					classifier.accept(Date.now(), e.deltaX, e.deltaY);
 				}
