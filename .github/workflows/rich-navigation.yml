@@ -1,4 +1,4 @@
-name: RichNavigationIndexing
+name: "Rich Navigation Indexing"
 on:
   pull_request:
   push:
