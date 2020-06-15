@@ -20,9 +20,7 @@ import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common
 import { Position, Parts, IWorkbenchLayoutService, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, WillSaveStateReason, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -32,8 +30,6 @@ import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/no
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
 import { readFontInfo, restoreFontInfo, serializeFontInfo } from 'vs/editor/browser/config/configuration';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -44,9 +40,6 @@ import { coalesce } from 'vs/base/common/arrays';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Extensions as PanelExtensions, PanelRegistry } from 'vs/workbench/browser/panel';
-import { IViewDescriptorService, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class Workbench extends Layout {
 
@@ -146,7 +139,8 @@ export class Workbench extends Layout {
 				this.initLayout(accessor);
 
 				// Registries
-				this.startRegistries(accessor);
+				Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
+				Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
 
 				// Context Keys
 				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
@@ -165,11 +159,7 @@ export class Workbench extends Layout {
 
 				// Restore
 				try {
-					await this.restoreWorkbench(
-						accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExtensionService), accessor.get(IViewDescriptorService),
-						accessor.get(IViewsService), accessor.get(IViewletService), accessor.get(IPanelService),
-						accessor.get(ILogService), lifecycleService
-					);
+					await this.restoreWorkbench(accessor.get(ILogService), lifecycleService);
 				} catch (error) {
 					onUnexpectedError(error);
 				}
@@ -218,11 +208,6 @@ export class Workbench extends Layout {
 		});
 
 		return instantiationService;
-	}
-
-	private startRegistries(accessor: ServicesAccessor): void {
-		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
-		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
 	}
 
 	private registerListeners(
@@ -404,137 +389,15 @@ export class Workbench extends Layout {
 	}
 
 	private async restoreWorkbench(
-		editorService: IEditorService,
-		editorGroupService: IEditorGroupsService,
-		extensionService: IExtensionService,
-		viewDescriptorService: IViewDescriptorService,
-		viewsService: IViewsService,
-		viewletService: IViewletService,
-		panelService: IPanelService,
 		logService: ILogService,
 		lifecycleService: ILifecycleService
 	): Promise<void> {
-		const restorePromises: Promise<void>[] = [];
-
-		// Restore editors
-		restorePromises.push((async () => {
-			mark('willRestoreEditors');
-
-			// first ensure the editor part is restored
-			await editorGroupService.whenRestored;
-
-			// then see for editors to open as instructed
-			let editors: IResourceEditorInputType[];
-			if (Array.isArray(this.state.editor.editorsToOpen)) {
-				editors = this.state.editor.editorsToOpen;
-			} else {
-				editors = await this.state.editor.editorsToOpen;
-			}
-
-			if (editors.length) {
-				await editorService.openEditors(editors);
-			}
-
-			mark('didRestoreEditors');
-		})());
-
-		if (this.state.views.defaults?.length) {
-			mark('willOpenDefaultViews');
-
-			const defaultViews = [...this.state.views.defaults];
-
-			let locationsRestored: boolean[] = [];
-
-			async function tryOpenView(viewId: string, index: number) {
-				const location = viewDescriptorService.getViewLocationById(viewId);
-				// eslint-disable-next-line eqeqeq
-				if (location != null) {
-					// If the view is in the same location that has already been restored, remove it and continue
-					if (locationsRestored[location]) {
-						defaultViews.splice(index, 1);
-
-						return;
-					}
-
-					const view = await viewsService.openView(viewId);
-					if (view) {
-						locationsRestored[location] = true;
-						defaultViews.splice(index, 1);
-					}
-				}
-			}
-
-			let i = -1;
-			for (const viewId of defaultViews) {
-				await tryOpenView(viewId, ++i);
-			}
-
-			// If we still have views left over, wait until all extensions have been registered and try again
-			if (defaultViews.length) {
-				await extensionService.whenInstalledExtensionsRegistered();
-
-				let i = -1;
-				for (const viewId of defaultViews) {
-					await tryOpenView(viewId, ++i);
-				}
-			}
-
-			// If we opened a view in the sidebar, stop any restore there
-			if (locationsRestored[ViewContainerLocation.Sidebar]) {
-				this.state.sideBar.viewletToRestore = undefined;
-			}
-
-			// If we opened a view in the panel, stop any restore there
-			if (locationsRestored[ViewContainerLocation.Panel]) {
-				this.state.panel.panelToRestore = undefined;
-			}
-
-			mark('didOpenDefaultViews');
-		}
-
-		// Restore Sidebar
-		if (this.state.sideBar.viewletToRestore) {
-			restorePromises.push((async () => {
-				mark('willRestoreViewlet');
-
-				const viewlet = await viewletService.openViewlet(this.state.sideBar.viewletToRestore);
-				if (!viewlet) {
-					await viewletService.openViewlet(viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id); // fallback to default viewlet as needed
-				}
-
-				mark('didRestoreViewlet');
-			})());
-		}
-
-		// Restore Panel
-		if (this.state.panel.panelToRestore) {
-			restorePromises.push((async () => {
-				mark('willRestorePanel');
-
-				const panel = await panelService.openPanel(this.state.panel.panelToRestore!);
-				if (!panel) {
-					await panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
-				}
-
-				mark('didRestorePanel');
-			})());
-		}
-
-		// Restore Zen Mode
-		if (this.state.zenMode.restore) {
-			this.toggleZenMode(false, true);
-		}
-
-		// Restore Editor Center Mode
-		if (this.state.editor.restoreCentered) {
-			this.centerEditorLayout(true, true);
-		}
 
 		// Emit a warning after 10s if restore does not complete
 		const restoreTimeoutHandle = setTimeout(() => logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.'), 10000);
 
 		try {
-			await Promise.all(restorePromises);
+			await super.restoreWorkbenchLayout();
 
 			clearTimeout(restoreTimeoutHandle);
 		} catch (error) {

@@ -44,28 +44,19 @@
 				"command": "markdown.showPreviewToSide",
 				"title": "%markdown.previewSide.title%",
 				"category": "Markdown",
-				"icon": {
-					"light": "./media/preview-right-light.svg",
-					"dark": "./media/preview-right-dark.svg"
-				}
+				"icon": "$(open-preview)"
 			},
 			{
 				"command": "markdown.showLockedPreviewToSide",
 				"title": "%markdown.showLockedPreviewToSide.title%",
 				"category": "Markdown",
-				"icon": {
-					"light": "./media/preview-right-light.svg",
-					"dark": "./media/preview-right-dark.svg"
-				}
+				"icon": "$(open-preview)"
 			},
 			{
 				"command": "markdown.showSource",
 				"title": "%markdown.showSource.title%",
 				"category": "Markdown",
-				"icon": {
-					"light": "./media/view-source-light.svg",
-					"dark": "./media/view-source-dark.svg"
-				}
+				"icon": "$(go-to-file)"
 			},
 			{
 				"command": "markdown.showPreviewSecuritySelector",

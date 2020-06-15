@@ -72,7 +72,7 @@
 	},
 	"gulp.autoDetect": "off",
 	"files.insertFinalNewline": true,
-  "[typescript]": {
+	"[typescript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features"
 	},
 	"typescript.tsc.autoDetect": "off"

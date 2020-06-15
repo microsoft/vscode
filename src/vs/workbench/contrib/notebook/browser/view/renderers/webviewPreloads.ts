@@ -251,9 +251,17 @@ function webviewPreloads() {
 		return mapped.event;
 	}
 
+	interface ICreateCellInfo {
+		outputId: string;
+		element: HTMLElement;
+	}
 
-	const onWillDestroyCell = createEmitter<[string | undefined /* namespace */, string | undefined /* cell uri */]>();
-	const onDidCreateCell = createEmitter<[string | undefined /* namespace */, HTMLElement]>();
+	interface IDestroyCellInfo {
+		outputId: string;
+	}
+
+	const onWillDestroyOutput = createEmitter<[string | undefined /* namespace */, IDestroyCellInfo | undefined /* cell uri */]>();
+	const onDidCreateOutput = createEmitter<[string | undefined /* namespace */, ICreateCellInfo]>();
 
 	const matchesNs = (namespace: string, query: string | undefined) => namespace === '*' || query === namespace || query === 'undefined';
 
@@ -271,8 +279,8 @@ function webviewPreloads() {
 				const state = vscode.getState();
 				return typeof state === 'object' && state ? state[namespace] as T : undefined;
 			},
-			onWillDestroyCell: mapEmitter(onWillDestroyCell, ([ns, cellUri]) => matchesNs(namespace, ns) ? cellUri : dontEmit),
-			onDidCreateCell: mapEmitter(onDidCreateCell, ([ns, element]) => matchesNs(namespace, ns) ? element : dontEmit),
+			onWillDestroyOutput: mapEmitter(onWillDestroyOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
+			onDidCreateOutput: mapEmitter(onDidCreateOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
 		};
 	};
 
@@ -319,7 +327,7 @@ function webviewPreloads() {
 					// eval
 					domEval(outputNode);
 					resizeObserve(outputNode, outputId);
-					onDidCreateCell.fire([event.data.apiNamespace, outputNode]);
+					onDidCreateOutput.fire([event.data.apiNamespace, { element: outputNode, outputId }]);
 
 					vscode.postMessage({
 						__vscode_notebook_message: true,
@@ -347,7 +355,7 @@ function webviewPreloads() {
 					break;
 				}
 			case 'clear':
-				onWillDestroyCell.fire([undefined, undefined]);
+				onWillDestroyOutput.fire([undefined, undefined]);
 				document.getElementById('container')!.innerHTML = '';
 				for (let i = 0; i < observers.length; i++) {
 					observers[i].disconnect();
@@ -358,7 +366,7 @@ function webviewPreloads() {
 			case 'clearOutput':
 				{
 					const id = event.data.id;
-					onWillDestroyCell.fire([event.data.apiNamespace, event.data.cellUri]);
+					onWillDestroyOutput.fire([event.data.apiNamespace, { outputId: id }]);
 					let output = document.getElementById(id);
 					if (output && output.parentNode) {
 						document.getElementById(id)!.parentNode!.removeChild(output);

@@ -29,11 +29,12 @@ export class MainThreadNotebookDocument extends Disposable {
 		private readonly _proxy: ExtHostNotebookShape,
 		public handle: number,
 		public viewType: string,
+		public supportBackup: boolean,
 		public uri: URI,
 		readonly notebookService: INotebookService
 	) {
 		super();
-		this._textModel = new NotebookTextModel(handle, viewType, uri);
+		this._textModel = new NotebookTextModel(handle, viewType, supportBackup, uri);
 		this._register(this._textModel.onDidModelChangeProxy(e => {
 			this._proxy.$acceptModelChanged(this.uri, e);
 			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: { selections: this._textModel.selections }, metadata: null });
@@ -386,8 +387,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this._notebookService.unregisterNotebookRenderer(id);
 	}
 
-	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, kernel: INotebookKernelInfoDto | undefined): Promise<void> {
-		let controller = new MainThreadNotebookController(this._proxy, this, viewType, kernel, this._notebookService);
+	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, kernel: INotebookKernelInfoDto | undefined): Promise<void> {
+		let controller = new MainThreadNotebookController(this._proxy, this, viewType, supportBackup, kernel, this._notebookService);
 		this._notebookProviders.set(viewType, controller);
 		this._notebookService.registerNotebookController(viewType, extension, controller);
 		return;
@@ -476,13 +477,14 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		private readonly _proxy: ExtHostNotebookShape,
 		private _mainThreadNotebook: MainThreadNotebooks,
 		private _viewType: string,
+		private _supportBackup: boolean,
 		readonly kernel: INotebookKernelInfoDto | undefined,
 		readonly notebookService: INotebookService,
 
 	) {
 	}
 
-	async createNotebook(viewType: string, uri: URI, backup: INotebookTextModelBackup | undefined, forceReload: boolean, editorId?: string): Promise<NotebookTextModel | undefined> {
+	async createNotebook(viewType: string, uri: URI, backup: INotebookTextModelBackup | undefined, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined> {
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
 
 		if (mainthreadNotebook) {
@@ -502,7 +504,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 			return mainthreadNotebook.textModel;
 		}
 
-		let document = new MainThreadNotebookDocument(this._proxy, MainThreadNotebookController.documentHandle++, viewType, uri, this.notebookService);
+		let document = new MainThreadNotebookDocument(this._proxy, MainThreadNotebookController.documentHandle++, viewType, this._supportBackup, uri, this.notebookService);
 		this._mapping.set(document.uri.toString(), document);
 
 		if (backup) {
@@ -545,7 +547,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		}
 
 		// open notebook document
-		const data = await this._proxy.$resolveNotebookData(viewType, uri);
+		const data = await this._proxy.$resolveNotebookData(viewType, uri, backupId);
 		if (!data) {
 			return;
 		}
@@ -654,7 +656,15 @@ export class MainThreadNotebookController implements IMainNotebookController {
 
 	async saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean> {
 		return this._proxy.$saveNotebookAs(this._viewType, uri, target, token);
+	}
 
+	async backup(uri: URI, token: CancellationToken): Promise<string | undefined> {
+		const backupId = await this._proxy.$backup(this._viewType, uri, token);
+		return backupId;
+	}
+
+	async revert(uri: URI, token: CancellationToken): Promise<void> {
+		return this._proxy.$revert(this._viewType, uri, token);
 	}
 }
 

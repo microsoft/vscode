@@ -173,6 +173,7 @@ export class TestElectronService implements IElectronService {
 	onWindowUnmaximize: Event<number> = Event.None;
 	onWindowFocus: Event<number> = Event.None;
 	onWindowBlur: Event<number> = Event.None;
+	onOSResume: Event<unknown> = Event.None;
 
 	windowCount = Promise.resolve(1);
 	getWindowCount(): Promise<number> { return this.windowCount; }
@@ -212,11 +213,13 @@ export class TestElectronService implements IElectronService {
 	async moveWindowTabToNewWindow(): Promise<void> { }
 	async mergeAllWindowTabs(): Promise<void> { }
 	async toggleWindowTabsBar(): Promise<void> { }
+	async notifyReady(): Promise<void> { }
 	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; } | undefined): Promise<void> { }
 	async reload(): Promise<void> { }
 	async closeWindow(): Promise<void> { }
 	async closeWindowById(): Promise<void> { }
 	async quit(): Promise<void> { }
+	async exit(code: number): Promise<void> { }
 	async openDevTools(options?: Electron.OpenDevToolsOptions | undefined): Promise<void> { }
 	async toggleDevTools(): Promise<void> { }
 	async startCrashReporter(options: Electron.CrashReporterStartOptions): Promise<void> { }

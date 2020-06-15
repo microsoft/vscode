@@ -107,6 +107,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	constructor(
 		public handle: number,
 		public viewType: string,
+		public supportBackup: boolean,
 		public uri: URI
 	) {
 		super();
