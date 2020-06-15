@@ -60,11 +60,6 @@ if (isMacintosh) {
 // Commands
 CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
 CommandsRegistry.registerCommand('_files.newWindow', newWindowCommand);
-MenuRegistry.addCommand({
-	id: NEW_UNTITLED_FILE_COMMAND_ID,
-	title: { value: NEW_UNTITLED_FILE_LABEL, original: 'New Untitled File' },
-	category
-});
 
 const explorerCommandsWeightBonus = 10; // give our commands a little bit more weight over other default list/tree commands
 
