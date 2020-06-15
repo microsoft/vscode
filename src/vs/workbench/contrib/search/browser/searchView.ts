@@ -719,7 +719,6 @@ export class SearchView extends ViewPane {
 				dnd: this.instantiationService.createInstance(SearchDND),
 				multipleSelectionSupport: false,
 				openOnFocus: true,
-				openOnSelection: false,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				}

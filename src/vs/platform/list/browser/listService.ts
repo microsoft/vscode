@@ -508,7 +508,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 		}
 
 		const sideBySide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
-		this._open(true, true, sideBySide, browserEvent);
+		this._open(false, true, sideBySide, browserEvent);
 	}
 
 	private _open(preserveFocus: boolean, pinned: boolean, sideBySide: boolean, browserEvent?: UIEvent): void {
