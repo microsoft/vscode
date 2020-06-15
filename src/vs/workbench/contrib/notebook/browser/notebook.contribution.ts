@@ -191,7 +191,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 					};
 				});
 			},
-			open: (editor, options, group, context, id) => this.onEditorOpening(editor, options, group, context, id)
+			open: (editor, options, group, context) => this.onEditorOpening(editor, options, group, context)
 		}));
 
 		this._register(this.editorService.onDidVisibleEditorsChange(() => {
@@ -250,7 +250,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		return this.notebookService.getContributedNotebookProviders(resource);
 	}
 
-	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorContext, id: string | undefined): IOpenEditorOverride | undefined {
+	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorContext): IOpenEditorOverride | undefined {
+		const id = typeof options?.override === 'string' ? options.override : undefined;
 		if (originalInput instanceof NotebookEditorInput) {
 			if ((originalInput.group === group.id || originalInput.group === undefined) && (originalInput.viewType === id || typeof id !== 'string')) {
 				// No need to do anything
