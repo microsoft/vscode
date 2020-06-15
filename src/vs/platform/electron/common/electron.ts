@@ -25,6 +25,8 @@ export interface ICommonElectronService {
 	readonly onWindowFocus: Event<number>;
 	readonly onWindowBlur: Event<number>;
 
+	readonly onOSResume: Event<unknown>;
+
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
 	getWindowCount(): Promise<number>;

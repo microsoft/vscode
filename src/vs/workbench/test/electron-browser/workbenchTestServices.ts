@@ -173,6 +173,7 @@ export class TestElectronService implements IElectronService {
 	onWindowUnmaximize: Event<number> = Event.None;
 	onWindowFocus: Event<number> = Event.None;
 	onWindowBlur: Event<number> = Event.None;
+	onOSResume: Event<unknown> = Event.None;
 
 	windowCount = Promise.resolve(1);
 	getWindowCount(): Promise<number> { return this.windowCount; }
