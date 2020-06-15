@@ -85,6 +85,8 @@ export const PREVIOUS_COMPRESSED_FOLDER = 'previousCompressedFolder';
 export const NEXT_COMPRESSED_FOLDER = 'nextCompressedFolder';
 export const FIRST_COMPRESSED_FOLDER = 'firstCompressedFolder';
 export const LAST_COMPRESSED_FOLDER = 'lastCompressedFolder';
+export const NEW_UNTITLED_FILE_COMMAND_ID = 'workbench.action.files.newUntitledFile';
+export const NEW_UNTITLED_FILE_LABEL = nls.localize('newUntitledFile', "New Untitled File");
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -595,5 +597,27 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const explorer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
 		const view = explorer.getExplorerView();
 		view.lastCompressedStat();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: null,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_N,
+	id: NEW_UNTITLED_FILE_COMMAND_ID,
+	handler: async (accessor, viewType?: string) => {
+		const editorService = accessor.get(IEditorService);
+
+		if (viewType) {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const configurationService = accessor.get(IConfigurationService);
+			const quickInputService = accessor.get(IQuickInputService);
+
+			const textInput = editorService.createEditorInput({ options: { pinned: true } });
+			const group = editorGroupsService.activeGroup;
+			await openEditorWith(textInput, viewType, { pinned: true }, group, editorService, configurationService, quickInputService);
+		} else {
+			await editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
+		}
 	}
 });

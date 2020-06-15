@@ -104,7 +104,7 @@ export class NotebookProviderInfoStore implements IDisposable {
 	}
 
 	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
-		return [...Iterable.filter(this.contributedEditors.values(), customEditor => customEditor.matches(resource))];
+		return [...Iterable.filter(this.contributedEditors.values(), customEditor => resource.scheme === 'untitled' || customEditor.matches(resource))];
 	}
 
 	public [Symbol.iterator](): Iterator<NotebookProviderInfo> {
