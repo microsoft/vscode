@@ -502,29 +502,28 @@ function focusElement(accessor: ServicesAccessor, retainCurrentFocus: boolean): 
 	if (focused instanceof List || focused instanceof PagedList) {
 		const list = focused;
 		list.setSelection(list.getFocus(), fakeKeyboardEvent);
-		list.open(list.getFocus(), fakeKeyboardEvent);
 	}
 
 	// Trees
 	else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-		const list = focused;
-		const focus = list.getFocus();
+		const tree = focused;
+		const focus = tree.getFocus();
 
 		if (focus.length > 0) {
 			let toggleCollapsed = true;
 
-			if (list.expandOnlyOnTwistieClick === true) {
+			if (tree.expandOnlyOnTwistieClick === true) {
 				toggleCollapsed = false;
-			} else if (typeof list.expandOnlyOnTwistieClick !== 'boolean' && list.expandOnlyOnTwistieClick(focus[0])) {
+			} else if (typeof tree.expandOnlyOnTwistieClick !== 'boolean' && tree.expandOnlyOnTwistieClick(focus[0])) {
 				toggleCollapsed = false;
 			}
 
 			if (toggleCollapsed) {
-				list.toggleCollapsed(focus[0]);
+				tree.toggleCollapsed(focus[0]);
 			}
 		}
-		list.setSelection(focus, fakeKeyboardEvent);
-		list.open(focus, fakeKeyboardEvent);
+		tree.setSelection(focus, fakeKeyboardEvent);
+		tree.open(fakeKeyboardEvent);
 	}
 }
 
