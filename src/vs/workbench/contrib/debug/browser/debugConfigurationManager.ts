@@ -720,6 +720,9 @@ class Launch extends AbstractLaunch implements ILaunch {
 
 	async writeConfiguration(configuration: IConfig): Promise<void> {
 		const fullConfig = objects.deepClone(this.getConfig()!);
+		if (!fullConfig.configurations) {
+			fullConfig.configurations = [];
+		}
 		fullConfig.configurations.push(configuration);
 		await this.configurationService.updateValue('launch', fullConfig, { resource: this.workspace.uri }, ConfigurationTarget.WORKSPACE_FOLDER);
 	}

@@ -58,13 +58,14 @@
 	opacity: 0.5;
 }
 
+.monaco-workbench .terminal-env-var-info:hover,
+.monaco-workbench .terminal-env-var-info.requires-action {
+	opacity: 1;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:last-child .terminal-env-var-info {
 	/* Adjust for reduced margin in splits */
 	right: -8px;
-}
-
-.monaco-workbench .terminal-env-var-info:hover {
-	opacity: 1;
 }
 
 .monaco-workbench .terminal-env-var-info.codicon {

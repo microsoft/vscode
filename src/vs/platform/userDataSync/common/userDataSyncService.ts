@@ -339,8 +339,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 
 		for (const synchroniser of synchronizers) {
-			const preview = await synchroniser.getSyncPreview();
-			if (!preview.isLastSyncFromCurrentMachine && (preview.hasLocalChanged || preview.hasRemoteChanged)) {
+			const preview = await synchroniser.generateSyncPreview();
+			if (preview && !preview.isLastSyncFromCurrentMachine && (preview.hasLocalChanged || preview.hasRemoteChanged)) {
 				return true;
 			}
 		}

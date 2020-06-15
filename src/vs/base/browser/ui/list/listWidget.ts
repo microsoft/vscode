@@ -231,7 +231,6 @@ function isInputElement(e: HTMLElement): boolean {
 class KeyboardController<T> implements IDisposable {
 
 	private readonly disposables = new DisposableStore();
-	private openController: IOpenController;
 
 	constructor(
 		private list: List<T>,
@@ -239,8 +238,6 @@ class KeyboardController<T> implements IDisposable {
 		options: IListOptions<T>
 	) {
 		const multipleSelectionSupport = options.multipleSelectionSupport !== false;
-
-		this.openController = options.openController || DefaultOpenController;
 
 		const onKeyDown = Event.chain(domEvent(view.domNode, 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement))
@@ -262,10 +259,6 @@ class KeyboardController<T> implements IDisposable {
 		e.preventDefault();
 		e.stopPropagation();
 		this.list.setSelection(this.list.getFocus(), e.browserEvent);
-
-		if (this.openController.shouldOpen(e.browserEvent)) {
-			this.list.open(this.list.getFocus(), e.browserEvent);
-		}
 	}
 
 	private onUpArrow(e: StandardKeyboardEvent): void {
@@ -527,21 +520,10 @@ const DefaultMultipleSelectionController = {
 	isSelectionRangeChangeEvent
 };
 
-const DefaultOpenController: IOpenController = {
-	shouldOpen: (event: UIEvent) => {
-		if (event instanceof MouseEvent) {
-			return !isMouseRightClick(event);
-		}
-
-		return true;
-	}
-};
-
 export class MouseController<T> implements IDisposable {
 
 	private multipleSelectionSupport: boolean;
 	readonly multipleSelectionController: IMultipleSelectionController<T> | undefined;
-	private openController: IOpenController;
 	private mouseSupport: boolean;
 	private readonly disposables = new DisposableStore();
 
@@ -552,7 +534,6 @@ export class MouseController<T> implements IDisposable {
 			this.multipleSelectionController = list.options.multipleSelectionController || DefaultMultipleSelectionController;
 		}
 
-		this.openController = list.options.openController || DefaultOpenController;
 		this.mouseSupport = typeof list.options.mouseSupport === 'undefined' || !!list.options.mouseSupport;
 
 		if (this.mouseSupport) {
@@ -632,10 +613,6 @@ export class MouseController<T> implements IDisposable {
 
 		if (!isMouseRightClick(e.browserEvent)) {
 			this.list.setSelection([focus], e.browserEvent);
-
-			if (this.openController.shouldOpen(e.browserEvent)) {
-				this.list.open([focus], e.browserEvent);
-			}
 		}
 	}
 
@@ -650,7 +627,6 @@ export class MouseController<T> implements IDisposable {
 
 		const focus = this.list.getFocus();
 		this.list.setSelection(focus, e.browserEvent);
-		this.list.pin(focus);
 	}
 
 	private changeSelection(e: IListMouseEvent<T> | IListTouchEvent<T>, reference: number | undefined): void {
@@ -692,10 +668,6 @@ export class MouseController<T> implements IDisposable {
 export interface IMultipleSelectionController<T> {
 	isSelectionSingleChangeEvent(event: IListMouseEvent<T> | IListTouchEvent<T>): boolean;
 	isSelectionRangeChangeEvent(event: IListMouseEvent<T> | IListTouchEvent<T>): boolean;
-}
-
-export interface IOpenController {
-	shouldOpen(event: UIEvent): boolean;
 }
 
 export interface IStyleController {
@@ -841,7 +813,6 @@ export interface IListOptions<T> {
 	readonly keyboardSupport?: boolean;
 	readonly multipleSelectionSupport?: boolean;
 	readonly multipleSelectionController?: IMultipleSelectionController<T>;
-	readonly openController?: IOpenController;
 	readonly styleController?: (suffix: string) => IStyleController;
 	readonly accessibilityProvider?: IListAccessibilityProvider<T>;
 
@@ -1133,12 +1104,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	@memoize get onDidChangeSelection(): Event<IListEvent<T>> {
 		return Event.map(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
-
-	private readonly _onDidOpen = new Emitter<IListEvent<T>>();
-	readonly onDidOpen: Event<IListEvent<T>> = this._onDidOpen.event;
-
-	private readonly _onDidPin = new Emitter<IListEvent<T>>();
-	readonly onDidPin: Event<IListEvent<T>> = this._onDidPin.event;
 
 	get domId(): string { return this.view.domId; }
 	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
@@ -1625,26 +1590,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.domNode;
 	}
 
-	open(indexes: number[], browserEvent?: UIEvent): void {
-		for (const index of indexes) {
-			if (index < 0 || index >= this.length) {
-				throw new ListError(this.user, `Invalid index ${index}`);
-			}
-		}
-
-		this._onDidOpen.fire({ indexes, elements: indexes.map(i => this.view.element(i)), browserEvent });
-	}
-
-	pin(indexes: number[], browserEvent?: UIEvent): void {
-		for (const index of indexes) {
-			if (index < 0 || index >= this.length) {
-				throw new ListError(this.user, `Invalid index ${index}`);
-			}
-		}
-
-		this._onDidPin.fire({ indexes, elements: indexes.map(i => this.view.element(i)), browserEvent });
-	}
-
 	style(styles: IListStyles): void {
 		this.styleController.style(styles);
 	}
@@ -1687,8 +1632,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this._onDidDispose.fire();
 		this.disposables.dispose();
 
-		this._onDidOpen.dispose();
-		this._onDidPin.dispose();
 		this._onDidDispose.dispose();
 	}
 }

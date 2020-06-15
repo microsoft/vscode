@@ -464,6 +464,7 @@ export class GlobalCompareResourcesAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ITextModelService private readonly textModelService: ITextModelService
 	) {
 		super(id, label);
 	}
@@ -471,7 +472,7 @@ export class GlobalCompareResourcesAction extends Action {
 	async run(): Promise<void> {
 		const activeInput = this.editorService.activeEditor;
 		const activeResource = activeInput ? activeInput.resource : undefined;
-		if (activeResource) {
+		if (activeResource && this.textModelService.canHandleResource(activeResource)) {
 
 			// Compare with next editor that opens
 			const toDispose = this.editorService.overrideOpenEditor({
@@ -482,16 +483,24 @@ export class GlobalCompareResourcesAction extends Action {
 
 					// Open editor as diff
 					const resource = editor.resource;
-					if (resource) {
+					if (resource && this.textModelService.canHandleResource(resource)) {
 						return {
 							override: this.editorService.openEditor({
 								leftResource: activeResource,
-								rightResource: resource
+								rightResource: resource,
+								options: { override: false }
 							})
 						};
 					}
 
-					return undefined;
+					// Otherwise stay on current resource
+					this.notificationService.info(nls.localize('fileToCompareNoFile', "Please select a file to compare with."));
+					return {
+						override: this.editorService.openEditor({
+							resource: activeResource,
+							options: { override: false }
+						})
+					};
 				}
 			});
 

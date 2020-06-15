@@ -1240,10 +1240,10 @@ export interface IResourceOptions {
 	filterByScheme?: string | string[];
 }
 
-export function toResource(editor: IEditorInput | undefined): URI | undefined;
-export function toResource(editor: IEditorInput | undefined, options: IResourceOptions & { supportSideBySide?: SideBySideEditor.MASTER | SideBySideEditor.DETAILS }): URI | undefined;
-export function toResource(editor: IEditorInput | undefined, options: IResourceOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { master?: URI, detail?: URI } | undefined;
-export function toResource(editor: IEditorInput | undefined, options?: IResourceOptions): URI | { master?: URI, detail?: URI } | undefined {
+export function toResource(editor: IEditorInput | undefined | null): URI | undefined;
+export function toResource(editor: IEditorInput | undefined | null, options: IResourceOptions & { supportSideBySide?: SideBySideEditor.MASTER | SideBySideEditor.DETAILS }): URI | undefined;
+export function toResource(editor: IEditorInput | undefined | null, options: IResourceOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { master?: URI, detail?: URI } | undefined;
+export function toResource(editor: IEditorInput | undefined | null, options?: IResourceOptions): URI | { master?: URI, detail?: URI } | undefined {
 	if (!editor) {
 		return undefined;
 	}

@@ -97,7 +97,7 @@ export function activate(context: vscode.ExtensionContext): any {
 		]
 	}, {
 		preloads: [preloadUri],
-		render(_document: vscode.NotebookDocument, _output: vscode.CellDisplayOutput, _mimeType: string): string {
+		render(_document: vscode.NotebookDocument, _request: vscode.NotebookRenderRequest): string {
 			return '<div>test</div>';
 		}
 	}));
