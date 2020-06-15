@@ -407,9 +407,7 @@ class HelpPanel extends ViewPane {
 						return item.label;
 					},
 					getWidgetAriaLabel: () => nls.localize('remotehelp', "Remote Help")
-				},
-				openOnFocus: false,
-				openOnSelection: false
+				}
 			}
 		);
 
