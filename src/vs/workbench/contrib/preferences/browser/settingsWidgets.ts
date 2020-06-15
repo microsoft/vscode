@@ -226,8 +226,8 @@ interface IEditHandlers<TDataItem extends object> {
 
 abstract class AbstractListSettingWidget<TDataItem extends object> extends Disposable {
 	private listElement: HTMLElement;
-	private readonly _onDidChangeList = this._register(new Emitter<ISettingListChangeEvent<TDataItem>>());
 
+	protected readonly _onDidChangeList = this._register(new Emitter<ISettingListChangeEvent<TDataItem>>());
 	protected readonly model = new ListSettingListModel<TDataItem>(this.getEmptyItem());
 	protected readonly listDisposables = this._register(new DisposableStore());
 
@@ -281,6 +281,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 
 	protected abstract getEmptyItem(): TDataItem;
 	protected abstract getContainerClasses(): string[];
+	protected abstract getActionsForItem(item: TDataItem, idx: number): IAction[];
 	protected abstract renderItem(item: TDataItem): HTMLElement;
 	protected abstract renderEdit(item: TDataItem, handlers: IEditHandlers<TDataItem>): HTMLElement;
 	protected abstract isItemNew(item: TDataItem): boolean;
@@ -321,6 +322,11 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		this.listElement.style.height = listHeight + 'px';
 	}
 
+	protected editSetting(idx: number): void {
+		this.model.setEditKey(idx);
+		this.renderList();
+	}
+
 	private renderDataOrEditItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
 		return item.editing ?
 			this.renderEditItem(item, idx) :
@@ -337,11 +343,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		const actionBar = new ActionBar(rowElement);
 		this.listDisposables.add(actionBar);
 
-		actionBar.push([
-			this.createEditAction(idx),
-			this.createDeleteAction(item, idx)
-		], { icon: true, label: false });
-
+		actionBar.push(this.getActionsForItem(item, idx), { icon: true, label: true });
 		rowElement.title = this.getLocalizedRowTitle(item);
 
 		if (item.selected) {
@@ -390,28 +392,6 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		rowElement = this.renderEdit(item, { onSubmit, onKeydown, onCancel });
 
 		return rowElement;
-	}
-
-	private createDeleteAction(item: TDataItem, idx: number): IAction {
-		return <IAction>{
-			class: 'codicon-close',
-			enabled: true,
-			id: 'workbench.action.removeListItem',
-			tooltip: this.getLocalizedStrings().deleteActionTooltip,
-			run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
-		};
-	}
-
-	private createEditAction(idx: number): IAction {
-		return <IAction>{
-			class: preferencesEditIcon.classNames,
-			enabled: true,
-			id: 'workbench.action.editListItem',
-			tooltip: this.getLocalizedStrings().editActionTooltip,
-			run: () => {
-				this.editSetting(idx);
-			}
-		};
 	}
 
 	private renderAddButton(): HTMLElement {
@@ -484,11 +464,6 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		const targetIdx = parseInt(targetIdxStr);
 		return targetIdx;
 	}
-
-	private editSetting(idx: number): void {
-		this.model.setEditKey(idx);
-		this.renderList();
-	}
 }
 
 export interface IListDataItem {
@@ -503,6 +478,25 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 
 	protected getContainerClasses(): string[] {
 		return ['setting-list-widget'];
+	}
+
+	protected getActionsForItem(item: IListDataItem, idx: number): IAction[] {
+		return [
+			{
+				class: preferencesEditIcon.classNames,
+				enabled: true,
+				id: 'workbench.action.editListItem',
+				tooltip: this.getLocalizedStrings().editActionTooltip,
+				run: () => this.editSetting(idx)
+			},
+			{
+				class: 'codicon-close',
+				enabled: true,
+				id: 'workbench.action.removeListItem',
+				tooltip: this.getLocalizedStrings().deleteActionTooltip,
+				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
+			}
+		] as IAction[];
 	}
 
 	protected renderItem(item: IListDataItem): HTMLElement {
@@ -661,6 +655,38 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		return ['setting-list-object-widget'];
 	}
 
+	protected getActionsForItem(item: IObjectDataItem, idx: number): IAction[] {
+		const actions = [
+			{
+				class: preferencesEditIcon.classNames,
+				enabled: true,
+				id: 'workbench.action.editListItem',
+				tooltip: this.getLocalizedStrings().editActionTooltip,
+				run: () => this.editSetting(idx)
+			},
+		] as IAction[];
+
+		if (item.removable) {
+			actions.push({
+				class: 'codicon-close',
+				enabled: true,
+				id: 'workbench.action.removeListItem',
+				tooltip: this.getLocalizedStrings().deleteActionTooltip,
+				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
+			} as IAction);
+		} else {
+			actions.push({
+				class: 'codicon-discard',
+				enabled: true,
+				id: 'workbench.action.resetListItem',
+				tooltip: this.getLocalizedStrings().resetActionTooltip,
+				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
+			} as IAction);
+		}
+
+		return actions;
+	}
+
 	protected renderHeader() {
 		if (this.model.items.length > 0) {
 			const header = $('.setting-list-row-header');
@@ -779,6 +805,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 	protected getLocalizedStrings() {
 		return {
 			deleteActionTooltip: localize('removeItem', "Remove Item"),
+			resetActionTooltip: localize('resetItem', "Reset Item"),
 			editActionTooltip: localize('editItem', "Edit Item"),
 			complexEditActionTooltip: localize('editItemInSettingsJson', "Edit Item in settings.json"),
 			addButtonLabel: localize('addItem', "Add Item"),
