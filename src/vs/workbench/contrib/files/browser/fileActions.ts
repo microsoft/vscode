@@ -15,7 +15,7 @@ import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
@@ -1062,7 +1062,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 
 	try {
 		// Check if target is ancestor of pasted folder
-		const files = await Promise.all(toPaste.map(async fileToPaste => {
+		const sourceTargetPairs = await Promise.all(toPaste.map(async fileToPaste => {
 
 			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
 				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
@@ -1083,12 +1083,12 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			return { source: fileToPaste, target: targetFile };
 		}));
 
-		let stats = null;
+		let stats: IFileStatWithMetadata[] = [];
 		// Move/Copy File
 		if (pasteShouldMove) {
-			stats = await workingCopyFileService.move(files);
+			stats = await workingCopyFileService.move(sourceTargetPairs);
 		} else {
-			stats = await workingCopyFileService.copy(files);
+			stats = await workingCopyFileService.copy(sourceTargetPairs);
 		}
 
 		if (stats.length >= 1) {
