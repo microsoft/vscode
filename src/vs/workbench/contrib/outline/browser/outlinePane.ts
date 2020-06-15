@@ -564,20 +564,7 @@ export class OutlinePane extends ViewPane {
 				return;
 			}
 
-			let focus = false;
-			let aside = false;
-			// todo@Joh
-			if (e.browserEvent) {
-				if (e.browserEvent.type === 'keydown') {
-					focus = true;
-				} else if (e.browserEvent.type === 'click') {
-					const event = new StandardMouseEvent(e.browserEvent as MouseEvent);
-					focus = e.browserEvent.detail === 2;
-					aside = (!this._tree.useAltAsMultipleSelectionModifier && event.altKey)
-						|| (this._tree.useAltAsMultipleSelectionModifier && (event.ctrlKey || event.metaKey));
-				}
-			}
-			this._revealTreeSelection(newModel, e.element, focus, aside);
+			this._revealTreeSelection(newModel, e.element, !e.editorOptions.preserveFocus || !!e.editorOptions.pinned, e.sideBySide);
 		}));
 
 		// feature: reveal editor selection in outline
