@@ -1099,12 +1099,6 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		}
 
 		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
-
-		// TODO@joao: fix folder expansion
-		if (e.browserEvent.detail !== 2 && !onTwistie) {
-			return super.onPointer(e);
-		}
-
 		let expandOnlyOnTwistieClick = false;
 
 		if (typeof this.tree.expandOnlyOnTwistieClick === 'function') {

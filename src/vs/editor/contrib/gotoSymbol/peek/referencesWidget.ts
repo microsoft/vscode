@@ -317,6 +317,8 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			accessibilityProvider: new AccessibilityProvider(),
 			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
 			identityProvider: new IdentityProvider(),
+			openOnSingleClick: true,
+			openOnFocus: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
 			}
@@ -372,21 +374,12 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				this._onDidSelectReference.fire({ element, kind, source: 'tree' });
 			}
 		};
-		this._tree.onDidChangeFocus(e => {
-			onEvent(e.elements[0], 'show');
-		});
 		this._tree.onDidOpen(e => {
-			if (e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey)) {
-				// modifier-click -> open to the side
+			if (e.sideBySide) {
 				onEvent(e.element, 'side');
-			} else if (e.browserEvent instanceof KeyboardEvent || (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2) || (<GestureEvent>e.browserEvent).tapCount === 2) {
-				// keybinding (list service command)
-				// OR double click
-				// OR double tap
-				// -> close widget and goto target
+			} else if (e.editorOptions.pinned) {
 				onEvent(e.element, 'goto');
 			} else {
-				// preview location
 				onEvent(e.element, 'show');
 			}
 		});

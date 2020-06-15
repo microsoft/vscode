@@ -28,6 +28,7 @@ import { IKeyboardNavigationEventFilter, IAbstractTreeOptions, RenderIndentGuide
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export type ListWidget = List<any> | PagedList<any> | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any>;
+export type WorkbenchListWidget = WorkbenchList<any> | WorkbenchPagedList<any> | WorkbenchObjectTree<any, any> | WorkbenchCompressibleObjectTree<any, any> | WorkbenchDataTree<any, any, any> | WorkbenchAsyncDataTree<any, any, any> | WorkbenchCompressibleAsyncDataTree<any, any, any>;
 
 export const IListService = createDecorator<IListService>('listService');
 
@@ -38,11 +39,11 @@ export interface IListService {
 	/**
 	 * Returns the currently focused list widget if any.
 	 */
-	readonly lastFocusedList: ListWidget | undefined;
+	readonly lastFocusedList: WorkbenchListWidget | undefined;
 }
 
 interface IRegisteredList {
-	widget: ListWidget;
+	widget: WorkbenchListWidget;
 	extraContextKeys?: (IContextKey<boolean>)[];
 }
 
@@ -52,17 +53,17 @@ export class ListService implements IListService {
 
 	private disposables = new DisposableStore();
 	private lists: IRegisteredList[] = [];
-	private _lastFocusedWidget: ListWidget | undefined = undefined;
+	private _lastFocusedWidget: WorkbenchListWidget | undefined = undefined;
 	private _hasCreatedStyleController: boolean = false;
 
-	get lastFocusedList(): ListWidget | undefined {
+	get lastFocusedList(): WorkbenchListWidget | undefined {
 		return this._lastFocusedWidget;
 	}
 
 	constructor(@IThemeService private readonly _themeService: IThemeService) {
 	}
 
-	register(widget: ListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
+	register(widget: WorkbenchListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
 		if (!this._hasCreatedStyleController) {
 			this._hasCreatedStyleController = true;
 			// create a shared default tree style sheet for performance reasons
@@ -477,7 +478,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 				!!(<SelectionKeyboardEvent>browserEvent).preserveFocus :
 				true;
 
-			this.open(preserveFocus, false, false, browserEvent);
+			this._open(preserveFocus, false, false, browserEvent);
 		}
 	}
 
@@ -497,7 +498,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 
 		if (this.openOnSingleClick || isDoubleClick || isKeyboardEvent) {
 			const sideBySide = browserEvent instanceof MouseEvent && (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
-			this.open(preserveFocus, isDoubleClick || isMiddleClick, sideBySide, browserEvent);
+			this._open(preserveFocus, isDoubleClick || isMiddleClick, sideBySide, browserEvent);
 		}
 	}
 
@@ -507,10 +508,10 @@ abstract class ResourceNavigator<T> extends Disposable {
 		}
 
 		const sideBySide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
-		this.open(true, true, sideBySide, browserEvent);
+		this._open(true, true, sideBySide, browserEvent);
 	}
 
-	private open(preserveFocus: boolean, pinned: boolean, sideBySide: boolean, browserEvent?: UIEvent): void {
+	private _open(preserveFocus: boolean, pinned: boolean, sideBySide: boolean, browserEvent?: UIEvent): void {
 		this._onDidOpen.fire({
 			editorOptions: {
 				preserveFocus,
@@ -521,6 +522,11 @@ abstract class ResourceNavigator<T> extends Disposable {
 			element: this.widget.getSelection()[0],
 			browserEvent
 		});
+	}
+
+	// hack for References Widget: pressing Enter on already selected tree element
+	open(browserEvent?: UIEvent): void {
+		this._open((browserEvent as any)?.preserveFocus || false, true, false, browserEvent);
 	}
 }
 
@@ -594,6 +600,10 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		this.internals = new WorkbenchTreeInternals(this, options, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
 		this.disposables.add(this.internals);
 	}
+
+	open(browserEvent?: UIEvent): void {
+		this.internals.open(browserEvent);
+	}
 }
 
 export interface IWorkbenchCompressibleObjectTreeOptionsUpdate extends ICompressibleObjectTreeOptionsUpdate {
@@ -637,6 +647,10 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 		if (options.overrideStyles) {
 			this.internals.updateStyleOverrides(options.overrideStyles);
 		}
+	}
+
+	open(browserEvent?: UIEvent): void {
+		this.internals.open(browserEvent);
 	}
 }
 
@@ -683,6 +697,10 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 			this.internals.updateStyleOverrides(options.overrideStyles);
 		}
 	}
+
+	open(browserEvent?: UIEvent): void {
+		this.internals.open(browserEvent);
+	}
 }
 
 export interface IWorkbenchAsyncDataTreeOptionsUpdate extends IAsyncDataTreeOptionsUpdate {
@@ -728,6 +746,10 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 			this.internals.updateStyleOverrides(options.overrideStyles);
 		}
 	}
+
+	open(browserEvent?: UIEvent): void {
+		this.internals.open(browserEvent);
+	}
 }
 
 export interface IWorkbenchCompressibleAsyncDataTreeOptions<T, TFilterData> extends ICompressibleAsyncDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
@@ -762,6 +784,10 @@ export class WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData = void> e
 		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, options, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
 		this.disposables.add(this.internals);
+	}
+
+	open(browserEvent?: UIEvent): void {
+		this.internals.open(browserEvent);
 	}
 }
 
@@ -933,6 +959,10 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 	updateStyleOverrides(overrideStyles?: IColorMapping): void {
 		dispose(this.styler);
 		this.styler = overrideStyles ? attachListStyler(this.tree, this.themeService, overrideStyles) : Disposable.None;
+	}
+
+	open(browserEvent?: UIEvent): void {
+		this.navigator.open(browserEvent);
 	}
 
 	dispose(): void {
