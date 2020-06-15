@@ -7,7 +7,7 @@ import 'vs/css!./media/tunnelView';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IViewDescriptor, IEditableData, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { WorkbenchAsyncDataTree, TreeResourceNavigator } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -521,7 +521,9 @@ export class TunnelPanel extends ViewPane {
 						}
 					},
 					getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
-				}
+				},
+				openOnFocus: false,
+				openOnSelection: false
 			}
 		);
 		const actionRunner: ActionRunner = new ActionRunner();
@@ -538,9 +540,7 @@ export class TunnelPanel extends ViewPane {
 			this.tree.updateChildren(undefined, true);
 		}));
 
-		const navigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false }));
-
-		this._register(Event.debounce(navigator.onDidOpenResource, (last, event) => event, 75, true)(e => {
+		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(e => {
 			if (e.element && (e.element.tunnelType === TunnelType.Add)) {
 				this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
 			}

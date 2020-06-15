@@ -502,7 +502,6 @@ function focusElement(accessor: ServicesAccessor, retainCurrentFocus: boolean): 
 	if (focused instanceof List || focused instanceof PagedList) {
 		const list = focused;
 		list.setSelection(list.getFocus(), fakeKeyboardEvent);
-		list.open(list.getFocus(), fakeKeyboardEvent);
 	}
 
 	// Trees
@@ -524,7 +523,6 @@ function focusElement(accessor: ServicesAccessor, retainCurrentFocus: boolean): 
 			}
 		}
 		list.setSelection(focus, fakeKeyboardEvent);
-		list.open(focus, fakeKeyboardEvent);
 	}
 }
 

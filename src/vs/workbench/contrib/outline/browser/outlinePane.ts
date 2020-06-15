@@ -560,9 +560,7 @@ export class OutlinePane extends ViewPane {
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
 		this._editorDisposables.add(this._tree.onDidOpen(e => {
-
-			let [first] = e.elements;
-			if (!(first instanceof OutlineElement)) {
+			if (!(e.element instanceof OutlineElement)) {
 				return;
 			}
 
@@ -579,7 +577,7 @@ export class OutlinePane extends ViewPane {
 						|| (this._tree.useAltAsMultipleSelectionModifier && (event.ctrlKey || event.metaKey));
 				}
 			}
-			this._revealTreeSelection(newModel, first, focus, aside);
+			this._revealTreeSelection(newModel, e.element, focus, aside);
 		}));
 
 		// feature: reveal editor selection in outline
