@@ -1348,13 +1348,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private async doHandleExplorerDrop(sources: ExplorerItem[], target: ExplorerItem, isCopy: boolean): Promise<void> {
 		// Reuse duplicate action if user copies
-		const files = [];
+		const sourceTargetPairs: { source: URI; target: URI }[] = [];
 		if (isCopy) {
 			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 			for (const source of sources) {
-				files.push({ source: source.resource, target: findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming) });
+				sourceTargetPairs.push({ source: source.resource, target: findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming) });
 			}
-			const stats = await this.workingCopyFileService.copy(files);
+			const stats = await this.workingCopyFileService.copy(sourceTargetPairs);
 			stats.forEach(async stat => {
 				if (!stat.isDirectory) {
 					await this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
@@ -1368,12 +1368,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		for (const source of sources) {
 			// Do not allow moving readonly items
 			if (!source.isReadonly) {
-				files.push({ source: source.resource, target: joinPath(target.resource, source.name) });
+				sourceTargetPairs.push({ source: source.resource, target: joinPath(target.resource, source.name) });
 			}
 		}
 
 		try {
-			await this.workingCopyFileService.move(files);
+			await this.workingCopyFileService.move(sourceTargetPairs);
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
@@ -1382,7 +1382,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {
 					try {
-						await this.workingCopyFileService.move(files, true /* overwrite */);
+						await this.workingCopyFileService.move(sourceTargetPairs, true /* overwrite */);
 					} catch (error) {
 						this.notificationService.error(error);
 					}
