@@ -892,9 +892,7 @@ export class TimelinePane extends ViewPane {
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
 			overrideStyles: {
 				listBackground: this.getBackgroundColor(),
-			},
-			openOnFocus: false,
-			openOnSelection: false
+			}
 		});
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(this.commands, e)));
@@ -904,8 +902,7 @@ export class TimelinePane extends ViewPane {
 				return;
 			}
 
-			const selection = this.tree.getSelection();
-			const item = selection.length === 1 ? selection[0] : undefined;
+			const item = e.element;
 			// eslint-disable-next-line eqeqeq
 			if (item == null) {
 				return;
