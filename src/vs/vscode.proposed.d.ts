@@ -1527,14 +1527,21 @@ declare module 'vscode' {
 		subTypes?: string[];
 	}
 
+	export interface NotebookRenderRequest {
+		output: CellDisplayOutput;
+		mimeType: string;
+		outputId: string;
+	}
+
 	export interface NotebookOutputRenderer {
 		/**
 		 *
 		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
 		 *
 		 */
-		render(document: NotebookDocument, output: CellDisplayOutput, mimeType: string): string;
-		preloads?: Uri[];
+		render(document: NotebookDocument, request: NotebookRenderRequest): string;
+
+		readonly preloads?: Uri[];
 	}
 
 	export interface NotebookCellsChangeData {
