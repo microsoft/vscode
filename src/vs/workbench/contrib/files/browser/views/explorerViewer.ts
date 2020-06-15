@@ -715,8 +715,12 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 }
 
 const getFileOverwriteConfirm = (name: string) => {
+	return getOverwriteConfirm(localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", name));
+};
+
+const getOverwriteConfirm = (message: string) => {
 	return <IConfirmation>{
-		message: localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", name),
+		message,
 		detail: localize('irreversible', "This action is irreversible!"),
 		primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
 		type: 'warning'
@@ -1377,7 +1381,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-				const confirm = getFileOverwriteConfirm(sources[0].name);
+				const confirm = getOverwriteConfirm(
+					localize('confirmManyOverwrites',
+						"Some files and/or folders already exist in the destination folder. Do you want to replace all of them?"));
+
 				// Move with overwrite if the user confirms
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {
