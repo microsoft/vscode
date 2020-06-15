@@ -6,7 +6,7 @@
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { env as processEnv } from 'vs/base/common/process';
-import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment, ITerminalDimensions, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -127,7 +127,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		cols: number,
 		rows: number,
 		isScreenReaderModeEnabled: boolean
-	): Promise<void> {
+	): Promise<ITerminalLaunchError | undefined> {
 		if (shellLaunchConfig.isExtensionTerminal) {
 			this._processType = ProcessType.ExtensionTerminal;
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, undefined, cols, rows, this._configHelper);
@@ -162,6 +162,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this._process = await this._launchProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 			}
 		}
+
 		this.processState = ProcessState.LAUNCHING;
 
 		this._process.onProcessData(data => {
@@ -198,6 +199,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this.processState = ProcessState.RUNNING;
 			}
 		}, LAUNCHING_DURATION);
+
+		const error = await this._process.start();
+		if (error) {
+			return error;
+		}
+
+		return undefined;
 	}
 
 	private async _launchProcess(

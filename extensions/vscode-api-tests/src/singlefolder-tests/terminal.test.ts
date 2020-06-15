@@ -22,6 +22,8 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
 		// Disable exit alerts as tests may trigger then and we're not testing the notifications
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
+		// Canvas may cause problems when running in a container
+		await config.update('rendererType', 'dom', ConfigurationTarget.Global);
 	});
 
 	suite('Terminal', () => {
@@ -67,7 +69,9 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					if (data.indexOf(expected) !== 0) {
 						dataDisposable.dispose();
 						terminal.dispose();
-						disposables.push(window.onDidCloseTerminal(() => done()));
+						disposables.push(window.onDidCloseTerminal(() => {
+							done();
+						}));
 					}
 				});
 				disposables.push(dataDisposable);
