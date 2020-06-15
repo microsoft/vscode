@@ -30,7 +30,7 @@ import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
-import { isArray, isDefined } from 'vs/base/common/types';
+import { isArray, isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -132,7 +132,9 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 
 	const wellDefinedKeyEnumOptions = wellDefinedKeys.map(({ key, description }) => ({ value: key, description }));
 	wellDefinedKeys.forEach(({ key }) => {
+		const defaultValue = element.defaultValue[key] ?? objectProperties![key].default;
 		const valueEnumOptions = getEnumOptionsFromSchema(objectProperties![key]);
+
 		items.push({
 			key: {
 				type: 'enum',
@@ -141,9 +143,10 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			},
 			value: {
 				type: valueEnumOptions.length > 0 ? 'enum' : 'string',
-				data: data[key] ?? objectProperties![key].default,
+				data: data[key] ?? defaultValue,
 				options: valueEnumOptions,
 			},
+			removable: isUndefinedOrNull(defaultValue),
 		});
 	});
 
@@ -156,6 +159,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				data: data[key],
 				options: valueEnumOptions,
 			},
+			removable: true,
 		});
 	});
 
@@ -167,6 +171,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				data: data[key],
 				options: additionalValueEnums,
 			},
+			removable: true,
 		});
 	});
 

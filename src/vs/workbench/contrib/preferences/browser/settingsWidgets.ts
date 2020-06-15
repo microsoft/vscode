@@ -645,6 +645,7 @@ type ObjectKeyOrValue = IObjectStringData | IObjectEnumData;
 export interface IObjectDataItem {
 	key: ObjectKeyOrValue;
 	value: ObjectKeyOrValue;
+	removable: boolean
 }
 
 export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataItem> {
@@ -652,6 +653,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		return {
 			key: { type: 'string', data: '' },
 			value: { type: 'string', data: '' },
+			removable: true,
 		};
 	}
 
