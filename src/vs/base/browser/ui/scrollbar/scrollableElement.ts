@@ -362,7 +362,7 @@ export abstract class AbstractScrollableElement extends Widget {
 					// }
 					//
 					let unmultipliedDeltaY = Math.ceil(e.deltaY / window.devicePixelRatio);
-					classifier.accept(Date.now(), e.deltaX, unmultipliedDeltaY == 53 ? unmultipliedDeltaY : e.deltaY);
+					classifier.accept(Date.now(), e.deltaX, Math.abs(unmultipliedDeltaY) == 53 ? unmultipliedDeltaY : e.deltaY);
 				} else {
 					classifier.accept(Date.now(), e.deltaX, e.deltaY);
 				}
