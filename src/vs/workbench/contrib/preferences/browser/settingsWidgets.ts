@@ -297,6 +297,10 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		return;
 	}
 
+	protected isAddButtonVisible(): boolean {
+		return true;
+	}
+
 	protected renderList(): void {
 		const focused = DOM.isAncestor(document.activeElement, this.listElement);
 
@@ -304,7 +308,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		this.listDisposables.clear();
 
 		const newMode = this.model.items.some(item => !!(item.editing && this.isItemNew(item)));
-		DOM.toggleClass(this.container, 'setting-list-new-mode', newMode);
+		DOM.toggleClass(this.container, 'setting-list-hide-add-button', !this.isAddButtonVisible() || newMode);
 
 		const header = this.renderHeader();
 		const ITEM_HEIGHT = 24;
@@ -643,6 +647,17 @@ export interface IObjectDataItem {
 }
 
 export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataItem> {
+	private showAddButton: boolean = true;
+
+	setAddButtonVisibility(isVisible: boolean): void {
+		this.showAddButton = isVisible;
+		this.renderList();
+	}
+
+	protected isAddButtonVisible(): boolean {
+		return this.showAddButton;
+	}
+
 	protected getEmptyItem(): IObjectDataItem {
 		return {
 			key: { type: 'string', data: '' },

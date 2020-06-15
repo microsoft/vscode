@@ -175,7 +175,15 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		});
 	});
 
-	return items;
+	return items.sort((a, b) => {
+		if (a.key.data < b.key.data) {
+			return -1;
+		} else if (a.key.data > b.key.data) {
+			return 1;
+		} else {
+			return 0;
+		}
+	});
 }
 
 function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
@@ -1017,8 +1025,14 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: string) => void): void {
-		const value = getObjectDisplayValue(dataElement);
-		template.objectWidget.setValue(value);
+		const items = getObjectDisplayValue(dataElement);
+
+		template.objectWidget.setAddButtonVisibility(
+			isDefined(dataElement.setting.objectAdditionalProperties) ||
+			isDefined(dataElement.setting.objectPatternProperties)
+		);
+
+		template.objectWidget.setValue(items);
 		template.context = dataElement;
 	}
 }
