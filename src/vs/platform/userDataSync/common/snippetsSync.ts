@@ -234,8 +234,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	}
 
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken = CancellationToken.None): Promise<ISinppetsSyncPreview> {
-		return this.getSnippetsFileContents()
-			.then(local => this.doGeneratePreview(local, remoteUserData, lastSyncUserData, {}, token));
+		const local = await this.getSnippetsFileContents();
+		return this.doGeneratePreview(local, remoteUserData, lastSyncUserData, {}, token);
 	}
 
 	private async doGeneratePreview(local: IStringDictionary<IFileContent>, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resolvedConflicts: IStringDictionary<string | null> = {}, token: CancellationToken = CancellationToken.None): Promise<ISinppetsSyncPreview> {
