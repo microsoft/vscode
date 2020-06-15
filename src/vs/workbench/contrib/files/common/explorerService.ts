@@ -87,6 +87,13 @@ export class ExplorerService implements IExplorerService {
 		this.view = contextProvider;
 	}
 
+	getSelections(): ExplorerItem[] {
+		if (!this.view) {
+			return [];
+		}
+		return this.view.getSelections();
+	}
+
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
 		if (!this.view) {
 			return [];

@@ -1044,7 +1044,9 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 
 export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
+	// The selecteds have priority over the focused when it comes to deleting files
+	let selections = explorerService.getSelections();
+	const stats = selections ? selections : explorerService.getContext(true).filter(s => !s.isRoot);
 	if (stats.length) {
 		await deleteFiles(accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
 	}
@@ -1052,8 +1054,9 @@ export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 
 export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
-
+	// The selecteds have priority over the focused when it comes to deleting files
+	let selections = explorerService.getSelections();
+	const stats = selections ? selections : explorerService.getContext(true).filter(s => !s.isRoot);
 	if (stats.length) {
 		await deleteFiles(accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
 	}

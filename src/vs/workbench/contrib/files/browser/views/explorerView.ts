@@ -306,6 +306,10 @@ export class ExplorerView extends ViewPane {
 		}
 	}
 
+	getSelections(): ExplorerItem[] {
+		return this.tree.getSelection();
+	}
+
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
 		return getContext(this.tree.getFocus(), this.tree.getSelection(), respectMultiSelection, this.renderer);
 	}

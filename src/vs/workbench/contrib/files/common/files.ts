@@ -43,6 +43,7 @@ export interface IExplorerService {
 	readonly roots: ExplorerItem[];
 	readonly sortOrder: SortOrder;
 
+	getSelections(): ExplorerItem[];
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void>;
 	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined;
@@ -64,6 +65,7 @@ export interface IExplorerService {
 }
 
 export interface IExplorerView {
+	getSelections(): ExplorerItem[];
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	refresh(recursive: boolean, item?: ExplorerItem): Promise<void>;
 	selectResource(resource: URI | undefined, reveal?: boolean | string): Promise<void>;
