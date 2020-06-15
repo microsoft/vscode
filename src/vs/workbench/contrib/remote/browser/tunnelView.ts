@@ -521,9 +521,7 @@ export class TunnelPanel extends ViewPane {
 						}
 					},
 					getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
-				},
-				openOnFocus: false,
-				openOnSelection: false
+				}
 			}
 		);
 		const actionRunner: ActionRunner = new ActionRunner();
