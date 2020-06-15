@@ -270,10 +270,24 @@ export interface ISyncResourceHandle {
 
 export type Conflict = { remote: URI, local: URI };
 
-export interface ISyncPreviewResult {
+export interface IRemoteUserData {
+	ref: string;
+	syncData: ISyncData | null;
+}
+
+export interface ISyncData {
+	version: number;
+	machineId?: string;
+	content: string;
+}
+
+export interface ISyncPreview {
+	readonly remoteUserData: IRemoteUserData;
+	readonly lastSyncUserData: IRemoteUserData | null;
 	readonly isLastSyncFromCurrentMachine: boolean;
 	readonly hasLocalChanged: boolean;
 	readonly hasRemoteChanged: boolean;
+	readonly hasConflicts: boolean;
 }
 
 export interface IUserDataSynchroniser {
@@ -291,7 +305,7 @@ export interface IUserDataSynchroniser {
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
-	getSyncPreview(): Promise<ISyncPreviewResult>
+	generateSyncPreview(): Promise<ISyncPreview | null>
 	hasPreviouslySynced(): Promise<boolean>
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;
