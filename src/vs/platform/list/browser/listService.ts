@@ -412,7 +412,6 @@ export interface IOpenEvent<T> {
 export interface IResourceNavigatorOptions {
 	readonly configurationService?: IConfigurationService;
 	readonly openOnFocus?: boolean;
-	readonly openOnSelection?: boolean;
 	readonly openOnSingleClick?: boolean;
 }
 
@@ -430,7 +429,6 @@ export function getSelectionKeyboardEvent(typeArg = 'keydown', preserveFocus?: b
 abstract class ResourceNavigator<T> extends Disposable {
 
 	private readonly openOnFocus: boolean;
-	private readonly openOnSelection: boolean;
 	private openOnSingleClick: boolean;
 
 	private readonly _onDidOpen = new Emitter<IOpenEvent<T | null>>();
@@ -443,18 +441,14 @@ abstract class ResourceNavigator<T> extends Disposable {
 		super();
 
 		this.openOnFocus = options?.openOnFocus ?? false;
-		this.openOnSelection = options?.openOnSelection ?? true;
 		this.openOnSingleClick = options?.openOnSingleClick ?? true;
+
+		this._register(this.widget.onDidChangeSelection(e => this.onSelection(e)));
+		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent }) => this.onMouseDblClick(e.browserEvent)));
 
 		if (this.openOnFocus) {
 			this._register(this.widget.onDidChangeFocus(e => this.onFocus(e.browserEvent)));
 		}
-
-		if (this.openOnSelection) {
-			this._register(this.widget.onDidChangeSelection(e => this.onSelection(e)));
-		}
-
-		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent }) => this.onMouseDblClick(e.browserEvent)));
 
 		if (typeof options?.openOnSingleClick !== 'boolean' && options?.configurationService) {
 			this._register(options?.configurationService.onDidChangeConfiguration(() => {
