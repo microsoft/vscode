@@ -1066,8 +1066,7 @@ export class RepositoryPane extends ViewPane {
 				overrideStyles: {
 					listBackground: SIDE_BAR_BACKGROUND
 				},
-				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
-				openOnSelection: false
+				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
 			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 
 		this._register(this.tree.onDidOpen(this.open, this));

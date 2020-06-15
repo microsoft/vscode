@@ -21,7 +21,7 @@ import { attachListStyler, computeStyles, defaultListStyles, IColorMapping } fro
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ObjectTree, IObjectTreeOptions, ICompressibleTreeRenderer, CompressibleObjectTree, ICompressibleObjectTreeOptions, ICompressibleObjectTreeOptionsUpdate } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeRenderer, IAsyncDataSource, IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, IAsyncDataSource, IDataSource, ITreeEvent } from 'vs/base/browser/ui/tree/tree';
 import { AsyncDataTree, IAsyncDataTreeOptions, CompressibleAsyncDataTree, ITreeCompressionDelegate, ICompressibleAsyncDataTreeOptions, IAsyncDataTreeOptionsUpdate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
 import { IKeyboardNavigationEventFilter, IAbstractTreeOptions, RenderIndentGuides, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
@@ -451,7 +451,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 		}
 
 		if (this.openOnSelection) {
-			this._register(this.widget.onDidChangeSelection(e => this.onSelection(e.browserEvent)));
+			this._register(this.widget.onDidChangeSelection(e => this.onSelection(e)));
 		}
 
 		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent }) => this.onMouseDblClick(e.browserEvent)));
@@ -482,8 +482,10 @@ abstract class ResourceNavigator<T> extends Disposable {
 		}
 	}
 
-	private onSelection(browserEvent?: MouseEvent | UIEvent): void {
-		if (!browserEvent || browserEvent.type === 'contextmenu') {
+	private onSelection(event: ITreeEvent<any>): void {
+		const { browserEvent, elements } = event;
+
+		if (!browserEvent || browserEvent.type === 'contextmenu' || elements.length !== 1) {
 			return;
 		}
 
