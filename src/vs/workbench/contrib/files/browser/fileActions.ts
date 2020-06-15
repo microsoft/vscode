@@ -47,8 +47,7 @@ import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/working
 import { sequence, timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { once } from 'vs/base/common/functional';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
 import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/contrib/files/common/openWith';
@@ -476,10 +475,8 @@ export class GlobalCompareResourcesAction extends Action {
 
 			// Compare with next editor that opens
 			const toDispose = this.editorService.overrideOpenEditor({
-				getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
-					return [];
-				},
 				open: editor => {
+
 					// Only once!
 					toDispose.dispose();
 
