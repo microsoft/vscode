@@ -407,6 +407,10 @@ export class ElectronMainService implements IElectronMainService {
 		}
 	}
 
+	async exit(windowId: number | undefined, code: number): Promise<void> {
+		await this.lifecycleMainService.kill(code);
+	}
+
 	//#endregion
 
 	//#region Connectivity
@@ -445,8 +449,9 @@ export class ElectronMainService implements IElectronMainService {
 	}
 
 	async startCrashReporter(windowId: number | undefined, options: CrashReporterStartOptions): Promise<void> {
-		crashReporter.start(options);
 		this.logService.trace('ElectronMainService#crashReporter', JSON.stringify(options));
+
+		crashReporter.start(options);
 	}
 
 	//#endregion

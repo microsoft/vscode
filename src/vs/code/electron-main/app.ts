@@ -261,13 +261,6 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:exit', (event: Event, code: number) => {
-			this.logService.trace('IPC#vscode:exit', code);
-
-			this.dispose();
-			this.lifecycleMainService.kill(code);
-		});
-
 		ipc.on('vscode:fetchShellEnv', async (event: IpcMainEvent) => {
 			const webContents = event.sender;
 

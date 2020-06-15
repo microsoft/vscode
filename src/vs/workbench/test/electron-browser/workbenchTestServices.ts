@@ -217,6 +217,7 @@ export class TestElectronService implements IElectronService {
 	async closeWindow(): Promise<void> { }
 	async closeWindowById(): Promise<void> { }
 	async quit(): Promise<void> { }
+	async exit(code: number): Promise<void> { }
 	async openDevTools(options?: Electron.OpenDevToolsOptions | undefined): Promise<void> { }
 	async toggleDevTools(): Promise<void> { }
 	async startCrashReporter(options: Electron.CrashReporterStartOptions): Promise<void> { }

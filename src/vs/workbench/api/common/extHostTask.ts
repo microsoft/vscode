@@ -622,7 +622,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 
 	protected async getTaskExecution(execution: tasks.TaskExecutionDTO | string, task?: vscode.Task): Promise<TaskExecutionImpl> {
 		if (typeof execution === 'string') {
-			const taskExecution = this._taskExecutions.get(execution);
+			const taskExecution = this._taskExecutionPromises.get(execution);
 			if (!taskExecution) {
 				throw new Error('Unexpected: The specified task is missing an execution');
 			}
