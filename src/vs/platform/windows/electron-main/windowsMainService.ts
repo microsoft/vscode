@@ -323,7 +323,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Carefull here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
 		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
 		// to come from the stored lastClosedWindowState on Win/Linux at least
-		if (this.getWindowCount() >= 1) {
+		if (this.getWindowCount() > 1) {
 			currentWindowsState.openedWindows = WindowsMainService.WINDOWS.filter(window => !window.isExtensionDevelopmentHost).map(window => this.toWindowState(window));
 		}
 
