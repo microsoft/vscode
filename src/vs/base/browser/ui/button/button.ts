@@ -18,7 +18,7 @@ import { escape } from 'vs/base/common/strings';
 export interface IButtonOptions extends IButtonStyles {
 	readonly title?: boolean | string;
 	readonly supportCodicons?: boolean;
-	readonly secondaryButtonStyle?: boolean;
+	readonly secondary?: boolean;
 }
 
 export interface IButtonStyles {
@@ -127,7 +127,7 @@ export class Button extends Disposable {
 
 	private setHoverBackground(): void {
 		let hoverBackground;
-		if (this.options.secondaryButtonStyle) {
+		if (this.options.secondary) {
 			hoverBackground = this.buttonSecondaryHoverBackground ? this.buttonSecondaryHoverBackground.toString() : null;
 		} else {
 			hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
@@ -152,7 +152,7 @@ export class Button extends Disposable {
 	private applyStyles(): void {
 		if (this._element) {
 			let background, foreground;
-			if (this.options.secondaryButtonStyle) {
+			if (this.options.secondary) {
 				foreground = this.buttonSecondaryForeground ? this.buttonSecondaryForeground.toString() : '';
 				background = this.buttonSecondaryBackground ? this.buttonSecondaryBackground.toString() : '';
 			} else {
