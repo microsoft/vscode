@@ -534,7 +534,7 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 		if (machine.isCurrent) {
 			await this.userDataSyncWorkbenchService.turnoff(false);
 		} else {
-			await this.userDataSyncMachinesService.disableMachine(machineId);
+			await this.userDataSyncMachinesService.setEnablement(machineId, false);
 		}
 
 		return true;

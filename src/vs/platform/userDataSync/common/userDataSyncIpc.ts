@@ -183,7 +183,7 @@ export class UserDataSyncMachinesServiceChannel implements IServerChannel {
 			case 'addCurrentMachine': return this.service.addCurrentMachine(args[0]);
 			case 'removeCurrentMachine': return this.service.removeCurrentMachine();
 			case 'renameMachine': return this.service.renameMachine(args[0], args[1]);
-			case 'disableMachine': return this.service.disableMachine(args[0]);
+			case 'setEnablement': return this.service.setEnablement(args[0], args[1]);
 		}
 		throw new Error('Invalid call');
 	}
