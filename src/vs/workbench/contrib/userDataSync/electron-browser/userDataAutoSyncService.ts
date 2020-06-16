@@ -13,7 +13,7 @@ import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/u
 
 export class UserDataAutoSyncService extends Disposable implements IUserDataAutoSyncService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly channel: IChannel;
 	get onError(): Event<UserDataSyncError> { return Event.map(this.channel.listen<Error>('onError'), e => UserDataSyncError.toUserDataSyncError(e)); }
@@ -24,12 +24,19 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	) {
 		super();
 		this.channel = sharedProcessService.getChannel('userDataAutoSync');
-		this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(source => this.triggerAutoSync([source])));
+		this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(source => this.triggerSync([source], true)));
 	}
 
-	triggerAutoSync(sources: string[]): Promise<void> {
+	triggerSync(sources: string[], hasToLimitSync: boolean): Promise<void> {
+		return this.channel.call('triggerSync', [sources, hasToLimitSync]);
+	}
 
-		return this.channel.call('triggerAutoSync', [sources]);
+	turnOn(pullFirst: boolean): Promise<void> {
+		return this.channel.call('turnOn', [pullFirst]);
+	}
+
+	turnOff(): Promise<void> {
+		return this.channel.call('turnOff');
 	}
 
 }

@@ -491,27 +491,26 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
 
 	async run(context?: IEditorIdentifier): Promise<void> {
-		const { group, editor } = getTarget(this.editorService, this.editorGroupService, context);
+		const { group, editor } = this.getTarget(context);
 		if (group && editor) {
 			return group.closeEditors({ direction: CloseDirection.LEFT, except: editor, excludeSticky: true });
 		}
 	}
-}
 
-function getTarget(editorService: IEditorService, editorGroupService: IEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput | null, group: IEditorGroup | undefined } {
-	if (context) {
-		return { editor: context.editor, group: editorGroupService.getGroup(context.groupId) };
+	private getTarget(context?: IEditorIdentifier): { editor: IEditorInput | null, group: IEditorGroup | undefined } {
+		if (context) {
+			return { editor: context.editor, group: this.editorGroupService.getGroup(context.groupId) };
+		}
+
+		// Fallback to active group
+		return { group: this.editorGroupService.activeGroup, editor: this.editorGroupService.activeGroup.activeEditor };
 	}
-
-	// Fallback to active group
-	return { group: editorGroupService.activeGroup, editor: editorGroupService.activeGroup.activeEditor };
 }
 
 abstract class BaseCloseAllAction extends Action {
@@ -1339,7 +1338,8 @@ export class QuickAccessPreviousEditorFromHistoryAction extends Action {
 		id: string,
 		label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -1347,7 +1347,14 @@ export class QuickAccessPreviousEditorFromHistoryAction extends Action {
 	async run(): Promise<void> {
 		const keybindings = this.keybindingService.lookupKeybindings(this.id);
 
-		this.quickInputService.quickAccess.show('', { quickNavigateConfiguration: { keybindings } });
+		// Enforce to activate the first item in quick access if
+		// the currently active editor group has n editor opened
+		let itemActivation: ItemActivation | undefined = undefined;
+		if (this.editorGroupService.activeGroup.count === 0) {
+			itemActivation = ItemActivation.FIRST;
+		}
+
+		this.quickInputService.quickAccess.show('', { quickNavigateConfiguration: { keybindings }, itemActivation });
 	}
 }
 

@@ -27,7 +27,7 @@ import { URI } from 'vs/base/common/uri';
 import { dirname, basename } from 'vs/base/common/resources';
 import { LIGHT, FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon, IThemeService } from 'vs/platform/theme/common/themeService';
 import { FileKind } from 'vs/platform/files/common/files';
-import { WorkbenchAsyncDataTree, TreeResourceNavigator } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
@@ -68,6 +68,9 @@ export class TreeViewPane extends ViewPane {
 		this._register(toDisposable(() => this.treeView.setVisibility(false)));
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 		this._register(this.treeView.onDidChangeWelcomeState(() => this._onDidChangeViewWelcomeState.fire()));
+		if (options.title !== this.treeView.title) {
+			this.updateTitle(this.treeView.title);
+		}
 		this.updateTreeVisibility();
 	}
 
@@ -161,7 +164,7 @@ export class TreeView extends Disposable implements ITreeView {
 	private readonly _onDidCompleteRefresh: Emitter<void> = this._register(new Emitter<void>());
 
 	constructor(
-		protected readonly id: string,
+		readonly id: string,
 		private _title: string,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -425,7 +428,14 @@ export class TreeView extends Disposable implements ITreeView {
 			identityProvider: new TreeViewIdentityProvider(),
 			accessibilityProvider: {
 				getAriaLabel(element: ITreeItem): string {
+					if (element.accessibilityInformation) {
+						return element.accessibilityInformation.label;
+					}
+
 					return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
+				},
+				getRole(element: ITreeItem): string | undefined {
+					return element.accessibilityInformation?.role ?? 'treeitem';
 				},
 				getWidgetAriaLabel(): string {
 					return widgetAriaLabel;
@@ -466,9 +476,7 @@ export class TreeView extends Disposable implements ITreeView {
 		}));
 		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 
-		const treeNavigator = new TreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false });
-		this._register(treeNavigator);
-		this._register(treeNavigator.onDidOpenResource(e => {
+		this._register(this.tree.onDidOpen(e => {
 			if (!e.browserEvent) {
 				return;
 			}
@@ -783,14 +791,14 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
 		const label = treeItemLabel ? treeItemLabel.label : undefined;
 		const matches = (treeItemLabel && treeItemLabel.highlights && label) ? treeItemLabel.highlights.map(([start, end]) => {
-			if ((Math.abs(start) > label.length) || (Math.abs(end) >= label.length)) {
-				return ({ start: 0, end: 0 });
-			}
 			if (start < 0) {
 				start = label.length + start;
 			}
 			if (end < 0) {
 				end = label.length + end;
+			}
+			if ((start >= label.length) || (end > label.length)) {
+				return ({ start: 0, end: 0 });
 			}
 			if (start > end) {
 				const swap = start;

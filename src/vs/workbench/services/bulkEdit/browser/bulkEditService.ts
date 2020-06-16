@@ -165,17 +165,11 @@ class BulkEditModel implements IDisposable {
 		this._tasks = [];
 		const promises: Promise<any>[] = [];
 
-		this._edits.forEach((value, key) => {
+		for (let [key, value] of this._edits) {
 			const promise = this._textModelResolverService.createModelReference(URI.parse(key)).then(async ref => {
-				const model = ref.object;
-
-				if (!model || !model.textEditorModel) {
-					throw new Error(`Cannot load file ${key}`);
-				}
-
 				let task: ModelEditTask;
 				let makeMinimal = false;
-				if (this._editor && this._editor.hasModel() && this._editor.getModel().uri.toString() === model.textEditorModel.uri.toString()) {
+				if (this._editor && this._editor.hasModel() && this._editor.getModel().uri.toString() === ref.object.textEditorModel.uri.toString()) {
 					task = new EditorEditTask(ref, this._editor);
 					makeMinimal = true;
 				} else {
@@ -201,7 +195,7 @@ class BulkEditModel implements IDisposable {
 				this._progress.report(undefined);
 			});
 			promises.push(promise);
-		});
+		}
 
 		await Promise.all(promises);
 
@@ -383,7 +377,7 @@ class BulkEdit {
 
 export class BulkEditService implements IBulkEditService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _previewHandler?: IBulkEditPreviewHandler;
 

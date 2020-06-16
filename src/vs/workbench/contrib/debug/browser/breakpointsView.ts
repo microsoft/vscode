@@ -22,7 +22,7 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { WorkbenchList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -110,38 +110,33 @@ export class BreakpointsView extends ViewPane {
 
 		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
-		this._register(this.list.onDidOpen(async e => {
-			let isSingleClick = false;
-			let isDoubleClick = false;
-			let isMiddleClick = false;
-			let openToSide = false;
-
-			const browserEvent = e.browserEvent;
-			if (browserEvent instanceof MouseEvent) {
-				isSingleClick = browserEvent.detail === 1;
-				isDoubleClick = browserEvent.detail === 2;
-				isMiddleClick = browserEvent.button === 1;
-				openToSide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
+		this.list.onMouseMiddleClick(async ({ element }) => {
+			if (element instanceof Breakpoint) {
+				await this.debugService.removeBreakpoints(element.getId());
+			} else if (element instanceof FunctionBreakpoint) {
+				await this.debugService.removeFunctionBreakpoints(element.getId());
+			} else if (element instanceof DataBreakpoint) {
+				await this.debugService.removeDataBreakpoints(element.getId());
 			}
+		});
 
-			const focused = this.list.getFocusedElements();
-			const element = focused.length ? focused[0] : undefined;
-
-			if (isMiddleClick) {
-				if (element instanceof Breakpoint) {
-					await this.debugService.removeBreakpoints(element.getId());
-				} else if (element instanceof FunctionBreakpoint) {
-					await this.debugService.removeFunctionBreakpoints(element.getId());
-				} else if (element instanceof DataBreakpoint) {
-					await this.debugService.removeDataBreakpoints(element.getId());
-				}
+		const resourceNavigator = this._register(new ListResourceNavigator(this.list, { configurationService: this.configurationService }));
+		this._register(resourceNavigator.onDidOpen(async e => {
+			if (e.element === null) {
 				return;
 			}
 
-			if (element instanceof Breakpoint) {
-				openBreakpointSource(element, openToSide, isSingleClick, this.debugService, this.editorService);
+			if (e.browserEvent instanceof MouseEvent && e.browserEvent.button === 1) { // middle click
+				return;
 			}
-			if (isDoubleClick && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
+
+			const element = this.list.element(e.element);
+
+			if (element instanceof Breakpoint) {
+				openBreakpointSource(element, e.sideBySide, e.editorOptions.preserveFocus || false, this.debugService, this.editorService);
+			}
+			if (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2 && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
+				// double click
 				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 				this.onBreakpointsChange();
 			}
@@ -153,6 +148,11 @@ export class BreakpointsView extends ViewPane {
 			if (visible && this.needsRefresh) {
 				this.onBreakpointsChange();
 			}
+		}));
+
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
+			this.updateSize();
 		}));
 	}
 
@@ -237,9 +237,11 @@ export class BreakpointsView extends ViewPane {
 	}
 
 	private updateSize(): void {
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+
 		// Adjust expanded body size
 		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? getExpandedBodySize(this.debugService.getModel(), MAX_VISIBLE_BREAKPOINTS) : 170;
-		this.maximumBodySize = this.orientation === Orientation.VERTICAL ? getExpandedBodySize(this.debugService.getModel(), Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+		this.maximumBodySize = this.orientation === Orientation.VERTICAL && containerModel.visibleViewDescriptors.length > 1 ? getExpandedBodySize(this.debugService.getModel(), Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
 	}
 
 	private onBreakpointsChange(): void {

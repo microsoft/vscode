@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer as ipc } from 'electron';
 import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -34,7 +33,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { flatten } from 'vs/base/common/arrays';
 import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { Action } from 'vs/base/common/actions';
@@ -52,7 +51,7 @@ class DeltaExtensionsQueueItem {
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
-	private readonly _remoteExtensionsEnvironmentData: Map<string, IRemoteAgentEnvironment>;
+	private readonly _remoteEnvironment: Map<string, IRemoteAgentEnvironment>;
 
 	private readonly _extensionScanner: CachedExtensionScanner;
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
@@ -95,7 +94,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}]);
 		}
 
-		this._remoteExtensionsEnvironmentData = new Map<string, IRemoteAgentEnvironment>();
+		this._remoteEnvironment = new Map<string, IRemoteAgentEnvironment>();
 
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 		this._deltaExtensionsQueue = [];
@@ -323,6 +322,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					shouldActivateReason = activationEvent;
 					break;
 				}
+
+				if (activationEvent === 'onStartupFinished') {
+					shouldActivate = true;
+					shouldActivateReason = activationEvent;
+					break;
+				}
 			}
 		}
 
@@ -338,10 +343,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	private _createProvider(remoteAuthority: string): IInitDataProvider {
 		return {
 			remoteAuthority: remoteAuthority,
-			getInitData: () => {
-				return this.whenInstalledExtensionsRegistered().then(() => {
-					return this._remoteExtensionsEnvironmentData.get(remoteAuthority)!;
-				});
+			getInitData: async () => {
+				await this.whenInstalledExtensionsRegistered();
+				const connectionData = this._remoteAuthorityResolverService.getConnectionData(remoteAuthority);
+				const remoteEnvironment = this._remoteEnvironment.get(remoteAuthority)!;
+				return { connectionData, remoteEnvironment };
 			}
 		};
 	}
@@ -427,12 +433,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 
 		const extensionHost = this._extensionHostProcessManagers[0];
-		this._remoteAuthorityResolverService.clearResolvedAuthority(remoteAuthority);
+		this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
 		try {
 			const result = await extensionHost.resolveAuthority(remoteAuthority);
-			this._remoteAuthorityResolverService.setResolvedAuthority(result.authority, result.options);
+			this._remoteAuthorityResolverService._setResolvedAuthority(result.authority, result.options);
 		} catch (err) {
-			this._remoteAuthorityResolverService.setResolvedAuthorityError(remoteAuthority, err);
+			this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 		}
 	}
 
@@ -465,7 +471,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 						console.log(`Error handled: Not showing a notification for the error`);
 					}
 				}
-				this._remoteAuthorityResolverService.setResolvedAuthorityError(remoteAuthority, err);
+				this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 
 				// Proceed with the local extension host
 				await this._startLocalExtensionHost(extensionHost, localExtensions, localExtensions.map(extension => extension.identifier));
@@ -473,7 +479,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}
 
 			// set the resolved authority
-			this._remoteAuthorityResolverService.setResolvedAuthority(resolvedAuthority.authority, resolvedAuthority.options);
+			this._remoteAuthorityResolverService._setResolvedAuthority(resolvedAuthority.authority, resolvedAuthority.options);
 			this._remoteExplorerService.setTunnelInformation(resolvedAuthority.tunnelInformation);
 
 			// monitor for breakage
@@ -485,7 +491,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 						return;
 					}
 					if (e.type === PersistentConnectionEventType.ConnectionLost) {
-						this._remoteAuthorityResolverService.clearResolvedAuthority(remoteAuthority);
+						this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
 					}
 				});
 				connection.onReconnecting(() => this._resolveAuthorityAgain());
@@ -541,7 +547,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			remoteEnv.extensions = remoteEnv.extensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === RunningLocation.Remote);
 
 			// save for remote extension's init data
-			this._remoteExtensionsEnvironmentData.set(remoteAuthority, remoteEnv);
+			this._remoteEnvironment.set(remoteAuthority, remoteEnv);
 
 			await this._startLocalExtensionHost(extensionHost, remoteEnv.extensions.concat(localExtensions), localExtensions.map(extension => extension.identifier));
 		} else {
@@ -573,7 +579,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	public _onExtensionHostExit(code: number): void {
 		if (this._isExtensionDevTestFromCli) {
 			// When CLI testing make sure to exit with proper exit code
-			ipc.send('vscode:exit', code);
+			this._electronService.exit(code);
 		} else {
 			// Expected development extension termination: When the extension host goes down we also shutdown the window
 			this._electronService.closeWindow();

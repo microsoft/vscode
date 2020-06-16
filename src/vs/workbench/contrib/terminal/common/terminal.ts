@@ -70,10 +70,6 @@ export const TERMINAL_ACTION_CATEGORY = nls.localize('terminalCategory', "Termin
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
-export const SHELL_PATH_INVALID_EXIT_CODE = -1;
-export const SHELL_PATH_DIRECTORY_EXIT_CODE = -2;
-export const SHELL_CWD_INVALID_EXIT_CODE = -3;
-export const LEGACY_CONSOLE_MODE_EXIT_CODE = 3221225786; // microsoft/vscode#73790
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
@@ -237,7 +233,7 @@ export interface IShellLaunchConfig {
  * Provides access to native or electron APIs to other terminal services.
  */
 export interface ITerminalNativeService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly linuxDistro: LinuxDistro;
 
@@ -308,7 +304,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
 	dispose(immediate?: boolean): void;
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<void>;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 
@@ -364,12 +360,14 @@ export interface ISpawnExtHostProcessRequest {
 	cols: number;
 	rows: number;
 	isWorkspaceShellAllowed: boolean;
+	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
 export interface IStartExtensionTerminalRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	cols: number;
 	rows: number;
+	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
 export interface IAvailableShellsRequest {
@@ -402,6 +400,11 @@ export interface IWindowsShellHelper extends IDisposable {
 	getShellName(): Promise<string>;
 }
 
+export interface ITerminalLaunchError {
+	message: string;
+	code?: number;
+}
+
 /**
  * An interface representing a raw terminal child process, this contains a subset of the
  * child_process.ChildProcess node.js interface.
@@ -413,6 +416,14 @@ export interface ITerminalChildProcess {
 	onProcessTitleChanged: Event<string>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensions | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
+
+	/**
+	 * Starts the process.
+	 *
+	 * @returns undefined when the process was successfully started, otherwise an object containing
+	 * information on what went wrong.
+	 */
+	start(): Promise<ITerminalLaunchError | undefined>;
 
 	/**
 	 * Shutdown the terminal process.

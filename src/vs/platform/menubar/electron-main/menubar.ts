@@ -18,7 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { mnemonicMenuLabel as baseMnemonicLabel } from 'vs/base/common/labels';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemUriAction } from 'vs/platform/menubar/node/menubar';
+import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemUriAction } from 'vs/platform/menubar/common/menubar';
 import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/node/state';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -61,7 +61,7 @@ export class Menubar {
 
 	private keybindings: { [commandId: string]: IMenubarKeybinding };
 
-	private readonly fallbackMenuHandlers: { [id: string]: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Event) => void } = Object.create(null);
+	private readonly fallbackMenuHandlers: { [id: string]: (menuItem: MenuItem, browserWindow: BrowserWindow | undefined, event: Event) => void } = Object.create(null);
 
 	constructor(
 		@IUpdateService private readonly updateService: IUpdateService,
@@ -113,8 +113,8 @@ export class Menubar {
 	private addFallbackHandlers(): void {
 
 		// File Menu Items
-		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = (menuItem, win, event) => this.windowsMainService.openEmptyWindow({ context: OpenContext.MENU, contextWindowId: win.id });
-		this.fallbackMenuHandlers['workbench.action.newWindow'] = (menuItem, win, event) => this.windowsMainService.openEmptyWindow({ context: OpenContext.MENU, contextWindowId: win.id });
+		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = (menuItem, win, event) => this.windowsMainService.openEmptyWindow({ context: OpenContext.MENU, contextWindowId: win?.id });
+		this.fallbackMenuHandlers['workbench.action.newWindow'] = (menuItem, win, event) => this.windowsMainService.openEmptyWindow({ context: OpenContext.MENU, contextWindowId: win?.id });
 		this.fallbackMenuHandlers['workbench.action.files.openFileFolder'] = (menuItem, win, event) => this.electronMainService.pickFileFolderAndOpen(undefined, { forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
 		this.fallbackMenuHandlers['workbench.action.openWorkspace'] = (menuItem, win, event) => this.electronMainService.pickWorkspaceAndOpen(undefined, { forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
 
@@ -432,7 +432,7 @@ export class Menubar {
 				menu.append(__separator__());
 			} else if (isMenubarMenuItemSubmenu(item)) {
 				const submenu = new Menu();
-				const submenuItem = new MenuItem({ label: this.mnemonicLabel(item.label), submenu: submenu });
+				const submenuItem = new MenuItem({ label: this.mnemonicLabel(item.label), submenu });
 				this.setMenu(submenu, item.submenu.items);
 				menu.append(submenuItem);
 			} else if (isMenubarMenuItemUriAction(item)) {

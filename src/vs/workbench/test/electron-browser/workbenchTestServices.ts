@@ -8,15 +8,14 @@ import { Event } from 'vs/base/common/event';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { NativeWorkbenchEnvironmentService, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { NativeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
-import { IElectronService } from 'vs/platform/electron/node/electron';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { FileOperationError, IFileService } from 'vs/platform/files/common/files';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -25,7 +24,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { URI } from 'vs/base/common/uri';
 import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { LogLevel, ILogService } from 'vs/platform/log/common/log';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -37,8 +36,9 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/electron-browser/backupFileService.test';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INativeWindowConfiguration, IOpenedWindow } from 'vs/platform/windows/node/window';
+import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const TestWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
@@ -75,7 +75,8 @@ export class TestTextFileService extends NativeTextFileService {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IPathService athService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
 		super(
 			fileService,
@@ -93,7 +94,8 @@ export class TestTextFileService extends NativeTextFileService {
 			codeEditorService,
 			athService,
 			workingCopyFileService,
-			logService
+			logService,
+			uriIdentityService
 		);
 	}
 
@@ -150,7 +152,7 @@ class TestEncodingOracle extends EncodingOracle {
 
 export class TestSharedProcessService implements ISharedProcessService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	getChannel(channelName: string): any { return undefined; }
 
@@ -161,13 +163,17 @@ export class TestSharedProcessService implements ISharedProcessService {
 }
 
 export class TestElectronService implements IElectronService {
-	_serviceBrand: undefined;
+
+	declare readonly _serviceBrand: undefined;
+
+	readonly windowId = -1;
 
 	onWindowOpen: Event<number> = Event.None;
 	onWindowMaximize: Event<number> = Event.None;
 	onWindowUnmaximize: Event<number> = Event.None;
 	onWindowFocus: Event<number> = Event.None;
 	onWindowBlur: Event<number> = Event.None;
+	onOSResume: Event<unknown> = Event.None;
 
 	windowCount = Promise.resolve(1);
 	getWindowCount(): Promise<number> { return this.windowCount; }
@@ -200,21 +206,31 @@ export class TestElectronService implements IElectronService {
 	async setDocumentEdited(edited: boolean): Promise<void> { }
 	async openExternal(url: string): Promise<boolean> { return false; }
 	async updateTouchBar(): Promise<void> { }
+	async moveItemToTrash(): Promise<boolean> { return false; }
 	async newWindowTab(): Promise<void> { }
 	async showPreviousWindowTab(): Promise<void> { }
 	async showNextWindowTab(): Promise<void> { }
 	async moveWindowTabToNewWindow(): Promise<void> { }
 	async mergeAllWindowTabs(): Promise<void> { }
 	async toggleWindowTabsBar(): Promise<void> { }
+	async notifyReady(): Promise<void> { }
 	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; } | undefined): Promise<void> { }
 	async reload(): Promise<void> { }
 	async closeWindow(): Promise<void> { }
 	async closeWindowById(): Promise<void> { }
 	async quit(): Promise<void> { }
+	async exit(code: number): Promise<void> { }
 	async openDevTools(options?: Electron.OpenDevToolsOptions | undefined): Promise<void> { }
 	async toggleDevTools(): Promise<void> { }
 	async startCrashReporter(options: Electron.CrashReporterStartOptions): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
+	async readClipboardText(type?: 'selection' | 'clipboard' | undefined): Promise<string> { return ''; }
+	async writeClipboardText(text: string, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
+	async readClipboardFindText(): Promise<string> { return ''; }
+	async writeClipboardFindText(text: string): Promise<void> { }
+	async writeClipboardBuffer(format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
+	async readClipboardBuffer(format: string): Promise<Uint8Array> { return Uint8Array.from([]); }
+	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 }
 
 export function workbenchInstantiationService(): ITestInstantiationService {
@@ -247,7 +263,7 @@ export class TestServiceAccessor {
 
 export class TestNativePathService extends TestPathService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService) {
 		super(environmentService.userHome);

@@ -412,7 +412,7 @@ interface UriState extends UriComponents {
 
 const _pathSepMarker = isWindows ? 1 : undefined;
 
-// eslint-disable-next-line @typescript-eslint/class-name-casing
+// eslint-disable-next-line @typescript-eslint/naming-convention
 class _URI extends URI {
 
 	_formatted: string | null = null;

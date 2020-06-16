@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -51,6 +50,7 @@ interface IPackageInfo {
 	name: string;
 	version: string;
 	aiKey: string;
+	main: string;
 }
 
 let telemetryReporter: TelemetryReporter | null;
@@ -59,11 +59,11 @@ let telemetryReporter: TelemetryReporter | null;
 export function activate(context: ExtensionContext) {
 	let toDispose = context.subscriptions;
 
-	let packageInfo = getPackageInfo(context);
-	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+	let clientPackageJSON = getPackageInfo(context);
+	telemetryReporter = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
 
-	let serverMain = readJSONFile(context.asAbsolutePath('./server/package.json')).main;
-	let serverModule = context.asAbsolutePath(path.join('server', serverMain));
+	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/htmlServerMain`;
+	const serverModule = context.asAbsolutePath(serverMain);
 
 	// The debug options for the server
 	let debugOptions = { execArgv: ['--nolazy', '--inspect=6045'] };
@@ -298,42 +298,35 @@ export function activate(context: ExtensionContext) {
 	});
 
 	const promptForTypeOnRenameKey = 'html.promptForTypeOnRename';
-	const promptForTypeOnRename =
-		!workspace.getConfiguration().get(SettingIds.renameOnType, { languageId: 'html' }) &&
-		extensions.getExtension('formulahendry.auto-rename-tag') &&
-		(context.globalState.get(promptForTypeOnRenameKey) !== false);
+	const promptForTypeOnRename = extensions.getExtension('formulahendry.auto-rename-tag') !== undefined &&
+		(context.globalState.get(promptForTypeOnRenameKey) !== false) &&
+		!workspace.getConfiguration('editor', { languageId: 'html' }).get('renameOnType');
 
-	toDispose.push(window.onDidChangeActiveTextEditor(async e => {
-		if (e && promptForTypeOnRename && documentSelector.indexOf(e.document.languageId) !== -1) {
-			context.globalState.update(promptForTypeOnRenameKey, false);
-			const configure = localize('configureButton', 'Configure');
-			const res = await window.showInformationMessage(localize('renameOnTypeQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
-			if (res === configure) {
-				commands.executeCommand('workbench.action.openSettings', SettingIds.renameOnType);
+	if (promptForTypeOnRename) {
+		const activeEditorListener = window.onDidChangeActiveTextEditor(async e => {
+			if (e && documentSelector.indexOf(e.document.languageId) !== -1) {
+				context.globalState.update(promptForTypeOnRenameKey, false);
+				activeEditorListener.dispose();
+				const configure = localize('configureButton', 'Configure');
+				const res = await window.showInformationMessage(localize('renameOnTypeQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
+				if (res === configure) {
+					commands.executeCommand('workbench.action.openSettings', SettingIds.renameOnType);
+				}
 			}
-		}
-	}));
-}
-
-function getPackageInfo(context: ExtensionContext): IPackageInfo | null {
-	let extensionPackage = readJSONFile(context.asAbsolutePath('./package.json'));
-	if (extensionPackage) {
-		return {
-			name: extensionPackage.name,
-			version: extensionPackage.version,
-			aiKey: extensionPackage.aiKey
-		};
+		});
+		toDispose.push(activeEditorListener);
 	}
-	return null;
+
+	toDispose.push();
 }
 
-
-function readJSONFile(location: string) {
+function getPackageInfo(context: ExtensionContext): IPackageInfo {
+	const location = context.asAbsolutePath('./package.json');
 	try {
 		return JSON.parse(fs.readFileSync(location).toString());
 	} catch (e) {
 		console.log(`Problems reading ${location}: ${e}`);
-		return {};
+		return { name: '', version: '', aiKey: '', main: '' };
 	}
 }
 

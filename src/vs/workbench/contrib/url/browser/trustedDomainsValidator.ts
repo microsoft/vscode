@@ -21,6 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 type TrustedDomainsDialogActionClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -37,6 +38,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
 	}
@@ -119,10 +121,13 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 				const pickedDomains = await configureOpenerTrustedDomainsHandler(
 					trustedDomains,
 					domainToOpen,
+					resource,
 					this._quickInputService,
 					this._storageService,
 					this._editorService,
-					this._telemetryService
+					this._telemetryService,
+					this._notificationService,
+					this._clipboardService,
 				);
 				// Trust all domains
 				if (pickedDomains.indexOf('*') !== -1) {
@@ -153,14 +158,32 @@ function isLocalhostAuthority(authority: string) {
 }
 
 /**
+ * Case-normalize some case-insinsitive URLs, such as github.
+ */
+function normalizeURL(url: string | URI): string {
+	const caseInsensitiveAuthorities = ['github.com'];
+	try {
+		const parsed = typeof url === 'string' ? URI.parse(url, true) : url;
+		if (caseInsensitiveAuthorities.includes(parsed.authority)) {
+			return parsed.with({ path: parsed.path.toLowerCase() }).toString(true);
+		} else {
+			return parsed.toString(true);
+		}
+	} catch { return url.toString(); }
+}
+
+/**
  * Check whether a domain like https://www.microsoft.com matches
  * the list of trusted domains.
  *
  * - Schemes must match
- * - There's no subdomain matching. For example https://microsoft.com doesn't match https://www.microsoft.com
+ * - There's no subdomsain matching. For example https://microsoft.com doesn't match https://www.microsoft.com
  * - Star matches all subdomains. For example https://*.microsoft.com matches https://www.microsoft.com and https://foo.bar.microsoft.com
  */
 export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
+	url = URI.parse(normalizeURL(url));
+	trustedDomains = trustedDomains.map(normalizeURL);
+
 	if (isLocalhostAuthority(url.authority)) {
 		return true;
 	}

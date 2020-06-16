@@ -5,7 +5,7 @@
 
 import { EditorModel, IRevertOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookEditorModel, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
@@ -17,20 +17,23 @@ import { basename } from 'vs/base/common/resources';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { DefaultEndOfLine, ITextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
+import { Schemas } from 'vs/base/common/network';
 
 export interface INotebookEditorModelManager {
 	models: NotebookEditorModel[];
 
-	resolve(resource: URI, viewType: string): Promise<NotebookEditorModel>;
+	resolve(resource: URI, viewType: string, editorId?: string): Promise<NotebookEditorModel>;
 
 	get(resource: URI): NotebookEditorModel | undefined;
 }
 
-export interface INotebookRevertOptions {
+export interface INotebookLoadOptions {
 	/**
 	 * Go to disk bypassing any cache of the model if any.
 	 */
 	forceReadFromDisk?: boolean;
+
+	editorId?: string;
 }
 
 
@@ -51,6 +54,9 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	get name() {
 		return this._name;
 	}
+
+	private _workingCopyResource: URI;
+
 	constructor(
 		public readonly resource: URI,
 		public readonly viewType: string,
@@ -61,9 +67,9 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		super();
 
 		const input = this;
-		const workingCopyUri = resource.with({ scheme: 'vscode-notebook' });
+		this._workingCopyResource = resource.with({ scheme: Schemas.vscodeNotebook });
 		const workingCopyAdapter = new class implements IWorkingCopy {
-			readonly resource = workingCopyUri;
+			readonly resource = input._workingCopyResource;
 			get name() { return input.name; }
 			readonly capabilities = input.capabilities;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
@@ -79,8 +85,27 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 	capabilities = 0;
 
-	async backup(): Promise<IWorkingCopyBackup> {
-		return { content: this._notebook.createSnapshot(true) };
+	async backup(): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
+		if (this._notebook.supportBackup) {
+			const tokenSource = new CancellationTokenSource();
+			const backupId = await this.notebookService.backup(this.viewType, this.resource, tokenSource.token);
+
+			return {
+				meta: {
+					name: this._name,
+					viewType: this._notebook.viewType,
+					backupId: backupId
+				}
+			};
+		} else {
+			return {
+				meta: {
+					name: this._name,
+					viewType: this._notebook.viewType
+				},
+				content: this._notebook.createSnapshot(true)
+			};
+		}
 	}
 
 	async revert(options?: IRevertOptions | undefined): Promise<void> {
@@ -89,42 +114,48 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			return;
 		}
 
-		await this.load({ forceReadFromDisk: true });
+		if (this._notebook.supportBackup) {
+			const tokenSource = new CancellationTokenSource();
+			await this.notebookService.revert(this.viewType, this.resource, tokenSource.token);
+		} else {
+			await this.load({ forceReadFromDisk: true });
+		}
+
 		this._dirty = false;
 		this._onDidChangeDirty.fire();
-		return;
 	}
 
-	async load(options?: INotebookRevertOptions): Promise<NotebookEditorModel> {
+	async load(options?: INotebookLoadOptions): Promise<NotebookEditorModel> {
 		if (options?.forceReadFromDisk) {
-			return this.loadFromProvider(true);
+			return this.loadFromProvider(true, undefined, undefined);
 		}
+
 		if (this.isResolved()) {
 			return this;
 		}
 
-		const backup = await this.backupFileService.resolve(this.resource);
+		const backup = await this.backupFileService.resolve<NotebookDocumentBackupData>(this._workingCopyResource);
 
 		if (this.isResolved()) {
 			return this; // Make sure meanwhile someone else did not succeed in loading
 		}
 
-		if (backup) {
+		if (backup && backup.meta?.backupId === undefined) {
 			try {
-				return await this.loadFromBackup(backup.value.create(DefaultEndOfLine.LF));
+				return await this.loadFromBackup(backup.value.create(DefaultEndOfLine.LF), options?.editorId);
 			} catch (error) {
 				// this.logService.error('[text file model] load() from backup', error); // ignore error and continue to load as file below
 			}
 		}
 
-		return this.loadFromProvider(false);
+		return this.loadFromProvider(false, options?.editorId, backup?.meta?.backupId);
 	}
 
-	private async loadFromBackup(content: ITextBuffer): Promise<NotebookEditorModel> {
+	private async loadFromBackup(content: ITextBuffer, editorId?: string): Promise<NotebookEditorModel> {
 		const fullRange = content.getRangeAt(0, content.getLength());
 		const data = JSON.parse(content.getValueInRange(fullRange, EndOfLinePreference.LF));
 
-		const notebook = await this.notebookService.createNotebookFromBackup(this.viewType!, this.resource, data.metadata, data.languages, data.cells);
+		const notebook = await this.notebookService.createNotebookFromBackup(this.viewType!, this.resource, data.metadata, data.languages, data.cells, editorId);
 		this._notebook = notebook!;
 
 		this._name = basename(this._notebook!.uri);
@@ -133,15 +164,18 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			this.setDirty(true);
 			this._onDidChangeContent.fire();
 		}));
+		this._register(this._notebook.onDidChangeUnknown(() => {
+			this.setDirty(true);
+		}));
 
-		await this.backupFileService.discardBackup(this.resource);
+		await this.backupFileService.discardBackup(this._workingCopyResource);
 		this.setDirty(true);
 
 		return this;
 	}
 
-	private async loadFromProvider(forceReloadFromDisk: boolean) {
-		const notebook = await this.notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk);
+	private async loadFromProvider(forceReloadFromDisk: boolean, editorId: string | undefined, backupId: string | undefined) {
+		const notebook = await this.notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, editorId, backupId);
 		this._notebook = notebook!;
 
 		this._name = basename(this._notebook!.uri);
@@ -150,6 +184,14 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			this.setDirty(true);
 			this._onDidChangeContent.fire();
 		}));
+		this._register(this._notebook.onDidChangeUnknown(() => {
+			this.setDirty(true);
+		}));
+
+		if (backupId) {
+			await this.backupFileService.discardBackup(this._workingCopyResource);
+			this.setDirty(true);
+		}
 
 		return this;
 	}
@@ -204,7 +246,7 @@ export class NotebookEditorModelManager extends Disposable implements INotebookE
 		super();
 	}
 
-	async resolve(resource: URI, viewType: string): Promise<NotebookEditorModel> {
+	async resolve(resource: URI, viewType: string, editorId?: string): Promise<NotebookEditorModel> {
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders.get(resource);
 		if (pendingLoad) {
@@ -227,7 +269,7 @@ export class NotebookEditorModelManager extends Disposable implements INotebookE
 		else {
 			// didCreateModel = true;
 			const newModel = model = this.instantiationService.createInstance(NotebookEditorModel, resource, viewType);
-			modelPromise = model.load();
+			modelPromise = model.load({ editorId });
 
 			this.registerModel(newModel);
 		}

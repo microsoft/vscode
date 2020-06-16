@@ -27,13 +27,13 @@ if [ "$(id -u)" = "0" ]; then
 	fi
 fi
 
-if [ ! -L $0 ]; then
+if [ ! -L "$0" ]; then
 	# if path is not a symlink, find relatively
-	VSCODE_PATH="$(dirname $0)/.."
+	VSCODE_PATH="$(dirname "$0")/.."
 else
 	if command -v readlink >/dev/null; then
 		# if readlink exists, follow the symlink and find relatively
-		VSCODE_PATH="$(dirname $(readlink -f $0))/.."
+		VSCODE_PATH="$(dirname $(readlink -f "$0"))/.."
 	else
 		# else use the standard install location
 		VSCODE_PATH="/usr/share/@@NAME@@"

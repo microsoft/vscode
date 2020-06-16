@@ -125,7 +125,6 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
 			const selectBackgroundColor = colors.selectBackground ? `${colors.selectBackground}` : '';
 			this.container.style.backgroundColor = selectBackgroundColor;
-			this.start.style.backgroundColor = selectBackgroundColor;
 		}));
 		this.debugService.getConfigurationManager().getDynamicProviders().then(providers => {
 			this.providers = providers;

@@ -384,6 +384,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 	protected _handleCounter: number;
 	protected _handlers: Map<number, HandlerData>;
 	protected _taskExecutions: Map<string, TaskExecutionImpl>;
+	protected _taskExecutionPromises: Map<string, Promise<TaskExecutionImpl>>;
 	protected _providedCustomExecutions2: Map<string, types.CustomExecution>;
 	private _notProvidedCustomExecutions: Set<string>; // Used for custom executions tasks that are created and run through executeTask.
 	protected _activeCustomExecutions2: Map<string, types.CustomExecution>;
@@ -412,6 +413,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
 		this._taskExecutions = new Map<string, TaskExecutionImpl>();
+		this._taskExecutionPromises = new Map<string, Promise<TaskExecutionImpl>>();
 		this._providedCustomExecutions2 = new Map<string, types.CustomExecution>();
 		this._notProvidedCustomExecutions = new Set<string>();
 		this._activeCustomExecutions2 = new Map<string, types.CustomExecution>();
@@ -496,6 +498,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 
 	public async $OnDidEndTask(execution: tasks.TaskExecutionDTO): Promise<void> {
 		const _execution = await this.getTaskExecution(execution);
+		this._taskExecutionPromises.delete(execution.id);
 		this._taskExecutions.delete(execution.id);
 		this.customExecutionComplete(execution);
 		this._onDidTerminateTask.fire({
@@ -509,12 +512,10 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 
 	public async $onDidStartTaskProcess(value: tasks.TaskProcessStartedDTO): Promise<void> {
 		const execution = await this.getTaskExecution(value.id);
-		if (execution) {
-			this._onDidTaskProcessStarted.fire({
-				execution: execution,
-				processId: value.processId
-			});
-		}
+		this._onDidTaskProcessStarted.fire({
+			execution: execution,
+			processId: value.processId
+		});
 	}
 
 	public get onDidEndTaskProcess(): Event<vscode.TaskProcessEndEvent> {
@@ -523,12 +524,10 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 
 	public async $onDidEndTaskProcess(value: tasks.TaskProcessEndedDTO): Promise<void> {
 		const execution = await this.getTaskExecution(value.id);
-		if (execution) {
-			this._onDidTaskProcessEnded.fire({
-				execution: execution,
-				exitCode: value.exitCode
-			});
-		}
+		this._onDidTaskProcessEnded.fire({
+			execution: execution,
+			exitCode: value.exitCode
+		});
 	}
 
 	protected abstract provideTasksInternal(validTypes: { [key: string]: boolean; }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.TaskDTO[], extension: IExtensionDescription };
@@ -619,24 +618,33 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 
 	protected async getTaskExecution(execution: tasks.TaskExecutionDTO | string, task?: vscode.Task): Promise<TaskExecutionImpl> {
 		if (typeof execution === 'string') {
-			const taskExecution = this._taskExecutions.get(execution);
+			const taskExecution = this._taskExecutionPromises.get(execution);
 			if (!taskExecution) {
 				throw new Error('Unexpected: The specified task is missing an execution');
 			}
 			return taskExecution;
 		}
 
-		let result: TaskExecutionImpl | undefined = this._taskExecutions.get(execution.id);
+		let result: Promise<TaskExecutionImpl> | undefined = this._taskExecutionPromises.get(execution.id);
 		if (result) {
 			return result;
 		}
-		const taskToCreate = task ? task : await TaskDTO.to(execution.task, this._workspaceProvider);
-		if (!taskToCreate) {
-			throw new Error('Unexpected: Task does not exist.');
-		}
-		const createdResult: TaskExecutionImpl = new TaskExecutionImpl(this, execution.id, taskToCreate);
-		this._taskExecutions.set(execution.id, createdResult);
-		return createdResult;
+		const createdResult: Promise<TaskExecutionImpl> = new Promise(async (resolve, reject) => {
+			const taskToCreate = task ? task : await TaskDTO.to(execution.task, this._workspaceProvider);
+			if (!taskToCreate) {
+				reject('Unexpected: Task does not exist.');
+			} else {
+				resolve(new TaskExecutionImpl(this, execution.id, taskToCreate));
+			}
+		});
+
+		this._taskExecutionPromises.set(execution.id, createdResult);
+		return createdResult.then(executionCreatedResult => {
+			this._taskExecutions.set(execution.id, executionCreatedResult);
+			return executionCreatedResult;
+		}, rejected => {
+			return Promise.reject(rejected);
+		});
 	}
 
 	protected checkDeprecation(task: vscode.Task, handler: HandlerData) {

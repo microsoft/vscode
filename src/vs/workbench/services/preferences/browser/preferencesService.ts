@@ -46,7 +46,7 @@ const emptyEditableSettingsContent = '{\n}';
 
 export class PreferencesService extends Disposable implements IPreferencesService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private lastOpenedSettingsInput: PreferencesEditorInput | null = null;
 
@@ -546,7 +546,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.textFileService.read(workspaceConfig)
 				.then(content => {
 					if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
-						return this.jsonEditingService.write(resource, [{ key: 'settings', value: {} }], true).then(undefined, () => { });
+						return this.jsonEditingService.write(resource, [{ path: ['settings'], value: {} }], true).then(undefined, () => { });
 					}
 					return undefined;
 				});
@@ -614,9 +614,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const type = schema ? schema.type : 'object' /* Override Identifier */;
 		let setting = settingsModel.getPreference(settingKey);
 		if (!setting) {
-			const defaultValue = type === 'array' ? this.configurationService.inspect(settingKey).defaultValue : getDefaultValue(type);
+			const defaultValue = (type === 'object' || type === 'array') ? this.configurationService.inspect(settingKey).defaultValue : getDefaultValue(type);
 			if (defaultValue !== undefined) {
-				await this.jsonEditingService.write(settingsModel.uri!, [{ key: settingKey, value: defaultValue }], false);
+				const key = settingsModel instanceof WorkspaceConfigurationEditorModel ? ['settings', settingKey] : [settingKey];
+				await this.jsonEditingService.write(settingsModel.uri!, [{ path: key, value: defaultValue }], false);
 				setting = settingsModel.getPreference(settingKey);
 			}
 		}

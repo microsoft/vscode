@@ -31,7 +31,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IConfirmation, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TreeResourceNavigator, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchSortOrder, SearchCompletionExitCode } from 'vs/workbench/services/search/common/search';
@@ -718,6 +718,7 @@ export class SearchView extends ViewPane {
 				accessibilityProvider: this.treeAccessibilityProvider,
 				dnd: this.instantiationService.createInstance(SearchDND),
 				multipleSelectionSupport: false,
+				openOnFocus: true,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				}
@@ -727,8 +728,7 @@ export class SearchView extends ViewPane {
 			this.toggleCollapseStateDelayer.trigger(() => this.toggleCollapseAction.onTreeCollapseStateChange())
 		));
 
-		const resourceNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true, openOnSelection: false }));
-		this._register(Event.debounce(resourceNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {
+		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(options => {
 			if (options.element instanceof Match) {
 				const selectedMatch: Match = options.element;
 				if (this.currentSelectedFileMatch) {
@@ -785,6 +785,10 @@ export class SearchView extends ViewPane {
 	}
 
 	selectNextMatch(): void {
+		if (!this.hasSearchResults()) {
+			return;
+		}
+
 		const [selected] = this.tree.getSelection();
 
 		// Expand the initial selected node, if needed
@@ -824,6 +828,10 @@ export class SearchView extends ViewPane {
 	}
 
 	selectPreviousMatch(): void {
+		if (!this.hasSearchResults()) {
+			return;
+		}
+
 		const [selected] = this.tree.getSelection();
 		let navigator = this.tree.navigate(selected);
 
@@ -831,7 +839,13 @@ export class SearchView extends ViewPane {
 
 		// Select previous until find a Match or a collapsed item
 		while (!prev || (!(prev instanceof Match) && !this.tree.isCollapsed(prev))) {
-			prev = prev ? navigator.previous() : navigator.last();
+			const nextPrev = prev ? navigator.previous() : navigator.last();
+
+			if (!prev && !nextPrev) {
+				return;
+			}
+
+			prev = nextPrev;
 		}
 
 		// Expand until last child is a Match

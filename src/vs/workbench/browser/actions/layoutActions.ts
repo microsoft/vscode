@@ -687,7 +687,7 @@ export class MoveFocusedViewAction extends Action {
 
 		const quickPick = this.quickInputService.createQuickPick();
 		quickPick.placeholder = nls.localize('moveFocusedView.selectDestination', "Select a Destination for the View");
-		quickPick.title = nls.localize('moveFocusedView.title', "View: Move {0}", viewDescriptor.name);
+		quickPick.title = nls.localize({ key: 'moveFocusedView.title', comment: ['{0} indicates the title of the view the user has selected to move.'] }, "View: Move {0}", viewDescriptor.name);
 
 		const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
 		const currentContainer = this.viewDescriptorService.getViewContainerByViewId(focusedViewId)!;

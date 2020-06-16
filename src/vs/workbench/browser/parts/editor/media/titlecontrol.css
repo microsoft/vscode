@@ -29,7 +29,7 @@
 /* Title Actions */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label:not(span) {
 	display: flex;
 	height: 35px;
 	min-width: 28px;

@@ -23,7 +23,7 @@ type Credentials = {
 
 export class ProxyAuthHandler extends Disposable {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private retryCount = 0;
 
@@ -59,7 +59,9 @@ export class ProxyAuthHandler extends Disposable {
 			title: 'VS Code',
 			webPreferences: {
 				nodeIntegration: true,
-				webviewTag: true
+				webviewTag: true,
+				enableWebSQL: false,
+				nativeWindowOpen: true
 			}
 		};
 

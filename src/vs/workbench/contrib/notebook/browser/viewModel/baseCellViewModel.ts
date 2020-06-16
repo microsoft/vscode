@@ -8,19 +8,15 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, CellRunState, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-
-export const NotebookCellMetadataDefaults = {
-	editable: true,
-	runnable: true
-};
 
 export abstract class BaseCellViewModel extends Disposable {
 	protected readonly _onDidChangeEditorAttachState = new Emitter<void>();
@@ -65,19 +61,13 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 	}
 
-	// TODO@roblourens - move any "run"/"status" concept to Code-specific places
 	private _currentTokenSource: CancellationTokenSource | undefined;
 	public set currentTokenSource(v: CancellationTokenSource | undefined) {
 		this._currentTokenSource = v;
-		this._onDidChangeState.fire({ runStateChanged: true });
 	}
 
 	public get currentTokenSource(): CancellationTokenSource | undefined {
 		return this._currentTokenSource;
-	}
-
-	get runState(): CellRunState {
-		return this._currentTokenSource ? CellRunState.Running : CellRunState.Idle;
 	}
 
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
@@ -162,6 +152,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		this._textEditor = editor;
+		this._textModel = this._textEditor.getModel() || undefined;
 
 		if (this._editorViewStates) {
 			this.restoreViewState(this._editorViewStates);
@@ -196,6 +187,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._textEditor = undefined;
+		this._textModel = undefined;
 		this._cursorChangeListener?.dispose();
 		this._cursorChangeListener = null;
 		this._onDidChangeEditorAttachState.fire();
@@ -203,6 +195,10 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	getText(): string {
 		return this.model.getValue();
+	}
+
+	getTextLength(): number {
+		return this.model.getTextLength();
 	}
 
 	private saveViewState(): void {
@@ -275,6 +271,14 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._textEditor?.setSelection(range);
 	}
 
+	setSelections(selections: Selection[]) {
+		this._textEditor?.setSelections(selections);
+	}
+
+	getSelections() {
+		return this._textEditor?.getSelections() || [];
+	}
+
 	getSelectionsStartPosition(): IPosition[] | undefined {
 		if (this._textEditor) {
 			const selections = this._textEditor.getSelections();
@@ -290,7 +294,15 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		return this._textEditor.getTopForLineNumber(line) + EDITOR_TOP_MARGIN + EDITOR_TOOLBAR_HEIGHT;
+		return this._textEditor.getTopForLineNumber(line) + EDITOR_TOP_PADDING;
+	}
+
+	getPositionScrollTopOffset(line: number, column: number): number {
+		if (!this._textEditor) {
+			return 0;
+		}
+
+		return this._textEditor.getTopForPosition(line, column) + EDITOR_TOP_PADDING;
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {
@@ -329,6 +341,8 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this.model.textBuffer;
 	}
 
+	abstract resolveTextModel(): Promise<model.ITextModel>;
+
 	protected cellStartFind(value: string): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
 
@@ -350,22 +364,28 @@ export abstract class BaseCellViewModel extends Disposable {
 		return cellMatches;
 	}
 
-	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata {
-		const editable: boolean = this.metadata?.editable === undefined
-			? (documentMetadata?.cellEditable === undefined ? NotebookCellMetadataDefaults.editable : documentMetadata?.cellEditable)
-			: this.metadata?.editable;
+	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata): NotebookCellMetadata {
+		const editable = this.metadata?.editable ??
+			documentMetadata.cellEditable;
 
-		const runnable: boolean = this.metadata?.runnable === undefined
-			? (documentMetadata?.cellRunnable === undefined ? NotebookCellMetadataDefaults.runnable : documentMetadata?.cellRunnable)
-			: this.metadata?.runnable;
+		const runnable = this.metadata?.runnable ??
+			documentMetadata.cellRunnable;
+
+		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
+			documentMetadata.cellHasExecutionOrder;
 
 		return {
 			...(this.metadata || {}),
 			...{
 				editable,
-				runnable
+				runnable,
+				hasExecutionOrder
 			}
 		};
+	}
+
+	dispose() {
+		super.dispose();
 	}
 
 	toJSON(): any {

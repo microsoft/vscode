@@ -6,7 +6,7 @@
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
+import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions, SideBySideEditor, computeEditorAriaLabel } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -31,7 +31,7 @@ import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdenti
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
@@ -102,7 +102,8 @@ export class TabsTitleControl extends TitleControl {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickInputService, themeService, extensionService, configurationService, fileService);
 
@@ -387,6 +388,9 @@ export class TabsTitleControl extends TitleControl {
 
 	closeEditors(editors: IEditorInput[]): void {
 		this.handleClosedEditors();
+		if (this.group.count === 0) {
+			this.updateBreadcrumbsControl();
+		}
 	}
 
 	private handleClosedEditors(): void {
@@ -424,9 +428,6 @@ export class TabsTitleControl extends TitleControl {
 
 			this.clearEditorActionsToolbar();
 		}
-
-		// Update Breadcrumbs
-		this.updateBreadcrumbsControl();
 	}
 
 	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {
@@ -521,7 +522,7 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
 			oldOptions.tabSizing !== newOptions.tabSizing ||
 			oldOptions.showIcons !== newOptions.showIcons ||
-			oldOptions.iconTheme !== newOptions.iconTheme ||
+			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs
 		) {
 			this.redraw();
@@ -883,12 +884,12 @@ export class TabsTitleControl extends TitleControl {
 		const { verbosity, shortenDuplicates } = this.getLabelConfigFlags(labelFormat);
 
 		// Build labels and descriptions for each editor
-		const labels = this.group.editors.map(editor => ({
+		const labels = this.group.editors.map((editor, index) => ({
 			editor,
 			name: editor.getName(),
 			description: editor.getDescription(verbosity),
 			title: withNullAsUndefined(editor.getTitle(Verbosity.LONG)),
-			ariaLabel: editor.isReadonly() ? localize('readonlyEditor', "{0} readonly", editor.getTitle(Verbosity.SHORT)) : editor.getTitle(Verbosity.SHORT)
+			ariaLabel: computeEditorAriaLabel(editor, index, this.group, this.editorGroupService.count)
 		}));
 
 		// Shorten labels as needed
@@ -1032,10 +1033,10 @@ export class TabsTitleControl extends TitleControl {
 			domAction(tabContainer, `sizing-${option}`);
 		});
 
-		if (options.showIcons && !!options.iconTheme) {
-			addClass(tabContainer, 'has-icon-theme');
+		if (options.showIcons && options.hasIcons) {
+			addClass(tabContainer, 'has-icon');
 		} else {
-			removeClass(tabContainer, 'has-icon-theme');
+			removeClass(tabContainer, 'has-icon');
 		}
 
 		// Sticky Tabs need a position to remain at their location
@@ -1061,7 +1062,7 @@ export class TabsTitleControl extends TitleControl {
 		let name: string | undefined;
 		let description: string;
 		if (isTabSticky) {
-			const isShowingIcons = this.accessor.partOptions.showIcons && !!this.accessor.partOptions.iconTheme;
+			const isShowingIcons = this.accessor.partOptions.showIcons && this.accessor.partOptions.hasIcons;
 			name = isShowingIcons ? '' : tabLabel.name?.charAt(0).toUpperCase();
 			description = '';
 		} else {

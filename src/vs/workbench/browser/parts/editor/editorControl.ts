@@ -35,26 +35,22 @@ export class EditorControl extends Disposable {
 	readonly onDidSizeConstraintsChange = this._onDidSizeConstraintsChange.event;
 
 	private _activeEditorPane: BaseEditor | null = null;
+	get activeEditorPane(): IVisibleEditorPane | null { return this._activeEditorPane as IVisibleEditorPane | null; }
+
 	private readonly editorPanes: BaseEditor[] = [];
 
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
 	private dimension: Dimension | undefined;
-	private editorOperation: LongRunningOperation;
+	private readonly editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
 
 	constructor(
 		private parent: HTMLElement,
 		private groupView: IEditorGroupView,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorProgressService editorProgressService: IEditorProgressService
+		@IEditorProgressService private readonly editorProgressService: IEditorProgressService
 	) {
 		super();
-
-		this.editorOperation = this._register(new LongRunningOperation(editorProgressService));
-	}
-
-	get activeEditorPane(): IVisibleEditorPane | null {
-		return this._activeEditorPane as IVisibleEditorPane | null;
 	}
 
 	async openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
@@ -208,7 +204,7 @@ export class EditorControl extends Disposable {
 			this._activeEditorPane.onWillHide();
 			this.parent.removeChild(editorPaneContainer);
 			hide(editorPaneContainer);
-			this._activeEditorPane.onHide();
+			this._activeEditorPane.onDidHide();
 		}
 
 		// Indicate to editor pane
@@ -226,16 +222,12 @@ export class EditorControl extends Disposable {
 	}
 
 	setVisible(visible: boolean): void {
-		if (this._activeEditorPane) {
-			this._activeEditorPane.setVisible(visible, this.groupView);
-		}
+		this._activeEditorPane?.setVisible(visible, this.groupView);
 	}
 
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 
-		if (this._activeEditorPane && this.dimension) {
-			this._activeEditorPane.layout(this.dimension);
-		}
+		this._activeEditorPane?.layout(dimension);
 	}
 }

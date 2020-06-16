@@ -525,11 +525,13 @@ export class ConfigurationEditingService {
 				const model = reference.object.textEditorModel;
 
 				if (this.hasParseErrors(model, operation)) {
+					reference.dispose();
 					return this.reject<typeof reference>(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, target, operation);
 				}
 
 				// Target cannot be dirty if not writing into buffer
 				if (checkDirty && operation.resource && this.textFileService.isDirty(operation.resource)) {
+					reference.dispose();
 					return this.reject<typeof reference>(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target, operation);
 				}
 				return reference;

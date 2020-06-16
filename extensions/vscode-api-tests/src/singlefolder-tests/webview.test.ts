@@ -196,7 +196,7 @@ suite('vscode API - webview', () => {
 
 		const firstResponse = getMesssage(webview);
 
-		assert.strictEqual((await firstResponse).value, 100);
+		assert.strictEqual(Math.round((await firstResponse).value), 100);
 
 		// Swap away from the webview
 		const doc = await vscode.workspace.openTextDocument(testDocument);
@@ -207,7 +207,7 @@ suite('vscode API - webview', () => {
 
 		// We should still have old scroll pos
 		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
-		assert.strictEqual(secondResponse.value, 100);
+		assert.strictEqual(Math.round(secondResponse.value), 100);
 	});
 
 	conditionalTest('webviews with retainContextWhenHidden should be able to recive messages while hidden', async () => {
@@ -252,23 +252,23 @@ suite('vscode API - webview', () => {
 				});
 			</script>`);
 
-		async function asWebviewUri(path: string) {
-			const root = await webview.webview.asWebviewUri(vscode.Uri.file(vscode.workspace.rootPath!));
+		function asWebviewUri(path: string) {
+			const root = webview.webview.asWebviewUri(vscode.Uri.file(vscode.workspace.rootPath!));
 			return root.toString() + path;
 		}
 
 		{
-			const imagePath = await asWebviewUri('/image.png');
+			const imagePath = asWebviewUri('/image.png');
 			const response = sendRecieveMessage(webview, { src: imagePath });
 			assert.strictEqual((await response).value, true);
 		}
 		{
-			const imagePath = await asWebviewUri('/no-such-image.png');
+			const imagePath = asWebviewUri('/no-such-image.png');
 			const response = sendRecieveMessage(webview, { src: imagePath });
 			assert.strictEqual((await response).value, false);
 		}
 		{
-			const imagePath = vscode.Uri.file(join(vscode.workspace.rootPath!, '..', '..', '..', 'resources', 'linux', 'code.png')).with({ scheme: 'vscode-resource' });
+			const imagePath = webview.webview.asWebviewUri(vscode.Uri.file(join(vscode.workspace.rootPath!, '..', '..', '..', 'resources', 'linux', 'code.png')));
 			const response = sendRecieveMessage(webview, { src: imagePath.toString() });
 			assert.strictEqual((await response).value, false);
 		}
@@ -292,16 +292,36 @@ suite('vscode API - webview', () => {
 				});
 			</script>`);
 
-		const workspaceRootUri = vscode.Uri.file(vscode.workspace.rootPath!).with({ scheme: 'vscode-resource' });
-
 		{
-			const response = sendRecieveMessage(webview, { src: workspaceRootUri.toString() + '/sub/image.png' });
+			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub', 'image.png'))).toString() });
 			assert.strictEqual((await response).value, true);
 		}
 		{
-			const response = sendRecieveMessage(webview, { src: workspaceRootUri.toString() + '/image.png' });
+			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(vscode.Uri.file(join(vscode.workspace.rootPath!, 'image.png'))).toString() });
 			assert.strictEqual((await response).value, false);
 		}
+	});
+
+	conditionalTest('webviews using hard-coded old style vscode-resource uri should work', async () => {
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
+			enableScripts: true,
+			localResourceRoots: [vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub'))]
+		}));
+
+		const imagePath = vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub', 'image.png')).with({ scheme: 'vscode-resource' }).toString();
+
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+			<img src="${imagePath}">
+			<script>
+				const vscode = acquireVsCodeApi();
+				const img = document.getElementsByTagName('img')[0];
+				img.addEventListener('load', () => { vscode.postMessage({ value: true }); });
+				img.addEventListener('error', () => { vscode.postMessage({ value: false }); });
+			</script>`);
+
+		const firstResponse = getMesssage(webview);
+
+		assert.strictEqual((await firstResponse).value, true);
 	});
 
 	test('webviews should have real view column after they are created, #56097', async () => {

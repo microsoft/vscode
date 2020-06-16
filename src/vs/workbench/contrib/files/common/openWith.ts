@@ -13,7 +13,7 @@ import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { DEFAULT_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverrideEntry, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 
 const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
@@ -45,7 +45,7 @@ export async function openEditorWith(
 
 	const overrideToUse = typeof id === 'string' && allEditorOverrides.find(([_, entry]) => entry.id === id);
 	if (overrideToUse) {
-		return overrideToUse[0].open(input, options, group, id)?.override;
+		return overrideToUse[0].open(input, { ...options, override: id }, group, OpenEditorContext.NEW_EDITOR)?.override;
 	}
 
 	// Prompt
@@ -108,7 +108,7 @@ export async function openEditorWith(
 		picker.show();
 	});
 
-	return pickedItem?.handler.open(input!, options, group, pickedItem.id)?.override;
+	return pickedItem?.handler.open(input, { ...options, override: pickedItem.id }, group, OpenEditorContext.NEW_EDITOR)?.override;
 }
 
 export const defaultEditorOverrideEntry = Object.freeze({
@@ -136,7 +136,7 @@ export function getAllAvailableEditors(
 					}
 
 					const fileEditorInput = editorService.createEditorInput({ resource: input.resource, forceFile: true });
-					const textOptions = options ? { ...options, ignoreOverrides: true } : { ignoreOverrides: true };
+					const textOptions: IEditorOptions | ITextEditorOptions = options ? { ...options, override: false } : { override: false };
 					return { override: editorService.openEditor(fileEditorInput, textOptions, group) };
 				}
 			},

@@ -46,7 +46,7 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 }
 
 export interface IWebviewWorkbenchService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	createWebview(
 		id: string,
@@ -173,7 +173,7 @@ class RevivalPool {
 
 
 export class WebviewEditorService implements IWebviewWorkbenchService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _revivers = new Set<WebviewResolver>();
 	private readonly _revivalPool = new RevivalPool();
@@ -307,14 +307,12 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 	private createWebviewElement(
 		id: string,
 		extension: WebviewExtensionDescription | undefined,
-		options: WebviewInputOptions
+		options: WebviewInputOptions,
 	) {
-		const webview = this._webviewService.createWebviewOverlay(id, {
+		return this._webviewService.createWebviewOverlay(id, {
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
-		}, options);
-		webview.extension = extension;
-		return webview;
+		}, options, extension);
 	}
 }
 

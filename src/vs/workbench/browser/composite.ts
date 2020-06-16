@@ -239,6 +239,7 @@ export abstract class CompositeDescriptor<T extends Composite> {
 		readonly name: string,
 		readonly cssClass?: string,
 		readonly order?: number,
+		readonly requestedIndex?: number,
 		readonly keybindingId?: string,
 	) { }
 
