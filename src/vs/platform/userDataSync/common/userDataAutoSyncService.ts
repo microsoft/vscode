@@ -135,18 +135,17 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		}
 
 		this.setEnablement(true);
-		this.updateAutoSync();
 	}
 
 	async turnOff(): Promise<void> {
 		this.setEnablement(false);
-		this.updateAutoSync();
 	}
 
-	setEnablement(enabled: boolean): void {
+	private setEnablement(enabled: boolean): void {
 		if (this.isEnabled() !== enabled) {
 			this.telemetryService.publicLog2<{ enabled: boolean }, AutoSyncEnablementClassification>(enablementKey, { enabled });
 			this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL);
+			this.updateAutoSync();
 		}
 	}
 
