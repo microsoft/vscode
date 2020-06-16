@@ -22,7 +22,7 @@ import { Emitter } from 'vs/base/common/event';
 import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IComposite } from 'vs/workbench/common/composite';
-import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D } from 'vs/workbench/browser/dnd';
+import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
 
 export interface ICompositeBarItem {
 	id: string;
@@ -245,6 +245,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				const insertAtFront = this.insertAtFront(actionBarDiv, e.eventData);
 				const target = insertAtFront ? visibleItems[0] : visibleItems[visibleItems.length - 1];
 				const validDropTarget = this.options.dndHandler.onDragOver(e.dragAndDropData, target.id, e.eventData);
+				toggleDropEffect(e.eventData.dataTransfer, 'move', validDropTarget);
 				insertDropBefore = this.updateFromDragging(parent, validDropTarget, insertAtFront);
 			},
 

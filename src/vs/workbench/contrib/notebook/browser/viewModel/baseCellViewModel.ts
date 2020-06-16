@@ -197,6 +197,10 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this.model.getValue();
 	}
 
+	getTextLength(): number {
+		return this.model.getTextLength();
+	}
+
 	private saveViewState(): void {
 		if (!this._textEditor) {
 			return;

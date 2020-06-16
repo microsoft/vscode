@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { isUNC } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
 
 export namespace WebviewResourceResponse {
@@ -63,18 +66,38 @@ export async function loadLocalResource(
 
 export async function loadLocalResourceStream(
 	requestUri: URI,
+	options: {
+		extensionLocation: URI | undefined;
+		roots: ReadonlyArray<URI>;
+		remoteConnectionData?: IRemoteConnectionData | null;
+	},
 	fileService: IFileService,
-	extensionLocation: URI | undefined,
-	roots: ReadonlyArray<URI>
+	requestService: IRequestService,
 ): Promise<WebviewResourceResponse.StreamResponse> {
-	const resourceToLoad = getResourceToLoad(requestUri, extensionLocation, roots);
+	const resourceToLoad = getResourceToLoad(requestUri, options.extensionLocation, options.roots);
 	if (!resourceToLoad) {
 		return WebviewResourceResponse.AccessDenied;
+	}
+	const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
+
+	if (options.remoteConnectionData) {
+		// Remote uris must go to the resolved server.
+		if (resourceToLoad.scheme === Schemas.vscodeRemote || (options.extensionLocation?.scheme === REMOTE_HOST_SCHEME)) {
+			const uri = URI.parse(`http://${options.remoteConnectionData.host}:${options.remoteConnectionData.port}`).with({
+				path: '/vscode-remote-resource',
+				query: `tkn=${options.remoteConnectionData.connectionToken}&path=${encodeURIComponent(resourceToLoad.path)}`,
+			});
+
+			const response = await requestService.request({ url: uri.toString(true) }, CancellationToken.None);
+			if (response.res.statusCode === 200) {
+				return new WebviewResourceResponse.StreamSuccess(response.stream, mime);
+			}
+			return WebviewResourceResponse.Failed;
+		}
 	}
 
 	try {
 		const contents = await fileService.readFileStream(resourceToLoad);
-		const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
 		return new WebviewResourceResponse.StreamSuccess(contents.value, mime);
 	} catch (err) {
 		console.log(err);
@@ -90,20 +113,7 @@ function getResourceToLoad(
 	const normalizedPath = normalizeRequestPath(requestUri);
 
 	for (const root of roots) {
-		if (!containsResource(root, normalizedPath)) {
-			continue;
-		}
-
-		if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
-			return URI.from({
-				scheme: REMOTE_HOST_SCHEME,
-				authority: extensionLocation.authority,
-				path: '/vscode-resource',
-				query: JSON.stringify({
-					requestResourcePath: normalizedPath.path
-				})
-			});
-		} else {
+		if (containsResource(root, normalizedPath)) {
 			return normalizedPath;
 		}
 	}
@@ -123,19 +133,6 @@ function normalizeRequestPath(requestUri: URI) {
 			query: requestUri.query,
 			fragment: requestUri.fragment
 		});
-	} else if (requestUri.scheme === Schemas.oldVscodeWebviewResource) {
-		// Modern `vscode-resource` uris puts the scheme as the authority
-		if (requestUri.authority) {
-			const resourceUri = URI.parse(`${requestUri.authority}:${encodeURIComponent(requestUri.path).replace(/%2F/g, '/')}`);
-			return resourceUri.with({
-				query: requestUri.query,
-				fragment: requestUri.fragment
-			});
-		}
-
-		// Old style vscode-resource uris lose the scheme of the resource which means they are unable to
-		// load a mix of local and remote content properly.
-		return requestUri.with({ scheme: 'file' });
 	} else {
 		return requestUri;
 	}

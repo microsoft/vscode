@@ -93,6 +93,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 	}
 
+	getTextLength(): number {
+		return this.textBuffer.getLength();
+	}
+
 	getFullModelRange() {
 		const lineCount = this.textBuffer.getLineCount();
 		return new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);

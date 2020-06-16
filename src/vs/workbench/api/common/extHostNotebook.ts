@@ -13,7 +13,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { CellKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice, MainThreadDocumentsShape, INotebookEditorPropertiesChangeData, INotebookDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { CellEditType, CellUri, diff, ICellEditOperation, ICellInsertEdit, INotebookDisplayOrder, INotebookEditData, NotebookCellsChangedEvent, NotebookCellsSplice2, ICellDeleteEdit, notebookDocumentMetadataDefaults, NotebookCellsChangeType, NotebookDataDto, IOutputRenderRequest, IOutputRenderResponse, IOutputRenderResponseOutputInfo, IOutputRenderResponseCellInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, diff, ICellEditOperation, ICellInsertEdit, INotebookDisplayOrder, INotebookEditData, NotebookCellsChangedEvent, NotebookCellsSplice2, ICellDeleteEdit, notebookDocumentMetadataDefaults, NotebookCellsChangeType, NotebookDataDto, IOutputRenderRequest, IOutputRenderResponse, IOutputRenderResponseOutputInfo, IOutputRenderResponseCellInfo, IRawOutput, CellOutputKind, IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
@@ -24,6 +24,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import { joinPath } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { hash } from 'vs/base/common/hash';
+import { generateUuid } from 'vs/base/common/uuid';
 
 interface IObservable<T> {
 	proxy: T;
@@ -52,15 +53,18 @@ interface INotebookEventEmitter {
 	emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void;
 }
 
+const addIdToOutput = (output: IRawOutput, id = generateUuid()): IProcessedOutput => output.outputKind === CellOutputKind.Rich
+	? ({ ...output, outputId: id }) : output;
+
 export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 
 	// private originalSource: string[];
 	private _outputs: any[];
-	private _onDidChangeOutputs = new Emitter<ISplice<vscode.CellOutput>[]>();
-	onDidChangeOutputs: Event<ISplice<vscode.CellOutput>[]> = this._onDidChangeOutputs.event;
+	private _onDidChangeOutputs = new Emitter<ISplice<IProcessedOutput>[]>();
+	onDidChangeOutputs: Event<ISplice<IProcessedOutput>[]> = this._onDidChangeOutputs.event;
 	// private _textDocument: vscode.TextDocument | undefined;
 	// private _initalVersion: number = -1;
-	private _outputMapping = new Set<vscode.CellOutput>();
+	private _outputMapping = new WeakMap<vscode.CellOutput, string | undefined /* output ID */>();
 	private _metadata: vscode.NotebookCellMetadata;
 
 	private _metadataChangeListener: IDisposable;
@@ -95,6 +99,10 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 		);
 
 		this._outputs = outputs;
+		for (const output of this._outputs) {
+			this._outputMapping.set(output, output.outputId);
+			delete output.outputId;
+		}
 
 		const observableMetadata = getObservable(_metadata || {});
 		this._metadata = observableMetadata.proxy;
@@ -108,22 +116,33 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 	}
 
 	set outputs(newOutputs: vscode.CellOutput[]) {
-		let diffs = diff<vscode.CellOutput>(this._outputs || [], newOutputs || [], (a) => {
+		let rawDiffs = diff<vscode.CellOutput>(this._outputs || [], newOutputs || [], (a) => {
 			return this._outputMapping.has(a);
 		});
 
-		diffs.forEach(diff => {
+		const transformedDiffs: ISplice<IProcessedOutput>[] = rawDiffs.map(diff => {
 			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 				this._outputMapping.delete(this._outputs[i]);
 			}
 
-			diff.toInsert.forEach(output => {
-				this._outputMapping.add(output);
-			});
+			return {
+				deleteCount: diff.deleteCount,
+				start: diff.start,
+				toInsert: diff.toInsert.map((output): IProcessedOutput => {
+					if (output.outputKind === CellOutputKind.Rich) {
+						const uuid = generateUuid();
+						this._outputMapping.set(output, uuid);
+						return { ...output, outputId: uuid };
+					}
+
+					this._outputMapping.set(output, undefined);
+					return output;
+				})
+			};
 		});
 
 		this._outputs = newOutputs;
-		this._onDidChangeOutputs.fire(diffs);
+		this._onDidChangeOutputs.fire(transformedDiffs);
 	}
 
 	get metadata() {
@@ -402,7 +421,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		this._emitter.emitCellLanguageChange(event);
 	}
 
-	async eventuallyUpdateCellOutputs(cell: ExtHostCell, diffs: ISplice<vscode.CellOutput>[]) {
+	async eventuallyUpdateCellOutputs(cell: ExtHostCell, diffs: ISplice<IProcessedOutput>[]) {
 		let renderers = new Set<number>();
 		let outputDtos: NotebookCellOutputsSplice[] = diffs.map(diff => {
 			let outputs = diff.toInsert;
@@ -474,8 +493,8 @@ export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellE
 			source: sourceArr,
 			language,
 			cellKind: type,
-			outputs: outputs,
-			metadata
+			outputs: outputs.map(o => addIdToOutput(o)),
+			metadata,
 		};
 
 		this._collectedEdits.push({
@@ -655,8 +674,8 @@ export class ExtHostNotebookOutputRenderer {
 		return false;
 	}
 
-	render(document: ExtHostNotebookDocument, output: vscode.CellDisplayOutput, mimeType: string): string {
-		let html = this.renderer.render(document, output, mimeType);
+	render(document: ExtHostNotebookDocument, output: vscode.CellDisplayOutput, outputId: string, mimeType: string): string {
+		let html = this.renderer.render(document, { output, outputId, mimeType });
 
 		return html;
 	}
@@ -769,13 +788,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		const renderer = this._notebookOutputRenderers.get(id)!;
 		const cellsResponse: IOutputRenderResponseCellInfo<UriComponents>[] = request.items.map(cellInfo => {
-			const cell = document.getCell2(cellInfo.key);
+			const cell = document.getCell2(cellInfo.key)!;
 			const outputResponse: IOutputRenderResponseOutputInfo[] = cellInfo.outputs.map(output => {
 				return {
 					index: output.index,
+					outputId: output.outputId,
 					mimeType: output.mimeType,
 					handlerId: id,
-					transformedOutput: renderer.render(document, cell!.outputs[output.index] as vscode.CellDisplayOutput, output.mimeType)
+					transformedOutput: renderer.render(document, cell.outputs[output.index] as vscode.CellDisplayOutput, output.outputId, output.mimeType)
 				};
 			});
 
@@ -807,9 +827,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			const outputResponse: IOutputRenderResponseOutputInfo[] = cellInfo.outputs.map(output => {
 				return {
 					index: output.index,
+					outputId: output.outputId,
 					mimeType: output.mimeType,
 					handlerId: id,
-					transformedOutput: renderer.render(document, output.output! as vscode.CellDisplayOutput, output.mimeType)
+					transformedOutput: renderer.render(document, output.output! as vscode.CellDisplayOutput, output.outputId, output.mimeType)
 				};
 			});
 
@@ -913,7 +934,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					...rawCells.metadata
 				},
 				languages: rawCells.languages,
-				cells: rawCells.cells,
+				cells: rawCells.cells.map(cell => ({
+					...cell,
+					outputs: cell.outputs.map(o => addIdToOutput(o))
+				})),
 			};
 
 			return dto;

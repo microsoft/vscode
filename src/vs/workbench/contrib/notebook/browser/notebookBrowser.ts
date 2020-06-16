@@ -110,6 +110,7 @@ export interface ICellViewModel {
 	currentTokenSource: CancellationTokenSource | undefined;
 	focusMode: CellFocusMode;
 	getText(): string;
+	getTextLength(): number;
 	metadata: NotebookCellMetadata | undefined;
 	textModel: ITextModel | undefined;
 	hasModel(): this is IEditableCellViewModel;
@@ -435,6 +436,7 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;
 	outputContainer: HTMLElement;
+	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
 	progressBar: ProgressBar;
 	timer: TimerRenderer;

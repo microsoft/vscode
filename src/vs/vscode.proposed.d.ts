@@ -1098,6 +1098,8 @@ declare module 'vscode' {
 
 		/**
 		 * Accessibility information used when screen reader interacts with this tree item.
+		 * Generally, a TreeItem has no need to set the `role` of the accessibilityInformation;
+		 * however, there are cases where a TreeItem is not displayed in a tree-like way where setting the `role` may make sense.
 		 */
 		accessibilityInformation?: AccessibilityInformation;
 
@@ -1527,14 +1529,21 @@ declare module 'vscode' {
 		subTypes?: string[];
 	}
 
+	export interface NotebookRenderRequest {
+		output: CellDisplayOutput;
+		mimeType: string;
+		outputId: string;
+	}
+
 	export interface NotebookOutputRenderer {
 		/**
 		 *
 		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
 		 *
 		 */
-		render(document: NotebookDocument, output: CellDisplayOutput, mimeType: string): string;
-		preloads?: Uri[];
+		render(document: NotebookDocument, request: NotebookRenderRequest): string;
+
+		readonly preloads?: Uri[];
 	}
 
 	export interface NotebookCellsChangeData {
@@ -1634,8 +1643,8 @@ declare module 'vscode' {
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		readonly onDidChangeNotebook: Event<NotebookDocumentEditEvent>;
-		revertNotebook?(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		backupNotebook?(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
+		revertNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
 
 		kernel?: NotebookKernel;
 	}
@@ -1689,43 +1698,6 @@ declare module 'vscode' {
 		 * @param selector
 		 */
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
-	}
-
-	//#endregion
-
-	//#region @connor4312 extension mode: https://github.com/microsoft/vscode/issues/95926
-
-	/**
-	 * The ExtensionMode is provided on the `ExtensionContext` and indicates the
-	 * mode the specific extension is running in.
-	 */
-	export enum ExtensionMode {
-		/**
-		 * The extension is installed normally (for example, from the marketplace
-		 * or VSIX) in VS Code.
-		 */
-		Release = 1,
-
-		/**
-		 * The extension is running from an `--extensionDevelopmentPath` provided
-		 * when launching VS Code.
-		 */
-		Development = 2,
-
-		/**
-		 * The extension is running from an `--extensionDevelopmentPath` and
-		 * the extension host is running unit tests.
-		 */
-		Test = 3,
-	}
-
-	export interface ExtensionContext {
-		/**
-		 * The mode the extension is running in. This is specific to the current
-		 * extension. One extension may be in `ExtensionMode.Development` while
-		 * other extensions in the host run in `ExtensionMode.Release`.
-		 */
-		readonly extensionMode: ExtensionMode;
 	}
 
 	//#endregion

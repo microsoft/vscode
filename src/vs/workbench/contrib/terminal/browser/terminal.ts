@@ -7,7 +7,7 @@ import { Terminal as XTermTerminal } from 'xterm';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
-import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
@@ -161,8 +161,8 @@ export interface ITerminalService {
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType): Promise<string>;
 
 	extHostReady(remoteAuthority: string): void;
-	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
-	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void;
+	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined>;
+	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 }
 
 export interface ISearchOptions {

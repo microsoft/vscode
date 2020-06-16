@@ -35,7 +35,7 @@ export interface IOpenEditorOverrideEntry {
 }
 
 export interface IOpenEditorOverrideHandler {
-	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorContext, id?: string): IOpenEditorOverride | undefined;
+	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorContext): IOpenEditorOverride | undefined;
 	getEditorOverrides?(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[];
 }
 

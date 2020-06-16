@@ -1083,7 +1083,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		super(list);
 	}
 
-	protected onPointer(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
+	protected onViewPointer(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
 		if (isInputElement(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
@@ -1091,11 +1091,11 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		const node = e.element;
 
 		if (!node) {
-			return super.onPointer(e);
+			return super.onViewPointer(e);
 		}
 
 		if (this.isSelectionRangeChangeEvent(e) || this.isSelectionSingleChangeEvent(e)) {
-			return super.onPointer(e);
+			return super.onViewPointer(e);
 		}
 
 		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
@@ -1108,7 +1108,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		}
 
 		if (expandOnlyOnTwistieClick && !onTwistie) {
-			return super.onPointer(e);
+			return super.onViewPointer(e);
 		}
 
 		if (node.collapsible) {
@@ -1122,7 +1122,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			}
 		}
 
-		super.onPointer(e);
+		super.onViewPointer(e);
 	}
 
 	protected onDoubleClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
@@ -1229,6 +1229,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseClick, asTreeMouseEvent); }
 	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseDblClick, asTreeMouseEvent); }
 	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.map(this.view.onContextMenu, asTreeContextMenuEvent); }
+	get onTap(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onTap, asTreeMouseEvent); }
+	get onPointer(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onPointer, asTreeMouseEvent); }
 
 	get onKeyDown(): Event<KeyboardEvent> { return this.view.onKeyDown; }
 	get onKeyUp(): Event<KeyboardEvent> { return this.view.onKeyUp; }

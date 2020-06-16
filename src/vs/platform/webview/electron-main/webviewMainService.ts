@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { webContents } from 'electron';
+import { URI } from 'vs/base/common/uri';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { IWebviewManagerService, RegisterWebviewMetadata } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
-import { IFileService } from 'vs/platform/files/common/files';
-import { UriComponents, URI } from 'vs/base/common/uri';
 
 export class WebviewMainService implements IWebviewManagerService {
 
@@ -17,23 +18,29 @@ export class WebviewMainService implements IWebviewManagerService {
 
 	constructor(
 		@IFileService fileService: IFileService,
+		@IRequestService requestService: IRequestService,
 	) {
-		this.protocolProvider = new WebviewProtocolProvider(fileService);
+		this.protocolProvider = new WebviewProtocolProvider(fileService, requestService);
 	}
 
 	public async registerWebview(id: string, metadata: RegisterWebviewMetadata): Promise<void> {
-		this.protocolProvider.registerWebview(id,
-			metadata.extensionLocation ? URI.from(metadata.extensionLocation) : undefined,
-			metadata.localResourceRoots.map((x: UriComponents) => URI.from(x))
-		);
+		this.protocolProvider.registerWebview(id, {
+			...metadata,
+			extensionLocation: metadata.extensionLocation ? URI.from(metadata.extensionLocation) : undefined,
+			localResourceRoots: metadata.localResourceRoots.map(x => URI.from(x))
+		});
 	}
 
 	public async unregisterWebview(id: string): Promise<void> {
 		this.protocolProvider.unreigsterWebview(id);
 	}
 
-	public async updateLocalResourceRoots(id: string, roots: UriComponents[]): Promise<void> {
-		this.protocolProvider.updateLocalResourceRoots(id, roots.map((x: UriComponents) => URI.from(x)));
+	public async updateWebviewMetadata(id: string, metadataDelta: Partial<RegisterWebviewMetadata>): Promise<void> {
+		this.protocolProvider.updateWebviewMetadata(id, {
+			...metadataDelta,
+			localResourceRoots: metadataDelta.localResourceRoots?.map(x => URI.from(x)),
+			extensionLocation: metadataDelta.extensionLocation ? URI.from(metadataDelta.extensionLocation) : undefined,
+		});
 	}
 
 	public async setIgnoreMenuShortcuts(webContentsId: number, enabled: boolean): Promise<void> {

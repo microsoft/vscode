@@ -468,24 +468,14 @@ export interface IEditorInput extends IDisposable {
 	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void>;
 
 	/**
-	 * Called to determine how to handle a resource that is moved that matches
+	 * Called to determine how to handle a resource that is renamed that matches
 	 * the editors resource (or is a child of).
 	 *
 	 * Implementors are free to not implement this method to signal no intent
 	 * to participate. If an editor is returned though, it will replace the
 	 * current one with that editor and optional options.
 	 */
-	move(group: GroupIdentifier, target: URI): IMoveResult | undefined;
-
-	/**
-	 * Called when this input was closed in a group. The second parameter
-	 * is a hint wether the editor is still opened in other groups. This
-	 * may include normal editors as well as side-by-side or diff editors.
-	 *
-	 * Subclasses can override what should happen. By default, an editor
-	 * input will dispose when it is closed.
-	 */
-	close(group: GroupIdentifier, openedInOtherGroups: boolean): void;
+	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined;
 
 	/**
 	 * Subclasses can set this to false if it does not make sense to split the editor input.
@@ -592,18 +582,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> { }
 
-	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		return undefined;
-	}
-
-	close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
-		// TODO@ben revisit this behaviour, should just dispose by default after adoption
-		// However this requires that we never open the same input in multiple editor groups
-		// which today we cannot enforce (e.g. when opening the same editor in an empty
-		// group via quick open editor history)
-		if (!openedInOtherGroups) {
-			this.dispose();
-		}
 	}
 
 	supportsSplitEditor(): boolean {
@@ -717,6 +697,28 @@ export class SideBySideEditorInput extends EditorInput {
 		this.registerListeners();
 	}
 
+	private registerListeners(): void {
+
+		// When the details or master input gets disposed, dispose this diff editor input
+		const onceDetailsDisposed = Event.once(this.details.onDispose);
+		this._register(onceDetailsDisposed(() => {
+			if (!this.isDisposed()) {
+				this.dispose();
+			}
+		}));
+
+		const onceMasterDisposed = Event.once(this.master.onDispose);
+		this._register(onceMasterDisposed(() => {
+			if (!this.isDisposed()) {
+				this.dispose();
+			}
+		}));
+
+		// Reemit some events from the master side to the outside
+		this._register(this.master.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		this._register(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
+	}
+
 	get resource(): URI | undefined {
 		return undefined;
 	}
@@ -777,28 +779,6 @@ export class SideBySideEditorInput extends EditorInput {
 		const descriptor = this.master.getTelemetryDescriptor();
 
 		return Object.assign(descriptor, super.getTelemetryDescriptor());
-	}
-
-	private registerListeners(): void {
-
-		// When the details or master input gets disposed, dispose this diff editor input
-		const onceDetailsDisposed = Event.once(this.details.onDispose);
-		this._register(onceDetailsDisposed(() => {
-			if (!this.isDisposed()) {
-				this.dispose();
-			}
-		}));
-
-		const onceMasterDisposed = Event.once(this.master.onDispose);
-		this._register(onceMasterDisposed(() => {
-			if (!this.isDisposed()) {
-				this.dispose();
-			}
-		}));
-
-		// Reemit some events from the master side to the outside
-		this._register(this.master.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this._register(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
 	}
 
 	matches(otherInput: unknown): boolean {
