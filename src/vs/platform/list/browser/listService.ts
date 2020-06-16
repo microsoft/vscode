@@ -443,11 +443,12 @@ abstract class ResourceNavigator<T> extends Disposable {
 		this.openOnFocus = options?.openOnFocus ?? false;
 		this.openOnSingleClick = options?.openOnSingleClick ?? true;
 
-		this._register(this.widget.onDidChangeSelection(e => this.onSelection(e)));
+		this._register(Event.filter(this.widget.onDidChangeSelection, e => e.browserEvent instanceof KeyboardEvent)(e => this.onSelectionFromKeyboard(e)));
+		this._register(this.widget.onPointer((e: { browserEvent: MouseEvent }) => this.onPointer(e.browserEvent)));
 		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent }) => this.onMouseDblClick(e.browserEvent)));
 
 		if (this.openOnFocus) {
-			this._register(this.widget.onDidChangeFocus(e => this.onFocus(e.browserEvent)));
+			this._register(Event.filter(this.widget.onDidChangeFocus, e => e.browserEvent instanceof KeyboardEvent)(e => this.onFocusFromKeyboard(e)));
 		}
 
 		if (typeof options?.openOnSingleClick !== 'boolean' && options?.configurationService) {
@@ -457,43 +458,42 @@ abstract class ResourceNavigator<T> extends Disposable {
 		}
 	}
 
-	private onFocus(browserEvent?: UIEvent): void {
+	private onFocusFromKeyboard(event: ITreeEvent<any>): void {
 		const focus = this.widget.getFocus();
-		this.widget.setSelection(focus, browserEvent);
+		this.widget.setSelection(focus, event.browserEvent);
 
-		if (!browserEvent) {
-			return;
-		}
+		const preserveFocus = typeof (event.browserEvent as SelectionKeyboardEvent).preserveFocus === 'boolean' ? (event.browserEvent as SelectionKeyboardEvent).preserveFocus! : true;
+		const pinned = false;
+		const sideBySide = false;
 
-		const isMouseEvent = browserEvent && browserEvent instanceof MouseEvent;
-
-		if (!isMouseEvent) {
-			const preserveFocus = (browserEvent instanceof KeyboardEvent && typeof (<SelectionKeyboardEvent>browserEvent).preserveFocus === 'boolean') ?
-				!!(<SelectionKeyboardEvent>browserEvent).preserveFocus :
-				true;
-
-			this._open(preserveFocus, false, false, browserEvent);
-		}
+		this._open(preserveFocus, pinned, sideBySide, event.browserEvent);
 	}
 
-	private onSelection(event: ITreeEvent<any>): void {
-		const { browserEvent, elements } = event;
-
-		if (!browserEvent || browserEvent.type === 'contextmenu' || elements.length !== 1) {
+	private onSelectionFromKeyboard(event: ITreeEvent<any>): void {
+		if (event.elements.length !== 1) {
 			return;
 		}
 
-		const isKeyboardEvent = browserEvent instanceof KeyboardEvent;
-		const isMiddleClick = browserEvent instanceof MouseEvent ? browserEvent.button === 1 : false;
-		const isDoubleClick = browserEvent.detail === 2;
-		const preserveFocus = (browserEvent instanceof KeyboardEvent && typeof (<SelectionKeyboardEvent>browserEvent).preserveFocus === 'boolean') ?
-			!!(<SelectionKeyboardEvent>browserEvent).preserveFocus :
-			!isDoubleClick;
+		const preserveFocus = typeof (event.browserEvent as SelectionKeyboardEvent).preserveFocus === 'boolean' ? (event.browserEvent as SelectionKeyboardEvent).preserveFocus! : true;
+		const pinned = false;
+		const sideBySide = false;
 
-		if (this.openOnSingleClick || isDoubleClick || isKeyboardEvent) {
-			const sideBySide = browserEvent instanceof MouseEvent && (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
-			this._open(preserveFocus, isDoubleClick || isMiddleClick, sideBySide, browserEvent);
+		this._open(preserveFocus, pinned, sideBySide, event.browserEvent);
+	}
+
+	private onPointer(browserEvent: MouseEvent): void {
+		const isDoubleClick = browserEvent.detail === 2;
+
+		if (!this.openOnSingleClick && !isDoubleClick) {
+			return;
 		}
+
+		const isMiddleClick = browserEvent.button === 1;
+		const preserveFocus = !isDoubleClick;
+		const pinned = isDoubleClick || isMiddleClick;
+		const sideBySide = browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey;
+
+		this._open(preserveFocus, pinned, sideBySide, browserEvent);
 	}
 
 	private onMouseDblClick(browserEvent?: MouseEvent): void {
@@ -501,8 +501,11 @@ abstract class ResourceNavigator<T> extends Disposable {
 			return;
 		}
 
+		const preserveFocus = false;
+		const pinned = true;
 		const sideBySide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
-		this._open(false, true, sideBySide, browserEvent);
+
+		this._open(preserveFocus, pinned, sideBySide, browserEvent);
 	}
 
 	private _open(preserveFocus: boolean, pinned: boolean, sideBySide: boolean, browserEvent?: UIEvent): void {

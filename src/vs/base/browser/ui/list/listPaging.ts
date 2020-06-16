@@ -169,8 +169,20 @@ export class PagedList<T> implements IThemable, IDisposable {
 		return this.list.onDidDispose;
 	}
 
+	get onMouseClick(): Event<IListMouseEvent<T>> {
+		return Event.map(this.list.onMouseClick, ({ element, index, browserEvent }) => ({ element: element === undefined ? undefined : this._model.get(element), index, browserEvent }));
+	}
+
 	get onMouseDblClick(): Event<IListMouseEvent<T>> {
 		return Event.map(this.list.onMouseDblClick, ({ element, index, browserEvent }) => ({ element: element === undefined ? undefined : this._model.get(element), index, browserEvent }));
+	}
+
+	get onTap(): Event<IListMouseEvent<T>> {
+		return Event.map(this.list.onTap, ({ element, index, browserEvent }) => ({ element: element === undefined ? undefined : this._model.get(element), index, browserEvent }));
+	}
+
+	get onPointer(): Event<IListMouseEvent<T>> {
+		return Event.map(this.list.onPointer, ({ element, index, browserEvent }) => ({ element: element === undefined ? undefined : this._model.get(element), index, browserEvent }));
 	}
 
 	get onDidChangeFocus(): Event<IListEvent<T>> {
