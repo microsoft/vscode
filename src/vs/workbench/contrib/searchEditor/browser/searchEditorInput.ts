@@ -43,7 +43,7 @@ export type SearchConfiguration = {
 	showIncludesExcludes: boolean,
 };
 
-const SEARCH_EDITOR_EXT = '.code-search';
+export const SEARCH_EDITOR_EXT = '.code-search';
 
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';

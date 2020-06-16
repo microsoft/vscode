@@ -45,7 +45,7 @@ export async function openEditorWith(
 
 	const overrideToUse = typeof id === 'string' && allEditorOverrides.find(([_, entry]) => entry.id === id);
 	if (overrideToUse) {
-		return overrideToUse[0].open(input, options, group, OpenEditorContext.NEW_EDITOR, id)?.override;
+		return overrideToUse[0].open(input, { ...options, override: id }, group, OpenEditorContext.NEW_EDITOR)?.override;
 	}
 
 	// Prompt
@@ -108,7 +108,7 @@ export async function openEditorWith(
 		picker.show();
 	});
 
-	return pickedItem?.handler.open(input!, options, group, OpenEditorContext.NEW_EDITOR, pickedItem.id)?.override;
+	return pickedItem?.handler.open(input, { ...options, override: pickedItem.id }, group, OpenEditorContext.NEW_EDITOR)?.override;
 }
 
 export const defaultEditorOverrideEntry = Object.freeze({

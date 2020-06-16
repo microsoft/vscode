@@ -220,7 +220,6 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 				} catch (error) {
 					return null; // ignore
 				} finally {
-					const openEditorsView = this.getOpenEditorsView();
 					if (openEditorsView) {
 						openEditorsView.setStructuralRefreshDelay(0);
 					}
