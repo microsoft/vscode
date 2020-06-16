@@ -228,10 +228,10 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 		let stats: IFileStatWithMetadata[] = [];
 
-		for (const filesPair of files) {
+		for (const sourceTargetPair of files) {
 
 			// validate move/copy operation before starting
-			const validateMoveOrCopy = await (move ? this.fileService.canMove(filesPair.source!, filesPair.target, overwrite) : this.fileService.canCopy(filesPair.source!, filesPair.target, overwrite));
+			const validateMoveOrCopy = await (move ? this.fileService.canMove(sourceTargetPair.source!, sourceTargetPair.target, overwrite) : this.fileService.canCopy(sourceTargetPair.source!, sourceTargetPair.target, overwrite));
 			if (validateMoveOrCopy instanceof Error) {
 				throw validateMoveOrCopy;
 			}
@@ -241,8 +241,8 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		await this.runFileOperationParticipants(files, move ? FileOperation.MOVE : FileOperation.COPY);
 
 		const nonIdenticalPairs: SourceTargetPair[] = [];
-		for (const filesPair of files) {
-			const source = filesPair.source!, target = filesPair.target;
+		for (const sourceTargetPair of files) {
+			const source = sourceTargetPair.source!, target = sourceTargetPair.target;
 
 			// Before doing the heavy operations, check first if source and target
 			// are either identical or are considered to be identical for the file
@@ -255,7 +255,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 					stats.push(await this.fileService.copy(source, target, overwrite));
 				}
 			} else {
-				nonIdenticalPairs.push(filesPair);
+				nonIdenticalPairs.push(sourceTargetPair);
 			}
 		}
 
@@ -266,8 +266,8 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 			await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 
 			try {
-				for (const filesPair of nonIdenticalPairs) {
-					const source = filesPair.source!, target = filesPair.target;
+				for (const sourceTargetPair of nonIdenticalPairs) {
+					const source = sourceTargetPair.source!, target = sourceTargetPair.target;
 
 					// handle dirty working copies depending on the operation:
 					// - move: revert both source and target (if any)
