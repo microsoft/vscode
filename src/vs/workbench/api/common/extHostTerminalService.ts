@@ -39,6 +39,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 	getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
 	getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string;
 	registerLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable;
+	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
 }
 
@@ -307,6 +308,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkHandlers: Set<vscode.TerminalLinkHandler> = new Set();
+	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
 
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
@@ -547,12 +549,25 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 	public registerLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable {
 		this._linkHandlers.add(handler);
-		if (this._linkHandlers.size === 1) {
+		if (this._linkHandlers.size === 1 && this._linkProviders.size === 0) {
 			this._proxy.$startHandlingLinks();
 		}
 		return new VSCodeDisposable(() => {
 			this._linkHandlers.delete(handler);
-			if (this._linkHandlers.size === 0) {
+			if (this._linkHandlers.size === 0 && this._linkProviders.size === 0) {
+				this._proxy.$stopHandlingLinks();
+			}
+		});
+	}
+
+	public registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable {
+		this._linkProviders.add(provider);
+		if (this._linkProviders.size === 1 && this._linkHandlers.size === 0) {
+			this._proxy.$startHandlingLinks();
+		}
+		return new VSCodeDisposable(() => {
+			this._linkProviders.delete(provider);
+			if (this._linkProviders.size === 0 && this._linkHandlers.size === 0) {
 				this._proxy.$stopHandlingLinks();
 			}
 		});

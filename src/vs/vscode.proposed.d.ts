@@ -1054,6 +1054,64 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Terminal link provider https://github.com/microsoft/vscode/issues/91606
+
+	export namespace window {
+		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
+	}
+
+	export interface TerminalLinkContext {
+		/**
+		 * This is the text from the unwrapped line in the terminal.
+		 */
+		line: string;
+
+		/**
+		 * The terminal the link belongs to.
+		 */
+		terminal: Terminal;
+	}
+
+	export interface TerminalLinkProvider<T = TerminalLink> {
+		provideTerminalLinks(context: TerminalLinkContext): ProviderResult<T[]>
+
+		/**
+		 * Handle an activated terminal link.
+		 *
+		 * @returns Whether the link was handled, if not VS Code will attempt to open it.
+		 */
+		handleTerminalLink(link: T): ProviderResult<boolean>;
+	}
+
+	export interface TerminalLink {
+		/**
+		 * The start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
+		 */
+		startIndex: number;
+
+		/**
+		 * The length of the link on [TerminalLinkContext.line](#TerminalLinkContext.line]
+		 */
+		length: number;
+
+		/**
+		 * The uri this link points to. If set, and {@link TerminalLinkProvider.handlerTerminalLink}
+		 * is not implemented or returns false, then VS Code will try to open the Uri.
+		 */
+		target?: Uri;
+
+		/**
+		 * The tooltip text when you hover over this link.
+		 *
+		 * If a tooltip is provided, is will be displayed in a string that includes instructions on how to
+		 * trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary depending on OS,
+		 * user settings, and localization.
+		 */
+		tooltip?: string;
+	}
+
+	//#endregion
+
 	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
