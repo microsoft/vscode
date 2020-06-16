@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scmViewlet';
+import 'vs/css!./media/scmViewPaneContainer';
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { VIEWLET_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -24,51 +23,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IViewsRegistry, Extensions, IViewDescriptorService, IViewDescriptor } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SCMViewPane, SCMViewPaneDescriptor } from 'vs/workbench/contrib/scm/browser/scmView';
-import { ViewPaneContainer, IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { addClass } from 'vs/base/browser/dom';
-import { Codicon } from 'vs/base/common/codicons';
-
-export class EmptyPane extends ViewPane {
-
-	static readonly ID = 'workbench.scm';
-	static readonly TITLE = localize('scm', "Source Control");
-
-	constructor(
-		options: IViewPaneOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
-	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-	}
-
-	shouldShowWelcome(): boolean {
-		return true;
-	}
-}
-
-export class EmptyPaneDescriptor implements IViewDescriptor {
-	readonly id = EmptyPane.ID;
-	readonly name = EmptyPane.TITLE;
-	readonly containerIcon = Codicon.sourceControl.classNames;
-	readonly ctorDescriptor = new SyncDescriptor(EmptyPane);
-	readonly canToggleVisibility = true;
-	readonly hideByDefault = false;
-	readonly order = -1000;
-	readonly workspace = true;
-	readonly when = ContextKeyExpr.equals('scm.providerCount', 0);
-}
 
 export class SCMViewPaneContainer extends ViewPaneContainer {
 
@@ -113,17 +71,6 @@ export class SCMViewPaneContainer extends ViewPaneContainer {
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this._register(this.menus.onDidChangeTitle(this.updateTitleArea, this));
-
-		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-
-		viewsRegistry.registerViewWelcomeContent(EmptyPane.ID, {
-			content: localize('no open repo', "No source control providers registered."),
-			when: 'default'
-		});
-
-		viewsRegistry.registerViews([new EmptyPaneDescriptor()], this.viewContainer);
-		viewsRegistry.registerViews([new SCMViewPaneDescriptor()], this.viewContainer);
-
 	}
 
 	create(parent: HTMLElement): void {
