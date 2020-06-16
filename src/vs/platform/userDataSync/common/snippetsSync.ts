@@ -101,6 +101,19 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		};
 	}
 
+	protected async generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISinppetsSyncPreview> {
+		const local = await this.getSnippetsFileContents();
+		const localSnippets = this.toSnippetsContents(local);
+		const snippets = this.parseSnippets(syncData);
+		const { added, updated, removed } = merge(localSnippets, snippets, localSnippets);
+		return {
+			added, removed, updated, remote: snippets, remoteUserData, local, lastSyncUserData, conflicts: [], resolvedConflicts: {}, hasConflicts: false,
+			hasLocalChanged: Object.keys(added).length > 0 || removed.length > 0 || Object.keys(updated).length > 0,
+			hasRemoteChanged: true,
+			isLastSyncFromCurrentMachine: false,
+		};
+	}
+
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken = CancellationToken.None): Promise<ISinppetsSyncPreview> {
 		const local = await this.getSnippetsFileContents();
 		return this.doGeneratePreview(local, remoteUserData, lastSyncUserData, {}, token);
@@ -176,19 +189,6 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 			preview = await this.doGeneratePreview(preview.local, preview.remoteUserData, preview.lastSyncUserData, preview.resolvedConflicts, token);
 		}
 		return preview;
-	}
-
-	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> {
-		const local = await this.getSnippetsFileContents();
-		const localSnippets = this.toSnippetsContents(local);
-		const snippets = this.parseSnippets(syncData);
-		const { added, updated, removed } = merge(localSnippets, snippets, localSnippets);
-		await this.applyPreview({
-			added, removed, updated, remote: snippets, remoteUserData, local, lastSyncUserData, conflicts: [], resolvedConflicts: {}, hasConflicts: false,
-			hasLocalChanged: Object.keys(added).length > 0 || removed.length > 0 || Object.keys(updated).length > 0,
-			hasRemoteChanged: true,
-			isLastSyncFromCurrentMachine: false,
-		}, false);
 	}
 
 	protected async applyPreview(preview: ISinppetsSyncPreview, forcePush: boolean): Promise<void> {

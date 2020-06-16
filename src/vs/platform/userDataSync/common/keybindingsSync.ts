@@ -84,6 +84,21 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		};
 	}
 
+	protected async generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<IFileSyncPreview> {
+		const fileContent = await this.getLocalFileContent();
+		const content = this.getKeybindingsContentFromSyncContent(syncData.content);
+		return {
+			fileContent,
+			remoteUserData,
+			lastSyncUserData,
+			content,
+			hasConflicts: false,
+			hasLocalChanged: content !== null,
+			hasRemoteChanged: content !== null,
+			isLastSyncFromCurrentMachine: false
+		};
+	}
+
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken = CancellationToken.None): Promise<IFileSyncPreview> {
 		const remoteContent = remoteUserData.syncData ? this.getKeybindingsContentFromSyncContent(remoteUserData.syncData.content) : null;
 		const isLastSyncFromCurrentMachine = await this.isLastSyncFromCurrentMachine(remoteUserData);
@@ -148,24 +163,6 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 			preview = { ...preview, content: conflictContent, hasConflicts: false };
 		}
 		return preview;
-	}
-
-	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> {
-		const content = this.getKeybindingsContentFromSyncContent(syncData.content);
-
-		if (content !== null) {
-			const fileContent = await this.getLocalFileContent();
-			await this.applyPreview({
-				fileContent,
-				remoteUserData,
-				lastSyncUserData,
-				content,
-				hasConflicts: false,
-				hasLocalChanged: true,
-				hasRemoteChanged: true,
-				isLastSyncFromCurrentMachine: false
-			}, false);
-		}
 	}
 
 	protected async applyPreview(preview: IFileSyncPreview, forcePush: boolean): Promise<void> {

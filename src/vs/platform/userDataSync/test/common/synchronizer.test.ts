@@ -48,11 +48,19 @@ class TestSynchroniser extends AbstractSynchroniser {
 		return { hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData };
 	}
 
+	protected async generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ITestSyncPreview> {
+		return { hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData };
+	}
+
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestSyncPreview> {
 		if (this.syncResult.hasError) {
 			throw new Error('failed');
 		}
 		return { ref: remoteUserData.ref, hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData };
+	}
+
+	protected async updatePreviewWithConflict(preview: ISyncPreview, conflictResource: URI, conflictContent: string): Promise<ISyncPreview> {
+		return preview;
 	}
 
 	protected async applyPreview({ ref }: ITestSyncPreview, forcePush: boolean): Promise<void> {
@@ -80,14 +88,6 @@ class TestSynchroniser extends AbstractSynchroniser {
 	protected async doTriggerLocalChange(): Promise<void> {
 		await super.doTriggerLocalChange();
 		this.onDidTriggerLocalChangeCall.fire();
-	}
-
-	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> {
-
-	}
-
-	protected async updatePreviewWithConflict(preview: ISyncPreview, conflictResource: URI, conflictContent: string): Promise<ISyncPreview> {
-		return preview;
 	}
 
 }

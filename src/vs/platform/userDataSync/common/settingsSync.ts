@@ -107,6 +107,30 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		};
 	}
 
+	protected async generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<IFileSyncPreview> {
+
+		const fileContent = await this.getLocalFileContent();
+		const formatUtils = await this.getFormattingOptions();
+		const ignoredSettings = await this.getIgnoredSettings();
+
+		let content: string | null = null;
+		const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
+		if (settingsSyncContent) {
+			content = updateIgnoredSettings(settingsSyncContent.settings, fileContent ? fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
+		}
+
+		return {
+			fileContent,
+			remoteUserData,
+			lastSyncUserData,
+			content,
+			hasLocalChanged: content !== null,
+			hasRemoteChanged: content !== null,
+			hasConflicts: false,
+			isLastSyncFromCurrentMachine: false
+		};
+	}
+
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken = CancellationToken.None): Promise<IFileSyncPreview> {
 		const fileContent = await this.getLocalFileContent();
 		const formattingOptions = await this.getFormattingOptions();
@@ -166,27 +190,6 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			preview = { ...preview, content, hasConflicts: false };
 		}
 		return preview;
-	}
-
-	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> {
-		const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
-		if (settingsSyncContent) {
-			const fileContent = await this.getLocalFileContent();
-			const formatUtils = await this.getFormattingOptions();
-			const ignoredSettings = await this.getIgnoredSettings();
-			const content = updateIgnoredSettings(settingsSyncContent.settings, fileContent ? fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
-
-			await this.applyPreview({
-				fileContent,
-				remoteUserData,
-				lastSyncUserData,
-				content,
-				hasLocalChanged: true,
-				hasRemoteChanged: true,
-				hasConflicts: false,
-				isLastSyncFromCurrentMachine: false
-			}, false);
-		}
 	}
 
 	protected async applyPreview(preview: IFileSyncPreview, forcePush: boolean): Promise<void> {

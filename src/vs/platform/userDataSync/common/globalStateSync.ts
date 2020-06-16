@@ -111,6 +111,20 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		};
 	}
 
+	protected async generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IGlobalStateSyncPreview> {
+		const localUserData = await this.getLocalGlobalState();
+		const syncGlobalState: IGlobalState = JSON.parse(syncData.content);
+		const { local, skipped } = merge(localUserData.storage, syncGlobalState.storage, localUserData.storage, this.getSyncStorageKeys(), lastSyncUserData?.skippedStorageKeys || [], this.logService);
+		return {
+			local, remote: syncGlobalState.storage, remoteUserData, localUserData, lastSyncUserData,
+			skippedStorageKeys: skipped,
+			hasLocalChanged: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0,
+			hasRemoteChanged: true,
+			isLastSyncFromCurrentMachine: false,
+			hasConflicts: false
+		};
+	}
+
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, token: CancellationToken): Promise<IGlobalStateSyncPreview> {
 		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
 		const isLastSyncFromCurrentMachine = await this.isLastSyncFromCurrentMachine(remoteUserData);
@@ -145,20 +159,6 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	protected async updatePreviewWithConflict(preview: IGlobalStateSyncPreview, conflictResource: URI, content: string, token: CancellationToken): Promise<IGlobalStateSyncPreview> {
 		throw new Error(`${this.syncResourceLogLabel}: Conflicts should not occur`);
-	}
-
-	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<void> {
-		const localUserData = await this.getLocalGlobalState();
-		const syncGlobalState: IGlobalState = JSON.parse(syncData.content);
-		const { local, skipped } = merge(localUserData.storage, syncGlobalState.storage, localUserData.storage, this.getSyncStorageKeys(), lastSyncUserData?.skippedStorageKeys || [], this.logService);
-		await this.applyPreview({
-			local, remote: syncGlobalState.storage, remoteUserData, localUserData, lastSyncUserData,
-			skippedStorageKeys: skipped,
-			hasLocalChanged: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0,
-			hasRemoteChanged: true,
-			isLastSyncFromCurrentMachine: false,
-			hasConflicts: false
-		}, false);
 	}
 
 	protected async applyPreview({ local, remote, remoteUserData, lastSyncUserData, localUserData, hasLocalChanged, hasRemoteChanged, skippedStorageKeys }: IGlobalStateSyncPreview, forcePush: boolean): Promise<void> {
