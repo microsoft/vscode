@@ -277,9 +277,9 @@ export namespace RevealLine_ {
 
 abstract class EditorOrNativeTextInputCommand {
 
-	constructor(public readonly target: MultiCommand) {
-		// 1. invoke focused editor
-		this.target.addImplementation(10000, (accessor: ServicesAccessor, args: any) => {
+	constructor(target: MultiCommand) {
+		// 1. handle case when focus is in editor.
+		target.addImplementation(10000, (accessor: ServicesAccessor, args: any) => {
 			// Only if editor text focus (i.e. not if editor has widget focus).
 			const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 			if (focusedEditor && focusedEditor.hasTextFocus()) {
@@ -289,8 +289,8 @@ abstract class EditorOrNativeTextInputCommand {
 			return false;
 		});
 
-		// 2. invoke a browser built-in command on the `activeElement`
-		this.target.addImplementation(1000, (accessor: ServicesAccessor, args: any) => {
+		// 2. handle case when focus is in some other `input` / `textarea`.
+		target.addImplementation(1000, (accessor: ServicesAccessor, args: any) => {
 			// Only if focused on an element that allows for entering text
 			const activeElement = <HTMLElement>document.activeElement;
 			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
@@ -300,8 +300,8 @@ abstract class EditorOrNativeTextInputCommand {
 			return false;
 		});
 
-		// 3. (default) invoke a command on the workbench active editor.
-		this.target.addImplementation(0, (accessor: ServicesAccessor, args: any) => {
+		// 3. (default) handle case when focus is somewhere else.
+		target.addImplementation(0, (accessor: ServicesAccessor, args: any) => {
 			// Redirecting to active editor
 			const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 			if (activeEditor) {

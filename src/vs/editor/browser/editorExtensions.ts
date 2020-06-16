@@ -23,7 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { withNullAsUndefined, assertType } from 'vs/base/common/types';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 
@@ -201,42 +201,6 @@ export class ProxyCommand extends Command {
 		return this.command.runCommand(accessor, args);
 	}
 }
-
-//#region CommandOverrides
-
-/**
- * Potential override for a command.
- *
- * @return `true` if the command was successfully run. This stops other overrides from being executed.
- */
-export type CommandOverride = (accessor: ServicesAccessor, args: unknown) => boolean;
-
-export class CommandOverrides {
-
-	private readonly _overrides: CommandOverride[] = [];
-
-	public register(implementation: CommandOverride): IDisposable {
-		this._overrides.unshift(implementation);
-
-		return toDisposable(() => {
-			const index = this._overrides.indexOf(implementation);
-			if (index >= 0) {
-				this._overrides.splice(index, 1);
-			}
-		});
-	}
-
-	public runCommand(accessor: ServicesAccessor, args: any): boolean {
-		for (const override of this._overrides) {
-			if (override(accessor, args)) {
-				return true;
-			}
-		}
-		return false;
-	}
-}
-
-//#endregion CommandOverrides
 
 //#region EditorCommand
 

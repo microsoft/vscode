@@ -64,15 +64,15 @@ if (isMacintosh) {
 		return withWebview(accessor, webview => webview.redo());
 	});
 
-	CopyAction?.overrides.register(accessor => {
+	CopyAction?.addImplementation(PRIORITY, accessor => {
 		return withWebview(accessor, webview => webview.copy());
 	});
 
-	PasteAction?.overrides.register(accessor => {
+	PasteAction?.addImplementation(PRIORITY, accessor => {
 		return withWebview(accessor, webview => webview.paste());
 	});
 
-	CutAction?.overrides.register(accessor => {
+	CutAction?.addImplementation(PRIORITY, accessor => {
 		return withWebview(accessor, webview => webview.cut());
 	});
 }
