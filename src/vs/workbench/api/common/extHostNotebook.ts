@@ -666,8 +666,8 @@ export class ExtHostNotebookOutputRenderer {
 	}
 
 	matches(mimeType: string): boolean {
-		if (this.filter.subTypes) {
-			if (this.filter.subTypes.indexOf(mimeType) >= 0) {
+		if (this.filter.mimeTypes) {
+			if (this.filter.mimeTypes.indexOf(mimeType) >= 0) {
 				return true;
 			}
 		}

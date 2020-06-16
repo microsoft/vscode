@@ -114,12 +114,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			return;
 		}
 
-		if (this._notebook.supportBackup) {
-			const tokenSource = new CancellationTokenSource();
-			await this.notebookService.revert(this.viewType, this.resource, tokenSource.token);
-		} else {
-			await this.load({ forceReadFromDisk: true });
-		}
+		await this.load({ forceReadFromDisk: true });
 
 		this._dirty = false;
 		this._onDidChangeDirty.fire();

@@ -662,10 +662,6 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		const backupId = await this._proxy.$backup(this._viewType, uri, token);
 		return backupId;
 	}
-
-	async revert(uri: URI, token: CancellationToken): Promise<void> {
-		return this._proxy.$revert(this._viewType, uri, token);
-	}
 }
 
 export class MainThreadNotebookKernel implements INotebookKernelInfo {

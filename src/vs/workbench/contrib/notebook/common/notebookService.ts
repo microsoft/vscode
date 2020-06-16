@@ -27,7 +27,6 @@ export interface IMainNotebookController {
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(uri: URI, token: CancellationToken): Promise<string | undefined>;
-	revert(uri: URI, token: CancellationToken): Promise<void>;
 }
 
 export interface INotebookService {
@@ -67,7 +66,6 @@ export interface INotebookService {
 	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined>;
-	revert(viewType: string, uri: URI, token: CancellationToken): Promise<void>;
 	onDidReceiveMessage(viewType: string, editorId: string, message: any): void;
 	setToCopy(items: NotebookCellTextModel[]): void;
 	getToCopy(): NotebookCellTextModel[] | undefined;
