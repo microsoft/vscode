@@ -27,6 +27,7 @@ import { equals } from 'vs/base/common/arrays';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IHeaders } from 'vs/base/parts/request/common/request';
 
 type SyncSourceClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -74,6 +75,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	protected readonly lastSyncResource: URI;
 	protected readonly syncResourceLogLabel: string;
+
+	private syncHeaders: IHeaders = {};
 
 	constructor(
 		readonly resource: SyncResource,
@@ -150,39 +153,44 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
-	async sync(manifest: IUserDataManifest | null): Promise<void> {
-		if (!this.isEnabled()) {
-			if (this.status !== SyncStatus.Idle) {
-				await this.stop();
-			}
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as it is disabled.`);
-			return;
-		}
-		if (this.status === SyncStatus.HasConflicts) {
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as there are conflicts.`);
-			return;
-		}
-		if (this.status === SyncStatus.Syncing) {
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as it is running already.`);
-			return;
-		}
-
-		this.logService.trace(`${this.syncResourceLogLabel}: Started synchronizing ${this.resource.toLowerCase()}...`);
-		this.setStatus(SyncStatus.Syncing);
-
-		const lastSyncUserData = await this.getLastSyncUserData();
-		const remoteUserData = await this.getLatestRemoteUserData(manifest, lastSyncUserData);
-
-		let status: SyncStatus = SyncStatus.Idle;
+	async sync(manifest: IUserDataManifest | null, headers: IHeaders = {}): Promise<void> {
 		try {
-			status = await this.performSync(remoteUserData, lastSyncUserData);
-			if (status === SyncStatus.HasConflicts) {
-				this.logService.info(`${this.syncResourceLogLabel}: Detected conflicts while synchronizing ${this.resource.toLowerCase()}.`);
-			} else if (status === SyncStatus.Idle) {
-				this.logService.trace(`${this.syncResourceLogLabel}: Finished synchronizing ${this.resource.toLowerCase()}.`);
+			this.syncHeaders = { ...headers };
+			if (!this.isEnabled()) {
+				if (this.status !== SyncStatus.Idle) {
+					await this.stop();
+				}
+				this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as it is disabled.`);
+				return;
+			}
+			if (this.status === SyncStatus.HasConflicts) {
+				this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as there are conflicts.`);
+				return;
+			}
+			if (this.status === SyncStatus.Syncing) {
+				this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as it is running already.`);
+				return;
+			}
+
+			this.logService.trace(`${this.syncResourceLogLabel}: Started synchronizing ${this.resource.toLowerCase()}...`);
+			this.setStatus(SyncStatus.Syncing);
+
+			const lastSyncUserData = await this.getLastSyncUserData();
+			const remoteUserData = await this.getLatestRemoteUserData(manifest, lastSyncUserData);
+
+			let status: SyncStatus = SyncStatus.Idle;
+			try {
+				status = await this.performSync(remoteUserData, lastSyncUserData);
+				if (status === SyncStatus.HasConflicts) {
+					this.logService.info(`${this.syncResourceLogLabel}: Detected conflicts while synchronizing ${this.resource.toLowerCase()}.`);
+				} else if (status === SyncStatus.Idle) {
+					this.logService.trace(`${this.syncResourceLogLabel}: Finished synchronizing ${this.resource.toLowerCase()}.`);
+				}
+			} finally {
+				this.setStatus(status);
 			}
 		} finally {
-			this.setStatus(status);
+			this.syncHeaders = {};
 		}
 	}
 
@@ -446,14 +454,14 @@ export abstract class AbstractSynchroniser extends Disposable {
 			return { ref: refOrLastSyncData, content };
 		} else {
 			const lastSyncUserData: IUserData | null = refOrLastSyncData ? { ref: refOrLastSyncData.ref, content: refOrLastSyncData.syncData ? JSON.stringify(refOrLastSyncData.syncData) : null } : null;
-			return this.userDataSyncStoreService.read(this.resource, lastSyncUserData);
+			return this.userDataSyncStoreService.read(this.resource, lastSyncUserData, this.syncHeaders);
 		}
 	}
 
 	protected async updateRemoteUserData(content: string, ref: string | null): Promise<IRemoteUserData> {
 		const machineId = await this.currentMachineIdPromise;
 		const syncData: ISyncData = { version: this.version, machineId, content };
-		ref = await this.userDataSyncStoreService.write(this.resource, JSON.stringify(syncData), ref);
+		ref = await this.userDataSyncStoreService.write(this.resource, JSON.stringify(syncData), ref, this.syncHeaders);
 		return { ref, syncData };
 	}
 

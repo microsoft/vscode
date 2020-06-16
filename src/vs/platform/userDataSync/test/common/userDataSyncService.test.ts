@@ -583,4 +583,24 @@ suite('UserDataSyncService', () => {
 		assert.deepEqual(testObject.conflicts, []);
 	});
 
+	test('test sync send execution id header', async () => {
+		// Setup the client
+		const target = new UserDataSyncTestServer();
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		const testObject = client.instantiationService.get(IUserDataSyncService);
+
+		await testObject.sync();
+
+		for (const request of target.requestsWithAllHeaders) {
+			const hasExecutionIdHeader = request.headers && request.headers['X-Execution-Id'] && request.headers['X-Execution-Id'].length > 0;
+			if (request.url.startsWith(`${target.url}/v1/resource/machines`)) {
+				assert.ok(!hasExecutionIdHeader, `Should not have execution header: ${request.url}`);
+			} else {
+				assert.ok(hasExecutionIdHeader, `Should have execution header: ${request.url}`);
+			}
+		}
+
+	});
+
 });
