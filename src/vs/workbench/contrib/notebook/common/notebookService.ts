@@ -12,7 +12,6 @@ import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, IC
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookEditorModelManager } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
@@ -32,7 +31,6 @@ export interface IMainNotebookController {
 
 export interface INotebookService {
 	readonly _serviceBrand: undefined;
-	modelManager: INotebookEditorModelManager;
 	canResolve(viewType: string): Promise<boolean>;
 	onDidChangeActiveEditor: Event<string | null>;
 	onDidChangeVisibleEditors: Event<string[]>;

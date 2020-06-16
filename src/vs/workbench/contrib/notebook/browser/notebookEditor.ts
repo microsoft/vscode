@@ -43,10 +43,9 @@ export class NotebookEditor extends BaseEditor {
 		@IStorageService storageService: IStorageService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@INotificationService private readonly notificationService: INotificationService) {
+		@INotificationService private readonly notificationService: INotificationService
+	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
-
-		// this._widget = this.instantiationService.createInstance(NotebookEditorWidget);
 		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
@@ -144,17 +143,16 @@ export class NotebookEditor extends BaseEditor {
 
 		await super.setInput(input, options, token);
 
+
 		// input attached
 		Event.once(input.onDispose)(() => {
-			// make sure the editor widget is removed from the view
-			const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input.resource, group);
-			if (existingEditorWidgetForInput) {
-				// the editor widget is only referenced by the editor input
-				// clear its state
-				existingEditorWidgetForInput.onWillHide();
-				existingEditorWidgetForInput.getDomNode().remove();
-				existingEditorWidgetForInput.dispose();
-				NotebookRegistry.releaseNotebookEditorWidget(input.resource, group);
+			// todo@jrieken
+			// there is no more input for a resource and that is used as signal to clean up
+			// all widget that might still be around
+			for (let widget of NotebookRegistry.releaseAllNotebookEditorWidgets(input.resource)) {
+				widget.onWillHide();
+				widget.getDomNode().remove();
+				widget.dispose();
 			}
 		});
 
