@@ -20,7 +20,7 @@ import { foreground, inputBackground, inputBorder, inputForeground, listActiveSe
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { disposableTimeout } from 'vs/base/common/async';
-import { isUndefinedOrNull, isDefined } from 'vs/base/common/types';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isIOS } from 'vs/base/common/platform';
@@ -655,10 +655,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 	private showAddButton: boolean = true;
 
 	setValue(listData: IObjectDataItem[], options?: IObjectSetValueOptions): void {
-		if (isDefined(options)) {
-			this.showAddButton = options.showAddButton ?? this.showAddButton;
-		}
-
+		this.showAddButton = options?.showAddButton ?? this.showAddButton;
 		super.setValue(listData);
 	}
 
@@ -750,16 +747,13 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		let keyWidget: InputBox | SelectBox | undefined;
 
 		if (this.showAddButton) {
-			keyWidget = this.renderEditWidget(item.key, rowElement);
-
-			// We have only rendered the key
-			rowElement.querySelector('.setting-list-object-input')?.classList.add('setting-list-object-input-key');
+			keyWidget = this.renderEditWidget(item.key, rowElement, true);
 		} else {
 			const keyElement = DOM.append(rowElement, $('.setting-list-object-key'));
 			keyElement.textContent = item.key.data;
 		}
 
-		const valueWidget = this.renderEditWidget(item.value, rowElement);
+		const valueWidget = this.renderEditWidget(item.value, rowElement, false);
 
 		const updatedItem = () => {
 			const newItem = { ...item };
@@ -853,19 +847,23 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		};
 	}
 
-	private renderEditWidget(keyOrValue: ObjectKeyOrValue, rowElement: HTMLElement) {
+	private renderEditWidget(keyOrValue: ObjectKeyOrValue, rowElement: HTMLElement, isKey: boolean) {
 		switch (keyOrValue.type) {
 			case 'string':
-				return this.renderStringEditWidget(keyOrValue, rowElement);
+				return this.renderStringEditWidget(keyOrValue, rowElement, isKey);
 			case 'enum':
-				return this.renderEnumEditWidget(keyOrValue, rowElement);
+				return this.renderEnumEditWidget(keyOrValue, rowElement, isKey);
 		}
 	}
 
-	private renderStringEditWidget(keyOrValue: IObjectStringData, rowElement: HTMLElement) {
+	private renderStringEditWidget(keyOrValue: IObjectStringData, rowElement: HTMLElement, isKey: boolean) {
 		const inputBox = new InputBox(rowElement, this.contextViewService);
 
 		inputBox.element.classList.add('setting-list-object-input');
+		if (isKey) {
+			inputBox.element.classList.add('setting-list-object-input-key');
+		}
+
 		this.listDisposables.add(attachInputBoxStyler(inputBox, this.themeService, {
 			inputBackground: settingsTextInputBackground,
 			inputForeground: settingsTextInputForeground,
@@ -877,7 +875,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		return inputBox;
 	}
 
-	private renderEnumEditWidget(keyOrValue: IObjectEnumData, rowElement: HTMLElement) {
+	private renderEnumEditWidget(keyOrValue: IObjectEnumData, rowElement: HTMLElement, isKey: boolean) {
 		const selectBoxOptions = keyOrValue.options.map(({ value, description }) => ({ text: value, description }));
 		const dataIndex = keyOrValue.options.findIndex(option => keyOrValue.data === option.value);
 		const selected = dataIndex >= 0 ? dataIndex : 0;
@@ -894,6 +892,9 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		}));
 
 		const wrapper = $('.setting-list-object-input');
+		if (isKey) {
+			wrapper.classList.add('setting-list-object-input-key');
+		}
 
 		selectBox.render(wrapper);
 		rowElement.append(wrapper);
