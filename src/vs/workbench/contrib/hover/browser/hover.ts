@@ -18,6 +18,15 @@ export interface IHoverService {
 	/**
 	 * Shows a hover.
 	 * @param options A set of options defining the characteristics of the hover.
+	 *
+	 * **Example:** A simple usage with a single element target.
+	 *
+	 * ```typescript
+	 * showHover({
+	 *   text: new MarkdownString('Hello world'),
+	 *   target: someElement
+	 * });
+	 * ```
 	 */
 	showHover(options: IHoverOptions): void;
 
