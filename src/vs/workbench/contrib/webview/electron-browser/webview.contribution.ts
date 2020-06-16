@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isMacintosh } from 'vs/base/common/platform';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -16,7 +15,7 @@ import { getFocusedWebviewEditor } from 'vs/workbench/contrib/webview/browser/we
 import * as webviewCommands from 'vs/workbench/contrib/webview/electron-browser/webviewCommands';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { ElectronWebviewService } from 'vs/workbench/contrib/webview/electron-browser/webviewService';
-import { UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
 
 registerSingleton(IWebviewService, ElectronWebviewService, true);
 
@@ -61,7 +60,7 @@ if (isMacintosh) {
 		return withWebview(accessor, webview => webview.undo());
 	});
 
-	CoreEditingCommands.Redo.overrides.register(accessor => {
+	RedoCommand.addImplementation(PRIORITY, accessor => {
 		return withWebview(accessor, webview => webview.redo());
 	});
 

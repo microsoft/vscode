@@ -603,3 +603,48 @@ export const UndoCommand = registerCommand(new MultiCommand({
 }));
 
 registerCommand(new ProxyCommand(UndoCommand, { id: 'default:undo', precondition: undefined }));
+
+export const RedoCommand = registerCommand(new MultiCommand({
+	id: 'redo',
+	precondition: undefined,
+	kbOpts: {
+		weight: KeybindingWeight.EditorCore,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
+	},
+	menuOpts: [{
+		menuId: MenuId.MenubarEditMenu,
+		group: '1_do',
+		title: nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"),
+		order: 2
+	}, {
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: nls.localize('redo', "Redo"),
+		order: 1
+	}]
+}));
+
+registerCommand(new ProxyCommand(RedoCommand, { id: 'default:redo', precondition: undefined }));
+
+export const SelectAllCommand = registerCommand(new MultiCommand({
+	id: 'editor.action.selectAll',
+	precondition: undefined,
+	kbOpts: {
+		weight: KeybindingWeight.EditorCore,
+		kbExpr: null,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
+	},
+	menuOpts: [{
+		menuId: MenuId.MenubarSelectionMenu,
+		group: '1_basic',
+		title: nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"),
+		order: 1
+	}, {
+		menuId: MenuId.CommandPalette,
+		group: '',
+		title: nls.localize('selectAll', "Select All"),
+		order: 1
+	}]
+}));
