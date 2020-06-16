@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2, env, UIKind, ShellExecution } from 'vscode';
+import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2, env, UIKind, ShellExecution, TaskExecution } from 'vscode';
 
 // Disable tasks tests:
 // - Web https://github.com/microsoft/vscode/issues/90528
@@ -141,7 +141,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 		test('Execution from onDidEndTaskProcess is equal to original', () => {
 			return new Promise(async (resolve, reject) => {
 				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
-				const taskExecution = await tasks.executeTask(task);
+				let taskExecution: TaskExecution | undefined;
 
 				disposables.push(tasks.onDidStartTaskProcess(e => {
 					if (e.execution !== taskExecution) {
@@ -156,13 +156,15 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 						reject('Unexpected task execution value in end process.');
 					}
 				}));
+
+				taskExecution = await tasks.executeTask(task);
 			});
 		});
 
 		test('Execution from onDidStartTaskProcess is equal to original', () => {
 			return new Promise(async (resolve, reject) => {
 				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
-				const taskExecution = await tasks.executeTask(task);
+				let taskExecution: TaskExecution | undefined;
 
 				disposables.push(tasks.onDidStartTaskProcess(e => {
 					if (e.execution === taskExecution) {
@@ -177,6 +179,8 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 						reject('Unexpected task execution value in end process.');
 					}
 				}));
+
+				taskExecution = await tasks.executeTask(task);
 			});
 		});
 	});
