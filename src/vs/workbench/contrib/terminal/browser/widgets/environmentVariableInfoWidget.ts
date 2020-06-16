@@ -40,7 +40,6 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 		}
 		container.appendChild(this._domNode);
 
-
 		const timeout = this._configurationService.getValue<number>('editor.hover.delay');
 		const scheduler: RunOnceScheduler = new RunOnceScheduler(() => this._showHover(), timeout);
 		this._register(scheduler);

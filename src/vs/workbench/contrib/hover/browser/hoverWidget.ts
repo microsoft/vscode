@@ -98,7 +98,15 @@ export class HoverWidget extends Widget {
 			this._actions.forEach(action => {
 				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
 				const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-				renderHoverAction(actionsElement, action, keybindingLabel);
+				renderHoverAction(actionsElement, {
+					label: action.label,
+					commandId: action.commandId,
+					run: e => {
+						action.run(e);
+						this.dispose();
+					},
+					iconClass: action.iconClass
+				}, keybindingLabel);
 			});
 			statusBarElement.appendChild(actionsElement);
 			this._hover.containerDomNode.appendChild(statusBarElement);
