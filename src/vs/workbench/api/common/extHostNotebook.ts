@@ -874,7 +874,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			? provider.onDidChangeNotebook(e => this._proxy.$onNotebookChange(viewType, e.document.uri))
 			: Disposable.None;
 
-		const supportBackup = !!provider.backupNotebook && !!provider.revertNotebook;
+		const supportBackup = !!provider.backupNotebook;
 
 		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, supportBackup, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
 		return new extHostTypes.Disposable(() => {
@@ -1025,16 +1025,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		return false;
-	}
-
-	async $revert(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<void> {
-		const document = this._documents.get(URI.revive(uri).toString());
-		const provider = this._notebookContentProviders.get(viewType);
-
-		if (document && provider && provider.provider.revertNotebook) {
-			await provider.provider.revertNotebook(document, cancellation);
-			document.disposeBackup();
-		}
 	}
 
 	async $backup(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string | undefined> {
