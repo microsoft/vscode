@@ -1098,6 +1098,8 @@ declare module 'vscode' {
 
 		/**
 		 * Accessibility information used when screen reader interacts with this tree item.
+		 * Generally, a TreeItem has no need to set the `role` of the accessibilityInformation;
+		 * however, there are cases where a TreeItem is not displayed in a tree-like way where setting the `role` may make sense.
 		 */
 		accessibilityInformation?: AccessibilityInformation;
 
