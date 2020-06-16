@@ -18,6 +18,7 @@ export interface IHoverService {
 	/**
 	 * Shows a hover.
 	 * @param options A set of options defining the characteristics of the hover.
+	 * @param focus Whether to focus the hover (useful for keyboard accessibility).
 	 *
 	 * **Example:** A simple usage with a single element target.
 	 *
@@ -28,7 +29,7 @@ export interface IHoverService {
 	 * });
 	 * ```
 	 */
-	showHover(options: IHoverOptions): void;
+	showHover(options: IHoverOptions, focus?: boolean): void;
 
 	/**
 	 * Hides the hover if it was visible.

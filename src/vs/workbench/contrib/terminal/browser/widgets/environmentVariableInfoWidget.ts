@@ -72,11 +72,10 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 	}
 
 	focus() {
-		this._showHover();
-		// TODO: Focus hover here for a11y
+		this._showHover(true);
 	}
 
-	private _showHover() {
+	private _showHover(focus?: boolean) {
 		if (!this._domNode || !this._container) {
 			return;
 		}
@@ -88,6 +87,6 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 				actions
 			};
 		}
-		this._hoverService.showHover(this._hoverOptions);
+		this._hoverService.showHover(this._hoverOptions, focus);
 	}
 }

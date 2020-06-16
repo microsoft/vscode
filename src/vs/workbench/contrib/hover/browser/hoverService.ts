@@ -20,7 +20,7 @@ export class HoverService implements IHoverService {
 	) {
 	}
 
-	showHover(options: IHoverOptions): void {
+	showHover(options: IHoverOptions, focus?: boolean): void {
 		if (this._currentHoverOptions === options) {
 			return;
 		}
@@ -32,6 +32,9 @@ export class HoverService implements IHoverService {
 			render: container => {
 				hover.render(container);
 				hover.onDispose(() => this._currentHoverOptions = undefined);
+				if (focus) {
+					hover.focus();
+				}
 				return hover;
 			},
 			anchorPosition: AnchorPosition.ABOVE,
