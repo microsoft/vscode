@@ -414,31 +414,31 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			templateData.cellContainer.appendChild(renderedHTML);
 		}
 
-		if (height) {
-			const elementDisposables = templateData.elementDisposables;
-
-			elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor.viewModel?.notebookDocument!, element));
-
-			// render toolbar first
-			this.setupCellToolbarActions(templateData.contextKeyService, templateData, elementDisposables);
-
-			const toolbarContext = <INotebookCellActionContext>{
-				cell: element,
-				notebookEditor: this.notebookEditor,
-				$mid: 12
-			};
-			templateData.toolbar.context = toolbarContext;
-
-			this.setBetweenCellToolbarContext(templateData, element, toolbarContext);
-
-			const markdownCell = this.instantiationService.createInstance(StatefullMarkdownCell, this.notebookEditor, element, templateData, this.editorOptions.value, this.renderedEditors);
-			elementDisposables.add(this.editorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
-			elementDisposables.add(markdownCell);
-
-			element.totalHeight = height;
-
-			templateData.languageStatusBarItem.update(element, this.notebookEditor);
+		if (height === undefined) {
+			return;
 		}
+
+		const elementDisposables = templateData.elementDisposables;
+
+		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor.viewModel?.notebookDocument!, element));
+
+		// render toolbar first
+		this.setupCellToolbarActions(templateData.contextKeyService, templateData, elementDisposables);
+
+		const toolbarContext = <INotebookCellActionContext>{
+			cell: element,
+			notebookEditor: this.notebookEditor,
+			$mid: 12
+		};
+		templateData.toolbar.context = toolbarContext;
+
+		this.setBetweenCellToolbarContext(templateData, element, toolbarContext);
+
+		const markdownCell = this.instantiationService.createInstance(StatefullMarkdownCell, this.notebookEditor, element, templateData, this.editorOptions.value, this.renderedEditors);
+		elementDisposables.add(this.editorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
+		elementDisposables.add(markdownCell);
+
+		templateData.languageStatusBarItem.update(element, this.notebookEditor);
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
