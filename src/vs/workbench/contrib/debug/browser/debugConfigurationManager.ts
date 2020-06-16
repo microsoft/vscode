@@ -46,7 +46,6 @@ jsonRegistry.registerSchema(launchSchemaId, launchSchema);
 
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 const DEBUG_SELECTED_ROOT = 'debug.selectedroot';
-const DEBUG_SELECTED_CONFIG = 'debug.selectedconfig';
 
 export class ConfigurationManager implements IConfigurationManager {
 	private debuggers: Debugger[];
@@ -84,12 +83,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		const previousSelectedLaunch = this.launches.find(l => l.uri.toString() === previousSelectedRoot);
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
-		const storedConfig = this.storageService.get(DEBUG_SELECTED_CONFIG, StorageScope.WORKSPACE);
-		const selectedConfig = typeof storedConfig === 'string' ? JSON.parse(storedConfig) : undefined;
 		if (previousSelectedLaunch && previousSelectedLaunch.getConfigurationNames().length) {
-			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE), selectedConfig);
+			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
 		} else if (this.launches.length > 0) {
-			this.selectConfiguration(undefined, selectedConfig ? selectedConfig.name : undefined, selectedConfig);
+			this.selectConfiguration(undefined);
 		}
 	}
 
@@ -486,10 +483,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.selectedConfig = config || (this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined);
 		if (this.selectedConfig) {
 			this.debugConfigurationTypeContext.set(this.selectedConfig.type);
-			this.storageService.store(DEBUG_SELECTED_CONFIG, JSON.stringify(this.selectedConfig), StorageScope.WORKSPACE);
 		} else {
 			this.debugConfigurationTypeContext.reset();
-			this.storageService.remove(DEBUG_SELECTED_CONFIG, StorageScope.WORKSPACE);
 		}
 
 		if (this.selectedLaunch !== previousLaunch || this.selectedName !== previousName) {

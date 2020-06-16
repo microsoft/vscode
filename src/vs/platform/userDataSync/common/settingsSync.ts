@@ -5,7 +5,7 @@
 
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import {
-	UserDataSyncError, UserDataSyncErrorCode, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, CONFIGURATION_SYNC_STORE_KEY,
+	UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, CONFIGURATION_SYNC_STORE_KEY,
 	SyncResource, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, USER_DATA_SYNC_SCHEME, PREVIEW_DIR_NAME, ISyncResourceHandle, IUserDataSynchroniser,
 	IRemoteUserData, ISyncData
 } from 'vs/platform/userDataSync/common/userDataSync';
@@ -58,94 +58,180 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
 	}
 
-	async pull(): Promise<void> {
-		if (!this.isEnabled()) {
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped pulling settings as it is disabled.`);
-			return;
+	protected async generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<IFileSyncPreview> {
+
+		const fileContent = await this.getLocalFileContent();
+		const formatUtils = await this.getFormattingOptions();
+		const ignoredSettings = await this.getIgnoredSettings();
+		const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
+
+		let content: string | null = null;
+		if (remoteSettingsSyncContent !== null) {
+			// Update ignored settings from local file content
+			content = updateIgnoredSettings(remoteSettingsSyncContent.settings, fileContent ? fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
 		}
 
-		this.stop();
-
-		try {
-			this.logService.info(`${this.syncResourceLogLabel}: Started pulling settings...`);
-			this.setStatus(SyncStatus.Syncing);
-
-			const lastSyncUserData = await this.getLastSyncUserData();
-			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-			const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
-
-			if (remoteSettingsSyncContent !== null) {
-				const fileContent = await this.getLocalFileContent();
-				const formatUtils = await this.getFormattingOptions();
-				// Update ignored settings from local file content
-				const ignoredSettings = await this.getIgnoredSettings();
-				const content = updateIgnoredSettings(remoteSettingsSyncContent.settings, fileContent ? fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
-				await this.applyPreview({
-					fileContent,
-					remoteUserData,
-					lastSyncUserData,
-					content,
-					hasLocalChanged: true,
-					hasRemoteChanged: false,
-					hasConflicts: false,
-					isLastSyncFromCurrentMachine: false
-				});
-			}
-
-			// No remote exists to pull
-			else {
-				this.logService.info(`${this.syncResourceLogLabel}: Remote settings does not exist.`);
-			}
-
-			this.logService.info(`${this.syncResourceLogLabel}: Finished pulling settings.`);
-		} finally {
-			this.setStatus(SyncStatus.Idle);
-		}
+		return {
+			fileContent,
+			remoteUserData,
+			lastSyncUserData,
+			content,
+			hasLocalChanged: content !== null,
+			hasRemoteChanged: false,
+			hasConflicts: false,
+			isLastSyncFromCurrentMachine: false
+		};
 	}
 
-	async push(): Promise<void> {
-		if (!this.isEnabled()) {
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped pushing settings as it is disabled.`);
-			return;
+	protected async generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<IFileSyncPreview> {
+
+		const fileContent = await this.getLocalFileContent();
+		const formatUtils = await this.getFormattingOptions();
+		const ignoredSettings = await this.getIgnoredSettings();
+
+		let content: string | null = null;
+		if (fileContent !== null) {
+			// Remove ignored settings
+			content = updateIgnoredSettings(fileContent.value.toString(), '{}', ignoredSettings, formatUtils);
 		}
 
-		this.stop();
+		return {
+			fileContent,
+			remoteUserData,
+			lastSyncUserData,
+			content,
+			hasLocalChanged: false,
+			hasRemoteChanged: content !== null,
+			hasConflicts: false,
+			isLastSyncFromCurrentMachine: false
+		};
+	}
 
-		try {
-			this.logService.info(`${this.syncResourceLogLabel}: Started pushing settings...`);
-			this.setStatus(SyncStatus.Syncing);
+	protected async generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<IFileSyncPreview> {
 
-			const fileContent = await this.getLocalFileContent();
+		const fileContent = await this.getLocalFileContent();
+		const formatUtils = await this.getFormattingOptions();
+		const ignoredSettings = await this.getIgnoredSettings();
 
-			if (fileContent !== null) {
+		let content: string | null = null;
+		const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
+		if (settingsSyncContent) {
+			content = updateIgnoredSettings(settingsSyncContent.settings, fileContent ? fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
+		}
+
+		return {
+			fileContent,
+			remoteUserData,
+			lastSyncUserData,
+			content,
+			hasLocalChanged: content !== null,
+			hasRemoteChanged: content !== null,
+			hasConflicts: false,
+			isLastSyncFromCurrentMachine: false
+		};
+	}
+
+	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken = CancellationToken.None): Promise<IFileSyncPreview> {
+		const fileContent = await this.getLocalFileContent();
+		const formattingOptions = await this.getFormattingOptions();
+		const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
+		const isLastSyncFromCurrentMachine = await this.isLastSyncFromCurrentMachine(remoteUserData);
+		let lastSettingsSyncContent: ISettingsSyncContent | null = null;
+		if (lastSyncUserData === null) {
+			if (isLastSyncFromCurrentMachine) {
+				lastSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
+			}
+		} else {
+			lastSettingsSyncContent = this.getSettingsSyncContent(lastSyncUserData);
+		}
+
+		let content: string | null = null;
+		let hasLocalChanged: boolean = false;
+		let hasRemoteChanged: boolean = false;
+		let hasConflicts: boolean = false;
+
+		if (remoteSettingsSyncContent) {
+			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
+			this.validateContent(localContent);
+			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote settings with local settings...`);
+			const ignoredSettings = await this.getIgnoredSettings();
+			const result = merge(localContent, remoteSettingsSyncContent.settings, lastSettingsSyncContent ? lastSettingsSyncContent.settings : null, ignoredSettings, [], formattingOptions);
+			content = result.localContent || result.remoteContent;
+			hasLocalChanged = result.localContent !== null;
+			hasRemoteChanged = result.remoteContent !== null;
+			hasConflicts = result.hasConflicts;
+		}
+
+		// First time syncing to remote
+		else if (fileContent) {
+			this.logService.trace(`${this.syncResourceLogLabel}: Remote settings does not exist. Synchronizing settings for the first time.`);
+			content = fileContent.value.toString();
+			hasRemoteChanged = true;
+		}
+
+		if (content && !token.isCancellationRequested) {
+			// Remove the ignored settings from the preview.
+			const ignoredSettings = await this.getIgnoredSettings();
+			const previewContent = updateIgnoredSettings(content, '{}', ignoredSettings, formattingOptions);
+			await this.fileService.writeFile(this.localPreviewResource, VSBuffer.fromString(previewContent));
+		}
+
+		this.setConflicts(hasConflicts && !token.isCancellationRequested ? [{ local: this.localPreviewResource, remote: this.remotePreviewResource }] : []);
+
+		return { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged, hasConflicts, isLastSyncFromCurrentMachine };
+	}
+
+	protected async updatePreviewWithConflict(preview: IFileSyncPreview, conflictResource: URI, conflictContent: string, token: CancellationToken): Promise<IFileSyncPreview> {
+		if (isEqual(this.localPreviewResource, conflictResource) || isEqual(this.remotePreviewResource, conflictResource)) {
+			const formatUtils = await this.getFormattingOptions();
+			// Add ignored settings from local file content
+			const ignoredSettings = await this.getIgnoredSettings();
+			const content = updateIgnoredSettings(conflictContent, preview.fileContent ? preview.fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
+			preview = { ...preview, content, hasConflicts: false };
+		}
+		return preview;
+	}
+
+	protected async applyPreview(preview: IFileSyncPreview, forcePush: boolean): Promise<void> {
+		let { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged } = preview;
+
+		if (content !== null) {
+
+			this.validateContent(content);
+
+			if (hasLocalChanged) {
+				this.logService.trace(`${this.syncResourceLogLabel}: Updating local settings...`);
+				if (fileContent) {
+					await this.backupLocal(JSON.stringify(this.toSettingsSyncContent(fileContent.value.toString())));
+				}
+				await this.updateLocalFileContent(content, fileContent);
+				this.logService.info(`${this.syncResourceLogLabel}: Updated local settings`);
+			}
+			if (hasRemoteChanged) {
 				const formatUtils = await this.getFormattingOptions();
-				// Remove ignored settings
-				const ignoredSettings = await this.getIgnoredSettings();
-				const content = updateIgnoredSettings(fileContent.value.toString(), '{}', ignoredSettings, formatUtils);
-				const lastSyncUserData = await this.getLastSyncUserData();
-				const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-
-				await this.applyPreview({
-					fileContent,
-					remoteUserData,
-					lastSyncUserData,
-					content,
-					hasRemoteChanged: true,
-					hasLocalChanged: false,
-					hasConflicts: false,
-					isLastSyncFromCurrentMachine: false
-				}, true);
+				// Update ignored settings from remote
+				const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
+				const ignoredSettings = await this.getIgnoredSettings(content);
+				content = updateIgnoredSettings(content, remoteSettingsSyncContent ? remoteSettingsSyncContent.settings : '{}', ignoredSettings, formatUtils);
+				this.logService.trace(`${this.syncResourceLogLabel}: Updating remote settings...`);
+				remoteUserData = await this.updateRemoteUserData(JSON.stringify(this.toSettingsSyncContent(content)), forcePush ? null : remoteUserData.ref);
+				this.logService.info(`${this.syncResourceLogLabel}: Updated remote settings`);
 			}
 
-			// No local exists to push
-			else {
-				this.logService.info(`${this.syncResourceLogLabel}: Local settings does not exist.`);
-			}
-
-			this.logService.info(`${this.syncResourceLogLabel}: Finished pushing settings.`);
-		} finally {
-			this.setStatus(SyncStatus.Idle);
+			// Delete the preview
+			try {
+				await this.fileService.del(this.localPreviewResource);
+			} catch (e) { /* ignore */ }
+		} else {
+			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing settings.`);
 		}
+
+		if (lastSyncUserData?.ref !== remoteUserData.ref) {
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized settings...`);
+			await this.updateLastSyncUserData(remoteUserData);
+			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized settings`);
+		}
+
 	}
 
 	async hasLocalData(): Promise<boolean> {
@@ -205,130 +291,6 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			content = updateIgnoredSettings(content, '{}', ignoredSettings, formatUtils);
 		}
 		return content;
-	}
-
-	protected async updatePreviewWithConflict(preview: IFileSyncPreview, conflictResource: URI, conflictContent: string, token: CancellationToken): Promise<IFileSyncPreview> {
-		if (isEqual(this.localPreviewResource, conflictResource) || isEqual(this.remotePreviewResource, conflictResource)) {
-			const formatUtils = await this.getFormattingOptions();
-			// Add ignored settings from local file content
-			const ignoredSettings = await this.getIgnoredSettings();
-			const content = updateIgnoredSettings(conflictContent, preview.fileContent ? preview.fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
-			preview = { ...preview, content, hasConflicts: false };
-		}
-		return preview;
-	}
-
-	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> {
-		const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
-		if (settingsSyncContent) {
-			const fileContent = await this.getLocalFileContent();
-			const formatUtils = await this.getFormattingOptions();
-			const ignoredSettings = await this.getIgnoredSettings();
-			const content = updateIgnoredSettings(settingsSyncContent.settings, fileContent ? fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
-
-			await this.applyPreview({
-				fileContent,
-				remoteUserData,
-				lastSyncUserData,
-				content,
-				hasLocalChanged: true,
-				hasRemoteChanged: true,
-				hasConflicts: false,
-				isLastSyncFromCurrentMachine: false
-			});
-		}
-	}
-
-	protected async applyPreview(preview: IFileSyncPreview, forcePush?: boolean): Promise<void> {
-		let { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged } = preview;
-
-		if (content !== null) {
-
-			this.validateContent(content);
-
-			if (hasLocalChanged) {
-				this.logService.trace(`${this.syncResourceLogLabel}: Updating local settings...`);
-				if (fileContent) {
-					await this.backupLocal(JSON.stringify(this.toSettingsSyncContent(fileContent.value.toString())));
-				}
-				await this.updateLocalFileContent(content, fileContent);
-				this.logService.info(`${this.syncResourceLogLabel}: Updated local settings`);
-			}
-			if (hasRemoteChanged) {
-				const formatUtils = await this.getFormattingOptions();
-				// Update ignored settings from remote
-				const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
-				const ignoredSettings = await this.getIgnoredSettings(content);
-				content = updateIgnoredSettings(content, remoteSettingsSyncContent ? remoteSettingsSyncContent.settings : '{}', ignoredSettings, formatUtils);
-				this.logService.trace(`${this.syncResourceLogLabel}: Updating remote settings...`);
-				remoteUserData = await this.updateRemoteUserData(JSON.stringify(this.toSettingsSyncContent(content)), forcePush ? null : remoteUserData.ref);
-				this.logService.info(`${this.syncResourceLogLabel}: Updated remote settings`);
-			}
-
-			// Delete the preview
-			try {
-				await this.fileService.del(this.localPreviewResource);
-			} catch (e) { /* ignore */ }
-		} else {
-			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing settings.`);
-		}
-
-		if (lastSyncUserData?.ref !== remoteUserData.ref) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized settings...`);
-			await this.updateLastSyncUserData(remoteUserData);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized settings`);
-		}
-
-	}
-
-	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken = CancellationToken.None): Promise<IFileSyncPreview> {
-		const fileContent = await this.getLocalFileContent();
-		const formattingOptions = await this.getFormattingOptions();
-		const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
-		const isLastSyncFromCurrentMachine = await this.isLastSyncFromCurrentMachine(remoteUserData);
-		let lastSettingsSyncContent: ISettingsSyncContent | null = null;
-		if (lastSyncUserData === null) {
-			if (isLastSyncFromCurrentMachine) {
-				lastSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
-			}
-		} else {
-			lastSettingsSyncContent = this.getSettingsSyncContent(lastSyncUserData);
-		}
-
-		let content: string | null = null;
-		let hasLocalChanged: boolean = false;
-		let hasRemoteChanged: boolean = false;
-		let hasConflicts: boolean = false;
-
-		if (remoteSettingsSyncContent) {
-			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
-			this.validateContent(localContent);
-			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote settings with local settings...`);
-			const ignoredSettings = await this.getIgnoredSettings();
-			const result = merge(localContent, remoteSettingsSyncContent.settings, lastSettingsSyncContent ? lastSettingsSyncContent.settings : null, ignoredSettings, [], formattingOptions);
-			content = result.localContent || result.remoteContent;
-			hasLocalChanged = result.localContent !== null;
-			hasRemoteChanged = result.remoteContent !== null;
-			hasConflicts = result.hasConflicts;
-		}
-
-		// First time syncing to remote
-		else if (fileContent) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Remote settings does not exist. Synchronizing settings for the first time.`);
-			content = fileContent.value.toString();
-			hasRemoteChanged = true;
-		}
-
-		if (content && !token.isCancellationRequested) {
-			// Remove the ignored settings from the preview.
-			const ignoredSettings = await this.getIgnoredSettings();
-			const previewContent = updateIgnoredSettings(content, '{}', ignoredSettings, formattingOptions);
-			await this.fileService.writeFile(this.localPreviewResource, VSBuffer.fromString(previewContent));
-		}
-
-		this.setConflicts(hasConflicts && !token.isCancellationRequested ? [{ local: this.localPreviewResource, remote: this.remotePreviewResource }] : []);
-
-		return { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged, hasConflicts, isLastSyncFromCurrentMachine };
 	}
 
 	private getSettingsSyncContent(remoteUserData: IRemoteUserData): ISettingsSyncContent | null {

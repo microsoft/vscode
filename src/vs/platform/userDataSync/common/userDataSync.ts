@@ -22,6 +22,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
 import { isArray, isString, isObject } from 'vs/base/common/types';
+import { IHeaders } from 'vs/base/parts/request/common/request';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -162,16 +163,20 @@ export type ServerResource = SyncResource | 'machines';
 export interface IUserDataSyncStoreService {
 	readonly _serviceBrand: undefined;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
+
 	readonly onTokenFailed: Event<void>;
 	readonly onTokenSucceed: Event<void>;
 	setAuthToken(token: string, type: string): void;
-	read(resource: ServerResource, oldValue: IUserData | null): Promise<IUserData>;
-	write(resource: ServerResource, content: string, ref: string | null): Promise<string>;
-	manifest(): Promise<IUserDataManifest | null>;
+
+	// Sync requests
+	manifest(headers?: IHeaders): Promise<IUserDataManifest | null>;
+	read(resource: ServerResource, oldValue: IUserData | null, headers?: IHeaders): Promise<IUserData>;
+	write(resource: ServerResource, content: string, ref: string | null, headers?: IHeaders): Promise<string>;
 	clear(): Promise<void>;
+	delete(resource: ServerResource): Promise<void>;
+
 	getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]>;
 	resolveContent(resource: ServerResource, ref: string): Promise<string | null>;
-	delete(resource: ServerResource): Promise<void>;
 }
 
 export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
@@ -301,7 +306,7 @@ export interface IUserDataSynchroniser {
 
 	pull(): Promise<void>;
 	push(): Promise<void>;
-	sync(manifest: IUserDataManifest | null): Promise<void>;
+	sync(manifest: IUserDataManifest | null, headers?: IHeaders): Promise<void>;
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
