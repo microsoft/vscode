@@ -121,24 +121,6 @@ export class NewFolderAction extends Action {
 	}
 }
 
-/* Create new file from anywhere: Open untitled */
-export class GlobalNewUntitledFileAction extends Action {
-	static readonly ID = 'workbench.action.files.newUntitledFile';
-	static readonly LABEL = nls.localize('newUntitledFile', "New Untitled File");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<void> {
-		await this.editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
-	}
-}
-
 async function deleteFiles(workingCopyFileService: IWorkingCopyFileService, dialogService: IDialogService, configurationService: IConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
 	let primaryButton: string;
 	if (useTrash) {

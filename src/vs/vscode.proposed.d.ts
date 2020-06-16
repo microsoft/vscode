@@ -1641,8 +1641,8 @@ declare module 'vscode' {
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		readonly onDidChangeNotebook: Event<NotebookDocumentEditEvent>;
-		revertNotebook?(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		backupNotebook?(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
+		revertNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
 
 		kernel?: NotebookKernel;
 	}

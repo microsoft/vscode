@@ -407,10 +407,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		this.localStore.add(this.list!.onDidChangeFocus(() => {
-			this._cellContextKeyManager?.dispose();
 			const focused = this.list!.getFocusedElements()[0];
 			if (focused) {
-				this._cellContextKeyManager = this.localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as any));
+				if (!this._cellContextKeyManager) {
+					this._cellContextKeyManager = this.localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as any));
+				}
+
+				this._cellContextKeyManager.updateForElement(focused as any);
 			}
 		}));
 
@@ -438,6 +441,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					if (!cellOptions.options?.preserveFocus) {
 						editor.focus();
 					}
+				}
+			}
+		} else if (this.notebookViewModel!.viewCells.length === 1 && this.notebookViewModel!.viewCells[0].cellKind === CellKind.Code) {
+			// there is only one code cell in the document
+			const cell = this.notebookViewModel!.viewCells[0];
+			if (cell.getTextLength() === 0) {
+				// the cell is empty, very likely a template cell, focus it
+				this.selectElement(cell);
+				await this.revealLineInCenterAsync(cell, 1);
+				const editor = this.renderedEditors.get(cell)!;
+				if (editor) {
+					editor.focus();
 				}
 			}
 		}

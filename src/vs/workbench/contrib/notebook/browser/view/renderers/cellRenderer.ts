@@ -266,7 +266,11 @@ abstract class AbstractCellRenderer {
 		const updateActions = () => {
 			const actions = this.getCellToolbarActions(menu);
 
+			const hadFocus = DOM.isAncestor(document.activeElement, templateData.toolbar.getContainer());
 			templateData.toolbar.setActions(actions.primary, actions.secondary)();
+			if (hadFocus) {
+				this.notebookEditor.focus();
+			}
 
 			if (templateData.focusIndicator) {
 				if (actions.primary.length || actions.secondary.length) {
@@ -897,8 +901,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const timer = new TimerRenderer(statusBar.durationContainer);
 
 		const outputContainer = DOM.append(container, $('.output'));
-		const focusSink = DOM.append(container, $('.cell-editor-focus-sink'));
-		focusSink.setAttribute('tabindex', '0');
+		const focusSinkElement = DOM.append(container, $('.cell-editor-focus-sink'));
+		focusSinkElement.setAttribute('tabindex', '0');
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 		DOM.append(bottomCellContainer, $('.separator'));
 		const betweenCellToolbar = this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService);
@@ -916,6 +920,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			focusIndicator,
 			toolbar,
 			betweenCellToolbar,
+			focusSinkElement,
 			runToolbar,
 			runButtonContainer,
 			executionOrderLabel,
@@ -930,8 +935,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		this.dndController.registerDragHandle(templateData, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
 
-		disposables.add(DOM.addDisposableListener(focusSink, DOM.EventType.FOCUS, () => {
-			if (templateData.currentRenderedCell) {
+		disposables.add(DOM.addDisposableListener(focusSinkElement, DOM.EventType.FOCUS, () => {
+			if (templateData.currentRenderedCell && (templateData.currentRenderedCell as CodeCellViewModel).outputs.length) {
 				this.notebookEditor.focusNotebookCell(templateData.currentRenderedCell, 'output');
 			}
 		}));
@@ -958,6 +963,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.runToolbar.setActions([
 				this.instantiationService.createInstance(ExecuteCellAction)
 			])();
+		}
+	}
+
+	private updateForOutputs(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
+		if (element.outputs.length) {
+			DOM.show(templateData.focusSinkElement);
+		} else {
+			DOM.hide(templateData.focusSinkElement);
 		}
 	}
 
@@ -1044,6 +1057,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				this.updateForHover(element, templateData);
 			}
 		}));
+
+		this.updateForOutputs(element, templateData);
+		elementDisposables.add(element.onDidChangeOutputs(_e => this.updateForOutputs(element, templateData)));
 
 		this.setupCellToolbarActions(templateData.contextKeyService, templateData, elementDisposables);
 

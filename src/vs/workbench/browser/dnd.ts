@@ -749,3 +749,11 @@ export class CompositeDragAndDropObserver extends Disposable {
 		return this._register(disposableStore);
 	}
 }
+
+export function toggleDropEffect(dataTransfer: DataTransfer | null, dropEffect: string, shouldHaveIt: boolean) {
+	if (!dataTransfer) {
+		return;
+	}
+
+	dataTransfer.dropEffect = shouldHaveIt ? dropEffect : 'none';
+}
