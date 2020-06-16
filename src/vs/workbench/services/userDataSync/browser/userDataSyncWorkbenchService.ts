@@ -220,13 +220,13 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			throw new Error(localize('no account', "No account available"));
 		}
 
-		await this.handleFirstTimeSync();
-		this.userDataAutoSyncService.enable();
+		const pullFirst = await this.handleFirstTimeSync();
+		await this.userDataAutoSyncService.turnOn(pullFirst);
 		this.notificationService.info(localize('sync turned on', "Preferences sync is turned on"));
 	}
 
 	async turnoff(everywhere: boolean): Promise<void> {
-		this.userDataAutoSyncService.disable();
+		await this.userDataAutoSyncService.turnOff();
 
 		if (everywhere) {
 			this.telemetryService.publicLog2('sync/turnOffEveryWhere');
@@ -236,11 +236,10 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 	}
 
-	private async handleFirstTimeSync(): Promise<void> {
+	private async handleFirstTimeSync(): Promise<boolean> {
 		const isFirstTimeSyncingWithAnotherMachine = await this.userDataSyncService.isFirstTimeSyncingWithAnotherMachine();
 		if (!isFirstTimeSyncingWithAnotherMachine) {
-			await this.userDataSyncService.sync();
-			return;
+			return false;
 		}
 
 		const result = await this.dialogService.show(
@@ -264,16 +263,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				throw canceled();
 			case 1:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
-				await this.userDataSyncService.sync();
-				break;
+				return false;
 			case 2:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'replace-local' });
-				await this.userDataSyncService.pull();
-				break;
+				return true;
 			case 3:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
 				throw canceled();
 		}
+		return false;
 	}
 
 	private isSupportedAuthenticationProviderId(authenticationProviderId: string): boolean {

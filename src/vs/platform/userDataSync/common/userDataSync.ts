@@ -382,9 +382,9 @@ export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
 	readonly onError: Event<UserDataSyncError>;
-	enable(): void;
-	disable(): void;
-	triggerAutoSync(sources: string[]): Promise<void>;
+	turnOn(pullFirst: boolean): Promise<void>;
+	turnOff(): Promise<void>;
+	triggerSync(sources: string[], hasToLimitSync: boolean): Promise<void>;
 }
 
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');

@@ -6,15 +6,13 @@
 import { Delayer, disposableTimeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IUserDataSyncLogService, IUserDataSyncService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService, ALL_SYNC_RESOURCES, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLogService, IUserDataSyncService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type AutoSyncClassification = {
 	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
-
-export const RESOURCE_ENABLEMENT_SOURCE = 'resourceEnablement';
 
 export class UserDataAutoSyncService extends Disposable implements IUserDataAutoSyncService {
 
@@ -42,7 +40,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		if (userDataSyncStoreService.userDataSyncStore) {
 			this.updateAutoSync();
 			this._register(Event.any(authTokenService.onDidChangeAccount, this.userDataSyncEnablementService.onDidChangeEnablement)(() => this.updateAutoSync()));
-			this._register(Event.filter(this.userDataSyncEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerAutoSync([RESOURCE_ENABLEMENT_SOURCE])));
+			this._register(Event.debounce<string, string[]>(userDataSyncService.onDidChangeLocal, (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, false)));
+			this._register(Event.filter(this.userDataSyncEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerSync(['resourceEnablement'], false)));
 		}
 	}
 
@@ -66,12 +65,18 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		}
 	}
 
-	enable(): void {
+	async turnOn(pullFirst: boolean): Promise<void> {
+		if (pullFirst) {
+			await this.userDataSyncService.pull();
+		} else {
+			await this.userDataSyncService.sync();
+		}
+
 		this.userDataSyncEnablementService.setEnablement(true);
 		this.updateAutoSync();
 	}
 
-	disable(): void {
+	async turnOff(): Promise<void> {
 		this.userDataSyncEnablementService.setEnablement(false);
 		this.updateAutoSync();
 	}
@@ -101,10 +106,10 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		if (userDataSyncError.code === UserDataSyncErrorCode.TurnedOff || userDataSyncError.code === UserDataSyncErrorCode.SessionExpired) {
 			this.logService.info('Auto Sync: Sync is turned off in the cloud.');
 			await this.userDataSyncService.resetLocal();
-			this.disable();
+			this.turnOff();
 			this.logService.info('Auto Sync: Turned off sync because sync is turned off in the cloud');
 		} else if (userDataSyncError.code === UserDataSyncErrorCode.LocalTooManyRequests) {
-			this.disable();
+			this.turnOff();
 			this.logService.info('Auto Sync: Turned off sync because of making too many requests to server');
 		} else {
 			this.logService.error(userDataSyncError);
@@ -114,19 +119,14 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	}
 
 	private sources: string[] = [];
-	async triggerAutoSync(sources: string[]): Promise<void> {
+	async triggerSync(sources: string[], skipIfSyncedRecently: boolean): Promise<void> {
 		if (this.autoSync.value === undefined) {
 			return this.syncTriggerDelayer.cancel();
 		}
 
-		/*
-		If sync is not triggered by sync resource (triggered by other sources like window focus etc.,) or by resource enablement
-		then limit sync to once per 10s
-		*/
-		const hasToLimitSync = sources.indexOf(RESOURCE_ENABLEMENT_SOURCE) === -1 && ALL_SYNC_RESOURCES.every(syncResource => sources.indexOf(syncResource) === -1);
-		if (hasToLimitSync && this.lastSyncTriggerTime
+		if (skipIfSyncedRecently && this.lastSyncTriggerTime
 			&& Math.round((new Date().getTime() - this.lastSyncTriggerTime) / 1000) < 10) {
-			this.logService.debug('Auto Sync Skipped: Limited to once per 10 seconds.');
+			this.logService.debug('Auto Sync: Skipped. Limited to once per 10 seconds.');
 			return;
 		}
 

@@ -24,19 +24,19 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	) {
 		super();
 		this.channel = sharedProcessService.getChannel('userDataAutoSync');
-		this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(source => this.triggerAutoSync([source])));
+		this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(source => this.triggerSync([source], true)));
 	}
 
-	triggerAutoSync(sources: string[]): Promise<void> {
-		return this.channel.call('triggerAutoSync', [sources]);
+	triggerSync(sources: string[], hasToLimitSync: boolean): Promise<void> {
+		return this.channel.call('triggerSync', [sources, hasToLimitSync]);
 	}
 
-	enable(): void {
-		this.channel.call('enable');
+	turnOn(pullFirst: boolean): Promise<void> {
+		return this.channel.call('turnOn', [pullFirst]);
 	}
 
-	disable(): void {
-		this.channel.call('disable');
+	turnOff(): Promise<void> {
+		return this.channel.call('turnOff');
 	}
 
 }
