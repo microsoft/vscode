@@ -468,14 +468,14 @@ export interface IEditorInput extends IDisposable {
 	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void>;
 
 	/**
-	 * Called to determine how to handle a resource that is moved that matches
+	 * Called to determine how to handle a resource that is renamed that matches
 	 * the editors resource (or is a child of).
 	 *
 	 * Implementors are free to not implement this method to signal no intent
 	 * to participate. If an editor is returned though, it will replace the
 	 * current one with that editor and optional options.
 	 */
-	move(group: GroupIdentifier, target: URI): IMoveResult | undefined;
+	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined;
 
 	/**
 	 * Subclasses can set this to false if it does not make sense to split the editor input.
@@ -582,7 +582,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> { }
 
-	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		return undefined;
 	}
 

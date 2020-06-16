@@ -279,7 +279,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return !!this.model;
 	}
 
-	move(group: GroupIdentifier, target: URI): IMoveResult {
+	rename(group: GroupIdentifier, target: URI): IMoveResult {
 		return {
 			editor: {
 				resource: target,

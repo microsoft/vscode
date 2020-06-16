@@ -256,8 +256,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
 				}
 
-				// Delegate move() to editor instance
-				const moveResult = editor.move(group.id, targetResource);
+				// Delegate rename() to editor instance
+				const moveResult = editor.rename(group.id, targetResource);
 				if (!moveResult) {
 					return; // not target - ignore
 				}
