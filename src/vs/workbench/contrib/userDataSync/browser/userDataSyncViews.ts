@@ -186,12 +186,12 @@ export class UserDataSyncDataViews extends Disposable {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.actions.sync.editCurrentMachineName`,
-					title: localize('workbench.actions.sync.editCurrentMachineName', "Edit Name"),
+					id: `workbench.actions.sync.editMachineName`,
+					title: localize('workbench.actions.sync.editMachineName', "Edit Name"),
 					icon: Codicon.edit,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', id), ContextKeyEqualsExpr.create('viewItem', 'sync-machine')),
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', id)),
 						group: 'inline',
 					},
 				});
@@ -203,6 +203,25 @@ export class UserDataSyncDataViews extends Disposable {
 				}
 			}
 		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.actions.sync.turnOffSyncOnMachine`,
+					title: localize('workbench.actions.sync.turnOffSyncOnMachine', "Turn off Preferences Sync"),
+					menu: {
+						id: MenuId.ViewItemContext,
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', id), ContextKeyEqualsExpr.create('viewItem', 'sync-machine')),
+					},
+				});
+			}
+			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
+				if (await dataProvider.disable(handle.$treeItemHandle)) {
+					await treeView.refresh();
+				}
+			}
+		});
+
 	}
 
 	private registerDataViewActions(viewId: string) {
@@ -461,7 +480,10 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
-	) { }
+		@IDialogService private readonly dialogService: IDialogService,
+		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
+	) {
+	}
 
 	async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {
 		if (!element) {
@@ -490,6 +512,32 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 			this.machinesPromise = this.userDataSyncMachinesService.getMachines();
 		}
 		return this.machinesPromise;
+	}
+
+	async disable(machineId: string): Promise<boolean> {
+		const machines = await this.getMachines();
+		const machine = machines.find(({ id }) => id === machineId);
+		if (!machine) {
+			throw new Error(localize('not found', "machine not found with id: {0}", machineId));
+		}
+
+		const result = await this.dialogService.confirm({
+			type: 'info',
+			message: localize('turn off sync on machine', "Are you sure you want to turn off sync on {0}?", machine.name),
+			primaryButton: localize('turn off', "Turn off"),
+		});
+
+		if (!result.confirmed) {
+			return false;
+		}
+
+		if (machine.isCurrent) {
+			await this.userDataSyncWorkbenchService.turnoff(false);
+		} else {
+			await this.userDataSyncMachinesService.disableMachine(machineId);
+		}
+
+		return true;
 	}
 
 	async rename(machineId: string): Promise<boolean> {

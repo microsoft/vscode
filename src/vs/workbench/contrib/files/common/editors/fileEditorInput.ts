@@ -236,9 +236,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	private async doResolveAsText(): Promise<ITextFileEditorModel | BinaryEditorModel> {
-
-		// Resolve as text
 		try {
+
+			// Resolve resource via text file service and only allow
+			// to open binary files if we are instructed so
 			await this.textFileService.files.resolve(this.resource, {
 				mode: this.preferredMode,
 				encoding: this.preferredEncoding,
@@ -255,7 +256,16 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 				this.cachedTextFileModelReference = await this.textModelResolverService.createModelReference(this.resource) as IReference<ITextFileEditorModel>;
 			}
 
-			return this.cachedTextFileModelReference.object;
+			const model = this.cachedTextFileModelReference.object;
+
+			// It is possible that this input was disposed before the model
+			// finished resolving. As such, we need to make sure to dispose
+			// the model reference to not leak it.
+			if (this.isDisposed()) {
+				this.disposeModelReference();
+			}
+
+			return model;
 		} catch (error) {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
@@ -321,9 +331,13 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		this.model = undefined;
 
 		// Model reference
-		dispose(this.cachedTextFileModelReference);
-		this.cachedTextFileModelReference = undefined;
+		this.disposeModelReference();
 
 		super.dispose();
+	}
+
+	private disposeModelReference(): void {
+		dispose(this.cachedTextFileModelReference);
+		this.cachedTextFileModelReference = undefined;
 	}
 }
