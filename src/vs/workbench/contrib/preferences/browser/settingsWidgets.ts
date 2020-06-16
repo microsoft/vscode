@@ -237,6 +237,10 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		return this.listElement;
 	}
 
+	get items(): TDataItem[] {
+		return this.model.items;
+	}
+
 	constructor(
 		private container: HTMLElement,
 		@IThemeService protected readonly themeService: IThemeService,
@@ -289,7 +293,6 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 	protected abstract getLocalizedStrings(): {
 		deleteActionTooltip: string
 		editActionTooltip: string
-		complexEditActionTooltip: string
 		addButtonLabel: string
 	};
 
@@ -591,7 +594,6 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		return {
 			deleteActionTooltip: localize('removeItem', "Remove Item"),
 			editActionTooltip: localize('editItem', "Edit Item"),
-			complexEditActionTooltip: localize('editItemInSettingsJson', "Edit Item in settings.json"),
 			addButtonLabel: localize('addItem', "Add Item"),
 			inputPlaceholder: localize('itemInputPlaceholder', "String Item..."),
 			siblingInputPlaceholder: localize('listSiblingInputPlaceholder', "Sibling..."),
@@ -614,7 +616,6 @@ export class ExcludeSettingWidget extends ListSettingWidget {
 		return {
 			deleteActionTooltip: localize('removeExcludeItem', "Remove Exclude Item"),
 			editActionTooltip: localize('editExcludeItem', "Edit Exclude Item"),
-			complexEditActionTooltip: localize('editExcludeItemInSettingsJson', "Edit Exclude Item in settings.json"),
 			addButtonLabel: localize('addPattern', "Add Pattern"),
 			inputPlaceholder: localize('excludePatternInputPlaceholder', "Exclude Pattern..."),
 			siblingInputPlaceholder: localize('excludeSiblingInputPlaceholder', "When Pattern Is Present..."),
@@ -652,6 +653,10 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 	setAddButtonVisibility(isVisible: boolean): void {
 		this.showAddButton = isVisible;
 		this.renderList();
+	}
+
+	isItemNew(item: IObjectDataItem): boolean {
+		return item.key.data === '' && item.value.data === '';
 	}
 
 	protected isAddButtonVisible(): boolean {
@@ -809,10 +814,6 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		return rowElement;
 	}
 
-	protected isItemNew(item: IObjectDataItem): boolean {
-		return item.key.data === '' && item.value.data === '';
-	}
-
 	protected getLocalizedRowTitle(item: IObjectDataItem): string {
 		const enumDescription = item.key.type === 'enum'
 			? item.key.options.find(({ value }) => item.key.data === value)?.description
@@ -826,7 +827,6 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 			deleteActionTooltip: localize('removeItem', "Remove Item"),
 			resetActionTooltip: localize('resetItem', "Reset Item"),
 			editActionTooltip: localize('editItem', "Edit Item"),
-			complexEditActionTooltip: localize('editItemInSettingsJson', "Edit Item in settings.json"),
 			addButtonLabel: localize('addItem', "Add Item"),
 			keyHeaderText: localize('objectKeyHeader', "Item"),
 			valueHeaderText: localize('objectValueHeader', "Value"),

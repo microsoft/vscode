@@ -76,6 +76,12 @@ function getExcludeDisplayValue(element: SettingsTreeSettingElement): IListDataI
 		});
 }
 
+function areAllPropertiesDefined(properties: string[], itemsToDisplay: IObjectDataItem[]): boolean {
+	const staticProperties = new Set(properties);
+	itemsToDisplay.forEach(({ key }) => staticProperties.delete(key.data));
+	return staticProperties.size === 0;
+}
+
 function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
 	const enumDescriptions = schema.enumDescriptions ?? [];
 
@@ -93,10 +99,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		{ ...element.defaultValue, ...element.scopeValue } :
 		element.defaultValue;
 
-	const items: IObjectDataItem[] = [];
-
 	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
-
 	const patternsAndSchemas = Object
 		.entries(objectPatternProperties ?? {})
 		.map(([pattern, schema]) => ({
@@ -104,67 +107,52 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			schema
 		}));
 
-	const allKeys = new Set<string>(Object.keys(data).concat(Object.keys(objectProperties ?? {})));
-	const wellDefinedKeys: { key: string, description?: string }[] = [];
-	const patternKeysWithSchema = new Map<string, IJSONSchema>();
-	const additionalKeys: string[] = [];
 	const additionalValueEnums = getEnumOptionsFromSchema(
 		typeof objectAdditionalProperties === 'boolean'
 			? {}
 			: objectAdditionalProperties ?? {}
 	);
 
-	// copy the keys into appropriate buckets
-	allKeys.forEach(key => {
-		if (key in (objectProperties ?? {})) {
-			wellDefinedKeys.push({ key, description: objectProperties![key].description });
-			return;
+	const wellDefinedKeyEnumOptions = Object.entries(objectProperties ?? {}).map(
+		([key, schema]) => ({ value: key, description: schema.description })
+	);
+
+	return Object.keys(data).map(key => {
+		if (isDefined(objectProperties) && key in objectProperties) {
+			const defaultValue = element.defaultValue[key];
+			const valueEnumOptions = getEnumOptionsFromSchema(objectProperties[key]);
+
+			return {
+				key: {
+					type: 'enum',
+					data: key,
+					options: wellDefinedKeyEnumOptions,
+				},
+				value: {
+					type: valueEnumOptions.length > 0 ? 'enum' : 'string',
+					data: data[key],
+					options: valueEnumOptions,
+				},
+				removable: isUndefinedOrNull(defaultValue),
+			};
 		}
 
 		const schema = patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
 
-		if (isDefined(schema)) {
-			patternKeysWithSchema.set(key, schema);
-		} else {
-			additionalKeys.push(key);
+		if (schema) {
+			const valueEnumOptions = getEnumOptionsFromSchema(schema);
+			return {
+				key: { type: 'string', data: key },
+				value: {
+					type: valueEnumOptions.length > 0 ? 'enum' : 'string',
+					data: data[key],
+					options: valueEnumOptions,
+				},
+				removable: true,
+			};
 		}
-	});
 
-	const wellDefinedKeyEnumOptions = wellDefinedKeys.map(({ key, description }) => ({ value: key, description }));
-	wellDefinedKeys.forEach(({ key }) => {
-		const defaultValue = element.defaultValue[key] ?? objectProperties![key].default;
-		const valueEnumOptions = getEnumOptionsFromSchema(objectProperties![key]);
-
-		items.push({
-			key: {
-				type: 'enum',
-				data: key,
-				options: wellDefinedKeyEnumOptions,
-			},
-			value: {
-				type: valueEnumOptions.length > 0 ? 'enum' : 'string',
-				data: data[key] ?? defaultValue,
-				options: valueEnumOptions,
-			},
-			removable: isUndefinedOrNull(defaultValue),
-		});
-	});
-
-	patternKeysWithSchema.forEach((schema, key) => {
-		const valueEnumOptions = getEnumOptionsFromSchema(schema);
-		items.push({
-			key: { type: 'string', data: key },
-			value: {
-				type: valueEnumOptions.length > 0 ? 'enum' : 'string',
-				data: data[key],
-				options: valueEnumOptions,
-			},
-			removable: true,
-		});
-	});
-
-	additionalKeys.forEach(key => {
-		items.push({
+		return {
 			key: { type: 'string', data: key },
 			value: {
 				type: additionalValueEnums.length > 0 ? 'enum' : 'string',
@@ -172,17 +160,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				options: additionalValueEnums,
 			},
 			removable: true,
-		});
-	});
-
-	return items.sort((a, b) => {
-		if (a.key.data < b.key.data) {
-			return -1;
-		} else if (a.key.data > b.key.data) {
-			return 1;
-		} else {
-			return 0;
-		}
+		};
 	});
 }
 
@@ -993,22 +971,32 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 
 		this.addSettingElementFocusHandler(template);
 
-		common.toDispose.add(objectWidget.onDidChangeList(e => this.onDidChangeMap(template, e)));
+		common.toDispose.add(objectWidget.onDidChangeList(e => this.onDidChangeObject(template, e)));
 
 		return template;
 	}
 
-	private onDidChangeMap(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
+	private onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
 		if (template.context) {
-			const newValue = { ...template.context.scopeValue };
+			const newValue: Record<string, string> = {};
 
-			// first delete the existing entry, if present
-			if (e.originalItem.key.data) {
+			template.objectWidget.items.forEach(item => {
+				// Item was updated
+				if (isDefined(e.item) && e.originalItem.key.data === item.key.data) {
+					newValue[e.item.key.data] = e.item.value.data;
+				}
+				// All remaining items
+				else {
+					newValue[item.key.data] = item.value.data;
+				}
+			});
+
+			// Item was deleted
+			if (isUndefinedOrNull(e.item)) {
 				delete newValue[e.originalItem.key.data];
 			}
-
-			// then add the new or updated entry, if present
-			if (e.item?.key.data && e.item.value.data) {
+			// New item was added
+			else if (template.objectWidget.isItemNew(e.originalItem)) {
 				newValue[e.item.key.data] = e.item.value.data;
 			}
 
@@ -1029,7 +1017,11 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 
 		template.objectWidget.setAddButtonVisibility(
 			isDefined(dataElement.setting.objectAdditionalProperties) ||
-			isDefined(dataElement.setting.objectPatternProperties)
+			isDefined(dataElement.setting.objectPatternProperties) ||
+			!areAllPropertiesDefined(
+				Object.keys(dataElement.setting.objectProperties ?? {}),
+				items
+			)
 		);
 
 		template.objectWidget.setValue(items);
