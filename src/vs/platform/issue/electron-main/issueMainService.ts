@@ -196,7 +196,8 @@ export class IssueMainService implements ICommonIssueService {
 						webPreferences: {
 							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
 							nodeIntegration: true,
-							enableWebSQL: false
+							enableWebSQL: false,
+							nativeWindowOpen: true
 						}
 					});
 
@@ -247,7 +248,8 @@ export class IssueMainService implements ICommonIssueService {
 						webPreferences: {
 							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
 							nodeIntegration: true,
-							enableWebSQL: false
+							enableWebSQL: false,
+							nativeWindowOpen: true
 						}
 					});
 
