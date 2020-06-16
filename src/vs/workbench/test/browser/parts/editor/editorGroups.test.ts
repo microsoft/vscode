@@ -278,10 +278,10 @@ suite('Workbench editor groups', () => {
 
 		assert.equal(group.contains(input1), true);
 		assert.equal(group.contains(input1, { strictEquals: true }), true);
-		assert.equal(group.contains(input1, { searchInSideBySideEditors: true }), true);
+		assert.equal(group.contains(input1, { supportSideBySide: true }), true);
 		assert.equal(group.contains(input2), false);
 		assert.equal(group.contains(input2, { strictEquals: true }), false);
-		assert.equal(group.contains(input2, { searchInSideBySideEditors: true }), false);
+		assert.equal(group.contains(input2, { supportSideBySide: true }), false);
 		assert.equal(group.contains(diffInput1), false);
 		assert.equal(group.contains(diffInput2), false);
 
@@ -309,7 +309,7 @@ suite('Workbench editor groups', () => {
 		group.closeEditor(input1);
 
 		assert.equal(group.contains(input1), false);
-		assert.equal(group.contains(input1, { searchInSideBySideEditors: true }), true);
+		assert.equal(group.contains(input1, { supportSideBySide: true }), true);
 		assert.equal(group.contains(input2), true);
 		assert.equal(group.contains(diffInput1), true);
 		assert.equal(group.contains(diffInput2), true);
@@ -317,27 +317,27 @@ suite('Workbench editor groups', () => {
 		group.closeEditor(input2);
 
 		assert.equal(group.contains(input1), false);
-		assert.equal(group.contains(input1, { searchInSideBySideEditors: true }), true);
+		assert.equal(group.contains(input1, { supportSideBySide: true }), true);
 		assert.equal(group.contains(input2), false);
-		assert.equal(group.contains(input2, { searchInSideBySideEditors: true }), true);
+		assert.equal(group.contains(input2, { supportSideBySide: true }), true);
 		assert.equal(group.contains(diffInput1), true);
 		assert.equal(group.contains(diffInput2), true);
 
 		group.closeEditor(diffInput1);
 
 		assert.equal(group.contains(input1), false);
-		assert.equal(group.contains(input1, { searchInSideBySideEditors: true }), true);
+		assert.equal(group.contains(input1, { supportSideBySide: true }), true);
 		assert.equal(group.contains(input2), false);
-		assert.equal(group.contains(input2, { searchInSideBySideEditors: true }), true);
+		assert.equal(group.contains(input2, { supportSideBySide: true }), true);
 		assert.equal(group.contains(diffInput1), false);
 		assert.equal(group.contains(diffInput2), true);
 
 		group.closeEditor(diffInput2);
 
 		assert.equal(group.contains(input1), false);
-		assert.equal(group.contains(input1, { searchInSideBySideEditors: true }), false);
+		assert.equal(group.contains(input1, { supportSideBySide: true }), false);
 		assert.equal(group.contains(input2), false);
-		assert.equal(group.contains(input2, { searchInSideBySideEditors: true }), false);
+		assert.equal(group.contains(input2, { supportSideBySide: true }), false);
 		assert.equal(group.contains(diffInput1), false);
 		assert.equal(group.contains(diffInput2), false);
 

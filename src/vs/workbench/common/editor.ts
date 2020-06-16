@@ -697,6 +697,28 @@ export class SideBySideEditorInput extends EditorInput {
 		this.registerListeners();
 	}
 
+	private registerListeners(): void {
+
+		// When the details or master input gets disposed, dispose this diff editor input
+		const onceDetailsDisposed = Event.once(this.details.onDispose);
+		this._register(onceDetailsDisposed(() => {
+			if (!this.isDisposed()) {
+				this.dispose();
+			}
+		}));
+
+		const onceMasterDisposed = Event.once(this.master.onDispose);
+		this._register(onceMasterDisposed(() => {
+			if (!this.isDisposed()) {
+				this.dispose();
+			}
+		}));
+
+		// Reemit some events from the master side to the outside
+		this._register(this.master.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		this._register(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
+	}
+
 	get resource(): URI | undefined {
 		return undefined;
 	}
@@ -757,28 +779,6 @@ export class SideBySideEditorInput extends EditorInput {
 		const descriptor = this.master.getTelemetryDescriptor();
 
 		return Object.assign(descriptor, super.getTelemetryDescriptor());
-	}
-
-	private registerListeners(): void {
-
-		// When the details or master input gets disposed, dispose this diff editor input
-		const onceDetailsDisposed = Event.once(this.details.onDispose);
-		this._register(onceDetailsDisposed(() => {
-			if (!this.isDisposed()) {
-				this.dispose();
-			}
-		}));
-
-		const onceMasterDisposed = Event.once(this.master.onDispose);
-		this._register(onceMasterDisposed(() => {
-			if (!this.isDisposed()) {
-				this.dispose();
-			}
-		}));
-
-		// Reemit some events from the master side to the outside
-		this._register(this.master.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this._register(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
 	}
 
 	matches(otherInput: unknown): boolean {

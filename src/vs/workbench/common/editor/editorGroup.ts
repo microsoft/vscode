@@ -689,13 +689,13 @@ export class EditorGroup extends Disposable {
 		return [this.editors[index], index];
 	}
 
-	contains(candidate: EditorInput, options?: { searchInSideBySideEditors?: boolean, strictEquals?: boolean }): boolean {
+	contains(candidate: EditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean {
 		for (const editor of this.editors) {
 			if (this.matches(editor, candidate, options?.strictEquals)) {
 				return true;
 			}
 
-			if (options?.searchInSideBySideEditors && editor instanceof SideBySideEditorInput) {
+			if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
 				if (this.matches(editor.master, candidate, options?.strictEquals) || this.matches(editor.details, candidate, options?.strictEquals)) {
 					return true;
 				}
