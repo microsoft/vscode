@@ -611,6 +611,13 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			this.replInput.focus();
 			return Promise.resolve();
 		}));
+		actions.push(new Action('debug.replPaste', localize('paste', 'Paste'), undefined, true, async () => {
+			const clipboardText = await this.clipboardService.readText();
+			if (clipboardText) {
+				this.replInput.setValue(this.replInput.getValue().concat(clipboardText));
+			}
+			return Promise.resolve();
+		}));
 		actions.push(new Separator());
 		actions.push(this.clearReplAction);
 
