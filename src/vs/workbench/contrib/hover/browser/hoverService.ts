@@ -26,8 +26,7 @@ export class HoverService implements IHoverService {
 		}
 		this._currentHoverOptions = options;
 
-		// TODO: change HoverWidget to take options object
-		const hover = this._instantiationService.createInstance(HoverWidget, options.target, options.text, options.linkHandler, options.actions, options.additionalClasses);
+		const hover = this._instantiationService.createInstance(HoverWidget, options);
 		const provider = this._contextViewService as IContextViewProvider;
 		const contextViewDelegate: IDelegate = {
 			render: container => {

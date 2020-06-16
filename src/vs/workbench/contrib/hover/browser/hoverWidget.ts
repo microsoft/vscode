@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IHoverTarget } from 'vs/workbench/contrib/hover/browser/hover';
+import { IHoverTarget, IHoverOptions } from 'vs/workbench/contrib/hover/browser/hover';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -46,26 +45,22 @@ export class HoverWidget extends Widget {
 	get y(): number { return this._y; }
 
 	constructor(
-		target: IHoverTarget | HTMLElement,
-		private _text: IMarkdownString,
-		linkHandler: ((url: string) => any) | undefined,
-		private _actions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }[] | undefined,
-		additionalClasses: string[] | undefined,
+		options: IHoverOptions,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
 
-		this._linkHandler = linkHandler || this._openerService.open;
+		this._linkHandler = options.linkHandler || this._openerService.open;
 
-		this._target = 'targetElements' in target ? target : new ElementHoverTarget(target);
+		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
 		this._hover = this._register(new BaseHoverWidget());
 
 		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
-		if (additionalClasses) {
-			this._hover.containerDomNode.classList.add(...additionalClasses);
+		if (options.additionalClasses) {
+			this._hover.containerDomNode.classList.add(...options.additionalClasses);
 		}
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
@@ -81,7 +76,7 @@ export class HoverWidget extends Widget {
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
-		const markdownElement = renderMarkdown(this._text, {
+		const markdownElement = renderMarkdown(options.text, {
 			actionHandler: {
 				callback: (content) => this._linkHandler(content),
 				disposeables: this._messageListeners
@@ -100,10 +95,10 @@ export class HoverWidget extends Widget {
 		rowElement.appendChild(contentsElement);
 		this._hover.contentsDomNode.appendChild(rowElement);
 
-		if (this._actions && this._actions.length > 0) {
+		if (options.actions && options.actions.length > 0) {
 			const statusBarElement = $('div.hover-row.status-bar');
 			const actionsElement = $('div.actions');
-			this._actions.forEach(action => {
+			options.actions.forEach(action => {
 				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
 				const keybindingLabel = keybinding ? keybinding.getLabel() : null;
 				renderHoverAction(actionsElement, {
