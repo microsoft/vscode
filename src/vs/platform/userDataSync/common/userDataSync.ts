@@ -329,8 +329,8 @@ export interface IUserDataSynchroniser {
 
 // #region User Data Sync Services
 
-export const IUserDataSyncEnablementService = createDecorator<IUserDataSyncEnablementService>('IUserDataSyncEnablementService');
-export interface IUserDataSyncEnablementService {
+export const IUserDataSyncResourceEnablementService = createDecorator<IUserDataSyncResourceEnablementService>('IUserDataSyncResourceEnablementService');
+export interface IUserDataSyncResourceEnablementService {
 	_serviceBrand: any;
 
 	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]>;

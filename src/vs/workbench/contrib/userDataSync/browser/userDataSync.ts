@@ -29,7 +29,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/plat
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
-	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService,
+	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncResourceEnablementService,
 	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
@@ -97,7 +97,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private readonly accountBadgeDisposable = this._register(new MutableDisposable());
 
 	constructor(
-		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -486,7 +486,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.ignoreFocusOut = true;
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
+			quickPick.selectedItems = items.filter(item => this.userDataSyncResourceEnablementService.isResourceEnabled(item.id));
 			let accepted: boolean = false;
 			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
 				accepted = true;
@@ -529,10 +529,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private updateConfiguration(items: ConfigureSyncQuickPickItem[], selectedItems: ReadonlyArray<ConfigureSyncQuickPickItem>): void {
 		for (const item of items) {
-			const wasEnabled = this.userDataSyncEnablementService.isResourceEnabled(item.id);
+			const wasEnabled = this.userDataSyncResourceEnablementService.isResourceEnabled(item.id);
 			const isEnabled = !!selectedItems.filter(selected => selected.id === item.id)[0];
 			if (wasEnabled !== isEnabled) {
-				this.userDataSyncEnablementService.setResourceEnablement(item.id!, isEnabled);
+				this.userDataSyncResourceEnablementService.setResourceEnablement(item.id!, isEnabled);
 			}
 		}
 	}
@@ -549,7 +549,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.ok = true;
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
+			quickPick.selectedItems = items.filter(item => this.userDataSyncResourceEnablementService.isResourceEnabled(item.id));
 			disposables.add(quickPick.onDidAccept(async () => {
 				if (quickPick.selectedItems.length) {
 					this.updateConfiguration(items, quickPick.selectedItems);
@@ -581,11 +581,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private disableSync(source: SyncResource): void {
 		switch (source) {
-			case SyncResource.Settings: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Settings, false);
-			case SyncResource.Keybindings: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Keybindings, false);
-			case SyncResource.Snippets: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Snippets, false);
-			case SyncResource.Extensions: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Extensions, false);
-			case SyncResource.GlobalState: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.GlobalState, false);
+			case SyncResource.Settings: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.Settings, false);
+			case SyncResource.Keybindings: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.Keybindings, false);
+			case SyncResource.Snippets: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.Snippets, false);
+			case SyncResource.Extensions: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.Extensions, false);
+			case SyncResource.GlobalState: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.GlobalState, false);
 		}
 	}
 

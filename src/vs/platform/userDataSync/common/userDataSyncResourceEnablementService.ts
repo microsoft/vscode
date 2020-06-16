@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncEnablementService, ALL_SYNC_RESOURCES, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncResourceEnablementService, ALL_SYNC_RESOURCES, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
@@ -16,7 +16,7 @@ type SyncEnablementClassification = {
 const enablementKey = 'sync.enable';
 function getEnablementKey(resource: SyncResource) { return `${enablementKey}.${resource}`; }
 
-export class UserDataSyncEnablementService extends Disposable implements IUserDataSyncEnablementService {
+export class UserDataSyncResourceEnablementService extends Disposable implements IUserDataSyncResourceEnablementService {
 
 	_serviceBrand: any;
 
