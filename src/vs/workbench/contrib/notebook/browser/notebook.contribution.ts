@@ -33,7 +33,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellUri, NotebookDocumentBackupData, NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { IEditorGroup, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, OpenEditorContext, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
@@ -154,7 +154,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		@INotebookService private readonly notebookService: INotebookService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUndoRedoService undoRedoService: IUndoRedoService
+		@IUndoRedoService undoRedoService: IUndoRedoService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 
@@ -273,10 +274,10 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 				if (context === OpenEditorContext.MOVE_EDITOR) {
 					// transfer ownership of editor widget
-					const widgetRef = NotebookRegistry.getNotebookEditorWidget(originalInput);
+					const widgetRef = NotebookRegistry.getNotebookEditorWidget(originalInput.resource, this.editorGroupsService.activeGroup);
 					if (widgetRef) {
-						NotebookRegistry.releaseNotebookEditorWidget(originalInput);
-						NotebookRegistry.claimNotebookEditorWidget(copiedInput, widgetRef);
+						NotebookRegistry.releaseNotebookEditorWidget(originalInput.resource, this.editorGroupsService.activeGroup);
+						NotebookRegistry.claimNotebookEditorWidget(originalInput.resource, group, widgetRef);
 					}
 				}
 

@@ -101,7 +101,7 @@ export class NotebookEditor extends BaseEditor {
 			this.saveEditorViewState(this.input);
 		}
 
-		if (this.input && NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput) === this._widget) {
+		if (this.input && NotebookRegistry.getNotebookEditorWidget(this.input.resource!, this.group!) === this._widget) {
 			// the widget is not transfered to other editor inputs
 			this._widget?.onWillHide();
 		}
@@ -131,6 +131,9 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+
+		const group = this.group!;
+
 		if (this.input instanceof NotebookEditorInput) {
 			if (!this.input.isDisposed()) {
 				// set a new input, let's hide previous input
@@ -144,23 +147,23 @@ export class NotebookEditor extends BaseEditor {
 		// input attached
 		Event.once(input.onDispose)(() => {
 			// make sure the editor widget is removed from the view
-			const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input as NotebookEditorInput);
+			const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input.resource, group);
 			if (existingEditorWidgetForInput) {
 				// the editor widget is only referenced by the editor input
 				// clear its state
-				existingEditorWidgetForInput?.onWillHide();
-				existingEditorWidgetForInput?.getDomNode().remove();
-				existingEditorWidgetForInput?.dispose();
-				NotebookRegistry.releaseNotebookEditorWidget(input as NotebookEditorInput);
+				existingEditorWidgetForInput.onWillHide();
+				existingEditorWidgetForInput.getDomNode().remove();
+				existingEditorWidgetForInput.dispose();
+				NotebookRegistry.releaseNotebookEditorWidget(input.resource, group);
 			}
 		});
 
 		this._widgetDisposableStore.clear();
 
-		const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input);
+		const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input.resource, group);
 		if (existingEditorWidgetForInput) {
 			// hide previous widget
-			if (NotebookRegistry.getNotebookEditorWidget(this.input! as NotebookEditorInput) === this._widget) {
+			if (NotebookRegistry.getNotebookEditorWidget(this.input!.resource!, this.group!) === this._widget) {
 				// the widet is not transfered to other editor inputs
 				this._widget?.onWillHide();
 			}
@@ -168,14 +171,14 @@ export class NotebookEditor extends BaseEditor {
 			// previous widget is then detached
 			// set the new one
 			this._widget = existingEditorWidgetForInput;
-			NotebookRegistry.claimNotebookEditorWidget(input, this._widget);
+			NotebookRegistry.claimNotebookEditorWidget(input.resource, group, this._widget);
 		} else {
 			// hide current widget
 			this._widget?.onWillHide();
 			// create a new widget
 			this._widget = this.instantiationService.createInstance(NotebookEditorWidget);
 			this._widget.createEditor();
-			NotebookRegistry.claimNotebookEditorWidget(input, this._widget);
+			NotebookRegistry.claimNotebookEditorWidget(input.resource, group, this._widget);
 		}
 
 		if (this.dimension) {
@@ -213,7 +216,7 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	clearInput(): void {
-		const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput);
+		const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(this.input!.resource!, this.group!);
 		existingEditorWidgetForInput?.onWillHide();
 		this._widget = undefined;
 		super.clearInput();
@@ -280,4 +283,3 @@ export class NotebookEditor extends BaseEditor {
 		};
 	}
 }
-
