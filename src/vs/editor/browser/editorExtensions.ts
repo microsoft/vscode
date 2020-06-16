@@ -143,7 +143,7 @@ export abstract class Command {
 /**
  * A command that delegates to another command's implementation.
  *
- * This let's different commands be registered but share the same implementation
+ * This lets different commands be registered but share the same implementation
  */
 export class ProxyCommand extends Command {
 	constructor(

@@ -14,12 +14,8 @@ import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from
 import { CustomEditorInputFactory } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
-import './commands';
 import { CustomEditorInput } from './customEditorInput';
 import { CustomEditorContribution, CustomEditorService } from './customEditors';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 
