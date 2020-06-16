@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as types from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Command, EditorCommand, ICommandOptions, registerEditorCommand, CommandOverrides, ProxyCommand } from 'vs/editor/browser/editorExtensions';
+import { Command, EditorCommand, ICommandOptions, registerEditorCommand, CommandOverrides, ProxyCommand, UndoCommand, MultiCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 import { CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
@@ -1697,6 +1697,48 @@ abstract class EditorOrNativeTextInputCommand extends Command {
 	public abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void;
 }
 
+abstract class EditorOrNativeTextInputCommand2 {
+
+	constructor(private readonly _target: MultiCommand) {
+		// 1. invoke focused editor
+		this._target.addImplementation(10000, (accessor: ServicesAccessor, args: any) => {
+			// Only if editor text focus (i.e. not if editor has widget focus).
+			const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+			if (focusedEditor && focusedEditor.hasTextFocus()) {
+				this.runEditorCommand(accessor, focusedEditor, args);
+				return true;
+			}
+			return false;
+		});
+
+		// 2. invoke a browser built-in command on the `activeElement`
+		this._target.addImplementation(1000, (accessor: ServicesAccessor, args: any) => {
+			// Only if focused on an element that allows for entering text
+			const activeElement = <HTMLElement>document.activeElement;
+			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+				this.runDOMCommand();
+				return true;
+			}
+			return false;
+		});
+
+		// 3. (default) invoke a command on the workbench active editor.
+		this._target.addImplementation(0, (accessor: ServicesAccessor, args: any) => {
+			// Redirecting to active editor
+			const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
+			if (activeEditor) {
+				activeEditor.focus();
+				this.runEditorCommand(accessor, activeEditor, args);
+				return true;
+			}
+			return false;
+		});
+	}
+
+	public abstract runDOMCommand(): void;
+	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void;
+}
+
 class SelectAllCommand extends EditorOrNativeTextInputCommand {
 	constructor() {
 		super({
@@ -1727,27 +1769,6 @@ class SelectAllCommand extends EditorOrNativeTextInputCommand {
 		args = args || {};
 		args.source = 'keyboard';
 		CoreNavigationCommands.SelectAll.runEditorCommand(accessor, editor, args);
-	}
-}
-
-class UndoCommand extends EditorOrNativeTextInputCommand {
-	public readonly overrides = new CommandOverrides();
-
-	public runCommand(accessor: ServicesAccessor, args: any) {
-		if (!this.overrides.runCommand(accessor, args)) {
-			super.runCommand(accessor, args);
-		}
-	}
-
-	public runDOMCommand(): void {
-		document.execCommand('undo');
-	}
-
-	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
-		if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
-			return;
-		}
-		editor.getModel().undo();
 	}
 }
 
@@ -1907,27 +1928,20 @@ export namespace CoreEditingCommands {
 		}
 	});
 
-	export const Undo: UndoCommand = registerCommand(new UndoCommand({
-		id: 'undo',
-		precondition: EditorContextKeys.writable,
-		kbOpts: {
-			weight: CORE_WEIGHT,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
-		},
-		menuOpts: [{
-			menuId: MenuId.MenubarEditMenu,
-			group: '1_do',
-			title: nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"),
-			order: 1
-		}, {
-			menuId: MenuId.CommandPalette,
-			group: '',
-			title: nls.localize('undo', "Undo"),
-			order: 1
-		}]
-	}));
-
-	registerCommand(new ProxyCommand(Undo, { id: 'default:undo', precondition: EditorContextKeys.writable }));
+	export const Undo: EditorOrNativeTextInputCommand2 = new class extends EditorOrNativeTextInputCommand2 {
+		constructor() {
+			super(UndoCommand);
+		}
+		public runDOMCommand(): void {
+			document.execCommand('undo');
+		}
+		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
+			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
+				return;
+			}
+			editor.getModel().undo();
+		}
+	}();
 
 	export const Redo: RedoCommand = registerCommand(new RedoCommand({
 		id: 'redo',

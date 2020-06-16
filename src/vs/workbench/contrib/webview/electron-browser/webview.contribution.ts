@@ -16,6 +16,7 @@ import { getFocusedWebviewEditor } from 'vs/workbench/contrib/webview/browser/we
 import * as webviewCommands from 'vs/workbench/contrib/webview/electron-browser/webviewCommands';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { ElectronWebviewService } from 'vs/workbench/contrib/webview/electron-browser/webviewService';
+import { UndoCommand } from 'vs/editor/browser/editorExtensions';
 
 registerSingleton(IWebviewService, ElectronWebviewService, true);
 
@@ -54,7 +55,9 @@ if (isMacintosh) {
 		return false;
 	}
 
-	CoreEditingCommands.Undo.overrides.register(accessor => {
+	const PRIORITY = 100;
+
+	UndoCommand.addImplementation(PRIORITY, accessor => {
 		return withWebview(accessor, webview => webview.undo());
 	});
 
