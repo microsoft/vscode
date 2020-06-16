@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { VIEWLET_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -32,12 +32,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { addClass } from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
-
-export interface ISpliceEvent<T> {
-	index: number;
-	deleteCount: number;
-	elements: T[];
-}
 
 export class EmptyPane extends ViewPane {
 
@@ -80,10 +74,6 @@ export class SCMViewPaneContainer extends ViewPaneContainer {
 
 	private menus: SCMMenus;
 	private _repositories: ISCMRepository[] = [];
-
-
-	private readonly _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
-	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>> = this._onDidSplice.event;
 
 	private _height: number | undefined = undefined;
 	get height(): number | undefined { return this._height; }
