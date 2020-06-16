@@ -16,6 +16,7 @@ import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/ed
 import { HoverWidget as BaseHoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const $ = dom.$;
 
@@ -25,6 +26,7 @@ export class HoverWidget extends Widget {
 
 	private readonly _hover: BaseHoverWidget;
 	private readonly _target: IHoverTarget;
+	private readonly _linkHandler: (url: string) => any;
 
 	private _isDisposed: boolean = false;
 	private _anchor: AnchorPosition = AnchorPosition.ABOVE;
@@ -46,12 +48,15 @@ export class HoverWidget extends Widget {
 	constructor(
 		target: IHoverTarget | HTMLElement,
 		private _text: IMarkdownString,
-		private _linkHandler: (url: string) => void,
+		linkHandler: ((url: string) => any) | undefined,
 		private _actions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }[] | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
+
+		this._linkHandler = linkHandler || this._openerService.open;
 
 		this._target = 'targetElements' in target ? target : new ElementHoverTarget(target);
 

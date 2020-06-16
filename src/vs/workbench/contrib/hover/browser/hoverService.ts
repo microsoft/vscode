@@ -26,7 +26,7 @@ export class HoverService implements IHoverService {
 		}
 		this._currentHoverOptions = options;
 
-		const hover = this._instantiationService.createInstance(HoverWidget, options.target, options.text, options.linkHandler || (() => { }), options.actions);
+		const hover = this._instantiationService.createInstance(HoverWidget, options.target, options.text, options.linkHandler, options.actions);
 		const provider = this._contextViewService as IContextViewProvider;
 		const contextViewDelegate: IDelegate = {
 			render: container => {
@@ -45,6 +45,9 @@ export class HoverService implements IHoverService {
 	}
 
 	hideHover(): void {
+		if (!this._currentHoverOptions) {
+			return;
+		}
 		this._currentHoverOptions = undefined;
 		this._contextViewService.hideContextView();
 	}

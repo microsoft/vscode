@@ -9,10 +9,21 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
+/**
+ * A service that enables the convenient display of rich markdown-based hovers in the workbench.
+ */
 export interface IHoverService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Shows a hover.
+	 * @param options A set of options defining the characteristics of the hover.
+	 */
 	showHover(options: IHoverOptions): void;
+
+	/**
+	 * Hides the hover if it was visible.
+	 */
 	hideHover(): void;
 }
 
@@ -22,7 +33,10 @@ export interface IHoverOptions {
 	 */
 	text: IMarkdownString;
 
-	// TODO: Link handler not necessary?
+	/**
+	 * An custom link handler for markdown links, if this is not provided the IOpenerService will
+	 * be used to open the links using its default options.
+	 */
 	linkHandler?: (url: string) => void;
 
 	/**
@@ -40,10 +54,27 @@ export interface IHoverOptions {
 }
 
 export interface IHoverAction {
+	/**
+	 * The label to use in the hover's status bar.
+	 */
 	label: string;
+
+	/**
+	 * An optional class of an icon that will be displayed before the label.
+	 */
 	iconClass?: string;
-	run: (target: HTMLElement) => void;
+
+	/**
+	 * The command ID of the action, this is used to resolve the keybinding to display after the
+	 * action label.
+	 */
 	commandId: string;
+
+	/**
+	 * The callback to run the action.
+	 * @param target The action element that was activated.
+	 */
+	run(target: HTMLElement): void;
 }
 
 /**

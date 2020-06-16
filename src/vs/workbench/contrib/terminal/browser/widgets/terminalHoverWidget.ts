@@ -29,7 +29,7 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 	constructor(
 		private readonly _targetOptions: ILinkHoverTargetOptions,
 		private readonly _text: IMarkdownString,
-		private readonly _linkHandler: (url: string) => void,
+		private readonly _linkHandler: (url: string) => any,
 		@IHoverService private readonly _hoverService: IHoverService
 	) {
 		super();
