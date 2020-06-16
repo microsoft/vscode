@@ -978,7 +978,9 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 
 	private onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
 		if (template.context) {
-			const newValue: Record<string, string> = {};
+			const defaultValue: Record<string, unknown> = template.context.defaultValue;
+			const scopeValue: Record<string, unknown> = template.context.scopeValue;
+			const newValue: Record<string, unknown> = {};
 
 			template.objectWidget.items.forEach(item => {
 				// Item was updated
@@ -999,6 +1001,13 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 			else if (template.objectWidget.isItemNew(e.originalItem)) {
 				newValue[e.item.key.data] = e.item.value.data;
 			}
+
+			Object.entries(newValue).forEach(([key, value]) => {
+				// value from the scope has changed back to the default
+				if (scopeValue[key] !== value && defaultValue[key] === value) {
+					delete newValue[key];
+				}
+			});
 
 			this._onDidChangeSetting.fire({
 				key: template.context.setting.key,
