@@ -478,16 +478,6 @@ export interface IEditorInput extends IDisposable {
 	move(group: GroupIdentifier, target: URI): IMoveResult | undefined;
 
 	/**
-	 * Called when this input was closed in a group. The second parameter
-	 * is a hint wether the editor is still opened in other groups. This
-	 * may include normal editors as well as side-by-side or diff editors.
-	 *
-	 * Subclasses can override what should happen. By default, an editor
-	 * input will dispose when it is closed.
-	 */
-	close(group: GroupIdentifier, openedInOtherGroups: boolean): void;
-
-	/**
 	 * Subclasses can set this to false if it does not make sense to split the editor input.
 	 */
 	supportsSplitEditor(): boolean;
@@ -594,16 +584,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		return undefined;
-	}
-
-	close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
-		// TODO@ben revisit this behaviour, should just dispose by default after adoption
-		// However this requires that we never open the same input in multiple editor groups
-		// which today we cannot enforce (e.g. when opening the same editor in an empty
-		// group via quick open editor history)
-		if (!openedInOtherGroups) {
-			this.dispose();
-		}
 	}
 
 	supportsSplitEditor(): boolean {
