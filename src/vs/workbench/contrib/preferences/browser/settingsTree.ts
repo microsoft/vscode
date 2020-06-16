@@ -1015,16 +1015,13 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: string) => void): void {
 		const items = getObjectDisplayValue(dataElement);
 
-		template.objectWidget.setAddButtonVisibility(
-			isDefined(dataElement.setting.objectAdditionalProperties) ||
-			isDefined(dataElement.setting.objectPatternProperties) ||
-			!areAllPropertiesDefined(
-				Object.keys(dataElement.setting.objectProperties ?? {}),
-				items
-			)
-		);
-
-		template.objectWidget.setValue(items);
+		template.objectWidget.setValue(items, {
+			showAddButton: (
+				isDefined(dataElement.setting.objectAdditionalProperties) ||
+				isDefined(dataElement.setting.objectPatternProperties) ||
+				!areAllPropertiesDefined(Object.keys(dataElement.setting.objectProperties ?? {}), items)
+			),
+		});
 		template.context = dataElement;
 	}
 }

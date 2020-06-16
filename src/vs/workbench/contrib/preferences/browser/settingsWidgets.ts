@@ -20,7 +20,7 @@ import { foreground, inputBackground, inputBorder, inputForeground, listActiveSe
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { disposableTimeout } from 'vs/base/common/async';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, isDefined } from 'vs/base/common/types';
 import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isIOS } from 'vs/base/common/platform';
@@ -624,19 +624,19 @@ export class ExcludeSettingWidget extends ListSettingWidget {
 }
 
 interface IObjectStringData {
-	type: 'string'
-	data: string
+	type: 'string';
+	data: string;
 }
 
 export interface IObjectEnumOption {
-	value: string
+	value: string;
 	description?: string
 }
 
 interface IObjectEnumData {
-	type: 'enum'
-	data: string
-	options: IObjectEnumOption[]
+	type: 'enum';
+	data: string;
+	options: IObjectEnumOption[];
 }
 
 type ObjectKeyOrValue = IObjectStringData | IObjectEnumData;
@@ -644,15 +644,22 @@ type ObjectKeyOrValue = IObjectStringData | IObjectEnumData;
 export interface IObjectDataItem {
 	key: ObjectKeyOrValue;
 	value: ObjectKeyOrValue;
-	removable: boolean
+	removable: boolean;
+}
+
+interface IObjectSetValueOptions {
+	showAddButton?: boolean;
 }
 
 export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataItem> {
 	private showAddButton: boolean = true;
 
-	setAddButtonVisibility(isVisible: boolean): void {
-		this.showAddButton = isVisible;
-		this.renderList();
+	setValue(listData: IObjectDataItem[], options?: IObjectSetValueOptions): void {
+		if (isDefined(options)) {
+			this.showAddButton = options.showAddButton ?? this.showAddButton;
+		}
+
+		super.setValue(listData);
 	}
 
 	isItemNew(item: IObjectDataItem): boolean {
@@ -725,6 +732,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 
 	protected renderItem(item: IObjectDataItem): HTMLElement {
 		const rowElement = $('.setting-list-row');
+		rowElement.classList.add('setting-list-object-row');
 
 		const keyElement = DOM.append(rowElement, $('.setting-list-object-key'));
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
@@ -737,11 +745,19 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 
 	protected renderEdit(item: IObjectDataItem, { onSubmit, onKeydown, onCancel }: IEditHandlers<IObjectDataItem>): HTMLElement {
 		const rowElement = $('.setting-list-edit-row');
+		rowElement.classList.add('setting-list-object-row');
 
-		const keyWidget = this.renderEditWidget(item.key, rowElement);
+		let keyWidget: InputBox | SelectBox | undefined;
 
-		// We have only rendered the key
-		rowElement.querySelector('.setting-list-object-input')?.classList.add('setting-list-object-input-key');
+		if (this.showAddButton) {
+			keyWidget = this.renderEditWidget(item.key, rowElement);
+
+			// We have only rendered the key
+			rowElement.querySelector('.setting-list-object-input')?.classList.add('setting-list-object-input-key');
+		} else {
+			const keyElement = DOM.append(rowElement, $('.setting-list-object-key'));
+			keyElement.textContent = item.key.data;
+		}
 
 		const valueWidget = this.renderEditWidget(item.value, rowElement);
 
@@ -803,10 +819,12 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 
 		this.listDisposables.add(
 			disposableTimeout(() => {
-				keyWidget.focus();
+				const widget = keyWidget ?? valueWidget;
 
-				if (keyWidget instanceof InputBox) {
-					keyWidget.select();
+				widget.focus();
+
+				if (widget instanceof InputBox) {
+					widget.select();
 				}
 			})
 		);
