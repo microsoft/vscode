@@ -24,6 +24,7 @@ export class HoverWidget extends Widget {
 	private readonly _mouseTracker: CompositeMouseTracker;
 
 	private readonly _hover: BaseHoverWidget;
+	private readonly _target: IHoverTarget;
 
 	private _isDisposed: boolean = false;
 	private _anchor: AnchorPosition = AnchorPosition.ABOVE;
@@ -40,8 +41,13 @@ export class HoverWidget extends Widget {
 	get x(): number { return this._x; }
 	get y(): number { return this._y; }
 
+	/**
+	 * @param target The target for the hover, this determines the position of the hover. A
+	 * HTMLElement can be used for simple cases and a IHoverTarget for more complex cases where
+	 * multiple elements and/or a dispose method is required.
+	 */
 	constructor(
-		private _target: IHoverTarget,
+		target: IHoverTarget | HTMLElement,
 		private _text: IMarkdownString,
 		private _linkHandler: (url: string) => void,
 		private _actions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }[] | undefined,
@@ -49,6 +55,8 @@ export class HoverWidget extends Widget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
+
+		this._target = 'targetElements' in target ? target : new ElementHoverTarget(target);
 
 		this._hover = this._register(new BaseHoverWidget());
 		// TODO: Move xterm-hover into terminal
@@ -97,7 +105,7 @@ export class HoverWidget extends Widget {
 			this._hover.containerDomNode.appendChild(statusBarElement);
 		}
 
-		this._mouseTracker = new CompositeMouseTracker([this._hover.containerDomNode, ..._target.targetElements]);
+		this._mouseTracker = new CompositeMouseTracker([this._hover.containerDomNode, ...this._target.targetElements]);
 		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
 		this._register(this._mouseTracker);
 	}
@@ -197,5 +205,18 @@ class CompositeMouseTracker extends Widget {
 		if (!this._isMouseIn) {
 			this._onMouseOut.fire();
 		}
+	}
+}
+
+class ElementHoverTarget implements IHoverTarget {
+	readonly targetElements: readonly HTMLElement[];
+
+	constructor(
+		private _element: HTMLElement
+	) {
+		this.targetElements = [this._element];
+	}
+
+	dispose(): void {
 	}
 }

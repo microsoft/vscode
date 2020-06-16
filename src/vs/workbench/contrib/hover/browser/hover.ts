@@ -50,14 +50,4 @@ export interface IHoverAction {
  */
 export interface IHoverTarget extends IDisposable {
 	readonly targetElements: readonly HTMLElement[];
-	readonly anchor: IHoverAnchor;
-}
-
-export interface IHoverAnchor {
-	x: number;
-	y: number;
-	/**
-	 * Fallback Y value to try with opposite VerticalAlignment if the hover does not fit vertically.
-	 */
-	fallbackY: number;
 }

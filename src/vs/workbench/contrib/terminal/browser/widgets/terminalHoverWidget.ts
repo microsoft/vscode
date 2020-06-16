@@ -9,7 +9,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import * as dom from 'vs/base/browser/dom';
 import { IViewportRange } from 'xterm';
-import { IHoverTarget, IHoverAnchor, IHoverService } from 'vs/workbench/contrib/hover/browser/hover';
+import { IHoverTarget, IHoverService } from 'vs/workbench/contrib/hover/browser/hover';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverHighlight } from 'vs/platform/theme/common/colorRegistry';
 
@@ -41,20 +41,15 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 
 	attach(container: HTMLElement): void {
 		const target = new CellHoverTarget(container, this._targetOptions);
-
 		this._hoverService.showHover({
 			target,
 			text: this._text,
 			linkHandler: this._linkHandler
 		});
-
-		// const hover = this._instantiationService.createInstance(HoverWidget, target, this._text, this._linkHandler, []);
-		// hover.layout(container);
-		// this._register(hover);
 	}
 }
 
-export class CellHoverTarget extends Widget implements IHoverTarget {
+class CellHoverTarget extends Widget implements IHoverTarget {
 	private _domNode: HTMLElement | undefined;
 	private readonly _targetElements: HTMLElement[] = [];
 
@@ -120,15 +115,6 @@ export class CellHoverTarget extends Widget implements IHoverTarget {
 	dispose(): void {
 		this._domNode?.parentElement?.removeChild(this._domNode);
 		super.dispose();
-	}
-
-	get anchor(): IHoverAnchor {
-		const firstPosition = dom.getDomNodePagePosition(this.targetElements[0]);
-		return {
-			x: firstPosition.left,
-			y: document.documentElement.clientHeight - firstPosition.top - 1,
-			fallbackY: firstPosition.top + firstPosition.height - 1
-		};
 	}
 }
 

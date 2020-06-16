@@ -29,9 +29,6 @@ export class HoverService implements IHoverService {
 			},
 			anchorPosition: AnchorPosition.ABOVE,
 			getAnchor: () => {
-				console.log('anchor', options.target!.anchor);
-				if (options.target) {
-				}
 				return {
 					x: hover.x,
 					y: hover.y
