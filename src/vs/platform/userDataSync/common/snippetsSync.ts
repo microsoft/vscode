@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSynchroniser, SyncResource, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService,
+	IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSynchroniser, SyncResource, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService,
 	Conflict, USER_DATA_SYNC_SCHEME, PREVIEW_DIR_NAME, ISyncResourceHandle, IRemoteUserData, ISyncData, ISyncPreview
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -62,76 +62,43 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		this.triggerLocalChange();
 	}
 
-	async pull(): Promise<void> {
-		if (!this.isEnabled()) {
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped pulling snippets as it is disabled.`);
-			return;
-		}
-
-		this.stop();
-
-		try {
-			this.logService.info(`${this.syncResourceLogLabel}: Started pulling snippets...`);
-			this.setStatus(SyncStatus.Syncing);
-
-			const lastSyncUserData = await this.getLastSyncUserData();
-			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-
-			if (remoteUserData.syncData !== null) {
-				const local = await this.getSnippetsFileContents();
-				const localSnippets = this.toSnippetsContents(local);
-				const remoteSnippets = this.parseSnippets(remoteUserData.syncData);
-				const { added, updated, remote, removed } = merge(localSnippets, remoteSnippets, localSnippets);
-				await this.applyPreview({
-					added, removed, updated, remote, remoteUserData, local, lastSyncUserData, conflicts: [], resolvedConflicts: {},
-					hasLocalChanged: Object.keys(added).length > 0 || removed.length > 0 || Object.keys(updated).length > 0,
-					hasRemoteChanged: remote !== null,
-					isLastSyncFromCurrentMachine: false,
-					hasConflicts: false,
-				});
-			}
-
-			// No remote exists to pull
-			else {
-				this.logService.info(`${this.syncResourceLogLabel}: Remote snippets does not exist.`);
-			}
-
-			this.logService.info(`${this.syncResourceLogLabel}: Finished pulling snippets.`);
-		} finally {
-			this.setStatus(SyncStatus.Idle);
+	protected async generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISinppetsSyncPreview> {
+		if (remoteUserData.syncData !== null) {
+			const local = await this.getSnippetsFileContents();
+			const localSnippets = this.toSnippetsContents(local);
+			const remoteSnippets = this.parseSnippets(remoteUserData.syncData);
+			const { added, updated, remote, removed } = merge(localSnippets, remoteSnippets, localSnippets);
+			return {
+				remoteUserData, lastSyncUserData,
+				added, removed, updated, remote, local,
+				hasLocalChanged: Object.keys(added).length > 0 || removed.length > 0 || Object.keys(updated).length > 0,
+				hasRemoteChanged: remote !== null,
+				conflicts: [], resolvedConflicts: {}, hasConflicts: false,
+				isLastSyncFromCurrentMachine: false,
+			};
+		} else {
+			return {
+				remoteUserData, lastSyncUserData,
+				added: {}, removed: [], updated: {}, remote: null, local: {},
+				hasLocalChanged: false,
+				hasRemoteChanged: false,
+				conflicts: [], resolvedConflicts: {}, hasConflicts: false,
+				isLastSyncFromCurrentMachine: false,
+			};
 		}
 	}
 
-	async push(): Promise<void> {
-		if (!this.isEnabled()) {
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped pushing snippets as it is disabled.`);
-			return;
-		}
-
-		this.stop();
-
-		try {
-			this.logService.info(`${this.syncResourceLogLabel}: Started pushing snippets...`);
-			this.setStatus(SyncStatus.Syncing);
-
-			const local = await this.getSnippetsFileContents();
-			const localSnippets = this.toSnippetsContents(local);
-			const { added, removed, updated, remote } = merge(localSnippets, null, null);
-			const lastSyncUserData = await this.getLastSyncUserData();
-			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-			await this.applyPreview({
-				added, removed, updated, remote, remoteUserData, local, lastSyncUserData, conflicts: [], resolvedConflicts: {},
-				hasLocalChanged: Object.keys(added).length > 0 || removed.length > 0 || Object.keys(updated).length > 0,
-				hasRemoteChanged: remote !== null,
-				isLastSyncFromCurrentMachine: false,
-				hasConflicts: false,
-			}, true);
-
-			this.logService.info(`${this.syncResourceLogLabel}: Finished pushing snippets.`);
-		} finally {
-			this.setStatus(SyncStatus.Idle);
-		}
-
+	protected async generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISinppetsSyncPreview> {
+		const local = await this.getSnippetsFileContents();
+		const localSnippets = this.toSnippetsContents(local);
+		const { added, removed, updated, remote } = merge(localSnippets, null, null);
+		return {
+			added, removed, updated, remote, remoteUserData, local, lastSyncUserData, conflicts: [], resolvedConflicts: {},
+			hasLocalChanged: Object.keys(added).length > 0 || removed.length > 0 || Object.keys(updated).length > 0,
+			hasRemoteChanged: remote !== null,
+			isLastSyncFromCurrentMachine: false,
+			hasConflicts: false,
+		};
 	}
 
 	async stop(): Promise<void> {
@@ -223,7 +190,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 			hasLocalChanged: Object.keys(added).length > 0 || removed.length > 0 || Object.keys(updated).length > 0,
 			hasRemoteChanged: true,
 			isLastSyncFromCurrentMachine: false,
-		});
+		}, false);
 	}
 
 	private async clearConflicts(): Promise<void> {
@@ -300,7 +267,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		};
 	}
 
-	protected async applyPreview(preview: ISinppetsSyncPreview, forcePush?: boolean): Promise<void> {
+	protected async applyPreview(preview: ISinppetsSyncPreview, forcePush: boolean): Promise<void> {
 		let { added, removed, updated, local, remote, remoteUserData, lastSyncUserData, hasLocalChanged, hasRemoteChanged } = preview;
 
 		if (!hasLocalChanged && !hasRemoteChanged) {

@@ -14,7 +14,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 
 interface ITestSyncPreview extends ISyncPreview {
-	ref: string;
+	ref?: string;
 }
 
 class TestSynchroniser extends AbstractSynchroniser {
@@ -40,6 +40,14 @@ class TestSynchroniser extends AbstractSynchroniser {
 		return super.doSync(remoteUserData, lastSyncUserData);
 	}
 
+	protected async generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestSyncPreview> {
+		return { hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData };
+	}
+
+	protected async generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestSyncPreview> {
+		return { hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData };
+	}
+
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestSyncPreview> {
 		if (this.syncResult.hasError) {
 			throw new Error('failed');
@@ -47,8 +55,10 @@ class TestSynchroniser extends AbstractSynchroniser {
 		return { ref: remoteUserData.ref, hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData };
 	}
 
-	protected applyPreview({ ref }: ITestSyncPreview): Promise<void> {
-		return this.apply(ref);
+	protected async applyPreview({ ref }: ITestSyncPreview, forcePush: boolean): Promise<void> {
+		if (ref) {
+			await this.apply(ref);
+		}
 	}
 
 	async apply(ref: string): Promise<void> {

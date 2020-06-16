@@ -153,6 +153,53 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
+	async pull(): Promise<void> {
+		if (!this.isEnabled()) {
+			this.logService.info(`${this.syncResourceLogLabel}: Skipped pulling ${this.syncResourceLogLabel.toLowerCase()} as it is disabled.`);
+			return;
+		}
+
+		await this.stop();
+
+		try {
+			this.logService.info(`${this.syncResourceLogLabel}: Started pulling ${this.syncResourceLogLabel.toLowerCase()}...`);
+			this.setStatus(SyncStatus.Syncing);
+
+			const lastSyncUserData = await this.getLastSyncUserData();
+			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
+			const preview = await this.generatePullPreview(remoteUserData, lastSyncUserData, CancellationToken.None);
+
+			await this.applyPreview(preview, false);
+			this.logService.info(`${this.syncResourceLogLabel}: Finished pulling ${this.syncResourceLogLabel.toLowerCase()}.`);
+		} finally {
+			this.setStatus(SyncStatus.Idle);
+		}
+	}
+
+	async push(): Promise<void> {
+		if (!this.isEnabled()) {
+			this.logService.info(`${this.syncResourceLogLabel}: Skipped pushing ${this.syncResourceLogLabel.toLowerCase()} as it is disabled.`);
+			return;
+		}
+
+		this.stop();
+
+		try {
+			this.logService.info(`${this.syncResourceLogLabel}: Started pushing ${this.syncResourceLogLabel.toLowerCase()}...`);
+			this.setStatus(SyncStatus.Syncing);
+
+			const lastSyncUserData = await this.getLastSyncUserData();
+			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
+			const preview = await this.generatePushPreview(remoteUserData, lastSyncUserData, CancellationToken.None);
+
+			await this.applyPreview(preview, true);
+			this.logService.info(`${this.syncResourceLogLabel}: Finished pushing ${this.syncResourceLogLabel.toLowerCase()}.`);
+
+		} finally {
+			this.setStatus(SyncStatus.Idle);
+		}
+	}
+
 	async sync(manifest: IUserDataManifest | null, headers: IHeaders = {}): Promise<void> {
 		try {
 			this.syncHeaders = { ...headers };
@@ -297,7 +344,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 			}
 
 			// apply preview
-			await this.applyPreview(preview);
+			await this.applyPreview(preview, false);
 
 			// reset preview
 			this.syncPreviewPromise = null;
@@ -330,7 +377,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		if (!preview.hasConflicts) {
 
 			// apply preview
-			await this.applyPreview(preview);
+			await this.applyPreview(preview, false);
 
 			// reset preview
 			this.syncPreviewPromise = null;
@@ -481,9 +528,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	protected abstract readonly version: number;
 	protected abstract performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void>;
+	protected abstract generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncPreview>;
+	protected abstract generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncPreview>;
 	protected abstract generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncPreview>;
 	protected abstract updatePreviewWithConflict(preview: ISyncPreview, conflictResource: URI, content: string, token: CancellationToken): Promise<ISyncPreview>;
-	protected abstract applyPreview(preview: ISyncPreview): Promise<void>;
+	protected abstract applyPreview(preview: ISyncPreview, forcePush: boolean): Promise<void>;
 }
 
 export interface IFileSyncPreview extends ISyncPreview {
@@ -569,7 +618,6 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 
 	protected abstract readonly localPreviewResource: URI;
 	protected abstract readonly remotePreviewResource: URI;
-	protected abstract applyPreview(preview: IFileSyncPreview): Promise<void>;
 }
 
 export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroniser {

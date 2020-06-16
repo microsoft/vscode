@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService,
+	IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService,
 	IUserDataSyncBackupStoreService, ISyncResourceHandle, IStorageValue, ISyncPreview, USER_DATA_SYNC_SCHEME, IRemoteUserData, ISyncData
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -30,7 +30,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
 
-interface IGlobalSyncPreviewResult extends ISyncPreview {
+interface IGlobalStateSyncPreview extends ISyncPreview {
 	readonly local: { added: IStringDictionary<IStorageValue>, removed: string[], updated: IStringDictionary<IStorageValue> };
 	readonly remote: IStringDictionary<IStorageValue> | null;
 	readonly skippedStorageKeys: string[];
@@ -74,75 +74,41 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		);
 	}
 
-	async pull(): Promise<void> {
-		if (!this.isEnabled()) {
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped pulling ui state as it is disabled.`);
-			return;
-		}
-
-		this.stop();
-
-		try {
-			this.logService.info(`${this.syncResourceLogLabel}: Started pulling ui state...`);
-			this.setStatus(SyncStatus.Syncing);
-
-			const lastSyncUserData = await this.getLastSyncUserData<ILastSyncUserData>();
-			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-
-			if (remoteUserData.syncData !== null) {
-				const localGlobalState = await this.getLocalGlobalState();
-				const remoteGlobalState: IGlobalState = JSON.parse(remoteUserData.syncData.content);
-				const { local, remote, skipped } = merge(localGlobalState.storage, remoteGlobalState.storage, null, this.getSyncStorageKeys(), lastSyncUserData?.skippedStorageKeys || [], this.logService);
-				await this.applyPreview({
-					local, remote, remoteUserData, localUserData: localGlobalState, lastSyncUserData,
-					skippedStorageKeys: skipped,
-					hasLocalChanged: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0,
-					hasRemoteChanged: remote !== null,
-					isLastSyncFromCurrentMachine: false,
-					hasConflicts: false
-				});
-			}
-
-			// No remote exists to pull
-			else {
-				this.logService.info(`${this.syncResourceLogLabel}: Remote UI state does not exist.`);
-			}
-
-			this.logService.info(`${this.syncResourceLogLabel}: Finished pulling UI state.`);
-		} finally {
-			this.setStatus(SyncStatus.Idle);
+	protected async generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, token: CancellationToken): Promise<IGlobalStateSyncPreview> {
+		const localGlobalState = await this.getLocalGlobalState();
+		if (remoteUserData.syncData !== null) {
+			const remoteGlobalState: IGlobalState = JSON.parse(remoteUserData.syncData.content);
+			const { local, remote, skipped } = merge(localGlobalState.storage, remoteGlobalState.storage, null, this.getSyncStorageKeys(), lastSyncUserData?.skippedStorageKeys || [], this.logService);
+			return {
+				remoteUserData, lastSyncUserData,
+				local, remote, localUserData: localGlobalState, skippedStorageKeys: skipped,
+				hasLocalChanged: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0,
+				hasRemoteChanged: remote !== null,
+				hasConflicts: false,
+				isLastSyncFromCurrentMachine: false,
+			};
+		} else {
+			return {
+				remoteUserData, lastSyncUserData,
+				local: { added: {}, removed: [], updated: {} }, remote: null, localUserData: localGlobalState, skippedStorageKeys: [],
+				hasLocalChanged: false,
+				hasRemoteChanged: false,
+				hasConflicts: false,
+				isLastSyncFromCurrentMachine: false,
+			};
 		}
 	}
 
-	async push(): Promise<void> {
-		if (!this.isEnabled()) {
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped pushing UI State as it is disabled.`);
-			return;
-		}
-
-		this.stop();
-
-		try {
-			this.logService.info(`${this.syncResourceLogLabel}: Started pushing UI State...`);
-			this.setStatus(SyncStatus.Syncing);
-
-			const localUserData = await this.getLocalGlobalState();
-			const lastSyncUserData = await this.getLastSyncUserData<ILastSyncUserData>();
-			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-			await this.applyPreview({
-				local: { added: {}, removed: [], updated: {} }, remote: localUserData.storage, remoteUserData, localUserData, lastSyncUserData,
-				skippedStorageKeys: [],
-				hasLocalChanged: false,
-				hasRemoteChanged: true,
-				isLastSyncFromCurrentMachine: false,
-				hasConflicts: false
-			}, true);
-
-			this.logService.info(`${this.syncResourceLogLabel}: Finished pushing UI State.`);
-		} finally {
-			this.setStatus(SyncStatus.Idle);
-		}
-
+	protected async generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, token: CancellationToken): Promise<IGlobalStateSyncPreview> {
+		const localUserData = await this.getLocalGlobalState();
+		return {
+			local: { added: {}, removed: [], updated: {} }, remote: localUserData.storage, remoteUserData, localUserData, lastSyncUserData,
+			skippedStorageKeys: [],
+			hasLocalChanged: false,
+			hasRemoteChanged: true,
+			isLastSyncFromCurrentMachine: false,
+			hasConflicts: false
+		};
 	}
 
 	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
@@ -184,7 +150,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		return applyEdits(content, edits);
 	}
 
-	protected async updatePreviewWithConflict(preview: IGlobalSyncPreviewResult, conflictResource: URI, content: string, token: CancellationToken): Promise<IGlobalSyncPreviewResult> {
+	protected async updatePreviewWithConflict(preview: IGlobalStateSyncPreview, conflictResource: URI, content: string, token: CancellationToken): Promise<IGlobalStateSyncPreview> {
 		throw new Error(`${this.syncResourceLogLabel}: Conflicts should not occur`);
 	}
 
@@ -211,10 +177,10 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			hasRemoteChanged: true,
 			isLastSyncFromCurrentMachine: false,
 			hasConflicts: false
-		});
+		}, false);
 	}
 
-	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, token: CancellationToken): Promise<IGlobalSyncPreviewResult> {
+	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, token: CancellationToken): Promise<IGlobalStateSyncPreview> {
 		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
 		const isLastSyncFromCurrentMachine = await this.isLastSyncFromCurrentMachine(remoteUserData);
 		let lastSyncGlobalState: IGlobalState | null = null;
@@ -246,7 +212,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		};
 	}
 
-	protected async applyPreview({ local, remote, remoteUserData, lastSyncUserData, localUserData, hasLocalChanged, hasRemoteChanged, skippedStorageKeys }: IGlobalSyncPreviewResult, forcePush?: boolean): Promise<void> {
+	protected async applyPreview({ local, remote, remoteUserData, lastSyncUserData, localUserData, hasLocalChanged, hasRemoteChanged, skippedStorageKeys }: IGlobalStateSyncPreview, forcePush: boolean): Promise<void> {
 
 		if (!hasLocalChanged && !hasRemoteChanged) {
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing ui state.`);
