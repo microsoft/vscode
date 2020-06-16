@@ -5,9 +5,8 @@
 
 import 'vs/css!./media/scmViewPaneContainer';
 import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { VIEWLET_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -24,31 +23,12 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { addClass } from 'vs/base/browser/dom';
 
 export class SCMViewPaneContainer extends ViewPaneContainer {
 
 	private menus: SCMMenus;
-	private _repositories: ISCMRepository[] = [];
-
-	private _height: number | undefined = undefined;
-	get height(): number | undefined { return this._height; }
-
-	get repositories(): ISCMRepository[] {
-		return this._repositories;
-	}
-
-	get visibleRepositories(): ISCMRepository[] {
-		return this.panes.filter(pane => pane instanceof SCMViewPane)
-			.map(pane => (pane as SCMViewPane).repository);
-	}
-
-	get onDidChangeVisibleRepositories(): Event<ISCMRepository[]> {
-		const modificationEvent = Event.debounce(Event.any(this.viewContainerModel.onDidAddVisibleViewDescriptors, this.viewContainerModel.onDidRemoveVisibleViewDescriptors), () => null, 0);
-		return Event.map(modificationEvent, () => this.visibleRepositories);
-	}
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -78,36 +58,12 @@ export class SCMViewPaneContainer extends ViewPaneContainer {
 		addClass(parent, 'scm-viewlet');
 	}
 
-	// focus(): void {
-	// 	const repository = this.visibleRepositories[0];
-
-	// 	if (repository) {
-	// 		const pane = this.panes
-	// 			.filter(pane => pane instanceof SCMViewPane && pane.repository === repository)[0] as SCMViewPane | undefined;
-
-	// 		if (pane) {
-	// 			pane.focus();
-	// 		} else {
-	// 			super.focus();
-	// 		}
-	// 	} else {
-	// 		super.focus();
-	// 	}
-	// }
-
 	getOptimalWidth(): number {
 		return 400;
 	}
 
 	getTitle(): string {
-		const title = localize('source control', "Source Control");
-
-		if (this.visibleRepositories.length === 1) {
-			const [repository] = this.repositories;
-			return localize('viewletTitle', "{0}: {1}", title, repository.provider.label);
-		} else {
-			return title;
-		}
+		return localize('source control', "Source Control");
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -119,24 +75,10 @@ export class SCMViewPaneContainer extends ViewPaneContainer {
 	}
 
 	getActions(): IAction[] {
-		if (this.repositories.length > 0) {
-			return super.getActions();
-		}
-
 		return this.menus.getTitleActions();
 	}
 
 	getSecondaryActions(): IAction[] {
-		if (this.repositories.length > 0) {
-			return super.getSecondaryActions();
-		}
-
 		return this.menus.getTitleSecondaryActions();
-	}
-
-	getActionsContext(): any {
-		if (this.visibleRepositories.length === 1) {
-			return this.repositories[0].provider;
-		}
 	}
 }
