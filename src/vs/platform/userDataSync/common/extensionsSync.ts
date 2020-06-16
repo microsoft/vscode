@@ -114,6 +114,94 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		};
 	}
 
+	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IExtensionsSyncPreview> {
+		const remoteExtensions: ISyncExtension[] | null = remoteUserData.syncData ? await this.parseAndMigrateExtensions(remoteUserData.syncData) : null;
+		const skippedExtensions: ISyncExtension[] = lastSyncUserData ? lastSyncUserData.skippedExtensions || [] : [];
+		const isLastSyncFromCurrentMachine = await this.isLastSyncFromCurrentMachine(remoteUserData);
+		let lastSyncExtensions: ISyncExtension[] | null = null;
+		if (lastSyncUserData === null) {
+			if (isLastSyncFromCurrentMachine) {
+				lastSyncExtensions = await this.parseAndMigrateExtensions(remoteUserData.syncData!);
+			}
+		} else {
+			lastSyncExtensions = await this.parseAndMigrateExtensions(lastSyncUserData.syncData!);
+		}
+
+		const installedExtensions = await this.extensionManagementService.getInstalled();
+		const localExtensions = this.getLocalExtensions(installedExtensions);
+		const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
+
+		if (remoteExtensions) {
+			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote extensions with local extensions...`);
+		} else {
+			this.logService.trace(`${this.syncResourceLogLabel}: Remote extensions does not exist. Synchronizing extensions for the first time.`);
+		}
+
+		const { added, removed, updated, remote } = merge(localExtensions, remoteExtensions, lastSyncExtensions, skippedExtensions, ignoredExtensions);
+
+		return {
+			added,
+			removed,
+			updated,
+			remote,
+			skippedExtensions,
+			remoteUserData,
+			localExtensions,
+			lastSyncUserData,
+			hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
+			hasRemoteChanged: remote !== null,
+			isLastSyncFromCurrentMachine,
+			hasConflicts: false
+		};
+	}
+
+	protected async updatePreviewWithConflict(preview: IExtensionsSyncPreview, conflictResource: URI, content: string, token: CancellationToken): Promise<IExtensionsSyncPreview> {
+		throw new Error(`${this.syncResourceLogLabel}: Conflicts should not occur`);
+	}
+
+	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<void> {
+		const installedExtensions = await this.extensionManagementService.getInstalled();
+		const localExtensions = this.getLocalExtensions(installedExtensions);
+		const syncExtensions = await this.parseAndMigrateExtensions(syncData);
+		const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
+		const { added, updated, removed } = merge(localExtensions, syncExtensions, localExtensions, [], ignoredExtensions);
+
+		await this.applyPreview({
+			added, removed, updated, remote: syncExtensions, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData,
+			hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
+			hasRemoteChanged: true,
+			isLastSyncFromCurrentMachine: false,
+			hasConflicts: false,
+		}, false);
+	}
+
+	protected async applyPreview({ added, removed, updated, remote, remoteUserData, skippedExtensions, lastSyncUserData, localExtensions, hasLocalChanged, hasRemoteChanged }: IExtensionsSyncPreview, forcePush: boolean): Promise<void> {
+
+		if (!hasLocalChanged && !hasRemoteChanged) {
+			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing extensions.`);
+		}
+
+		if (hasLocalChanged) {
+			await this.backupLocal(JSON.stringify(localExtensions));
+			skippedExtensions = await this.updateLocalExtensions(added, removed, updated, skippedExtensions);
+		}
+
+		if (remote) {
+			// update remote
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote extensions...`);
+			const content = JSON.stringify(remote);
+			remoteUserData = await this.updateRemoteUserData(content, forcePush ? null : remoteUserData.ref);
+			this.logService.info(`${this.syncResourceLogLabel}: Updated remote extensions`);
+		}
+
+		if (lastSyncUserData?.ref !== remoteUserData.ref) {
+			// update last sync
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized extensions...`);
+			await this.updateLastSyncUserData(remoteUserData, { skippedExtensions });
+			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized extensions`);
+		}
+	}
+
 	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
 		return [{ resource: joinPath(uri, 'extensions.json'), comparableResource: ExtensionsSynchroniser.EXTENSIONS_DATA_URI }];
 	}
@@ -159,10 +247,6 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return applyEdits(content, edits);
 	}
 
-	protected async updatePreviewWithConflict(preview: IExtensionsSyncPreview, conflictResource: URI, content: string, token: CancellationToken): Promise<IExtensionsSyncPreview> {
-		throw new Error(`${this.syncResourceLogLabel}: Conflicts should not occur`);
-	}
-
 	async hasLocalData(): Promise<boolean> {
 		try {
 			const installedExtensions = await this.extensionManagementService.getInstalled();
@@ -174,90 +258,6 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			/* ignore error */
 		}
 		return false;
-	}
-
-	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<void> {
-		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const localExtensions = this.getLocalExtensions(installedExtensions);
-		const syncExtensions = await this.parseAndMigrateExtensions(syncData);
-		const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
-		const { added, updated, removed } = merge(localExtensions, syncExtensions, localExtensions, [], ignoredExtensions);
-
-		await this.applyPreview({
-			added, removed, updated, remote: syncExtensions, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData,
-			hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
-			hasRemoteChanged: true,
-			isLastSyncFromCurrentMachine: false,
-			hasConflicts: false,
-		}, false);
-	}
-
-	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IExtensionsSyncPreview> {
-		const remoteExtensions: ISyncExtension[] | null = remoteUserData.syncData ? await this.parseAndMigrateExtensions(remoteUserData.syncData) : null;
-		const skippedExtensions: ISyncExtension[] = lastSyncUserData ? lastSyncUserData.skippedExtensions || [] : [];
-		const isLastSyncFromCurrentMachine = await this.isLastSyncFromCurrentMachine(remoteUserData);
-		let lastSyncExtensions: ISyncExtension[] | null = null;
-		if (lastSyncUserData === null) {
-			if (isLastSyncFromCurrentMachine) {
-				lastSyncExtensions = await this.parseAndMigrateExtensions(remoteUserData.syncData!);
-			}
-		} else {
-			lastSyncExtensions = await this.parseAndMigrateExtensions(lastSyncUserData.syncData!);
-		}
-
-		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const localExtensions = this.getLocalExtensions(installedExtensions);
-		const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
-
-		if (remoteExtensions) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote extensions with local extensions...`);
-		} else {
-			this.logService.trace(`${this.syncResourceLogLabel}: Remote extensions does not exist. Synchronizing extensions for the first time.`);
-		}
-
-		const { added, removed, updated, remote } = merge(localExtensions, remoteExtensions, lastSyncExtensions, skippedExtensions, ignoredExtensions);
-
-		return {
-			added,
-			removed,
-			updated,
-			remote,
-			skippedExtensions,
-			remoteUserData,
-			localExtensions,
-			lastSyncUserData,
-			hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
-			hasRemoteChanged: remote !== null,
-			isLastSyncFromCurrentMachine,
-			hasConflicts: false
-		};
-	}
-
-	protected async applyPreview({ added, removed, updated, remote, remoteUserData, skippedExtensions, lastSyncUserData, localExtensions, hasLocalChanged, hasRemoteChanged }: IExtensionsSyncPreview, forcePush: boolean): Promise<void> {
-
-		if (!hasLocalChanged && !hasRemoteChanged) {
-			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing extensions.`);
-		}
-
-		if (hasLocalChanged) {
-			await this.backupLocal(JSON.stringify(localExtensions));
-			skippedExtensions = await this.updateLocalExtensions(added, removed, updated, skippedExtensions);
-		}
-
-		if (remote) {
-			// update remote
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote extensions...`);
-			const content = JSON.stringify(remote);
-			remoteUserData = await this.updateRemoteUserData(content, forcePush ? null : remoteUserData.ref);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated remote extensions`);
-		}
-
-		if (lastSyncUserData?.ref !== remoteUserData.ref) {
-			// update last sync
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized extensions...`);
-			await this.updateLastSyncUserData(remoteUserData, { skippedExtensions });
-			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized extensions`);
-		}
 	}
 
 	private async updateLocalExtensions(added: ISyncExtension[], removed: IExtensionIdentifier[], updated: ISyncExtension[], skippedExtensions: ISyncExtension[]): Promise<ISyncExtension[]> {
