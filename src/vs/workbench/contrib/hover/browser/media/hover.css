@@ -11,6 +11,7 @@
 	/* Must be higher than sash's z-index and terminal canvases */
 	z-index: 40;
 	overflow: hidden;
+	max-width: 700px;
 }
 
 .monaco-workbench .workbench-hover a {

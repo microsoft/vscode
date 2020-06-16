@@ -7,27 +7,26 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { HoverWidget } from 'vs/workbench/contrib/hover/browser/hoverWidget';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IHoverService, IHoverOptions } from 'vs/workbench/contrib/hover/browser/hover';
 
 export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWidget {
 	readonly id = 'env-var-info';
 
 	private _domNode: HTMLElement | undefined;
 	private _container: HTMLElement | undefined;
-	private _hoverWidget: HoverWidget | undefined;
 	private _mouseMoveListener: IDisposable | undefined;
+	private _hoverOptions: IHoverOptions | undefined;
 
 	get requiresAction() { return this._info.requiresAction; }
 
 	constructor(
 		private _info: IEnvironmentVariableInfo,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IHoverService private readonly _hoverService: IHoverService
 	) {
 		super();
 	}
@@ -75,17 +74,21 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 
 	focus() {
 		this._showHover();
-		this._hoverWidget?.focus();
+		// TODO: Focus hover here for a11y
 	}
 
 	private _showHover() {
-		if (!this._domNode || !this._container || this._hoverWidget) {
+		if (!this._domNode || !this._container) {
 			return;
 		}
-		const actions = this._info.getActions ? this._info.getActions() : undefined;
-		this._hoverWidget = this._instantiationService.createInstance(HoverWidget, this._domNode, new MarkdownString(this._info.getInfo()), () => { }, actions);
-		this._hoverWidget.render(this._container);
-		this._register(this._hoverWidget);
-		this._register(this._hoverWidget.onDispose(() => this._hoverWidget = undefined));
+		if (!this._hoverOptions) {
+			const actions = this._info.getActions ? this._info.getActions() : undefined;
+			this._hoverOptions = {
+				target: this._domNode,
+				text: new MarkdownString(this._info.getInfo()),
+				actions
+			};
+		}
+		this._hoverService.showHover(this._hoverOptions);
 	}
 }

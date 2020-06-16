@@ -34,18 +34,15 @@ export class HoverWidget extends Widget {
 	get isDisposed(): boolean { return this._isDisposed; }
 	get domNode(): HTMLElement { return this._hover.containerDomNode; }
 
-	private readonly _onDispose = new Emitter<void>();
+	private readonly _onDispose = this._register(new Emitter<void>());
 	get onDispose(): Event<void> { return this._onDispose.event; }
+	private readonly _onRequestLayout = this._register(new Emitter<void>());
+	get onRequestLayout(): Event<void> { return this._onRequestLayout.event; }
 
 	get anchor(): AnchorPosition { return this._anchor; }
 	get x(): number { return this._x; }
 	get y(): number { return this._y; }
 
-	/**
-	 * @param target The target for the hover, this determines the position of the hover. A
-	 * HTMLElement can be used for simple cases and a IHoverTarget for more complex cases where
-	 * multiple elements and/or a dispose method is required.
-	 */
 	constructor(
 		target: IHoverTarget | HTMLElement,
 		private _text: IMarkdownString,
@@ -86,7 +83,9 @@ export class HoverWidget extends Widget {
 			},
 			codeBlockRenderCallback: () => {
 				contentsElement.classList.add('code-hover-contents');
-				this.render();
+				// This changes the dimensions of the hover to trigger a render
+				this._onRequestLayout.fire();
+				// this.render();
 			}
 		});
 		contentsElement.appendChild(markdownElement);
@@ -115,6 +114,12 @@ export class HoverWidget extends Widget {
 			container?.appendChild(this._hover.containerDomNode);
 		}
 
+		console.log(this._hover.containerDomNode.clientWidth, this._hover.containerDomNode.clientHeight);
+
+		this.layout();
+	}
+
+	public layout() {
 		this._hover.containerDomNode.classList.remove('right-aligned');
 		this._hover.contentsDomNode.style.maxHeight = '';
 
@@ -122,7 +127,7 @@ export class HoverWidget extends Widget {
 		const targetBounds = this._target.targetElements.map(e => e.getBoundingClientRect());
 		const targetLeft = Math.min(...targetBounds.map(e => e.left));
 		if (targetLeft + this._hover.containerDomNode.clientWidth >= document.documentElement.clientWidth) {
-			// TODO: Communicate horizontal alignment
+			// TODO: Communicate horizontal alignment to contextviewservice?
 			this._x = document.documentElement.clientWidth;
 			this._hover.containerDomNode.classList.add('right-aligned');
 		} else {
@@ -138,6 +143,7 @@ export class HoverWidget extends Widget {
 		} else {
 			this._y = targetTop;
 		}
+		console.log('hover y = ', this._y);
 
 		this._hover.onContentsChanged();
 	}
@@ -152,6 +158,7 @@ export class HoverWidget extends Widget {
 
 	public dispose(): void {
 		if (!this._isDisposed) {
+			console.log('dispose');
 			this._onDispose.fire();
 			this._hover.containerDomNode.parentElement?.removeChild(this.domNode);
 			this._messageListeners.dispose();

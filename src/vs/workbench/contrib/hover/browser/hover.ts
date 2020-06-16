@@ -23,14 +23,15 @@ export interface IHoverOptions {
 	text: IMarkdownString;
 
 	// TODO: Link handler not necessary?
-	linkHandler: (url: string) => void;
+	linkHandler?: (url: string) => void;
 
 	/**
-	 * A hover target holding 1+ elements that will hide the hover when the mouse leaves any of the
-	 * elements or the hover. When this is not provided, only mouseout on the hover will hide the
-	 * hover.
+	 * The target for the hover. This determines the position of the hover and it will only be
+	 * hidden when the mouse leaves both the hover and the target. A HTMLElement can be used for
+	 * simple cases and a IHoverTarget for more complex cases where multiple elements and/or a
+	 * dispose method is required.
 	 */
-	target: IHoverTarget;
+	target: IHoverTarget | HTMLElement;
 
 	/**
 	 * A set of actions for the hover's "status bar".

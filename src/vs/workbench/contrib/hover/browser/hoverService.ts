@@ -7,10 +7,12 @@ import { IHoverService, IHoverOptions } from 'vs/workbench/contrib/hover/browser
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HoverWidget } from 'vs/workbench/contrib/hover/browser/hoverWidget';
-import { IContextViewProvider, AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
+import { IContextViewProvider, AnchorPosition, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
 
 export class HoverService implements IHoverService {
 	declare readonly _serviceBrand: undefined;
+
+	private _currentHoverOptions: IHoverOptions | undefined;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -19,25 +21,31 @@ export class HoverService implements IHoverService {
 	}
 
 	showHover(options: IHoverOptions): void {
-		// TODO: Prevent hover when the same one is already visible
-		const hover = this._instantiationService.createInstance(HoverWidget, options.target, options.text, options.linkHandler, []);
+		if (this._currentHoverOptions === options) {
+			return;
+		}
+		this._currentHoverOptions = options;
+
+		const hover = this._instantiationService.createInstance(HoverWidget, options.target, options.text, options.linkHandler || (() => { }), []);
 		const provider = this._contextViewService as IContextViewProvider;
-		provider.showContextView({
+		const contextViewDelegate: IDelegate = {
 			render: container => {
 				hover.render(container);
+				hover.onDispose(() => this._currentHoverOptions = undefined);
 				return hover;
 			},
 			anchorPosition: AnchorPosition.ABOVE,
 			getAnchor: () => {
-				return {
-					x: hover.x,
-					y: hover.y
-				};
-			}
-		});
+				return { x: hover.x, y: hover.y };
+			},
+			layout: () => hover.layout()
+		};
+		provider.showContextView(contextViewDelegate);
+		hover.onRequestLayout(() => provider.layout());
 	}
 
 	hideHover(): void {
+		this._currentHoverOptions = undefined;
 		this._contextViewService.hideContextView();
 	}
 }
