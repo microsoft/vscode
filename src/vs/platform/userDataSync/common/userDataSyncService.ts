@@ -19,7 +19,6 @@ import { URI } from 'vs/base/common/uri';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { isEqual } from 'vs/base/common/resources';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
-import { Throttler, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { platform, PlatformToString, isWeb, Platform } from 'vs/base/common/platform';
@@ -39,8 +38,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	_serviceBrand: any;
 
-	private readonly syncThrottler: Throttler;
-	private syncPromise: CancelablePromise<void> | undefined;
 	private readonly synchronisers: IUserDataSynchroniser[];
 
 	private _status: SyncStatus = SyncStatus.Uninitialized;
@@ -80,7 +77,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IProductService private readonly productService: IProductService
 	) {
 		super();
-		this.syncThrottler = new Throttler();
 		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
 		this.keybindingsSynchroniser = this._register(this.instantiationService.createInstance(KeybindingsSynchroniser));
 		this.snippetsSynchroniser = this._register(this.instantiationService.createInstance(SnippetsSynchroniser));
@@ -137,7 +133,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private recoveredSettings: boolean = false;
-	async sync(): Promise<void> {
+	async sync(token: CancellationToken): Promise<void> {
 		await this.checkEnablement();
 
 		if (!this.recoveredSettings) {
@@ -145,10 +141,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.recoveredSettings = true;
 		}
 
-		await this.syncThrottler.queue(() => {
-			this.syncPromise = createCancelablePromise(token => this.doSync(token));
-			return this.syncPromise;
-		});
+		// Return if cancellation is requested
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		return this.doSync(token);
 	}
 
 	private async doSync(token: CancellationToken): Promise<void> {
@@ -261,12 +259,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async stop(): Promise<void> {
 		await this.checkEnablement();
-
-		if (this.syncPromise) {
-			this.syncPromise.cancel();
-			this.logService.info('Canelled sync that is in progress');
-			this.syncPromise = undefined;
-		}
 
 		if (this.status === SyncStatus.Idle) {
 			return;

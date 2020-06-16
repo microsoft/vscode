@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer, disposableTimeout } from 'vs/base/common/async';
+import { Delayer, disposableTimeout, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IUserDataSyncLogService, IUserDataSyncService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 type AutoSyncClassification = {
 	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -69,7 +71,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		if (pullFirst) {
 			await this.userDataSyncService.pull();
 		} else {
-			await this.userDataSyncService.sync();
+			await this.userDataSyncService.sync(CancellationToken.None);
 		}
 
 		this.userDataSyncEnablementService.setEnablement(true);
@@ -131,12 +133,12 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		}
 
 		this.sources.push(...sources);
-		return this.syncTriggerDelayer.trigger(async () => {
+		return this.syncTriggerDelayer.trigger(() => {
 			this.logService.trace('activity sources', ...this.sources);
 			this.telemetryService.publicLog2<{ sources: string[] }, AutoSyncClassification>('sync/triggered', { sources: this.sources });
 			this.sources = [];
 			if (this.autoSync.value) {
-				await this.autoSync.value.sync('Activity');
+				this.autoSync.value.sync('Activity');
 			}
 		}, this.successiveFailures
 			? this.getSyncTriggerDelayTime() * 1 * Math.min(Math.pow(2, this.successiveFailures), 60) /* Delay exponentially until max 1 minute */
@@ -162,6 +164,8 @@ class AutoSync extends Disposable {
 	private readonly _onDidFinishSync = this._register(new Emitter<Error | undefined>());
 	readonly onDidFinishSync = this._onDidFinishSync.event;
 
+	private syncPromise: CancelablePromise<void> | undefined;
+
 	constructor(
 		private readonly interval: number /* in milliseconds */,
 		private readonly userDataSyncService: IUserDataSyncService,
@@ -173,6 +177,11 @@ class AutoSync extends Disposable {
 	start(): void {
 		this._register(this.onDidFinishSync(() => this.waitUntilNextIntervalAndSync()));
 		this._register(toDisposable(() => {
+			if (this.syncPromise) {
+				this.syncPromise.cancel();
+				this.logService.info('Auto sync: Canelled sync that is in progress');
+				this.syncPromise = undefined;
+			}
 			this.userDataSyncService.stop();
 			this.logService.info('Auto Sync: Stopped');
 		}));
@@ -184,12 +193,32 @@ class AutoSync extends Disposable {
 		this.intervalHandler.value = disposableTimeout(() => this.sync(AutoSync.INTERVAL_SYNCING), this.interval);
 	}
 
-	async sync(reason: string): Promise<void> {
+	sync(reason: string): void {
+		const syncPromise = createCancelablePromise(async token => {
+			if (this.syncPromise) {
+				try {
+					// Wait until existing sync is finished
+					this.logService.debug('Auto Sync: Waiting until sync is finished.');
+					await this.syncPromise;
+				} catch (error) {
+					if (isPromiseCanceledError(error)) {
+						// Cancelled => Disposed. Donot continue sync.
+						return;
+					}
+				}
+			}
+			return this.doSync(reason, token);
+		});
+		this.syncPromise = syncPromise;
+		this.syncPromise.finally(() => this.syncPromise = undefined);
+	}
+
+	private async doSync(reason: string, token: CancellationToken): Promise<void> {
 		this.logService.info(`Auto Sync: Triggered by ${reason}`);
 		this._onDidStartSync.fire();
 		let error: Error | undefined;
 		try {
-			await this.userDataSyncService.sync();
+			await this.userDataSyncService.sync(token);
 		} catch (e) {
 			this.logService.error(e);
 			error = e;

@@ -23,6 +23,7 @@ import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/com
 import { distinct } from 'vs/base/common/arrays';
 import { isArray, isString, isObject } from 'vs/base/common/types';
 import { IHeaders } from 'vs/base/parts/request/common/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -362,7 +363,7 @@ export interface IUserDataSyncService {
 	readonly onDidChangeLastSyncTime: Event<number>;
 
 	pull(): Promise<void>;
-	sync(): Promise<void>;
+	sync(token: CancellationToken): Promise<void>;
 	stop(): Promise<void>;
 	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;

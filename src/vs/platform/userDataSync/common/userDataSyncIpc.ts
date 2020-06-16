@@ -14,6 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class UserDataSyncChannel implements IServerChannel {
 
@@ -44,7 +45,7 @@ export class UserDataSyncChannel implements IServerChannel {
 		switch (command) {
 			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflicts, this.service.lastSyncTime]);
 			case 'pull': return this.service.pull();
-			case 'sync': return this.service.sync();
+			case 'sync': return this.service.sync(CancellationToken.None);
 			case 'stop': this.service.stop(); return Promise.resolve();
 			case 'replace': return this.service.replace(URI.revive(args[0]));
 			case 'reset': return this.service.reset();

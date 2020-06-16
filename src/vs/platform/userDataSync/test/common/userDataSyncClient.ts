@@ -120,7 +120,7 @@ export class UserDataSyncClient extends Disposable {
 	}
 
 	sync(): Promise<void> {
-		return this.instantiationService.get(IUserDataSyncService).sync();
+		return this.instantiationService.get(IUserDataSyncService).sync(CancellationToken.None);
 	}
 
 	read(resource: SyncResource): Promise<IUserData> {

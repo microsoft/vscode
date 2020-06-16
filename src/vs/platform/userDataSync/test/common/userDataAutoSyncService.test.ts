@@ -8,6 +8,7 @@ import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userData
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 import { IUserDataSyncService, SyncResource, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class TestUserDataAutoSyncService extends UserDataAutoSyncService {
 	protected startAutoSync(): boolean { return false; }
@@ -27,7 +28,7 @@ suite('UserDataAutoSyncService', () => {
 		await client.setUp();
 
 		// Sync once and reset requests
-		await client.instantiationService.get(IUserDataSyncService).sync();
+		await client.instantiationService.get(IUserDataSyncService).sync(CancellationToken.None);
 		target.reset();
 
 		client.instantiationService.get(IUserDataSyncEnablementService).setEnablement(true);
@@ -47,7 +48,7 @@ suite('UserDataAutoSyncService', () => {
 		await client.setUp();
 
 		// Sync once and reset requests
-		await client.instantiationService.get(IUserDataSyncService).sync();
+		await client.instantiationService.get(IUserDataSyncService).sync(CancellationToken.None);
 		target.reset();
 
 		client.instantiationService.get(IUserDataSyncEnablementService).setEnablement(true);
@@ -71,7 +72,7 @@ suite('UserDataAutoSyncService', () => {
 		await client.setUp();
 
 		// Sync once and reset requests
-		await client.instantiationService.get(IUserDataSyncService).sync();
+		await client.instantiationService.get(IUserDataSyncService).sync(CancellationToken.None);
 		target.reset();
 
 		client.instantiationService.get(IUserDataSyncEnablementService).setEnablement(true);
@@ -91,7 +92,7 @@ suite('UserDataAutoSyncService', () => {
 		await client.setUp();
 
 		// Sync once and reset requests
-		await client.instantiationService.get(IUserDataSyncService).sync();
+		await client.instantiationService.get(IUserDataSyncService).sync(CancellationToken.None);
 		target.reset();
 
 		client.instantiationService.get(IUserDataSyncEnablementService).setEnablement(true);
