@@ -83,9 +83,8 @@ export class HoverWidget extends Widget {
 			},
 			codeBlockRenderCallback: () => {
 				contentsElement.classList.add('code-hover-contents');
-				// This changes the dimensions of the hover to trigger a render
+				// This changes the dimensions of the hover so trigger a layout
 				this._onRequestLayout.fire();
-				// this.render();
 			}
 		});
 		contentsElement.appendChild(markdownElement);
@@ -122,8 +121,6 @@ export class HoverWidget extends Widget {
 			container?.appendChild(this._hover.containerDomNode);
 		}
 
-		console.log(this._hover.containerDomNode.clientWidth, this._hover.containerDomNode.clientHeight);
-
 		this.layout();
 	}
 
@@ -151,7 +148,6 @@ export class HoverWidget extends Widget {
 		} else {
 			this._y = targetTop;
 		}
-		console.log('hover y = ', this._y);
 
 		this._hover.onContentsChanged();
 	}
@@ -166,7 +162,6 @@ export class HoverWidget extends Widget {
 
 	public dispose(): void {
 		if (!this._isDisposed) {
-			console.log('dispose');
 			this._onDispose.fire();
 			this._hover.containerDomNode.parentElement?.removeChild(this.domNode);
 			this._messageListeners.dispose();
