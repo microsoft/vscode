@@ -612,6 +612,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				this.replInput.setValue(this.replInput.getValue().concat(clipboardText));
 			}
 		}));
+		actions.push(new Separator());
 		actions.push(new Action('debug.collapseRepl', localize('collapse', "Collapse All"), undefined, true, () => {
 			this.tree.collapseAll();
 			this.replInput.focus();
