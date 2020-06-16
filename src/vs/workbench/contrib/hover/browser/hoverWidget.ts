@@ -136,7 +136,6 @@ export class HoverWidget extends Widget {
 		const targetBounds = this._target.targetElements.map(e => e.getBoundingClientRect());
 		const targetLeft = Math.min(...targetBounds.map(e => e.left));
 		if (targetLeft + this._hover.containerDomNode.clientWidth >= document.documentElement.clientWidth) {
-			// TODO: Communicate horizontal alignment to contextviewservice?
 			this._x = document.documentElement.clientWidth;
 			this._hover.containerDomNode.classList.add('right-aligned');
 		} else {
@@ -146,7 +145,6 @@ export class HoverWidget extends Widget {
 		// Get vertical alignment and position
 		const targetTop = Math.min(...targetBounds.map(e => e.top));
 		if (targetTop - this._hover.containerDomNode.clientHeight < 0) {
-			// TODO: Cap max height
 			this._anchor = AnchorPosition.BELOW;
 			this._y = Math.max(...targetBounds.map(e => e.bottom)) - 2;
 		} else {

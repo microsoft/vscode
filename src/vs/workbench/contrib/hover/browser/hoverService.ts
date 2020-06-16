@@ -7,7 +7,7 @@ import { IHoverService, IHoverOptions } from 'vs/workbench/contrib/hover/browser
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HoverWidget } from 'vs/workbench/contrib/hover/browser/hoverWidget';
-import { IContextViewProvider, AnchorPosition, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
+import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
 
 export class HoverService implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -37,10 +37,8 @@ export class HoverService implements IHoverService {
 				}
 				return hover;
 			},
-			anchorPosition: AnchorPosition.ABOVE,
-			getAnchor: () => {
-				return { x: hover.x, y: hover.y };
-			},
+			anchorPosition: hover.anchor,
+			getAnchor: () => ({ x: hover.x, y: hover.y }),
 			layout: () => hover.layout()
 		};
 		provider.showContextView(contextViewDelegate);
