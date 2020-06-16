@@ -11,12 +11,57 @@ import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/use
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 type AutoSyncClassification = {
 	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
-export class UserDataAutoSyncService extends Disposable implements IUserDataAutoSyncService {
+type AutoSyncEnablementClassification = {
+	enabled?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
+
+const enablementKey = 'sync.enable';
+
+export class UserDataAutoSyncEnablementService extends Disposable {
+
+	private _onDidChangeEnablement = new Emitter<boolean>();
+	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
+
+	constructor(
+		@IStorageService protected readonly storageService: IStorageService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
+	) {
+		super();
+		this._register(storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
+	}
+
+	isEnabled(): boolean {
+		switch (this.environmentService.sync) {
+			case 'on':
+				return true;
+			case 'off':
+				return false;
+		}
+		return this.storageService.getBoolean(enablementKey, StorageScope.GLOBAL, this.environmentService.enableSyncByDefault);
+	}
+
+	canToggleEnablement(): boolean {
+		return this.environmentService.sync === undefined;
+	}
+
+	private onDidStorageChange(workspaceStorageChangeEvent: IWorkspaceStorageChangeEvent): void {
+		if (workspaceStorageChangeEvent.scope === StorageScope.GLOBAL) {
+			if (enablementKey === workspaceStorageChangeEvent.key) {
+				this._onDidChangeEnablement.fire(this.isEnabled());
+			}
+		}
+	}
+
+}
+
+export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService implements IUserDataAutoSyncService {
 
 	_serviceBrand: any;
 
@@ -34,14 +79,16 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IUserDataSyncAccountService private readonly authTokenService: IUserDataSyncAccountService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super();
+		super(storageService, environmentService);
 		this.syncTriggerDelayer = this._register(new Delayer<void>(0));
 
 		if (userDataSyncStoreService.userDataSyncStore) {
 			this.updateAutoSync();
-			this._register(Event.any(authTokenService.onDidChangeAccount, this.userDataSyncEnablementService.onDidChangeEnablement)(() => this.updateAutoSync()));
+			this._register(authTokenService.onDidChangeAccount(() => this.updateAutoSync()));
 			this._register(Event.debounce<string, string[]>(userDataSyncService.onDidChangeLocal, (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, false)));
 			this._register(Event.filter(this.userDataSyncEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerSync(['resourceEnablement'], false)));
 		}
@@ -67,6 +114,19 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		}
 	}
 
+	// For tests purpose only
+	protected startAutoSync(): boolean { return true; }
+
+	private isAutoSyncEnabled(): { enabled: boolean, reason?: string } {
+		if (!this.isEnabled()) {
+			return { enabled: false, reason: 'sync is disabled' };
+		}
+		if (!this.authTokenService.account) {
+			return { enabled: false, reason: 'token is not avaialable' };
+		}
+		return { enabled: true };
+	}
+
 	async turnOn(pullFirst: boolean): Promise<void> {
 		if (pullFirst) {
 			await this.userDataSyncService.pull();
@@ -74,26 +134,20 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			await this.userDataSyncService.sync(CancellationToken.None);
 		}
 
-		this.userDataSyncEnablementService.setEnablement(true);
+		this.setEnablement(true);
 		this.updateAutoSync();
 	}
 
 	async turnOff(): Promise<void> {
-		this.userDataSyncEnablementService.setEnablement(false);
+		this.setEnablement(false);
 		this.updateAutoSync();
 	}
 
-	// For tests purpose only
-	protected startAutoSync(): boolean { return true; }
-
-	private isAutoSyncEnabled(): { enabled: boolean, reason?: string } {
-		if (!this.userDataSyncEnablementService.isEnabled()) {
-			return { enabled: false, reason: 'sync is disabled' };
+	setEnablement(enabled: boolean): void {
+		if (this.isEnabled() !== enabled) {
+			this.telemetryService.publicLog2<{ enabled: boolean }, AutoSyncEnablementClassification>(enablementKey, { enabled });
+			this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL);
 		}
-		if (!this.authTokenService.account) {
-			return { enabled: false, reason: 'token is not avaialable' };
-		}
-		return { enabled: true };
 	}
 
 	private async onDidFinishSync(error: Error | undefined): Promise<void> {

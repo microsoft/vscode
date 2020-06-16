@@ -11,6 +11,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 
@@ -23,8 +25,10 @@ export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IHostService hostService: IHostService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
-		super(userDataSyncStoreService, userDataSyncEnablementService, userDataSyncService, logService, authTokenService, telemetryService);
+		super(userDataSyncStoreService, userDataSyncEnablementService, userDataSyncService, logService, authTokenService, telemetryService, storageService, environmentService);
 
 		this._register(Event.debounce<string, string[]>(Event.any<string>(
 			Event.map(hostService.onDidChangeFocus, () => 'windowFocus'),

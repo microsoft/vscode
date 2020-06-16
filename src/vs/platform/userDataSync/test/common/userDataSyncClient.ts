@@ -56,7 +56,8 @@ export class UserDataSyncClient extends Disposable {
 			settingsResource: joinPath(userDataDirectory, 'settings.json'),
 			keybindingsResource: joinPath(userDataDirectory, 'keybindings.json'),
 			snippetsHome: joinPath(userDataDirectory, 'snippets'),
-			argvResource: joinPath(userDataDirectory, 'argv.json')
+			argvResource: joinPath(userDataDirectory, 'argv.json'),
+			sync: 'on',
 		});
 
 		const logService = new NullLogService();

@@ -9,6 +9,8 @@ import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron
 import { UserDataAutoSyncService as BaseUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 
@@ -20,8 +22,10 @@ export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUserDataSyncAccountService authTokenService: IUserDataSyncAccountService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
-		super(userDataSyncStoreService, userDataSyncEnablementService, userDataSyncService, logService, authTokenService, telemetryService);
+		super(userDataSyncStoreService, userDataSyncEnablementService, userDataSyncService, logService, authTokenService, telemetryService, storageService, environmentService);
 
 		this._register(Event.debounce<string, string[]>(Event.any<string>(
 			Event.map(electronService.onWindowFocus, () => 'windowFocus'),

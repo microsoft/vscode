@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { IUserDataSyncService, SyncResource, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 class TestUserDataAutoSyncService extends UserDataAutoSyncService {
@@ -31,7 +31,6 @@ suite('UserDataAutoSyncService', () => {
 		await client.instantiationService.get(IUserDataSyncService).sync(CancellationToken.None);
 		target.reset();
 
-		client.instantiationService.get(IUserDataSyncEnablementService).setEnablement(true);
 		const testObject: UserDataAutoSyncService = client.instantiationService.createInstance(TestUserDataAutoSyncService);
 
 		// Trigger auto sync with settings change
@@ -51,7 +50,6 @@ suite('UserDataAutoSyncService', () => {
 		await client.instantiationService.get(IUserDataSyncService).sync(CancellationToken.None);
 		target.reset();
 
-		client.instantiationService.get(IUserDataSyncEnablementService).setEnablement(true);
 		const testObject: UserDataAutoSyncService = client.instantiationService.createInstance(TestUserDataAutoSyncService);
 
 		// Trigger auto sync with settings change multiple times
@@ -75,7 +73,6 @@ suite('UserDataAutoSyncService', () => {
 		await client.instantiationService.get(IUserDataSyncService).sync(CancellationToken.None);
 		target.reset();
 
-		client.instantiationService.get(IUserDataSyncEnablementService).setEnablement(true);
 		const testObject: UserDataAutoSyncService = client.instantiationService.createInstance(TestUserDataAutoSyncService);
 
 		// Trigger auto sync with window focus once
@@ -95,7 +92,6 @@ suite('UserDataAutoSyncService', () => {
 		await client.instantiationService.get(IUserDataSyncService).sync(CancellationToken.None);
 		target.reset();
 
-		client.instantiationService.get(IUserDataSyncEnablementService).setEnablement(true);
 		const testObject: UserDataAutoSyncService = client.instantiationService.createInstance(TestUserDataAutoSyncService);
 
 		// Trigger auto sync with window focus multiple times
