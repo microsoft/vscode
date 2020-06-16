@@ -50,6 +50,7 @@ export class HoverWidget extends Widget {
 		private _text: IMarkdownString,
 		linkHandler: ((url: string) => any) | undefined,
 		private _actions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }[] | undefined,
+		additionalClasses: string[] | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService
@@ -61,8 +62,11 @@ export class HoverWidget extends Widget {
 		this._target = 'targetElements' in target ? target : new ElementHoverTarget(target);
 
 		this._hover = this._register(new BaseHoverWidget());
-		// TODO: Move xterm-hover into terminal
-		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn', 'xterm-hover');
+
+		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
+		if (additionalClasses) {
+			this._hover.containerDomNode.classList.add(...additionalClasses);
+		}
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
