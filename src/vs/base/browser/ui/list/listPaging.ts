@@ -12,6 +12,7 @@ import { IPagedModel } from 'vs/base/common/paging';
 import { Event } from 'vs/base/common/event';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { IThemable } from 'vs/base/common/styler';
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<TElement, TTemplateData> {
 	renderPlaceholder(index: number, templateData: TTemplateData): void;
@@ -119,7 +120,7 @@ function fromPagedListOptions<T>(modelProvider: () => IPagedModel<T>, options: I
 	};
 }
 
-export class PagedList<T> implements IDisposable {
+export class PagedList<T> implements IThemable, IDisposable {
 
 	private list: List<number>;
 	private _model!: IPagedModel<T>;

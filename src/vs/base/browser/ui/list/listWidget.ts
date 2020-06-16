@@ -26,6 +26,7 @@ import { clamp } from 'vs/base/common/numbers';
 import { matchesPrefix } from 'vs/base/common/filters';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { IThemable } from 'vs/base/common/styler';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -1083,7 +1084,7 @@ export interface IListOptionsUpdate extends IListViewOptionsUpdate {
 	readonly automaticKeyboardNavigation?: boolean;
 }
 
-export class List<T> implements ISpliceable<T>, IDisposable {
+export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 
 	private focus: Trait<T>;
 	private selection: Trait<T>;
