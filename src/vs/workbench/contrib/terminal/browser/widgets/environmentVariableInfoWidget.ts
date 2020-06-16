@@ -6,9 +6,10 @@
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ITerminalWidget, IHoverTarget, IHoverAnchor, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
+import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
+import { IHoverTarget, IHoverAnchor } from 'vs/workbench/contrib/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { HoverWidget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
+import { HoverWidget } from 'vs/workbench/contrib/hover/browser/hoverWidget';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as dom from 'vs/base/browser/dom';
@@ -84,7 +85,8 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 		}
 		const target = new ElementHoverTarget(this._domNode);
 		const actions = this._info.getActions ? this._info.getActions() : undefined;
-		this._hoverWidget = this._instantiationService.createInstance(HoverWidget, this._container, target, new MarkdownString(this._info.getInfo()), () => { }, actions);
+		this._hoverWidget = this._instantiationService.createInstance(HoverWidget, target, new MarkdownString(this._info.getInfo()), () => { }, actions);
+		this._hoverWidget.render(this._container);
 		this._register(this._hoverWidget);
 		this._register(this._hoverWidget.onDispose(() => this._hoverWidget = undefined));
 	}
@@ -103,11 +105,13 @@ class ElementHoverTarget implements IHoverTarget {
 		const position = dom.getDomNodePagePosition(this._element);
 		return {
 			x: position.left,
-			horizontalAnchorSide: HorizontalAnchorSide.Left,
 			y: document.documentElement.clientHeight - position.top - 1,
-			verticalAnchorSide: VerticalAnchorSide.Bottom,
 			fallbackY: position.top + position.height
 		};
+	}
+
+	render(container: HTMLElement): void {
+		// TODO: Should render be optional?
 	}
 
 	dispose(): void {

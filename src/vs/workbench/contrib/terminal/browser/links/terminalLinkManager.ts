@@ -97,7 +97,7 @@ export class TerminalLinkManager extends DisposableStore {
 			terminalDimensions,
 			modifierDownCallback,
 			modifierUpCallback
-		}, this._getLinkHoverString(link.text, link.label), (text) => link.activate(undefined, text), link);
+		}, this._getLinkHoverString(link.text + 'kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf kljnasdfljkasdgljkansdf lkjan sdflkjfdasnlkfadsjnlkjfdsabjlkhadfs jklbadsfljkbdfas ljkbfadslbkjhfdslbkhabldsf kjlbdfasbljkfd abjklsdfbkjl adsfblkadfj blakdsf bjdasflkj dbfslkjafd sjbdfslkjsfbkjfds', link.label), (text) => link.activate(undefined, text), link);
 	}
 
 	private _showHover(
