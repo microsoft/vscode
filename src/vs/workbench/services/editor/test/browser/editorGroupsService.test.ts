@@ -449,9 +449,7 @@ suite('EditorGroupsService', () => {
 		assert.equal(editorCloseCounter1, 1);
 		assert.equal(editorWillCloseCounter, 1);
 
-		assert.ok(inputInactive.gotClosed);
-		assert.equal(inputInactive.gotClosed?.group, group.id);
-		assert.equal(inputInactive.gotClosed?.openedInOtherGroups, false);
+		assert.ok(inputInactive.gotDisposed);
 
 		assert.equal(group.activeEditor, input);
 
@@ -487,12 +485,8 @@ suite('EditorGroupsService', () => {
 
 		await group.closeEditors([input, inputInactive]);
 
-		assert.ok(input.gotClosed);
-		assert.equal(input.gotClosed?.group, group.id);
-		assert.equal(input.gotClosed?.openedInOtherGroups, false);
-		assert.ok(inputInactive.gotClosed);
-		assert.equal(inputInactive.gotClosed?.group, group.id);
-		assert.equal(inputInactive.gotClosed?.openedInOtherGroups, false);
+		assert.ok(input.gotDisposed);
+		assert.ok(inputInactive.gotDisposed);
 
 		assert.equal(group.isEmpty, true);
 		part.dispose();
@@ -513,15 +507,11 @@ suite('EditorGroupsService', () => {
 
 		await rightGroup.closeEditor(input);
 
-		assert.ok(input.gotClosed);
-		assert.equal(input.gotClosed?.group, rightGroup.id);
-		assert.equal(input.gotClosed?.openedInOtherGroups, true);
+		assert.ok(!input.gotDisposed);
 
 		await group.closeEditor(input);
 
-		assert.ok(input.gotClosed);
-		assert.equal(input.gotClosed?.group, group.id);
-		assert.equal(input.gotClosed?.openedInOtherGroups, false);
+		assert.ok(input.gotDisposed);
 	});
 
 	test('closeEditors (except one)', async () => {

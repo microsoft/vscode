@@ -35,9 +35,8 @@ export interface IUserDataSyncMachinesService {
 
 	addCurrentMachine(name: string, manifest?: IUserDataManifest): Promise<void>;
 	removeCurrentMachine(manifest?: IUserDataManifest): Promise<void>;
-
 	renameMachine(machineId: string, name: string): Promise<void>;
-	disableMachine(machineId: string): Promise<void>
+	setEnablement(machineId: string, enabled: boolean): Promise<void>;
 }
 
 export class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMachinesService {
@@ -99,11 +98,11 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		}
 	}
 
-	async disableMachine(machineId: string): Promise<void> {
+	async setEnablement(machineId: string, enabled: boolean): Promise<void> {
 		const machineData = await this.readMachinesData();
 		const machine = machineData.machines.find(({ id }) => id === machineId);
 		if (machine) {
-			machine.disabled = true;
+			machine.disabled = enabled ? enabled : undefined;
 			await this.writeMachinesData(machineData);
 		}
 	}

@@ -25,6 +25,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { platform, PlatformToString, isWeb, Platform } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IHeaders } from 'vs/base/parts/request/common/request';
 
 type SyncClassification = {
 	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -159,7 +161,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 
 			this.telemetryService.publicLog2('sync/getmanifest');
-			let manifest = await this.userDataSyncStoreService.manifest();
+			const syncHeaders: IHeaders = { 'X-Execution-Id': generateUuid() };
+			let manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
 
 			// Server has no data but this machine was synced before
 			if (manifest === null && await this.hasPreviouslySynced()) {
@@ -195,7 +198,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 					return;
 				}
 				try {
-					await synchroniser.sync(manifest);
+					await synchroniser.sync(manifest, syncHeaders);
 				} catch (e) {
 					this.handleSynchronizerError(e, synchroniser.resource);
 					this._syncErrors.push([synchroniser.resource, UserDataSyncError.toUserDataSyncError(e)]);
@@ -204,7 +207,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 			// After syncing, get the manifest if it was not available before
 			if (manifest === null) {
-				manifest = await this.userDataSyncStoreService.manifest();
+				manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
 			}
 
 			// Return if cancellation is requested

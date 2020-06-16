@@ -564,7 +564,7 @@ export class ToggleEditorTypeCommand extends Action {
 			return;
 		}
 
-		await firstNonActiveOverride[0].open(input, options, group, OpenEditorContext.NEW_EDITOR, firstNonActiveOverride[1].id)?.override;
+		await firstNonActiveOverride[0].open(input, { ...options, override: firstNonActiveOverride[1].id }, group, OpenEditorContext.NEW_EDITOR)?.override;
 	}
 }
 

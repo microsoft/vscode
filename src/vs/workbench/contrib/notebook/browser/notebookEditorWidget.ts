@@ -407,10 +407,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		this.localStore.add(this.list!.onDidChangeFocus(() => {
-			this._cellContextKeyManager?.dispose();
 			const focused = this.list!.getFocusedElements()[0];
 			if (focused) {
-				this._cellContextKeyManager = this.localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as any));
+				if (!this._cellContextKeyManager) {
+					this._cellContextKeyManager = this.localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as any));
+				}
+
+				this._cellContextKeyManager.updateForElement(focused as any);
 			}
 		}));
 

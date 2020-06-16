@@ -19,7 +19,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellRange, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellRange, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { diff, IProcessedOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { clamp } from 'vs/base/common/numbers';
@@ -525,7 +525,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	// override
 	domFocus() {
-		if (document.activeElement && this.view.domNode.contains(document.activeElement)) {
+		const focused = this.getFocusedElements()[0];
+		const focusedDomElement = this.domElementOfElement(focused);
+
+		if (document.activeElement && focusedDomElement && focusedDomElement.contains(document.activeElement)) {
 			// for example, when focus goes into monaco editor, if we refocus the list view, the editor will lose focus.
 			return;
 		}
@@ -890,6 +893,7 @@ class NotebookMouseController extends MouseController<CellViewModel> {
 		const focus = this.list.getFocusedElements()[0];
 		if (focus && focus.cellKind === CellKind.Markdown) {
 			focus.editState = CellEditState.Editing;
+			focus.focusMode = CellFocusMode.Editor;
 		}
 	}
 }
