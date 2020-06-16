@@ -48,7 +48,6 @@ import { memoize } from 'vs/base/common/decorators';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { Hasher } from 'vs/base/common/hash';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
@@ -805,7 +804,8 @@ class SCMSortByStatusAction extends SCMSortAction {
 	}
 }
 
-export class RepositoryPane extends ViewPane {
+export class SCMViewPane extends ViewPane {
+
 	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
 
 	private cachedHeight: number | undefined = undefined;
@@ -1298,27 +1298,14 @@ export class RepositoryPane extends ViewPane {
 	}
 }
 
-export class RepositoryViewDescriptor implements IViewDescriptor {
-
-	private static counter = 0;
-
-	readonly id: string;
-	readonly name: string;
-	readonly ctorDescriptor: SyncDescriptor<RepositoryPane>;
+// TODO: combine with Empty descriptor
+export class SCMViewPaneDescriptor implements IViewDescriptor {
+	readonly id = 'workbench.scmView';
+	readonly name = localize('source control', "Source Control");
+	readonly ctorDescriptor = new SyncDescriptor(SCMViewPane);
 	readonly canToggleVisibility = true;
 	readonly order = -500;
 	readonly workspace = true;
-
-	constructor(readonly repository: ISCMRepository, readonly hideByDefault: boolean) {
-		const repoId = repository.provider.rootUri ? repository.provider.rootUri.toString() : `#${RepositoryViewDescriptor.counter++}`;
-		const hasher = new Hasher();
-		hasher.hash(repository.provider.label);
-		hasher.hash(repoId);
-		this.id = `scm:repository:${hasher.value}`;
-		this.name = repository.provider.rootUri ? basename(repository.provider.rootUri) : repository.provider.label;
-
-		this.ctorDescriptor = new SyncDescriptor(RepositoryPane, [repository]);
-	}
 }
 
 registerThemingParticipant((theme, collector) => {

@@ -10,7 +10,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { VIEWLET_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -24,12 +24,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IViewsRegistry, Extensions, IViewDescriptorService, IViewDescriptor, IAddedViewDescriptorRef, IViewDescriptorRef } from 'vs/workbench/common/views';
+import { IViewsRegistry, Extensions, IViewDescriptorService, IViewDescriptor } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { RepositoryPane, RepositoryViewDescriptor } from 'vs/workbench/contrib/scm/browser/repositoryPane';
-import { MainPaneDescriptor, MainPane, IViewModel } from 'vs/workbench/contrib/scm/browser/mainPane';
+import { SCMViewPane, SCMViewPaneDescriptor } from 'vs/workbench/contrib/scm/browser/scmView';
 import { ViewPaneContainer, IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { debounce } from 'vs/base/common/decorators';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { addClass } from 'vs/base/browser/dom';
@@ -78,13 +76,11 @@ export class EmptyPaneDescriptor implements IViewDescriptor {
 	readonly when = ContextKeyExpr.equals('scm.providerCount', 0);
 }
 
-export class SCMViewPaneContainer extends ViewPaneContainer implements IViewModel {
+export class SCMViewPaneContainer extends ViewPaneContainer {
 
 	private menus: SCMMenus;
 	private _repositories: ISCMRepository[] = [];
 
-	private repositoryCountKey: IContextKey<number>;
-	private viewDescriptors: RepositoryViewDescriptor[] = [];
 
 	private readonly _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
 	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>> = this._onDidSplice.event;
@@ -97,8 +93,8 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 	}
 
 	get visibleRepositories(): ISCMRepository[] {
-		return this.panes.filter(pane => pane instanceof RepositoryPane)
-			.map(pane => (pane as RepositoryPane).repository);
+		return this.panes.filter(pane => pane instanceof SCMViewPane)
+			.map(pane => (pane as SCMViewPane).repository);
 	}
 
 	get onDidChangeVisibleRepositories(): Event<ISCMRepository[]> {
@@ -121,7 +117,6 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
@@ -137,105 +132,31 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 		});
 
 		viewsRegistry.registerViews([new EmptyPaneDescriptor()], this.viewContainer);
-		viewsRegistry.registerViews([new MainPaneDescriptor(this)], this.viewContainer);
+		viewsRegistry.registerViews([new SCMViewPaneDescriptor()], this.viewContainer);
 
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('scm.alwaysShowProviders') && configurationService.getValue<boolean>('scm.alwaysShowProviders')) {
-				this.viewContainerModel.setVisible(MainPane.ID, true);
-			}
-		}));
-
-		this.repositoryCountKey = contextKeyService.createKey('scm.providerCount', 0);
-
-		this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(this.onDidShowView, this));
-		this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(this.onDidHideView, this));
 	}
 
 	create(parent: HTMLElement): void {
 		super.create(parent);
 		addClass(parent, 'scm-viewlet');
-		this._register(this.scmService.onDidAddRepository(this.onDidAddRepository, this));
-		this._register(this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this));
-		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
 	}
 
-	private onDidAddRepository(repository: ISCMRepository): void {
-		const index = this._repositories.length;
-		this._repositories.push(repository);
+	// focus(): void {
+	// 	const repository = this.visibleRepositories[0];
 
-		const viewDescriptor = new RepositoryViewDescriptor(repository, false);
-		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews([viewDescriptor], this.viewContainer);
-		this.viewDescriptors.push(viewDescriptor);
+	// 	if (repository) {
+	// 		const pane = this.panes
+	// 			.filter(pane => pane instanceof SCMViewPane && pane.repository === repository)[0] as SCMViewPane | undefined;
 
-		this._onDidSplice.fire({ index, deleteCount: 0, elements: [repository] });
-		this.updateTitleArea();
-
-		this.onDidChangeRepositories();
-	}
-
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		const index = this._repositories.indexOf(repository);
-
-		if (index === -1) {
-			return;
-		}
-
-		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).deregisterViews([this.viewDescriptors[index]], this.viewContainer);
-
-		this._repositories.splice(index, 1);
-		this.viewDescriptors.splice(index, 1);
-
-		this._onDidSplice.fire({ index, deleteCount: 1, elements: [] });
-		this.updateTitleArea();
-
-		this.onDidChangeRepositories();
-	}
-
-	private onDidChangeRepositories(): void {
-		this.repositoryCountKey.set(this.repositories.length);
-	}
-
-	private onDidShowView(e: IAddedViewDescriptorRef[]): void {
-		for (const ref of e) {
-			if (ref.viewDescriptor instanceof RepositoryViewDescriptor) {
-				ref.viewDescriptor.repository.setSelected(true);
-			}
-		}
-	}
-
-	private onDidHideView(e: IViewDescriptorRef[]): void {
-		for (const ref of e) {
-			if (ref.viewDescriptor instanceof RepositoryViewDescriptor) {
-				ref.viewDescriptor.repository.setSelected(false);
-			}
-		}
-
-		this.afterOnDidHideView();
-	}
-
-	@debounce(0)
-	private afterOnDidHideView(): void {
-		if (this.repositoryCountKey.get()! > 0 && this.viewDescriptors.every(d => !this.viewContainerModel.isVisible(d.id))) {
-			this.viewContainerModel.setVisible(this.viewDescriptors[0].id, true);
-		}
-	}
-
-	focus(): void {
-		const repository = this.visibleRepositories[0];
-
-		if (repository) {
-			const pane = this.panes
-				.filter(pane => pane instanceof RepositoryPane && pane.repository === repository)[0] as RepositoryPane | undefined;
-
-			if (pane) {
-				pane.focus();
-			} else {
-				super.focus();
-			}
-		} else {
-			super.focus();
-		}
-	}
+	// 		if (pane) {
+	// 			pane.focus();
+	// 		} else {
+	// 			super.focus();
+	// 		}
+	// 	} else {
+	// 		super.focus();
+	// 	}
+	// }
 
 	getOptimalWidth(): number {
 		return 400;
@@ -279,35 +200,6 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 	getActionsContext(): any {
 		if (this.visibleRepositories.length === 1) {
 			return this.repositories[0].provider;
-		}
-	}
-
-	setVisibleRepositories(repositories: ISCMRepository[]): void {
-		const visibleViewDescriptors = this.viewContainerModel.visibleViewDescriptors;
-
-		const toSetVisible = this.viewContainerModel.activeViewDescriptors
-			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) > -1 && visibleViewDescriptors.indexOf(d) === -1);
-
-		const toSetInvisible = visibleViewDescriptors
-			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
-
-		let size: number | undefined;
-		const oneToOne = toSetVisible.length === 1 && toSetInvisible.length === 1;
-
-		for (const viewDescriptor of toSetInvisible) {
-			if (oneToOne) {
-				const pane = this.panes.filter(pane => pane.id === viewDescriptor.id)[0];
-
-				if (pane) {
-					size = this.getPaneSize(pane);
-				}
-			}
-
-			this.viewContainerModel.setVisible(viewDescriptor.id, false);
-		}
-
-		for (const viewDescriptor of toSetVisible) {
-			this.viewContainerModel.setVisible(viewDescriptor.id, true, size);
 		}
 	}
 }
