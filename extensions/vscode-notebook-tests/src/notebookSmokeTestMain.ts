@@ -50,13 +50,13 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 
 			return dto;
 		},
+		resolveNotebook: async (_document: vscode.NotebookDocument) => {
+			return;
+		},
 		saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			return;
 		},
 		saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-			return;
-		},
-		revertNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			return;
 		},
 		backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) => {
