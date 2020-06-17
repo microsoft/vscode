@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as iconv from 'iconv-lite';
-import { Readable, ReadableStream, newWriteableStream } from 'vs/base/common/stream';
-import { isUndefinedOrNull, isUndefined, isNumber } from 'vs/base/common/types';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { Readable, Writable } from 'stream';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -36,133 +35,119 @@ export interface IDecodeStreamOptions {
 }
 
 export interface IDecodeStreamResult {
-	stream: ReadableStream<string>;
+	stream: NodeJS.ReadableStream;
 	detected: IDetectedEncodingResult;
 }
 
-export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeStreamOptions): Promise<IDecodeStreamResult> {
+export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): Promise<IDecodeStreamResult> {
 	if (!options.minBytesRequiredForDetection) {
 		options.minBytesRequiredForDetection = options.guessEncoding ? AUTO_ENCODING_GUESS_MIN_BYTES : NO_ENCODING_GUESS_MIN_BYTES;
 	}
 
 	return new Promise<IDecodeStreamResult>((resolve, reject) => {
-		const target = newWriteableStream<string>(strings => strings.join(''));
+		const writer = new class extends Writable {
+			private decodeStream: NodeJS.ReadWriteStream | undefined;
+			private decodeStreamPromise: Promise<void> | undefined;
 
-		const bufferedChunks: VSBuffer[] = [];
-		let bytesBuffered = 0;
-		let decoder: iconv.DecoderStream | null = null;
+			private bufferedChunks: Buffer[] = [];
+			private bytesBuffered = 0;
 
-		const startDecodeStream = () => {
-			return Promise.resolve()
-				.then(() =>
-					// detect encoding from buffer
-					detectEncodingFromBuffer({
-						buffer: Buffer.from(VSBuffer.concat(bufferedChunks).buffer),
-						bytesRead: bytesBuffered
-					}, options.guessEncoding)
-				)
-				.then(detected => {
+			_write(chunk: Buffer, encoding: string, callback: (error: Error | null | undefined) => void): void {
+				if (!Buffer.isBuffer(chunk)) {
+					return callback(new Error('toDecodeStream(): data must be a buffer'));
+				}
+
+				// if the decode stream is ready, we just write directly
+				if (this.decodeStream) {
+					this.decodeStream.write(chunk, callback);
+
+					return;
+				}
+
+				// otherwise we need to buffer the data until the stream is ready
+				this.bufferedChunks.push(chunk);
+				this.bytesBuffered += chunk.byteLength;
+
+				// waiting for the decoder to be ready
+				if (this.decodeStreamPromise) {
+					this.decodeStreamPromise.then(() => callback(null), error => callback(error));
+				}
+
+				// buffered enough data for encoding detection, create stream and forward data
+				else if (typeof options.minBytesRequiredForDetection === 'number' && this.bytesBuffered >= options.minBytesRequiredForDetection) {
+					this._startDecodeStream(callback);
+				}
+
+				// only buffering until enough data for encoding detection is there
+				else {
+					callback(null);
+				}
+			}
+
+			_startDecodeStream(callback: (error: Error | null | undefined) => void): void {
+
+				// detect encoding from buffer
+				this.decodeStreamPromise = Promise.resolve(detectEncodingFromBuffer({
+					buffer: Buffer.concat(this.bufferedChunks),
+					bytesRead: this.bytesBuffered
+				}, options.guessEncoding)).then(detected => {
+
 					// ensure to respect overwrite of encoding
 					detected.encoding = options.overwriteEncoding(detected.encoding);
 
-					// decode and write buffered content
-					decoder = iconv.getDecoder(toNodeEncoding(detected.encoding));
-					const nodeBuffer = Buffer.from(VSBuffer.concat(bufferedChunks).buffer);
-					target.write(decoder.write(nodeBuffer));
-					bufferedChunks.length = 0;
+					// decode and write buffer
+					this.decodeStream = decodeStream(detected.encoding);
+					this.decodeStream.write(Buffer.concat(this.bufferedChunks), callback);
+					this.bufferedChunks.length = 0;
 
 					// signal to the outside our detected encoding
 					// and final decoder stream
-					resolve({
-						stream: target,
-						detected,
-					});
-				})
-				.catch(reject);
-		};
+					resolve({ detected, stream: this.decodeStream });
+				}, error => {
+					this.emit('error', error);
 
-		source.on('error', target.error);
-		source.on('data', (chunk) => {
-			// if the decoder is ready, we just write directly
-			if (!isUndefinedOrNull(decoder)) {
-				target.write(decoder.write(Buffer.from(chunk.buffer)));
-				return;
-			}
-
-			// otherwise we need to buffer the data until the stream is ready
-			bufferedChunks.push(chunk);
-			bytesBuffered += chunk.byteLength;
-
-			// buffered enough data for encoding detection, create stream and forward data
-			if (isNumber(options.minBytesRequiredForDetection) && bytesBuffered >= options.minBytesRequiredForDetection) {
-				startDecodeStream();
-			}
-		});
-		source.on('end', () => {
-			// normal finish
-			if (!isUndefinedOrNull(decoder)) {
-				target.end(decoder.end());
-			}
-
-			// we were still waiting for data to do the encoding
-			// detection. thus, wrap up starting the stream even
-			// without all the data to get things going
-			else {
-				startDecodeStream().then(() => {
-					target.end(decoder?.end());
+					callback(error);
 				});
 			}
-		});
+
+			_final(callback: () => void) {
+
+				// normal finish
+				if (this.decodeStream) {
+					this.decodeStream.end(callback);
+				}
+
+				// we were still waiting for data to do the encoding
+				// detection. thus, wrap up starting the stream even
+				// without all the data to get things going
+				else {
+					this._startDecodeStream(() => {
+						if (this.decodeStream) {
+							this.decodeStream.end(callback);
+						}
+					});
+				}
+			}
+		};
+
+		// errors
+		readable.on('error', reject);
+
+		// pipe through
+		readable.pipe(writer);
 	});
-}
-
-export function toEncodeReadable(readable: Readable<string>, encoding: string, options?: { addBOM?: boolean }): VSBufferReadable {
-	const encoder = iconv.getEncoder(toNodeEncoding(encoding), options);
-	let bytesRead = 0;
-	let done = false;
-
-	return {
-		read() {
-			if (done) {
-				return null;
-			}
-
-			const chunk = readable.read();
-			if (isUndefinedOrNull(chunk)) {
-				done = true;
-
-				// If we are instructed to add a BOM but we detect that no
-				// bytes have been read, we must ensure to return the BOM
-				// ourselves so that we comply with the contract.
-				if (bytesRead === 0 && options?.addBOM) {
-					switch (encoding) {
-						case UTF8:
-						case UTF8_with_bom:
-							return VSBuffer.wrap(Buffer.from(UTF8_BOM));
-						case UTF16be:
-							return VSBuffer.wrap(Buffer.from(UTF16be_BOM));
-						case UTF16le:
-							return VSBuffer.wrap(Buffer.from(UTF16le_BOM));
-					}
-				}
-
-				const leftovers = encoder.end();
-				if (!isUndefined(leftovers) && leftovers.length > 0) {
-					return VSBuffer.wrap(leftovers);
-				}
-
-				return null;
-			}
-
-			bytesRead += chunk.length;
-
-			return VSBuffer.wrap(encoder.write(chunk));
-		}
-	};
 }
 
 export function encodingExists(encoding: string): boolean {
 	return iconv.encodingExists(toNodeEncoding(encoding));
+}
+
+function decodeStream(encoding: string | null): NodeJS.ReadWriteStream {
+	return iconv.decodeStream(toNodeEncoding(encoding));
+}
+
+export function encodeStream(encoding: string, options?: { addBOM?: boolean }): NodeJS.ReadWriteStream {
+	return iconv.encodeStream(toNodeEncoding(encoding), options);
 }
 
 export function toNodeEncoding(enc: string | null): string {

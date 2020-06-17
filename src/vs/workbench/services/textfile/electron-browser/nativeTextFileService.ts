@@ -17,15 +17,16 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, UTF8_BOM, toDecodeStream, toEncodeReadable, IDecodeStreamResult, detectEncodingByBOMFromBuffer } from 'vs/base/node/encoding';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, encodeStream, UTF8_BOM, toDecodeStream, IDecodeStreamResult, detectEncodingByBOMFromBuffer, isUTFEncoding } from 'vs/base/node/encoding';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { joinPath, extname, isEqualOrParent } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { bufferToStream, VSBufferReadable } from 'vs/base/common/buffer';
+import { VSBufferReadable, bufferToStream } from 'vs/base/common/buffer';
+import { Readable } from 'stream';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextSnapshot } from 'vs/editor/common/model';
-import { consumeStream } from 'vs/base/common/stream';
+import { nodeReadableToString, streamToNodeReadable, nodeStreamToVSBufferReadable } from 'vs/base/node/stream';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -88,7 +89,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		return {
 			...bufferStream,
 			encoding: decoder.detected.encoding || UTF8,
-			value: await consumeStream(decoder.stream, strings => strings.join(''))
+			value: await nodeReadableToString(decoder.stream)
 		};
 	}
 
@@ -120,7 +121,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 
 		// read through encoding library
-		const decoder = await toDecodeStream(bufferStream.value, {
+		const decoder = await toDecodeStream(streamToNodeReadable(bufferStream.value), {
 			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
 			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
 		});
@@ -231,8 +232,37 @@ export class NativeTextFileService extends AbstractTextFileService {
 	}
 
 	private getEncodedReadable(value: string | ITextSnapshot, encoding: string, addBOM: boolean): VSBufferReadable {
-		const snapshot = typeof value === 'string' ? stringToSnapshot(value) : value;
-		return toEncodeReadable(snapshot, encoding, { addBOM });
+		const readable = this.snapshotToNodeReadable(typeof value === 'string' ? stringToSnapshot(value) : value);
+		const encoder = encodeStream(encoding, { addBOM });
+
+		const encodedReadable = readable.pipe(encoder);
+
+		return nodeStreamToVSBufferReadable(encodedReadable, addBOM && isUTFEncoding(encoding) ? { encoding } : undefined);
+	}
+
+	private snapshotToNodeReadable(snapshot: ITextSnapshot): Readable {
+		return new Readable({
+			read: function () {
+				try {
+					let chunk: string | null = null;
+					let canPush = true;
+
+					// Push all chunks as long as we can push and as long as
+					// the underlying snapshot returns strings to us
+					while (canPush && typeof (chunk = snapshot.read()) === 'string') {
+						canPush = this.push(chunk);
+					}
+
+					// Signal EOS by pushing NULL
+					if (typeof chunk !== 'string') {
+						this.push(null);
+					}
+				} catch (error) {
+					this.emit('error', error);
+				}
+			},
+			encoding: UTF8 // very important, so that strings are passed around and not buffers!
+		});
 	}
 
 	private async writeElevated(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
