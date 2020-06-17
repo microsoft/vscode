@@ -11,32 +11,50 @@ import * as dom from 'vs/base/browser/dom';
 const MAX_MESSAGE_LENGTH = 20000;
 let ariaContainer: HTMLElement;
 let alertContainer: HTMLElement;
+let alertContainer2: HTMLElement;
 let statusContainer: HTMLElement;
+let statusContainer2: HTMLElement;
 export function setARIAContainer(parent: HTMLElement) {
 	ariaContainer = document.createElement('div');
 	ariaContainer.className = 'monaco-aria-container';
 
-	alertContainer = document.createElement('div');
-	alertContainer.className = 'monaco-alert';
-	alertContainer.setAttribute('role', 'alert');
-	alertContainer.setAttribute('aria-atomic', 'true');
-	ariaContainer.appendChild(alertContainer);
+	const createAlertContainer = () => {
+		const element = document.createElement('div');
+		element.className = 'monaco-alert';
+		element.setAttribute('role', 'alert');
+		element.setAttribute('aria-atomic', 'true');
+		ariaContainer.appendChild(element);
+		return element;
+	};
+	alertContainer = createAlertContainer();
+	alertContainer2 = createAlertContainer();
 
-	statusContainer = document.createElement('div');
-	statusContainer.className = 'monaco-status';
-	statusContainer.setAttribute('role', 'complementary');
-	statusContainer.setAttribute('aria-live', 'polite');
-	statusContainer.setAttribute('aria-atomic', 'true');
-	ariaContainer.appendChild(statusContainer);
+	const createStatusContainer = () => {
+		const element = document.createElement('div');
+		element.className = 'monaco-status';
+		element.setAttribute('role', 'complementary');
+		element.setAttribute('aria-live', 'polite');
+		element.setAttribute('aria-atomic', 'true');
+		ariaContainer.appendChild(element);
+		return element;
+	};
+	statusContainer = createStatusContainer();
+	statusContainer2 = createStatusContainer();
 
 	parent.appendChild(ariaContainer);
 }
-
 /**
  * Given the provided message, will make sure that it is read as alert to screen readers.
  */
 export function alert(msg: string): void {
-	insertMessage(alertContainer, msg);
+	// Use alternate containers such that duplicated messages get read out by screen readers #99466
+	if (alertContainer.textContent !== msg) {
+		dom.clearNode(alertContainer2);
+		insertMessage(alertContainer, msg);
+	} else {
+		dom.clearNode(alertContainer);
+		insertMessage(alertContainer2, msg);
+	}
 }
 
 /**
@@ -46,7 +64,13 @@ export function status(msg: string): void {
 	if (isMacintosh) {
 		alert(msg); // VoiceOver does not seem to support status role
 	} else {
-		insertMessage(statusContainer, msg);
+		if (statusContainer.textContent !== msg) {
+			dom.clearNode(statusContainer2);
+			insertMessage(statusContainer, msg);
+		} else {
+			dom.clearNode(statusContainer);
+			insertMessage(statusContainer2, msg);
+		}
 	}
 }
 
