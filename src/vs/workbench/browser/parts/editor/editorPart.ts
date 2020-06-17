@@ -9,7 +9,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, $, EventHelper, addDisposableGenericMouseDownListner } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
@@ -123,8 +123,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private readonly workspaceMemento: MementoObject;
 	private readonly globalMemento: MementoObject;
 
-	private _partOptions: IEditorPartOptions;
-
 	private readonly groupViews = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
@@ -148,8 +146,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		super(Parts.EDITOR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.gridWidgetView = new GridWidgetView<IEditorGroupView>();
-
-		this._partOptions = getEditorPartOptions(this.configurationService, this.themeService);
 
 		this.workspaceMemento = this.getMemento(StorageScope.WORKSPACE);
 		this.globalMemento = this.getMemento(StorageScope.GLOBAL);
@@ -187,9 +183,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private enforcedPartOptions: IEditorPartOptions[] = [];
 
-	get partOptions(): IEditorPartOptions {
-		return this._partOptions;
-	}
+	private _partOptions = getEditorPartOptions(this.configurationService, this.themeService);
+	get partOptions(): IEditorPartOptions { return this._partOptions; }
 
 	enforcePartOptions(options: IEditorPartOptions): IDisposable {
 		this.enforcedPartOptions.push(options);
@@ -749,12 +744,12 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		sourceView.editors.forEach(editor => {
 			const inactive = !sourceView.isActive(editor) || this._activeGroup !== sourceView;
 			const sticky = sourceView.isSticky(editor);
-			const copyOptions: ICopyEditorOptions = { index: !sticky ? index : undefined, inactive, preserveFocus: inactive };
+			const editorOptions = { index: !sticky ? index : undefined /* do not set index to preserve sticky flag */, inactive, preserveFocus: inactive };
 
 			if (options?.mode === MergeGroupMode.COPY_EDITORS) {
-				sourceView.copyEditor(editor, targetView, copyOptions);
+				sourceView.copyEditor(editor, targetView, editorOptions);
 			} else {
-				sourceView.moveEditor(editor, targetView, copyOptions);
+				sourceView.moveEditor(editor, targetView, editorOptions);
 			}
 
 			index++;
