@@ -748,7 +748,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		let index = (options && typeof options.index === 'number') ? options.index : targetView.count;
 		sourceView.editors.forEach(editor => {
 			const inactive = !sourceView.isActive(editor) || this._activeGroup !== sourceView;
-			const copyOptions: ICopyEditorOptions = { index, inactive, preserveFocus: inactive };
+			const sticky = sourceView.isSticky(editor);
+			const copyOptions: ICopyEditorOptions = { index: !sticky ? index : undefined, inactive, preserveFocus: inactive };
 
 			if (options?.mode === MergeGroupMode.COPY_EDITORS) {
 				sourceView.copyEditor(editor, targetView, copyOptions);
