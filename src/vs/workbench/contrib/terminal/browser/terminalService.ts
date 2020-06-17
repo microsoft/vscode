@@ -14,7 +14,7 @@ import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { ITerminalService, ITerminalInstance, ITerminalTab, TerminalShellType, WindowsShellType, TerminalLinkHandlerCallback, LINK_INTERCEPT_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService, ITerminalInstance, ITerminalTab, TerminalShellType, WindowsShellType, TerminalLinkHandlerCallback, LINK_INTERCEPT_THRESHOLD, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
@@ -54,6 +54,7 @@ export class TerminalService implements ITerminalService {
 	private _extHostsReady: { [authority: string]: IExtHostReadyEntry | undefined } = {};
 	private _activeTabIndex: number;
 	private _linkHandlers: { [key: string]: TerminalLinkHandlerCallback } = {};
+	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
@@ -84,6 +85,8 @@ export class TerminalService implements ITerminalService {
 	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
 	private readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance>();
 	public get onInstanceTitleChanged(): Event<ITerminalInstance> { return this._onInstanceTitleChanged.event; }
+	private readonly _onInstanceXtermReady = new Emitter<ITerminalInstance>();
+	public get onInstanceXtermReady(): Event<ITerminalInstance> { return this._onInstanceXtermReady.event; }
 	private readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
 	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	private readonly _onTabDisposed = new Emitter<ITerminalTab>();
@@ -128,6 +131,7 @@ export class TerminalService implements ITerminalService {
 			const instance = this.getActiveInstance();
 			this._onActiveInstanceChanged.fire(instance ? instance : undefined);
 		});
+		this.onInstanceXtermReady(instance => this._setInstanceLinkProviders(instance));
 
 		this._handleContextKeys();
 	}
@@ -478,6 +482,35 @@ export class TerminalService implements ITerminalService {
 		};
 	}
 
+	public registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable {
+		// TODO: Register it from the main thread class
+		const disposables: IDisposable[] = [];
+		this._linkProviders.add(linkProvider);
+		for (const instance of this.terminalInstances) {
+			// Only register immediately when xterm is ready
+			if (instance.isXtermReady) {
+				disposables.push(instance.registerLinkProvider(linkProvider));
+			}
+		}
+		console.log('registerLinkProvider register');
+		return {
+			dispose: () => {
+				console.log('registerLinkProvider dispose');
+				// TODO: Remove from xterm instances
+				for (const disposable of disposables) {
+					disposable.dispose();
+				}
+				this._linkProviders.delete(linkProvider);
+			}
+		};
+	}
+
+	private _setInstanceLinkProviders(instance: ITerminalInstance): void {
+		for (const linkProvider of this._linkProviders) {
+			instance.registerLinkProvider(linkProvider);
+		}
+	}
+
 	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined {
 		return find(this._terminalTabs, tab => tab.terminalInstances.indexOf(instance) !== -1);
 	}
@@ -628,6 +661,7 @@ export class TerminalService implements ITerminalService {
 	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		const instance = this._instantiationService.createInstance(TerminalInstance, this._terminalFocusContextKey, this._terminalShellTypeContextKey, this._configHelper, container, shellLaunchConfig);
 		this._onInstanceCreated.fire(instance);
+		instance.xtermReady.then(() => this._onInstanceXtermReady.fire(instance));
 		return instance;
 	}
 

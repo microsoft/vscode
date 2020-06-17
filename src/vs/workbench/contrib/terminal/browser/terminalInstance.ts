@@ -30,7 +30,7 @@ import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGR
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance, TerminalShellType, WindowsShellType, ITerminalBeforeHandleLinkEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalInstance, TerminalShellType, WindowsShellType, ITerminalBeforeHandleLinkEvent, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
@@ -127,6 +127,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// TODO: How does this work with detached processes?
 	// TODO: Should this be an event as it can fire twice?
 	public get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
+	public get isXtermReady(): boolean { return !!this._xterm; }
+	public get xtermReady(): Promise<void> { return this._xtermReadyPromise.then(() => { }); }
 	public get exitCode(): number | undefined { return this._exitCode; }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
@@ -1491,6 +1493,41 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public getCwd(): Promise<string> {
 		return this._processManager.getCwd();
+	}
+
+
+	public registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable {
+		if (!this._xterm) {
+			throw new Error('TerminalInstance.registerLinkProvider before xterm was created');
+		}
+		// TODO: Convert into TerminalBaseLinkProvider
+		const xterm = this._xterm;
+		const instance = this;
+		console.log('TerminalInstance.registerLinkProvider');
+		return xterm.registerLinkProvider({
+			async provideLinks(bufferLineNumber, callback) {
+				console.log('TerminalInstance provideLinks');
+				// TODO: Get and handle the full wrapped line
+				const bufferLine = xterm.buffer.active.getLine(bufferLineNumber - 1);
+				if (!bufferLine) {
+					return callback(undefined);
+				}
+				const lineString = bufferLine.translateToString();
+				const lineLinks = await provider.provideLinks(instance, lineString);
+				if (!lineLinks) {
+					return callback(undefined);
+				}
+				console.log('  result', lineLinks);
+				callback(lineLinks.map(l => ({
+					range: {
+						start: { x: l.startIndex, y: bufferLineNumber },
+						end: { x: l.startIndex + l.length, y: bufferLineNumber }
+					},
+					text: lineString.substr(l.startIndex, l.length),
+					activate: (_, text) => console.log('Activated! ' + text)
+				})));
+			}
+		});
 	}
 }
 

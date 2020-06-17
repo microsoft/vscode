@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto, ITerminalLinkDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -333,6 +333,23 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
 			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
 		});
+
+		this.registerLinkProvider({
+			provideTerminalLinks(ctx) {
+				const links: vscode.TerminalLink[] = [
+					{
+						startIndex: 0,
+						length: 10,
+						tooltip: `Open this custom "${ctx.line.substr(0, 10)}" link`
+					}
+				];
+				return links;
+			},
+			handleTerminalLink(link) {
+				// TODO: Pass provider ID back to ext host so it can trigger activate/handle
+				return false;
+			}
+		});
 	}
 
 	public abstract createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
@@ -562,13 +579,13 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 	public registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable {
 		this._linkProviders.add(provider);
-		if (this._linkProviders.size === 1 && this._linkHandlers.size === 0) {
-			this._proxy.$startHandlingLinks();
+		if (this._linkProviders.size === 1) {
+			this._proxy.$startLinkProvider();
 		}
 		return new VSCodeDisposable(() => {
 			this._linkProviders.delete(provider);
-			if (this._linkProviders.size === 0 && this._linkHandlers.size === 0) {
-				this._proxy.$stopHandlingLinks();
+			if (this._linkProviders.size === 0) {
+				this._proxy.$stopLinkProvider();
 			}
 		});
 	}
@@ -590,6 +607,35 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			next = it.next();
 		}
 		return false;
+	}
+
+	public async $provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]> {
+		const terminal = this._getTerminalById(id);
+		if (!terminal) {
+			return [];
+		}
+
+		// TODO: Store link activate callback
+		// TODO: Discard of links when appropriate
+		const result: ITerminalLinkDto[] = [];
+		const context: vscode.TerminalLinkContext = { terminal, line };
+		const promises: vscode.ProviderResult<vscode.TerminalLink[]>[] = [];
+		for (const provider of this._linkProviders) {
+			promises.push(provider.provideTerminalLinks(context));
+		}
+
+		const allProviderLinks = await Promise.all(promises);
+		for (const providerLinks of allProviderLinks) {
+			if (providerLinks && providerLinks.length > 0) {
+				result.push(...providerLinks.map(l => ({
+					startIndex: l.startIndex,
+					length: l.length,
+					label: l.tooltip
+				})));
+			}
+		}
+
+		return result;
 	}
 
 	private _onProcessExit(id: number, exitCode: number | undefined): void {
