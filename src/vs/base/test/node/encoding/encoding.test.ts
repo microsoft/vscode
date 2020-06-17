@@ -23,7 +23,7 @@ export async function detectEncodingByBOM(file: string): Promise<typeof encoding
 }
 
 interface ReadResult {
-	buffer: Buffer | null;
+	buffer: VSBuffer | null;
 	bytesRead: number;
 }
 
@@ -44,7 +44,7 @@ function readExactlyByFile(file: string, totalBytes: number): Promise<ReadResult
 						return reject(err); // we want to bubble this error up (file is actually a folder)
 					}
 
-					return resolve({ buffer: resultBuffer, bytesRead });
+					return resolve({ buffer: resultBuffer ? VSBuffer.wrap(resultBuffer) : null, bytesRead });
 				});
 			}
 

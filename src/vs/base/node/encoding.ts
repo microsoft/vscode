@@ -55,7 +55,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 
 				// detect encoding from buffer
 				const detected = await detectEncodingFromBuffer({
-					buffer: Buffer.from(VSBuffer.concat(bufferedChunks).buffer),
+					buffer: VSBuffer.concat(bufferedChunks),
 					bytesRead: bytesBuffered
 				}, options.guessEncoding);
 
@@ -64,9 +64,11 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 
 				// decode and write buffered content
 				decoder = iconv.getDecoder(toNodeEncoding(detected.encoding));
-				const nodeBuffer = Buffer.from(VSBuffer.concat(bufferedChunks).buffer);
-				target.write(decoder.write(nodeBuffer));
+				const decoded = decoder.write(Buffer.from(VSBuffer.concat(bufferedChunks).buffer));
+				target.write(decoded);
+
 				bufferedChunks.length = 0;
+				bytesBuffered = 0;
 
 				// signal to the outside our detected encoding and final decoder stream
 				resolve({
@@ -147,11 +149,11 @@ export function toEncodeReadable(readable: Readable<string>, encoding: string, o
 					switch (encoding) {
 						case UTF8:
 						case UTF8_with_bom:
-							return VSBuffer.wrap(Buffer.from(UTF8_BOM));
+							return VSBuffer.wrap(Uint8Array.from(UTF8_BOM));
 						case UTF16be:
-							return VSBuffer.wrap(Buffer.from(UTF16be_BOM));
+							return VSBuffer.wrap(Uint8Array.from(UTF16be_BOM));
 						case UTF16le:
-							return VSBuffer.wrap(Buffer.from(UTF16le_BOM));
+							return VSBuffer.wrap(Uint8Array.from(UTF16le_BOM));
 					}
 				}
 
@@ -182,7 +184,7 @@ export function toNodeEncoding(enc: string | null): string {
 	return enc;
 }
 
-export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, bytesRead: number): typeof UTF8_with_bom | typeof UTF16le | typeof UTF16be | null {
+export function detectEncodingByBOMFromBuffer(buffer: VSBuffer | null, bytesRead: number): typeof UTF8_with_bom | typeof UTF16le | typeof UTF16be | null {
 	if (!buffer || bytesRead < UTF16be_BOM.length) {
 		return null;
 	}
@@ -224,10 +226,10 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-16', 'utf-32'];
 /**
  * Guesses the encoding from buffer.
  */
-async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
+async function guessEncodingByBuffer(buffer: VSBuffer): Promise<string | null> {
 	const jschardet = await import('jschardet');
 
-	const guessed = jschardet.detect(buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES)); // ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
+	const guessed = jschardet.detect(Buffer.from(buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES).buffer)); // ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}
@@ -295,7 +297,7 @@ export interface IDetectedEncodingResult {
 }
 
 export interface IReadResult {
-	buffer: Buffer | null;
+	buffer: VSBuffer | null;
 	bytesRead: number;
 }
 
@@ -322,7 +324,7 @@ export function detectEncodingFromBuffer({ buffer, bytesRead }: IReadResult, aut
 		// that is using 4 bytes to encode a character).
 		for (let i = 0; i < bytesRead && i < ZERO_BYTE_DETECTION_BUFFER_MAX_LEN; i++) {
 			const isEndian = (i % 2 === 1); // assume 2-byte sequences typical for UTF-16
-			const isZeroByte = (buffer.readInt8(i) === 0);
+			const isZeroByte = (buffer.readUInt8(i) === 0);
 
 			if (isZeroByte) {
 				containsZeroByte = true;
