@@ -5,6 +5,7 @@
 
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -12,12 +13,12 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
+import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
-import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
+import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isWeb } from 'vs/base/common/platform';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Webview {
 	private readonly _portMappingManager: WebviewPortMappingManager;
@@ -32,17 +33,18 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService environementService: IEnvironmentService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
-		super(id, options, contentOptions, extension, webviewThemeDataProvider, telemetryService, environementService, workbenchEnvironmentService);
+		super(id, options, contentOptions, extension, webviewThemeDataProvider, telemetryService, environmentService, _workbenchEnvironmentService);
 
-		if (!this.useExternalEndpoint && (!workbenchEnvironmentService.options || typeof workbenchEnvironmentService.webviewExternalEndpoint !== 'string')) {
+		if (!this.useExternalEndpoint && (!_workbenchEnvironmentService.options || typeof _workbenchEnvironmentService.webviewExternalEndpoint !== 'string')) {
 			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewExternalEndpoint`');
 		}
 
 		this._portMappingManager = this._register(new WebviewPortMappingManager(
-			() => this.extension ? this.extension.location : undefined,
+			() => this.extension?.location,
 			() => this.content.options.portMapping || [],
 			tunnelService
 		));
@@ -156,7 +158,9 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	private async localLocalhost(origin: string) {
-		const redirect = await this._portMappingManager.getRedirect(origin);
+		const authority = this._workbenchEnvironmentService.configuration.remoteAuthority;
+		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
+		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
 		return this._send('did-load-localhost', {
 			origin,
 			location: redirect

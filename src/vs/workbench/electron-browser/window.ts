@@ -64,6 +64,7 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 import { Event } from 'vs/base/common/event';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export class NativeWindow extends Disposable {
 
@@ -107,7 +108,8 @@ export class NativeWindow extends Disposable {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
 		super();
 
@@ -471,7 +473,8 @@ export class NativeWindow extends Disposable {
 				if (options?.allowTunneling) {
 					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
 					if (portMappingRequest) {
-						const tunnel = await this.tunnelService.openTunnel(undefined, portMappingRequest.port);
+						const resolvedRemote = this.environmentService.configuration.remoteAuthority ? await this.remoteAuthorityResolverService.resolveAuthority(this.environmentService.configuration.remoteAuthority) : undefined;
+						const tunnel = await this.tunnelService.openTunnel(resolvedRemote?.authority, undefined, portMappingRequest.port);
 						if (tunnel) {
 							return {
 								resolved: uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` }),

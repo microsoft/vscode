@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FindInPageOptions, OnBeforeRequestListenerDetails, OnHeadersReceivedListenerDetails, Response, WebContents, WebviewTag } from 'electron';
+import { FindInPageOptions, WebviewTag } from 'electron';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { equals } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -20,125 +20,54 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
 
-class WebviewTagHandle extends Disposable {
+class WebviewResourceRequestManager extends Disposable {
 
-	private _webContents: undefined | WebContents | 'destroyed';
-
-	public constructor(
-		public readonly webview: WebviewTag,
-	) {
-		super();
-
-		this._register(addDisposableListener(this.webview, 'destroyed', () => {
-			this._webContents = 'destroyed';
-		}));
-
-		this._register(addDisposableListener(this.webview, 'did-start-loading', once(() => {
-			const contents = this.webContents;
-			if (contents) {
-				this._onFirstLoad.fire(contents);
-				this._register(toDisposable(() => {
-					contents.removeAllListeners();
-				}));
-			}
-		})));
-	}
-
-	private readonly _onFirstLoad = this._register(new Emitter<WebContents>());
-	public readonly onFirstLoad = this._onFirstLoad.event;
-
-	public get webContents(): WebContents | undefined {
-		if (this._webContents === 'destroyed') {
-			return undefined;
-		}
-		if (this._webContents) {
-			return this._webContents;
-		}
-		this._webContents = this.webview.getWebContents();
-		return this._webContents;
-	}
-}
-
-type OnBeforeRequestDelegate = (details: OnBeforeRequestListenerDetails) => Promise<Response | undefined>;
-type OnHeadersReceivedDelegate = (details: OnHeadersReceivedListenerDetails) => { cancel: boolean; } | undefined;
-
-class WebviewSession extends Disposable {
-
-	private readonly _onBeforeRequestDelegates: Array<OnBeforeRequestDelegate> = [];
-	private readonly _onHeadersReceivedDelegates: Array<OnHeadersReceivedDelegate> = [];
-
-	public constructor(
-		webviewHandle: WebviewTagHandle,
-	) {
-		super();
-
-		this._register(webviewHandle.onFirstLoad(contents => {
-			contents.session.webRequest.onBeforeRequest(async (details, callback) => {
-				for (const delegate of this._onBeforeRequestDelegates) {
-					const result = await delegate(details);
-					if (typeof result !== 'undefined') {
-						callback(result);
-						return;
-					}
-				}
-				callback({});
-			});
-
-			contents.session.webRequest.onHeadersReceived((details, callback) => {
-				for (const delegate of this._onHeadersReceivedDelegates) {
-					const result = delegate(details);
-					if (typeof result !== 'undefined') {
-						callback(result);
-						return;
-					}
-				}
-				callback({ cancel: false });
-			});
-		}));
-	}
-
-	public onBeforeRequest(delegate: OnBeforeRequestDelegate) {
-		this._onBeforeRequestDelegates.push(delegate);
-	}
-
-	public onHeadersReceived(delegate: OnHeadersReceivedDelegate) {
-		this._onHeadersReceivedDelegates.push(delegate);
-	}
-}
-
-class WebviewProtocolProvider extends Disposable {
-
-	private _ready?: Promise<void>;
+	private readonly _webviewManagerService: IWebviewManagerService;
 
 	private _localResourceRoots: ReadonlyArray<URI>;
+	private _portMappings: ReadonlyArray<modes.IWebviewPortMapping>;
+
+	private _ready?: Promise<void>;
 
 	constructor(
 		private readonly id: string,
 		private readonly extension: WebviewExtensionDescription | undefined,
-		initialLocalResourceRoots: ReadonlyArray<URI>,
-		private readonly _webviewManagerService: IWebviewManagerService,
-		remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		environmentService: IWorkbenchEnvironmentService,
+		webview: WebviewTag,
+		initialContentOptions: WebviewContentOptions,
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IMainProcessService mainProcessService: IMainProcessService,
 	) {
 		super();
 
-		this._localResourceRoots = initialLocalResourceRoots;
+		this._webviewManagerService = createChannelSender<IWebviewManagerService>(mainProcessService.getChannel('webview'));
+
+		this._localResourceRoots = initialContentOptions.localResourceRoots || [];
+		this._portMappings = initialContentOptions.portMapping || [];
 
 		const remoteAuthority = environmentService.configuration.remoteAuthority;
-		this._ready = _webviewManagerService.registerWebview(this.id, {
-			extensionLocation: this.extension?.location.toJSON(),
-			localResourceRoots: initialLocalResourceRoots.map(x => x.toJSON()),
-			remoteConnectionData: remoteAuthority ? remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null,
+		const remoteConnectionData = remoteAuthority ? remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
+
+		this._ready = new Promise(resolve => {
+			this._register(addDisposableListener(webview!, 'did-start-loading', once(() => {
+				const webContentsId = webview.getWebContentsId();
+
+				this._webviewManagerService.registerWebview(this.id, webContentsId, {
+					extensionLocation: this.extension?.location.toJSON(),
+					localResourceRoots: this._localResourceRoots.map(x => x.toJSON()),
+					remoteConnectionData: remoteConnectionData,
+					portMappings: this._portMappings,
+				}).finally(() => resolve());
+			})));
 		});
 
 		if (remoteAuthority) {
@@ -153,39 +82,30 @@ class WebviewProtocolProvider extends Disposable {
 		this._register(toDisposable(() => this._webviewManagerService.unregisterWebview(this.id)));
 	}
 
-	public update(localResourceRoots: ReadonlyArray<URI>) {
-		if (equals(this._localResourceRoots, localResourceRoots, (a, b) => a.toString() === b.toString())) {
+	public update(options: WebviewContentOptions) {
+		const localResourceRoots = options.localResourceRoots || [];
+		const portMappings = options.portMapping || [];
+
+		if (
+			equals(this._localResourceRoots, localResourceRoots, (a, b) => a.toString() === b.toString())
+			&& equals(this._portMappings, portMappings, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)
+		) {
 			return;
 		}
 
 		this._localResourceRoots = localResourceRoots;
+		this._portMappings = portMappings;
 
 		const update = this._webviewManagerService.updateWebviewMetadata(this.id, {
 			localResourceRoots: localResourceRoots.map(x => x.toJSON()),
+			portMappings: portMappings,
 		});
+
 		this._ready = this._ready?.then(() => update);
 	}
 
 	async synchronize(): Promise<void> {
 		return this._ready;
-	}
-}
-
-class WebviewPortMappingProvider extends Disposable {
-
-	constructor(
-		session: WebviewSession,
-		getExtensionLocation: () => URI | undefined,
-		mappings: () => ReadonlyArray<modes.IWebviewPortMapping>,
-		tunnelService: ITunnelService,
-	) {
-		super();
-		const manager = this._register(new WebviewPortMappingManager(getExtensionLocation, mappings, tunnelService));
-
-		session.onBeforeRequest(async details => {
-			const redirect = await manager.getRedirect(details.url);
-			return redirect ? { redirectURL: redirect } : undefined;
-		});
 	}
 }
 
@@ -266,7 +186,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private _webviewFindWidget: WebviewFindWidget | undefined;
 	private _findStarted: boolean = false;
 
-	private readonly _protocolProvider: WebviewProtocolProvider;
+	private readonly _resourceRequestManager: WebviewResourceRequestManager;
 
 	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
 	private _elementFocusImpl!: (options?: FocusOptions | undefined) => void;
@@ -280,29 +200,15 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		extension: WebviewExtensionDescription | undefined,
 		private readonly _webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITunnelService tunnelService: ITunnelService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService environementService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
-		super(id, options, contentOptions, extension, _webviewThemeDataProvider, telemetryService, environementService, workbenchEnvironmentService);
+		super(id, options, contentOptions, extension, _webviewThemeDataProvider, telemetryService, environmentService, workbenchEnvironmentService);
 
-		const webviewManagerService = createChannelSender<IWebviewManagerService>(mainProcessService.getChannel('webview'));
-
-		const webviewAndContents = this._register(new WebviewTagHandle(this.element!));
-		const session = this._register(new WebviewSession(webviewAndContents));
-
-		this._protocolProvider = this._register(new WebviewProtocolProvider(id, extension, this.content.options.localResourceRoots || [], webviewManagerService, remoteAuthorityResolverService, workbenchEnvironmentService));
-
-		this._register(new WebviewPortMappingProvider(
-			session,
-			() => this.extension ? this.extension.location : undefined,
-			() => (this.content.options.portMapping || []),
-			tunnelService,
-		));
+		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.element!, this.content.options));
 
 		this._register(addDisposableListener(this.element!, 'did-start-loading', once(() => {
 			this._register(ElectronWebviewBasedWebview.getWebviewKeyboardHandler(configurationService, mainProcessService).add(this.element!));
@@ -370,6 +276,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		element.focus = () => {
 			this.doFocus();
 		};
+		element.setAttribute('partition', webviewPartitionId);
 		element.setAttribute('webpreferences', 'contextIsolation=yes');
 		element.className = `webview ${options.customClasses || ''}`;
 
@@ -385,12 +292,15 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	}
 
 	public set contentOptions(options: WebviewContentOptions) {
-		this._protocolProvider.update(options.localResourceRoots || []);
+		this._resourceRequestManager.update(options);
 		super.contentOptions = options;
 	}
 
 	public set localResourcesRoot(resources: URI[]) {
-		this._protocolProvider.update(resources || []);
+		this._resourceRequestManager.update({
+			...this.contentOptions,
+			localResourceRoots: resources,
+		});
 		super.localResourcesRoot = resources;
 	}
 
@@ -428,7 +338,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 	protected async doPostMessage(channel: string, data?: any): Promise<void> {
 		this._messagePromise = this._messagePromise
-			.then(() => this._protocolProvider.synchronize())
+			.then(() => this._resourceRequestManager.synchronize())
 			.then(() => this.element?.send(channel, data));
 	}
 

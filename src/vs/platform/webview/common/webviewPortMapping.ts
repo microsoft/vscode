@@ -3,36 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import * as modes from 'vs/editor/common/modes';
+import { IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { ITunnelService, RemoteTunnel, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
+import { extractLocalHostUriMetaDataForPortMapping, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 
-export class WebviewPortMappingManager extends Disposable {
+export interface IWebviewPortMapping {
+	webviewPort: number;
+	extensionHostPort: number;
+}
+
+/**
+ * Manages port mappings for a single webview.
+ */
+export class WebviewPortMappingManager implements IDisposable {
 
 	private readonly _tunnels = new Map<number, Promise<RemoteTunnel>>();
 
 	constructor(
-		private readonly getExtensionLocation: () => URI | undefined,
-		private readonly mappings: () => ReadonlyArray<modes.IWebviewPortMapping>,
+		private readonly _getExtensionLocation: () => URI | undefined,
+		private readonly _getMappings: () => readonly IWebviewPortMapping[],
 		private readonly tunnelService: ITunnelService
-	) {
-		super();
-	}
+	) { }
 
-	public async getRedirect(url: string): Promise<string | undefined> {
+	public async getRedirect(resolveAuthority: IAddress, url: string): Promise<string | undefined> {
 		const uri = URI.parse(url);
 		const requestLocalHostInfo = extractLocalHostUriMetaDataForPortMapping(uri);
 		if (!requestLocalHostInfo) {
 			return undefined;
 		}
 
-		for (const mapping of this.mappings()) {
+		for (const mapping of this._getMappings()) {
 			if (mapping.webviewPort === requestLocalHostInfo.port) {
-				const extensionLocation = this.getExtensionLocation();
+				const extensionLocation = this._getExtensionLocation();
 				if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
-					const tunnel = await this.getOrCreateTunnel(mapping.extensionHostPort);
+					const tunnel = await this.getOrCreateTunnel(resolveAuthority, mapping.extensionHostPort);
 					if (tunnel) {
 						if (tunnel.tunnelLocalPort === mapping.webviewPort) {
 							return undefined;
@@ -55,20 +61,18 @@ export class WebviewPortMappingManager extends Disposable {
 	}
 
 	dispose() {
-		super.dispose();
-
 		for (const tunnel of this._tunnels.values()) {
 			tunnel.then(tunnel => tunnel.dispose());
 		}
 		this._tunnels.clear();
 	}
 
-	private getOrCreateTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {
+	private getOrCreateTunnel(remoteAuthority: IAddress, remotePort: number): Promise<RemoteTunnel> | undefined {
 		const existing = this._tunnels.get(remotePort);
 		if (existing) {
 			return existing;
 		}
-		const tunnel = this.tunnelService.openTunnel(undefined, remotePort);
+		const tunnel = this.tunnelService.openTunnel(remoteAuthority, undefined, remotePort);
 		if (tunnel) {
 			this._tunnels.set(remotePort, tunnel);
 		}
