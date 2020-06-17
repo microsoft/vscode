@@ -13,6 +13,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { joinPath } from 'vs/base/common/resources';
+import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 class TestUserDataAutoSyncService extends UserDataAutoSyncService {
 	protected startAutoSync(): boolean { return false; }
@@ -269,6 +270,61 @@ suite('UserDataAutoSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 			// Machine
 			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: { 'If-None-Match': '1' } },
+		]);
+	});
+
+	test('test disabling the machine turns off sync', async () => {
+		const target = new UserDataSyncTestServer();
+
+		// Set up and sync from the test client
+		const testClient = disposableStore.add(new UserDataSyncClient(target));
+		await testClient.setUp();
+		const testObject: TestUserDataAutoSyncService = testClient.instantiationService.createInstance(TestUserDataAutoSyncService);
+		await testObject.sync();
+
+		// Disable current machine
+		const userDataSyncMachinesService = testClient.instantiationService.get(IUserDataSyncMachinesService);
+		const machines = await userDataSyncMachinesService.getMachines();
+		const currentMachine = machines.find(m => m.isCurrent)!;
+		await userDataSyncMachinesService.setEnablement(currentMachine.id, false);
+
+		target.reset();
+
+		const errorPromise = Event.toPromise(testObject.onError);
+		await testObject.sync();
+
+		const e = await errorPromise;
+		assert.ok(e instanceof UserDataAutoSyncError);
+		assert.deepEqual((<UserDataAutoSyncError>e).code, UserDataSyncErrorCode.TurnedOff);
+		assert.deepEqual(target.requests, [
+			// Manifest
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Machine
+			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: { 'If-None-Match': '2' } },
+			{ type: 'POST', url: `${target.url}/v1/resource/machines`, headers: { 'If-Match': '2' } },
+		]);
+	});
+
+	test('test removing the machine adds machine back', async () => {
+		const target = new UserDataSyncTestServer();
+
+		// Set up and sync from the test client
+		const testClient = disposableStore.add(new UserDataSyncClient(target));
+		await testClient.setUp();
+		const testObject: TestUserDataAutoSyncService = testClient.instantiationService.createInstance(TestUserDataAutoSyncService);
+		await testObject.sync();
+
+		// Remove current machine
+		await testClient.instantiationService.get(IUserDataSyncMachinesService).removeCurrentMachine();
+
+		target.reset();
+
+		await testObject.sync();
+		assert.deepEqual(target.requests, [
+			// Manifest
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Machine
+			{ type: 'POST', url: `${target.url}/v1/resource/machines`, headers: { 'If-Match': '2' } },
 		]);
 	});
 
