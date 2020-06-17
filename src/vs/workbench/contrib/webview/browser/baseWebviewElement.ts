@@ -244,7 +244,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	public reload(): void {
-		this.doUpdateContent();
+		this.doUpdateContent(this.content);
+
 		const subscription = this._register(this.on(WebviewMessageChannels.didLoad, () => {
 			this._onDidReload.fire();
 			subscription.dispose();
@@ -252,12 +253,11 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	public set html(value: string) {
-		this.content = {
+		this.doUpdateContent({
 			html: value,
 			options: this.content.options,
 			state: this.content.state,
-		};
-		this.doUpdateContent();
+		});
 	}
 
 	public set contentOptions(options: WebviewContentOptions) {
@@ -268,12 +268,11 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			return;
 		}
 
-		this.content = {
+		this.doUpdateContent({
 			html: this.content.html,
 			options: options,
 			state: this.content.state,
-		};
-		this.doUpdateContent();
+		});
 	}
 
 	public set localResourcesRoot(resources: URI[]) {
@@ -292,8 +291,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._send('initial-scroll-position', value);
 	}
 
-	private doUpdateContent() {
+	private doUpdateContent(newContent: WebviewContent) {
 		this._logService.debug(`Webview(${this.id}): will update content`);
+
+		this.content = newContent;
 
 		this._send('content', {
 			contents: this.content.html,
