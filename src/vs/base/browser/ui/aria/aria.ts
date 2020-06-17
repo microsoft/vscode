@@ -47,6 +47,10 @@ export function setARIAContainer(parent: HTMLElement) {
  * Given the provided message, will make sure that it is read as alert to screen readers.
  */
 export function alert(msg: string): void {
+	if (!ariaContainer) {
+		return;
+	}
+
 	// Use alternate containers such that duplicated messages get read out by screen readers #99466
 	if (alertContainer.textContent !== msg) {
 		dom.clearNode(alertContainer2);
@@ -61,6 +65,10 @@ export function alert(msg: string): void {
  * Given the provided message, will make sure that it is read as status to screen readers.
  */
 export function status(msg: string): void {
+	if (!ariaContainer) {
+		return;
+	}
+
 	if (isMacintosh) {
 		alert(msg); // VoiceOver does not seem to support status role
 	} else {
@@ -75,10 +83,6 @@ export function status(msg: string): void {
 }
 
 function insertMessage(target: HTMLElement, msg: string): void {
-	if (!ariaContainer) {
-		return;
-	}
-
 	dom.clearNode(target);
 	if (msg.length > MAX_MESSAGE_LENGTH) {
 		msg = msg.substr(0, MAX_MESSAGE_LENGTH);
