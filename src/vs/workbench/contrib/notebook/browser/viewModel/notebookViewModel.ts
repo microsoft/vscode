@@ -248,9 +248,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		private _notebook: NotebookTextModel,
 		readonly eventDispatcher: NotebookEventDispatcher,
 		private _layoutInfo: NotebookLayoutInfo | null,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IBulkEditService private readonly bulkEditService: IBulkEditService,
-		@IUndoRedoService private readonly undoService: IUndoRedoService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		@IUndoRedoService private readonly _undoService: IUndoRedoService
 	) {
 		super();
 
@@ -261,7 +261,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._register(this._notebook.onDidChangeCells(e => {
 			const diffs = e.map(splice => {
 				return [splice[0], splice[1], splice[2].map(cell => {
-					return createCellViewModel(this.instantiationService, this, cell as NotebookCellTextModel);
+					return createCellViewModel(this._instantiationService, this, cell as NotebookCellTextModel);
 				})] as [number, number, CellViewModel[]];
 			});
 
@@ -315,7 +315,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				}
 			}
 
-			this.undoService.pushElement(new SpliceCellsEdit(this.uri, undoDiff, {
+			this._undoService.pushElement(new SpliceCellsEdit(this.uri, undoDiff, {
 				insertCell: this._insertCellDelegate.bind(this),
 				deleteCell: this._deleteCellDelegate.bind(this),
 				setSelections: this._setSelectionsDelegate.bind(this)
@@ -345,7 +345,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}));
 
 		this._viewCells = this._notebook!.cells.map(cell => {
-			return createCellViewModel(this.instantiationService, this, cell);
+			return createCellViewModel(this._instantiationService, this, cell);
 		});
 
 		this._viewCells.forEach(cell => {
@@ -584,7 +584,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	private _createCellDelegate(index: number, source: string | string[], language: string, type: CellKind) {
 		const cell = this._notebook.createCellTextModel(source, language, type, [], undefined);
-		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
+		let newCell: CellViewModel = createCellViewModel(this._instantiationService, this, cell);
 		this._viewCells!.splice(index, 0, newCell);
 		this._handleToViewCellMapping.set(newCell.handle, newCell);
 		this._notebook.insertNewCell(index, [cell]);
@@ -618,14 +618,14 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	createCell(index: number, source: string | string[], language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean = true) {
 		const cell = this._notebook.createCellTextModel(source, language, type, [], metadata);
-		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
+		let newCell: CellViewModel = createCellViewModel(this._instantiationService, this, cell);
 		this._viewCells!.splice(index, 0, newCell);
 		this._handleToViewCellMapping.set(newCell.handle, newCell);
 		this._notebook.insertNewCell(index, [cell]);
 		this._localStore.add(newCell);
 
 		if (pushUndoStop) {
-			this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
+			this._undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
 				insertCell: this._insertCellDelegate.bind(this),
 				deleteCell: this._deleteCellDelegate.bind(this),
 				setSelections: this._setSelectionsDelegate.bind(this)
@@ -638,13 +638,13 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean): CellViewModel {
-		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
+		let newCell: CellViewModel = createCellViewModel(this._instantiationService, this, cell);
 		this._viewCells!.splice(index, 0, newCell);
 		this._handleToViewCellMapping.set(newCell.handle, newCell);
 
 		this._notebook.insertNewCell(index, [newCell.model]);
 		this._localStore.add(newCell);
-		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
+		this._undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
 			insertCell: this._insertCellDelegate.bind(this),
 			deleteCell: this._deleteCellDelegate.bind(this),
 			setSelections: this._setSelectionsDelegate.bind(this)
@@ -681,11 +681,11 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 
 		if (pushUndoStop) {
-			this.undoService.pushElement(new DeleteCellEdit(this.uri, index, viewCell, {
+			this._undoService.pushElement(new DeleteCellEdit(this.uri, index, viewCell, {
 				insertCell: this._insertCellDelegate.bind(this),
 				deleteCell: this._deleteCellDelegate.bind(this),
 				createCellViewModel: (cell: NotebookCellTextModel) => {
-					return createCellViewModel(this.instantiationService, this, cell);
+					return createCellViewModel(this._instantiationService, this, cell);
 				},
 				setSelections: this._setSelectionsDelegate.bind(this)
 			}, this.selectionHandles, endSelections));
@@ -710,7 +710,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._notebook.moveCellToIdx(index, newIdx);
 
 		if (pushedToUndoStack) {
-			this.undoService.pushElement(new MoveCellEdit(this.uri, index, newIdx, {
+			this._undoService.pushElement(new MoveCellEdit(this.uri, index, newIdx, {
 				moveCell: (fromIndex: number, toIndex: number) => {
 					this.moveCellToIdx(fromIndex, toIndex, true, false);
 				},
@@ -726,7 +726,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return true;
 	}
 
-	private pushIfAbsent(positions: IPosition[], p: IPosition) {
+	private _pushIfAbsent(positions: IPosition[], p: IPosition) {
 		const last = positions.length > 0 ? positions[positions.length - 1] : undefined;
 		if (!last || last.lineNumber !== p.lineNumber || last.column !== p.column) {
 			positions.push(p);
@@ -738,7 +738,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	 * Move end of line split points to the beginning of the next line;
 	 * Avoid duplicate split points
 	 */
-	private splitPointsToBoundaries(splitPoints: IPosition[], textBuffer: IReadonlyTextBuffer): IPosition[] | null {
+	private _splitPointsToBoundaries(splitPoints: IPosition[], textBuffer: IReadonlyTextBuffer): IPosition[] | null {
 		const boundaries: IPosition[] = [];
 		const lineCnt = textBuffer.getLineCount();
 		const getLineLen = (lineNumber: number) => {
@@ -753,24 +753,24 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		});
 
 		// eat-up any split point at the beginning, i.e. we ignore the split point at the very beginning
-		this.pushIfAbsent(boundaries, new Position(1, 1));
+		this._pushIfAbsent(boundaries, new Position(1, 1));
 
 		for (let sp of splitPoints) {
 			if (getLineLen(sp.lineNumber) + 1 === sp.column && sp.lineNumber < lineCnt) {
 				sp = new Position(sp.lineNumber + 1, 1);
 			}
-			this.pushIfAbsent(boundaries, sp);
+			this._pushIfAbsent(boundaries, sp);
 		}
 
 		// eat-up any split point at the beginning, i.e. we ignore the split point at the very end
-		this.pushIfAbsent(boundaries, new Position(lineCnt, getLineLen(lineCnt) + 1));
+		this._pushIfAbsent(boundaries, new Position(lineCnt, getLineLen(lineCnt) + 1));
 
 		// if we only have two then they describe the whole range and nothing needs to be split
 		return boundaries.length > 2 ? boundaries : null;
 	}
 
-	private computeCellLinesContents(cell: IEditableCellViewModel, splitPoints: IPosition[]): string[] | null {
-		const rangeBoundaries = this.splitPointsToBoundaries(splitPoints, cell.textBuffer);
+	private _computeCellLinesContents(cell: IEditableCellViewModel, splitPoints: IPosition[]): string[] | null {
+		const rangeBoundaries = this._splitPointsToBoundaries(splitPoints, cell.textBuffer);
 		if (!rangeBoundaries) {
 			return null;
 		}
@@ -804,7 +804,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				return null;
 			}
 
-			let newLinesContents = this.computeCellLinesContents(cell, splitPoints);
+			let newLinesContents = this._computeCellLinesContents(cell, splitPoints);
 			if (newLinesContents) {
 
 				const editorSelections = cell.getSelections();
@@ -824,7 +824,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 				this.selectionHandles = [cell.handle];
 
-				this.undoService.pushElement(new SplitCellEdit(
+				this._undoService.pushElement(new SplitCellEdit(
 					this.uri,
 					index,
 					cell,
@@ -836,7 +836,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 						insertCell: this._insertCellDelegate.bind(this),
 						deleteCell: this._deleteCellDelegate.bind(this),
 						createCellViewModel: (cell: NotebookCellTextModel) => {
-							return createCellViewModel(this.instantiationService, this, cell);
+							return createCellViewModel(this._instantiationService, this, cell);
 						},
 						createCell: this._createCellDelegate.bind(this),
 						setSelections: this._setSelectionsDelegate.bind(this)
@@ -898,7 +898,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 			await this.deleteCell(index, true, false);
 
-			this.undoService.pushElement(new JoinCellEdit(
+			this._undoService.pushElement(new JoinCellEdit(
 				this.uri,
 				index,
 				direction,
@@ -911,7 +911,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 					insertCell: this._insertCellDelegate.bind(this),
 					deleteCell: this._deleteCellDelegate.bind(this),
 					createCellViewModel: (cell: NotebookCellTextModel) => {
-						return createCellViewModel(this.instantiationService, this, cell);
+						return createCellViewModel(this._instantiationService, this, cell);
 					},
 					setSelections: this._setSelectionsDelegate.bind(this)
 				})
@@ -946,7 +946,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 			await this.deleteCell(index + 1, true, false);
 
-			this.undoService.pushElement(new JoinCellEdit(
+			this._undoService.pushElement(new JoinCellEdit(
 				this.uri,
 				index + 1,
 				direction,
@@ -959,7 +959,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 					insertCell: this._insertCellDelegate.bind(this),
 					deleteCell: this._deleteCellDelegate.bind(this),
 					createCellViewModel: (cell: NotebookCellTextModel) => {
-						return createCellViewModel(this.instantiationService, this, cell);
+						return createCellViewModel(this._instantiationService, this, cell);
 					},
 					setSelections: this._setSelectionsDelegate.bind(this)
 				})
@@ -1092,7 +1092,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const viewCell = cell as CellViewModel;
 		this._lastNotebookEditResource.push(viewCell.uri);
 		return viewCell.resolveTextModel().then(() => {
-			this.bulkEditService.apply({ edits: [{ edit: { range: range, text: text }, resource: cell.uri }] }, { quotableLabel: 'Notebook Replace' });
+			this._bulkEditService.apply({ edits: [{ edit: { range: range, text: text }, resource: cell.uri }] }, { quotableLabel: 'Notebook Replace' });
 		});
 	}
 
@@ -1116,21 +1116,21 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return Promise.all(matches.map(match => {
 			return match.cell.resolveTextModel();
 		})).then(async () => {
-			this.bulkEditService.apply({ edits: textEdits }, { quotableLabel: 'Notebook Replace All' });
+			this._bulkEditService.apply({ edits: textEdits }, { quotableLabel: 'Notebook Replace All' });
 			return;
 		});
 	}
 
 	canUndo(): boolean {
-		return this.undoService.canUndo(this.uri);
+		return this._undoService.canUndo(this.uri);
 	}
 
 	undo() {
-		this.undoService.undo(this.uri);
+		this._undoService.undo(this.uri);
 	}
 
 	redo() {
-		this.undoService.redo(this.uri);
+		this._undoService.redo(this.uri);
 	}
 
 	equal(notebook: NotebookTextModel) {

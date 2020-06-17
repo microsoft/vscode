@@ -29,12 +29,12 @@ const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 export class NotebookEditor extends BaseEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 
-	private readonly editorMemento: IEditorMemento<INotebookEditorViewState>;
-	private readonly groupListener = this._register(new MutableDisposable());
-	private readonly widgetDisposableStore: DisposableStore = new DisposableStore();
-	private widget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
-	private rootElement!: HTMLElement;
-	private dimension?: DOM.Dimension;
+	private readonly _editorMemento: IEditorMemento<INotebookEditorViewState>;
+	private readonly _groupListener = this._register(new MutableDisposable());
+	private readonly _widgetDisposableStore: DisposableStore = new DisposableStore();
+	private _widget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
+	private _rootElement!: HTMLElement;
+	private _dimension?: DOM.Dimension;
 
 	// todo@rebornix is there a reason that `super.fireOnDidFocus` isn't used?
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
@@ -48,24 +48,24 @@ export class NotebookEditor extends BaseEditor {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@INotebookEditorWidgetService private readonly notebookWidgetService: INotebookEditorWidgetService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@INotebookEditorWidgetService private readonly _notebookWidgetService: INotebookEditorWidgetService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
-		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
 	set viewModel(newModel: NotebookViewModel | undefined) {
-		if (this.widget.value) {
-			this.widget.value.viewModel = newModel;
+		if (this._widget.value) {
+			this._widget.value.viewModel = newModel;
 			this._onDidChangeModel.fire();
 		}
 	}
 
 	get viewModel() {
-		return this.widget.value?.viewModel;
+		return this._widget.value?.viewModel;
 	}
 
 	get minimumWidth(): number { return 375; }
@@ -82,129 +82,129 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this.rootElement = DOM.append(parent, DOM.$('.notebook-editor'));
+		this._rootElement = DOM.append(parent, DOM.$('.notebook-editor'));
 
 		// this._widget.createEditor();
-		this._register(this.onDidFocus(() => this.widget.value?.updateEditorFocus()));
-		this._register(this.onDidBlur(() => this.widget.value?.updateEditorFocus()));
+		this._register(this.onDidFocus(() => this._widget.value?.updateEditorFocus()));
+		this._register(this.onDidBlur(() => this._widget.value?.updateEditorFocus()));
 	}
 
 	getDomNode() {
-		return this.rootElement;
+		return this._rootElement;
 	}
 
 	getControl(): NotebookEditorWidget | undefined {
-		return this.widget.value;
+		return this._widget.value;
 	}
 
 	onWillHide() {
-		this.saveEditorViewState(this.input);
-		if (this.input && this.widget.value) {
+		this._saveEditorViewState(this.input);
+		if (this.input && this._widget.value) {
 			// the widget is not transfered to other editor inputs
-			this.widget.value.onWillHide();
+			this._widget.value.onWillHide();
 		}
 		super.onWillHide();
 	}
 
 	setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
-		this.groupListener.value = group?.onWillCloseEditor(e => this.saveEditorViewState(e.editor));
+		this._groupListener.value = group?.onWillCloseEditor(e => this._saveEditorViewState(e.editor));
 	}
 
 	focus() {
 		super.focus();
-		this.widget.value?.focus();
+		this._widget.value?.focus();
 	}
 
 	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 
 		const group = this.group!;
 
-		this.saveEditorViewState(this.input);
+		this._saveEditorViewState(this.input);
 		await super.setInput(input, options, token);
 
-		this.widgetDisposableStore.clear();
+		this._widgetDisposableStore.clear();
 
 		// there currently is a widget which we still own so
 		// we need to hide it before getting a new widget
-		if (this.widget.value) {
-			this.widget.value.onWillHide();
+		if (this._widget.value) {
+			this._widget.value.onWillHide();
 		}
 
-		this.widget = this.instantiationService.invokeFunction(this.notebookWidgetService.retrieveWidget, group, input);
+		this._widget = this.instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
 
-		if (this.dimension) {
-			this.widget.value!.layout(this.dimension, this.rootElement);
+		if (this._dimension) {
+			this._widget.value!.layout(this._dimension, this._rootElement);
 		}
 
-		const model = await input.resolve(this.widget.value!.getId());
+		const model = await input.resolve(this._widget.value!.getId());
 
 		if (model === null) {
-			this.notificationService.prompt(
+			this._notificationService.prompt(
 				Severity.Error,
 				localize('fail.noEditor', "Cannot open resource with notebook editor type '${input.viewType}', please check if you have the right extension installed or enabled."),
 				[{
 					label: localize('fail.reOpen', "Reopen file with VS Code standard text editor"),
 					run: async () => {
-						const fileEditorInput = this.editorService.createEditorInput({ resource: input.resource, forceFile: true });
+						const fileEditorInput = this._editorService.createEditorInput({ resource: input.resource, forceFile: true });
 						const textOptions: IEditorOptions | ITextEditorOptions = options ? { ...options, override: false } : { override: false };
-						await this.editorService.openEditor(fileEditorInput, textOptions);
+						await this._editorService.openEditor(fileEditorInput, textOptions);
 					}
 				}]
 			);
 			return;
 		}
 
-		const viewState = this.loadTextEditorViewState(input);
+		const viewState = this._loadTextEditorViewState(input);
 
-		await this.widget.value!.setModel(model.notebook, viewState, options);
-		this.widgetDisposableStore.add(this.widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
+		await this._widget.value!.setModel(model.notebook, viewState, options);
+		this._widgetDisposableStore.add(this._widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
 
-		if (this.editorGroupService instanceof EditorPart) {
-			this.widgetDisposableStore.add(this.editorGroupService.createEditorDropTarget(this.widget.value!.getDomNode(), {
+		if (this._editorGroupService instanceof EditorPart) {
+			this._widgetDisposableStore.add(this._editorGroupService.createEditorDropTarget(this._widget.value!.getDomNode(), {
 				groupContainsPredicate: (group) => this.group?.id === group.group.id
 			}));
 		}
 	}
 
 	clearInput(): void {
-		if (this.widget.value) {
-			this.widget.value.onWillHide();
+		if (this._widget.value) {
+			this._widget.value.onWillHide();
 		}
 		super.clearInput();
 	}
 
 
 	protected saveState(): void {
-		this.saveEditorViewState(this.input);
+		this._saveEditorViewState(this.input);
 		super.saveState();
 	}
 
-	private saveEditorViewState(input: IEditorInput | undefined): void {
-		if (this.group && this.widget.value && input instanceof NotebookEditorInput) {
-			const state = this.widget.value.getEditorViewState();
-			this.editorMemento.saveEditorState(this.group, input.resource, state);
+	private _saveEditorViewState(input: IEditorInput | undefined): void {
+		if (this.group && this._widget.value && input instanceof NotebookEditorInput) {
+			const state = this._widget.value.getEditorViewState();
+			this._editorMemento.saveEditorState(this.group, input.resource, state);
 		}
 	}
 
-	private loadTextEditorViewState(input: NotebookEditorInput): INotebookEditorViewState | undefined {
+	private _loadTextEditorViewState(input: NotebookEditorInput): INotebookEditorViewState | undefined {
 		if (this.group) {
-			return this.editorMemento.loadEditorState(this.group, input.resource);
+			return this._editorMemento.loadEditorState(this.group, input.resource);
 		}
 
 		return;
 	}
 
 	layout(dimension: DOM.Dimension): void {
-		this.rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
-		this.rootElement.classList.toggle('narrow-width', dimension.width < 600);
-		this.dimension = dimension;
+		this._rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
+		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
+		this._dimension = dimension;
 
-		if (!this.widget.value || !(this._input instanceof NotebookEditorInput)) {
+		if (!this._widget.value || !(this._input instanceof NotebookEditorInput)) {
 			return;
 		}
 
-		if (this._input.resource.toString() !== this.widget.value.viewModel?.uri.toString() && this.widget.value?.viewModel) {
+		if (this._input.resource.toString() !== this._widget.value.viewModel?.uri.toString() && this._widget.value?.viewModel) {
 			// input and widget mismatch
 			// this happens when
 			// 1. open document A, pin the document
@@ -214,7 +214,7 @@ export class NotebookEditor extends BaseEditor {
 			return;
 		}
 
-		this.widget.value.layout(this.dimension, this.rootElement);
+		this._widget.value.layout(this._dimension, this._rootElement);
 	}
 
 	//#endregion

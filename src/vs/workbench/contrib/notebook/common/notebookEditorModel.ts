@@ -57,9 +57,9 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	constructor(
 		public readonly resource: URI,
 		public readonly viewType: string,
-		@INotebookService private readonly notebookService: INotebookService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IBackupFileService private readonly backupFileService: IBackupFileService
+		@INotebookService private readonly _notebookService: INotebookService,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
+		@IBackupFileService private readonly _backupFileService: IBackupFileService
 	) {
 		super();
 
@@ -77,7 +77,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			revert(options?: IRevertOptions): Promise<void> { return input.revert(options); }
 		};
 
-		this._register(this.workingCopyService.registerWorkingCopy(workingCopyAdapter));
+		this._register(this._workingCopyService.registerWorkingCopy(workingCopyAdapter));
 	}
 
 	capabilities = 0;
@@ -85,7 +85,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	async backup(): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
 		if (this._notebook.supportBackup) {
 			const tokenSource = new CancellationTokenSource();
-			const backupId = await this.notebookService.backup(this.viewType, this.resource, tokenSource.token);
+			const backupId = await this._notebookService.backup(this.viewType, this.resource, tokenSource.token);
 
 			return {
 				meta: {
@@ -107,7 +107,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 	async revert(options?: IRevertOptions | undefined): Promise<void> {
 		if (options?.soft) {
-			await this.backupFileService.discardBackup(this.resource);
+			await this._backupFileService.discardBackup(this.resource);
 			return;
 		}
 
@@ -126,7 +126,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			return this;
 		}
 
-		const backup = await this.backupFileService.resolve<NotebookDocumentBackupData>(this._workingCopyResource);
+		const backup = await this._backupFileService.resolve<NotebookDocumentBackupData>(this._workingCopyResource);
 
 		if (this.isResolved()) {
 			return this; // Make sure meanwhile someone else did not succeed in loading
@@ -147,7 +147,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		const fullRange = content.getRangeAt(0, content.getLength());
 		const data = JSON.parse(content.getValueInRange(fullRange, EndOfLinePreference.LF));
 
-		const notebook = await this.notebookService.createNotebookFromBackup(this.viewType!, this.resource, data.metadata, data.languages, data.cells, editorId);
+		const notebook = await this._notebookService.createNotebookFromBackup(this.viewType!, this.resource, data.metadata, data.languages, data.cells, editorId);
 		this._notebook = notebook!;
 
 		this._name = basename(this._notebook!.uri);
@@ -160,14 +160,14 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			this.setDirty(true);
 		}));
 
-		await this.backupFileService.discardBackup(this._workingCopyResource);
+		await this._backupFileService.discardBackup(this._workingCopyResource);
 		this.setDirty(true);
 
 		return this;
 	}
 
 	private async loadFromProvider(forceReloadFromDisk: boolean, editorId: string | undefined, backupId: string | undefined) {
-		const notebook = await this.notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, editorId, backupId);
+		const notebook = await this._notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, editorId, backupId);
 		this._notebook = notebook!;
 
 		this._name = basename(this._notebook!.uri);
@@ -181,7 +181,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		}));
 
 		if (backupId) {
-			await this.backupFileService.discardBackup(this._workingCopyResource);
+			await this._backupFileService.discardBackup(this._workingCopyResource);
 			this.setDirty(true);
 		}
 
@@ -209,7 +209,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 	async save(): Promise<boolean> {
 		const tokenSource = new CancellationTokenSource();
-		await this.notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
+		await this._notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
 		this._dirty = false;
 		this._onDidChangeDirty.fire();
 		return true;
@@ -217,7 +217,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 	async saveAs(targetResource: URI): Promise<boolean> {
 		const tokenSource = new CancellationTokenSource();
-		await this.notebookService.saveAs(this.notebook.viewType, this.notebook.uri, targetResource, tokenSource.token);
+		await this._notebookService.saveAs(this.notebook.viewType, this.notebook.uri, targetResource, tokenSource.token);
 		this._dirty = false;
 		this._onDidChangeDirty.fire();
 		return true;
