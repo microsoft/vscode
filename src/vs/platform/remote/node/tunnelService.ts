@@ -6,18 +6,14 @@
 import * as net from 'net';
 import { Barrier } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { findFreePortFaster } from 'vs/base/node/ports';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { connectRemoteAgentTunnel, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { connectRemoteAgentTunnel, IAddress, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
+import { AbstractTunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { findFreePortFaster } from 'vs/base/node/ports';
-import { AbstractTunnelService } from 'vs/workbench/services/remote/common/tunnelService';
 
 async function createRemoteTunnel(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
 	const tunnel = new NodeRemoteTunnel(options, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort);
@@ -128,16 +124,14 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 export class TunnelService extends AbstractTunnelService {
 	public constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@ILogService logService: ILogService,
-		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ISignService private readonly signService: ISignService,
 		@IProductService private readonly productService: IProductService
 	) {
-		super(environmentService, logService);
+		super(logService);
 	}
 
-	protected retainOrCreateTunnel(remoteAuthority: string, remoteHost: string, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined {
+	protected retainOrCreateTunnel(resolveRemoteAuthority: IAddress, remoteHost: string, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined {
 		const portMap = this._tunnels.get(remoteHost);
 		const existing = portMap ? portMap.get(remotePort) : undefined;
 		if (existing) {
@@ -157,8 +151,7 @@ export class TunnelService extends AbstractTunnelService {
 				socketFactory: nodeSocketFactory,
 				addressProvider: {
 					getAddress: async () => {
-						const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
-						return { host: authority.host, port: authority.port };
+						return resolveRemoteAuthority;
 					}
 				},
 				signService: this.signService,
@@ -171,5 +164,3 @@ export class TunnelService extends AbstractTunnelService {
 		}
 	}
 }
-
-registerSingleton(ITunnelService, TunnelService, true);

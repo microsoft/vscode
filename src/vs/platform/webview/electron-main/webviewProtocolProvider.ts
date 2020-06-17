@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { protocol } from 'electron';
+import { protocol, session } from 'electron';
+import { Readable } from 'stream';
+import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { loadLocalResourceStream, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { Readable } from 'stream';
+import { loadLocalResourceStream, webviewPartitionId, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
 
 interface WebviewMetadata {
 	readonly extensionLocation: URI | undefined;
@@ -30,7 +30,8 @@ export class WebviewProtocolProvider extends Disposable {
 	) {
 		super();
 
-		protocol.registerStreamProtocol(Schemas.vscodeWebviewResource, async (request, callback): Promise<void> => {
+		const sess = session.fromPartition(webviewPartitionId);
+		sess.protocol.registerStreamProtocol(Schemas.vscodeWebviewResource, async (request, callback): Promise<void> => {
 			try {
 				const uri = URI.parse(request.url);
 
@@ -116,7 +117,7 @@ export class WebviewProtocolProvider extends Disposable {
 		this.webviewMetadata.set(id, metadata);
 	}
 
-	public unreigsterWebview(id: string): void {
+	public unregisterWebview(id: string): void {
 		this.webviewMetadata.delete(id);
 	}
 
