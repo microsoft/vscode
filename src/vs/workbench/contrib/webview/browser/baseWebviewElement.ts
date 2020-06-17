@@ -15,6 +15,7 @@ import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } fr
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const enum WebviewMessageChannels {
 	onmessage = 'onmessage',
@@ -83,6 +84,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		contentOptions: WebviewContentOptions,
 		public readonly extension: WebviewExtensionDescription | undefined,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
+		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly _environementService: IEnvironmentService,
 		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
@@ -98,6 +100,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._element = this.createElement(options, contentOptions);
 
 		const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
+			this._logService.debug(`Webview(${this.id}): webview ready`);
+
 			if (this.element) {
 				addClass(this.element, 'ready');
 			}
@@ -257,7 +261,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	public set contentOptions(options: WebviewContentOptions) {
+		this._logService.debug(`Webview(${this.id}): will update content options`);
+
 		if (areWebviewInputOptionsEqual(options, this.content.options)) {
+			this._logService.debug(`Webview(${this.id}): skipping content options update`);
 			return;
 		}
 
@@ -286,6 +293,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	private doUpdateContent() {
+		this._logService.debug(`Webview(${this.id}): will update content`);
+
 		this._send('content', {
 			contents: this.content.html,
 			options: this.content.options,

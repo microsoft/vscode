@@ -19,6 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
@@ -43,11 +44,14 @@ class WebviewResourceRequestManager extends Disposable {
 		private readonly extension: WebviewExtensionDescription | undefined,
 		webview: WebviewTag,
 		initialContentOptions: WebviewContentOptions,
+		@ILogService private readonly _logService: ILogService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IMainProcessService mainProcessService: IMainProcessService,
 	) {
 		super();
+
+		this._logService.debug(`WebviewResourceRequestManager(${this.id}): init`);
 
 		this._webviewManagerService = createChannelSender<IWebviewManagerService>(mainProcessService.getChannel('webview'));
 
@@ -59,6 +63,8 @@ class WebviewResourceRequestManager extends Disposable {
 
 		this._ready = new Promise(resolve => {
 			this._register(addDisposableListener(webview!, 'did-start-loading', once(() => {
+				this._logService.debug(`WebviewResourceRequestManager(${this.id}): did-start-loading`);
+
 				const webContentsId = webview.getWebContentsId();
 
 				this._webviewManagerService.registerWebview(this.id, webContentsId, {
@@ -66,6 +72,8 @@ class WebviewResourceRequestManager extends Disposable {
 					localResourceRoots: this._localResourceRoots.map(x => x.toJSON()),
 					remoteConnectionData: remoteConnectionData,
 					portMappings: this._portMappings,
+				}).then(() => {
+					this._logService.debug(`WebviewResourceRequestManager(${this.id}): did register`);
 				}).finally(() => resolve());
 			})));
 		});
@@ -96,9 +104,13 @@ class WebviewResourceRequestManager extends Disposable {
 		this._localResourceRoots = localResourceRoots;
 		this._portMappings = portMappings;
 
+		this._logService.debug(`WebviewResourceRequestManager(${this.id}): will update`);
+
 		const update = this._webviewManagerService.updateWebviewMetadata(this.id, {
 			localResourceRoots: localResourceRoots.map(x => x.toJSON()),
 			portMappings: portMappings,
+		}).then(() => {
+			this._logService.debug(`WebviewResourceRequestManager(${this.id}): did update`);
 		});
 
 		this._ready = this._ready?.then(() => update);
@@ -187,11 +199,10 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private _findStarted: boolean = false;
 
 	private readonly _resourceRequestManager: WebviewResourceRequestManager;
+	private _messagePromise = Promise.resolve();
 
 	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
 	private _elementFocusImpl!: (options?: FocusOptions | undefined) => void;
-
-	private _messagePromise = Promise.resolve();
 
 	constructor(
 		id: string,
@@ -199,6 +210,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 		private readonly _webviewThemeDataProvider: WebviewThemeDataProvider,
+		@ILogService private readonly _myLogService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -206,7 +218,9 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
 	) {
-		super(id, options, contentOptions, extension, _webviewThemeDataProvider, telemetryService, environmentService, workbenchEnvironmentService);
+		super(id, options, contentOptions, extension, _webviewThemeDataProvider, _myLogService, telemetryService, environmentService, workbenchEnvironmentService);
+
+		this._myLogService.debug(`Webview(${this.id}): init`);
 
 		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.element!, this.content.options));
 
@@ -217,13 +231,17 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		this._register(addDisposableListener(this.element!, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 			console.log(`[Embedded Page] ${e.message}`);
 		}));
+
 		this._register(addDisposableListener(this.element!, 'dom-ready', () => {
+			this._myLogService.debug(`Webview(${this.id}): dom-ready`);
+
 			// Workaround for https://github.com/electron/electron/issues/14474
 			if (this.element && (this.focused || document.activeElement === this.element)) {
 				this.element.blur();
 				this.element.focus();
 			}
 		}));
+
 		this._register(addDisposableListener(this.element!, 'crashed', () => {
 			console.error('embedded page crashed');
 		}));
@@ -247,6 +265,8 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		}));
 
 		this._register(this.on('did-set-content', () => {
+			this._myLogService.debug(`Webview(${this.id}): did-set-content`);
+
 			if (this.element) {
 				this.element.style.flex = '';
 				this.element.style.width = '100%';
@@ -290,13 +310,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		element.style.height = '0';
 		element.style.outline = '0';
 
-		element.preload = require.toUrl('./pre/electron-index.js');
-		element.src = 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%20role%3D%22document%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E';
-
 		return element;
 	}
 
 	public set contentOptions(options: WebviewContentOptions) {
+		this._myLogService.debug(`Webview(${this.id}): will set content options`);
 		this._resourceRequestManager.update(options);
 		super.contentOptions = options;
 	}
@@ -312,6 +330,8 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	protected readonly extraContentOptions = {};
 
 	public set html(value: string) {
+		this._myLogService.debug(`Webview(${this.id}): will set html`);
+
 		super.html = this.preprocessHtml(value);
 	}
 
@@ -342,9 +362,14 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	}
 
 	protected async doPostMessage(channel: string, data?: any): Promise<void> {
+		this._myLogService.debug(`Webview(${this.id}): will post message on '${channel}'`);
+
 		this._messagePromise = this._messagePromise
 			.then(() => this._resourceRequestManager.synchronize())
-			.then(() => this.element?.send(channel, data));
+			.then(() => {
+				this._myLogService.debug(`Webview(${this.id}): did post message on '${channel}'`);
+				return this.element?.send(channel, data);
+			});
 	}
 
 	public focus(): void {
