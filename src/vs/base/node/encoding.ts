@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as iconv from 'iconv-lite';
+import { DecoderStream } from 'iconv-lite';
 import { Readable, ReadableStream, newWriteableStream } from 'vs/base/common/stream';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
@@ -31,7 +31,7 @@ export interface IDecodeStreamOptions {
 	guessEncoding: boolean;
 	minBytesRequiredForDetection?: number;
 
-	overwriteEncoding(detectedEncoding: string | null): string;
+	overwriteEncoding(detectedEncoding: string | null): Promise<string>;
 }
 
 export interface IDecodeStreamResult {
@@ -48,7 +48,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 		const bufferedChunks: VSBuffer[] = [];
 		let bytesBuffered = 0;
 
-		let decoder: iconv.DecoderStream | undefined = undefined;
+		let decoder: DecoderStream | undefined = undefined;
 
 		const createDecoder = async () => {
 			try {
@@ -60,9 +60,10 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 				}, options.guessEncoding);
 
 				// ensure to respect overwrite of encoding
-				detected.encoding = options.overwriteEncoding(detected.encoding);
+				detected.encoding = await options.overwriteEncoding(detected.encoding);
 
 				// decode and write buffered content
+				const iconv = await import('iconv-lite');
 				decoder = iconv.getDecoder(toNodeEncoding(detected.encoding));
 				const decoded = decoder.write(Buffer.from(VSBuffer.concat(bufferedChunks).buffer));
 				target.write(decoded);
@@ -127,8 +128,10 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 	});
 }
 
-export function toEncodeReadable(readable: Readable<string>, encoding: string, options?: { addBOM?: boolean }): VSBufferReadable {
+export async function toEncodeReadable(readable: Readable<string>, encoding: string, options?: { addBOM?: boolean }): Promise<VSBufferReadable> {
+	const iconv = await import('iconv-lite');
 	const encoder = iconv.getEncoder(toNodeEncoding(encoding), options);
+
 	let bytesRead = 0;
 	let done = false;
 
@@ -172,7 +175,9 @@ export function toEncodeReadable(readable: Readable<string>, encoding: string, o
 	};
 }
 
-export function encodingExists(encoding: string): boolean {
+export async function encodingExists(encoding: string): Promise<boolean> {
+	const iconv = await import('iconv-lite');
+
 	return iconv.encodingExists(toNodeEncoding(encoding));
 }
 

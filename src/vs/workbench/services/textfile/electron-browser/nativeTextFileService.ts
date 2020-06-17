@@ -170,7 +170,8 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 
 		// otherwise create with encoding
-		return this.fileService.createFile(resource, this.getEncodedReadable(value || '', encoding, addBOM), options);
+		const encodedReadable = await this.getEncodedReadable(value || '', encoding, addBOM);
+		return this.fileService.createFile(resource, encodedReadable, options);
 	}
 
 	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
@@ -204,7 +205,8 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 			// otherwise save with encoding
 			else {
-				return await this.fileService.writeFile(resource, this.getEncodedReadable(value, encoding, addBOM), options);
+				const encodedReadable = await this.getEncodedReadable(value, encoding, addBOM);
+				return await this.fileService.writeFile(resource, encodedReadable, options);
 			}
 		} catch (error) {
 
@@ -229,7 +231,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 	}
 
-	private getEncodedReadable(value: string | ITextSnapshot, encoding: string, addBOM: boolean): VSBufferReadable {
+	private getEncodedReadable(value: string | ITextSnapshot, encoding: string, addBOM: boolean): Promise<VSBufferReadable> {
 		const snapshot = typeof value === 'string' ? stringToSnapshot(value) : value;
 		return toEncodeReadable(snapshot, encoding, { addBOM });
 	}
@@ -340,7 +342,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 	}
 
 	async getWriteEncoding(resource: URI, options?: IWriteTextFileOptions): Promise<{ encoding: string, addBOM: boolean }> {
-		const { encoding, hasBOM } = this.getPreferredWriteEncoding(resource, options ? options.encoding : undefined);
+		const { encoding, hasBOM } = await this.getPreferredWriteEncoding(resource, options ? options.encoding : undefined);
 
 		// Some encodings come with a BOM automatically
 		if (hasBOM) {
@@ -364,8 +366,8 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		return { encoding, addBOM: false };
 	}
 
-	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding {
-		const resourceEncoding = this.getEncodingForResource(resource, preferredEncoding);
+	async getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): Promise<IResourceEncoding> {
+		const resourceEncoding = await this.getEncodingForResource(resource, preferredEncoding);
 
 		return {
 			encoding: resourceEncoding,
@@ -373,7 +375,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		};
 	}
 
-	getReadEncoding(resource: URI, options: IReadTextFileOptions | undefined, detectedEncoding: string | null): string {
+	getReadEncoding(resource: URI, options: IReadTextFileOptions | undefined, detectedEncoding: string | null): Promise<string> {
 		let preferredEncoding: string | undefined;
 
 		// Encoding passed in as option
@@ -398,7 +400,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		return this.getEncodingForResource(resource, preferredEncoding);
 	}
 
-	private getEncodingForResource(resource: URI, preferredEncoding?: string): string {
+	private async getEncodingForResource(resource: URI, preferredEncoding?: string): Promise<string> {
 		let fileEncoding: string;
 
 		const override = this.getEncodingOverride(resource);
@@ -410,7 +412,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 			fileEncoding = this.textResourceConfigurationService.getValue(resource, 'files.encoding'); // and last we check for settings
 		}
 
-		if (!fileEncoding || !encodingExists(fileEncoding)) {
+		if (!fileEncoding || !(await encodingExists(fileEncoding))) {
 			fileEncoding = UTF8; // the default is UTF 8
 		}
 

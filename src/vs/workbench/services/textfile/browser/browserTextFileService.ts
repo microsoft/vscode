@@ -11,7 +11,7 @@ import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 export class BrowserTextFileService extends AbstractTextFileService {
 
 	readonly encoding: IResourceEncodings = {
-		getPreferredWriteEncoding(): IResourceEncoding {
+		async getPreferredWriteEncoding(): Promise<IResourceEncoding> {
 			return { encoding: 'utf8', hasBOM: false };
 		}
 	};
