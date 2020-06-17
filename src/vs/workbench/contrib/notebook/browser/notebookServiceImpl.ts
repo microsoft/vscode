@@ -382,6 +382,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._onNotebookDocumentAdd.fire([notebookModel!.uri]);
 		// after the document is added to the store and sent to ext host, we transform the ouputs
 		await this.transformTextModelOutputs(notebookModel!);
+
+		if (editorId) {
+			await provider.controller.resolveNotebookEditor(viewType, uri, editorId);
+		}
+
 		return modelData.model;
 	}
 

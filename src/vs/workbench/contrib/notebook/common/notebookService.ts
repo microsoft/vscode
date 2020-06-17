@@ -20,6 +20,7 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 export interface IMainNotebookController {
 	kernel: INotebookKernelInfoDto | undefined;
 	createNotebook(viewType: string, uri: URI, backup: INotebookTextModelBackup | undefined, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined>;
+	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
 	executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
 	onDidReceiveMessage(editorId: string, message: any): void;
 	executeNotebookCell(uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;

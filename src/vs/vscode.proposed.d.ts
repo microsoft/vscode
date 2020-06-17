@@ -1639,7 +1639,25 @@ declare module 'vscode' {
 
 	export interface NotebookContentProvider {
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
-		resolveNotebook(document: NotebookDocument): Promise<void>;
+		resolveNotebook(document: NotebookDocument, webview: {
+			/**
+			 * Fired when the output hosting webview posts a message.
+			 */
+			readonly onDidReceiveMessage: Event<any>;
+			/**
+			 * Post a message to the output hosting webview.
+			 *
+			 * Messages are only delivered if the editor is live.
+			 *
+			 * @param message Body of the message. This must be a string or other json serilizable object.
+			 */
+			postMessage(message: any): Thenable<boolean>;
+
+			/**
+			 * Convert a uri for the local file system to one that can be used inside outputs webview.
+			 */
+			asWebviewUri(localResource: Uri): Uri;
+		}): Promise<void>;
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		readonly onDidChangeNotebook: Event<NotebookDocumentEditEvent>;

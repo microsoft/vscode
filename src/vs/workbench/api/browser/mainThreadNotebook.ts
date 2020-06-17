@@ -588,6 +588,10 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		return document.textModel;
 	}
 
+	async resolveNotebookEditor(viewType: string, uri: URI, editorId: string) {
+		await this._proxy.$resolveNotebookEditor(viewType, uri, editorId);
+	}
+
 	async tryApplyEdits(resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[], renderers: number[]): Promise<boolean> {
 		let mainthreadNotebook = this._mapping.get(URI.from(resource).toString());
 
