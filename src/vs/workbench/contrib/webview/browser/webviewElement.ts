@@ -59,13 +59,16 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
 			this.localLocalhost(entry.origin);
 		}));
+
+		this.element!.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
 	}
 
-	protected createElement(options: WebviewOptions, contentOptions: WebviewContentOptions) {
+	protected createElement(options: WebviewOptions, _contentOptions: WebviewContentOptions) {
+		// Do not start loading the webview yet.
+		// Wait the end of the ctor when all listeners have been hooked up.
 		const element = document.createElement('iframe');
 		element.className = `webview ${options.customClasses || ''}`;
 		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms');
-		element.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
 		element.style.border = 'none';
 		element.style.width = '100%';
 		element.style.height = '100%';
