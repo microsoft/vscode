@@ -13,10 +13,7 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IUserDataSyncMachine, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { PlatformToString, isWeb, Platform, platform } from 'vs/base/common/platform';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { localize } from 'vs/nls';
 
 type AutoSyncClassification = {
@@ -33,7 +30,7 @@ type AutoSyncErrorClassification = {
 
 const enablementKey = 'sync.enable';
 const disableMachineEventuallyKey = 'sync.disableMachineEventually';
-const SESSION_ID_KEY = 'sync.sessionId';
+const sessionIdKey = 'sync.sessionId';
 
 export class UserDataAutoSyncEnablementService extends Disposable {
 
@@ -92,7 +89,6 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
-		@IProductService private readonly productService: IProductService,
 		@IStorageService storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
@@ -114,7 +110,7 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		const { enabled, reason } = this.isAutoSyncEnabled();
 		if (enabled) {
 			if (this.autoSync.value === undefined) {
-				this.autoSync.value = new AutoSync(1000 * 60 * 5 /* 5 miutes */, this.userDataSyncStoreService, this.userDataSyncService, this.userDataSyncMachinesService, this.logService, this.storageService, this.productService);
+				this.autoSync.value = new AutoSync(1000 * 60 * 5 /* 5 miutes */, this.userDataSyncStoreService, this.userDataSyncService, this.userDataSyncMachinesService, this.logService, this.storageService);
 				this.autoSync.value.register(this.autoSync.value.onDidStartSync(() => this.lastSyncTriggerTime = new Date().getTime()));
 				this.autoSync.value.register(this.autoSync.value.onDidFinishSync(e => this.onDidFinishSync(e)));
 				if (this.startAutoSync()) {
@@ -167,7 +163,7 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 			this.setEnablement(false);
 
 			// Reset Session
-			this.storageService.remove(SESSION_ID_KEY, StorageScope.GLOBAL);
+			this.storageService.remove(sessionIdKey, StorageScope.GLOBAL);
 
 			// Reset
 			if (everywhere) {
@@ -309,7 +305,6 @@ class AutoSync extends Disposable {
 		private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
 		private readonly logService: IUserDataSyncLogService,
 		private readonly storageService: IStorageService,
-		private readonly productService: IProductService,
 	) {
 		super();
 	}
@@ -368,7 +363,7 @@ class AutoSync extends Disposable {
 				throw new UserDataAutoSyncError(localize('turned off', "Cannot sync because syncing is turned off in the cloud"), UserDataSyncErrorCode.TurnedOff);
 			}
 
-			const sessionId = this.storageService.get(SESSION_ID_KEY, StorageScope.GLOBAL);
+			const sessionId = this.storageService.get(sessionIdKey, StorageScope.GLOBAL);
 			// Server session is different from client session
 			if (sessionId && manifest && sessionId !== manifest.session) {
 				throw new UserDataAutoSyncError(localize('session expired', "Cannot sync because current session is expired"), UserDataSyncErrorCode.SessionExpired);
@@ -396,7 +391,7 @@ class AutoSync extends Disposable {
 
 			// Update local session id
 			if (manifest && manifest.session !== sessionId) {
-				this.storageService.store(SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL);
+				this.storageService.store(sessionIdKey, manifest.session, StorageScope.GLOBAL);
 			}
 
 			// Return if cancellation is requested
@@ -406,8 +401,7 @@ class AutoSync extends Disposable {
 
 			// Add current machine
 			if (!currentMachine) {
-				const name = this.computeDefaultMachineName(machines);
-				await this.userDataSyncMachinesService.addCurrentMachine(name, manifest || undefined);
+				await this.userDataSyncMachinesService.addCurrentMachine(manifest || undefined);
 			}
 
 		} catch (e) {
@@ -416,20 +410,6 @@ class AutoSync extends Disposable {
 		}
 
 		this._onDidFinishSync.fire(error);
-	}
-
-	private computeDefaultMachineName(machines: IUserDataSyncMachine[]): string {
-		const namePrefix = `${this.productService.nameLong} (${PlatformToString(isWeb ? Platform.Web : platform)})`;
-		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s#(\\d)`);
-
-		let nameIndex = 0;
-		for (const machine of machines) {
-			const matches = nameRegEx.exec(machine.name);
-			const index = matches ? parseInt(matches[1]) : 0;
-			nameIndex = index > nameIndex ? index : nameIndex;
-		}
-
-		return `${namePrefix} #${nameIndex + 1}`;
 	}
 
 	register<T extends IDisposable>(t: T): T {

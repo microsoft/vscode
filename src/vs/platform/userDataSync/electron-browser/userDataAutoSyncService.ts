@@ -12,7 +12,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { IProductService } from 'vs/platform/product/common/productService';
 
 export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 
@@ -25,11 +24,10 @@ export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 		@IUserDataSyncAccountService authTokenService: IUserDataSyncAccountService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUserDataSyncMachinesService userDataSyncMachinesService: IUserDataSyncMachinesService,
-		@IProductService productService: IProductService,
 		@IStorageService storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
-		super(userDataSyncStoreService, userDataSyncResourceEnablementService, userDataSyncService, logService, authTokenService, telemetryService, userDataSyncMachinesService, productService, storageService, environmentService);
+		super(userDataSyncStoreService, userDataSyncResourceEnablementService, userDataSyncService, logService, authTokenService, telemetryService, userDataSyncMachinesService, storageService, environmentService);
 
 		this._register(Event.debounce<string, string[]>(Event.any<string>(
 			Event.map(electronService.onWindowFocus, () => 'windowFocus'),
