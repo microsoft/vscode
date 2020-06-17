@@ -91,14 +91,17 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private static readonly MAX_URL_LENGTH = 2 * 1024 * 1024; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
+	private readonly _onLoad = this._register(new Emitter<void>());
+	readonly onLoad = this._onLoad.event;
+
+	private readonly _onReady = this._register(new Emitter<void>());
+	readonly onReady = this._onReady.event;
+
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
 	private readonly _onDestroy = this._register(new Emitter<void>());
 	readonly onDestroy = this._onDestroy.event;
-
-	private readonly _onLoad = this._register(new Emitter<void>());
-	readonly onLoad = this._onLoad.event;
 
 	private hiddenTitleBarStyle: boolean | undefined;
 	private showTimeoutHandle: NodeJS.Timeout | undefined;
@@ -167,7 +170,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					nodeIntegration: true,
 					nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
 					webviewTag: true,
-					enableWebSQL: false
+					enableWebSQL: false,
+					nativeWindowOpen: true
 				}
 			};
 
@@ -346,6 +350,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		while (this.whenReadyCallbacks.length) {
 			this.whenReadyCallbacks.pop()!(this);
 		}
+
+		// Events
+		this._onReady.fire();
 	}
 
 	ready(): Promise<ICodeWindow> {

@@ -97,6 +97,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
+	private _isVisible = false;
 
 	get isDisposed() {
 		return this._isDisposed;
@@ -120,7 +121,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.scrollBeyondLastLine')) {
 				this.scrollBeyondLastLine = this.configurationService.getValue<boolean>('editor.scrollBeyondLastLine');
-				if (this.dimension) {
+				if (this.dimension && this._isVisible) {
 					this.layout(this.dimension);
 				}
 			}
@@ -235,6 +236,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.generateFontInfo();
 		this.editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.contextKeyService);
 		this.editorFocus.set(true);
+		this._isVisible = true;
 		this.outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.contextKeyService);
 		this.editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
 		this.editorEditable.set(true);
@@ -370,6 +372,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	onWillHide() {
+		this._isVisible = false;
 		this.editorFocus?.set(false);
 		this.overlayContainer.style.visibility = 'hidden';
 		this.overlayContainer.style.left = '-50000px';
@@ -379,8 +382,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.webview?.webview;
 	}
 
-
 	focus() {
+		this._isVisible = true;
 		this.editorFocus?.set(true);
 		this.list?.domFocus();
 		this._onDidFocusEditorWidget.fire();
@@ -404,10 +407,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		this.localStore.add(this.list!.onDidChangeFocus(() => {
-			this._cellContextKeyManager?.dispose();
 			const focused = this.list!.getFocusedElements()[0];
 			if (focused) {
-				this._cellContextKeyManager = this.localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as any));
+				if (!this._cellContextKeyManager) {
+					this._cellContextKeyManager = this.localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as any));
+				}
+
+				this._cellContextKeyManager.updateForElement(focused as any);
 			}
 		}));
 
@@ -435,6 +441,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					if (!cellOptions.options?.preserveFocus) {
 						editor.focus();
 					}
+				}
+			}
+		} else if (this.notebookViewModel!.viewCells.length === 1 && this.notebookViewModel!.viewCells[0].cellKind === CellKind.Code) {
+			// there is only one code cell in the document
+			const cell = this.notebookViewModel!.viewCells[0];
+			if (cell.getTextLength() === 0) {
+				// the cell is empty, very likely a template cell, focus it
+				this.selectElement(cell);
+				await this.revealLineInCenterAsync(cell, 1);
+				const editor = this.renderedEditors.get(cell)!;
+				if (editor) {
+					editor.focus();
 				}
 			}
 		}
@@ -1057,7 +1075,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
 		if (cell.cellKind === CellKind.Markdown) {
-			cell.editState = CellEditState.Preview;
+			this.focusNotebookCell(cell, 'container');
 			return;
 		}
 

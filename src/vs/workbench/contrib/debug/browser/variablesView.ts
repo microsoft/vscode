@@ -141,9 +141,18 @@ export class VariablesView extends ViewPane {
 				this.onFocusStackFrameScheduler.schedule();
 			}
 		}));
+		let horizontalScrolling: boolean | undefined;
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
 			if (e instanceof Variable) {
+				horizontalScrolling = this.tree.options.horizontalScrolling;
+				if (horizontalScrolling) {
+					this.tree.updateOptions({ horizontalScrolling: false });
+				}
+
 				this.tree.rerender(e);
+			} else if (!e && horizontalScrolling !== undefined) {
+				this.tree.updateOptions({ horizontalScrolling: horizontalScrolling });
+				horizontalScrolling = undefined;
 			}
 		}));
 		this._register(this.debugService.onDidEndSession(() => {

@@ -17,6 +17,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { GlobPattern } from 'vs/workbench/api/common/extHost.protocol';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
+import { IRevertOptions } from 'vs/workbench/common/editor';
 
 export enum CellKind {
 	Markdown = 1,
@@ -98,8 +99,7 @@ export interface INotebookDisplayOrder {
 }
 
 export interface INotebookMimeTypeSelector {
-	type: string;
-	subTypes?: string[];
+	mimeTypes?: string[];
 }
 
 export interface INotebookRendererInfo {
@@ -185,6 +185,7 @@ export interface IOrderedMimeType {
 
 export interface ITransformedDisplayOutputDto {
 	outputKind: CellOutputKind.Rich;
+	outputId: string;
 	data: { [key: string]: any; }
 	metadata?: NotebookCellOutputMetadata;
 
@@ -205,6 +206,7 @@ export type IRawOutput = IDisplayOutput | IStreamOutput | IErrorOutput;
 
 export interface IOutputRenderRequestOutputInfo {
 	index: number;
+	outputId: string;
 	handlerId: string;
 	mimeType: string;
 	output?: IRawOutput;
@@ -221,6 +223,7 @@ export interface IOutputRenderRequest<T> {
 
 export interface IOutputRenderResponseOutputInfo {
 	index: number;
+	outputId: string;
 	mimeType: string;
 	handlerId: string;
 	transformedOutput: string;
@@ -559,9 +562,14 @@ export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' 
 
 
 export interface INotebookEditorModel extends IEditorModel {
-	notebook: NotebookTextModel;
+	readonly onDidChangeDirty: Event<void>;
+	readonly resource: URI;
+	readonly viewType: string;
+	readonly notebook: NotebookTextModel;
 	isDirty(): boolean;
 	save(): Promise<boolean>;
+	saveAs(target: URI): Promise<boolean>;
+	revert(options?: IRevertOptions | undefined): Promise<void>;
 }
 
 export interface INotebookTextModelBackup {
@@ -573,6 +581,7 @@ export interface INotebookTextModelBackup {
 export interface NotebookDocumentBackupData {
 	readonly viewType: string;
 	readonly name: string;
+	readonly backupId?: string;
 }
 
 export interface IEditor extends editorCommon.ICompositeCodeEditor {

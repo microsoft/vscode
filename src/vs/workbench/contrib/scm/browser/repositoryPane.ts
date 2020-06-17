@@ -27,7 +27,7 @@ import { ActionBar, IActionViewItemProvider, Separator } from 'vs/base/browser/u
 import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { WorkbenchCompressibleObjectTree, TreeResourceNavigator, IOpenEvent } from 'vs/platform/list/browser/listService';
+import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -1069,13 +1069,7 @@ export class RepositoryPane extends ViewPane {
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
 			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 
-		const navigator = this._register(new TreeResourceNavigator(this.tree, { openOnSelection: false }));
-		this._register(navigator.onDidOpenResource(this.open, this));
-
-		this._register(Event.chain(this.tree.onDidPin)
-			.map(e => e.elements[0])
-			.filter(e => !!e && !isSCMResourceGroup(e) && !ResourceTree.isResourceNode(e))
-			.on(this.pin, this));
+		this._register(this.tree.onDidOpen(this.open, this));
 
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
@@ -1214,19 +1208,19 @@ export class RepositoryPane extends ViewPane {
 		return this.repository.provider;
 	}
 
-	private open(e: IOpenEvent<TreeElement | null>): void {
+	private async open(e: IOpenEvent<TreeElement | null>): Promise<void> {
 		if (!e.element || isSCMResourceGroup(e.element) || ResourceTree.isResourceNode(e.element)) {
 			return;
 		}
 
-		e.element.open(!!e.editorOptions.preserveFocus);
-	}
+		await e.element.open(!!e.editorOptions.preserveFocus);
 
-	private pin(): void {
-		const activeEditorPane = this.editorService.activeEditorPane;
+		if (e.editorOptions.pinned) {
+			const activeEditorPane = this.editorService.activeEditorPane;
 
-		if (activeEditorPane) {
-			activeEditorPane.group.pinEditor(activeEditorPane.input);
+			if (activeEditorPane) {
+				activeEditorPane.group.pinEditor(activeEditorPane.input);
+			}
 		}
 	}
 

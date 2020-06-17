@@ -22,6 +22,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
 import { isArray, isString, isObject } from 'vs/base/common/types';
+import { IHeaders } from 'vs/base/parts/request/common/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -162,16 +164,20 @@ export type ServerResource = SyncResource | 'machines';
 export interface IUserDataSyncStoreService {
 	readonly _serviceBrand: undefined;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
+
 	readonly onTokenFailed: Event<void>;
 	readonly onTokenSucceed: Event<void>;
 	setAuthToken(token: string, type: string): void;
-	read(resource: ServerResource, oldValue: IUserData | null): Promise<IUserData>;
-	write(resource: ServerResource, content: string, ref: string | null): Promise<string>;
-	manifest(): Promise<IUserDataManifest | null>;
+
+	// Sync requests
+	manifest(headers?: IHeaders): Promise<IUserDataManifest | null>;
+	read(resource: ServerResource, oldValue: IUserData | null, headers?: IHeaders): Promise<IUserData>;
+	write(resource: ServerResource, content: string, ref: string | null, headers?: IHeaders): Promise<string>;
 	clear(): Promise<void>;
+	delete(resource: ServerResource): Promise<void>;
+
 	getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]>;
 	resolveContent(resource: ServerResource, ref: string): Promise<string | null>;
-	delete(resource: ServerResource): Promise<void>;
 }
 
 export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
@@ -270,10 +276,24 @@ export interface ISyncResourceHandle {
 
 export type Conflict = { remote: URI, local: URI };
 
-export interface ISyncPreviewResult {
+export interface IRemoteUserData {
+	ref: string;
+	syncData: ISyncData | null;
+}
+
+export interface ISyncData {
+	version: number;
+	machineId?: string;
+	content: string;
+}
+
+export interface ISyncPreview {
+	readonly remoteUserData: IRemoteUserData;
+	readonly lastSyncUserData: IRemoteUserData | null;
 	readonly isLastSyncFromCurrentMachine: boolean;
 	readonly hasLocalChanged: boolean;
 	readonly hasRemoteChanged: boolean;
+	readonly hasConflicts: boolean;
 }
 
 export interface IUserDataSynchroniser {
@@ -287,11 +307,11 @@ export interface IUserDataSynchroniser {
 
 	pull(): Promise<void>;
 	push(): Promise<void>;
-	sync(manifest: IUserDataManifest | null): Promise<void>;
+	sync(manifest: IUserDataManifest | null, headers?: IHeaders): Promise<void>;
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
-	getSyncPreview(): Promise<ISyncPreviewResult>
+	generateSyncPreview(): Promise<ISyncPreview | null>
 	hasPreviouslySynced(): Promise<boolean>
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;
@@ -309,17 +329,11 @@ export interface IUserDataSynchroniser {
 
 // #region User Data Sync Services
 
-export const IUserDataSyncEnablementService = createDecorator<IUserDataSyncEnablementService>('IUserDataSyncEnablementService');
-export interface IUserDataSyncEnablementService {
+export const IUserDataSyncResourceEnablementService = createDecorator<IUserDataSyncResourceEnablementService>('IUserDataSyncResourceEnablementService');
+export interface IUserDataSyncResourceEnablementService {
 	_serviceBrand: any;
 
-	readonly onDidChangeEnablement: Event<boolean>;
 	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]>;
-
-	isEnabled(): boolean;
-	setEnablement(enabled: boolean): void;
-	canToggleEnablement(): boolean;
-
 	isResourceEnabled(resource: SyncResource): boolean;
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
 }
@@ -343,7 +357,7 @@ export interface IUserDataSyncService {
 	readonly onDidChangeLastSyncTime: Event<number>;
 
 	pull(): Promise<void>;
-	sync(): Promise<void>;
+	sync(token: CancellationToken): Promise<void>;
 	stop(): Promise<void>;
 	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;
@@ -363,9 +377,12 @@ export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
 	readonly onError: Event<UserDataSyncError>;
-	enable(): void;
-	disable(): void;
-	triggerAutoSync(sources: string[]): Promise<void>;
+	readonly onDidChangeEnablement: Event<boolean>;
+	isEnabled(): boolean;
+	canToggleEnablement(): boolean;
+	turnOn(pullFirst: boolean): Promise<void>;
+	turnOff(everywhere: boolean): Promise<void>;
+	triggerSync(sources: string[], hasToLimitSync: boolean): Promise<void>;
 }
 
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');

@@ -1553,7 +1553,7 @@ suite('Disk File Service', function () {
 		return testFileTooLarge();
 	});
 
-	test('readFile - FILE_TOO_LARGE - buffered', async () => {
+	(isWindows ? test.skip /* flaky test */ : test)('readFile - FILE_TOO_LARGE - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
 		return testFileTooLarge();

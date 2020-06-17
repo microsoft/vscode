@@ -8,7 +8,7 @@ import { Barrier } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { connectRemoteAgentTunnel, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
@@ -132,6 +132,7 @@ export class TunnelService extends AbstractTunnelService {
 		@ILogService logService: ILogService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ISignService private readonly signService: ISignService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(environmentService, logService);
 	}
@@ -152,7 +153,7 @@ export class TunnelService extends AbstractTunnelService {
 			return tunnel;
 		} else {
 			const options: IConnectionOptions = {
-				commit: product.commit,
+				commit: this.productService.commit,
 				socketFactory: nodeSocketFactory,
 				addressProvider: {
 					getAddress: async () => {

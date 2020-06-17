@@ -512,12 +512,10 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 
 	public async $onDidStartTaskProcess(value: tasks.TaskProcessStartedDTO): Promise<void> {
 		const execution = await this.getTaskExecution(value.id);
-		if (execution) {
-			this._onDidTaskProcessStarted.fire({
-				execution: execution,
-				processId: value.processId
-			});
-		}
+		this._onDidTaskProcessStarted.fire({
+			execution: execution,
+			processId: value.processId
+		});
 	}
 
 	public get onDidEndTaskProcess(): Event<vscode.TaskProcessEndEvent> {
@@ -526,12 +524,10 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 
 	public async $onDidEndTaskProcess(value: tasks.TaskProcessEndedDTO): Promise<void> {
 		const execution = await this.getTaskExecution(value.id);
-		if (execution) {
-			this._onDidTaskProcessEnded.fire({
-				execution: execution,
-				exitCode: value.exitCode
-			});
-		}
+		this._onDidTaskProcessEnded.fire({
+			execution: execution,
+			exitCode: value.exitCode
+		});
 	}
 
 	protected abstract provideTasksInternal(validTypes: { [key: string]: boolean; }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.TaskDTO[], extension: IExtensionDescription };
@@ -622,7 +618,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 
 	protected async getTaskExecution(execution: tasks.TaskExecutionDTO | string, task?: vscode.Task): Promise<TaskExecutionImpl> {
 		if (typeof execution === 'string') {
-			const taskExecution = this._taskExecutions.get(execution);
+			const taskExecution = this._taskExecutionPromises.get(execution);
 			if (!taskExecution) {
 				throw new Error('Unexpected: The specified task is missing an execution');
 			}
@@ -643,9 +639,11 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		});
 
 		this._taskExecutionPromises.set(execution.id, createdResult);
-		return createdResult.then(result => {
-			this._taskExecutions.set(execution.id, result);
-			return result;
+		return createdResult.then(executionCreatedResult => {
+			this._taskExecutions.set(execution.id, executionCreatedResult);
+			return executionCreatedResult;
+		}, rejected => {
+			return Promise.reject(rejected);
 		});
 	}
 

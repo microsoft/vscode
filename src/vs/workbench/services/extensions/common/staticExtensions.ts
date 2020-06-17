@@ -27,6 +27,7 @@ export class StaticExtensionsService implements IStaticExtensionsService {
 		this._descriptions = staticExtensions.map(data => <IExtensionDescription>{
 			identifier: new ExtensionIdentifier(`${data.packageJSON.publisher}.${data.packageJSON.name}`),
 			extensionLocation: data.extensionLocation,
+			isBuiltin: !!data.isBuiltin,
 			...data.packageJSON,
 		});
 	}

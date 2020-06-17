@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
-import { IListStyles, IStyleController, MouseController, IListOptions } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -19,7 +19,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellRange, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellRange, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { diff, IProcessedOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { clamp } from 'vs/base/common/numbers';
@@ -124,6 +124,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			notebookEditorCursorAtBoundaryContext.set('none');
 		}));
 
+		this._localDisposableStore.add(this.view.onMouseDblClick(() => {
+			const focus = this.getFocusedElements()[0];
+			if (focus && focus.cellKind === CellKind.Markdown) {
+				focus.editState = CellEditState.Editing;
+				focus.focusMode = CellFocusMode.Editor;
+			}
+		}));
 	}
 
 	elementAt(position: number): ICellViewModel | undefined {
@@ -144,10 +151,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		return this.view.elementHeight(index);
-	}
-
-	protected createMouseController(_options: IListOptions<CellViewModel>): MouseController<CellViewModel> {
-		return new NotebookMouseController(this);
 	}
 
 	detachViewModel() {
@@ -525,7 +528,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	// override
 	domFocus() {
-		if (document.activeElement && this.view.domNode.contains(document.activeElement)) {
+		const focused = this.getFocusedElements()[0];
+		const focusedDomElement = this.domElementOfElement(focused);
+
+		if (document.activeElement && focusedDomElement && focusedDomElement.contains(document.activeElement)) {
 			// for example, when focus goes into monaco editor, if we refocus the list view, the editor will lose focus.
 			return;
 		}
@@ -882,14 +888,4 @@ function getEditorAttachedPromise(element: CellViewModel) {
 
 function isContextMenuFocused() {
 	return !!DOM.findParentWithClass(<HTMLElement>document.activeElement, 'context-view');
-}
-
-
-class NotebookMouseController extends MouseController<CellViewModel> {
-	protected onDoubleClick(): void {
-		const focus = this.list.getFocusedElements()[0];
-		if (focus && focus.cellKind === CellKind.Markdown) {
-			focus.editState = CellEditState.Editing;
-		}
-	}
 }

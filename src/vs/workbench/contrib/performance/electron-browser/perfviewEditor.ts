@@ -19,7 +19,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -89,6 +89,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ITimerService private readonly _timerService: ITimerService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IProductService private readonly _productService: IProductService
 	) { }
 
 	provideTextContent(resource: URI): Promise<ITextModel> {
@@ -143,7 +144,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _addSummary(md: MarkdownBuilder, metrics: IStartupMetrics): void {
 		md.heading(2, 'System Info');
-		md.li(`${product.nameShort}: ${product.version} (${product.commit || '0000000'})`);
+		md.li(`${this._productService.nameShort}: ${this._productService.version} (${this._productService.commit || '0000000'})`);
 		md.li(`OS: ${metrics.platform}(${metrics.release})`);
 		if (metrics.cpus) {
 			md.li(`CPUs: ${metrics.cpus.model}(${metrics.cpus.count} x ${metrics.cpus.speed})`);

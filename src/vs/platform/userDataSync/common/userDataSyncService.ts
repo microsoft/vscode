@@ -19,12 +19,10 @@ import { URI } from 'vs/base/common/uri';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { isEqual } from 'vs/base/common/resources';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
-import { Throttler, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
-import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { platform, PlatformToString, isWeb, Platform } from 'vs/base/common/platform';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IHeaders } from 'vs/base/parts/request/common/request';
 
 type SyncClassification = {
 	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -37,8 +35,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	_serviceBrand: any;
 
-	private readonly syncThrottler: Throttler;
-	private syncPromise: CancelablePromise<void> | undefined;
 	private readonly synchronisers: IUserDataSynchroniser[];
 
 	private _status: SyncStatus = SyncStatus.Uninitialized;
@@ -75,10 +71,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
-		@IProductService private readonly productService: IProductService
 	) {
 		super();
-		this.syncThrottler = new Throttler();
 		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
 		this.keybindingsSynchroniser = this._register(this.instantiationService.createInstance(KeybindingsSynchroniser));
 		this.snippetsSynchroniser = this._register(this.instantiationService.createInstance(SnippetsSynchroniser));
@@ -135,7 +129,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private recoveredSettings: boolean = false;
-	async sync(): Promise<void> {
+	async sync(token: CancellationToken): Promise<void> {
 		await this.checkEnablement();
 
 		if (!this.recoveredSettings) {
@@ -143,10 +137,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.recoveredSettings = true;
 		}
 
-		await this.syncThrottler.queue(() => {
-			this.syncPromise = createCancelablePromise(token => this.doSync(token));
-			return this.syncPromise;
-		});
+		// Return if cancellation is requested
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		return this.doSync(token);
 	}
 
 	private async doSync(token: CancellationToken): Promise<void> {
@@ -159,7 +155,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 
 			this.telemetryService.publicLog2('sync/getmanifest');
-			let manifest = await this.userDataSyncStoreService.manifest();
+			const syncHeaders: IHeaders = { 'X-Execution-Id': generateUuid() };
+			let manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
 
 			// Server has no data but this machine was synced before
 			if (manifest === null && await this.hasPreviouslySynced()) {
@@ -174,17 +171,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 
 			const machines = await this.userDataSyncMachinesService.getMachines(manifest || undefined);
-			const currentMachine = machines.find(machine => machine.isCurrent);
-
 			// Return if cancellation is requested
 			if (token.isCancellationRequested) {
 				return;
 			}
 
+			const currentMachine = machines.find(machine => machine.isCurrent);
 			// Check if sync was turned off from other machine
 			if (currentMachine?.disabled) {
-				// Unset the current machine
-				await this.userDataSyncMachinesService.removeCurrentMachine(manifest || undefined);
 				// Throw TurnedOff error
 				throw new UserDataSyncError(localize('turned off machine', "Cannot sync because syncing is turned off on this machine from another machine."), UserDataSyncErrorCode.TurnedOff);
 			}
@@ -195,7 +189,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 					return;
 				}
 				try {
-					await synchroniser.sync(manifest);
+					await synchroniser.sync(manifest, syncHeaders);
 				} catch (e) {
 					this.handleSynchronizerError(e, synchroniser.resource);
 					this._syncErrors.push([synchroniser.resource, UserDataSyncError.toUserDataSyncError(e)]);
@@ -204,7 +198,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 			// After syncing, get the manifest if it was not available before
 			if (manifest === null) {
-				manifest = await this.userDataSyncStoreService.manifest();
+				manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
 			}
 
 			// Return if cancellation is requested
@@ -220,12 +214,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			// Return if cancellation is requested
 			if (token.isCancellationRequested) {
 				return;
-			}
-
-			// Add current machine
-			if (!currentMachine) {
-				const name = this.computeDefaultMachineName(machines);
-				await this.userDataSyncMachinesService.addCurrentMachine(name, manifest || undefined);
 			}
 
 			// Return if cancellation is requested
@@ -258,12 +246,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async stop(): Promise<void> {
 		await this.checkEnablement();
-
-		if (this.syncPromise) {
-			this.syncPromise.cancel();
-			this.logService.info('Canelled sync that is in progress');
-			this.syncPromise = undefined;
-		}
 
 		if (this.status === SyncStatus.Idle) {
 			return;
@@ -339,8 +321,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 
 		for (const synchroniser of synchronizers) {
-			const preview = await synchroniser.getSyncPreview();
-			if (!preview.isLastSyncFromCurrentMachine && (preview.hasLocalChanged || preview.hasRemoteChanged)) {
+			const preview = await synchroniser.generateSyncPreview();
+			if (preview && !preview.isLastSyncFromCurrentMachine && (preview.hasLocalChanged || preview.hasRemoteChanged)) {
 				return true;
 			}
 		}
@@ -351,16 +333,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	async reset(): Promise<void> {
 		await this.checkEnablement();
 		await this.resetRemote();
-		await this.resetLocal(true);
+		await this.resetLocal();
 	}
 
-	async resetLocal(donotUnsetMachine?: boolean): Promise<void> {
+	async resetLocal(): Promise<void> {
 		await this.checkEnablement();
 		this.storageService.remove(SESSION_ID_KEY, StorageScope.GLOBAL);
 		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL);
-		if (!donotUnsetMachine) {
-			await this.userDataSyncMachinesService.removeCurrentMachine();
-		}
 		for (const synchroniser of this.synchronisers) {
 			try {
 				await synchroniser.resetLocal();
@@ -458,20 +437,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private computeConflicts(): SyncResourceConflicts[] {
 		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)
 			.map(s => ({ syncResource: s.resource, conflicts: s.conflicts }));
-	}
-
-	private computeDefaultMachineName(machines: IUserDataSyncMachine[]): string {
-		const namePrefix = `${this.productService.nameLong} (${PlatformToString(isWeb ? Platform.Web : platform)})`;
-		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s#(\\d)`);
-
-		let nameIndex = 0;
-		for (const machine of machines) {
-			const matches = nameRegEx.exec(machine.name);
-			const index = matches ? parseInt(matches[1]) : 0;
-			nameIndex = index > nameIndex ? index : nameIndex;
-		}
-
-		return `${namePrefix} #${nameIndex + 1}`;
 	}
 
 	getSynchroniser(source: SyncResource): IUserDataSynchroniser {

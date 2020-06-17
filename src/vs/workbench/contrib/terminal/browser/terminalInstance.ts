@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, LEGACY_CONSOLE_MODE_EXIT_CODE, DEFAULT_COMMANDS_TO_SKIP_SHELL } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
@@ -42,6 +42,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { TerminalLaunchTroubleshootAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -485,8 +486,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('xterm elements not set after open');
 		}
 
+		// Check if custom Terminal title exists and set same
+		if (this._title.length > 0) {
+			xterm.textarea.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", this._id, this._title));
+		} else {
+			xterm.textarea.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", this._id));
+		}
 
-		xterm.textarea.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", this._id));
 		xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 		xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
 			// Disable all input if the terminal is exiting
@@ -909,11 +915,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 		}
 
-		// Create the process asynchronously to allow the terminal's container
-		// to be created so dimensions are accurate
-		setTimeout(() => {
-			this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized());
-		}, 0);
+		// Create the process asynchronously to allow the terminal's container to be created so
+		// dimensions are accurate
+		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
+			if (error) {
+				this._onProcessExit(error);
+			}
+		});
 	}
 
 	private getShellType(executable: string): TerminalShellType {
@@ -948,48 +956,54 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * @param exitCode The exit code of the process, this is undefined when the terminal was exited
 	 * through user action.
 	 */
-	private _onProcessExit(exitCode?: number): void {
+	private _onProcessExit(exitCodeOrError?: number | ITerminalLaunchError): void {
 		// Prevent dispose functions being triggered multiple times
 		if (this._isExiting) {
 			return;
 		}
 
-		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
+		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${this._exitCode}`);
 
-		this._exitCode = exitCode;
 		this._isExiting = true;
 		let exitCodeMessage: string | undefined;
 
 		// Create exit code message
-		if (exitCode) {
-			if (exitCode === SHELL_PATH_INVALID_EXIT_CODE) {
-				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPath', 'The terminal shell path "{0}" does not exist', this._shellLaunchConfig.executable);
-			} else if (exitCode === SHELL_PATH_DIRECTORY_EXIT_CODE) {
-				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPathDirectory', 'The terminal shell path "{0}" is a directory', this._shellLaunchConfig.executable);
-			} else if (exitCode === SHELL_CWD_INVALID_EXIT_CODE && this._shellLaunchConfig.cwd) {
-				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidCWD', 'The terminal shell CWD "{0}" does not exist', this._shellLaunchConfig.cwd.toString());
-			} else if (exitCode === LEGACY_CONSOLE_MODE_EXIT_CODE) {
-				exitCodeMessage = nls.localize('terminal.integrated.legacyConsoleModeError', 'The terminal failed to launch properly because your system has legacy console mode enabled, uncheck "Use legacy console" cmd.exe\'s properties to fix this.');
-			} else if (this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
-				let args = '';
-				if (typeof this._shellLaunchConfig.args === 'string') {
-					args = ` ${this._shellLaunchConfig.args}`;
-				} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
-					args = ' ' + this._shellLaunchConfig.args.map(a => {
-						if (typeof a === 'string' && a.indexOf(' ') !== -1) {
-							return `'${a}'`;
-						}
-						return a;
-					}).join(' ');
+		switch (typeof exitCodeOrError) {
+			case 'number':
+				// Only show the error if the exit code is non-zero
+				this._exitCode = exitCodeOrError;
+				if (this._exitCode === 0) {
+					break;
 				}
+
+				let commandLine: string | undefined = undefined;
 				if (this._shellLaunchConfig.executable) {
-					exitCodeMessage = nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode);
-				} else {
-					exitCodeMessage = nls.localize('terminal.integrated.launchFailedExtHost', 'The terminal process failed to launch (exit code: {0})', exitCode);
+					commandLine = this._shellLaunchConfig.executable;
+					if (typeof this._shellLaunchConfig.args === 'string') {
+						commandLine += ` ${this._shellLaunchConfig.args}`;
+					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
+						commandLine += this._shellLaunchConfig.args.map(a => ` '${a}'`).join();
+					}
 				}
-			} else {
-				exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
-			}
+
+				if (this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
+					if (commandLine) {
+						exitCodeMessage = nls.localize('launchFailed.exitCodeAndCommandLine', "The terminal process \"{0}\" failed to launch (exit code: {1})", commandLine, this._exitCode);
+						break;
+					}
+					exitCodeMessage = nls.localize('launchFailed.exitCodeOnly', "The terminal process failed to launch (exit code: {0})", this._exitCode);
+					break;
+				}
+				if (commandLine) {
+					exitCodeMessage = nls.localize('terminated.exitCodeAndCommandLine', "The terminal process \"{0}\" terminated with exit code: {1}", commandLine, this._exitCode);
+					break;
+				}
+				exitCodeMessage = nls.localize('terminated.exitCodeOnly', "The terminal process terminated with exit code: {0}", this._exitCode);
+				break;
+			case 'object':
+				this._exitCode = exitCodeOrError.code;
+				exitCodeMessage = nls.localize('launchFailed.errorMessage', "The terminal process failed to launch: {0}", exitCodeOrError.message);
+				break;
 		}
 
 		this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processManager.processState}`);
@@ -1016,19 +1030,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		} else {
 			this.dispose();
 			if (exitCodeMessage) {
-				if (this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
-					this._notificationService.error(exitCodeMessage);
+				const failedDuringLaunch = this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH;
+				if (failedDuringLaunch || this._configHelper.config.showExitAlert) {
+					// Always show launch failures
+					this._notificationService.notify({
+						message: exitCodeMessage,
+						severity: Severity.Error,
+						actions: { primary: [this._instantiationService.createInstance(TerminalLaunchTroubleshootAction)] }
+					});
 				} else {
-					if (this._configHelper.config.showExitAlert) {
-						this._notificationService.error(exitCodeMessage);
-					} else {
-						console.warn(exitCodeMessage);
-					}
+					// Log to help surface the error in case users report issues with showExitAlert
+					// disabled
+					this._logService.warn(exitCodeMessage);
 				}
 			}
 		}
 
-		this._onExit.fire(exitCode);
+		this._onExit.fire(this._exitCode);
 	}
 
 	private _attachPressAnyKeyToCloseListener(xterm: XTermTerminal) {

@@ -103,11 +103,6 @@
 	display: none;
 }
 
-.extensions-viewlet > .extensions .selected .extension-list-item > .details > .footer > .author,
-.extensions-viewlet > .extensions .selected.focused .extension-list-item > .details > .footer > .author {
-	opacity: 1;
-}
-
 .extensions-viewlet.narrow > .extensions .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action {
 	max-width: 100px;
 }

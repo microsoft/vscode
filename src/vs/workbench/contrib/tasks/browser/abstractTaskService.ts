@@ -81,6 +81,7 @@ import { find } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -255,7 +256,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IPathService private readonly pathService: IPathService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -554,6 +556,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public async tryResolveTask(configuringTask: ConfiguringTask): Promise<Task | undefined> {
+		await Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), this.extensionService.whenInstalledExtensionsRegistered()]);
 		let matchingProvider: ITaskProvider | undefined;
 		for (const [handle, provider] of this._providers) {
 			if (configuringTask.type === this._providerTypes.get(handle)) {
@@ -1546,7 +1549,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
-			this.pathService, this.viewDescriptorService,
+			this.pathService, this.viewDescriptorService, this.logService,
 			(workspaceFolder: IWorkspaceFolder) => {
 				if (!workspaceFolder) {
 					return undefined;

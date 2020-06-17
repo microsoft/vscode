@@ -5,6 +5,7 @@
 
 import { UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export const IWebviewManagerService = createDecorator<IWebviewManagerService>('webviewManagerService');
 
@@ -13,7 +14,7 @@ export interface IWebviewManagerService {
 
 	registerWebview(id: string, metadata: RegisterWebviewMetadata): Promise<void>;
 	unregisterWebview(id: string): Promise<void>;
-	updateLocalResourceRoots(id: string, roots: UriComponents[]): Promise<void>;
+	updateWebviewMetadata(id: string, metadataDelta: Partial<RegisterWebviewMetadata>): Promise<void>;
 
 	setIgnoreMenuShortcuts(webContentsId: number, enabled: boolean): Promise<void>;
 }
@@ -21,4 +22,5 @@ export interface IWebviewManagerService {
 export interface RegisterWebviewMetadata {
 	readonly extensionLocation: UriComponents | undefined;
 	readonly localResourceRoots: readonly UriComponents[];
+	readonly remoteConnectionData: IRemoteConnectionData | null;
 }

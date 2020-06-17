@@ -42,6 +42,7 @@ import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/not
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
+import { INotebookEditorModelResolverService, NotebookModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 
 // Editor Contribution
 
@@ -174,6 +175,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 		this._register(this.editorService.overrideOpenEditor({
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
+
 				const currentEditorForResource = group?.editors.find(editor => isEqual(editor.resource, resource));
 
 				const associatedEditors = distinct([
@@ -190,7 +192,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 					};
 				});
 			},
-			open: (editor, options, group, context, id) => this.onEditorOpening(editor, options, group, context, id)
+			open: (editor, options, group, context) => this.onEditorOpening(editor, options, group, context)
 		}));
 
 		this._register(this.editorService.onDidVisibleEditorsChange(() => {
@@ -249,7 +251,12 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		return this.notebookService.getContributedNotebookProviders(resource);
 	}
 
-	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorContext, id: string | undefined): IOpenEditorOverride | undefined {
+	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorContext): IOpenEditorOverride | undefined {
+		const id = typeof options?.override === 'string' ? options.override : undefined;
+		if (id === undefined && originalInput.isUntitled()) {
+			return;
+		}
+
 		if (originalInput instanceof NotebookEditorInput) {
 			if ((originalInput.group === group.id || originalInput.group === undefined) && (originalInput.viewType === id || typeof id !== 'string')) {
 				// No need to do anything
@@ -343,6 +350,10 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		const infos = this.notebookService.getContributedNotebookProviders(resource);
 		info = id === undefined ? infos[0] : infos.find(info => info.id === id);
 
+		if (!info && id !== undefined) {
+			info = this.notebookService.getContributedNotebookProvider(id);
+		}
+
 		if (!info) {
 			return undefined;
 		}
@@ -431,6 +442,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContributio
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
 
 registerSingleton(INotebookService, NotebookService);
+registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverService, true);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({

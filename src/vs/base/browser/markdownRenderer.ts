@@ -88,9 +88,13 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		if (href) {
 			({ href, dimensions } = parseHrefAndDimensions(href));
 			href = _href(href, true);
-			if (options.baseUrl) {
-				href = resolvePath(options.baseUrl, href).toString();
-			}
+			try {
+				const hrefAsUri = URI.parse(href);
+				if (options.baseUrl && hrefAsUri.scheme === Schemas.file) { // absolute or relative local path, or file: uri
+					href = resolvePath(options.baseUrl, href).toString();
+				}
+			} catch (err) { }
+
 			attributes.push(`src="${href}"`);
 		}
 		if (text) {
@@ -228,7 +232,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		// allowedTags should included everything that markdown renders to.
 		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
 		// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
-		allowedTags: ['ul', 'li', 'p', 'code', 'blockquote', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'em', 'pre', 'table', 'tr', 'td', 'div', 'del', 'a', 'strong', 'br', 'img', 'span'],
+		// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
+		allowedTags: ['ul', 'li', 'p', 'code', 'blockquote', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'em', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'del', 'a', 'strong', 'br', 'img', 'span'],
 		allowedAttributes: {
 			'a': ['href', 'name', 'target', 'data-href'],
 			'img': ['src', 'title', 'alt', 'width', 'height'],

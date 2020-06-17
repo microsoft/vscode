@@ -87,6 +87,10 @@ export class AzureActiveDirectoryService {
 			try {
 				const sessions = this.parseStoredData(storedData);
 				const refreshes = sessions.map(async session => {
+					if (!session.refreshToken) {
+						return Promise.resolve();
+					}
+
 					try {
 						await this.refreshToken(session.refreshToken, session.scope, session.id);
 					} catch (e) {
@@ -148,7 +152,7 @@ export class AzureActiveDirectoryService {
 					const sessions = this.parseStoredData(storedData);
 					let promises = sessions.map(async session => {
 						const matchesExisting = this._tokens.some(token => token.scope === session.scope && token.sessionId === session.id);
-						if (!matchesExisting) {
+						if (!matchesExisting && session.refreshToken) {
 							try {
 								await this.refreshToken(session.refreshToken, session.scope, session.id);
 								addedIds.push(session.id);
@@ -242,6 +246,10 @@ export class AzureActiveDirectoryService {
 
 	public async login(scope: string): Promise<vscode.AuthenticationSession2> {
 		Logger.info('Logging in...');
+		if (!scope.includes('offline_access')) {
+			Logger.info('Warning: The \'offline_access\' scope was not included, so the generated token will not be able to be refreshed.');
+		}
+
 		return new Promise(async (resolve, reject) => {
 			if (vscode.env.uiKind === vscode.UIKind.Web) {
 				resolve(this.loginWithoutLocalServer(scope));

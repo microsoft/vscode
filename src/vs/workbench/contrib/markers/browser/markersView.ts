@@ -26,7 +26,7 @@ import { IContextKey, IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr }
 import { Iterable } from 'vs/base/common/iterator';
 import { ITreeElement, ITreeNode, ITreeContextMenuEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Relay, Event, Emitter } from 'vs/base/common/event';
-import { WorkbenchObjectTree, TreeResourceNavigator, IListService, IWorkbenchObjectTreeOptions } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree, IListService, IWorkbenchObjectTreeOptions } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { IExpression } from 'vs/base/common/glob';
 import { deepClone } from 'vs/base/common/objects';
@@ -424,7 +424,8 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 				expandOnlyOnTwistieClick: (e: TreeElement) => e instanceof Marker && e.relatedInformation.length > 0,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
-				}
+				},
+				openOnFocus: true
 			},
 		));
 
@@ -437,8 +438,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 			relatedInformationFocusContextKey.set(focus.elements.some(e => e instanceof RelatedInformation));
 		}));
 
-		const markersNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
-		this._register(Event.debounce(markersNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {
+		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, !!options.editorOptions.preserveFocus, options.sideBySide, !!options.editorOptions.pinned);
 		}));
 		this._register(this.tree.onDidChangeCollapseState(({ node }) => {
