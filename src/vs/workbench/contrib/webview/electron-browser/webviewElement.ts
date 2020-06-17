@@ -393,7 +393,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		// We end up focusing the webview after showing the quick pick, which causes
 		// the quick pick to instantly dismiss.
 		//
-		// Workarount this by debouncing the focus and making sure we are not focused on an input
+		// Workaround this by debouncing the focus and making sure we are not focused on an input
 		// when we try to re-focus.
 		this._focusDelayer.trigger(async () => {
 			if (!this.focused || !this.element) {
@@ -517,7 +517,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 	protected on<T = unknown>(channel: WebviewMessageChannels | string, handler: (data: T) => void): IDisposable {
 		if (!this.element) {
-			return Disposable.None;
+			throw new Error('Cannot add event listener. No webview element found.');
 		}
 		return addDisposableListener(this.element, 'ipc-message', (event) => {
 			if (!this.element) {
