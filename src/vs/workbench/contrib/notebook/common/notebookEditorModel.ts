@@ -9,7 +9,7 @@ import { INotebookEditorModel, NotebookDocumentBackupData } from 'vs/workbench/c
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
-import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { basename } from 'vs/base/common/resources';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -68,7 +68,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		const workingCopyAdapter = new class implements IWorkingCopy {
 			readonly resource = input._workingCopyResource;
 			get name() { return input.name; }
-			readonly capabilities = input.capabilities;
+			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : input.capabilities;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
 			readonly onDidChangeContent = input.onDidChangeContent;
 			isDirty(): boolean { return input.isDirty(); }
@@ -201,6 +201,10 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 	isDirty() {
 		return this._dirty;
+	}
+
+	isUntitled() {
+		return this.resource.scheme === Schemas.untitled;
 	}
 
 	async save(): Promise<boolean> {

@@ -567,6 +567,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly viewType: string;
 	readonly notebook: NotebookTextModel;
 	isDirty(): boolean;
+	isUntitled(): boolean;
 	save(): Promise<boolean>;
 	saveAs(target: URI): Promise<boolean>;
 	revert(options?: IRevertOptions | undefined): Promise<void>;
