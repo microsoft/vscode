@@ -98,6 +98,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
 	private _isVisible = false;
+	private readonly _uuid = generateUuid();
 
 	get isDisposed() {
 		return this._isDisposed;
@@ -130,7 +131,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.notebookService.addNotebookEditor(this);
 	}
 
-	private _uuid = generateUuid();
 	public getId(): string {
 		return this._uuid;
 	}

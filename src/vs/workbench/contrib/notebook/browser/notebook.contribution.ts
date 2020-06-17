@@ -32,7 +32,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellUri, NotebookDocumentBackupData, NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { IEditorGroup, OpenEditorContext, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
@@ -40,7 +40,6 @@ import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/custo
 import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import { INotebookEditorModelResolverService, NotebookModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 
 // Editor Contribution
@@ -146,7 +145,6 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 
@@ -186,24 +184,6 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			},
 			open: (editor, options, group) => {
 				return this.onEditorOpening2(editor, options, group);
-			}
-		}));
-
-		// HACK
-		// we use the open override to spy on tab movements because that's the only
-		// way to do that...
-		this._register(this.editorService.overrideOpenEditor({
-			open: (input, _options, group, context) => {
-				if (input instanceof NotebookEditorInput && context === OpenEditorContext.MOVE_EDITOR) {
-					// when moving a notebook editor we release it from its current tab and we
-					// "place" it into its future slot so that the editor can pick it up from there
-					const widgetRef = NotebookRegistry.getNotebookEditorWidget(input.resource, this.editorGroupsService.activeGroup);
-					if (widgetRef) {
-						NotebookRegistry.releaseNotebookEditorWidget(input.resource, this.editorGroupsService.activeGroup);
-						NotebookRegistry.claimNotebookEditorWidget(input.resource, group, widgetRef);
-					}
-				}
-				return undefined;
 			}
 		}));
 
