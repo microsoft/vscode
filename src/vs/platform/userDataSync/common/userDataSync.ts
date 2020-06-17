@@ -23,6 +23,7 @@ import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/com
 import { distinct } from 'vs/base/common/arrays';
 import { isArray, isString, isObject } from 'vs/base/common/types';
 import { IHeaders } from 'vs/base/parts/request/common/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -328,17 +329,11 @@ export interface IUserDataSynchroniser {
 
 // #region User Data Sync Services
 
-export const IUserDataSyncEnablementService = createDecorator<IUserDataSyncEnablementService>('IUserDataSyncEnablementService');
-export interface IUserDataSyncEnablementService {
+export const IUserDataSyncResourceEnablementService = createDecorator<IUserDataSyncResourceEnablementService>('IUserDataSyncResourceEnablementService');
+export interface IUserDataSyncResourceEnablementService {
 	_serviceBrand: any;
 
-	readonly onDidChangeEnablement: Event<boolean>;
 	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]>;
-
-	isEnabled(): boolean;
-	setEnablement(enabled: boolean): void;
-	canToggleEnablement(): boolean;
-
 	isResourceEnabled(resource: SyncResource): boolean;
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
 }
@@ -362,7 +357,7 @@ export interface IUserDataSyncService {
 	readonly onDidChangeLastSyncTime: Event<number>;
 
 	pull(): Promise<void>;
-	sync(): Promise<void>;
+	sync(token: CancellationToken): Promise<void>;
 	stop(): Promise<void>;
 	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;
@@ -382,9 +377,12 @@ export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
 	readonly onError: Event<UserDataSyncError>;
-	enable(): void;
-	disable(): void;
-	triggerAutoSync(sources: string[]): Promise<void>;
+	readonly onDidChangeEnablement: Event<boolean>;
+	isEnabled(): boolean;
+	canToggleEnablement(): boolean;
+	turnOn(pullFirst: boolean): Promise<void>;
+	turnOff(everywhere: boolean): Promise<void>;
+	triggerSync(sources: string[], hasToLimitSync: boolean): Promise<void>;
 }
 
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');

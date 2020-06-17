@@ -376,6 +376,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._onNotebookDocumentAdd.fire([notebookModel!.uri]);
 		// after the document is added to the store and sent to ext host, we transform the ouputs
 		await this.transformTextModelOutputs(notebookModel!);
+
+		if (editorId) {
+			await provider.controller.resolveNotebookEditor(viewType, uri, editorId);
+		}
+
 		return modelData.model;
 	}
 
@@ -740,16 +745,6 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		if (provider) {
 			return provider.controller.backup(uri, token);
-		}
-
-		return;
-	}
-
-	async revert(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
-		let provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			return provider.controller.revert(uri, token);
 		}
 
 		return;

@@ -435,7 +435,7 @@ export class TreeView extends Disposable implements ITreeView {
 					return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
 				},
 				getRole(element: ITreeItem): string | undefined {
-					return element.accessibilityInformation?.role;
+					return element.accessibilityInformation?.role ?? 'treeitem';
 				},
 				getWidgetAriaLabel(): string {
 					return widgetAriaLabel;

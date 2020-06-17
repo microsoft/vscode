@@ -316,33 +316,29 @@ export class ExtensionsListView extends ViewPane {
 			result = result
 				.filter(e => e.type === ExtensionType.System && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
+			const isThemeExtension = (e: IExtension): boolean => {
+				return (Array.isArray(e.local?.manifest?.contributes?.themes) && e.local!.manifest!.contributes!.themes.length > 0)
+					|| (Array.isArray(e.local?.manifest?.contributes?.iconThemes) && e.local!.manifest!.contributes!.iconThemes.length > 0);
+			};
 			if (showThemesOnly) {
-				const themesExtensions = result.filter(e => {
-					return e.local
-						&& e.local.manifest
-						&& e.local.manifest.contributes
-						&& Array.isArray(e.local.manifest.contributes.themes)
-						&& e.local.manifest.contributes.themes.length;
-				});
+				const themesExtensions = result.filter(isThemeExtension);
 				return this.getPagedModel(this.sortExtensions(themesExtensions, options));
 			}
+
+			const isLangaugeBasicExtension = (e: IExtension): boolean => {
+				return FORCE_FEATURE_EXTENSIONS.indexOf(e.identifier.id) === -1
+					&& (Array.isArray(e.local?.manifest?.contributes?.grammars) && e.local!.manifest!.contributes!.grammars.length > 0);
+			};
 			if (showBasicsOnly) {
-				const basics = result.filter(e => {
-					return e.local && e.local.manifest
-						&& e.local.manifest.contributes
-						&& Array.isArray(e.local.manifest.contributes.grammars)
-						&& e.local.manifest.contributes.grammars.length
-						&& FORCE_FEATURE_EXTENSIONS.indexOf(e.local.identifier.id) === -1;
-				});
+				const basics = result.filter(isLangaugeBasicExtension);
 				return this.getPagedModel(this.sortExtensions(basics, options));
 			}
 			if (showFeaturesOnly) {
 				const others = result.filter(e => {
 					return e.local
 						&& e.local.manifest
-						&& e.local.manifest.contributes
-						&& (!Array.isArray(e.local.manifest.contributes.grammars) || FORCE_FEATURE_EXTENSIONS.indexOf(e.local.identifier.id) !== -1)
-						&& !Array.isArray(e.local.manifest.contributes.themes);
+						&& !isThemeExtension(e)
+						&& !isLangaugeBasicExtension(e);
 				});
 				return this.getPagedModel(this.sortExtensions(others, options));
 			}

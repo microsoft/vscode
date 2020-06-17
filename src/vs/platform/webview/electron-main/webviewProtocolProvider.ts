@@ -7,11 +7,12 @@ import { protocol } from 'electron';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { streamToNodeReadable } from 'vs/base/node/stream';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { loadLocalResourceStream, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
+import { VSBufferReadableStream } from 'vs/base/common/buffer';
+import { Readable } from 'stream';
 
 interface WebviewMetadata {
 	readonly extensionLocation: URI | undefined;
@@ -44,7 +45,7 @@ export class WebviewProtocolProvider extends Disposable {
 					if (result.type === WebviewResourceResponse.Type.Success) {
 						return callback({
 							statusCode: 200,
-							data: streamToNodeReadable(result.stream),
+							data: this.streamToNodeReadable(result.stream),
 							headers: {
 								'Content-Type': result.mimeType,
 								'Access-Control-Allow-Origin': '*',
@@ -65,6 +66,50 @@ export class WebviewProtocolProvider extends Disposable {
 		});
 
 		this._register(toDisposable(() => protocol.unregisterProtocol(Schemas.vscodeWebviewResource)));
+	}
+
+	private streamToNodeReadable(stream: VSBufferReadableStream): Readable {
+		return new class extends Readable {
+			private listening = false;
+
+			_read(size?: number): void {
+				if (!this.listening) {
+					this.listening = true;
+
+					// Data
+					stream.on('data', data => {
+						try {
+							if (!this.push(data.buffer)) {
+								stream.pause(); // pause the stream if we should not push anymore
+							}
+						} catch (error) {
+							this.emit(error);
+						}
+					});
+
+					// End
+					stream.on('end', () => {
+						try {
+							this.push(null); // signal EOS
+						} catch (error) {
+							this.emit(error);
+						}
+					});
+
+					// Error
+					stream.on('error', error => this.emit('error', error));
+				}
+
+				// ensure the stream is flowing
+				stream.resume();
+			}
+
+			_destroy(error: Error | null, callback: (error: Error | null) => void): void {
+				stream.destroy();
+
+				callback(null);
+			}
+		};
 	}
 
 	public async registerWebview(id: string, metadata: WebviewMetadata): Promise<void> {

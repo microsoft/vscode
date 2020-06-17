@@ -14,6 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class UserDataSyncChannel implements IServerChannel {
 
@@ -44,7 +45,7 @@ export class UserDataSyncChannel implements IServerChannel {
 		switch (command) {
 			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflicts, this.service.lastSyncTime]);
 			case 'pull': return this.service.pull();
-			case 'sync': return this.service.sync();
+			case 'sync': return this.service.sync(CancellationToken.None);
 			case 'stop': this.service.stop(); return Promise.resolve();
 			case 'replace': return this.service.replace(URI.revive(args[0]));
 			case 'reset': return this.service.reset();
@@ -74,9 +75,9 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case 'triggerAutoSync': return this.service.triggerAutoSync(args[0]);
-			case 'enable': return Promise.resolve(this.service.enable());
-			case 'disable': return Promise.resolve(this.service.disable());
+			case 'triggerSync': return this.service.triggerSync(args[0], args[1]);
+			case 'turnOn': return this.service.turnOn(args[0]);
+			case 'turnOff': return this.service.turnOff(args[0]);
 		}
 		throw new Error('Invalid call');
 	}
@@ -183,7 +184,7 @@ export class UserDataSyncMachinesServiceChannel implements IServerChannel {
 			case 'addCurrentMachine': return this.service.addCurrentMachine(args[0]);
 			case 'removeCurrentMachine': return this.service.removeCurrentMachine();
 			case 'renameMachine': return this.service.renameMachine(args[0], args[1]);
-			case 'disableMachine': return this.service.disableMachine(args[0]);
+			case 'setEnablement': return this.service.setEnablement(args[0], args[1]);
 		}
 		throw new Error('Invalid call');
 	}

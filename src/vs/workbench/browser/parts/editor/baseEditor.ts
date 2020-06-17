@@ -27,9 +27,17 @@ import { IDisposable } from 'vs/base/common/lifecycle';
  * information about the state of the editor data.
  *
  * The workbench will keep an editor alive after it has been created and show/hide it based on
- * user interaction. The lifecycle of a editor goes in the order create(), setVisible(true|false),
- * layout(), setInput(), focus(), dispose(). During use of the workbench, a editor will often receive a
- * clearInput, setVisible, layout and focus call, but only one create and dispose call.
+ * user interaction. The lifecycle of a editor goes in the order:
+ *
+ * - `createEditor()`
+ * - `setEditorVisible()`
+ * - `layout()`
+ * - `setInput()`
+ * - `focus()`
+ * - `dispose()`: when the editor group the editor is in closes
+ *
+ * During use of the workbench, a editor will often receive a `clearInput()`, `setEditorVisible()`, `layout()` and
+ * `focus()` calls, but only one `create()` and `dispose()` call.
  *
  * This class is only intended to be subclassed and not instantiated.
  */
@@ -62,12 +70,24 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 		super(id, telemetryService, themeService, storageService);
 	}
 
+	create(parent: HTMLElement): void {
+		super.create(parent);
+
+		// Create Editor
+		this.createEditor(parent);
+	}
+
+	/**
+	 * Called to create the editor in the parent HTMLElement.
+	 */
+	protected abstract createEditor(parent: HTMLElement): void;
+
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
 	 *
 	 * Sets the given input with the options to the editor. The input is guaranteed
-	 * to be different from the previous input that was set using the input.matches()
+	 * to be different from the previous input that was set using the `input.matches()`
 	 * method.
 	 *
 	 * The provided cancellation token should be used to test if the operation
@@ -97,18 +117,6 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	setOptions(options: EditorOptions | undefined): void {
 		this._options = options;
 	}
-
-	create(parent: HTMLElement): void {
-		super.create(parent);
-
-		// Create Editor
-		this.createEditor(parent);
-	}
-
-	/**
-	 * Called to create the editor in the parent HTMLElement.
-	 */
-	protected abstract createEditor(parent: HTMLElement): void;
 
 	setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible);

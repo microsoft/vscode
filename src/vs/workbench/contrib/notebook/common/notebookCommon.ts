@@ -99,8 +99,7 @@ export interface INotebookDisplayOrder {
 }
 
 export interface INotebookMimeTypeSelector {
-	type: string;
-	subTypes?: string[];
+	mimeTypes?: string[];
 }
 
 export interface INotebookRendererInfo {

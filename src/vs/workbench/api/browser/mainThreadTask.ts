@@ -519,14 +519,14 @@ export class MainThreadTask implements MainThreadTaskShape {
 						if (!task) {
 							reject(new Error('Task not found'));
 						} else {
-							this._taskService.run(task).then(undefined, reason => {
-								// eat the error, it has already been surfaced to the user and we don't care about it here
-							});
 							const result: TaskExecutionDTO = {
 								id: value.id,
 								task: TaskDTO.from(task)
 							};
 							resolve(result);
+							this._taskService.run(task).then(undefined, reason => {
+								// eat the error, it has already been surfaced to the user and we don't care about it here
+							});
 						}
 					}, (_error) => {
 						reject(new Error('Task not found'));
@@ -536,14 +536,14 @@ export class MainThreadTask implements MainThreadTaskShape {
 				}
 			} else {
 				const task = TaskDTO.to(value, this._workspaceContextServer, true)!;
-				this._taskService.run(task).then(undefined, reason => {
-					// eat the error, it has already been surfaced to the user and we don't care about it here
-				});
 				const result: TaskExecutionDTO = {
 					id: task._id,
 					task: TaskDTO.from(task)
 				};
 				resolve(result);
+				this._taskService.run(task).then(undefined, reason => {
+					// eat the error, it has already been surfaced to the user and we don't care about it here
+				});
 			}
 		});
 	}

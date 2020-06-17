@@ -3,31 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { UserDataAutoSyncService as BaseUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 
 	constructor(
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IUserDataSyncService userDataSyncService: IUserDataSyncService,
 		@IElectronService electronService: IElectronService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUserDataSyncAccountService authTokenService: IUserDataSyncAccountService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IUserDataSyncMachinesService userDataSyncMachinesService: IUserDataSyncMachinesService,
+		@IProductService productService: IProductService,
+		@IStorageService storageService: IStorageService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
-		super(userDataSyncStoreService, userDataSyncEnablementService, userDataSyncService, logService, authTokenService, telemetryService);
+		super(userDataSyncStoreService, userDataSyncResourceEnablementService, userDataSyncService, logService, authTokenService, telemetryService, userDataSyncMachinesService, productService, storageService, environmentService);
 
 		this._register(Event.debounce<string, string[]>(Event.any<string>(
 			Event.map(electronService.onWindowFocus, () => 'windowFocus'),
 			Event.map(electronService.onWindowOpen, () => 'windowOpen'),
-			userDataSyncService.onDidChangeLocal,
-		), (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerAutoSync(sources)));
+		), (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, true)));
 	}
 
 }

@@ -248,14 +248,15 @@ exports.packageMarketplaceExtensionsStream = packageMarketplaceExtensionsStream;
 function packageMarketplaceWebExtensionsStream(builtInExtensions) {
     const extensions = builtInExtensions
         .map(extension => {
-        const input = fromMarketplace(extension.name, extension.version, extension.metadata);
+        const input = fromMarketplace(extension.name, extension.version, extension.metadata)
+            .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
         return updateExtensionPackageJSON(input, (data) => {
             if (data.main) {
                 data.browser = data.main;
             }
             data.extensionKind = ['web'];
             return data;
-        }).pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+        });
     });
     return es.merge(extensions);
 }

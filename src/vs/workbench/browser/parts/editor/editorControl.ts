@@ -41,18 +41,16 @@ export class EditorControl extends Disposable {
 
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
 	private dimension: Dimension | undefined;
-	private editorOperation: LongRunningOperation;
+	private readonly editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
 
 	constructor(
 		private parent: HTMLElement,
 		private groupView: IEditorGroupView,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorProgressService editorProgressService: IEditorProgressService
+		@IEditorProgressService private readonly editorProgressService: IEditorProgressService
 	) {
 		super();
-
-		this.editorOperation = this._register(new LongRunningOperation(editorProgressService));
 	}
 
 	async openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
@@ -224,16 +222,12 @@ export class EditorControl extends Disposable {
 	}
 
 	setVisible(visible: boolean): void {
-		if (this._activeEditorPane) {
-			this._activeEditorPane.setVisible(visible, this.groupView);
-		}
+		this._activeEditorPane?.setVisible(visible, this.groupView);
 	}
 
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 
-		if (this._activeEditorPane && this.dimension) {
-			this._activeEditorPane.layout(this.dimension);
-		}
+		this._activeEditorPane?.layout(dimension);
 	}
 }

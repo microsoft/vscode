@@ -588,6 +588,10 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		return document.textModel;
 	}
 
+	async resolveNotebookEditor(viewType: string, uri: URI, editorId: string) {
+		await this._proxy.$resolveNotebookEditor(viewType, uri, editorId);
+	}
+
 	async tryApplyEdits(resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[], renderers: number[]): Promise<boolean> {
 		let mainthreadNotebook = this._mapping.get(URI.from(resource).toString());
 
@@ -661,10 +665,6 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	async backup(uri: URI, token: CancellationToken): Promise<string | undefined> {
 		const backupId = await this._proxy.$backup(this._viewType, uri, token);
 		return backupId;
-	}
-
-	async revert(uri: URI, token: CancellationToken): Promise<void> {
-		return this._proxy.$revert(this._viewType, uri, token);
 	}
 }
 

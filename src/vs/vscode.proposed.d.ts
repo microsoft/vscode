@@ -1098,6 +1098,8 @@ declare module 'vscode' {
 
 		/**
 		 * Accessibility information used when screen reader interacts with this tree item.
+		 * Generally, a TreeItem has no need to set the `role` of the accessibilityInformation;
+		 * however, there are cases where a TreeItem is not displayed in a tree-like way where setting the `role` may make sense.
 		 */
 		accessibilityInformation?: AccessibilityInformation;
 
@@ -1523,8 +1525,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookOutputSelector {
-		type: string;
-		subTypes?: string[];
+		mimeTypes?: string[];
 	}
 
 	export interface NotebookRenderRequest {
@@ -1638,10 +1639,28 @@ declare module 'vscode' {
 
 	export interface NotebookContentProvider {
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
+		resolveNotebook(document: NotebookDocument, webview: {
+			/**
+			 * Fired when the output hosting webview posts a message.
+			 */
+			readonly onDidReceiveMessage: Event<any>;
+			/**
+			 * Post a message to the output hosting webview.
+			 *
+			 * Messages are only delivered if the editor is live.
+			 *
+			 * @param message Body of the message. This must be a string or other json serilizable object.
+			 */
+			postMessage(message: any): Thenable<boolean>;
+
+			/**
+			 * Convert a uri for the local file system to one that can be used inside outputs webview.
+			 */
+			asWebviewUri(localResource: Uri): Uri;
+		}): Promise<void>;
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		readonly onDidChangeNotebook: Event<NotebookDocumentEditEvent>;
-		revertNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
 
 		kernel?: NotebookKernel;

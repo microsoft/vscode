@@ -41,13 +41,13 @@ export function activate(context: vscode.ExtensionContext): any {
 
 			return dto;
 		},
+		resolveNotebook: async (_document: vscode.NotebookDocument) => {
+			return;
+		},
 		saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			return;
 		},
 		saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-			return;
-		},
-		revertNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			return;
 		},
 		backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) => {
@@ -100,8 +100,7 @@ export function activate(context: vscode.ExtensionContext): any {
 
 	const preloadUri = vscode.Uri.file(path.resolve(__dirname, '../src/customRenderer.js'));
 	context.subscriptions.push(vscode.notebook.registerNotebookOutputRenderer('notebookCoreTestRenderer', {
-		type: 'display_data',
-		subTypes: [
+		mimeTypes: [
 			'text/custom'
 		]
 	}, {

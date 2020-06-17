@@ -1871,14 +1871,14 @@
       {
         "view": "explorer",
         "contents": "%view.workbench.cloneRepository%",
-        "when": "config.git.enabled"
+        "when": "config.git.enabled && git.state == initialized"
       }
     ]
   },
   "dependencies": {
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
-    "iconv-lite": "^0.4.24",
+    "iconv-lite": "0.6.0",
     "jschardet": "2.1.1",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0",
