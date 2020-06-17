@@ -607,20 +607,8 @@
 	line-height: 1.357em;
 }
 
-.monaco-workbench .notebookOverlay .cell.markdown body.wordWrap pre {
+.monaco-workbench .notebookOverlay .cell.markdown .code {
 	white-space: pre-wrap;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown pre:not(.hljs),
-.monaco-workbench .notebookOverlay .cell.markdown pre.hljs code > div {
-	padding: 16px;
-	border-radius: 3px;
-	overflow: auto;
-}
-
-.monaco-workbench .notebookOverlay .cell.markdown pre code {
-	color: var(--vscode-editor-foreground);
-	tab-size: 4;
 }
 
 .monaco-workbench .notebookOverlay .cell.markdown .latex-block {
