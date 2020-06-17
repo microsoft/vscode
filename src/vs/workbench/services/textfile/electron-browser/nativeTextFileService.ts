@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { tmpdir } from 'os';
 import { localize } from 'vs/nls';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IResourceEncoding, IReadTextFileOptions, IWriteTextFileOptions, stringToSnapshot, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
@@ -11,7 +10,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { IFileStatWithMetadata, ICreateFileOptions, FileOperationError, FileOperationResult, IFileStreamContent, IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { exists, stat, chmod, rimraf, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
+import { stat, chmod, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -178,7 +177,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 		// check for overwriteReadonly property (only supported for local file://)
 		try {
-			if (options?.overwriteReadonly && resource.scheme === Schemas.file && await exists(resource.fsPath)) {
+			if (options?.overwriteReadonly && resource.scheme === Schemas.file && await this.fileService.exists(resource)) {
 				const fileStat = await stat(resource.fsPath);
 
 				// try to change mode to writeable
@@ -238,20 +237,23 @@ export class NativeTextFileService extends AbstractTextFileService {
 	private async writeElevated(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
 
 		// write into a tmp file first
-		const tmpPath = join(tmpdir(), `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`);
+		const source = URI.file(join(this.environmentService.userDataPath, `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`));
 		const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource, options);
-		await this.write(URI.file(tmpPath), value, { encoding: encoding === UTF8 && addBOM ? UTF8_with_bom : encoding });
+		try {
+			await this.write(source, value, { encoding: encoding === UTF8 && addBOM ? UTF8_with_bom : encoding });
 
-		// sudo prompt copy
-		await this.sudoPromptCopy(tmpPath, resource.fsPath, options);
+			// sudo prompt copy
+			await this.sudoPromptCopy(source, resource, options);
+		} finally {
 
-		// clean up
-		await rimraf(tmpPath);
+			// clean up
+			await this.fileService.del(source);
+		}
 
 		return this.fileService.resolve(resource, { resolveMetadata: true });
 	}
 
-	private async sudoPromptCopy(source: string, target: string, options?: IWriteTextFileOptions): Promise<void> {
+	private async sudoPromptCopy(source: URI, target: URI, options?: IWriteTextFileOptions): Promise<void> {
 
 		// load sudo-prompt module lazy
 		const sudoPrompt = await import('sudo-prompt');
@@ -267,7 +269,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 				sudoCommand.push('--file-chmod');
 			}
 
-			sudoCommand.push('--file-write', `"${source}"`, `"${target}"`);
+			sudoCommand.push('--file-write', `"${source.fsPath}"`, `"${target.fsPath}"`);
 
 			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
 				if (stdout) {
