@@ -629,7 +629,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 
-		const renderedMarkdown = renderMarkdown({ value: text }, {
+		const renderedMarkdown = renderMarkdown({ value: text, isTrusted: true }, {
 			actionHandler: {
 				callback: (content: string) => {
 					if (startsWith(content, '#')) {
