@@ -480,9 +480,10 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.setSelectedLaunchName(names.length ? names[0] : undefined);
 		}
 
-		this.selectedConfig = config || (this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined);
-		if (this.selectedConfig) {
-			this.debugConfigurationTypeContext.set(this.selectedConfig.type);
+		this.selectedConfig = config;
+		const configForType = this.selectedConfig || (this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined);
+		if (configForType) {
+			this.debugConfigurationTypeContext.set(configForType.type);
 		} else {
 			this.debugConfigurationTypeContext.reset();
 		}
