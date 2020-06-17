@@ -718,7 +718,9 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 			throw new Error('Not implemented');
 		}
 
-		return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, task));
+		// Always get the task execution first to prevent timing issues when retrieving it later
+		const execution = await this.getTaskExecution(await this._proxy.$getTaskExecution(dto), task);
+		return this._proxy.$executeTask(dto).then(() => execution);
 	}
 
 	protected provideTasksInternal(validTypes: { [key: string]: boolean; }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.TaskDTO[], extension: IExtensionDescription } {
