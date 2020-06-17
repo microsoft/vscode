@@ -28,7 +28,6 @@ type SyncClassification = {
 	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
-const SESSION_ID_KEY = 'sync.sessionId';
 const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
@@ -351,7 +350,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.logService.info('Did reset the local sync state.');
 	}
 
-	private async hasPreviouslySynced(): Promise<boolean> {
+	async hasPreviouslySynced(): Promise<boolean> {
 		for (const synchroniser of this.synchronisers) {
 			if (await synchroniser.hasPreviouslySynced()) {
 				return true;

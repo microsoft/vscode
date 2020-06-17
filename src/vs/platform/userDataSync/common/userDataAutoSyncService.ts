@@ -17,6 +17,9 @@ import { IUserDataSyncMachine, IUserDataSyncMachinesService } from 'vs/platform/
 import { PlatformToString, isWeb, Platform, platform } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IHeaders } from 'vs/base/parts/request/common/request';
+import { generateUuid } from 'vs/base/common/uuid';
+import { localize } from 'vs/nls';
 
 type AutoSyncClassification = {
 	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -28,6 +31,7 @@ type AutoSyncEnablementClassification = {
 
 const enablementKey = 'sync.enable';
 const disableMachineEventuallyKey = 'sync.disableMachineEventually';
+const SESSION_ID_KEY = 'sync.sessionId';
 
 export class UserDataAutoSyncEnablementService extends Disposable {
 
@@ -322,6 +326,10 @@ class AutoSync extends Disposable {
 		private readonly interval: number /* in milliseconds */,
 		private readonly userDataSyncService: IUserDataSyncService,
 		private readonly logService: IUserDataSyncLogService,
+		private readonly userDataSyncStoreService: IUserDataSyncStoreService,
+		private readonly telemetryService: ITelemetryService,
+		private readonly storageService: IStorageService,
+		private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
 	) {
 		super();
 	}
@@ -377,6 +385,65 @@ class AutoSync extends Disposable {
 			error = e;
 		}
 		this._onDidFinishSync.fire(error);
+	}
+
+	private async doSync(reason: string, token: CancellationToken): Promise<void> {
+		try {
+			this.telemetryService.publicLog2('sync/getmanifest');
+			const syncHeaders: IHeaders = { 'X-Execution-Id': generateUuid() };
+			let manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
+
+			// Server has no data but this machine was synced before
+			if (manifest === null && await this.userDataSyncService.hasPreviouslySynced()) {
+				// Sync was turned off in the cloud
+				throw new UserDataSyncError(localize('turned off', "Cannot sync because syncing is turned off in the cloud"), UserDataSyncErrorCode.TurnedOff);
+			}
+
+			const sessionId = this.storageService.get(SESSION_ID_KEY, StorageScope.GLOBAL);
+			// Server session is different from client session
+			if (sessionId && manifest && sessionId !== manifest.session) {
+				throw new UserDataSyncError(localize('session expired', "Cannot sync because current session is expired"), UserDataSyncErrorCode.SessionExpired);
+			}
+
+			const machines = await this.userDataSyncMachinesService.getMachines(manifest || undefined);
+			// Return if cancellation is requested
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			const currentMachine = machines.find(machine => machine.isCurrent);
+			// Check if sync was turned off from other machine
+			if (currentMachine?.disabled) {
+				// Throw TurnedOff error
+				throw new UserDataSyncError(localize('turned off machine', "Cannot sync because syncing is turned off on this machine from another machine."), UserDataSyncErrorCode.TurnedOff);
+			}
+
+			await this.userDataSyncService.sync(manifest, headers, token);
+
+			// After syncing, get the manifest if it was not available before
+			if (manifest === null) {
+				manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
+			}
+
+			// Return if cancellation is requested
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			// Update local session id
+			if (manifest && manifest.session !== sessionId) {
+				this.storageService.store(SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL);
+			}
+
+		} catch (error) {
+			if (error instanceof UserDataSyncError) {
+				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${error.code}`, { resource: error.resource });
+			}
+			throw error;
+		} finally {
+			this.updateStatus();
+			this._onSyncErrors.fire(this._syncErrors);
+		}
 	}
 
 	register<T extends IDisposable>(t: T): T {

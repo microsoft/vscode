@@ -364,6 +364,7 @@ export interface IUserDataSyncService {
 	resetLocal(): Promise<void>;
 
 	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean>;
+	hasPreviouslySynced(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
 	acceptConflict(conflictResource: URI, content: string): Promise<void>;
 
