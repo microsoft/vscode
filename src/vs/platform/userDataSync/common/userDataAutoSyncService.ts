@@ -186,12 +186,12 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		}
 
 		this.sources.push(...sources);
-		return this.syncTriggerDelayer.trigger(() => {
+		return this.syncTriggerDelayer.trigger(async () => {
 			this.logService.trace('activity sources', ...this.sources);
 			this.telemetryService.publicLog2<{ sources: string[] }, AutoSyncClassification>('sync/triggered', { sources: this.sources });
 			this.sources = [];
 			if (this.autoSync.value) {
-				this.autoSync.value.sync('Activity');
+				await this.autoSync.value.sync('Activity');
 			}
 		}, this.successiveFailures
 			? this.getSyncTriggerDelayTime() * 1 * Math.min(Math.pow(2, this.successiveFailures), 60) /* Delay exponentially until max 1 minute */
@@ -246,7 +246,7 @@ class AutoSync extends Disposable {
 		this.intervalHandler.value = disposableTimeout(() => this.sync(AutoSync.INTERVAL_SYNCING), this.interval);
 	}
 
-	sync(reason: string): void {
+	sync(reason: string): Promise<void> {
 		const syncPromise = createCancelablePromise(async token => {
 			if (this.syncPromise) {
 				try {
@@ -264,6 +264,7 @@ class AutoSync extends Disposable {
 		});
 		this.syncPromise = syncPromise;
 		this.syncPromise.finally(() => this.syncPromise = undefined);
+		return this.syncPromise;
 	}
 
 	private async doSync(reason: string, token: CancellationToken): Promise<void> {
