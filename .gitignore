@@ -16,3 +16,10 @@ test-results/
 yarn-error.log
 vscode.lsif
 vscode.db
+
+
+.idea/libraries
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml
+.idea/vscode.iml
