@@ -77,7 +77,7 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 		switch (command) {
 			case 'triggerSync': return this.service.triggerSync(args[0], args[1]);
 			case 'turnOn': return this.service.turnOn(args[0]);
-			case 'turnOff': return this.service.turnOff();
+			case 'turnOff': return this.service.turnOff(args[0]);
 		}
 		throw new Error('Invalid call');
 	}

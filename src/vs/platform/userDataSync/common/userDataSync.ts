@@ -381,7 +381,7 @@ export interface IUserDataAutoSyncService {
 	isEnabled(): boolean;
 	canToggleEnablement(): boolean;
 	turnOn(pullFirst: boolean): Promise<void>;
-	turnOff(): Promise<void>;
+	turnOff(everywhere: boolean): Promise<void>;
 	triggerSync(sources: string[], hasToLimitSync: boolean): Promise<void>;
 }
 

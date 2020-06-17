@@ -19,10 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { isEqual } from 'vs/base/common/resources';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
-import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { platform, PlatformToString, isWeb, Platform } from 'vs/base/common/platform';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHeaders } from 'vs/base/parts/request/common/request';
@@ -74,7 +71,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
-		@IProductService private readonly productService: IProductService
 	) {
 		super();
 		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
@@ -175,17 +171,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 
 			const machines = await this.userDataSyncMachinesService.getMachines(manifest || undefined);
-			const currentMachine = machines.find(machine => machine.isCurrent);
-
 			// Return if cancellation is requested
 			if (token.isCancellationRequested) {
 				return;
 			}
 
+			const currentMachine = machines.find(machine => machine.isCurrent);
 			// Check if sync was turned off from other machine
 			if (currentMachine?.disabled) {
-				// Unset the current machine
-				await this.userDataSyncMachinesService.removeCurrentMachine(manifest || undefined);
 				// Throw TurnedOff error
 				throw new UserDataSyncError(localize('turned off machine', "Cannot sync because syncing is turned off on this machine from another machine."), UserDataSyncErrorCode.TurnedOff);
 			}
@@ -221,12 +214,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			// Return if cancellation is requested
 			if (token.isCancellationRequested) {
 				return;
-			}
-
-			// Add current machine
-			if (!currentMachine) {
-				const name = this.computeDefaultMachineName(machines);
-				await this.userDataSyncMachinesService.addCurrentMachine(name, manifest || undefined);
 			}
 
 			// Return if cancellation is requested
@@ -346,16 +333,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	async reset(): Promise<void> {
 		await this.checkEnablement();
 		await this.resetRemote();
-		await this.resetLocal(true);
+		await this.resetLocal();
 	}
 
-	async resetLocal(donotUnsetMachine?: boolean): Promise<void> {
+	async resetLocal(): Promise<void> {
 		await this.checkEnablement();
 		this.storageService.remove(SESSION_ID_KEY, StorageScope.GLOBAL);
 		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL);
-		if (!donotUnsetMachine) {
-			await this.userDataSyncMachinesService.removeCurrentMachine();
-		}
 		for (const synchroniser of this.synchronisers) {
 			try {
 				await synchroniser.resetLocal();
@@ -453,20 +437,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private computeConflicts(): SyncResourceConflicts[] {
 		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)
 			.map(s => ({ syncResource: s.resource, conflicts: s.conflicts }));
-	}
-
-	private computeDefaultMachineName(machines: IUserDataSyncMachine[]): string {
-		const namePrefix = `${this.productService.nameLong} (${PlatformToString(isWeb ? Platform.Web : platform)})`;
-		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s#(\\d)`);
-
-		let nameIndex = 0;
-		for (const machine of machines) {
-			const matches = nameRegEx.exec(machine.name);
-			const index = matches ? parseInt(matches[1]) : 0;
-			nameIndex = index > nameIndex ? index : nameIndex;
-		}
-
-		return `${namePrefix} #${nameIndex + 1}`;
 	}
 
 	getSynchroniser(source: SyncResource): IUserDataSynchroniser {

@@ -224,15 +224,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.notificationService.info(localize('sync turned on', "Preferences sync is turned on"));
 	}
 
-	async turnoff(everywhere: boolean): Promise<void> {
-		await this.userDataAutoSyncService.turnOff();
-
-		if (everywhere) {
-			this.telemetryService.publicLog2('sync/turnOffEveryWhere');
-			await this.userDataSyncService.reset();
-		} else {
-			await this.userDataSyncService.resetLocal();
-		}
+	turnoff(everywhere: boolean): Promise<void> {
+		return this.userDataAutoSyncService.turnOff(everywhere);
 	}
 
 	private async handleFirstTimeSync(): Promise<boolean> {

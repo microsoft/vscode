@@ -39,8 +39,8 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		return this.channel.call('turnOn', [pullFirst]);
 	}
 
-	turnOff(): Promise<void> {
-		return this.channel.call('turnOff');
+	turnOff(everywhere: boolean): Promise<void> {
+		return this.channel.call('turnOff', [everywhere]);
 	}
 
 }
