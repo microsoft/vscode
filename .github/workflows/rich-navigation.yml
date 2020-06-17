@@ -1,6 +1,5 @@
 name: "Rich Navigation Indexing"
 on:
-  pull_request:
   push:
     branches:
       - master
