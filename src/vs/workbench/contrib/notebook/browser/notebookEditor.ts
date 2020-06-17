@@ -12,7 +12,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions, IEditorCloseEvent, IEditorMemento } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorMemento, IEditorInput } from 'vs/workbench/common/editor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -98,9 +98,7 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	onWillHide() {
-		if (this.input instanceof NotebookEditorInput) {
-			this.saveEditorViewState(this.input);
-		}
+		this.saveEditorViewState(this.input);
 		if (this.input && this._widget.value) {
 			// the widget is not transfered to other editor inputs
 			this._widget.value.onWillHide();
@@ -110,18 +108,7 @@ export class NotebookEditor extends BaseEditor {
 
 	setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
-		this.groupListener.value = group?.onWillCloseEditor(e => this.onWillCloseEditorInGroup(e));
-	}
-
-	private onWillCloseEditorInGroup(e: IEditorCloseEvent): void {
-		const editor = e.editor;
-		if (!(editor instanceof NotebookEditorInput)) {
-			return; // only handle files
-		}
-
-		if (editor === this.input) {
-			this.saveEditorViewState(editor);
-		}
+		this.groupListener.value = group?.onWillCloseEditor(e => this.saveEditorViewState(e.editor));
 	}
 
 	focus() {
@@ -133,11 +120,7 @@ export class NotebookEditor extends BaseEditor {
 
 		const group = this.group!;
 
-		if (this.input instanceof NotebookEditorInput) {
-			// set a new input, let's hide previous input
-			this.saveEditorViewState(this.input as NotebookEditorInput);
-		}
-
+		this.saveEditorViewState(this.input);
 		await super.setInput(input, options, token);
 
 		this._widgetDisposableStore.clear();
@@ -191,8 +174,14 @@ export class NotebookEditor extends BaseEditor {
 		super.clearInput();
 	}
 
-	private saveEditorViewState(input: NotebookEditorInput): void {
-		if (this.group && this._widget.value) {
+
+	protected saveState(): void {
+		this.saveEditorViewState(this.input);
+		super.saveState();
+	}
+
+	private saveEditorViewState(input: IEditorInput | undefined): void {
+		if (this.group && this._widget.value && input instanceof NotebookEditorInput) {
 			const state = this._widget.value.getEditorViewState();
 			this.editorMemento.saveEditorState(this.group, input.resource, state);
 		}
@@ -226,14 +215,6 @@ export class NotebookEditor extends BaseEditor {
 		}
 
 		this._widget.value.layout(this.dimension, this._rootElement);
-	}
-
-	protected saveState(): void {
-		if (this.input instanceof NotebookEditorInput) {
-			this.saveEditorViewState(this.input);
-		}
-
-		super.saveState();
 	}
 
 	//#endregion
