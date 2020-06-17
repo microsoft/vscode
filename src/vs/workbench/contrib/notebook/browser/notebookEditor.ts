@@ -28,14 +28,20 @@ const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
 export class NotebookEditor extends BaseEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
-	private editorMemento: IEditorMemento<INotebookEditorViewState>;
+
+	private readonly editorMemento: IEditorMemento<INotebookEditorViewState>;
 	private readonly groupListener = this._register(new MutableDisposable());
+	private readonly _widgetDisposableStore: DisposableStore = new DisposableStore();
 	private _widget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
 	private _rootElement!: HTMLElement;
-	private dimension: DOM.Dimension | null = null;
-	private _widgetDisposableStore: DisposableStore = new DisposableStore();
+	private dimension?: DOM.Dimension;
+
+	// todo@rebornix is there a reason that `super.fireOnDidFocus` isn't used?
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
-	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
+	get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
+
+	private readonly _onDidChangeModel = this._register(new Emitter<void>());
+	readonly onDidChangeModel: Event<void> = this._onDidChangeModel.event;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -50,10 +56,6 @@ export class NotebookEditor extends BaseEditor {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
-
-	private readonly _onDidChangeModel = new Emitter<void>();
-	readonly onDidChangeModel: Event<void> = this._onDidChangeModel.event;
-
 
 	set viewModel(newModel: NotebookViewModel | undefined) {
 		if (this._widget.value) {
@@ -73,11 +75,9 @@ export class NotebookEditor extends BaseEditor {
 	set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
-
 	//#region Editor Core
 
-
-	public get isNotebookEditor() {
+	get isNotebookEditor() {
 		return true;
 	}
 
@@ -196,8 +196,8 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	layout(dimension: DOM.Dimension): void {
-		DOM.toggleClass(this._rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
-		DOM.toggleClass(this._rootElement, 'narrow-width', dimension.width < 600);
+		this._rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
+		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
 		this.dimension = dimension;
 
 		if (!this._widget.value || !(this._input instanceof NotebookEditorInput)) {
