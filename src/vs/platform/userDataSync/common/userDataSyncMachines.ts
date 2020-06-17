@@ -102,7 +102,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		const machineData = await this.readMachinesData();
 		const machine = machineData.machines.find(({ id }) => id === machineId);
 		if (machine) {
-			machine.disabled = enabled ? enabled : undefined;
+			machine.disabled = enabled ? undefined : true;
 			await this.writeMachinesData(machineData);
 		}
 	}
