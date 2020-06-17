@@ -1,7 +1,7 @@
 name: "Deep Classifier: Runner"
 on:
   schedule:
-    - cron: 0/30 * * * *
+    - cron: 0 * * * *
   repository_dispatch:
     types: [trigger-deep-classifier-runner]
 
@@ -24,7 +24,7 @@ jobs:
         uses: ./actions/classifier-deep/apply/fetch-sources
         with:
           # slightly overlapping to protect against issues slipping through the cracks if a run is delayed
-          from: 40
+          from: 70
           until: 5
           configPath: classifier
           blobContainerName: vscode-issue-classifier
