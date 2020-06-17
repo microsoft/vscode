@@ -750,11 +750,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return;
 	}
 
-	onDidReceiveMessage(viewType: string, editorId: string, message: any): void {
+	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: any): void {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			return provider.controller.onDidReceiveMessage(editorId, message);
+			return provider.controller.onDidReceiveMessage(editorId, rendererType, message);
 		}
 	}
 

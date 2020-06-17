@@ -525,9 +525,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._onDidFocusWidget.fire();
 		});
 
-		this.localStore.add(this.webview.onMessage(message => {
+		this.localStore.add(this.webview.onMessage(({ message, forRenderer }) => {
 			if (this.viewModel) {
-				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), message);
+				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), forRenderer, message);
 			}
 		}));
 	}

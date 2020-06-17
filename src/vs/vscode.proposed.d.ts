@@ -1542,6 +1542,12 @@ declare module 'vscode' {
 		 */
 		render(document: NotebookDocument, request: NotebookRenderRequest): string;
 
+		/**
+		 * Called when a message is sent from the webview contents via a
+		 * `postMessage()` on the acquired notebook API.
+		 */
+		onDidReceiveMessage?(message: unknown): void;
+
 		readonly preloads?: Uri[];
 	}
 

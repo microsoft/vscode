@@ -271,7 +271,14 @@ function webviewPreloads() {
 		}
 
 		return {
-			postMessage: vscode.postMessage,
+			postMessage(message: unknown) {
+				vscode.postMessage({
+					__vscode_notebook_message: true,
+					type: 'customRendererMessage',
+					rendererType: namespace,
+					message,
+				});
+			},
 			setState(newState: T) {
 				vscode.setState({ ...vscode.getState(), [namespace]: newState });
 			},

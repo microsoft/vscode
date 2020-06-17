@@ -611,8 +611,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		return this._mainThreadNotebook.executeNotebook(viewType, uri, useAttachedKernel, token);
 	}
 
-	onDidReceiveMessage(editorId: string, message: any): void {
-		this._proxy.$onDidReceiveMessage(editorId, message);
+	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: unknown): void {
+		this._proxy.$onDidReceiveMessage(editorId, rendererType, message);
 	}
 
 	async removeNotebookDocument(notebook: INotebookTextModel): Promise<void> {

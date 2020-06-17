@@ -702,6 +702,10 @@ export class ExtHostNotebookOutputRenderer {
 		return false;
 	}
 
+	onDidReceiveMessage(message: unknown) {
+		this.renderer.onDidReceiveMessage?.(message);
+	}
+
 	render(document: ExtHostNotebookDocument, output: vscode.CellDisplayOutput, outputId: string, mimeType: string): string {
 		let html = this.renderer.render(document, { output, outputId, mimeType });
 
@@ -1110,7 +1114,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return editor;
 	}
 
-	$onDidReceiveMessage(editorId: string, message: any): void {
+	$onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void {
+		if (rendererType) {
+			this._notebookOutputRenderers.get(rendererType)?.onDidReceiveMessage(message);
+		}
+
 		let messageEmitter = this._webviewComm.get(editorId)?.onDidReceiveMessage;
 
 		if (messageEmitter) {
