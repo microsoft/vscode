@@ -201,15 +201,18 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this.layoutChange({ outputHeight: true });
 	}
 
-	getOutputOffset(index: number): number {
+	getOutputOffsetInContainer(index: number) {
 		this._ensureOutputsTop();
 
 		if (index >= this._outputCollection.length) {
 			throw new Error('Output index out of range!');
 		}
 
-		const offset = this._outputsTop!.getAccumulatedValue(index - 1);
-		return this.layoutInfo.outputContainerOffset + offset;
+		return this._outputsTop!.getAccumulatedValue(index - 1);
+	}
+
+	getOutputOffset(index: number): number {
+		return this.layoutInfo.outputContainerOffset + this.getOutputOffsetInContainer(index);
 	}
 
 	spliceOutputHeights(start: number, deleteCnt: number, heights: number[]) {

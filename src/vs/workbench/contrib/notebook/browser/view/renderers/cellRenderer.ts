@@ -1043,8 +1043,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor.viewModel?.notebookDocument!, element));
 
 		templateData.focusIndicator.style.height = `${element.layoutInfo.indicatorHeight}px`;
+		templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
 		elementDisposables.add(element.onDidChangeLayout(() => {
 			templateData.focusIndicator.style.height = `${element.layoutInfo.indicatorHeight}px`;
+			templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
 		}));
 
 		this.updateForMetadata(element, templateData);

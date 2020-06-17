@@ -1352,6 +1352,7 @@ registerThemingParticipant((theme, collector) => {
 	const containerBackground = theme.getColor(notebookOutputContainerColor);
 	if (containerBackground) {
 		collector.addRule(`.notebookOverlay .output { background-color: ${containerBackground}; }`);
+		collector.addRule(`.notebookOverlay .output-element { background-color: ${containerBackground}; }`);
 	}
 
 	const editorBackgroundColor = theme.getColor(editorBackground);

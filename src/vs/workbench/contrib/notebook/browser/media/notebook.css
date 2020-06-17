@@ -112,8 +112,9 @@
 }
 
 .monaco-workbench .notebookOverlay .output {
-	padding-left: 8px;
-	padding-right: 8px;
+	position: absolute;
+	height: 0px;
+	width: 100%;
 	user-select: text;
 	transform: translate3d(0px, 0px, 0px);
 	cursor: auto;
@@ -127,6 +128,13 @@
 }
 
 .monaco-workbench .notebookOverlay .output > div.foreground {
+	width: 100%;
+	min-height: 24px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .notebookOverlay .output > div.foreground > .output-inner-container {
+	width: 100%;
 	padding: 8px;
 	box-sizing: border-box;
 }
@@ -144,7 +152,7 @@
 .monaco-workbench .notebookOverlay .output .multi-mimetype-output {
 	position: absolute;
 	top: 4px;
-	left: -34px;
+	left: -26px;
 	width: 16px;
 	height: 16px;
 	cursor: pointer;
