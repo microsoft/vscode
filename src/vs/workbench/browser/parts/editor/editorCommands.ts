@@ -7,13 +7,13 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, EditorStickyContext, EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { URI } from 'vs/base/common/uri';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct, coalesce } from 'vs/base/common/arrays';
@@ -22,6 +22,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -36,6 +37,9 @@ export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 
+export const PIN_EDITOR_COMMAND_ID = 'workbench.action.pinEditor';
+export const UNPIN_EDITOR_COMMAND_ID = 'workbench.action.unpinEditor';
+
 export const TOGGLE_DIFF_SIDE_BY_SIDE = 'toggle.diff.renderSideBySide';
 export const GOTO_NEXT_CHANGE = 'workbench.action.compareEditor.nextChange';
 export const GOTO_PREVIOUS_CHANGE = 'workbench.action.compareEditor.previousChange';
@@ -45,10 +49,6 @@ export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
 export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
-
-export const NAVIGATE_ALL_EDITORS_BY_APPEARANCE_PREFIX = 'edt ';
-export const NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX = 'edt mru ';
-export const NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX = 'edt active ';
 
 export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
 
@@ -261,7 +261,7 @@ function registerDiffEditorCommands(): void {
 
 	function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
 		const editorService = accessor.get(IEditorService);
-		const candidates = [editorService.activeEditorPane, ...editorService.visibleEditorPanes].filter(e => e instanceof TextDiffEditor);
+		const candidates = [editorService.activeEditorPane, ...editorService.visibleEditorPanes].filter(editor => editor instanceof TextDiffEditor);
 
 		if (candidates.length > 0) {
 			const navigator = (<TextDiffEditor>candidates[0]).getDiffNavigator();
@@ -494,7 +494,7 @@ function registerCloseEditorCommands() {
 			return Promise.all(distinct(contexts.map(c => c.groupId)).map(async groupId => {
 				const group = editorGroupService.getGroup(groupId);
 				if (group) {
-					return group.closeEditors({ savedOnly: true });
+					return group.closeEditors({ savedOnly: true, excludeSticky: true });
 				}
 			}));
 		}
@@ -517,7 +517,7 @@ function registerCloseEditorCommands() {
 			return Promise.all(distinctGroupIds.map(async groupId => {
 				const group = editorGroupService.getGroup(groupId);
 				if (group) {
-					return group.closeAllEditors();
+					return group.closeAllEditors({ excludeSticky: true });
 				}
 			}));
 		}
@@ -599,7 +599,8 @@ function registerCloseEditorCommands() {
 					const editors = contexts
 						.filter(context => context.groupId === groupId)
 						.map(context => typeof context.editorIndex === 'number' ? group.getEditorByIndex(context.editorIndex) : group.activeEditor);
-					const editorsToClose = group.editors.filter(e => editors.indexOf(e) === -1);
+
+					const editorsToClose = group.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(editor => editors.indexOf(editor) === -1);
 
 					if (group.activeEditor) {
 						group.pinEditor(group.activeEditor);
@@ -625,7 +626,7 @@ function registerCloseEditorCommands() {
 					group.pinEditor(group.activeEditor);
 				}
 
-				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor });
+				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor, excludeSticky: true });
 			}
 		}
 	});
@@ -646,13 +647,43 @@ function registerCloseEditorCommands() {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: PIN_EDITOR_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: ContextKeyExpr.and(EditorStickyContext.toNegated(), ContextKeyExpr.has('config.workbench.editor.showTabs')),
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.Shift | KeyCode.Enter),
+		handler: async (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+			if (group && editor) {
+				return group.stickEditor(editor);
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: UNPIN_EDITOR_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: ContextKeyExpr.and(EditorStickyContext, ContextKeyExpr.has('config.workbench.editor.showTabs')),
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.Shift | KeyCode.Enter),
+		handler: async (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+			if (group && editor) {
+				return group.unstickEditor(editor);
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: SHOW_EDITORS_IN_GROUP,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
 		primary: undefined,
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
-			const quickOpenService = accessor.get(IQuickOpenService);
+			const quickInputService = accessor.get(IQuickInputService);
 
 			const commandsContext = getCommandsContext(resourceOrContext, context);
 			if (commandsContext && typeof commandsContext.groupId === 'number') {
@@ -662,7 +693,7 @@ function registerCloseEditorCommands() {
 				}
 			}
 
-			return quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX);
+			return quickInputService.quickAccess.show(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX);
 		}
 	});
 

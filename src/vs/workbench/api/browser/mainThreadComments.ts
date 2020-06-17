@@ -21,6 +21,7 @@ import { COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comm
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { Codicon } from 'vs/base/common/codicons';
 
 
 export class MainThreadCommentThread implements modes.CommentThread {
@@ -175,6 +176,10 @@ export class MainThreadCommentController {
 
 	set reactions(reactions: modes.CommentReaction[] | undefined) {
 		this._reactions = reactions;
+	}
+
+	get options() {
+		return this._features.options;
 	}
 
 	private readonly _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
@@ -378,7 +383,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.registerCommentController(providerId, provider);
 		this._commentControllers.set(handle, provider);
 
-		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptor(COMMENTS_VIEW_ID);
+		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptorById(COMMENTS_VIEW_ID);
 		if (!commentsPanelAlreadyConstructed) {
 			this.registerView(commentsPanelAlreadyConstructed);
 			this.registerViewOpenedListener(commentsPanelAlreadyConstructed);
@@ -451,7 +456,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 				id: COMMENTS_VIEW_ID,
 				name: COMMENTS_VIEW_TITLE,
-				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+				storageId: COMMENTS_VIEW_TITLE,
+				hideIfEmpty: true,
+				icon: Codicon.commentDiscussion.classNames,
 				order: 10,
 			}, ViewContainerLocation.Panel);
 
@@ -460,6 +468,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				name: COMMENTS_VIEW_TITLE,
 				canToggleVisibility: false,
 				ctorDescriptor: new SyncDescriptor(CommentsPanel),
+				canMoveView: true,
+				containerIcon: Codicon.commentDiscussion.classNames,
 				focusCommand: {
 					id: 'workbench.action.focusCommentsPanel'
 				}

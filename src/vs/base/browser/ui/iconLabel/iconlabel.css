@@ -55,9 +55,18 @@
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
 }
 
+.vs .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
+	opacity: .95;
+}
+
 .monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
 .monaco-icon-label.italic > .monaco-icon-description-container > .label-description {
 	font-style: italic;
+}
+
+.monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
+.monaco-icon-label.strikethrough > .monaco-icon-description-container > .label-description {
+	text-decoration: line-through;
 }
 
 .monaco-icon-label::after {
@@ -69,16 +78,12 @@
 }
 
 /* make sure selection color wins when a label is being selected */
-.monaco-tree.focused .selected .monaco-icon-label, /* tree */
-.monaco-tree.focused .selected .monaco-icon-label::after,
 .monaco-list:focus .selected .monaco-icon-label, /* list */
 .monaco-list:focus .selected .monaco-icon-label::after
 {
 	color: inherit !important;
 }
 
-.monaco-tree-row.focused.selected .label-description,
-.monaco-tree-row.selected .label-description,
 .monaco-list-row.focused.selected .label-description,
 .monaco-list-row.selected .label-description {
 	opacity: .8;

@@ -31,6 +31,7 @@ export interface IActionViewItem extends IDisposable {
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
 	isMenu?: boolean;
+	useEventAsContext?: boolean;
 }
 
 export class BaseActionViewItem extends Disposable implements IActionViewItem {
@@ -134,6 +135,18 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			}
 		}));
 
+		if (platform.isMacintosh) {
+			// macOS: allow to trigger the button when holding Ctrl+key and pressing the
+			// main mouse button. This is for scenarios where e.g. some interaction forces
+			// the Ctrl+key to be pressed and hold but the user still wants to interact
+			// with the actions (for example quick access in quick navigation mode).
+			this._register(DOM.addDisposableListener(element, DOM.EventType.CONTEXT_MENU, e => {
+				if (e.button === 0 && e.ctrlKey === true) {
+					this.onClick(e);
+				}
+			}));
+		}
+
 		this._register(DOM.addDisposableListener(element, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e, true);
 			// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
@@ -166,17 +179,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
 
-		let context: any;
-		if (types.isUndefinedOrNull(this._context)) {
-			context = event;
-		} else {
-			context = this._context;
-
-			if (types.isObject(context)) {
-				context.event = event;
-			}
-		}
-
+		const context = types.isUndefinedOrNull(this._context) ? this.options?.useEventAsContext ? event : undefined : this._context;
 		this.actionRunner.run(this._action, context);
 	}
 
@@ -263,7 +266,6 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.element) {
 			this.label = DOM.append(this.element, DOM.$('a.action-label'));
 		}
-
 
 		if (this.label) {
 			if (this._action.id === Separator.ID) {
@@ -403,6 +405,7 @@ export interface IActionBarOptions {
 	ariaLabel?: string;
 	animated?: boolean;
 	triggerKeys?: ActionTrigger;
+	allowContextMenu?: boolean;
 }
 
 const defaultOptions: IActionBarOptions = {
@@ -510,7 +513,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			} else if (event.equals(nextKey)) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
-				this.cancel();
+				this._onDidCancel.fire();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
 				if (this.options.triggerKeys && this.options.triggerKeys.keyDown) {
@@ -632,10 +635,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 			actionViewItemElement.setAttribute('role', 'presentation');
 
 			// Prevent native context menu on actions
-			this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
-				e.preventDefault();
-				e.stopPropagation();
-			}));
+			if (!this.options.allowContextMenu) {
+				this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
+					DOM.EventHelper.stop(e, true);
+				}));
+			}
 
 			let item: IActionViewItem | undefined;
 
@@ -692,7 +696,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	clear(): void {
-		this.viewItems = dispose(this.viewItems);
+		dispose(this.viewItems);
+		this.viewItems = [];
 		DOM.clearNode(this.actionsList);
 	}
 
@@ -813,14 +818,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
-	private cancel(): void {
-		if (document.activeElement instanceof HTMLElement) {
-			document.activeElement.blur(); // remove focus from focused action
-		}
-
-		this._onDidCancel.fire();
-	}
-
 	run(action: IAction, context?: unknown): Promise<void> {
 		return this._actionRunner.run(action, context);
 	}
@@ -880,4 +877,52 @@ export class SelectActionViewItem extends BaseActionViewItem {
 	render(container: HTMLElement): void {
 		this.selectBox.render(container);
 	}
+}
+
+export function prepareActions(actions: IAction[]): IAction[] {
+	if (!actions.length) {
+		return actions;
+	}
+
+	// Clean up leading separators
+	let firstIndexOfAction = -1;
+	for (let i = 0; i < actions.length; i++) {
+		if (actions[i].id === Separator.ID) {
+			continue;
+		}
+
+		firstIndexOfAction = i;
+		break;
+	}
+
+	if (firstIndexOfAction === -1) {
+		return [];
+	}
+
+	actions = actions.slice(firstIndexOfAction);
+
+	// Clean up trailing separators
+	for (let h = actions.length - 1; h >= 0; h--) {
+		const isSeparator = actions[h].id === Separator.ID;
+		if (isSeparator) {
+			actions.splice(h, 1);
+		} else {
+			break;
+		}
+	}
+
+	// Clean up separator duplicates
+	let foundAction = false;
+	for (let k = actions.length - 1; k >= 0; k--) {
+		const isSeparator = actions[k].id === Separator.ID;
+		if (isSeparator && !foundAction) {
+			actions.splice(k, 1);
+		} else if (!isSeparator) {
+			foundAction = true;
+		} else if (isSeparator) {
+			foundAction = false;
+		}
+	}
+
+	return actions;
 }

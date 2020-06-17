@@ -20,9 +20,8 @@
 	flex: 1;
 }
 
-.vs .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
+.monaco-workbench.vs .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
 	height: 25px;
-	border: 1px solid transparent;
 }
 
 .markers-panel-action-filter > .markers-panel-filter-controls {
@@ -101,7 +100,7 @@
 	padding-right: 10px;
 }
 
-.hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
+.monaco-workbench.hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
 	line-height: 20px;
 }
 
@@ -110,7 +109,11 @@
 	margin-left: 10px;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .count-badge-wrapper {
+.markers-panel:not(.wide) .markers-panel-container .tree-container .monaco-tl-contents .resource-label-container {
+	flex: 1;
+}
+
+.markers-panel.wide .markers-panel-container .tree-container .monaco-tl-contents .count-badge-wrapper {
 	margin-left: 10px;
 }
 

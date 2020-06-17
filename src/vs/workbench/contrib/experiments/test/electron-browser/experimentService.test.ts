@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { ExperimentActionType, ExperimentState, IExperiment, ExperimentService, getCurrentActivationRecord, currentSchemaVersion } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestLifecycleService, TestExtensionService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import {
 	IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, ILocalExtension
 } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -15,7 +15,7 @@ import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/exte
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { Emitter } from 'vs/base/common/event';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
-import { URLService } from 'vs/platform/url/node/urlService';
+import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -30,6 +30,8 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWillActivateEvent, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { timeout } from 'vs/base/common/async';
+import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
+import { OS } from 'vs/base/common/platform';
 
 interface ExperimentSettings {
 	enabled?: boolean;
@@ -87,7 +89,7 @@ suite('Experiment Service', () => {
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IURLService, URLService);
+		instantiationService.stub(IURLService, NativeURLService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
@@ -304,6 +306,44 @@ suite('Experiment Service', () => {
 		return testObject.getExperimentById('experiment1').then(result => {
 			assert.equal(result.enabled, true);
 			assert.equal(result.state, ExperimentState.Run);
+		});
+	});
+
+	test('Experiment with OS should be enabled on current OS', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: true,
+					condition: {
+						os: [OS],
+					}
+				}
+			]
+		};
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentById('experiment1').then(result => {
+			assert.equal(result.state, ExperimentState.Run);
+		});
+	});
+
+	test('Experiment with OS should be disabled on other OS', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: true,
+					condition: {
+						os: [OS - 1],
+					}
+				}
+			]
+		};
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentById('experiment1').then(result => {
+			assert.equal(result.state, ExperimentState.NoRun);
 		});
 	});
 

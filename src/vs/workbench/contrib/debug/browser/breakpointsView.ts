@@ -22,13 +22,13 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { WorkbenchList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Gesture } from 'vs/base/browser/touch';
@@ -36,6 +36,8 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = dom.$;
 
@@ -49,15 +51,17 @@ function createCheckbox(): HTMLInputElement {
 }
 
 const MAX_VISIBLE_BREAKPOINTS = 9;
-export function getExpandedBodySize(model: IDebugModel): number {
+export function getExpandedBodySize(model: IDebugModel, countLimit: number): number {
 	const length = model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length + model.getDataBreakpoints().length;
-	return Math.min(MAX_VISIBLE_BREAKPOINTS, length) * 22;
+	return Math.min(countLimit, length) * 22;
 }
+type BreakpointItem = IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IExceptionBreakpoint;
 
 export class BreakpointsView extends ViewPane {
 
-	private list!: WorkbenchList<IEnablement>;
+	private list!: WorkbenchList<BreakpointItem>;
 	private needsRefresh = false;
+	private ignoreLayout = false;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -74,9 +78,8 @@ export class BreakpointsView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
-		this.minimumBodySize = this.maximumBodySize = getExpandedBodySize(this.debugService.getModel());
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
@@ -87,7 +90,7 @@ export class BreakpointsView extends ViewPane {
 		dom.addClass(container, 'debug-breakpoints');
 		const delegate = new BreakpointsDelegate(this.debugService);
 
-		this.list = <WorkbenchList<IEnablement>>this.instantiationService.createInstance(WorkbenchList, 'Breakpoints', container, delegate, [
+		this.list = <WorkbenchList<BreakpointItem>>this.instantiationService.createInstance(WorkbenchList, 'Breakpoints', container, delegate, [
 			this.instantiationService.createInstance(BreakpointsRenderer),
 			new ExceptionBreakpointsRenderer(this.debugService),
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer),
@@ -97,12 +100,7 @@ export class BreakpointsView extends ViewPane {
 			identityProvider: { getId: (element: IEnablement) => element.getId() },
 			multipleSelectionSupport: false,
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e },
-			ariaProvider: {
-				getSetSize: (_: IEnablement, index: number, listLength: number) => listLength,
-				getPosInSet: (_: IEnablement, index: number) => index,
-				getRole: (breakpoint: IEnablement) => 'checkbox',
-				isChecked: (breakpoint: IEnablement) => breakpoint.enabled
-			},
+			accessibilityProvider: new BreakpointsAccessibilityProvider(this.debugService),
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
 			}
@@ -112,38 +110,33 @@ export class BreakpointsView extends ViewPane {
 
 		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
-		this._register(this.list.onDidOpen(async e => {
-			let isSingleClick = false;
-			let isDoubleClick = false;
-			let isMiddleClick = false;
-			let openToSide = false;
-
-			const browserEvent = e.browserEvent;
-			if (browserEvent instanceof MouseEvent) {
-				isSingleClick = browserEvent.detail === 1;
-				isDoubleClick = browserEvent.detail === 2;
-				isMiddleClick = browserEvent.button === 1;
-				openToSide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
+		this.list.onMouseMiddleClick(async ({ element }) => {
+			if (element instanceof Breakpoint) {
+				await this.debugService.removeBreakpoints(element.getId());
+			} else if (element instanceof FunctionBreakpoint) {
+				await this.debugService.removeFunctionBreakpoints(element.getId());
+			} else if (element instanceof DataBreakpoint) {
+				await this.debugService.removeDataBreakpoints(element.getId());
 			}
+		});
 
-			const focused = this.list.getFocusedElements();
-			const element = focused.length ? focused[0] : undefined;
-
-			if (isMiddleClick) {
-				if (element instanceof Breakpoint) {
-					await this.debugService.removeBreakpoints(element.getId());
-				} else if (element instanceof FunctionBreakpoint) {
-					await this.debugService.removeFunctionBreakpoints(element.getId());
-				} else if (element instanceof DataBreakpoint) {
-					await this.debugService.removeDataBreakpoints(element.getId());
-				}
+		const resourceNavigator = this._register(new ListResourceNavigator(this.list, { configurationService: this.configurationService }));
+		this._register(resourceNavigator.onDidOpen(async e => {
+			if (e.element === null) {
 				return;
 			}
 
-			if (element instanceof Breakpoint) {
-				openBreakpointSource(element, openToSide, isSingleClick, this.debugService, this.editorService);
+			if (e.browserEvent instanceof MouseEvent && e.browserEvent.button === 1) { // middle click
+				return;
 			}
-			if (isDoubleClick && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
+
+			const element = this.list.element(e.element);
+
+			if (element instanceof Breakpoint) {
+				openBreakpointSource(element, e.sideBySide, e.editorOptions.preserveFocus || false, this.debugService, this.editorService);
+			}
+			if (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2 && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
+				// double click
 				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 				this.onBreakpointsChange();
 			}
@@ -156,6 +149,11 @@ export class BreakpointsView extends ViewPane {
 				this.onBreakpointsChange();
 			}
 		}));
+
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
+			this.updateSize();
+		}));
 	}
 
 	public focus(): void {
@@ -166,8 +164,19 @@ export class BreakpointsView extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		if (this.ignoreLayout) {
+			return;
+		}
+
+		super.layoutBody(height, width);
 		if (this.list) {
 			this.list.layout(height, width);
+		}
+		try {
+			this.ignoreLayout = true;
+			this.updateSize();
+		} finally {
+			this.ignoreLayout = false;
 		}
 	}
 
@@ -227,40 +236,51 @@ export class BreakpointsView extends ViewPane {
 		];
 	}
 
+	private updateSize(): void {
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+
+		// Adjust expanded body size
+		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? getExpandedBodySize(this.debugService.getModel(), MAX_VISIBLE_BREAKPOINTS) : 170;
+		this.maximumBodySize = this.orientation === Orientation.VERTICAL && containerModel.visibleViewDescriptors.length > 1 ? getExpandedBodySize(this.debugService.getModel(), Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+	}
+
 	private onBreakpointsChange(): void {
 		if (this.isBodyVisible()) {
-			this.minimumBodySize = getExpandedBodySize(this.debugService.getModel());
-			if (this.maximumBodySize < Number.POSITIVE_INFINITY) {
-				this.maximumBodySize = this.minimumBodySize;
-			}
+			this.updateSize();
 			if (this.list) {
+				const lastFocusIndex = this.list.getFocus()[0];
+				// Check whether focused element was removed
+				const needsRefocus = lastFocusIndex && !this.elements.includes(this.list.element(lastFocusIndex));
 				this.list.splice(0, this.list.length, this.elements);
 				this.needsRefresh = false;
+				if (needsRefocus) {
+					this.list.focusNth(Math.min(lastFocusIndex, this.list.length - 1));
+				}
 			}
 		} else {
 			this.needsRefresh = true;
 		}
 	}
 
-	private get elements(): IEnablement[] {
+	private get elements(): BreakpointItem[] {
 		const model = this.debugService.getModel();
 		const elements = (<ReadonlyArray<IEnablement>>model.getExceptionBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getDataBreakpoints()).concat(model.getBreakpoints());
 
-		return elements;
+		return elements as BreakpointItem[];
 	}
 }
 
-class BreakpointsDelegate implements IListVirtualDelegate<IEnablement> {
+class BreakpointsDelegate implements IListVirtualDelegate<BreakpointItem> {
 
 	constructor(private debugService: IDebugService) {
 		// noop
 	}
 
-	getHeight(element: IEnablement): number {
+	getHeight(_element: BreakpointItem): number {
 		return 22;
 	}
 
-	getTemplateId(element: IEnablement): string {
+	getTemplateId(element: BreakpointItem): string {
 		if (element instanceof Breakpoint) {
 			return BreakpointsRenderer.ID;
 		}
@@ -287,7 +307,7 @@ interface IBaseBreakpointTemplateData {
 	breakpoint: HTMLElement;
 	name: HTMLElement;
 	checkbox: HTMLInputElement;
-	context: IEnablement;
+	context: BreakpointItem;
 	toDispose: IDisposable[];
 }
 
@@ -342,7 +362,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 
 		data.filePath = dom.append(data.breakpoint, $('span.file-path'));
 		const lineNumberContainer = dom.append(data.breakpoint, $('.line-number-container'));
-		data.lineNumber = dom.append(lineNumberContainer, $('span.line-number'));
+		data.lineNumber = dom.append(lineNumberContainer, $('span.line-number.monaco-count-badge'));
 
 		return data;
 	}
@@ -614,6 +634,34 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 
 	disposeTemplate(templateData: IInputTemplateData): void {
 		dispose(templateData.toDispose);
+	}
+}
+
+class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<BreakpointItem> {
+
+	constructor(private readonly debugService: IDebugService) { }
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('breakpoints', "Breakpoints");
+	}
+
+	getRole() {
+		return 'checkbox';
+	}
+
+	isChecked(breakpoint: IEnablement) {
+		return breakpoint.enabled;
+	}
+
+	getAriaLabel(element: BreakpointItem): string | null {
+		if (element instanceof ExceptionBreakpoint) {
+			return element.toString();
+		}
+
+		const { message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), element as IBreakpoint | IDataBreakpoint | IFunctionBreakpoint);
+		const toString = element.toString();
+
+		return message ? `${toString}, ${message}` : toString;
 	}
 }
 

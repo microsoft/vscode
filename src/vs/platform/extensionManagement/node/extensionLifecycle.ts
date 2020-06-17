@@ -12,7 +12,7 @@ import { join } from 'vs/base/common/path';
 import { Limiter } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { rimraf } from 'vs/base/node/pfs';
 
 export class ExtensionsLifecycle extends Disposable {
@@ -20,7 +20,7 @@ export class ExtensionsLifecycle extends Disposable {
 	private processesLimiter: Limiter<void> = new Limiter(5); // Run max 5 processes in parallel
 
 	constructor(
-		private environmentService: IEnvironmentService,
+		private environmentService: INativeEnvironmentService,
 		private logService: ILogService
 	) {
 		super();

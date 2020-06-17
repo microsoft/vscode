@@ -48,6 +48,10 @@ class StandaloneTheme implements IStandaloneTheme {
 		this._tokenTheme = null;
 	}
 
+	public get label(): string {
+		return this.themeName;
+	}
+
 	public get base(): string {
 		return this.themeData.base;
 	}
@@ -131,13 +135,15 @@ class StandaloneTheme implements IStandaloneTheme {
 		return this._tokenTheme;
 	}
 
-	public getTokenStyleMetadata(type: string, modifiers: string[]): ITokenStyle | undefined {
+	public getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined {
 		return undefined;
 	}
 
 	public get tokenColorMap(): string[] {
 		return [];
 	}
+
+	public readonly semanticHighlighting = false;
 }
 
 function isBuiltinTheme(themeName: string): themeName is BuiltinTheme {
@@ -166,7 +172,7 @@ function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
 
 export class StandaloneThemeServiceImpl extends Disposable implements IStandaloneThemeService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onColorThemeChange = this._register(new Emitter<IStandaloneTheme>());
 	public readonly onDidColorThemeChange = this._onColorThemeChange.event;

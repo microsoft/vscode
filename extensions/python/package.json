@@ -8,6 +8,7 @@
 	"engines": { "vscode": "*" },
 	"activationEvents": ["onLanguage:python"],
 	"main": "./out/pythonMain",
+	"browser": "./dist/pythonMain",
 	"extensionKind": [ "ui", "workspace" ],
 	"contributes": {
 		"languages": [{

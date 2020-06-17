@@ -9,6 +9,7 @@ if grep -qi Microsoft /proc/version && [ -z "$DONT_PROMPT_WSL_INSTALL" ]; then
 	read -e -p "Do you want to continue anyways ? [y/N] " YN
 
 	[[ $YN == "n" || $YN == "N" || $YN == "" ]] && exit 1
+	echo "To no longer see this prompt, start @@PRODNAME@@ with the environment variable DONT_PROMPT_WSL_INSTALL defined."
 fi
 
 
@@ -26,13 +27,13 @@ if [ "$(id -u)" = "0" ]; then
 	fi
 fi
 
-if [ ! -L $0 ]; then
+if [ ! -L "$0" ]; then
 	# if path is not a symlink, find relatively
-	VSCODE_PATH="$(dirname $0)/.."
+	VSCODE_PATH="$(dirname "$0")/.."
 else
 	if command -v readlink >/dev/null; then
 		# if readlink exists, follow the symlink and find relatively
-		VSCODE_PATH="$(dirname $(readlink -f $0))/.."
+		VSCODE_PATH="$(dirname $(readlink -f "$0"))/.."
 	else
 		# else use the standard install location
 		VSCODE_PATH="/usr/share/@@NAME@@"

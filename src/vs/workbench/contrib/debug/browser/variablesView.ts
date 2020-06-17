@@ -8,8 +8,8 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Scope } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
+import { Variable, Scope, ErrorScope, StackFrame } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
@@ -17,8 +17,8 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -34,6 +34,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -44,8 +45,9 @@ export class VariablesView extends ViewPane {
 
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private needsRefresh = false;
-	private tree!: WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>;
-	private savedViewState: IAsyncDataTreeViewState | undefined;
+	private tree!: WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>;
+	private savedViewState = new Map<string, IAsyncDataTreeViewState>();
+	private autoExpandedScopes = new Set<string>();
 
 	constructor(
 		options: IViewletViewOptions,
@@ -61,30 +63,31 @@ export class VariablesView extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(async () => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 
 			this.needsRefresh = false;
-			if (stackFrame && this.savedViewState) {
-				await this.tree.setInput(this.debugService.getViewModel(), this.savedViewState);
-				this.savedViewState = undefined;
-			} else {
-				if (!stackFrame) {
-					// We have no stackFrame, save tree state before it is cleared
-					this.savedViewState = this.tree.getViewState();
-				}
-				await this.tree.updateChildren();
-				if (stackFrame) {
-					const scopes = await stackFrame.getScopes();
-					// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
-					if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0 && !scopes[0].expensive) {
-						this.tree.expand(scopes[0]);
-					}
-				}
+			const input = this.tree.getInput();
+			if (input) {
+				this.savedViewState.set(input.getId(), this.tree.getViewState());
+			}
+			if (!stackFrame) {
+				await this.tree.setInput(null);
+				return;
+			}
 
+			const viewState = this.savedViewState.get(stackFrame.getId());
+			await this.tree.setInput(stackFrame, viewState);
+
+			// Automatically expand the first scope if it is not expensive and if all scopes are collapsed
+			const scopes = await stackFrame.getScopes();
+			const toExpand = scopes.find(s => !s.expensive);
+			if (toExpand && (scopes.every(s => this.tree.isCollapsed(s)) || !this.autoExpandedScopes.has(toExpand.getId()))) {
+				this.autoExpandedScopes.add(toExpand.getId());
+				await this.tree.expand(toExpand);
 			}
 		}, 400);
 	}
@@ -96,10 +99,9 @@ export class VariablesView extends ViewPane {
 		dom.addClass(container, 'debug-variables');
 		const treeContainer = renderViewTree(container);
 
-		this.tree = <WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
-			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
+		this.tree = <WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
+			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer(), new ScopeErrorRenderer()],
 			new VariablesDataSource(), {
-			ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 			accessibilityProvider: new VariablesAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e },
@@ -108,11 +110,9 @@ export class VariablesView extends ViewPane {
 			}
 		});
 
-		this.tree.setInput(this.debugService.getViewModel());
+		this.tree.setInput(withUndefinedAsNull(this.debugService.getViewModel().focusedStackFrame));
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
-
-		this.tree.updateChildren();
 
 		this._register(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
 			if (!this.isBodyVisible()) {
@@ -141,18 +141,32 @@ export class VariablesView extends ViewPane {
 				this.onFocusStackFrameScheduler.schedule();
 			}
 		}));
+		let horizontalScrolling: boolean | undefined;
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
 			if (e instanceof Variable) {
+				horizontalScrolling = this.tree.options.horizontalScrolling;
+				if (horizontalScrolling) {
+					this.tree.updateOptions({ horizontalScrolling: false });
+				}
+
 				this.tree.rerender(e);
+			} else if (!e && horizontalScrolling !== undefined) {
+				this.tree.updateOptions({ horizontalScrolling: horizontalScrolling });
+				horizontalScrolling = undefined;
 			}
+		}));
+		this._register(this.debugService.onDidEndSession(() => {
+			this.savedViewState.clear();
+			this.autoExpandedScopes.clear();
 		}));
 	}
 
 	getActions(): IAction[] {
-		return [new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all')];
+		return [new CollapseAction(() => this.tree, true, 'explorer-action codicon-collapse-all')];
 	}
 
 	layoutBody(width: number, height: number): void {
+		super.layoutBody(height, width);
 		this.tree.layout(width, height);
 	}
 
@@ -191,8 +205,8 @@ export class VariablesView extends ViewPane {
 			}
 			if (session && session.capabilities.supportsDataBreakpoints) {
 				const response = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
-				const dataid = response.dataId;
-				if (dataid) {
+				const dataid = response?.dataId;
+				if (response && dataid) {
 					actions.push(new Separator());
 					actions.push(new Action('debug.breakWhenValueChanges', nls.localize('breakWhenValueChanges', "Break When Value Changes"), undefined, true, () => {
 						return this.debugService.addDataBreakpoint(response.description, dataid, !!response.canPersist, response.accessTypes);
@@ -210,24 +224,26 @@ export class VariablesView extends ViewPane {
 	}
 }
 
-function isViewModel(obj: any): obj is IViewModel {
-	return typeof obj.getSelectedExpression === 'function';
+function isStackFrame(obj: any): obj is IStackFrame {
+	return obj instanceof StackFrame;
 }
 
-export class VariablesDataSource implements IAsyncDataSource<IViewModel, IExpression | IScope> {
+export class VariablesDataSource implements IAsyncDataSource<IStackFrame | null, IExpression | IScope> {
 
-	hasChildren(element: IViewModel | IExpression | IScope): boolean {
-		if (isViewModel(element) || element instanceof Scope) {
+	hasChildren(element: IStackFrame | null | IExpression | IScope): boolean {
+		if (!element) {
+			return false;
+		}
+		if (isStackFrame(element)) {
 			return true;
 		}
 
 		return element.hasChildren;
 	}
 
-	getChildren(element: IViewModel | IExpression | IScope): Promise<(IExpression | IScope)[]> {
-		if (isViewModel(element)) {
-			const stackFrame = element.focusedStackFrame;
-			return stackFrame ? stackFrame.getScopes() : Promise.resolve([]);
+	getChildren(element: IStackFrame | IExpression | IScope): Promise<(IExpression | IScope)[]> {
+		if (isStackFrame(element)) {
+			return element.getScopes();
 		}
 
 		return element.getChildren();
@@ -246,6 +262,10 @@ class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
 	}
 
 	getTemplateId(element: IExpression | IScope): string {
+		if (element instanceof ErrorScope) {
+			return ScopeErrorRenderer.ID;
+		}
+
 		if (element instanceof Scope) {
 			return ScopesRenderer.ID;
 		}
@@ -274,6 +294,33 @@ class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplate
 	}
 
 	disposeTemplate(templateData: IScopeTemplateData): void {
+		// noop
+	}
+}
+
+interface IScopeErrorTemplateData {
+	error: HTMLElement;
+}
+
+class ScopeErrorRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeErrorTemplateData> {
+
+	static readonly ID = 'scopeError';
+
+	get templateId(): string {
+		return ScopeErrorRenderer.ID;
+	}
+
+	renderTemplate(container: HTMLElement): IScopeErrorTemplateData {
+		const wrapper = dom.append(container, $('.scope'));
+		const error = dom.append(wrapper, $('.error'));
+		return { error };
+	}
+
+	renderElement(element: ITreeNode<IScope, FuzzyScore>, index: number, templateData: IScopeErrorTemplateData): void {
+		templateData.error.innerText = element.element.name;
+	}
+
+	disposeTemplate(): void {
 		// noop
 	}
 }
@@ -314,13 +361,18 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	}
 }
 
-class VariablesAccessibilityProvider implements IAccessibilityProvider<IExpression | IScope> {
+class VariablesAccessibilityProvider implements IListAccessibilityProvider<IExpression | IScope> {
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('variablesAriaTreeLabel', "Debug Variables");
+	}
+
 	getAriaLabel(element: IExpression | IScope): string | null {
 		if (element instanceof Scope) {
-			return nls.localize('variableScopeAriaLabel', "Scope {0}, variables, debug", element.name);
+			return nls.localize('variableScopeAriaLabel', "Scope {0}", element.name);
 		}
 		if (element instanceof Variable) {
-			return nls.localize('variableAriaLabel', "{0} value {1}, variables, debug", element.name, element.value);
+			return nls.localize({ key: 'variableAriaLabel', comment: ['Placeholders are variable name and variable value respectivly. They should not be translated.'] }, "{0}, value {1}", element.name, element.value);
 		}
 
 		return null;

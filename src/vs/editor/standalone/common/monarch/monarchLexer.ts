@@ -497,7 +497,8 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			let regex = rule.regex;
 			let regexSource = rule.regex.source;
 			if (regexSource.substr(0, 4) === '^(?:' && regexSource.substr(regexSource.length - 1, 1) === ')') {
-				regex = new RegExp(regexSource.substr(4, regexSource.length - 5), regex.ignoreCase ? 'i' : '');
+				let flags = (regex.ignoreCase ? 'i' : '') + (regex.unicode ? 'u' : '');
+				regex = new RegExp(regexSource.substr(4, regexSource.length - 5), flags);
 			}
 
 			let result = line.search(regex);
@@ -740,6 +741,24 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 				throw monarchCommon.createError(this._lexer, 'lexer rule has no well-defined action in rule: ' + this._safeRuleName(rule));
 			}
 
+			const computeNewStateForEmbeddedMode = (enteringEmbeddedMode: string) => {
+				// substitute language alias to known modes to support syntax highlighting
+				let enteringEmbeddedModeId = this._modeService.getModeIdForLanguageName(enteringEmbeddedMode);
+				if (enteringEmbeddedModeId) {
+					enteringEmbeddedMode = enteringEmbeddedModeId;
+				}
+
+				const embeddedModeData = this._getNestedEmbeddedModeData(enteringEmbeddedMode);
+
+				if (pos < lineLength) {
+					// there is content from the embedded mode on this line
+					const restOfLine = line.substr(pos);
+					return this._nestedTokenize(restOfLine, MonarchLineStateFactory.create(stack, embeddedModeData), offsetDelta + pos, tokensCollector);
+				} else {
+					return MonarchLineStateFactory.create(stack, embeddedModeData);
+				}
+			};
+
 			// is the result a group match?
 			if (Array.isArray(result)) {
 				if (groupMatching && groupMatching.groups.length > 0) {
@@ -780,6 +799,12 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 					matched = '';  // better set the next state too..
 					matches = null;
 					result = '';
+
+					// Even though `@rematch` was specified, if `nextEmbedded` also specified,
+					// a state transition should occur.
+					if (enteringEmbeddedMode !== null) {
+						return computeNewStateForEmbeddedMode(enteringEmbeddedMode);
+					}
 				}
 
 				// check progress
@@ -810,21 +835,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			}
 
 			if (enteringEmbeddedMode !== null) {
-				// substitute language alias to known modes to support syntax highlighting
-				let enteringEmbeddedModeId = this._modeService.getModeIdForLanguageName(enteringEmbeddedMode);
-				if (enteringEmbeddedModeId) {
-					enteringEmbeddedMode = enteringEmbeddedModeId;
-				}
-
-				let embeddedModeData = this._getNestedEmbeddedModeData(enteringEmbeddedMode);
-
-				if (pos < lineLength) {
-					// there is content from the embedded mode on this line
-					let restOfLine = line.substr(pos);
-					return this._nestedTokenize(restOfLine, MonarchLineStateFactory.create(stack, embeddedModeData), offsetDelta + pos, tokensCollector);
-				} else {
-					return MonarchLineStateFactory.create(stack, embeddedModeData);
-				}
+				return computeNewStateForEmbeddedMode(enteringEmbeddedMode);
 			}
 		}
 

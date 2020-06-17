@@ -53,11 +53,13 @@
 	align-items: center;
 }
 
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents.category .theme-icon {
+.monaco-workbench .bulk-edit-panel .monaco-tl-contents.category .theme-icon,
+.monaco-workbench .bulk-edit-panel .monaco-tl-contents.textedit .theme-icon {
 	margin-right: 4px;
 }
 
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents.category .uri-icon {
+.monaco-workbench .bulk-edit-panel .monaco-tl-contents.category .uri-icon,
+.monaco-workbench .bulk-edit-panel .monaco-tl-contents.textedit .uri-icon {
 	background-repeat: no-repeat;
 	background-image: var(--background-light);
 	background-position: left center;
@@ -65,10 +67,18 @@
 	margin-right: 4px;
 	height: 100%;
 	width: 16px;
+	min-width: 16px;
 }
 
-.vs-dark .monaco-workbench .bulk-edit-panel .monaco-tl-contents.category .uri-icon,
-.hc-black .monaco-workbench .bulk-edit-panel .monaco-tl-contents.category .uri-icon
+.monaco-workbench.vs-dark .bulk-edit-panel .monaco-tl-contents.category .uri-icon,
+.monaco-workbench.hc-black .bulk-edit-panel .monaco-tl-contents.category .uri-icon,
+.monaco-workbench.vs-dark .bulk-edit-panel .monaco-tl-contents.textedit .uri-icon,
+.monaco-workbench.hc-black .bulk-edit-panel .monaco-tl-contents.textedit .uri-icon
 {
 	background-image: var(--background-dark);
+}
+
+.monaco-workbench .bulk-edit-panel .monaco-tl-contents.textedit .monaco-highlighted-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }

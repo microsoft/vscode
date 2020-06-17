@@ -157,10 +157,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
 
 		// Notifications List
-		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {
-			ariaLabel: localize('notificationsList', "Notifications List")
-		});
-
+		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {});
 		this.container.appendChild(this.notificationsCenterContainer);
 	}
 
@@ -308,7 +305,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this.hide();
 
 		// Close all
-		for (const notification of this.model.notifications) {
+		for (const notification of [...this.model.notifications] /* copy array since we modify it from closing */) {
 			if (!notification.hasProgress) {
 				notification.close();
 			}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises as fs, exists } from 'fs';
+import { promises as fs, exists, realpath } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -15,12 +15,13 @@ import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes,
 import { CancellationToken, Progress, Uri } from 'vscode';
 import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions } from './api/git';
+import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
+const isWindows = process.platform === 'win32';
 
 export interface IGit {
 	path: string;
@@ -45,7 +46,7 @@ interface MutableRemote extends Remote {
 	isReadOnly: boolean;
 }
 
-// TODO[ECA]: Move to git.d.ts once we are good with the api
+// TODO@eamodio: Move to git.d.ts once we are good with the api
 /**
  * Log file options.
  */
@@ -305,7 +306,7 @@ export interface IGitOptions {
 function getGitErrorCode(stderr: string): string | undefined {
 	if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(stderr)) {
 		return GitErrorCodes.RepositoryIsLocked;
-	} else if (/Authentication failed/.test(stderr)) {
+	} else if (/Authentication failed/i.test(stderr)) {
 		return GitErrorCodes.AuthenticationFailed;
 	} else if (/Not a git repository/i.test(stderr)) {
 		return GitErrorCodes.NotAGitRepository;
@@ -419,8 +420,43 @@ export class Git {
 
 	async getRepositoryRoot(repositoryPath: string): Promise<string> {
 		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel']);
+
 		// Keep trailing spaces which are part of the directory name
-		return path.normalize(result.stdout.trimLeft().replace(/(\r\n|\r|\n)+$/, ''));
+		const repoPath = path.normalize(result.stdout.trimLeft().replace(/[\r\n]+$/, ''));
+
+		if (isWindows) {
+			// On Git 2.25+ if you call `rev-parse --show-toplevel` on a mapped drive, instead of getting the mapped drive path back, you get the UNC path for the mapped drive.
+			// So we will try to normalize it back to the mapped drive path, if possible
+			const repoUri = Uri.file(repoPath);
+			const pathUri = Uri.file(repositoryPath);
+			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
+				let match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
+				if (match !== null) {
+					const [, letter] = match;
+
+					try {
+						const networkPath = await new Promise<string>(resolve =>
+							realpath.native(`${letter}:`, { encoding: 'utf8' }, (err, resolvedPath) =>
+								// eslint-disable-next-line eqeqeq
+								resolve(err != null ? undefined : resolvedPath),
+							),
+						);
+						if (networkPath !== undefined) {
+							return path.normalize(
+								repoUri.fsPath.replace(
+									networkPath,
+									`${letter.toLowerCase()}:${networkPath.endsWith('\\') ? '\\' : ''}`
+								),
+							);
+						}
+					} catch { }
+				}
+
+				return path.normalize(pathUri.fsPath);
+			}
+		}
+
+		return repoPath;
 	}
 
 	async getRepositoryDotGit(repositoryPath: string): Promise<string> {
@@ -504,7 +540,8 @@ export class Git {
 		options.env = assign({}, process.env, this.env, options.env || {}, {
 			VSCODE_GIT_COMMAND: args[0],
 			LC_ALL: 'en_US.UTF-8',
-			LANG: 'en_US.UTF-8'
+			LANG: 'en_US.UTF-8',
+			GIT_PAGER: 'cat'
 		});
 
 		if (options.cwd) {
@@ -811,6 +848,9 @@ export class Repository {
 	async log(options?: LogOptions): Promise<Commit[]> {
 		const maxEntries = options?.maxEntries ?? 32;
 		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--'];
+		if (options?.path) {
+			args.push(options.path);
+		}
 
 		const result = await this.run(args);
 		if (result.exitCode) {
@@ -865,7 +905,7 @@ export class Repository {
 	}
 
 	async buffer(object: string): Promise<Buffer> {
-		const child = this.stream(['show', object]);
+		const child = this.stream(['show', '--textconv', object]);
 
 		if (!child.stdout) {
 			return Promise.reject<Buffer>('Can\'t open file from git');
@@ -938,7 +978,7 @@ export class Repository {
 	}
 
 	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
-		const child = await this.stream(['show', object]);
+		const child = await this.stream(['show', '--textconv', object]);
 		const buffer = await readBytes(child.stdout!, 4100);
 
 		try {
@@ -1183,15 +1223,13 @@ export class Repository {
 			args.push('-A');
 		}
 
-		args.push('--');
-
 		if (paths && paths.length) {
-			args.push.apply(args, paths.map(sanitizePath));
+			for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+				await this.run([...args, '--', ...chunk]);
+			}
 		} else {
-			args.push('.');
+			await this.run([...args, '--', '.']);
 		}
-
-		await this.run(args);
 	}
 
 	async rm(paths: string[]): Promise<void> {
@@ -1296,6 +1334,10 @@ export class Repository {
 		}
 	}
 
+	async rebaseAbort(): Promise<void> {
+		await this.run(['rebase', '--abort']);
+	}
+
 	async rebaseContinue(): Promise<void> {
 		const args = ['rebase', '--continue'];
 
@@ -1396,10 +1438,11 @@ export class Repository {
 
 		const limiter = new Limiter(5);
 		const promises: Promise<any>[] = [];
+		const args = ['clean', '-f', '-q'];
 
 		for (const paths of groups) {
 			for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
-				promises.push(limiter.queue(() => this.run(['clean', '-f', '-q', '--', ...chunk])));
+				promises.push(limiter.queue(() => this.run([...args, '--', ...chunk])));
 			}
 		}
 
@@ -1431,19 +1474,19 @@ export class Repository {
 
 		// In case there are no branches, we must use rm --cached
 		if (!result.stdout) {
-			args = ['rm', '--cached', '-r', '--'];
+			args = ['rm', '--cached', '-r'];
 		} else {
-			args = ['reset', '-q', treeish, '--'];
-		}
-
-		if (paths && paths.length) {
-			args.push.apply(args, paths.map(sanitizePath));
-		} else {
-			args.push('.');
+			args = ['reset', '-q', treeish];
 		}
 
 		try {
-			await this.run(args);
+			if (paths && paths.length > 0) {
+				for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+					await this.run([...args, '--', ...chunk]);
+				}
+			} else {
+				await this.run([...args, '--', '.']);
+			}
 		} catch (err) {
 			// In case there are merge conflicts to be resolved, git reset will output
 			// some "needs merge" data. We try to get around that.
@@ -1461,7 +1504,12 @@ export class Repository {
 	}
 
 	async removeRemote(name: string): Promise<void> {
-		const args = ['remote', 'rm', name];
+		const args = ['remote', 'remove', name];
+		await this.run(args);
+	}
+
+	async renameRemote(name: string, newName: string): Promise<void> {
+		const args = ['remote', 'rename', name, newName];
 		await this.run(args);
 	}
 
@@ -1743,11 +1791,25 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate' }): Promise<Ref[]> {
-		const args = ['for-each-ref', '--format', '%(refname) %(objectname)'];
+	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate', contains?: string, pattern?: string, count?: number }): Promise<Ref[]> {
+		const args = ['for-each-ref'];
+
+		if (opts?.count) {
+			args.push(`--count=${opts.count}`);
+		}
 
 		if (opts && opts.sort && opts.sort !== 'alphabetically') {
 			args.push('--sort', `-${opts.sort}`);
+		}
+
+		args.push('--format', '%(refname) %(objectname)');
+
+		if (opts?.pattern) {
+			args.push(opts.pattern);
+		}
+
+		if (opts?.contains) {
+			args.push('--contains', opts.contains);
 		}
 
 		const result = await this.run(args);
@@ -1867,6 +1929,11 @@ export class Repository {
 		}
 	}
 
+	async getBranches(query: BranchQuery): Promise<Ref[]> {
+		const refs = await this.getRefs({ contains: query.contains, pattern: query.pattern ? `refs/${query.pattern}` : undefined, count: query.count });
+		return refs.filter(value => (value.type !== RefType.Tag) && (query.remote || !value.remote));
+	}
+
 	// TODO: Support core.commentChar
 	stripCommitMessageComments(message: string): string {
 		return message.replace(/^\s*#.*$\n?/gm, '').trim();
@@ -1917,10 +1984,10 @@ export class Repository {
 	}
 
 	async updateSubmodules(paths: string[]): Promise<void> {
-		const args = ['submodule', 'update', '--'];
+		const args = ['submodule', 'update'];
 
 		for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
-			await this.run([...args, ...chunk]);
+			await this.run([...args, '--', ...chunk]);
 		}
 	}
 

@@ -12,7 +12,8 @@
     "onLanguage:json",
     "onLanguage:jsonc"
   ],
-  "main": "./out/extension",
+  "main": "./out/configurationEditingMain",
+  "browser": "./dist/configurationEditingMain",
   "scripts": {
     "compile": "gulp compile-extension:configuration-editing",
     "watch": "gulp watch-extension:configuration-editing"
@@ -94,6 +95,10 @@
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
+        "url": "vscode://schemas/snippets"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/sync/snippets/preview/*.json",
         "url": "vscode://schemas/snippets"
       },
       {

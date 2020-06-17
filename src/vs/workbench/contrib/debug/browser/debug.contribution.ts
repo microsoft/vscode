@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../browser/media/debug.contribution';
-import 'vs/css!../browser/media/debugHover';
+import 'vs/css!./media/debug.contribution';
+import 'vs/css!./media/debugHover';
 import * as nls from 'vs/nls';
+import { Color } from 'vs/base/common/color';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -27,31 +28,35 @@ import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 import * as service from 'vs/workbench/contrib/debug/browser/debugService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, REVERSE_CONTINUE_ID, STEP_BACK_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, RESTART_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, STEP_OUT_LABEL, PAUSE_LABEL, DISCONNECT_LABEL, STOP_LABEL, CONTINUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
-import { DebugQuickOpenHandler } from 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import { DebugStatusContribution } from 'vs/workbench/contrib/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { LoadedScriptsView } from 'vs/workbench/contrib/debug/browser/loadedScriptsView';
-import { TOGGLE_LOG_POINT_ID, TOGGLE_CONDITIONAL_BREAKPOINT_ID, TOGGLE_BREAKPOINT_ID, RunToCursorAction } from 'vs/workbench/contrib/debug/browser/debugEditorActions';
+import { ADD_LOG_POINT_ID, TOGGLE_CONDITIONAL_BREAKPOINT_ID, TOGGLE_BREAKPOINT_ID, RunToCursorAction } from 'vs/workbench/contrib/debug/browser/debugEditorActions';
 import { WatchExpressionsView } from 'vs/workbench/contrib/debug/browser/watchExpressionsView';
 import { VariablesView } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { ClearReplAction, Repl } from 'vs/workbench/contrib/debug/browser/repl';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { DebugViewPaneContainer, OpenDebugPanelAction } from 'vs/workbench/contrib/debug/browser/debugViewlet';
+import { ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor, foreground, badgeBackground, badgeForeground, listDeemphasizedForeground, contrastBorder, inputBorder, editorWarningForeground, errorForeground, editorInfoForeground } from 'vs/platform/theme/common/colorRegistry';
+import { DebugViewPaneContainer, OpenDebugConsoleAction } from 'vs/workbench/contrib/debug/browser/debugViewlet';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CallStackEditorContribution } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { BreakpointEditorContribution } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
+import { StartDebugQuickAccessProvider } from 'vs/workbench/contrib/debug/browser/debugQuickAccess';
+import { DebugProgressContribution } from 'vs/workbench/contrib/debug/browser/debugProgress';
+import { DebugTitleContribution } from 'vs/workbench/contrib/debug/browser/debugTitle';
+import { Codicon } from 'vs/base/common/codicons';
 
 class OpenDebugViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -72,8 +77,9 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 	id: VIEWLET_ID,
 	name: nls.localize('run', "Run"),
 	ctorDescriptor: new SyncDescriptor(DebugViewPaneContainer),
-	icon: 'codicon-debug-alt-2',
-	order: 3
+	icon: Codicon.debugAlt.classNames,
+	alwaysUseContainerInfo: true,
+	order: 2
 }, ViewContainerLocation.Sidebar);
 
 const openViewletKb: IKeybindings = {
@@ -88,35 +94,41 @@ const openPanelKb: IKeybindings = {
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: DEBUG_PANEL_ID,
 	name: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [DEBUG_PANEL_ID, DEBUG_PANEL_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	icon: Codicon.debugConsole.classNames,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [DEBUG_PANEL_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	storageId: DEBUG_PANEL_ID,
 	focusCommand: {
-		id: OpenDebugPanelAction.ID,
+		id: OpenDebugConsoleAction.ID,
 		keybindings: openPanelKb
-	}
+	},
+	order: 2,
+	hideIfEmpty: true
 }, ViewContainerLocation.Panel);
 
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 	id: REPL_VIEW_ID,
 	name: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
+	containerIcon: Codicon.debugConsole.classNames,
 	canToggleVisibility: false,
+	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(Repl),
 }], VIEW_CONTAINER);
 
 // Register default debug views
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-viewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), ctorDescriptor: new SyncDescriptor(VariablesView), order: 10, weight: 40, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusVariablesView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
-viewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), ctorDescriptor: new SyncDescriptor(WatchExpressionsView), order: 20, weight: 10, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusWatchView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
-viewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), ctorDescriptor: new SyncDescriptor(CallStackView), order: 30, weight: 30, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusCallStackView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
-viewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), ctorDescriptor: new SyncDescriptor(BreakpointsView), order: 40, weight: 20, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusBreakpointsView' }, when: ContextKeyExpr.or(CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
-viewsRegistry.registerViews([{ id: WelcomeView.ID, name: WelcomeView.LABEL, ctorDescriptor: new SyncDescriptor(WelcomeView), order: 10, weight: 40, canToggleVisibility: true, when: CONTEXT_DEBUG_UX.isEqualTo('simple') }], viewContainer);
-viewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), ctorDescriptor: new SyncDescriptor(LoadedScriptsView), order: 35, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: true, when: ContextKeyExpr.and(CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
+viewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), containerIcon: Codicon.debugAlt.classNames, ctorDescriptor: new SyncDescriptor(VariablesView), order: 10, weight: 40, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusVariablesView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
+viewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), containerIcon: Codicon.debugAlt.classNames, ctorDescriptor: new SyncDescriptor(WatchExpressionsView), order: 20, weight: 10, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusWatchView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
+viewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), containerIcon: Codicon.debugAlt.classNames, ctorDescriptor: new SyncDescriptor(CallStackView), order: 30, weight: 30, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusCallStackView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
+viewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), containerIcon: Codicon.debugAlt.classNames, ctorDescriptor: new SyncDescriptor(BreakpointsView), order: 40, weight: 20, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusBreakpointsView' }, when: ContextKeyExpr.or(CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
+viewsRegistry.registerViews([{ id: WelcomeView.ID, name: WelcomeView.LABEL, containerIcon: Codicon.debugAlt.classNames, ctorDescriptor: new SyncDescriptor(WelcomeView), order: 1, weight: 40, canToggleVisibility: true, when: CONTEXT_DEBUG_UX.isEqualTo('simple') }], viewContainer);
+viewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), containerIcon: Codicon.debugAlt.classNames, ctorDescriptor: new SyncDescriptor(LoadedScriptsView), order: 35, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: true, when: ContextKeyExpr.and(CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
 
 registerCommands();
 
 // register action to open viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(OpenDebugPanelAction, OpenDebugPanelAction.ID, OpenDebugPanelAction.LABEL, openPanelKb), 'View: Debug Console', nls.localize('view', "View"));
-registry.registerWorkbenchAction(SyncActionDescriptor.create(OpenDebugViewletAction, OpenDebugViewletAction.ID, OpenDebugViewletAction.LABEL, openViewletKb), 'View: Show Debug', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenDebugConsoleAction, openPanelKb), 'View: Debug Console', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenDebugViewletAction, openViewletKb), 'View: Show Run and Debug', nls.localize('view', "View"));
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugToolBar, LifecyclePhase.Restored);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugContentProvider, LifecyclePhase.Eventually);
@@ -125,16 +137,16 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 const debugCategory = nls.localize('debugCategory', "Debug");
 const runCategroy = nls.localize('runCategory', "Run");
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(StartAction, StartAction.ID, StartAction.LABEL, { primary: KeyCode.F5 }, CONTEXT_IN_DEBUG_MODE.toNegated()), 'Debug: Start Debugging', debugCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL), 'Debug: Open launch.json', debugCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(AddFunctionBreakpointAction, AddFunctionBreakpointAction.ID, AddFunctionBreakpointAction.LABEL), 'Debug: Add Function Breakpoint', debugCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(ReapplyBreakpointsAction, ReapplyBreakpointsAction.ID, ReapplyBreakpointsAction.LABEL), 'Debug: Reapply All Breakpoints', debugCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(RunAction, RunAction.ID, RunAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.F5, mac: { primary: KeyMod.WinCtrl | KeyCode.F5 } }), 'Run: Start Without Debugging', runCategroy);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(RemoveAllBreakpointsAction, RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL), 'Debug: Remove All Breakpoints', debugCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(EnableAllBreakpointsAction, EnableAllBreakpointsAction.ID, EnableAllBreakpointsAction.LABEL), 'Debug: Enable All Breakpoints', debugCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(DisableAllBreakpointsAction, DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL), 'Debug: Disable All Breakpoints', debugCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(SelectAndStartAction, SelectAndStartAction.ID, SelectAndStartAction.LABEL), 'Debug: Select and Start Debugging', debugCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL), 'Debug: Clear Console', debugCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(StartAction, { primary: KeyCode.F5 }, CONTEXT_IN_DEBUG_MODE.toNegated()), 'Debug: Start Debugging', debugCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ConfigureAction), 'Debug: Open launch.json', debugCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(AddFunctionBreakpointAction), 'Debug: Add Function Breakpoint', debugCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ReapplyBreakpointsAction), 'Debug: Reapply All Breakpoints', debugCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(RunAction, { primary: KeyMod.CtrlCmd | KeyCode.F5, mac: { primary: KeyMod.WinCtrl | KeyCode.F5 } }), 'Run: Start Without Debugging', runCategroy);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(RemoveAllBreakpointsAction), 'Debug: Remove All Breakpoints', debugCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(EnableAllBreakpointsAction), 'Debug: Enable All Breakpoints', debugCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(DisableAllBreakpointsAction), 'Debug: Disable All Breakpoints', debugCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SelectAndStartAction), 'Debug: Select and Start Debugging', debugCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ClearReplAction), 'Debug: Clear Console', debugCategory);
 
 const registerDebugCommandPaletteItem = (id: string, title: string, when?: ContextKeyExpression, precondition?: ContextKeyExpression) => {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -157,21 +169,20 @@ registerDebugCommandPaletteItem(DISCONNECT_ID, DISCONNECT_LABEL, CONTEXT_IN_DEBU
 registerDebugCommandPaletteItem(STOP_ID, STOP_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
 registerDebugCommandPaletteItem(CONTINUE_ID, CONTINUE_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 registerDebugCommandPaletteItem(FOCUS_REPL_ID, nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusConsole' }, 'Focus on Debug Console View'));
-registerDebugCommandPaletteItem(JUMP_TO_CURSOR_ID, nls.localize('jumpToCursor', "Jump to Cursor"), ContextKeyExpr.and(CONTEXT_JUMP_TO_CURSOR_SUPPORTED));
+registerDebugCommandPaletteItem(JUMP_TO_CURSOR_ID, nls.localize('jumpToCursor', "Jump to Cursor"), CONTEXT_JUMP_TO_CURSOR_SUPPORTED);
+registerDebugCommandPaletteItem(JUMP_TO_CURSOR_ID, nls.localize('SetNextStatement', "Set Next Statement"), CONTEXT_JUMP_TO_CURSOR_SUPPORTED);
 registerDebugCommandPaletteItem(RunToCursorAction.ID, RunToCursorAction.LABEL, ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')));
 registerDebugCommandPaletteItem(TOGGLE_INLINE_BREAKPOINT_ID, nls.localize('inlineBreakpoint', "Inline Breakpoint"));
 
 
-// Register Quick Open
-(Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		DebugQuickOpenHandler,
-		DebugQuickOpenHandler.ID,
-		'debug ',
-		'inLaunchConfigurationsPicker',
-		nls.localize('debugCommands', "Debug Configuration")
-	)
-);
+// Register Quick Access
+Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
+	ctor: StartDebugQuickAccessProvider,
+	prefix: StartDebugQuickAccessProvider.PREFIX,
+	contextKey: 'inLaunchConfigurationsPicker',
+	placeholder: nls.localize('startDebugPlaceholder', "Type the name of a launch configuration to run."),
+	helpEntries: [{ description: nls.localize('startDebuggingHelp', "Start Debugging"), needsEditor: false }]
+});
 
 // register service
 registerSingleton(IDebugService, service.DebugService);
@@ -220,11 +231,6 @@ configurationRegistry.registerConfiguration({
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
 			default: 'openOnSessionStart',
 			description: nls.localize('openDebug', "Controls when the debug view should open.")
-		},
-		'debug.enableAllHovers': {
-			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'enableAllHovers' }, "Controls whether the non-debug hovers should be enabled while debugging. When enabled the hover providers will be called to provide a hover. Regular hovers will not be shown even if this setting is enabled."),
-			default: false
 		},
 		'debug.showSubSessionsInToolBar': {
 			type: 'boolean',
@@ -286,8 +292,12 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-// Register Debug Status
+// Register Debug Workbench Contributions
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugStatusContribution, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugProgressContribution, LifecyclePhase.Eventually);
+if (isWeb) {
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugTitleContribution, LifecyclePhase.Eventually);
+}
 
 // Debug toolbar
 
@@ -359,7 +369,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '4_panels',
 	command: {
-		id: OpenDebugPanelAction.ID,
+		id: OpenDebugConsoleAction.ID,
 		title: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console")
 	},
 	order: 2
@@ -505,7 +515,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
 	group: '1_breakpoints',
 	command: {
-		id: TOGGLE_LOG_POINT_ID,
+		id: ADD_LOG_POINT_ID,
 		title: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Logpoint...")
 	},
 	order: 4
@@ -582,3 +592,184 @@ if (isMacintosh) {
 	registerTouchBarEntry(RESTART_SESSION_ID, RESTART_LABEL, 5, CONTEXT_IN_DEBUG_MODE, URI.parse(require.toUrl('vs/workbench/contrib/debug/browser/media/restart-tb.png')));
 	registerTouchBarEntry(STOP_ID, STOP_LABEL, 6, CONTEXT_IN_DEBUG_MODE, URI.parse(require.toUrl('vs/workbench/contrib/debug/browser/media/stop-tb.png')));
 }
+
+// Color contributions
+
+const debugTokenExpressionName = registerColor('debugTokenExpression.name', { dark: '#c586c0', light: '#9b46b0', hc: foreground }, 'Foreground color for the token names shown in the debug views (ie. the Variables or Watch view).');
+const debugTokenExpressionValue = registerColor('debugTokenExpression.value', { dark: '#cccccc99', light: '#6c6c6ccc', hc: foreground }, 'Foreground color for the token values shown in the debug views (ie. the Variables or Watch view).');
+const debugTokenExpressionString = registerColor('debugTokenExpression.string', { dark: '#ce9178', light: '#a31515', hc: '#f48771' }, 'Foreground color for strings in the debug views (ie. the Variables or Watch view).');
+const debugTokenExpressionBoolean = registerColor('debugTokenExpression.boolean', { dark: '#4e94ce', light: '#0000ff', hc: '#75bdfe' }, 'Foreground color for booleans in the debug views (ie. the Variables or Watch view).');
+const debugTokenExpressionNumber = registerColor('debugTokenExpression.number', { dark: '#b5cea8', light: '#098658', hc: '#89d185' }, 'Foreground color for numbers in the debug views (ie. the Variables or Watch view).');
+const debugTokenExpressionError = registerColor('debugTokenExpression.error', { dark: '#f48771', light: '#e51400', hc: '#f48771' }, 'Foreground color for expression errors in the debug views (ie. the Variables or Watch view) and for error logs shown in the debug console.');
+
+const debugViewExceptionLabelForeground = registerColor('debugView.exceptionLabelForeground', { dark: foreground, light: '#FFF', hc: foreground }, 'Foreground color for a label shown in the CALL STACK view when the debugger breaks on an exception.');
+const debugViewExceptionLabelBackground = registerColor('debugView.exceptionLabelBackground', { dark: '#6C2022', light: '#A31515', hc: '#6C2022' }, 'Background color for a label shown in the CALL STACK view when the debugger breaks on an exception.');
+const debugViewStateLabelForeground = registerColor('debugView.stateLabelForeground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for a label in the CALL STACK view showing the current session\'s or thread\'s state.');
+const debugViewStateLabelBackground = registerColor('debugView.stateLabelBackground', { dark: '#88888844', light: '#88888844', hc: '#88888844' }, 'Background color for a label in the CALL STACK view showing the current session\'s or thread\'s state.');
+const debugViewValueChangedHighlight = registerColor('debugView.valueChangedHighlight', { dark: '#569CD6', light: '#569CD6', hc: '#569CD6' }, 'Color used to highlight value changes in the debug views (ie. in the Variables view).');
+
+const debugConsoleInfoForeground = registerColor('debugConsole.infoForeground', { dark: editorInfoForeground, light: editorInfoForeground, hc: foreground }, 'Foreground color for info messages in debug REPL console.');
+const debugConsoleWarningForeground = registerColor('debugConsole.warningForeground', { dark: editorWarningForeground, light: editorWarningForeground, hc: '#008000' }, 'Foreground color for warning messages in debug REPL console.');
+const debugConsoleErrorForeground = registerColor('debugConsole.errorForeground', { dark: errorForeground, light: errorForeground, hc: errorForeground }, 'Foreground color for error messages in debug REPL console.');
+const debugConsoleSourceForeground = registerColor('debugConsole.sourceForeground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for source filenames in debug REPL console.');
+const debugConsoleInputIconForeground = registerColor('debugConsoleInputIcon.foreground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for debug console input marker icon.');
+
+registerThemingParticipant((theme, collector) => {
+	// All these colours provide a default value so they will never be undefined, hence the `!`
+	const badgeBackgroundColor = theme.getColor(badgeBackground)!;
+	const badgeForegroundColor = theme.getColor(badgeForeground)!;
+	const listDeemphasizedForegroundColor = theme.getColor(listDeemphasizedForeground)!;
+	const debugViewExceptionLabelForegroundColor = theme.getColor(debugViewExceptionLabelForeground)!;
+	const debugViewExceptionLabelBackgroundColor = theme.getColor(debugViewExceptionLabelBackground)!;
+	const debugViewStateLabelForegroundColor = theme.getColor(debugViewStateLabelForeground)!;
+	const debugViewStateLabelBackgroundColor = theme.getColor(debugViewStateLabelBackground)!;
+	const debugViewValueChangedHighlightColor = theme.getColor(debugViewValueChangedHighlight)!;
+
+	collector.addRule(`
+		/* Text colour of the call stack row's filename */
+		.debug-pane .debug-call-stack .monaco-list-row:not(.selected) .stack-frame > .file .file-name {
+			color: ${listDeemphasizedForegroundColor}
+		}
+
+		/* Line & column number "badge" for selected call stack row */
+		.debug-pane .monaco-list-row.selected .line-number {
+			background-color: ${badgeBackgroundColor};
+			color: ${badgeForegroundColor};
+		}
+
+		/* Line & column number "badge" for unselected call stack row (basically all other rows) */
+		.debug-pane .line-number {
+			background-color: ${badgeBackgroundColor.transparent(0.6)};
+			color: ${badgeForegroundColor.transparent(0.6)};
+		}
+
+		/* State "badge" displaying the active session's current state.
+		 * Only visible when there are more active debug sessions/threads running.
+		 */
+		.debug-pane .debug-call-stack .thread > .state > .label,
+		.debug-pane .debug-call-stack .session > .state > .label,
+		.debug-pane .monaco-list-row.selected .thread > .state > .label,
+		.debug-pane .monaco-list-row.selected .session > .state > .label {
+			background-color: ${debugViewStateLabelBackgroundColor};
+			color: ${debugViewStateLabelForegroundColor};
+		}
+
+		/* Info "badge" shown when the debugger pauses due to a thrown exception. */
+		.debug-pane .debug-call-stack-title > .pause-message > .label.exception {
+			background-color: ${debugViewExceptionLabelBackgroundColor};
+			color: ${debugViewExceptionLabelForegroundColor};
+		}
+
+		/* Animation of changed values in Debug viewlet */
+		@keyframes debugViewletValueChanged {
+			0%   { background-color: ${debugViewValueChangedHighlightColor.transparent(0)} }
+			5%   { background-color: ${debugViewValueChangedHighlightColor.transparent(0.9)} }
+			100% { background-color: ${debugViewValueChangedHighlightColor.transparent(0.3)} }
+		}
+
+		.debug-pane .monaco-list-row .expression .value.changed {
+			background-color: ${debugViewValueChangedHighlightColor.transparent(0.3)};
+			animation-name: debugViewletValueChanged;
+			animation-duration: 1s;
+			animation-fill-mode: forwards;
+		}
+	`);
+
+	const contrastBorderColor = theme.getColor(contrastBorder);
+
+	if (contrastBorderColor) {
+		collector.addRule(`
+		.debug-pane .line-number {
+			border: 1px solid ${contrastBorderColor};
+		}
+		`);
+	}
+
+	const tokenNameColor = theme.getColor(debugTokenExpressionName)!;
+	const tokenValueColor = theme.getColor(debugTokenExpressionValue)!;
+	const tokenStringColor = theme.getColor(debugTokenExpressionString)!;
+	const tokenBooleanColor = theme.getColor(debugTokenExpressionBoolean)!;
+	const tokenErrorColor = theme.getColor(debugTokenExpressionError)!;
+	const tokenNumberColor = theme.getColor(debugTokenExpressionNumber)!;
+
+	collector.addRule(`
+		.monaco-workbench .monaco-list-row .expression .name {
+			color: ${tokenNameColor};
+		}
+
+		.monaco-workbench .monaco-list-row .expression .value,
+		.monaco-workbench .debug-hover-widget .value {
+			color: ${tokenValueColor};
+		}
+
+		.monaco-workbench .monaco-list-row .expression .value.string,
+		.monaco-workbench .debug-hover-widget .value.string {
+			color: ${tokenStringColor};
+		}
+
+		.monaco-workbench .monaco-list-row .expression .value.boolean,
+		.monaco-workbench .debug-hover-widget .value.boolean {
+			color: ${tokenBooleanColor};
+		}
+
+		.monaco-workbench .monaco-list-row .expression .error,
+		.monaco-workbench .debug-hover-widget .error,
+		.monaco-workbench .debug-pane .debug-variables .scope .error {
+			color: ${tokenErrorColor};
+		}
+
+		.monaco-workbench .monaco-list-row .expression .value.number,
+		.monaco-workbench .debug-hover-widget .value.number {
+			color: ${tokenNumberColor};
+		}
+	`);
+
+	const debugConsoleInputBorderColor = theme.getColor(inputBorder) || Color.fromHex('#80808060');
+	const debugConsoleInfoForegroundColor = theme.getColor(debugConsoleInfoForeground)!;
+	const debugConsoleWarningForegroundColor = theme.getColor(debugConsoleWarningForeground)!;
+	const debugConsoleErrorForegroundColor = theme.getColor(debugConsoleErrorForeground)!;
+	const debugConsoleSourceForegroundColor = theme.getColor(debugConsoleSourceForeground)!;
+	const debugConsoleInputIconForegroundColor = theme.getColor(debugConsoleInputIconForeground)!;
+
+	collector.addRule(`
+		.repl .repl-input-wrapper {
+			border-top: 1px solid ${debugConsoleInputBorderColor};
+		}
+
+		.monaco-workbench .repl .repl-tree .output .expression .value.info {
+			color: ${debugConsoleInfoForegroundColor};
+		}
+
+		.monaco-workbench .repl .repl-tree .output .expression .value.warn {
+			color: ${debugConsoleWarningForegroundColor};
+		}
+
+		.monaco-workbench .repl .repl-tree .output .expression .value.error {
+			color: ${debugConsoleErrorForegroundColor};
+		}
+
+		.monaco-workbench .repl .repl-tree .output .expression .source {
+			color: ${debugConsoleSourceForegroundColor};
+		}
+
+		.monaco-workbench .repl .repl-tree .monaco-tl-contents .arrow {
+			color: ${debugConsoleInputIconForegroundColor};
+		}
+	`);
+
+	if (!theme.defines(debugConsoleInputIconForeground)) {
+		collector.addRule(`
+			.monaco-workbench.vs .repl .repl-tree .monaco-tl-contents .arrow {
+				opacity: 0.25;
+			}
+
+			.monaco-workbench.vs-dark .repl .repl-tree .monaco-tl-contents .arrow {
+				opacity: 0.4;
+			}
+
+			.monaco-workbench.hc-black .repl .repl-tree .monaco-tl-contents .arrow {
+				opacity: 1;
+			}
+		`);
+	}
+});

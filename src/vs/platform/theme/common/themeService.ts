@@ -87,7 +87,10 @@ export interface ITokenStyle {
 }
 
 export interface IColorTheme {
+
 	readonly type: ThemeType;
+
+	readonly label: string;
 
 	/**
 	 * Resolves the color of the given color identifier. If the theme does not
@@ -106,12 +109,17 @@ export interface IColorTheme {
 	/**
 	 * Returns the token style for a given classification. The result uses the <code>MetadataConsts</code> format
 	 */
-	getTokenStyleMetadata(type: string, modifiers: string[]): ITokenStyle | undefined;
+	getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined;
 
 	/**
 	 * List of all colors used with tokens. <code>getTokenStyleMetadata</code> references the colors by index into this list.
 	 */
 	readonly tokenColorMap: string[];
+
+	/**
+	 * Defines whether semantic highlighting should be enabled for the theme.
+	 */
+	readonly semanticHighlighting: boolean;
 }
 
 export interface IFileIconTheme {
@@ -129,7 +137,7 @@ export interface IThemingParticipant {
 }
 
 export interface IThemeService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	getColorTheme(): IColorTheme;
 

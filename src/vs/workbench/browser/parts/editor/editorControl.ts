@@ -23,10 +23,10 @@ export interface IOpenEditorResult {
 
 export class EditorControl extends Disposable {
 
-	get minimumWidth() { return this._activeEditorPane ? this._activeEditorPane.minimumWidth : DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
-	get minimumHeight() { return this._activeEditorPane ? this._activeEditorPane.minimumHeight : DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
-	get maximumWidth() { return this._activeEditorPane ? this._activeEditorPane.maximumWidth : DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
-	get maximumHeight() { return this._activeEditorPane ? this._activeEditorPane.maximumHeight : DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
+	get minimumWidth() { return this._activeEditorPane?.minimumWidth ?? DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
+	get minimumHeight() { return this._activeEditorPane?.minimumHeight ?? DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
+	get maximumWidth() { return this._activeEditorPane?.maximumWidth ?? DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
+	get maximumHeight() { return this._activeEditorPane?.maximumHeight ?? DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
@@ -35,26 +35,22 @@ export class EditorControl extends Disposable {
 	readonly onDidSizeConstraintsChange = this._onDidSizeConstraintsChange.event;
 
 	private _activeEditorPane: BaseEditor | null = null;
+	get activeEditorPane(): IVisibleEditorPane | null { return this._activeEditorPane as IVisibleEditorPane | null; }
+
 	private readonly editorPanes: BaseEditor[] = [];
 
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
 	private dimension: Dimension | undefined;
-	private editorOperation: LongRunningOperation;
+	private readonly editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
 
 	constructor(
 		private parent: HTMLElement,
 		private groupView: IEditorGroupView,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorProgressService editorProgressService: IEditorProgressService
+		@IEditorProgressService private readonly editorProgressService: IEditorProgressService
 	) {
 		super();
-
-		this.editorOperation = this._register(new LongRunningOperation(editorProgressService));
-	}
-
-	get activeEditorPane(): IVisibleEditorPane | null {
-		return this._activeEditorPane as IVisibleEditorPane | null;
 	}
 
 	async openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
@@ -123,7 +119,7 @@ export class EditorControl extends Disposable {
 	private doInstantiateEditorPane(descriptor: IEditorDescriptor): BaseEditor {
 
 		// Return early if already instantiated
-		const existingEditorPane = this.editorPanes.filter(editorPane => descriptor.describes(editorPane))[0];
+		const existingEditorPane = this.editorPanes.find(editorPane => descriptor.describes(editorPane));
 		if (existingEditorPane) {
 			return existingEditorPane;
 		}
@@ -205,9 +201,10 @@ export class EditorControl extends Disposable {
 		// Remove editor pane from parent and hide
 		const editorPaneContainer = this._activeEditorPane.getContainer();
 		if (editorPaneContainer) {
+			this._activeEditorPane.onWillHide();
 			this.parent.removeChild(editorPaneContainer);
 			hide(editorPaneContainer);
-			this._activeEditorPane.onHide();
+			this._activeEditorPane.onDidHide();
 		}
 
 		// Indicate to editor pane
@@ -225,16 +222,12 @@ export class EditorControl extends Disposable {
 	}
 
 	setVisible(visible: boolean): void {
-		if (this._activeEditorPane) {
-			this._activeEditorPane.setVisible(visible, this.groupView);
-		}
+		this._activeEditorPane?.setVisible(visible, this.groupView);
 	}
 
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 
-		if (this._activeEditorPane && this.dimension) {
-			this._activeEditorPane.layout(this.dimension);
-		}
+		this._activeEditorPane?.layout(dimension);
 	}
 }

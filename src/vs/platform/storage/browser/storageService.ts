@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
+import { Emitter } from 'vs/base/common/event';
+import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage, WorkspaceStorageSettings } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -13,13 +13,12 @@ import { IStorage, Storage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateR
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { runWhenIdle, RunOnceScheduler } from 'vs/base/common/async';
-import { serializableToMap, mapToSerializable } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 
 export class BrowserStorageService extends Disposable implements IStorageService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
@@ -67,6 +66,13 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		this.workspaceStorageDatabase = this._register(new FileStorageDatabase(this.workspaceStorageFile, false /* do not watch for external changes */, this.fileService));
 		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
 		this._register(this.workspaceStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.WORKSPACE })));
+
+		const firstOpen = this.workspaceStorage.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN);
+		if (firstOpen === undefined) {
+			this.workspaceStorage.set(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, !(await this.fileService.exists(this.workspaceStorageFile)));
+		} else if (firstOpen) {
+			this.workspaceStorage.set(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, false);
+		}
 
 		// Global Storage
 		this.globalStorageFile = joinPath(stateRoot, 'global.json');
@@ -189,8 +195,8 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 export class FileStorageDatabase extends Disposable implements IStorageDatabase {
 
-	private readonly _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
-	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent> = this._onDidChangeItemsExternal.event;
+	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
+	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
 
 	private cache: Map<string, string> | undefined;
 
@@ -291,7 +297,7 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 
 		this.ensureWatching(); // now that the file must exist, ensure we watch it for changes
 
-		return serializableToMap(JSON.parse(itemsRaw.value.toString()));
+		return new Map(JSON.parse(itemsRaw.value.toString()));
 	}
 
 	async updateItems(request: IUpdateRequest): Promise<void> {
@@ -311,7 +317,7 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 			try {
 				this._hasPendingUpdate = true;
 
-				await this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(mapToSerializable(items))));
+				await this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(Array.from(items.entries()))));
 
 				this.ensureWatching(); // now that the file must exist, ensure we watch it for changes
 			} finally {

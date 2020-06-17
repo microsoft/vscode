@@ -18,6 +18,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInput';
 import { once } from 'vs/base/common/functional';
+import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
 export class EditorScopedQuickInputServiceImpl extends QuickInputService {
 
@@ -51,7 +52,7 @@ export class EditorScopedQuickInputServiceImpl extends QuickInputService {
 
 export class StandaloneQuickInputServiceImpl implements IQuickInputService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private mapEditorToService = new Map<ICodeEditor, EditorScopedQuickInputServiceImpl>();
 	private get activeService(): IQuickInputService {
@@ -76,6 +77,8 @@ export class StandaloneQuickInputServiceImpl implements IQuickInputService {
 		return quickInputService;
 	}
 
+	get quickAccess(): IQuickAccessController { return this.activeService.quickAccess; }
+
 	get backButton(): IQuickInputButton { return this.activeService.backButton; }
 
 	get onShow() { return this.activeService.onShow; }
@@ -87,11 +90,11 @@ export class StandaloneQuickInputServiceImpl implements IQuickInputService {
 	) {
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<O extends { canPickMany: true } ? T[] : T> {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
 		return (this.activeService as unknown as QuickInputController /* TS fail */).pick(picks, options, token);
 	}
 
-	input(options?: IInputOptions | undefined, token?: CancellationToken | undefined): Promise<string> {
+	input(options?: IInputOptions | undefined, token?: CancellationToken | undefined): Promise<string | undefined> {
 		return this.activeService.input(options, token);
 	}
 
@@ -125,10 +128,6 @@ export class StandaloneQuickInputServiceImpl implements IQuickInputService {
 
 	cancel(): Promise<void> {
 		return this.activeService.cancel();
-	}
-
-	hide(focusLost?: boolean | undefined): void {
-		return this.activeService.hide(focusLost);
 	}
 }
 

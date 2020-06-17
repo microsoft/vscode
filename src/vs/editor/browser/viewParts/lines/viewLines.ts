@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./viewLines';
+import * as platform from 'vs/base/common/platform';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Configuration } from 'vs/editor/browser/config/configuration';
@@ -21,6 +22,7 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { Viewport } from 'vs/editor/common/viewModel/viewModel';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
 class LastRenderedData {
 
@@ -106,6 +108,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	// --- width
 	private _maxLineWidth: number;
 	private readonly _asyncUpdateLineWidths: RunOnceScheduler;
+	private readonly _asyncCheckMonospaceFontAssumptions: RunOnceScheduler;
 
 	private _horizontalRevealRequest: HorizontalRevealRequest | null;
 	private readonly _lastRenderedData: LastRenderedData;
@@ -132,7 +135,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._viewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
-		this.domNode.setClassName('view-lines');
+		this.domNode.setClassName(`view-lines ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 		Configuration.applyFontInfo(this.domNode, fontInfo);
 
 		// --- width & height
@@ -140,6 +143,9 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._asyncUpdateLineWidths = new RunOnceScheduler(() => {
 			this._updateLineWidthsSlow();
 		}, 200);
+		this._asyncCheckMonospaceFontAssumptions = new RunOnceScheduler(() => {
+			this._checkMonospaceFontAssumptions();
+		}, 2000);
 
 		this._lastRenderedData = new LastRenderedData();
 
@@ -148,6 +154,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	public dispose(): void {
 		this._asyncUpdateLineWidths.dispose();
+		this._asyncCheckMonospaceFontAssumptions.dispose();
 		super.dispose();
 	}
 
@@ -274,11 +281,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 
 		const scrollTopDelta = Math.abs(this._context.viewLayout.getCurrentScrollTop() - newScrollPosition.scrollTop);
-		if (e.scrollType === ScrollType.Smooth && scrollTopDelta > this._lineHeight) {
-			this._context.viewLayout.setScrollPositionSmooth(newScrollPosition);
-		} else {
-			this._context.viewLayout.setScrollPositionNow(newScrollPosition);
-		}
+		const scrollType = (scrollTopDelta <= this._lineHeight ? ScrollType.Immediate : e.scrollType);
+		this._context.model.setScrollPosition(newScrollPosition, scrollType);
 
 		return true;
 	}
@@ -303,7 +307,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return this._visibleLines.onTokensChanged(e);
 	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		this._context.viewLayout.onMaxLineWidthChanged(this._maxLineWidth);
+		this._context.model.setMaxLineWidth(this._maxLineWidth);
 		return this._visibleLines.onZonesChanged(e);
 	}
 	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
@@ -513,6 +517,37 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return allWidthsComputed;
 	}
 
+	private _checkMonospaceFontAssumptions(): void {
+		// Problems with monospace assumptions are more apparent for longer lines,
+		// as small rounding errors start to sum up, so we will select the longest
+		// line for a closer inspection
+		let longestLineNumber = -1;
+		let longestWidth = -1;
+		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
+		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
+		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
+			const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
+			if (visibleLine.needsMonospaceFontCheck()) {
+				const lineWidth = visibleLine.getWidth();
+				if (lineWidth > longestWidth) {
+					longestWidth = lineWidth;
+					longestLineNumber = lineNumber;
+				}
+			}
+		}
+
+		if (longestLineNumber === -1) {
+			return;
+		}
+
+		if (!this._visibleLines.getVisibleLine(longestLineNumber).monospaceAssumptionsAreValid()) {
+			for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
+				const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
+				visibleLine.onMonospaceAssumptionsInvalidated();
+			}
+		}
+	}
+
 	public prepareRender(): void {
 		throw new Error('Not supported');
 	}
@@ -552,15 +587,9 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 						this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
 					}
 					// set `scrollLeft`
-					if (horizontalRevealRequest.scrollType === ScrollType.Smooth) {
-						this._context.viewLayout.setScrollPositionSmooth({
-							scrollLeft: newScrollLeft.scrollLeft
-						});
-					} else {
-						this._context.viewLayout.setScrollPositionNow({
-							scrollLeft: newScrollLeft.scrollLeft
-						});
-					}
+					this._context.model.setScrollPosition({
+						scrollLeft: newScrollLeft.scrollLeft
+					}, horizontalRevealRequest.scrollType);
 				}
 			}
 		}
@@ -569,6 +598,18 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		if (!this._updateLineWidthsFast()) {
 			// Computing the width of some lines would be slow => delay it
 			this._asyncUpdateLineWidths.schedule();
+		}
+
+		if (platform.isLinux && !this._asyncCheckMonospaceFontAssumptions.isScheduled()) {
+			const rendStartLineNumber = this._visibleLines.getStartLineNumber();
+			const rendEndLineNumber = this._visibleLines.getEndLineNumber();
+			for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
+				const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
+				if (visibleLine.needsMonospaceFontCheck()) {
+					this._asyncCheckMonospaceFontAssumptions.schedule();
+					break;
+				}
+			}
 		}
 
 		// (3) handle scrolling
@@ -585,11 +626,11 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		const iLineWidth = Math.ceil(lineWidth);
 		if (this._maxLineWidth < iLineWidth) {
 			this._maxLineWidth = iLineWidth;
-			this._context.viewLayout.onMaxLineWidthChanged(this._maxLineWidth);
+			this._context.model.setMaxLineWidth(this._maxLineWidth);
 		}
 	}
 
-	private _computeScrollTopToRevealRange(viewport: Viewport, source: string, range: Range | null, selections: Selection[] | null, verticalType: viewEvents.VerticalRevealType): number {
+	private _computeScrollTopToRevealRange(viewport: Viewport, source: string | null | undefined, range: Range | null, selections: Selection[] | null, verticalType: viewEvents.VerticalRevealType): number {
 		const viewportStartY = viewport.top;
 		const viewportHeight = viewport.height;
 		const viewportEndY = viewportStartY + viewportHeight;

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEncodingSupport, EncodingMode, Verbosity, IModeSupport, TextResourceEditorInput } from 'vs/workbench/common/editor';
+import { IEncodingSupport, EncodingMode, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
+import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -16,7 +17,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 /**
  * An editor input to be used for untitled text buffers.
  */
-export class UntitledTextEditorInput extends TextResourceEditorInput implements IEncodingSupport, IModeSupport {
+export class UntitledTextEditorInput extends AbstractTextResourceEditorInput implements IEncodingSupport, IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
@@ -31,7 +32,7 @@ export class UntitledTextEditorInput extends TextResourceEditorInput implements 
 		@IFileService fileService: IFileService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(model.resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
+		super(model.resource, undefined, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 
 		this.registerModelListeners(model);
 	}

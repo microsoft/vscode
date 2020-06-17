@@ -135,8 +135,6 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 			parentPid: -1,
 			environment: {
 				isExtensionDevelopmentDebug: false,
-				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
-				appSettingsHome: this._environmentService.appSettingsHome ? this._environmentService.appSettingsHome : undefined,
 				appName: this._productService.nameLong,
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
@@ -162,6 +160,7 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 			autoStart: this._autoStart,
 			remote: {
 				authority: this._environmentService.configuration.remoteAuthority,
+				connectionData: null,
 				isRemote: false
 			},
 			uiKind: platform.isWeb ? UIKind.Web : UIKind.Desktop

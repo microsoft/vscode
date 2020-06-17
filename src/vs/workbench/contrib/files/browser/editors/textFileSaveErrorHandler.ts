@@ -17,7 +17,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceMap } from 'vs/base/common/map';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TextFileContentProvider } from 'vs/workbench/contrib/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { SAVE_FILE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
@@ -32,6 +32,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { SaveReason } from 'vs/workbench/common/editor';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -42,23 +43,25 @@ const conflictEditorHelp = nls.localize('userGuide', "Use the actions in the edi
 
 // A handler for text file save error happening with conflict resolution actions
 export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHandler, IWorkbenchContribution {
-	private messages: ResourceMap<INotificationHandle>;
-	private conflictResolutionContext: IContextKey<boolean>;
-	private activeConflictResolutionResource?: URI;
+
+	private readonly messages = new ResourceMap<INotificationHandle>();
+	private readonly conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false).bindTo(this.contextKeyService);
+	private activeConflictResolutionResource: URI | undefined = undefined;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 
-		this.messages = new ResourceMap<INotificationHandle>();
-		this.conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false).bindTo(contextKeyService);
+		// opt-in to syncing
+		storageKeysSyncRegistryService.registerStorageKey({ key: LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, version: 1 });
 
 		const provider = this._register(instantiationService.createInstance(TextFileContentProvider));
 		this._register(textModelService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, provider));
@@ -236,9 +239,13 @@ class ResolveSaveConflictAction extends Action {
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"));
+
+		// opt-in to syncing
+		storageKeysSyncRegistryService.registerStorageKey({ key: LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, version: 1 });
 	}
 
 	async run(): Promise<void> {
@@ -341,18 +348,23 @@ export const acceptLocalChangesCommand = async (accessor: ServicesAccessor, reso
 	const reference = await resolverService.createModelReference(resource);
 	const model = reference.object as IResolvedTextFileEditorModel;
 
-	clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
+	try {
 
-	// Trigger save
-	await model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
+		// hide any previously shown message about how to use these actions
+		clearPendingResolveSaveConflictMessages();
 
-	// Reopen file input
-	await editorService.openEditor({ resource: model.resource }, group);
+		// Trigger save
+		await model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
 
-	// Clean up
-	group.closeEditor(editor);
-	editor.dispose();
-	reference.dispose();
+		// Reopen file input
+		await editorService.openEditor({ resource: model.resource }, group);
+
+		// Clean up
+		group.closeEditor(editor);
+		editor.dispose();
+	} finally {
+		reference.dispose();
+	}
 };
 
 export const revertLocalChangesCommand = async (accessor: ServicesAccessor, resource: URI) => {
@@ -370,16 +382,21 @@ export const revertLocalChangesCommand = async (accessor: ServicesAccessor, reso
 	const reference = await resolverService.createModelReference(resource);
 	const model = reference.object as ITextFileEditorModel;
 
-	clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
+	try {
 
-	// Revert on model
-	await model.revert();
+		// hide any previously shown message about how to use these actions
+		clearPendingResolveSaveConflictMessages();
 
-	// Reopen file input
-	await editorService.openEditor({ resource: model.resource }, group);
+		// Revert on model
+		await model.revert();
 
-	// Clean up
-	group.closeEditor(editor);
-	editor.dispose();
-	reference.dispose();
+		// Reopen file input
+		await editorService.openEditor({ resource: model.resource }, group);
+
+		// Clean up
+		group.closeEditor(editor);
+		editor.dispose();
+	} finally {
+		reference.dispose();
+	}
 };

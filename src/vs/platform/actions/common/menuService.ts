@@ -11,7 +11,7 @@ import { IContextKeyService, IContextKeyChangeEvent, ContextKeyExpression } from
 
 export class MenuService implements IMenuService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService
@@ -45,7 +45,7 @@ class Menu implements IMenu {
 		// rebuild this menu whenever the menu registry reports an
 		// event for this MenuId
 		this._dispoables.add(Event.debounce(
-			Event.filter(MenuRegistry.onDidChangeMenu, menuId => menuId === this._id),
+			Event.filter(MenuRegistry.onDidChangeMenu, set => set.has(this._id)),
 			() => { },
 			50
 		)(this._build, this));
@@ -94,7 +94,8 @@ class Menu implements IMenu {
 
 			// keep toggled keys for event if applicable
 			if (isIMenuItem(item) && item.command.toggled) {
-				Menu._fillInKbExprKeys(item.command.toggled, this._contextKeys);
+				const toggledExpression: ContextKeyExpression = (item.command.toggled as { condition: ContextKeyExpression }).condition || item.command.toggled;
+				Menu._fillInKbExprKeys(toggledExpression, this._contextKeys);
 			}
 		}
 		this._onDidChange.fire(this);

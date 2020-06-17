@@ -21,9 +21,10 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private impl: ITelemetryService;
+	public readonly sendErrorTelemetry: boolean;
 
 	constructor(
 		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
@@ -35,18 +36,21 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	) {
 		super();
 
-		if (!environmentService.isExtensionDevelopment && !environmentService.args['disable-telemetry'] && !!productService.enableTelemetry) {
+		if (!environmentService.isExtensionDevelopment && !environmentService.disableTelemetry && !!productService.enableTelemetry) {
 			const channel = sharedProcessService.getChannel('telemetryAppender');
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService)),
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.machineId, productService.msftInternalDomains, environmentService.installSourcePath, environmentService.configuration.remoteAuthority),
-				piiPaths: environmentService.extensionsPath ? [environmentService.appRoot, environmentService.extensionsPath] : [environmentService.appRoot]
+				piiPaths: environmentService.extensionsPath ? [environmentService.appRoot, environmentService.extensionsPath] : [environmentService.appRoot],
+				sendErrorTelemetry: true
 			};
 
 			this.impl = this._register(new BaseTelemetryService(config, configurationService));
 		} else {
 			this.impl = NullTelemetryService;
 		}
+
+		this.sendErrorTelemetry = this.impl.sendErrorTelemetry;
 	}
 
 	setEnabled(value: boolean): void {
@@ -64,6 +68,15 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean) {
 		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
 	}
+
+	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void> {
+		return this.impl.publicLogError(errorEventName, data);
+	}
+
+	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as ITelemetryData);
+	}
+
 
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return this.impl.getTelemetryInfo();

@@ -11,9 +11,9 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
-import { createTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { mock } from 'vs/workbench/test/browser/api/mock';
-import { TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { mock } from 'vs/base/test/common/mock';
+import { TestEditorService, TestEditorGroupsService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -25,6 +25,9 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'vs/workbench/test/common/workbenchTestServices';
+import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -34,7 +37,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let deltas: IDocumentsAndEditorsDelta[] = [];
 	const hugeModelString = new Array(2 + (50 * 1024 * 1024)).join('-');
 
-	function myCreateTestCodeEditor(model: ITextModel | undefined): TestCodeEditor {
+	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
 		return createTestCodeEditor({
 			model: model,
 			serviceCollection: new ServiceCollection(
@@ -65,6 +68,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			onDidRunOperation = Event.None;
+			onDidChangeFileSystemProviderCapabilities = Event.None;
+			onDidChangeFileSystemProviderRegistrations = Event.None;
 		};
 
 		new MainThreadDocumentsAndEditors(
@@ -80,14 +85,21 @@ suite('MainThreadDocumentsAndEditors', () => {
 			editorGroupService,
 			null!,
 			new class extends mock<IPanelService>() implements IPanelService {
-				_serviceBrand: undefined;
+				declare readonly _serviceBrand: undefined;
 				onDidPanelOpen = Event.None;
 				onDidPanelClose = Event.None;
 				getActivePanel() {
 					return undefined;
 				}
 			},
-			TestEnvironmentService
+			TestEnvironmentService,
+			new TestWorkingCopyFileService(),
+			new UriIdentityService(fileService),
+			new class extends mock<IClipboardService>() {
+				readText() {
+					return Promise.resolve('clipboard_contents');
+				}
+			}
 		);
 	});
 

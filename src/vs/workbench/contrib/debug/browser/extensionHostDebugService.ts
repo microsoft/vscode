@@ -13,7 +13,6 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { mapToSerializable } from 'vs/base/common/map';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -105,10 +104,15 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			environment.set('inspect-brk-extensions', inspectBrkExtensions);
 		}
 
+		const inspectExtensions = this.findArgument('inspect-extensions', args);
+		if (inspectExtensions) {
+			environment.set('inspect-extensions', inspectExtensions);
+		}
+
 		// Open debug window as new window. Pass ParsedArgs over.
 		return this.workspaceProvider.open(debugWorkspace, {
-			reuse: false, 							// debugging always requires a new window
-			payload: mapToSerializable(environment)	// mandatory properties to enable debugging
+			reuse: false, 								// debugging always requires a new window
+			payload: Array.from(environment.entries())	// mandatory properties to enable debugging
 		});
 	}
 
@@ -128,7 +132,7 @@ registerSingleton(IExtensionHostDebugService, BrowserExtensionHostDebugService);
 
 class BrowserDebugHelperService implements IDebugHelperService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined {
 		return undefined;

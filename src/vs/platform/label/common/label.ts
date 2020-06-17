@@ -11,10 +11,13 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { isEqualOrParent, basename } from 'vs/base/common/resources';
-import { endsWith } from 'vs/base/common/strings';
+
+export const ILabelService = createDecorator<ILabelService>('labelService');
 
 export interface ILabelService {
-	_serviceBrand: undefined;
+
+	readonly _serviceBrand: undefined;
+
 	/**
 	 * Gets the human readable label for a uri.
 	 * If relative is passed returns a label relative to the workspace root that the uri belongs to.
@@ -25,6 +28,7 @@ export interface ILabelService {
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
 	getHostLabel(scheme: string, authority?: string): string;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
+
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
 	onDidChangeFormatters: Event<IFormatterChangeEvent>;
 }
@@ -49,23 +53,20 @@ export interface ResourceLabelFormatting {
 	authorityPrefix?: string;
 }
 
-const LABEL_SERVICE_ID = 'label';
-
 export function getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: URI): string {
 	if (isSingleFolderWorkspaceIdentifier(workspace)) {
 		return basename(workspace);
 	}
+
 	// Workspace: Untitled
 	if (isEqualOrParent(workspace.configPath, workspaceHome)) {
 		return localize('untitledWorkspace', "Untitled (Workspace)");
 	}
 
 	let filename = basename(workspace.configPath);
-	if (endsWith(filename, WORKSPACE_EXTENSION)) {
+	if (filename.endsWith(WORKSPACE_EXTENSION)) {
 		filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 	}
+
 	return localize('workspaceName', "{0} (Workspace)", filename);
 }
-
-
-export const ILabelService = createDecorator<ILabelService>(LABEL_SERVICE_ID);

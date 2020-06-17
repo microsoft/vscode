@@ -192,7 +192,7 @@
 		},
 		{
 			"name": "Support.constant",
-			"scope": "support.constant",
+			"scope": [ "support.constant", "support.variable"],
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#eb939aff"
@@ -385,5 +385,6 @@
 				"foreground": "#ec0d1e"
 			}
 		}
-	]
+	],
+	"semanticHighlighting": true
 }

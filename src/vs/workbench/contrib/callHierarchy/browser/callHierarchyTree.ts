@@ -10,9 +10,10 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { SymbolKinds, Location } from 'vs/editor/common/modes';
-import * as dom from 'vs/base/browser/dom';
 import { compare } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { localize } from 'vs/nls';
 
 export class Call {
 	constructor(
@@ -107,7 +108,7 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 	templateId: string = CallRenderer.id;
 
 	renderTemplate(container: HTMLElement): CallRenderingTemplate {
-		dom.addClass(container, 'callhierarchy-element');
+		container.classList.add('callhierarchy-element');
 		let icon = document.createElement('div');
 		container.appendChild(icon);
 		const label = new IconLabel(container, { supportHighlights: true });
@@ -136,5 +137,24 @@ export class VirtualDelegate implements IListVirtualDelegate<Call> {
 
 	getTemplateId(_element: Call): string {
 		return CallRenderer.id;
+	}
+}
+
+export class AccessibilityProvider implements IListAccessibilityProvider<Call> {
+
+	constructor(
+		public getDirection: () => CallHierarchyDirection
+	) { }
+
+	getWidgetAriaLabel(): string {
+		return localize('tree.aria', "Call Hierarchy");
+	}
+
+	getAriaLabel(element: Call): string | null {
+		if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
+			return localize('from', "calls from {0}", element.item.name);
+		} else {
+			return localize('to', "callers of {0}", element.item.name);
+		}
 	}
 }

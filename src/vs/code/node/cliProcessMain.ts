@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { raceTimeout } from 'vs/base/common/async';
 import product from 'vs/platform/product/common/product';
 import * as path from 'vs/base/common/path';
 import * as semver from 'semver-umd';
-
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -49,7 +50,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
-const useId = localize('useId', "Make sure you use the full extension ID, including the publisher, e.g.: {0}", 'ms-vscode.csharp');
+const useId = localize('useId', "Make sure you use the full extension ID, including the publisher, e.g.: {0}", 'ms-dotnettools.csharp');
 
 function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
 	if (withVersion) {
@@ -74,7 +75,7 @@ export class Main {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
 	) { }
@@ -85,7 +86,7 @@ export class Main {
 		} else if (argv['list-extensions']) {
 			await this.listExtensions(!!argv['show-versions'], argv['category']);
 		} else if (argv['install-extension']) {
-			await this.installExtensions(argv['install-extension'], !!argv['force']);
+			await this.installExtensions(argv['install-extension'], !!argv['force'], !!argv['do-not-sync']);
 		} else if (argv['uninstall-extension']) {
 			await this.uninstallExtension(argv['uninstall-extension']);
 		} else if (argv['locate-extension']) {
@@ -125,7 +126,7 @@ export class Main {
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
 
-	private async installExtensions(extensions: string[], force: boolean): Promise<void> {
+	private async installExtensions(extensions: string[], force: boolean, doNotSync: boolean): Promise<void> {
 		const failed: string[] = [];
 		const installedExtensionsManifests: IExtensionManifest[] = [];
 		if (extensions.length) {
@@ -134,7 +135,7 @@ export class Main {
 
 		for (const extension of extensions) {
 			try {
-				const manifest = await this.installExtension(extension, force);
+				const manifest = await this.installExtension(extension, force, doNotSync);
 				if (manifest) {
 					installedExtensionsManifests.push(manifest);
 				}
@@ -149,7 +150,7 @@ export class Main {
 		return failed.length ? Promise.reject(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', '))) : Promise.resolve();
 	}
 
-	private async installExtension(extension: string, force: boolean): Promise<IExtensionManifest | null> {
+	private async installExtension(extension: string, force: boolean, doNotSync: boolean): Promise<IExtensionManifest | null> {
 		if (/\.vsix$/i.test(extension)) {
 			extension = path.isAbsolute(extension) ? extension : path.join(process.cwd(), extension);
 
@@ -157,7 +158,7 @@ export class Main {
 			const valid = await this.validate(manifest, force);
 
 			if (valid) {
-				return this.extensionManagementService.install(URI.file(extension)).then(id => {
+				return this.extensionManagementService.install(URI.file(extension), doNotSync).then(id => {
 					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(extension)));
 					return manifest;
 				}, error => {
@@ -204,7 +205,7 @@ export class Main {
 						}
 						console.log(localize('updateMessage', "Updating the extension '{0}' to the version {1}", id, extension.version));
 					}
-					await this.installFromGallery(id, extension);
+					await this.installFromGallery(id, extension, doNotSync);
 					return manifest;
 				}));
 	}
@@ -216,7 +217,7 @@ export class Main {
 
 		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, local.identifier) && semver.gt(local.manifest.version, manifest.version))[0];
+		const newer = installedExtensions.find(local => areSameExtensions(extensionIdentifier, local.identifier) && semver.gt(local.manifest.version, manifest.version));
 
 		if (newer && !force) {
 			console.log(localize('forceDowngrade', "A newer version of extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.identifier.id, newer.manifest.version, manifest.version));
@@ -226,11 +227,11 @@ export class Main {
 		return true;
 	}
 
-	private async installFromGallery(id: string, extension: IGalleryExtension): Promise<void> {
+	private async installFromGallery(id: string, extension: IGalleryExtension, doNotSync: boolean): Promise<void> {
 		console.log(localize('installing', "Installing extension '{0}' v{1}...", id, extension.version));
 
 		try {
-			await this.extensionManagementService.installFromGallery(extension);
+			await this.extensionManagementService.installFromGallery(extension, doNotSync);
 			console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, extension.version));
 		} catch (error) {
 			if (isPromiseCanceledError(error)) {
@@ -328,27 +329,24 @@ export async function main(argv: ParsedArgs): Promise<void> {
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
 	return instantiationService.invokeFunction(async accessor => {
-		const envService = accessor.get(IEnvironmentService);
 		const stateService = accessor.get(IStateService);
 
-		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = envService;
+		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
 
 		const services = new ServiceCollection();
-
-
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
 		const appenders: AppInsightsAppender[] = [];
-		if (isBuilt && !extensionDevelopmentLocationURI && !envService.args['disable-telemetry'] && product.enableTelemetry) {
-
+		if (isBuilt && !extensionDevelopmentLocationURI && !environmentService.disableTelemetry && product.enableTelemetry) {
 			if (product.aiConfig && product.aiConfig.asimovKey) {
 				appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, logService));
 			}
 
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
+				sendErrorTelemetry: false,
 				commonProperties: resolveCommonProperties(product.commit, product.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
 				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
 			};
@@ -364,8 +362,10 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 		try {
 			await main.run(argv);
+
 			// Flush the remaining data in AI adapter.
-			await combinedAppender(...appenders).flush();
+			// If it does not complete in 1 second, exit the process.
+			await raceTimeout(combinedAppender(...appenders).flush(), 1000);
 		} finally {
 			disposables.dispose();
 		}

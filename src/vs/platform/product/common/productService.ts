@@ -5,14 +5,24 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export const IProductService = createDecorator<IProductService>('productService');
 
 export interface IProductService extends Readonly<IProductConfiguration> {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 }
+
+export interface IBuiltInExtension {
+	readonly name: string;
+	readonly version: string;
+	readonly repo: string;
+	readonly metadata: any;
+}
+
+export type ConfigurationSyncStore = { url: string, authenticationProviders: IStringDictionary<{ scopes: string[] }> };
 
 export interface IProductConfiguration {
 	readonly version: string;
@@ -29,6 +39,8 @@ export interface IProductConfiguration {
 
 	readonly urlProtocol: string;
 	readonly dataFolderName: string;
+
+	readonly builtInExtensions?: IBuiltInExtension[];
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
@@ -48,6 +60,7 @@ export interface IProductConfiguration {
 
 	readonly extensionTips?: { [id: string]: string; };
 	readonly extensionImportantTips?: { [id: string]: { name: string; pattern: string; isExtensionPack?: boolean }; };
+	readonly configBasedExtensionTips?: { [id: string]: IConfigBasedExtensionTip; };
 	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip; };
 	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
@@ -89,12 +102,7 @@ export interface IProductConfiguration {
 	readonly checksums?: { [path: string]: string; };
 	readonly checksumFailMoreInfoUrl?: string;
 
-	readonly hockeyApp?: {
-		readonly 'win32-ia32': string;
-		readonly 'win32-x64': string;
-		readonly 'linux-x64': string;
-		readonly 'darwin': string;
-	};
+	readonly appCenter?: IAppCenterConfiguration;
 
 	readonly portable?: string;
 
@@ -104,7 +112,20 @@ export interface IProductConfiguration {
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
-	readonly 'configurationSync.store'?: { url: string, authenticationProviderId: string };
+	readonly 'configurationSync.store'?: ConfigurationSyncStore;
+}
+
+export interface IAppCenterConfiguration {
+	readonly 'win32-ia32': string;
+	readonly 'win32-x64': string;
+	readonly 'linux-x64': string;
+	readonly 'darwin': string;
+}
+
+export interface IConfigBasedExtensionTip {
+	configPath: string;
+	configName: string;
+	recommendations: IStringDictionary<{ name: string, remotes?: string[], important?: boolean, isExtensionPack?: boolean }>;
 }
 
 export interface IExeBasedExtensionTip {

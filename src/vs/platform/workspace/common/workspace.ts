@@ -14,7 +14,7 @@ import { IWorkspaceFolderProvider } from 'vs/base/common/labels';
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
 export interface IWorkspaceContextService extends IWorkspaceFolderProvider {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * An event which fires on workbench state changes.
@@ -144,7 +144,7 @@ export interface IWorkspaceFolder extends IWorkspaceFolderData {
 
 export class Workspace implements IWorkspace {
 
-	private _foldersMap: TernarySearchTree<WorkspaceFolder> = TernarySearchTree.forPaths<WorkspaceFolder>();
+	private _foldersMap: TernarySearchTree<URI, WorkspaceFolder> = TernarySearchTree.forUris<WorkspaceFolder>();
 	private _folders!: WorkspaceFolder[];
 
 	constructor(
@@ -191,13 +191,13 @@ export class Workspace implements IWorkspace {
 			scheme: resource.scheme,
 			authority: resource.authority,
 			path: resource.path
-		}).toString()) || null;
+		})) || null;
 	}
 
 	private updateFoldersMap(): void {
-		this._foldersMap = TernarySearchTree.forPaths<WorkspaceFolder>();
+		this._foldersMap = TernarySearchTree.forUris<WorkspaceFolder>();
 		for (const folder of this.folders) {
-			this._foldersMap.set(folder.uri.toString(), folder);
+			this._foldersMap.set(folder.uri, folder);
 		}
 	}
 

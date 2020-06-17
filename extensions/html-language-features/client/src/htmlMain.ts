@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 import {
-	languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace,
+	languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, extensions,
 	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
-	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens
+	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands
 } from 'vscode';
 import {
 	LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams,
@@ -21,13 +20,12 @@ import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
-import { activateMirrorCursor } from './mirrorCursor';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
 }
-namespace MatchingTagPositionRequest {
-	export const type: RequestType<TextDocumentPositionParams, Position | null, any, any> = new RequestType('html/matchingTagPosition');
+namespace OnTypeRenameRequest {
+	export const type: RequestType<TextDocumentPositionParams, Range[] | null, any, any> = new RequestType('html/onTypeRename');
 }
 
 // experimental: semantic tokens
@@ -42,10 +40,17 @@ namespace SemanticTokenLegendRequest {
 	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any, any> = new RequestType0('html/semanticTokenLegend');
 }
 
+namespace SettingIds {
+	export const renameOnType = 'editor.renameOnType';
+	export const formatEnable = 'html.format.enable';
+
+}
+
 interface IPackageInfo {
 	name: string;
 	version: string;
 	aiKey: string;
+	main: string;
 }
 
 let telemetryReporter: TelemetryReporter | null;
@@ -54,11 +59,11 @@ let telemetryReporter: TelemetryReporter | null;
 export function activate(context: ExtensionContext) {
 	let toDispose = context.subscriptions;
 
-	let packageInfo = getPackageInfo(context);
-	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+	let clientPackageJSON = getPackageInfo(context);
+	telemetryReporter = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
 
-	let serverMain = readJSONFile(context.asAbsolutePath('./server/package.json')).main;
-	let serverModule = context.asAbsolutePath(path.join('server', serverMain));
+	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/htmlServerMain`;
+	const serverModule = context.asAbsolutePath(serverMain);
 
 	// The debug options for the server
 	let debugOptions = { execArgv: ['--nolazy', '--inspect=6045'] };
@@ -131,14 +136,6 @@ export function activate(context: ExtensionContext) {
 		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true }, 'html.autoClosingTags');
 		toDispose.push(disposable);
 
-		const matchingTagPositionRequestor = (document: TextDocument, position: Position) => {
-			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
-			return client.sendRequest(MatchingTagPositionRequest.type, param);
-		};
-
-		disposable = activateMirrorCursor(matchingTagPositionRequestor, { html: true, handlebars: true }, 'html.mirrorCursorOnMatchingTag');
-		toDispose.push(disposable);
-
 		disposable = client.onTelemetry(e => {
 			if (telemetryReporter) {
 				telemetryReporter.sendTelemetryEvent(e.key, e.data);
@@ -149,7 +146,7 @@ export function activate(context: ExtensionContext) {
 		// manually register / deregister format provider based on the `html.format.enable` setting avoiding issues with late registration. See #71652.
 		updateFormatterRegistration();
 		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
-		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
+		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration(SettingIds.formatEnable) && updateFormatterRegistration()));
 
 		client.sendRequest(SemanticTokenLegendRequest.type).then(legend => {
 			if (legend) {
@@ -176,10 +173,20 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 
+		disposable = languages.registerOnTypeRenameProvider(documentSelector, {
+			async provideOnTypeRenameRanges(document, position) {
+				const param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
+				const response = await client.sendRequest(OnTypeRenameRequest.type, param);
+
+				return response || [];
+			}
+		});
+		toDispose.push(disposable);
+
 	});
 
 	function updateFormatterRegistration() {
-		const formatEnabled = workspace.getConfiguration().get('html.format.enable');
+		const formatEnabled = workspace.getConfiguration().get(SettingIds.formatEnable);
 		if (!formatEnabled && rangeFormatting) {
 			rangeFormatting.dispose();
 			rangeFormatting = undefined;
@@ -289,27 +296,37 @@ export function activate(context: ExtensionContext) {
 			return results;
 		}
 	});
-}
 
-function getPackageInfo(context: ExtensionContext): IPackageInfo | null {
-	let extensionPackage = readJSONFile(context.asAbsolutePath('./package.json'));
-	if (extensionPackage) {
-		return {
-			name: extensionPackage.name,
-			version: extensionPackage.version,
-			aiKey: extensionPackage.aiKey
-		};
+	const promptForTypeOnRenameKey = 'html.promptForTypeOnRename';
+	const promptForTypeOnRename = extensions.getExtension('formulahendry.auto-rename-tag') !== undefined &&
+		(context.globalState.get(promptForTypeOnRenameKey) !== false) &&
+		!workspace.getConfiguration('editor', { languageId: 'html' }).get('renameOnType');
+
+	if (promptForTypeOnRename) {
+		const activeEditorListener = window.onDidChangeActiveTextEditor(async e => {
+			if (e && documentSelector.indexOf(e.document.languageId) !== -1) {
+				context.globalState.update(promptForTypeOnRenameKey, false);
+				activeEditorListener.dispose();
+				const configure = localize('configureButton', 'Configure');
+				const res = await window.showInformationMessage(localize('renameOnTypeQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
+				if (res === configure) {
+					commands.executeCommand('workbench.action.openSettings', SettingIds.renameOnType);
+				}
+			}
+		});
+		toDispose.push(activeEditorListener);
 	}
-	return null;
+
+	toDispose.push();
 }
 
-
-function readJSONFile(location: string) {
+function getPackageInfo(context: ExtensionContext): IPackageInfo {
+	const location = context.asAbsolutePath('./package.json');
 	try {
 		return JSON.parse(fs.readFileSync(location).toString());
 	} catch (e) {
 		console.log(`Problems reading ${location}: ${e}`);
-		return {};
+		return { name: '', version: '', aiKey: '', main: '' };
 	}
 }
 

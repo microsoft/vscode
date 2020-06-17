@@ -12,7 +12,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IStringDictionary } from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ArrayNavigator } from 'vs/base/common/iterator';
+import { ArrayNavigator } from 'vs/base/common/navigator';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -80,7 +80,7 @@ export class PreferencesEditor extends BaseEditor {
 	set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
-	readonly minimumHeight = 260;
+	get minimumHeight() { return 260; }
 
 	private _onDidCreateWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = this._onDidCreateWidget.event;
@@ -609,7 +609,7 @@ class PreferencesRenderersController extends Disposable {
 					const message = getErrorMessage(err).trim();
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
-						this.telemetryService.publicLog('defaultSettings.searchError', { message });
+						this.telemetryService.publicLogError('defaultSettings.searchError', { message });
 						this.logService.info('Setting search error: ' + message);
 					}
 					return undefined;
@@ -1063,7 +1063,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 	}
 
 	protected getAriaLabel(): string {
-		return nls.localize('preferencesAriaLabel', "Default preferences. Readonly editor.");
+		return nls.localize('preferencesAriaLabel', "Default preferences. Readonly.");
 	}
 }
 

@@ -25,16 +25,17 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerColor, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { Codicon } from 'vs/base/common/codicons';
 
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
 export interface IPeekViewService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	addExclusiveWidget(editor: ICodeEditor, widget: PeekViewWidget): void;
 }
 
 registerSingleton(IPeekViewService, class implements IPeekViewService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable; }>();
 
@@ -102,7 +103,7 @@ const defaultOptions: IPeekViewOptions = {
 
 export abstract class PeekViewWidget extends ZoneWidget {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidClose = new Emitter<PeekViewWidget>();
 	readonly onDidClose = this._onDidClose.event;
@@ -186,7 +187,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		this._actionbarWidget = new ActionBar(actionsContainer, actionBarOptions);
 		this._disposables.add(this._actionbarWidget);
 
-		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'codicon-close', true, () => {
+		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => {
 			this.dispose();
 			return Promise.resolve();
 		}), { label: false, icon: true });

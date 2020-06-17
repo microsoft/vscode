@@ -1614,7 +1614,7 @@ export namespace Schemas {
 						}
 					}
 				],
-				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted.')
+				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted. A relative fileLocation may be an array, where the second element of the array is the path the relative file location.')
 			},
 			background: {
 				type: 'object',

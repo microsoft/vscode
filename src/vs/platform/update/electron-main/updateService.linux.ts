@@ -9,6 +9,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { State, IUpdate, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createUpdateURL, AbstractUpdateService, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
@@ -17,13 +18,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: INativeEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
 	) {

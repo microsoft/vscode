@@ -68,7 +68,7 @@ module.exports = function withDefaults(/**@type WebpackConfig*/extConfig) {
 		// yes, really source maps
 		devtool: 'source-map',
 		plugins: [
-			// @ts-ignore
+			// @ts-expect-error
 			new CopyWebpackPlugin([
 				{ from: 'src', to: '.', ignore: ['**/test/**', '*.ts'] }
 			]),

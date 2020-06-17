@@ -10,12 +10,12 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
-import { StartAction, ConfigureAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { StartAction, ConfigureAction, SelectAndStartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IViewDescriptorService, IViewsRegistry, Extensions } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsRegistry, Extensions, ViewContentPriority } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
@@ -24,6 +24,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const debugStartLanguageKey = 'debugStartLanguage';
 const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
@@ -52,7 +53,7 @@ export class WelcomeView extends ViewPane {
 		@IStorageService storageSevice: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Welcome Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.debugStartLanguageContext = CONTEXT_DEBUG_START_LANGUAGE.bindTo(contextKeyService);
 		this.debuggerInterestedContext = CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.bindTo(contextKeyService);
@@ -73,8 +74,26 @@ export class WelcomeView extends ViewPane {
 			}
 			this.debuggerInterestedContext.set(false);
 		};
-		this._register(editorService.onDidActiveEditorChange(setContextKey));
+
+		const disposables = new DisposableStore();
+		this._register(disposables);
+
+		this._register(editorService.onDidActiveEditorChange(() => {
+			disposables.clear();
+
+			const editorControl = this.editorService.activeTextEditorControl;
+			if (isCodeEditor(editorControl)) {
+				disposables.add(editorControl.onDidChangeModelLanguage(setContextKey));
+			}
+
+			setContextKey();
+		}));
 		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(setContextKey));
+		this._register(this.onDidChangeBodyVisibility(visible => {
+			if (visible) {
+				setContextKey();
+			}
+		}));
 		setContextKey();
 
 		const debugKeybinding = this.keybindingService.lookupKeybinding(StartAction.ID);
@@ -88,22 +107,32 @@ export class WelcomeView extends ViewPane {
 
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize('openAFileWhichCanBeDebugged', "[Open a file](command:{0}) which can be debugged or run.", isMacintosh ? OpenFileFolderAction.ID : OpenFileAction.ID),
+	content: localize({ key: 'openAFileWhichCanBeDebugged', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+		"[Open a file](command:{0}) which can be debugged or run.", isMacintosh ? OpenFileFolderAction.ID : OpenFileAction.ID),
 	when: CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.toNegated()
 });
 
 let debugKeybindingLabel = '';
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize('runAndDebugAction', "[Run and Debug{0}](command:{1})", debugKeybindingLabel, StartAction.ID),
+	content: localize({ key: 'runAndDebugAction', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+		"[Run and Debug{0}](command:{1})", debugKeybindingLabel, StartAction.ID),
 	preconditions: [CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR]
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize('customizeRunAndDebug', "To customize Run and Debug [create a launch.json file](command:{0}).", ConfigureAction.ID),
+	content: localize({ key: 'detectThenRunAndDebug', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+		"[Show](command:{0}) all automatic debug configurations.", SelectAndStartAction.ID),
+	priority: ViewContentPriority.Lowest
+});
+
+viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
+	content: localize({ key: 'customizeRunAndDebug', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+		"To customize Run and Debug [create a launch.json file](command:{0}).", ConfigureAction.ID),
 	when: WorkbenchStateContext.notEqualsTo('empty')
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize('customizeRunAndDebugOpenFolder', "To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", isMacintosh ? OpenFileFolderAction.ID : OpenFolderAction.ID),
+	content: localize({ key: 'customizeRunAndDebugOpenFolder', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+		"To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", isMacintosh ? OpenFileFolderAction.ID : OpenFolderAction.ID),
 	when: WorkbenchStateContext.isEqualTo('empty')
 });

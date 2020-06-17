@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserDataSyncLogService, ResourceKey, ALL_RESOURCE_KEYS, IUserDataSyncBackupStoreService, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLogService, ALL_SYNC_RESOURCES, IUserDataSyncBackupStoreService, IResourceRefHandle, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { joinPath } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
@@ -23,11 +23,11 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 	) {
 		super();
-		ALL_RESOURCE_KEYS.forEach(resourceKey => this.cleanUpBackup(resourceKey));
+		ALL_SYNC_RESOURCES.forEach(resourceKey => this.cleanUpBackup(resourceKey));
 	}
 
-	async getAllRefs(resourceKey: ResourceKey): Promise<IResourceRefHandle[]> {
-		const folder = joinPath(this.environmentService.userDataSyncHome, resourceKey);
+	async getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]> {
+		const folder = joinPath(this.environmentService.userDataSyncHome, resource);
 		const stat = await this.fileService.resolve(folder);
 		if (stat.children) {
 			const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}(\.json)?$/.test(stat.name)).sort().reverse();
@@ -39,22 +39,22 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 		return [];
 	}
 
-	async resolveContent(resourceKey: ResourceKey, ref?: string): Promise<string | null> {
+	async resolveContent(resource: SyncResource, ref?: string): Promise<string | null> {
 		if (!ref) {
-			const refs = await this.getAllRefs(resourceKey);
+			const refs = await this.getAllRefs(resource);
 			if (refs.length) {
 				ref = refs[refs.length - 1].ref;
 			}
 		}
 		if (ref) {
-			const file = joinPath(this.environmentService.userDataSyncHome, resourceKey, ref);
+			const file = joinPath(this.environmentService.userDataSyncHome, resource, ref);
 			const content = await this.fileService.readFile(file);
 			return content.value.toString();
 		}
 		return null;
 	}
 
-	async backup(resourceKey: ResourceKey, content: string): Promise<void> {
+	async backup(resourceKey: SyncResource, content: string): Promise<void> {
 		const folder = joinPath(this.environmentService.userDataSyncHome, resourceKey);
 		const resource = joinPath(folder, `${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}.json`);
 		try {
@@ -67,8 +67,8 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 		} catch (e) { /* Ignore */ }
 	}
 
-	private async cleanUpBackup(resourceKey: ResourceKey): Promise<void> {
-		const folder = joinPath(this.environmentService.userDataSyncHome, resourceKey);
+	private async cleanUpBackup(resource: SyncResource): Promise<void> {
+		const folder = joinPath(this.environmentService.userDataSyncHome, resource);
 		try {
 			try {
 				if (!(await this.fileService.exists(folder))) {

@@ -33,7 +33,7 @@ export interface IEndpointDetails {
 }
 
 export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _installedExtensions: Promise<ILocalExtension[]>;
 
@@ -519,7 +519,7 @@ export class SettingMatches {
 			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.value);
 			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, this.valueMatchingWords, [this.keyMatchingWords, this.descriptionMatchingWords]);
 		} else {
-			valueRanges = this.valuesMatcher ? this.valuesMatcher(searchString, setting) : [];
+			valueRanges = this.valuesMatcher(searchString, setting);
 		}
 
 		return [...descriptionRanges, ...keyRanges, ...valueRanges];

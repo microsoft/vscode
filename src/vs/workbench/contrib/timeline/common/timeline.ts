@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Command } from 'vs/editor/common/modes';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 
 export function toKey(extension: ExtensionIdentifier | string, source: string) {
 	return `${typeof extension === 'string' ? extension : ExtensionIdentifier.toKey(extension)}|${source}`;
@@ -24,6 +25,7 @@ export interface TimelineItem {
 	id?: string;
 	timestamp: number;
 	label: string;
+	accessibilityInformation?: IAccessibilityInformation;
 	icon?: URI,
 	iconDark?: URI,
 	themeIcon?: { id: string },
@@ -31,18 +33,20 @@ export interface TimelineItem {
 	detail?: string;
 	command?: Command;
 	contextValue?: string;
+
+	relativeTime?: string;
+	hideRelativeTime?: boolean;
 }
 
 export interface TimelineChangeEvent {
-	id?: string;
-	uri?: URI;
-	reset?: boolean
+	id: string;
+	uri: URI | undefined;
+	reset: boolean
 }
 
 export interface TimelineOptions {
 	cursor?: string;
-	before?: boolean;
-	limit?: number | { cursor: string };
+	limit?: number | { timestamp: number; id?: string };
 }
 
 export interface InternalTimelineOptions {
@@ -55,11 +59,7 @@ export interface Timeline {
 	items: TimelineItem[];
 
 	paging?: {
-		cursors: {
-			before: string;
-			after?: string
-		};
-		more?: boolean;
+		cursor: string | undefined;
 	}
 }
 

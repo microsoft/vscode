@@ -18,14 +18,12 @@ exports.assign = function assign(destination, source) {
 };
 
 /**
- *
  * @param {string[]} modulePaths
  * @param {(result, configuration: object) => any} resultCallback
  * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
  */
 exports.load = function (modulePaths, resultCallback, options) {
 
-	// @ts-ignore
 	const webFrame = require('electron').webFrame;
 	const path = require('path');
 
@@ -49,7 +47,6 @@ exports.load = function (modulePaths, resultCallback, options) {
 	}
 
 	// Error handler
-	// @ts-ignore
 	process.on('uncaughtException', function (error) {
 		onUnexpectedError(error, enableDeveloperTools);
 	});
@@ -164,7 +161,6 @@ function parseURLQueryArgs() {
  */
 function registerDeveloperKeybindings(disallowReloadKeybinding) {
 
-	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
 
 	const extractKey = function (e) {
@@ -201,9 +197,12 @@ function registerDeveloperKeybindings(disallowReloadKeybinding) {
 	};
 }
 
+/**
+ * @param {string | Error} error
+ * @param {boolean} enableDeveloperTools
+ */
 function onUnexpectedError(error, enableDeveloperTools) {
 
-	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
 
 	if (enableDeveloperTools) {
@@ -212,7 +211,7 @@ function onUnexpectedError(error, enableDeveloperTools) {
 
 	console.error('[uncaught exception]: ' + error);
 
-	if (error && error.stack) {
+	if (error && typeof error !== 'string' && error.stack) {
 		console.error(error.stack);
 	}
 }

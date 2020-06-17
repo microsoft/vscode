@@ -50,7 +50,6 @@ import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessi
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
-import { find } from 'vs/base/common/arrays';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
@@ -401,8 +400,10 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private updateTabFocusModeElement(visible: boolean): void {
 		if (visible) {
 			if (!this.tabFocusModeElement.value) {
+				const text = nls.localize('tabFocusModeEnabled', "Tab Moves Focus");
 				this.tabFocusModeElement.value = this.statusbarService.addEntry({
-					text: nls.localize('tabFocusModeEnabled', "Tab Moves Focus"),
+					text,
+					ariaLabel: text,
 					tooltip: nls.localize('disableTabMode', "Disable Accessibility Mode"),
 					command: 'editor.action.toggleTabFocusMode',
 					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
@@ -417,8 +418,10 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private updateColumnSelectionModeElement(visible: boolean): void {
 		if (visible) {
 			if (!this.columnSelectionModeElement.value) {
+				const text = nls.localize('columnSelectionModeEnabled', "Column Selection");
 				this.columnSelectionModeElement.value = this.statusbarService.addEntry({
-					text: nls.localize('columnSelectionModeEnabled', "Column Selection"),
+					text,
+					ariaLabel: text,
 					tooltip: nls.localize('disableColumnSelectionMode', "Disable Column Selection Mode"),
 					command: 'editor.action.toggleColumnSelection',
 					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
@@ -433,9 +436,10 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private updateScreenReaderModeElement(visible: boolean): void {
 		if (visible) {
 			if (!this.screenRedearModeElement.value) {
+				const text = nls.localize('screenReaderDetected', "Screen Reader Optimized");
 				this.screenRedearModeElement.value = this.statusbarService.addEntry({
-					text: nls.localize('screenReaderDetected', "Screen Reader Optimized"),
-					tooltip: nls.localize('screenReaderDetectedExtra', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
+					text,
+					ariaLabel: text,
 					command: 'showEditorScreenReaderNotification',
 					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
 					color: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_FOREGROUND)
@@ -454,7 +458,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		const props: IStatusbarEntry = {
 			text,
-			tooltip: nls.localize('gotoLine', "Go to Line"),
+			ariaLabel: text,
+			tooltip: nls.localize('gotoLine', "Go to Line/Column"),
 			command: 'workbench.action.gotoLine'
 		};
 
@@ -469,6 +474,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		const props: IStatusbarEntry = {
 			text,
+			ariaLabel: text,
 			tooltip: nls.localize('selectIndentation', "Select Indentation"),
 			command: 'changeEditorIndentation'
 		};
@@ -488,6 +494,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		const props: IStatusbarEntry = {
 			text,
+			ariaLabel: text,
 			tooltip: nls.localize('selectEncoding', "Select Encoding"),
 			command: 'workbench.action.editor.changeEncoding'
 		};
@@ -503,6 +510,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		const props: IStatusbarEntry = {
 			text,
+			ariaLabel: text,
 			tooltip: nls.localize('selectEOL', "Select End of Line Sequence"),
 			command: 'workbench.action.editor.changeEOL'
 		};
@@ -518,6 +526,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		const props: IStatusbarEntry = {
 			text,
+			ariaLabel: text,
 			tooltip: nls.localize('selectLanguageMode', "Select Language Mode"),
 			command: 'workbench.action.editor.changeLanguageMode'
 		};
@@ -533,6 +542,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		const props: IStatusbarEntry = {
 			text,
+			ariaLabel: text,
 			tooltip: nls.localize('fileInfo', "File Information")
 		};
 
@@ -575,7 +585,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
 		this.updateScreenReaderModeElement(!!this.state.screenReaderMode);
 		this.updateIndentationElement(this.state.indentation);
-		this.updateSelectionElement(this.state.selectionStatus && !this.state.screenReaderMode ? this.state.selectionStatus : undefined);
+		this.updateSelectionElement(this.state.selectionStatus);
 		this.updateEncodingElement(this.state.encoding);
 		this.updateEOLElement(this.state.EOL ? this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF : undefined);
 		this.updateModeElement(this.state.mode);
@@ -915,9 +925,9 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 				const line = this.currentMarker.message.split(/\r\n|\r|\n/g)[0];
 				const text = `${this.getType(this.currentMarker)} ${line}`;
 				if (!this.statusBarEntryAccessor.value) {
-					this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ text: '' }, 'statusbar.currentProblem', nls.localize('currentProblem', "Current Problem"), StatusbarAlignment.LEFT);
+					this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ text: '', ariaLabel: '' }, 'statusbar.currentProblem', nls.localize('currentProblem', "Current Problem"), StatusbarAlignment.LEFT);
 				}
-				this.statusBarEntryAccessor.value.update({ text });
+				this.statusBarEntryAccessor.value.update({ text, ariaLabel: text });
 			} else {
 				this.statusBarEntryAccessor.clear();
 			}
@@ -958,7 +968,7 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 		if (!position) {
 			return null;
 		}
-		return find(this.markers, marker => Range.containsPosition(marker, position)) || null;
+		return this.markers.find(marker => Range.containsPosition(marker, position)) || null;
 	}
 
 	private onMarkerChanged(changedResources: ReadonlyArray<URI>): void {
@@ -1209,7 +1219,7 @@ export class ChangeModeAction extends Action {
 
 				this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
 			}
-		}, 50 /* quick open is sensitive to being opened so soon after another */);
+		}, 50 /* quick input is sensitive to being opened so soon after another */);
 	}
 
 	private getFakeResource(lang: string): URI | undefined {
@@ -1331,7 +1341,7 @@ export class ChangeEncodingAction extends Action {
 			}
 		}
 
-		let action: IQuickPickItem;
+		let action: IQuickPickItem | undefined;
 		if (encodingSupport instanceof UntitledTextEditorInput) {
 			action = saveWithEncodingPick;
 		} else if (activeEditorPane.input.isReadonly()) {
@@ -1344,7 +1354,7 @@ export class ChangeEncodingAction extends Action {
 			return;
 		}
 
-		await timeout(50); // quick open is sensitive to being opened so soon after another
+		await timeout(50); // quick input is sensitive to being opened so soon after another
 
 		const resource = toResource(activeEditorPane.input, { supportSideBySide: SideBySideEditor.MASTER });
 		if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {

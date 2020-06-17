@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestStorageService, TestServiceAccessor, registerTestEditor, TestFileEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -27,6 +27,8 @@ import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { isLinux } from 'vs/base/common/platform';
 
 const TEST_EDITOR_ID = 'MyTestEditorForEditorService';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorService';
@@ -110,7 +112,7 @@ suite('EditorService', () => {
 		assert.equal(visibleEditorChangeEventCounter, 1);
 
 		// Close input
-		await editor!.group!.closeEditor(input);
+		await editor?.group?.closeEditor(input);
 
 		assert.equal(0, service.count);
 		assert.equal(0, service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length);
@@ -144,6 +146,22 @@ suite('EditorService', () => {
 
 		assert.equal(activeEditorChangeEventCounter, 4);
 		assert.equal(visibleEditorChangeEventCounter, 4);
+
+		const stickyInput = new TestFileEditorInput(URI.parse('my://resource3-basics'), TEST_EDITOR_INPUT_ID);
+		await service.openEditor(stickyInput, { sticky: true });
+
+		assert.equal(3, service.count);
+
+		const allSequentialEditors = service.getEditors(EditorsOrder.SEQUENTIAL);
+		assert.equal(allSequentialEditors.length, 3);
+		assert.equal(stickyInput, allSequentialEditors[0].editor);
+		assert.equal(input, allSequentialEditors[1].editor);
+		assert.equal(otherInput, allSequentialEditors[2].editor);
+
+		const sequentialEditorsExcludingSticky = service.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true });
+		assert.equal(sequentialEditorsExcludingSticky.length, 2);
+		assert.equal(input, sequentialEditorsExcludingSticky[0].editor);
+		assert.equal(otherInput, sequentialEditorsExcludingSticky[1].editor);
 
 		activeEditorChangeListener.dispose();
 		visibleEditorChangeListener.dispose();
@@ -238,13 +256,13 @@ suite('EditorService', () => {
 		const fileEditorInput1Again = service.createEditorInput({ resource: fileResource1 });
 		assert.equal(fileEditorInput1Again, fileEditorInput1);
 
-		fileEditorInput1Again!.dispose();
+		fileEditorInput1Again.dispose();
 
-		assert.ok(fileEditorInput1!.isDisposed());
+		assert.ok(fileEditorInput1.isDisposed());
 
 		const fileEditorInput1AgainAndAgain = service.createEditorInput({ resource: fileResource1 });
 		assert.notEqual(fileEditorInput1AgainAndAgain, fileEditorInput1);
-		assert.ok(!fileEditorInput1AgainAndAgain!.isDisposed());
+		assert.ok(!fileEditorInput1AgainAndAgain.isDisposed());
 
 		// Cached Input (Resource)
 		const resource1 = URI.from({ scheme: 'custom', path: '/foo/bar/cache1.js' });
@@ -260,13 +278,13 @@ suite('EditorService', () => {
 		const input1Again = service.createEditorInput({ resource: resource1 });
 		assert.equal(input1Again, input1);
 
-		input1Again!.dispose();
+		input1Again.dispose();
 
-		assert.ok(input1!.isDisposed());
+		assert.ok(input1.isDisposed());
 
 		const input1AgainAndAgain = service.createEditorInput({ resource: resource1 });
 		assert.notEqual(input1AgainAndAgain, input1);
-		assert.ok(!input1AgainAndAgain!.isDisposed());
+		assert.ok(!input1AgainAndAgain.isDisposed());
 	});
 
 	test('createEditorInput', async function () {
@@ -283,6 +301,18 @@ suite('EditorService', () => {
 		assert(input instanceof FileEditorInput);
 		let contentInput = <FileEditorInput>input;
 		assert.strictEqual(contentInput.resource.fsPath, toResource.call(this, '/index.html').fsPath);
+
+		// Untyped Input (file casing)
+		input = service.createEditorInput({ resource: toResource.call(this, '/index.html') });
+		let inputDifferentCase = service.createEditorInput({ resource: toResource.call(this, '/INDEX.html') });
+
+		if (!isLinux) {
+			assert.equal(input, inputDifferentCase);
+			assert.equal(input.resource?.toString(), inputDifferentCase.resource?.toString());
+		} else {
+			assert.notEqual(input, inputDifferentCase);
+			assert.notEqual(input.resource?.toString(), inputDifferentCase.resource?.toString());
+		}
 
 		// Typed Input
 		assert.equal(service.createEditorInput(input), input);
@@ -314,7 +344,7 @@ suite('EditorService', () => {
 		input = service.createEditorInput({ contents: 'Hello Untitled', options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof UntitledTextEditorInput);
 		let model = await input.resolve() as UntitledTextEditorModel;
-		assert.equal(model.textEditorModel!.getValue(), 'Hello Untitled');
+		assert.equal(model.textEditorModel?.getValue(), 'Hello Untitled');
 
 		// Untyped Input (untitled with mode)
 		input = service.createEditorInput({ mode, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
@@ -373,7 +403,7 @@ suite('EditorService', () => {
 
 		const ed = instantiationService.createInstance(MyEditor, 'my.editor');
 
-		const inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.parse('my://resource-delegate'), undefined);
+		const inp = instantiationService.createInstance(ResourceEditorInput, URI.parse('my://resource-delegate'), 'name', 'description', undefined);
 		const delegate = instantiationService.createInstance(DelegatingEditorService, async (delegate, group, input) => {
 			assert.strictEqual(input, inp);
 
@@ -429,13 +459,13 @@ suite('EditorService', () => {
 
 		assert.equal(part.activeGroup, rootGroup);
 		assert.equal(part.count, 2);
-		assert.equal(editor!.group, part.groups[1]);
+		assert.equal(editor?.group, part.groups[1]);
 
 		// Open to the side uses existing neighbour group if any
 		editor = await service.openEditor(input2, { pinned: true, preserveFocus: true }, SIDE_GROUP);
 		assert.equal(part.activeGroup, rootGroup);
 		assert.equal(part.count, 2);
-		assert.equal(editor!.group, part.groups[1]);
+		assert.equal(editor?.group, part.groups[1]);
 
 		part.dispose();
 	});
@@ -452,7 +482,7 @@ suite('EditorService', () => {
 
 		await service.openEditor(input1, { pinned: true }, rootGroup);
 		let editor = await service.openEditor(input2, { pinned: true, preserveFocus: true, activation: EditorActivation.ACTIVATE }, SIDE_GROUP);
-		const sideGroup = editor!.group;
+		const sideGroup = editor?.group;
 
 		assert.equal(part.activeGroup, sideGroup);
 
@@ -510,7 +540,7 @@ suite('EditorService', () => {
 
 		// 1.) open, open same, open other, close
 		let editor = await service.openEditor(input, { pinned: true });
-		const group = editor!.group!;
+		const group = editor?.group!;
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -794,6 +824,10 @@ suite('EditorService', () => {
 		input1.gotSavedAs = false;
 		input1.gotReverted = false;
 
+		input1.dirty = true;
+		input2.dirty = true;
+		sameInput1.dirty = true;
+
 		await service.save({ groupId: rootGroup.id, editor: input1 }, { saveAs: true });
 		assert.equal(input1.gotSavedAs, true);
 
@@ -801,14 +835,24 @@ suite('EditorService', () => {
 		input1.gotSavedAs = false;
 		input1.gotReverted = false;
 
-		await service.revertAll();
+		input1.dirty = true;
+		input2.dirty = true;
+		sameInput1.dirty = true;
+
+		const revertRes = await service.revertAll();
+		assert.equal(revertRes, true);
 		assert.equal(input1.gotReverted, true);
 
 		input1.gotSaved = false;
 		input1.gotSavedAs = false;
 		input1.gotReverted = false;
 
-		await service.saveAll();
+		input1.dirty = true;
+		input2.dirty = true;
+		sameInput1.dirty = true;
+
+		const saveRes = await service.saveAll();
+		assert.equal(saveRes, true);
 		assert.equal(input1.gotSaved, true);
 		assert.equal(input2.gotSaved, true);
 
@@ -819,6 +863,10 @@ suite('EditorService', () => {
 		input2.gotSavedAs = false;
 		input2.gotReverted = false;
 
+		input1.dirty = true;
+		input2.dirty = true;
+		sameInput1.dirty = true;
+
 		await service.saveAll({ saveAs: true });
 
 		assert.equal(input1.gotSavedAs, true);
@@ -828,6 +876,48 @@ suite('EditorService', () => {
 		assert.equal(sameInput1.gotSaved, false);
 		assert.equal(sameInput1.gotSavedAs, false);
 		assert.equal(sameInput1.gotReverted, false);
+
+		part.dispose();
+	});
+
+	test('saveAll, revertAll (sticky editor)', async function () {
+		const [part, service] = createEditorService();
+
+		const input1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
+		input1.dirty = true;
+		const input2 = new TestFileEditorInput(URI.parse('my://resource2'), TEST_EDITOR_INPUT_ID);
+		input2.dirty = true;
+		const sameInput1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
+		sameInput1.dirty = true;
+
+		await part.whenRestored;
+
+		await service.openEditor(input1, { pinned: true, sticky: true });
+		await service.openEditor(input2, { pinned: true });
+		await service.openEditor(sameInput1, { pinned: true }, SIDE_GROUP);
+
+		const revertRes = await service.revertAll({ excludeSticky: true });
+		assert.equal(revertRes, true);
+		assert.equal(input1.gotReverted, false);
+		assert.equal(sameInput1.gotReverted, true);
+
+		input1.gotSaved = false;
+		input1.gotSavedAs = false;
+		input1.gotReverted = false;
+
+		sameInput1.gotSaved = false;
+		sameInput1.gotSavedAs = false;
+		sameInput1.gotReverted = false;
+
+		input1.dirty = true;
+		input2.dirty = true;
+		sameInput1.dirty = true;
+
+		const saveRes = await service.saveAll({ excludeSticky: true });
+		assert.equal(saveRes, true);
+		assert.equal(input1.gotSaved, false);
+		assert.equal(input2.gotSaved, true);
+		assert.equal(sameInput1.gotSaved, true);
 
 		part.dispose();
 	});
@@ -962,14 +1052,16 @@ suite('EditorService', () => {
 
 		let overrideCalled = false;
 
-		const handler = service.overrideOpenEditor(editor => {
-			if (editor === input1) {
-				overrideCalled = true;
+		const handler = service.overrideOpenEditor({
+			open: editor => {
+				if (editor === input1) {
+					overrideCalled = true;
 
-				return { override: service.openEditor(input2, { pinned: true }) };
+					return { override: service.openEditor(input2, { pinned: true }) };
+				}
+
+				return undefined;
 			}
-
-			return undefined;
 		});
 
 		await service.openEditor(input1, { pinned: true });
@@ -978,6 +1070,26 @@ suite('EditorService', () => {
 		assert.equal(service.activeEditor, input2);
 
 		handler.dispose();
+		part.dispose();
+	});
+
+	test('whenClosed', async function () {
+		const [part, service] = createEditorService();
+
+		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
+
+		await part.whenRestored;
+
+		const editor = await service.openEditor(input1, { pinned: true });
+		await service.openEditor(input2, { pinned: true });
+
+		const whenClosed = service.whenClosed([input1, input2]);
+
+		editor?.group?.closeAllEditors();
+
+		await whenClosed;
+
 		part.dispose();
 	});
 });

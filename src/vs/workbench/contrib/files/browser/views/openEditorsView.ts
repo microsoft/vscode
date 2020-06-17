@@ -22,7 +22,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { WorkbenchList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -34,7 +34,7 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { DirtyEditorContext, OpenEditorsGroupContext, ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
@@ -46,6 +46,8 @@ import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/w
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = dom.$;
 
@@ -84,10 +86,7 @@ export class OpenEditorsView extends ViewPane {
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IOpenerService openerService: IOpenerService,
 	) {
-		super({
-			...(options as IViewPaneOptions),
-			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
@@ -185,7 +184,7 @@ export class OpenEditorsView extends ViewPane {
 		super.renderHeaderTitle(container, this.title);
 
 		const count = dom.append(container, $('.count'));
-		this.dirtyCountElement = dom.append(count, $('.dirty-count.monaco-count-badge'));
+		this.dirtyCountElement = dom.append(count, $('.dirty-count.monaco-count-badge.long'));
 
 		this._register((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
@@ -226,7 +225,8 @@ export class OpenEditorsView extends ViewPane {
 			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService),
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
-			}
+			},
+			accessibilityProvider: new OpenEditorsAccessibilityProvider()
 		});
 		this._register(this.list);
 		this._register(this.listLabels);
@@ -269,29 +269,21 @@ export class OpenEditorsView extends ViewPane {
 				e.element.group.closeEditor(e.element.editor, { preserveFocus: true });
 			}
 		}));
-		this._register(this.list.onDidOpen(e => {
-			const browserEvent = e.browserEvent;
-
-			let openToSide = false;
-			let isSingleClick = false;
-			let isDoubleClick = false;
-			let isMiddleClick = false;
-			if (browserEvent instanceof MouseEvent) {
-				isSingleClick = browserEvent.detail === 1;
-				isDoubleClick = browserEvent.detail === 2;
-				isMiddleClick = browserEvent.button === 1;
-				openToSide = this.list.useAltAsMultipleSelectionModifier ? (browserEvent.ctrlKey || browserEvent.metaKey) : browserEvent.altKey;
+		const resourceNavigator = this._register(new ListResourceNavigator(this.list, { configurationService: this.configurationService }));
+		this._register(resourceNavigator.onDidOpen(e => {
+			if (!e.element) {
+				return;
 			}
 
-			const focused = this.list.getFocusedElements();
-			const element = focused.length ? focused[0] : undefined;
+			const element = this.list.element(e.element);
+
 			if (element instanceof OpenEditor) {
-				if (isMiddleClick) {
-					return; // already handled above: closes the editor
+				if (e.browserEvent instanceof MouseEvent && e.browserEvent.button === 1) {
+					return; // middle click already handled above: closes the editor
 				}
 
-				this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
-			} else if (element) {
+				this.openEditor(element, { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, sideBySide: e.sideBySide });
+			} else {
 				this.editorGroupService.activateGroup(element);
 			}
 		}));
@@ -302,6 +294,11 @@ export class OpenEditorsView extends ViewPane {
 			if (visible && this.needsRefresh) {
 				this.listRefreshScheduler.schedule(0);
 			}
+		}));
+
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
+			this.updateSize();
 		}));
 	}
 
@@ -323,6 +320,7 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		if (this.list) {
 			this.list.layout(height, width);
 		}
@@ -361,7 +359,7 @@ export class OpenEditorsView extends ViewPane {
 		return -1;
 	}
 
-	private openEditor(element: OpenEditor, options: { preserveFocus: boolean; pinned: boolean; sideBySide: boolean; }): void {
+	private openEditor(element: OpenEditor, options: { preserveFocus?: boolean; pinned?: boolean; sideBySide?: boolean; }): void {
 		if (element) {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 
@@ -418,8 +416,8 @@ export class OpenEditorsView extends ViewPane {
 
 	private updateSize(): void {
 		// Adjust expanded body size
-		this.minimumBodySize = this.getMinExpandedBodySize();
-		this.maximumBodySize = this.getMaxExpandedBodySize();
+		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? this.getMinExpandedBodySize() : 170;
+		this.maximumBodySize = this.orientation === Orientation.VERTICAL ? this.getMaxExpandedBodySize() : Number.POSITIVE_INFINITY;
 	}
 
 	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
@@ -445,6 +443,11 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	private getMaxExpandedBodySize(): number {
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		if (containerModel.visibleViewDescriptors.length <= 1) {
+			return Number.POSITIVE_INFINITY;
+		}
+
 		return this.elementCount * OpenEditorsDelegate.ITEM_HEIGHT;
 	}
 
@@ -595,7 +598,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		templateData.actionRunner.editor = openedEditor;
 		editor.isDirty() && !editor.isSaving() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
 		templateData.root.setResource({
-			resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
+			resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }),
 			name: editor.getName(),
 			description: editor.getDescription(Verbosity.MEDIUM)
 		}, {
@@ -659,7 +662,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, originalEvent);
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, undefined, originalEvent);
 		}
 	}
 
@@ -688,5 +691,20 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		} else {
 			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), index);
 		}
+	}
+}
+
+class OpenEditorsAccessibilityProvider implements IListAccessibilityProvider<OpenEditor | IEditorGroup> {
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('openEditors', "Open Editors");
+	}
+
+	getAriaLabel(element: OpenEditor | IEditorGroup): string | null {
+		if (element instanceof OpenEditor) {
+			return `${element.editor.getName()}, ${element.editor.getDescription()}`;
+		}
+
+		return element.ariaLabel;
 	}
 }

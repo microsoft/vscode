@@ -7,8 +7,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { EditorInput, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { IWebviewService, WebviewIcons, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-
-const WebviewPanelResourceScheme = 'webview-panel';
+import { Schemas } from 'vs/base/common/network';
 
 export class WebviewInput extends EditorInput {
 
@@ -18,12 +17,13 @@ export class WebviewInput extends EditorInput {
 	private _iconPath?: WebviewIcons;
 	private _group?: GroupIdentifier;
 
-	private readonly _webview: Lazy<WebviewOverlay>;
-	private _didSomeoneTakeMyWebview = false;
+	private _webview: Lazy<WebviewOverlay>;
+
+	private _hasTransfered = false;
 
 	get resource() {
 		return URI.from({
-			scheme: WebviewPanelResourceScheme,
+			scheme: Schemas.webviewPanel,
 			path: `webview-panel/webview-${this.id}`
 		});
 	}
@@ -42,8 +42,8 @@ export class WebviewInput extends EditorInput {
 
 	dispose() {
 		if (!this.isDisposed()) {
-			if (!this._didSomeoneTakeMyWebview) {
-				this._webview?.rawValue?.dispose();
+			if (!this._hasTransfered) {
+				this._webview.rawValue?.dispose();
 			}
 		}
 		super.dispose();
@@ -99,19 +99,16 @@ export class WebviewInput extends EditorInput {
 		this._group = group;
 	}
 
-	public async resolve(): Promise<null> {
-		return null;
-	}
-
 	public supportsSplitEditor() {
 		return false;
 	}
 
-	protected takeOwnershipOfWebview(): WebviewOverlay | undefined {
-		if (this._didSomeoneTakeMyWebview) {
+	protected transfer(other: WebviewInput): WebviewInput | undefined {
+		if (this._hasTransfered) {
 			return undefined;
 		}
-		this._didSomeoneTakeMyWebview = true;
-		return this.webview;
+		this._hasTransfered = true;
+		other._webview = this._webview;
+		return other;
 	}
 }

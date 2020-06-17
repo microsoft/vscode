@@ -8,6 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorage, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
@@ -16,7 +17,7 @@ export const IStorageMainService = createDecorator<IStorageMainService>('storage
 
 export interface IStorageMainService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -85,7 +86,7 @@ export interface IStorageChangeEvent {
 
 export class StorageMainService extends Disposable implements IStorageMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly STORAGE_NAME = 'state.vscdb';
 
@@ -103,7 +104,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService
 	) {
 		super();
 

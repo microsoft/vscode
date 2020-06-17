@@ -30,6 +30,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -53,7 +54,8 @@ const viewsContainerSchema: IJSONSchema = {
 			description: localize('vscode.extension.contributes.views.containers.icon', "Path to the container icon. Icons are 24x24 centered on a 50x40 block and have a fill color of 'rgb(215, 218, 224)' or '#d7dae0'. It is recommended that icons be in SVG, though any image file type is accepted."),
 			type: 'string'
 		}
-	}
+	},
+	required: ['id', 'title', 'icon']
 };
 
 export const viewsContainersContribution: IJSONSchema = {
@@ -64,6 +66,11 @@ export const viewsContainersContribution: IJSONSchema = {
 			description: localize('views.container.activitybar', "Contribute views containers to Activity Bar"),
 			type: 'array',
 			items: viewsContainerSchema
+		},
+		'panel': {
+			description: localize('views.container.panel', "Contribute views containers to Panel"),
+			type: 'array',
+			items: viewsContainerSchema
 		}
 	}
 };
@@ -72,6 +79,9 @@ interface IUserFriendlyViewDescriptor {
 	id: string;
 	name: string;
 	when?: string;
+
+	icon?: string;
+	contextualTitle?: string;
 
 	// From 'remoteViewDescriptor' type
 	group?: string;
@@ -91,6 +101,14 @@ const viewDescriptor: IJSONSchema = {
 		},
 		when: {
 			description: localize('vscode.extension.contributes.view.when', 'Condition which must be true to show this view'),
+			type: 'string'
+		},
+		icon: {
+			description: localize('vscode.extension.contributes.view.icon', "Path to the view icon. View icons are displayed when the name of the view cannot be shown. It is recommended that icons be in SVG, though any image file type is accepted."),
+			type: 'string'
+		},
+		contextualTitle: {
+			description: localize('vscode.extension.contributes.view.contextualTitle', "Human-readable context for when the view is moved out of its original location. By default, the view's container name will be used. Will be shown"),
 			type: 'string'
 		},
 	}
@@ -214,7 +232,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private addCustomViewContainers(extensionPoints: readonly IExtensionPointUser<ViewContainerExtensionPointType>[], existingViewContainers: ViewContainer[]): void {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-		let order = TEST_VIEW_CONTAINER_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId).length + 1;
+		let activityBarOrder = TEST_VIEW_CONTAINER_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Sidebar).length + 1;
+		let panelOrder = 5 + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Panel).length + 1;
 		for (let { value, collector, description } of extensionPoints) {
 			forEach(value, entry => {
 				if (!this.isValidViewsContainer(entry.value, collector)) {
@@ -222,7 +241,10 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				}
 				switch (entry.key) {
 					case 'activitybar':
-						order = this.registerCustomViewContainers(entry.value, description, order, existingViewContainers);
+						activityBarOrder = this.registerCustomViewContainers(entry.value, description, activityBarOrder, existingViewContainers, ViewContainerLocation.Sidebar);
+						break;
+					case 'panel':
+						panelOrder = this.registerCustomViewContainers(entry.value, description, panelOrder, existingViewContainers, ViewContainerLocation.Panel);
 						break;
 				}
 			});
@@ -246,9 +268,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private registerTestViewContainer(): void {
 		const title = localize('test', "Test");
-		const icon = URI.parse(require.toUrl('./media/test.svg'));
+		const icon = Codicon.beaker.classNames;
 
-		this.registerCustomViewContainer(TEST_VIEW_CONTAINER_ID, title, icon, TEST_VIEW_CONTAINER_ORDER, undefined);
+		this.registerCustomViewContainer(TEST_VIEW_CONTAINER_ID, title, icon, TEST_VIEW_CONTAINER_ORDER, undefined, ViewContainerLocation.Sidebar);
 	}
 
 	private isValidViewsContainer(viewsContainersDescriptors: IUserFriendlyViewsContainerDescriptor[], collector: ExtensionMessageCollector): boolean {
@@ -279,11 +301,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		return true;
 	}
 
-	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription, order: number, existingViewContainers: ViewContainer[]): number {
+	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription, order: number, existingViewContainers: ViewContainer[], location: ViewContainerLocation): number {
 		containers.forEach(descriptor => {
 			const icon = resources.joinPath(extension.extensionLocation, descriptor.icon);
 			const id = `workbench.view.extension.${descriptor.id}`;
-			const viewContainer = this.registerCustomViewContainer(id, descriptor.title, icon, order++, extension.identifier);
+			const viewContainer = this.registerCustomViewContainer(id, descriptor.title, icon, order++, extension.identifier, location);
 
 			// Move those views that belongs to this container
 			if (existingViewContainers.length) {
@@ -301,7 +323,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		return order;
 	}
 
-	private registerCustomViewContainer(id: string, title: string, icon: URI, order: number, extensionId: ExtensionIdentifier | undefined): ViewContainer {
+	private registerCustomViewContainer(id: string, title: string, icon: URI | string, order: number, extensionId: ExtensionIdentifier | undefined, location: ViewContainerLocation): ViewContainer {
 		let viewContainer = this.viewContainersRegistry.get(id);
 
 		if (!viewContainer) {
@@ -311,12 +333,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				name: title, extensionId,
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
-					[id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true }]
+					[id, { mergeViewWithContainerWhenSingleView: true }]
 				),
 				hideIfEmpty: true,
 				order,
 				icon,
-			}, ViewContainerLocation.Sidebar);
+			}, location);
 
 			// Register Action to Open Viewlet
 			class OpenCustomViewletAction extends ShowViewletAction {
@@ -357,6 +379,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	}
 
 	private addViews(extensions: readonly IExtensionPointUser<ViewExtensionPointType>[]): void {
+		const viewIds: Set<string> = new Set<string>();
+		const allViewDescriptors: { views: IViewDescriptor[], viewContainer: ViewContainer }[] = [];
+
 		for (const extension of extensions) {
 			const { value, collector } = extension;
 
@@ -375,10 +400,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", entry.key));
 				}
 				const container = viewContainer || this.getDefaultViewContainer();
-				const viewIds: string[] = [];
 				const viewDescriptors = coalesce(entry.value.map((item, index) => {
 					// validate
-					if (viewIds.indexOf(item.id) !== -1) {
+					if (viewIds.has(item.id)) {
 						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}`", item.id));
 						return null;
 					}
@@ -393,11 +417,14 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 							? container.viewOrderDelegate.getOrder(item.group)
 							: undefined;
 
+					const icon = item.icon ? resources.joinPath(extension.description.extensionLocation, item.icon) : undefined;
 					const viewDescriptor = <ICustomViewDescriptor>{
 						id: item.id,
 						name: item.name,
 						ctorDescriptor: new SyncDescriptor(TreeViewPane),
 						when: ContextKeyExpr.deserialize(item.when),
+						containerIcon: icon || viewContainer?.icon,
+						containerTitle: item.contextualTitle || viewContainer?.name,
 						canToggleVisibility: true,
 						canMoveView: true,
 						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name),
@@ -409,12 +436,16 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority // TODO@roblou - delete after remote extensions are updated
 					};
 
-					viewIds.push(viewDescriptor.id);
+					viewIds.add(viewDescriptor.id);
 					return viewDescriptor;
 				}));
-				this.viewsRegistry.registerViews(viewDescriptors, container);
+
+				allViewDescriptors.push({ viewContainer: container, views: viewDescriptors });
+
 			});
 		}
+
+		this.viewsRegistry.registerViews2(allViewDescriptors);
 	}
 
 	private getDefaultViewContainer(): ViewContainer {
@@ -448,6 +479,14 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			}
 			if (descriptor.when && typeof descriptor.when !== 'string') {
 				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
+				return false;
+			}
+			if (descriptor.icon && typeof descriptor.icon !== 'string') {
+				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'icon'));
+				return false;
+			}
+			if (descriptor.contextualTitle && typeof descriptor.contextualTitle !== 'string') {
+				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'contextualTitle'));
 				return false;
 			}
 		}

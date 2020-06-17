@@ -250,6 +250,11 @@ export const schema: IJSONSchema = {
 						body: 'onDebugInitialConfigurations'
 					},
 					{
+						label: 'onDebugDynamicConfigurations',
+						description: nls.localize('vscode.extension.activationEvents.onDebugDynamicConfigurations', 'An activation event emitted whenever a list of all debug configurations needs to be created (and all provideDebugConfigurations methods for the "dynamic" scope need to be called).'),
+						body: 'onDebugDynamicConfigurations'
+					},
+					{
 						label: 'onDebugResolve',
 						description: nls.localize('vscode.extension.activationEvents.onDebugResolve', 'An activation event emitted whenever a debug session with the specific type is about to be launched (and a corresponding resolveDebugConfiguration method needs to be called).'),
 						body: 'onDebugResolve:${6:type}'
@@ -263,6 +268,11 @@ export const schema: IJSONSchema = {
 						label: 'workspaceContains',
 						description: nls.localize('vscode.extension.activationEvents.workspaceContains', 'An activation event emitted whenever a folder is opened that contains at least a file matching the specified glob pattern.'),
 						body: 'workspaceContains:${4:filePattern}'
+					},
+					{
+						label: 'onStartupFinished',
+						description: nls.localize('vscode.extension.activationEvents.onStartupFinished', 'An activation event emitted after the start-up finished (after all eager activated extensions have finished activating).'),
+						body: 'onStartupFinished'
 					},
 					{
 						label: 'onFileSystem',
@@ -288,6 +298,11 @@ export const schema: IJSONSchema = {
 						label: 'onUri',
 						body: 'onUri',
 						description: nls.localize('vscode.extension.activationEvents.onUri', 'An activation event emitted whenever a system-wide Uri directed towards this extension is open.'),
+					},
+					{
+						label: 'onCustomEditor',
+						body: 'onCustomEditor:${9:viewType}',
+						description: nls.localize('vscode.extension.activationEvents.onCustomEditor', 'An activation event emitted whenever the specified custom editor becomes visible.'),
 					},
 					{
 						label: '*',

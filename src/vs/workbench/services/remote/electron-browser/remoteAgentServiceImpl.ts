@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { AbstractRemoteAgentService, RemoteAgentConnection } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 
@@ -20,16 +19,17 @@ export class RemoteAgentService extends AbstractRemoteAgentService implements IR
 
 	private readonly _connection: IRemoteAgentConnection | null = null;
 
-	constructor({ remoteAuthority }: IWindowConfiguration,
-		@IEnvironmentService environmentService: IEnvironmentService,
+	constructor(
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ISignService signService: ISignService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IProductService productService: IProductService
 	) {
-		super(environmentService);
+		super(environmentService, remoteAuthorityResolverService);
 		this.socketFactory = nodeSocketFactory;
-		if (remoteAuthority) {
-			this._connection = this._register(new RemoteAgentConnection(remoteAuthority, product.commit, nodeSocketFactory, remoteAuthorityResolverService, signService, logService));
+		if (environmentService.configuration.remoteAuthority) {
+			this._connection = this._register(new RemoteAgentConnection(environmentService.configuration.remoteAuthority, productService.commit, nodeSocketFactory, remoteAuthorityResolverService, signService, logService));
 		}
 	}
 

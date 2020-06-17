@@ -13,7 +13,6 @@ Error.stackTraceLimit = 100;
 
 // Workaround for Electron not installing a handler to ignore SIGPIPE
 // (https://github.com/electron/electron/issues/13254)
-// @ts-ignore
 process.on('SIGPIPE', () => {
 	console.error(new Error('Unexpected SIGPIPE'));
 });
@@ -27,7 +26,6 @@ exports.injectNodeModuleLookupPath = function (injectPath) {
 		throw new Error('Missing injectPath');
 	}
 
-	// @ts-ignore
 	const Module = require('module');
 	const path = require('path');
 
@@ -51,15 +49,38 @@ exports.injectNodeModuleLookupPath = function (injectPath) {
 		return paths;
 	};
 };
+
+//#endregion
+
+//#region Remove global paths from the node lookup paths
+
+exports.removeGlobalNodeModuleLookupPaths = function () {
+	const Module = require('module');
+	// @ts-ignore
+	const globalPaths = Module.globalPaths;
+
+	// @ts-ignore
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
+
+	// @ts-ignore
+	Module._resolveLookupPaths = function (moduleName, parent) {
+		const paths = originalResolveLookupPaths(moduleName, parent);
+		let commonSuffixLength = 0;
+		while (commonSuffixLength < paths.length && paths[paths.length - 1 - commonSuffixLength] === globalPaths[globalPaths.length - 1 - commonSuffixLength]) {
+			commonSuffixLength++;
+		}
+		return paths.slice(0, paths.length - commonSuffixLength);
+	};
+};
+
 //#endregion
 
 //#region Add support for using node_modules.asar
+
 /**
  * @param {string=} nodeModulesPath
  */
 exports.enableASARSupport = function (nodeModulesPath) {
-
-	// @ts-ignore
 	const Module = require('module');
 	const path = require('path');
 
@@ -88,9 +109,11 @@ exports.enableASARSupport = function (nodeModulesPath) {
 		return paths;
 	};
 };
+
 //#endregion
 
 //#region URI helpers
+
 /**
  * @param {string} _path
  * @returns {string}
@@ -113,9 +136,11 @@ exports.uriFromPath = function (_path) {
 
 	return uri.replace(/#/g, '%23');
 };
+
 //#endregion
 
 //#region FS helpers
+
 /**
  * @param {string} file
  * @returns {Promise<string>}
@@ -162,9 +187,11 @@ exports.mkdirp = function mkdirp(dir) {
 
 	return new Promise((c, e) => fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
 };
+
 //#endregion
 
 //#region NLS helpers
+
 /**
  * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean }}
  */
@@ -212,14 +239,15 @@ exports.setupNLS = function () {
 
 	return nlsConfig;
 };
+
 //#endregion
 
 //#region Portable helpers
+
 /**
  * @returns {{ portableDataPath: string, isPortable: boolean }}
  */
 exports.configurePortable = function () {
-	// @ts-ignore
 	const product = require('../product.json');
 	const path = require('path');
 	const fs = require('fs');
@@ -247,6 +275,7 @@ exports.configurePortable = function () {
 			return path.join(getApplicationPath(), 'data');
 		}
 
+		// @ts-ignore
 		const portableDataName = product.portable || `${product.applicationName}-portable-data`;
 		return path.join(path.dirname(getApplicationPath()), portableDataName);
 	}
@@ -276,16 +305,17 @@ exports.configurePortable = function () {
 		isPortable
 	};
 };
+
 //#endregion
 
 //#region ApplicationInsights
-/**
- * Prevents appinsights from monkey patching modules.
- * This should be called before importing the applicationinsights module
- */
+
+// Prevents appinsights from monkey patching modules.
+// This should be called before importing the applicationinsights module
 exports.avoidMonkeyPatchFromAppInsights = function () {
 	// @ts-ignore
 	process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = true; // Skip monkey patching of 3rd party modules by appinsights
 	global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
 };
+
 //#endregion

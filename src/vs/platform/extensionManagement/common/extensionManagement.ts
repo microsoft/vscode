@@ -10,6 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionManifest, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IExeBasedExtensionTip } from 'vs/platform/product/common/productService';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -91,7 +92,9 @@ export interface IGalleryMetadata {
 
 export interface ILocalExtension extends IExtension {
 	readonly manifest: IExtensionManifest;
-	metadata: IGalleryMetadata;
+	isMachineScoped: boolean;
+	publisherId: string | null;
+	publisherDisplayName: string | null;
 	readmeUrl: URI | null;
 	changelogUrl: URI | null;
 }
@@ -146,11 +149,11 @@ export interface ITranslation {
 }
 
 export interface IExtensionGalleryService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<URI>;
+	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
 	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
 	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest | null>;
@@ -186,8 +189,14 @@ export const INSTALL_ERROR_NOT_SUPPORTED = 'notsupported';
 export const INSTALL_ERROR_MALICIOUS = 'malicious';
 export const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
 
+export class ExtensionManagementError extends Error {
+	constructor(message: string, readonly code: string) {
+		super(message);
+	}
+}
+
 export interface IExtensionManagementService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtension: Event<DidInstallExtensionEvent>;
@@ -195,10 +204,10 @@ export interface IExtensionManagementService {
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	zip(extension: ILocalExtension): Promise<URI>;
-	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier>;
+	unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
 	getManifest(vsix: URI): Promise<IExtensionManifest>;
-	install(vsix: URI): Promise<ILocalExtension>;
-	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension>;
+	install(vsix: URI, isMachineScoped?: boolean): Promise<ILocalExtension>;
+	installFromGallery(extension: IGalleryExtension, isMachineScoped?: boolean): Promise<ILocalExtension>;
 	uninstall(extension: ILocalExtension, force?: boolean): Promise<void>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]>;
@@ -212,7 +221,7 @@ export const ENABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/enabled';
 export const IGlobalExtensionEnablementService = createDecorator<IGlobalExtensionEnablementService>('IGlobalExtensionEnablementService');
 
 export interface IGlobalExtensionEnablementService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	readonly onDidChangeEnablement: Event<{ readonly extensions: IExtensionIdentifier[], readonly source?: string }>;
 
 	getDisabledExtensions(): IExtensionIdentifier[];
@@ -221,6 +230,28 @@ export interface IGlobalExtensionEnablementService {
 
 }
 
+export type IConfigBasedExtensionTip = {
+	readonly extensionId: string,
+	readonly extensionName: string,
+	readonly isExtensionPack: boolean,
+	readonly configName: string,
+	readonly important: boolean,
+};
+export type IExecutableBasedExtensionTip = { extensionId: string } & Omit<Omit<IExeBasedExtensionTip, 'recommendations'>, 'important'>;
+export type IWorkspaceTips = { readonly remoteSet: string[]; readonly recommendations: string[]; };
+
+export const IExtensionTipsService = createDecorator<IExtensionTipsService>('IExtensionTipsService');
+export interface IExtensionTipsService {
+	readonly _serviceBrand: undefined;
+
+	getConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]>;
+	getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
+	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
+	getAllWorkspacesTips(): Promise<IWorkspaceTips[]>;
+}
+
+
+export const DefaultIconPath = require.toUrl('./media/defaultIcon.png');
 export const ExtensionsLabel = localize('extensions', "Extensions");
 export const ExtensionsChannelId = 'extensions';
 export const PreferencesLabel = localize('preferences', "Preferences");

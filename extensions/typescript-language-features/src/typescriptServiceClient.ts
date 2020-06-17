@@ -27,6 +27,7 @@ import Tracer from './utils/tracer';
 import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
 import { TypeScriptVersionManager } from './utils/versionManager';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
+import { EventName } from './protocol.const';
 
 const localize = nls.loadMessageBundle();
 
@@ -140,7 +141,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 		this.versionProvider = new TypeScriptVersionProvider(this._configuration);
 		this.pluginPathsProvider = new TypeScriptPluginPathsProvider(this._configuration);
-		this._versionManager = this._register(new TypeScriptVersionManager(this.versionProvider, this.workspaceState));
+		this._versionManager = this._register(new TypeScriptVersionManager(this._configuration, this.versionProvider, this.workspaceState));
 		this._register(this._versionManager.onDidPickNewVersion(() => {
 			this.restartTsServer();
 		}));
@@ -163,6 +164,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this._configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 
 			this.versionProvider.updateConfiguration(this._configuration);
+			this._versionManager.updateConfiguration(this._configuration);
 			this.pluginPathsProvider.updateConfiguration(this._configuration);
 			this.tracer.updateConfiguration();
 
@@ -298,7 +300,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (newState.type === ServerState.Type.Running) {
 			return newState;
 		}
-		throw new Error('Could not create TS service');
+		throw new Error(`Could not create TS service. Service state:${JSON.stringify(newState)}`);
 	}
 
 	public ensureServiceStarted() {
@@ -309,7 +311,15 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private token: number = 0;
 	private startService(resendModels: boolean = false): ServerState.State {
-		if (this.isDisposed || this.hasServerFatallyCrashedTooManyTimes) {
+		this.info(`Starting TS Server `);
+
+		if (this.isDisposed) {
+			this.info(`Not starting server. Disposed `);
+			return ServerState.None;
+		}
+
+		if (this.hasServerFatallyCrashedTooManyTimes) {
+			this.info(`Not starting server. Too many crashes.`);
 			return ServerState.None;
 		}
 
@@ -382,10 +392,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			if (code === null || typeof code === 'undefined') {
 				this.info('TSServer exited');
 			} else {
+				// In practice, the exit code is an integer with no ties to any identity,
+				// so it can be classified as SystemMetaData, rather than CallstackOrException.
 				this.error(`TSServer exited with code: ${code}`);
 				/* __GDPR__
 					"tsserver.exitWithCode" : {
-						"code" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+						"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						"${include}": [
 							"${TypeScriptCommonProperties}"
 						]
@@ -405,7 +417,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		handle.onEvent(event => this.dispatchEvent(event));
 
 		this._onReady!.resolve();
-		this._onTsServerStarted.fire(version.apiVersion);
+		this._onTsServerStarted.fire(apiVersion);
 
 		if (apiVersion.gte(API.v300)) {
 			this.loadingIndicator.startedLoadingProject(undefined /* projectName */);
@@ -510,6 +522,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			allowJs: true,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,
+			resolveJsonModule: true,
 		};
 	}
 
@@ -618,7 +631,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public toResource(filepath: string): vscode.Uri {
-		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
+		if (filepath.match(/^[a-z]{2,}:/) || filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
 		) {
 			let resource = vscode.Uri.parse(filepath);
 			const dirName = path.dirname(resource.path);
@@ -748,9 +761,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private dispatchEvent(event: Proto.Event) {
 		switch (event.event) {
-			case 'syntaxDiag':
-			case 'semanticDiag':
-			case 'suggestionDiag':
+			case EventName.syntaxDiag:
+			case EventName.semanticDiag:
+			case EventName.suggestionDiag:
 				// This event also roughly signals that projects have been loaded successfully (since the TS server is synchronous)
 				this.loadingIndicator.reset();
 
@@ -764,17 +777,17 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 				break;
 
-			case 'configFileDiag':
+			case EventName.configFileDiag:
 				this._onConfigDiagnosticsReceived.fire(event as Proto.ConfigFileDiagnosticEvent);
 				break;
 
-			case 'telemetry':
+			case EventName.telemetry:
 				{
 					const body = (event as Proto.TelemetryEvent).body;
 					this.dispatchTelemetryEvent(body);
 					break;
 				}
-			case 'projectLanguageServiceState':
+			case EventName.projectLanguageServiceState:
 				{
 					const body = (event as Proto.ProjectLanguageServiceStateEvent).body!;
 					if (this.serverState.type === ServerState.Type.Running) {
@@ -783,33 +796,33 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this._onProjectLanguageServiceStateChanged.fire(body);
 					break;
 				}
-			case 'projectsUpdatedInBackground':
+			case EventName.projectsUpdatedInBackground:
 				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
 				const resources = body.openFiles.map(file => this.toResource(file));
 				this.bufferSyncSupport.getErr(resources);
 				break;
 
-			case 'beginInstallTypes':
+			case EventName.beginInstallTypes:
 				this._onDidBeginInstallTypings.fire((event as Proto.BeginInstallTypesEvent).body);
 				break;
 
-			case 'endInstallTypes':
+			case EventName.endInstallTypes:
 				this._onDidEndInstallTypings.fire((event as Proto.EndInstallTypesEvent).body);
 				break;
 
-			case 'typesInstallerInitializationFailed':
+			case EventName.typesInstallerInitializationFailed:
 				this._onTypesInstallerInitializationFailed.fire((event as Proto.TypesInstallerInitializationFailedEvent).body);
 				break;
 
-			case 'surveyReady':
+			case EventName.surveyReady:
 				this._onSurveyReady.fire((event as Proto.SurveyReadyEvent).body);
 				break;
 
-			case 'projectLoadingStart':
+			case EventName.projectLoadingStart:
 				this.loadingIndicator.startedLoadingProject((event as Proto.ProjectLoadingStartEvent).body.projectName);
 				break;
 
-			case 'projectLoadingFinish':
+			case EventName.projectLoadingFinish:
 				this.loadingIndicator.finishedLoadingProject((event as Proto.ProjectLoadingFinishEvent).body.projectName);
 				break;
 		}

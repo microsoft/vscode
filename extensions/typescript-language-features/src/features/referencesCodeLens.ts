@@ -94,7 +94,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 			case PConst.Kind.enum:
 				return getSymbolRange(document, item);
 
-			case PConst.Kind.memberFunction:
+			case PConst.Kind.method:
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 			case PConst.Kind.constructorImplementation:

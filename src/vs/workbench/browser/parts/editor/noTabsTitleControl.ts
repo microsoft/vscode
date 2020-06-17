@@ -9,7 +9,7 @@ import { TitleControl, IToolbarActions } from 'vs/workbench/browser/parts/editor
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { addDisposableListener, EventType, addClass, EventHelper, removeClass, toggleClass } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, addClass, EventHelper, removeClass, toggleClass, Dimension } from 'vs/base/browser/dom';
 import { EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
 import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -88,8 +88,8 @@ export class NoTabsTitleControl extends TitleControl {
 	private onTitleLabelClick(e: MouseEvent): void {
 		EventHelper.stop(e, false);
 
-		// delayed to let the onTitleClick() come first which can cause a focus change which can close quick open
-		setTimeout(() => this.quickOpenService.show());
+		// delayed to let the onTitleClick() come first which can cause a focus change which can close quick access
+		setTimeout(() => this.quickInputService.quickAccess.show());
 	}
 
 	private onTitleDoubleClick(e: MouseEvent): void {
@@ -99,7 +99,6 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	private onTitleClick(e: MouseEvent | GestureEvent): void {
-
 		if (e instanceof MouseEvent) {
 			// Close editor on middle mouse click
 			if (e.button === 1 /* Middle Button */) {
@@ -110,11 +109,11 @@ export class NoTabsTitleControl extends TitleControl {
 				}
 			}
 		} else {
-			// @rebornix
-			// gesture tap should open the quick open
+			// TODO@rebornix
+			// gesture tap should open the quick access
 			// editorGroupView will focus on the editor again when there are mouse/pointer/touch down events
 			// we need to wait a bit as `GesureEvent.Tap` is generated from `touchstart` and then `touchend` evnets, which are not an atom event.
-			setTimeout(() => this.quickOpenService.show(), 50);
+			setTimeout(() => this.quickInputService.quickAccess.show(), 50);
 		}
 	}
 
@@ -137,16 +136,20 @@ export class NoTabsTitleControl extends TitleControl {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
 
-	closeAllEditors(): void {
-		this.redraw();
-	}
-
 	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
 
 	pinEditor(editor: IEditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
+	}
+
+	stickEditor(editor: IEditorInput): void {
+		// Sticky editors are not presented any different with tabs disabled
+	}
+
+	unstickEditor(editor: IEditorInput): void {
+		// Sticky editors are not presented any different with tabs disabled
 	}
 
 	setActive(isActive: boolean): void {
@@ -220,7 +223,6 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-
 	private ifEditorIsActive(editor: IEditorInput, fn: () => void): void {
 		if (this.group.isActive(editor)) {
 			fn();  // only run if editor is current active
@@ -230,7 +232,7 @@ export class NoTabsTitleControl extends TitleControl {
 	private redraw(): void {
 		const editor = withNullAsUndefined(this.group.activeEditor);
 
-		const isEditorPinned = this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false;
+		const isEditorPinned = editor ? this.group.isPinned(editor) : false;
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
 		this.activeLabel = { editor, pinned: isEditorPinned };
@@ -260,9 +262,6 @@ export class NoTabsTitleControl extends TitleControl {
 			this.updateEditorDirty(editor);
 
 			// Editor Label
-			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
-			const name = editor.getName();
-
 			const { labelFormat } = this.accessor.partOptions;
 			let description: string;
 			if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
@@ -278,7 +277,19 @@ export class NoTabsTitleControl extends TitleControl {
 				title = ''; // dont repeat what is already shown
 			}
 
-			editorLabel.setResource({ name, description, resource }, { title: typeof title === 'string' ? title : undefined, italic: !isEditorPinned, extraClasses: ['no-tabs', 'title-label'] });
+			editorLabel.setResource(
+				{
+					resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }),
+					name: editor.getName(),
+					description
+				},
+				{
+					title,
+					italic: !isEditorPinned,
+					extraClasses: ['no-tabs', 'title-label']
+				}
+			);
+
 			if (isGroupActive) {
 				editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND) || '';
 			} else {
@@ -308,5 +319,11 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Group inactive: only show close action
 		return { primaryEditorActions: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID), secondaryEditorActions: [] };
+	}
+
+	layout(dimension: Dimension): void {
+		if (this.breadcrumbsControl) {
+			this.breadcrumbsControl.layout(undefined);
+		}
 	}
 }

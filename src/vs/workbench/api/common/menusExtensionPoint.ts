@@ -10,7 +10,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuId, MenuRegistry, ILocalizedString, IMenuItem } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, ILocalizedString, IMenuItem, ICommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -37,13 +37,13 @@ namespace schema {
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
 			case 'debug/toolbar': return MenuId.DebugToolBar;
 			case 'debug/toolBar': return MenuId.DebugToolBar;
-			case 'menuBar/file': return MenuId.MenubarFileMenu;
+			case 'menuBar/webNavigation': return MenuId.MenubarWebNavigationMenu;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/sourceControl': return MenuId.SCMSourceControl;
-			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
+			case 'scm/resourceState/context': return MenuId.SCMResourceContext;//
 			case 'scm/resourceFolder/context': return MenuId.SCMResourceFolderContext;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
-			case 'scm/change/title': return MenuId.SCMChangeContext;
+			case 'scm/change/title': return MenuId.SCMChangeContext;//
 			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu;
 			case 'view/title': return MenuId.ViewTitle;
 			case 'view/item/context': return MenuId.ViewItemContext;
@@ -51,6 +51,7 @@ namespace schema {
 			case 'comments/commentThread/context': return MenuId.CommentThreadActions;
 			case 'comments/comment/title': return MenuId.CommentTitle;
 			case 'comments/comment/context': return MenuId.CommentActions;
+			case 'notebook/cell/title': return MenuId.NotebookCellTitle;
 			case 'extension/context': return MenuId.ExtensionContext;
 			case 'timeline/title': return MenuId.TimelineTitle;
 			case 'timeline/item/context': return MenuId.TimelineItemContext;
@@ -62,7 +63,8 @@ namespace schema {
 	export function isProposedAPI(menuId: MenuId): boolean {
 		switch (menuId) {
 			case MenuId.StatusBarWindowIndicatorMenu:
-			case MenuId.MenubarFileMenu:
+			case MenuId.MenubarWebNavigationMenu:
+			case MenuId.NotebookCellTitle:
 				return true;
 		}
 		return false;
@@ -162,6 +164,11 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
+			'menuBar/webNavigation': {
+				description: localize('menus.webNavigation', "The top level navigational menu (web only)"),
+				type: 'array',
+				items: menuItem
+			},
 			'scm/title': {
 				description: localize('menus.scmTitle', "The Source Control title menu"),
 				type: 'array',
@@ -179,6 +186,16 @@ namespace schema {
 			},
 			'scm/resourceState/context': {
 				description: localize('menus.resourceStateContext', "The Source Control resource state context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'scm/resourceFolder/context': {
+				description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'scm/change/title': {
+				description: localize('menus.changeTitle', "The Source Control inline change menu"),
 				type: 'array',
 				items: menuItem
 			},
@@ -209,6 +226,11 @@ namespace schema {
 			},
 			'comments/comment/context': {
 				description: localize('comment.actions', "The contributed comment context menu, rendered as buttons below the comment editor"),
+				type: 'array',
+				items: menuItem
+			},
+			'notebook/cell/title': {
+				description: localize('notebook.cell.title', "The contributed notebook cell title menu"),
 				type: 'array',
 				items: menuItem
 			},
@@ -358,7 +380,7 @@ export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<
 
 commandsExtensionPoint.setHandler(extensions => {
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>, bucket: ICommandAction[]) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;
@@ -382,29 +404,30 @@ commandsExtensionPoint.setHandler(extensions => {
 		if (MenuRegistry.getCommand(command)) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
-		const registration = MenuRegistry.addCommand({
+		bucket.push({
 			id: command,
 			title,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon
 		});
-		_commandRegistrations.add(registration);
 	}
 
 	// remove all previous command registrations
 	_commandRegistrations.clear();
 
+	const newCommands: ICommandAction[] = [];
 	for (const extension of extensions) {
 		const { value } = extension;
 		if (Array.isArray(value)) {
 			for (const command of value) {
-				handleCommand(command, extension);
+				handleCommand(command, extension, newCommands);
 			}
 		} else {
-			handleCommand(value, extension);
+			handleCommand(value, extension, newCommands);
 		}
 	}
+	_commandRegistrations.add(MenuRegistry.addCommands(newCommands));
 });
 
 const _menuRegistrations = new DisposableStore();
@@ -416,6 +439,8 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 
 	// remove all previous menu registrations
 	_menuRegistrations.clear();
+
+	const items: { id: MenuId, item: IMenuItem }[] = [];
 
 	for (let extension of extensions) {
 		const { value, collector } = extension;
@@ -438,7 +463,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 
 			for (let item of entry.value) {
 				let command = MenuRegistry.getCommand(item.command);
-				let alt = item.alt && MenuRegistry.getCommand(item.alt);
+				let alt = item.alt && MenuRegistry.getCommand(item.alt) || undefined;
 
 				if (!command) {
 					collector.error(localize('missing.command', "Menu item references a command `{0}` which is not defined in the 'commands' section.", item.command));
@@ -463,15 +488,19 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 					}
 				}
 
-				const registration = MenuRegistry.appendMenuItem(menu, {
-					command,
-					alt,
-					group,
-					order,
-					when: ContextKeyExpr.deserialize(item.when)
-				} as IMenuItem);
-				_menuRegistrations.add(registration);
+				items.push({
+					id: menu,
+					item: {
+						command,
+						alt,
+						group,
+						order,
+						when: ContextKeyExpr.deserialize(item.when)
+					}
+				});
 			}
 		});
 	}
+
+	_menuRegistrations.add(MenuRegistry.appendMenuItems(items));
 });

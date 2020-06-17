@@ -25,7 +25,7 @@ import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { IMatch } from 'vs/base/common/filters';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -71,9 +71,13 @@ interface IRelatedInformationTemplateData {
 	description: HighlightedLabel;
 }
 
-export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider<TreeElement> {
+export class MarkersTreeAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
 	constructor(@ILabelService private readonly labelService: ILabelService) { }
+
+	getWidgetAriaLabel(): string {
+		return localize('problemsView', "Problems View");
+	}
 
 	public getAriaLabel(element: TreeElement): string | null {
 		if (element instanceof ResourceMarkers) {
@@ -845,7 +849,7 @@ export class ResourceDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, originalEvent);
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, undefined, originalEvent);
 		}
 	}
 

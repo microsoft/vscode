@@ -10,6 +10,7 @@ export namespace EditorContextKeys {
 	export const editorSimpleInput = new RawContextKey<boolean>('editorSimpleInput', false);
 	/**
 	 * A context key that is set when the editor's text has focus (cursor is blinking).
+	 * Is false when focus is in simple editor widgets (repl input, scm commit input).
 	 */
 	export const editorTextFocus = new RawContextKey<boolean>('editorTextFocus', false);
 	/**
@@ -31,9 +32,18 @@ export namespace EditorContextKeys {
 	export const hasSingleSelection = hasMultipleSelections.toNegated();
 	export const tabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false);
 	export const tabDoesNotMoveFocus = tabMovesFocus.toNegated();
-	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', false);
+	export const isInWalkThroughSnippet = new RawContextKey<boolean>('isInEmbeddedEditor', false);
 	export const canUndo = new RawContextKey<boolean>('canUndo', false);
 	export const canRedo = new RawContextKey<boolean>('canRedo', false);
+
+	export const hoverVisible = new RawContextKey<boolean>('editorHoverVisible', false);
+
+	/**
+	 * A context key that is set when an editor is part of a larger editor, like notebooks or
+	 * (future) a diff editor
+	 */
+	export const inCompositeEditor = new RawContextKey<boolean>('inCompositeEditor', undefined);
+	export const notInCompositeEditor = inCompositeEditor.toNegated();
 
 	// -- mode context keys
 	export const languageId = new RawContextKey<string>('editorLangId', '');

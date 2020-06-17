@@ -17,6 +17,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IProductConfiguration } from 'vs/platform/product/common/productService';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -25,6 +26,7 @@ interface IResourceUriProvider {
 interface IStaticExtension {
 	packageJSON: IExtensionManifest;
 	extensionLocation: URI;
+	isBuiltin?: boolean;
 }
 
 interface ICommontTelemetryPropertiesResolver {
@@ -35,54 +37,48 @@ interface IExternalUriResolver {
 	(uri: URI): Promise<URI>;
 }
 
-interface TunnelOptions {
+interface ITunnelProvider {
+	/**
+	 * Support for creating tunnels.
+	 */
+	tunnelFactory?: ITunnelFactory;
+	/**
+	 * Support for filtering candidate ports
+	 */
+	showPortCandidate?: IShowPortCandidate;
+}
+
+interface ITunnelFactory {
+	(tunnelOptions: ITunnelOptions): Promise<ITunnel> | undefined;
+}
+
+interface ITunnelOptions {
 	remoteAddress: { port: number, host: string };
+
 	/**
 	 * The desired local port. If this port can't be used, then another will be chosen.
 	 */
 	localAddressPort?: number;
+
 	label?: string;
 }
 
-interface Tunnel extends IDisposable {
+interface ITunnel extends IDisposable {
 	remoteAddress: { port: number, host: string };
+
 	/**
 	 * The complete local address(ex. localhost:1234)
 	 */
 	localAddress: string;
+
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
 	onDidDispose: Event<void>;
 }
 
-interface ITunnelFactory {
-	(tunnelOptions: TunnelOptions): Thenable<Tunnel> | undefined;
-}
-
-interface IShowCandidate {
-	(host: string, port: number, detail: string): Thenable<boolean>;
-}
-
-interface IApplicationLink {
-
-	/**
-	 * A link that is opened in the OS. If you want to open VSCode it must
-	 * follow our expected structure of links:
-	 *
-	 * <vscode|vscode-insiders>://<file|vscode-remote>/<remote-authority>/<path>
-	 *
-	 * For example:
-	 *
-	 * vscode://vscode-remote/vsonline+2005711d/home/vsonline/workspace for
-	 * a remote folder in VSO or vscode://file/home/workspace for a local folder.
-	 */
-	uri: URI;
-
-	/**
-	 * A label for the application link to display.
-	 */
-	label: string;
+interface IShowPortCandidate {
+	(host: string, port: number, detail: string): Promise<boolean>;
 }
 
 interface ICommand {
@@ -94,9 +90,96 @@ interface ICommand {
 	id: string,
 
 	/**
-	 * A function that is being executed with any arguments passed over.
+	 * A function that is being executed with any arguments passed over. The
+	 * return type will be send back to the caller.
+	 *
+	 * Note: arguments and return type should be serializable so that they can
+	 * be exchanged across processes boundaries.
 	 */
-	handler: (...args: any[]) => void;
+	handler: (...args: any[]) => unknown;
+}
+
+interface IHomeIndicator {
+
+	/**
+	 * The link to open when clicking the home indicator.
+	 */
+	href: string;
+
+	/**
+	 * @deprecated use `href` instead.
+	 */
+	command?: string;
+
+	/**
+	 * The icon name for the home indicator. This needs to be one of the existing
+	 * icons from our Codicon icon set. For example `sync`.
+	 */
+	icon: string;
+
+	/**
+	 * A tooltip that will appear while hovering over the home indicator.
+	 */
+	title: string;
+}
+
+interface IDefaultSideBarLayout {
+	visible?: boolean;
+	containers?: ({
+		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
+		active: true;
+		order?: number;
+		views?: {
+			id: string;
+			order?: number;
+			visible?: boolean;
+			collapsed?: boolean;
+		}[];
+	} | {
+		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
+		active?: false;
+		order?: number;
+		visible?: boolean;
+		views?: {
+			id: string;
+			order?: number;
+			visible?: boolean;
+			collapsed?: boolean;
+		}[];
+	})[];
+}
+
+interface IDefaultPanelLayout {
+	visible?: boolean;
+	containers?: ({
+		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
+		order?: number;
+		active: true;
+	} | {
+		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
+		order?: number;
+		active?: false;
+		visible?: boolean;
+	})[];
+}
+
+interface IDefaultView {
+	readonly id: string;
+}
+
+interface IDefaultEditor {
+	readonly uri: UriComponents;
+	readonly openOnlyIfExists?: boolean;
+	readonly openWith?: string;
+}
+
+interface IDefaultLayout {
+	/** @deprecated Use views instead */
+	readonly sidebar?: IDefaultSideBarLayout;
+	/** @deprecated Use views instead */
+	readonly panel?: IDefaultPanelLayout;
+	readonly views?: IDefaultView[];
+	readonly editors?: IDefaultEditor[];
 }
 
 interface IWorkbenchConstructionOptions {
@@ -136,14 +219,10 @@ interface IWorkbenchConstructionOptions {
 	readonly resolveExternalUri?: IExternalUriResolver;
 
 	/**
-	 * Support for creating tunnels.
+	 * A provider for supplying tunneling functionality,
+	 * such as creating tunnels and showing candidate ports to forward.
 	 */
-	readonly tunnelFactory?: ITunnelFactory;
-
-	/**
-	 * Support for filtering candidate ports
-	 */
-	readonly showCandidate?: IShowCandidate;
+	readonly tunnelProvider?: ITunnelProvider;
 
 	//#endregion
 
@@ -160,6 +239,16 @@ interface IWorkbenchConstructionOptions {
 	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
 	 */
 	userDataProvider?: IFileSystemProvider;
+
+	/**
+	 * Session id of the current authenticated user
+	 */
+	readonly authenticationSessionId?: string;
+
+	/**
+	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
+	 */
+	readonly enableSyncByDefault?: boolean;
 
 	/**
 	 * The credentials provider to store and retrieve secrets.
@@ -187,24 +276,32 @@ interface IWorkbenchConstructionOptions {
 	readonly resolveCommonTelemetryProperties?: ICommontTelemetryPropertiesResolver;
 
 	/**
-	 * Provide entries for the "Open in Desktop" feature.
-	 *
-	 * Depending on the returned elements the behaviour is:
-	 * - no elements: there will not be a "Open in Desktop" affordance
-	 * - 1 element: there will be a "Open in Desktop" affordance that opens on click
-	 *   and it will use the label provided by the link
-	 * - N elements: there will be a "Open in Desktop" affordance that opens
-	 *   a picker on click to select which application to open.
-	 */
-	readonly applicationLinks?: readonly IApplicationLink[];
-
-	/**
 	 * A set of optional commands that should be registered with the commands
 	 * registry.
 	 *
 	 * Note: commands can be called from extensions if the identifier is known!
 	 */
 	readonly commands?: readonly ICommand[];
+
+	/**
+	 * Optional default layout to apply on first time the workspace is opened.
+	 */
+	readonly defaultLayout?: IDefaultLayout;
+
+	//#endregion
+
+
+	//#region Branding
+
+	/**
+	 * Optional home indicator to appear above the hamburger menu in the activity bar.
+	 */
+	readonly homeIndicator?: IHomeIndicator;
+
+	/**
+	 * Optional override for the product configuration properties.
+	 */
+	readonly productConfiguration?: Partial<IProductConfiguration>;
 
 	//#endregion
 
@@ -224,16 +321,34 @@ interface IWorkbenchConstructionOptions {
 	//#endregion
 }
 
+interface IWorkbench {
+	commands: {
+		executeCommand(command: string, ...args: any[]): Promise<unknown>;
+	}
+}
+
 /**
  * Creates the workbench with the provided options in the provided container.
  *
  * @param domElement the container to create the workbench in
  * @param options for setting up the workbench
  */
+let created = false;
+let workbenchPromiseResolve: Function;
+const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
 async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
 
-	// Startup workbench
-	await main(domElement, options);
+	// Assert that the workbench is not created more than once. We currently
+	// do not support this and require a full context switch to clean-up.
+	if (created) {
+		throw new Error('Unable to create the VSCode workbench more than once.');
+	} else {
+		created = true;
+	}
+
+	// Startup workbench and resolve waiters
+	const workbench = await main(domElement, options);
+	workbenchPromiseResolve(workbench);
 
 	// Register commands if any
 	if (Array.isArray(options.commands)) {
@@ -241,9 +356,28 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 			CommandsRegistry.registerCommand(command.id, (accessor, ...args) => {
 				// we currently only pass on the arguments but not the accessor
 				// to the command to reduce our exposure of internal API.
-				command.handler(...args);
+				return command.handler(...args);
 			});
 		}
+	}
+}
+
+
+//#region API Facade
+
+namespace commands {
+
+	/**
+	* Allows to execute any command if known with the provided arguments.
+	*
+	* @param command Identifier of the command to execute.
+	* @param rest Parameters passed to the command function.
+	* @return A promise that resolves to the returned value of the given command.
+	*/
+	export async function executeCommand(command: string, ...args: any[]): Promise<unknown> {
+		const workbench = await workbenchPromise;
+
+		return workbench.commands.executeCommand(command, ...args);
 	}
 }
 
@@ -252,7 +386,7 @@ export {
 	// Factory
 	create,
 	IWorkbenchConstructionOptions,
-
+	IWorkbench,
 
 	// Basic Types
 	URI,
@@ -302,9 +436,29 @@ export {
 	// External Uris
 	IExternalUriResolver,
 
-	// Protocol Links
-	IApplicationLink,
+	// Tunnel
+	ITunnelProvider,
+	ITunnelFactory,
+	ITunnel,
+	ITunnelOptions,
+
+	// Ports
+	IShowPortCandidate,
 
 	// Commands
-	ICommand
+	ICommand,
+	commands,
+
+	// Branding
+	IHomeIndicator,
+	IProductConfiguration,
+
+	// Default layout
+	IDefaultView,
+	IDefaultEditor,
+	IDefaultLayout,
+	IDefaultPanelLayout,
+	IDefaultSideBarLayout
 };
+
+//#endregion

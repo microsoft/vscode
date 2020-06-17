@@ -40,12 +40,17 @@ import { coalesce } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { openEditorWith } from 'vs/workbench/contrib/files/common/openWith';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 // Commands
 
 export const REVEAL_IN_EXPLORER_COMMAND_ID = 'revealInExplorer';
 export const REVERT_FILE_COMMAND_ID = 'workbench.action.files.revert';
 export const OPEN_TO_SIDE_COMMAND_ID = 'explorer.openToSide';
+export const OPEN_WITH_EXPLORER_COMMAND_ID = 'explorer.openWith';
 export const SELECT_FOR_COMPARE_COMMAND_ID = 'selectForCompare';
 
 export const COMPARE_SELECTED_COMMAND_ID = 'compareSelected';
@@ -80,6 +85,8 @@ export const PREVIOUS_COMPRESSED_FOLDER = 'previousCompressedFolder';
 export const NEXT_COMPRESSED_FOLDER = 'nextCompressedFolder';
 export const FIRST_COMPRESSED_FOLDER = 'firstCompressedFolder';
 export const LAST_COMPRESSED_FOLDER = 'lastCompressedFolder';
+export const NEW_UNTITLED_FILE_COMMAND_ID = 'workbench.action.files.newUntitledFile';
+export const NEW_UNTITLED_FILE_LABEL = nls.localize('newUntitledFile', "New Untitled File");
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -313,6 +320,22 @@ CommandsRegistry.registerCommand({
 	}
 });
 
+CommandsRegistry.registerCommand({
+	id: OPEN_WITH_EXPLORER_COMMAND_ID,
+	handler: async (accessor, resource: URI | object) => {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const configurationService = accessor.get(IConfigurationService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
+		if (uri) {
+			const input = editorService.createEditorInput({ resource: uri });
+			openEditorWith(input, undefined, undefined, editorGroupsService.activeGroup, editorService, configurationService, quickInputService);
+		}
+	}
+});
+
 // Save / Save As / Save All / Revert
 
 async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<void> {
@@ -489,10 +512,10 @@ CommandsRegistry.registerCommand({
 	handler: (accessor, resource: URI | object) => {
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const contextService = accessor.get(IWorkspaceContextService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
 		const workspace = contextService.getWorkspace();
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService)).filter(r =>
-			// Need to verify resources are workspaces since multi selection can trigger this command on some non workspace resources
-			workspace.folders.some(f => isEqual(f.uri, r))
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService)).filter(resource =>
+			workspace.folders.some(folder => uriIdentityService.extUri.isEqual(folder.uri, resource)) // Need to verify resources are workspaces since multi selection can trigger this command on some non workspace resources
 		);
 
 		return workspaceEditingService.removeFolders(resources);
@@ -574,5 +597,43 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const explorer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
 		const view = explorer.getExplorerView();
 		view.lastCompressedStat();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: null,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_N,
+	id: NEW_UNTITLED_FILE_COMMAND_ID,
+	description: {
+		description: NEW_UNTITLED_FILE_LABEL,
+		args: [
+			{
+				name: 'viewType', description: 'The editor view type', schema: {
+					'type': 'object',
+					'required': ['viewType'],
+					'properties': {
+						'viewType': {
+							'type': 'string'
+						}
+					}
+				}
+			}
+		]
+	},
+	handler: async (accessor, args?: { viewType: string }) => {
+		const editorService = accessor.get(IEditorService);
+
+		if (args) {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const configurationService = accessor.get(IConfigurationService);
+			const quickInputService = accessor.get(IQuickInputService);
+
+			const textInput = editorService.createEditorInput({ options: { pinned: true } });
+			const group = editorGroupsService.activeGroup;
+			await openEditorWith(textInput, args.viewType, { pinned: true }, group, editorService, configurationService, quickInputService);
+		} else {
+			await editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
+		}
 	}
 });

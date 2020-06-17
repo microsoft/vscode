@@ -182,7 +182,10 @@
 		},
 		{
 			"name": "Library constant",
-			"scope": "support.constant",
+			"scope": [
+				"support.constant",
+				"support.variable"
+			],
 			"settings": {}
 		},
 		{
@@ -484,5 +487,6 @@
 
 		// Interactive Playground
 		"walkThrough.embeddedEditorBackground": "#00000014"
-	}
+	},
+	"semanticHighlighting": true
 }

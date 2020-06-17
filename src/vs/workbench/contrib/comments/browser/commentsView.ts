@@ -27,8 +27,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ResourceNavigator } from 'vs/platform/list/browser/listService';
-
 
 export class CommentsPanel extends ViewPane {
 	private treeLabels!: ResourceLabels;
@@ -55,7 +53,7 @@ export class CommentsPanel extends ViewPane {
 		@ICommentService private readonly commentService: ICommentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), id: COMMENTS_VIEW_ID, ariaHeaderLabel: COMMENTS_VIEW_TITLE }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -121,7 +119,7 @@ export class CommentsPanel extends ViewPane {
 
 	public getActions(): IAction[] {
 		if (!this.collapseAllAction) {
-			this.collapseAllAction = new Action('vs.tree.collapse', nls.localize('collapseAll', "Collapse All"), 'monaco-tree-action collapse-all', true, () => this.tree ? new CollapseAllAction<any, any>(this.tree, true).run() : Promise.resolve());
+			this.collapseAllAction = new Action('vs.tree.collapse', nls.localize('collapseAll', "Collapse All"), 'collapse-all', true, () => this.tree ? new CollapseAllAction<any, any>(this.tree, true).run() : Promise.resolve());
 			this._register(this.collapseAllAction);
 		}
 
@@ -129,6 +127,7 @@ export class CommentsPanel extends ViewPane {
 	}
 
 	public layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
 
@@ -149,10 +148,16 @@ export class CommentsPanel extends ViewPane {
 
 	private createTree(): void {
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
-		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer));
+		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer, {
+			overrideStyles: { listBackground: this.getBackgroundColor() },
+			openOnFocus: true,
+			accessibilityProvider: { // TODO@rebornix implement a proper accessibility provider
+				getAriaLabel(element: any): string | null { return null; },
+				getWidgetAriaLabel(): string { return 'Comments'; }
+			}
+		}));
 
-		const commentsNavigator = this._register(ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: true }));
-		this._register(commentsNavigator.onDidOpenResource(e => {
+		this._register(this.tree.onDidOpen(e => {
 			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide);
 		}));
 	}

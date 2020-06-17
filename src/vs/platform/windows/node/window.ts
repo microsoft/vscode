@@ -3,16 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OpenContext, IOpenWindowOptions, IWindowConfiguration, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
-import { URI } from 'vs/base/common/uri';
+import { IWindowConfiguration, IPath, IOpenFileRequest, IPathData } from 'vs/platform/windows/common/windows';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
 import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { ExportData } from 'vs/base/common/performance';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
-export interface INativeWindowConfiguration extends IWindowConfiguration {
+export const enum OpenContext {
+
+	// opening when running from the command line
+	CLI,
+
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// opening from the OS's UI
+	DESKTOP,
+
+	// opening through the API
+	API
+}
+
+export interface IRunActionInWindowRequest {
+	id: string;
+	from: 'menu' | 'touchbar' | 'mouse';
+	args?: any[];
+}
+
+export interface IRunKeybindingInWindowRequest {
+	userSettingsLabel: string;
+}
+
+export interface INativeWindowConfiguration extends IWindowConfiguration, ParsedArgs {
 	mainPid: number;
 
 	windowId: number;
@@ -40,11 +72,19 @@ export interface INativeWindowConfiguration extends IWindowConfiguration {
 	filesToWait?: IPathsToWaitFor;
 }
 
-export interface INativeOpenWindowOptions extends IOpenWindowOptions {
-	diffMode?: boolean;
-	addMode?: boolean;
-	gotoLineMode?: boolean;
-	waitMarkerFileURI?: URI;
+export interface INativeOpenFileRequest extends IOpenFileRequest {
+	termProgram?: string;
+	filesToWait?: IPathsToWaitForData;
+}
+
+export interface IPathsToWaitFor extends IPathsToWaitForData {
+	paths: IPath[];
+	waitMarkerFileUri: URI;
+}
+
+export interface IPathsToWaitForData {
+	paths: IPathData[];
+	waitMarkerFileUri: UriComponents;
 }
 
 export interface IWindowContext {
@@ -84,12 +124,12 @@ function findWindowOnFilePath<W extends IWindowContext>(windows: W[], fileUri: U
 			const resolvedWorkspace = localWorkspaceResolver(workspace);
 			if (resolvedWorkspace) {
 				// workspace could be resolved: It's in the local file system
-				if (resolvedWorkspace.folders.some(folder => isEqualOrParent(fileUri, folder.uri))) {
+				if (resolvedWorkspace.folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, folder.uri))) {
 					return window;
 				}
 			} else {
 				// use the config path instead
-				if (isEqualOrParent(fileUri, workspace.configPath)) {
+				if (extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, workspace.configPath)) {
 					return window;
 				}
 			}
@@ -97,7 +137,7 @@ function findWindowOnFilePath<W extends IWindowContext>(windows: W[], fileUri: U
 	}
 
 	// Then go with single folder windows that are parent of the provided file path
-	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && isEqualOrParent(fileUri, window.openedFolderUri));
+	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, window.openedFolderUri));
 	if (singleFolderWindowsOnFilePath.length) {
 		return singleFolderWindowsOnFilePath.sort((a, b) => -(a.openedFolderUri!.path.length - b.openedFolderUri!.path.length))[0];
 	}
@@ -108,7 +148,7 @@ function findWindowOnFilePath<W extends IWindowContext>(windows: W[], fileUri: U
 export function getLastActiveWindow<W extends IWindowContext>(windows: W[]): W | undefined {
 	const lastFocusedDate = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
 
-	return windows.filter(window => window.lastFocusTime === lastFocusedDate)[0];
+	return windows.find(window => window.lastFocusTime === lastFocusedDate);
 }
 
 export function findWindowOnWorkspace<W extends IWindowContext>(windows: W[], workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)): W | null {
@@ -116,7 +156,7 @@ export function findWindowOnWorkspace<W extends IWindowContext>(windows: W[], wo
 		for (const window of windows) {
 			// match on folder
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				if (window.openedFolderUri && isEqual(window.openedFolderUri, workspace)) {
+				if (window.openedFolderUri && extUriBiasedIgnorePathCase.isEqual(window.openedFolderUri, workspace)) {
 					return window;
 				}
 			}
@@ -155,12 +195,12 @@ export function findWindowOnWorkspaceOrFolderUri<W extends IWindowContext>(windo
 	}
 	for (const window of windows) {
 		// check for workspace config path
-		if (window.openedWorkspace && isEqual(window.openedWorkspace.configPath, uri)) {
+		if (window.openedWorkspace && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.configPath, uri)) {
 			return window;
 		}
 
 		// check for folder path
-		if (window.openedFolderUri && isEqual(window.openedFolderUri, uri)) {
+		if (window.openedFolderUri && extUriBiasedIgnorePathCase.isEqual(window.openedFolderUri, uri)) {
 			return window;
 		}
 	}

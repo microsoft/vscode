@@ -53,6 +53,21 @@ export namespace Schemas {
 	export const vscodeRemoteResource = 'vscode-remote-resource';
 
 	export const userData = 'vscode-userdata';
+
+	export const vscodeCustomEditor = 'vscode-custom-editor';
+
+	export const vscodeNotebook = 'vscode-notebook';
+
+	export const vscodeSettings = 'vscode-settings';
+
+	export const webviewPanel = 'webview-panel';
+
+	export const vscodeWebviewResource = 'vscode-webview-resource';
+
+	/**
+	 * Scheme used for extension pages
+	 */
+	export const extension = 'extension';
 }
 
 class RemoteAuthoritiesImpl {

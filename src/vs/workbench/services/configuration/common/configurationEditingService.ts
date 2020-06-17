@@ -20,7 +20,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService, IConfigurationOverrides, keyFromOverrideIdentifier } from 'vs/platform/configuration/common/configuration';
-import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -434,10 +434,19 @@ export class ConfigurationEditingService {
 		return setProperty(model.getValue(), jsonPath, value, { tabSize, insertSpaces, eol });
 	}
 
+	private defaultResourceValue(resource: URI): string {
+		const basename: string = resources.basename(resource);
+		const configurationValue: string = basename.substr(0, basename.length - resources.extname(resource).length);
+		switch (configurationValue) {
+			case TASKS_CONFIGURATION_KEY: return TASKS_DEFAULT;
+			default: return '{}';
+		}
+	}
+
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		const exists = await this.fileService.exists(resource);
 		if (!exists) {
-			await this.textFileService.write(resource, '{}', { encoding: 'utf8' });
+			await this.textFileService.write(resource, this.defaultResourceValue(resource), { encoding: 'utf8' });
 		}
 		return this.textModelResolverService.createModelReference(resource);
 	}
@@ -516,11 +525,13 @@ export class ConfigurationEditingService {
 				const model = reference.object.textEditorModel;
 
 				if (this.hasParseErrors(model, operation)) {
+					reference.dispose();
 					return this.reject<typeof reference>(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, target, operation);
 				}
 
 				// Target cannot be dirty if not writing into buffer
 				if (checkDirty && operation.resource && this.textFileService.isDirty(operation.resource)) {
+					reference.dispose();
 					return this.reject<typeof reference>(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target, operation);
 				}
 				return reference;
@@ -534,7 +545,7 @@ export class ConfigurationEditingService {
 			const standaloneConfigurationMap = target === EditableConfigurationTarget.USER_LOCAL ? USER_STANDALONE_CONFIGURATIONS : WORKSPACE_STANDALONE_CONFIGURATIONS;
 			const standaloneConfigurationKeys = Object.keys(standaloneConfigurationMap);
 			for (const key of standaloneConfigurationKeys) {
-				const resource = this.getConfigurationFileResource(target, config, standaloneConfigurationMap[key], overrides.resource);
+				const resource = this.getConfigurationFileResource(target, standaloneConfigurationMap[key], overrides.resource);
 
 				// Check for prefix
 				if (config.key === key) {
@@ -554,10 +565,10 @@ export class ConfigurationEditingService {
 		let key = config.key;
 		let jsonPath = overrides.overrideIdentifier ? [keyFromOverrideIdentifier(overrides.overrideIdentifier), key] : [key];
 		if (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE) {
-			return { key, jsonPath, value: config.value, resource: withNullAsUndefined(this.getConfigurationFileResource(target, config, '', null)), target };
+			return { key, jsonPath, value: config.value, resource: withNullAsUndefined(this.getConfigurationFileResource(target, '', null)), target };
 		}
 
-		const resource = this.getConfigurationFileResource(target, config, FOLDER_SETTINGS_PATH, overrides.resource);
+		const resource = this.getConfigurationFileResource(target, FOLDER_SETTINGS_PATH, overrides.resource);
 		if (this.isWorkspaceConfigurationResource(resource)) {
 			jsonPath = ['settings', ...jsonPath];
 		}
@@ -569,7 +580,7 @@ export class ConfigurationEditingService {
 		return !!(workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath);
 	}
 
-	private getConfigurationFileResource(target: EditableConfigurationTarget, config: IConfigurationValue, relativePath: string, resource: URI | null | undefined): URI | null {
+	private getConfigurationFileResource(target: EditableConfigurationTarget, relativePath: string, resource: URI | null | undefined): URI | null {
 		if (target === EditableConfigurationTarget.USER_LOCAL) {
 			if (relativePath) {
 				return resources.joinPath(resources.dirname(this.environmentService.settingsResource), relativePath);

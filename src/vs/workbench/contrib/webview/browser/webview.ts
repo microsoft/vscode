@@ -34,18 +34,20 @@ export interface WebviewIcons {
  * Handles the creation of webview elements.
  */
 export interface IWebviewService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	createWebviewElement(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
+		extension: WebviewExtensionDescription | undefined,
 	): WebviewElement;
 
 	createWebviewOverlay(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
+		extension: WebviewExtensionDescription | undefined,
 	): WebviewOverlay;
 
 	setIcons(id: string, value: WebviewIcons | undefined): void;
@@ -59,6 +61,7 @@ export interface WebviewOptions {
 }
 
 export interface WebviewContentOptions {
+	readonly allowMultipleAPIAcquire?: boolean;
 	readonly allowScripts?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;
 	readonly portMapping?: ReadonlyArray<modes.IWebviewPortMapping>;
@@ -70,22 +73,30 @@ export interface WebviewExtensionDescription {
 	readonly id: ExtensionIdentifier;
 }
 
+export interface IDataLinkClickEvent {
+	dataURL: string;
+	downloadName?: string;
+}
+
 export interface Webview extends IDisposable {
 	html: string;
 	contentOptions: WebviewContentOptions;
+	localResourcesRoot: URI[];
 	extension: WebviewExtensionDescription | undefined;
 	initialScrollProgress: number;
 	state: string | undefined;
 
 	readonly onDidFocus: Event<void>;
+	readonly onDidBlur: Event<void>;
 	readonly onDidClickLink: Event<string>;
 	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
 	readonly onDidWheel: Event<IMouseWheelEvent>;
 	readonly onDidUpdateState: Event<string | undefined>;
+	readonly onDidReload: Event<void>;
 	readonly onMessage: Event<any>;
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
 
-	sendMessage(data: any): void;
+	postMessage(data: any): void;
 
 	focus(): void;
 	reload(): void;

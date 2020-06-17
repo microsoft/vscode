@@ -88,7 +88,7 @@ export interface IConfigurationValue<T> {
 }
 
 export interface IConfigurationService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
@@ -265,8 +265,12 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 		curr = obj;
 	}
 
-	if (typeof curr === 'object') {
-		curr[last] = value; // workaround https://github.com/Microsoft/vscode/issues/13606
+	if (typeof curr === 'object' && curr !== null) {
+		try {
+			curr[last] = value; // workaround https://github.com/Microsoft/vscode/issues/13606
+		} catch (e) {
+			conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
+		}
 	} else {
 		conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
 	}
@@ -319,14 +323,16 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 
 export function merge(base: any, add: any, overwrite: boolean): void {
 	Object.keys(add).forEach(key => {
-		if (key in base) {
-			if (types.isObject(base[key]) && types.isObject(add[key])) {
-				merge(base[key], add[key], overwrite);
-			} else if (overwrite) {
+		if (key !== '__proto__') {
+			if (key in base) {
+				if (types.isObject(base[key]) && types.isObject(add[key])) {
+					merge(base[key], add[key], overwrite);
+				} else if (overwrite) {
+					base[key] = add[key];
+				}
+			} else {
 				base[key] = add[key];
 			}
-		} else {
-			base[key] = add[key];
 		}
 	});
 }

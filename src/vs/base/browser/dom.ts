@@ -80,11 +80,17 @@ const _classList: IDomClassList = new class implements IDomClassList {
 	}
 };
 
+/** @deprecated ES6 - use classList*/
 export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+/** @deprecated ES6 - use classList*/
 export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
+/** @deprecated ES6 - use classList*/
 export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
+/** @deprecated ES6 - use classList*/
 export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
+/** @deprecated ES6 - use classList*/
 export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+/** @deprecated ES6 - use classList*/
 export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
 
 class DomListener implements IDisposable {
@@ -159,6 +165,11 @@ export let addStandardDisposableGenericMouseDownListner = function addStandardDi
 	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
 };
 
+export let addStandardDisposableGenericMouseUpListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+
+	return addDisposableGenericMouseUpListner(node, wrapHandler, useCapture);
+};
 export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
 }
@@ -817,6 +828,7 @@ export const EventType = {
 	MOUSE_OUT: 'mouseout',
 	MOUSE_ENTER: 'mouseenter',
 	MOUSE_LEAVE: 'mouseleave',
+	MOUSE_WHEEL: browser.isEdge ? 'mousewheel' : 'wheel',
 	POINTER_UP: 'pointerup',
 	POINTER_DOWN: 'pointerdown',
 	POINTER_MOVE: 'pointermove',

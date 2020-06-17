@@ -17,11 +17,12 @@
 .windows:lang(ja) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
 .windows:lang(ko) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
 
-.linux { font-family: "Ubuntu", "Droid Sans", sans-serif; }
-.linux:lang(zh-Hans) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-.linux:lang(zh-Hant) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
-.linux:lang(ja) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
-.linux:lang(ko) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+/* Linux: add `system-ui` as first font and not `Ubuntu` to allow other distribution pick their standard OS font */
+.linux { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
+.linux:lang(zh-Hans) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+.linux:lang(zh-Hant) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
+.linux:lang(ja) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
+.linux:lang(ko) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
 
 .mac { --monaco-monospace-font: "SF Mono", Monaco, Menlo, Courier, monospace; }
 .windows { --monaco-monospace-font: Consolas, "Courier New", monospace; }
@@ -223,9 +224,7 @@ body.web {
 .monaco-workbench [tabindex="-1"]:active,
 .monaco-workbench select:active,
 .monaco-workbench input[type="button"]:active,
-.monaco-workbench input[type="checkbox"]:active,
-.monaco-workbench .monaco-tree .monaco-tree-row
-.monaco-workbench .monaco-tree.focused.no-focused-item:active:before {
+.monaco-workbench input[type="checkbox"]:active {
 	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
 }
 
@@ -233,12 +232,6 @@ body.web {
 	border-color: transparent; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/Microsoft/vscode/issues/26045) */
 }
 
-.monaco-workbench .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {
-	outline-width: 1px; /* higher contrast color for focusable elements in a row that shows focus feedback */
-	outline-style: solid;
-}
-
-.monaco-workbench .monaco-tree.focused.no-focused-item:focus:before,
 .monaco-workbench .monaco-list:not(.element-focused):focus:before {
 	position: absolute;
 	top: 0;
@@ -267,7 +260,6 @@ body.web {
 	outline: 0 !important; /* outline is not going well with decoration */
 }
 
-.monaco-workbench .monaco-tree.focused:focus,
 .monaco-workbench .monaco-list:focus {
 	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
 }

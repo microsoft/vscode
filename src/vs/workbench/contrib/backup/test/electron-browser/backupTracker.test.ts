@@ -11,7 +11,7 @@ import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
-import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-browser/backupTracker';
+import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-sandbox/backupTracker';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
@@ -32,19 +32,19 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { ILogService } from 'vs/platform/log/common/log';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestFilesConfigurationService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -60,15 +60,15 @@ class TestBackupTracker extends NativeBackupTracker {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IDialogService dialogService: IDialogService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IElectronService electronService: IElectronService,
 		@ILogService logService: ILogService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, environmentService, fileDialogService, dialogService, contextService, electronService, logService, editorService);
+		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, electronService, logService, editorService, environmentService);
 
 		// Reduce timeout for tests
 		BackupTracker.BACKUP_FROM_CONTENT_CHANGE_DELAY = 10;
@@ -131,8 +131,7 @@ suite('BackupTracker', () => {
 
 		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
-			configurationService,
-			TestEnvironmentService
+			configurationService
 		));
 
 		const part = instantiationService.createInstance(EditorPart);

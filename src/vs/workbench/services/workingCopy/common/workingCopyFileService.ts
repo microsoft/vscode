@@ -6,12 +6,13 @@
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
+import { insert } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileOperation, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { WorkingCopyFileOperationParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileOperationParticipant';
 
@@ -58,6 +59,11 @@ export interface IWorkingCopyFileOperationParticipant {
 }
 
 /**
+ * Returns the working copies for a given resource.
+ */
+type WorkingCopyProvider = (resourceOrFolder: URI) => IWorkingCopy[];
+
+/**
  * A service that allows to perform file operations with working copy support.
  * Any operation that would leave a stale dirty working copy behind will make
  * sure to revert the working copy first.
@@ -67,7 +73,7 @@ export interface IWorkingCopyFileOperationParticipant {
  */
 export interface IWorkingCopyFileService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	//#region Events
 
@@ -142,8 +148,14 @@ export interface IWorkingCopyFileService {
 
 	//#endregion
 
-
 	//#region Path related
+
+	/**
+	 * Register a new provider for working copies based on a resource.
+	 *
+	 * @return a disposable that unregisters the provider.
+	 */
+	registerWorkingCopyProvider(provider: WorkingCopyProvider): IDisposable;
 
 	/**
 	 * Will return all working copies that are dirty matching the provided resource.
@@ -157,7 +169,7 @@ export interface IWorkingCopyFileService {
 
 export class WorkingCopyFileService extends Disposable implements IWorkingCopyFileService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	//#region Events
 
@@ -177,9 +189,24 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
+
+		// register a default working copy provider that uses the working copy service
+		this.registerWorkingCopyProvider(resource => {
+			return this.workingCopyService.workingCopies.filter(workingCopy => {
+				if (this.fileService.canHandleResource(resource)) {
+					// only check for parents if the resource can be handled
+					// by the file system where we then assume a folder like
+					// path structure
+					return this.uriIdentityService.extUri.isEqualOrParent(workingCopy.resource, resource);
+				}
+
+				return this.uriIdentityService.extUri.isEqual(workingCopy.resource, resource);
+			});
+		});
 	}
 
 	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
@@ -192,8 +219,26 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	private async moveOrCopy(source: URI, target: URI, move: boolean, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 
+		// validate move/copy operation before starting
+		const validateMoveOrCopy = await (move ? this.fileService.canMove(source, target, overwrite) : this.fileService.canCopy(source, target, overwrite));
+		if (validateMoveOrCopy instanceof Error) {
+			throw validateMoveOrCopy;
+		}
+
 		// file operation participant
 		await this.runFileOperationParticipants(target, source, move ? FileOperation.MOVE : FileOperation.COPY);
+
+		// Before doing the heave operations, check first if source and target
+		// are either identical or are considered to be identical for the file
+		// system. In that case we want the model to stay as is and only do the
+		// raw file operation.
+		if (this.uriIdentityService.extUri.isEqual(source, target)) {
+			if (move) {
+				return this.fileService.move(source, target, overwrite);
+			} else {
+				return this.fileService.copy(source, target, overwrite);
+			}
+		}
 
 		// before event
 		const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, target, source };
@@ -228,6 +273,12 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 	}
 
 	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
+
+		// validate delete operation before starting
+		const validateDelete = await this.fileService.canDelete(resource, options);
+		if (validateDelete instanceof Error) {
+			throw validateDelete;
+		}
 
 		// file operation participant
 		await this.runFileOperationParticipants(resource, undefined, FileOperation.DELETE);
@@ -275,17 +326,23 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	//#region Path related
 
-	getDirty(resource: URI): IWorkingCopy[] {
-		return this.workingCopyService.dirtyWorkingCopies.filter(dirty => {
-			if (this.fileService.canHandleResource(resource)) {
-				// only check for parents if the resource can be handled
-				// by the file system where we then assume a folder like
-				// path structure
-				return isEqualOrParent(dirty.resource, resource);
-			}
+	private readonly workingCopyProviders: WorkingCopyProvider[] = [];
 
-			return isEqual(dirty.resource, resource);
-		});
+	registerWorkingCopyProvider(provider: WorkingCopyProvider): IDisposable {
+		const remove = insert(this.workingCopyProviders, provider);
+		return toDisposable(remove);
+	}
+
+	getDirty(resource: URI): IWorkingCopy[] {
+		const dirtyWorkingCopies = new Set<IWorkingCopy>();
+		for (const provider of this.workingCopyProviders) {
+			for (const workingCopy of provider(resource)) {
+				if (workingCopy.isDirty()) {
+					dirtyWorkingCopies.add(workingCopy);
+				}
+			}
+		}
+		return Array.from(dirtyWorkingCopies);
 	}
 
 	//#endregion

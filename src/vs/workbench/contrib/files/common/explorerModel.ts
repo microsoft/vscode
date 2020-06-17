@@ -62,7 +62,7 @@ export class ExplorerModel implements IDisposable {
 	findClosest(resource: URI): ExplorerItem | null {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 		if (folder) {
-			const root = this.roots.filter(r => r.resource.toString() === folder.uri.toString()).pop();
+			const root = this.roots.find(r => r.resource.toString() === folder.uri.toString());
 			if (root) {
 				return root.find(resource);
 			}
@@ -78,8 +78,8 @@ export class ExplorerModel implements IDisposable {
 
 export class ExplorerItem {
 	protected _isDirectoryResolved: boolean;
-	private _isDisposed: boolean;
 	public isError = false;
+	private _isExcluded = false;
 
 	constructor(
 		public resource: URI,
@@ -92,11 +92,21 @@ export class ExplorerItem {
 		private _unknown = false
 	) {
 		this._isDirectoryResolved = false;
-		this._isDisposed = false;
 	}
 
-	get isDisposed(): boolean {
-		return this._isDisposed;
+	get isExcluded(): boolean {
+		if (this._isExcluded) {
+			return true;
+		}
+		if (!this._parent) {
+			return false;
+		}
+
+		return this._parent.isExcluded;
+	}
+
+	set isExcluded(value: boolean) {
+		this._isExcluded = value;
 	}
 
 	get isDirectoryResolved(): boolean {
@@ -242,9 +252,11 @@ export class ExplorerItem {
 				}
 			});
 
-			for (let child of oldLocalChildren.values()) {
-				child._dispose();
-			}
+			oldLocalChildren.forEach(oldChild => {
+				if (oldChild instanceof NewExplorerItem) {
+					local.addChild(oldChild);
+				}
+			});
 		}
 	}
 
@@ -294,18 +306,8 @@ export class ExplorerItem {
 	}
 
 	forgetChildren(): void {
-		for (let c of this.children.values()) {
-			c._dispose();
-		}
 		this.children.clear();
 		this._isDirectoryResolved = false;
-	}
-
-	private _dispose() {
-		this._isDisposed = true;
-		for (let child of this.children.values()) {
-			child._dispose();
-		}
 	}
 
 	private getPlatformAwareName(name: string): string {

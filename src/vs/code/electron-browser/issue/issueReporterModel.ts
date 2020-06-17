@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assign } from 'vs/base/common/objects';
-import { IssueType, ISettingSearchResult, IssueReporterExtensionData } from 'vs/platform/issue/node/issue';
+import { IssueType, ISettingSearchResult, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
 import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 
 export interface IssueReporterData {
@@ -167,6 +167,13 @@ ${this.getInfos()}
 |Process Argv|${this._data.systemInfo.processArgs}|
 |Screen Reader|${this._data.systemInfo.screenReader}|
 |VM|${this._data.systemInfo.vmHint}|`;
+
+			if (this._data.systemInfo.linuxEnv) {
+				md += `\n|DESKTOP_SESSION|${this._data.systemInfo.linuxEnv.desktopSession}|
+|XDG_CURRENT_DESKTOP|${this._data.systemInfo.linuxEnv.xdgCurrentDesktop}|
+|XDG_SESSION_DESKTOP|${this._data.systemInfo.linuxEnv.xdgSessionDesktop}|
+|XDG_SESSION_TYPE|${this._data.systemInfo.linuxEnv.xdgSessionType}|`;
+			}
 
 			this._data.systemInfo.remoteData.forEach(remote => {
 				if (isRemoteDiagnosticError(remote)) {

@@ -209,3 +209,17 @@ export const enum OperatingSystem {
 	Linux = 3
 }
 export const OS = (_isMacintosh ? OperatingSystem.Macintosh : (_isWindows ? OperatingSystem.Windows : OperatingSystem.Linux));
+
+let _isLittleEndian = true;
+let _isLittleEndianComputed = false;
+export function isLittleEndian(): boolean {
+	if (!_isLittleEndianComputed) {
+		_isLittleEndianComputed = true;
+		const test = new Uint8Array(2);
+		test[0] = 1;
+		test[1] = 2;
+		const view = new Uint16Array(test.buffer);
+		_isLittleEndian = (view[0] === (2 << 8) + 1);
+	}
+	return _isLittleEndian;
+}

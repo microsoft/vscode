@@ -49,7 +49,6 @@ class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }
-
 }
 
 suite('ConfigurationEditingService', () => {
@@ -107,11 +106,11 @@ suite('ConfigurationEditingService', () => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
 		const environmentService = new TestEnvironmentService(URI.file(workspaceDir));
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+		const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
 		const fileService = new FileService(new NullLogService());
 		const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService, new NullLogService()));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);

@@ -17,11 +17,10 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Emitter } from 'vs/base/common/event';
-import { DragAndDropObserver, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { Emitter, Event } from 'vs/base/common/event';
+import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
-import { DraggedViewIdentifier } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { ICompositeDragAndDrop, CompositeDragAndDropData } from 'vs/base/parts/composite/browser/compositeDnd';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -71,6 +70,7 @@ export class ActivityAction extends Action {
 	}
 
 	set activity(activity: IActivity) {
+		this._label = activity.name;
 		this._activity = activity;
 		this._onDidChangeActivity.fire(this);
 	}
@@ -119,7 +119,7 @@ export interface ICompositeBarColors {
 	inactiveForegroundColor?: Color;
 	badgeBackground?: Color;
 	badgeForeground?: Color;
-	dragAndDropBackground?: Color;
+	dragAndDropBorder?: Color;
 }
 
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
@@ -140,7 +140,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: ActivityAction,
 		options: IActivityActionViewItemOptions,
-		@IThemeService protected themeService: IThemeService
+		@IThemeService protected readonly themeService: IThemeService
 	) {
 		super(null, action, options);
 
@@ -163,9 +163,11 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 				if (this.activity.iconUrl) {
 					// Apply background color to activity bar item provided with iconUrls
 					this.label.style.backgroundColor = foreground ? foreground.toString() : '';
+					this.label.style.color = '';
 				} else {
 					// Apply foreground color to activity bar items provided with codicons
 					this.label.style.color = foreground ? foreground.toString() : '';
+					this.label.style.backgroundColor = '';
 				}
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
@@ -173,6 +175,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 				this.label.style.color = foreground ? foreground.toString() : '';
 				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
 			}
+
+			this.container.style.setProperty('--insert-border-color', colors.dragAndDropBorder ? colors.dragAndDropBorder.toString() : '');
 		}
 
 		// Badge
@@ -197,7 +201,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		// Make the container tab-able for keyboard navigation
 		this.container.tabIndex = 0;
-		this.container.setAttribute('role', this.options.icon ? 'button' : 'tab');
+		this.container.setAttribute('role', 'tab');
 
 		// Try hard to prevent keyboard only focus feedback when using mouse
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => {
@@ -319,7 +323,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.label.className = 'action-label';
 
 		if (this.activity.cssClass) {
-			dom.addClass(this.label, this.activity.cssClass);
+			dom.addClasses(this.label, this.activity.cssClass);
 		}
 
 		if (this.options.icon && !this.activity.iconUrl) {
@@ -360,7 +364,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		super({
 			id: 'additionalComposites.action',
 			name: nls.localize('additionalViews', "Additional Views"),
-			cssClass: 'codicon-more'
+			cssClass: Codicon.more.classNames
 		});
 	}
 
@@ -445,20 +449,11 @@ class ManageExtensionAction extends Action {
 	}
 }
 
-export class DraggedCompositeIdentifier {
-	constructor(private _compositeId: string) { }
-
-	get id(): string {
-		return this._compositeId;
-	}
-}
-
 export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	private static manageExtensionAction: ManageExtensionAction;
 
 	private compositeActivity: IActivity | undefined;
-	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier | DraggedViewIdentifier>;
 
 	constructor(
 		private compositeActivityAction: ActivityAction,
@@ -476,38 +471,38 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	) {
 		super(compositeActivityAction, { draggable: true, colors, icon }, themeService);
 
-		this.compositeTransfer = LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier | DraggedViewIdentifier>();
-
 		if (!CompositeActionViewItem.manageExtensionAction) {
 			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
 		}
 
-		this._register(compositeActivityAction.onDidChangeActivity(() => { this.compositeActivity = undefined; this.updateActivity(); }, this));
+		this._register(compositeActivityAction.onDidChangeActivity(() => {
+			this.compositeActivity = undefined;
+			this.updateActivity();
+		}, this));
+		this._register(Event.any(
+			compositeActivityAction.onDidChangeActivity,
+			Event.filter(keybindingService.onDidUpdateKeybindings, () => this.compositeActivity!.name !== this.getActivtyName())
+		)(() => {
+			if (this.compositeActivity && this.compositeActivity.name !== this.getActivtyName()) {
+				this.compositeActivity = undefined;
+				this.updateActivity();
+			}
+		}));
 	}
 
 	protected get activity(): IActivity {
 		if (!this.compositeActivity) {
-			let activityName: string;
-			const keybinding = typeof this.compositeActivityAction.activity.keybindingId === 'string' ? this.getKeybindingLabel(this.compositeActivityAction.activity.keybindingId) : null;
-			if (keybinding) {
-				activityName = nls.localize('titleKeybinding', "{0} ({1})", this.compositeActivityAction.activity.name, keybinding);
-			} else {
-				activityName = this.compositeActivityAction.activity.name;
-			}
-
-			this.compositeActivity = { ...this.compositeActivityAction.activity, ... { name: activityName } };
+			this.compositeActivity = {
+				...this.compositeActivityAction.activity,
+				... { name: this.getActivtyName() }
+			};
 		}
-
 		return this.compositeActivity;
 	}
 
-	private getKeybindingLabel(id: string): string | null {
-		const kb = this.keybindingService.lookupKeybinding(id);
-		if (kb) {
-			return kb.getLabel();
-		}
-
-		return null;
+	private getActivtyName(): string {
+		const keybinding = this.compositeActivityAction.activity.keybindingId ? this.keybindingService.lookupKeybinding(this.compositeActivityAction.activity.keybindingId) : null;
+		return keybinding ? nls.localize('titleKeybinding', "{0} ({1})", this.compositeActivityAction.activity.name, keybinding.getLabel()) : this.compositeActivityAction.activity.name;
 	}
 
 	render(container: HTMLElement): void {
@@ -522,114 +517,44 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			this.showContextMenu(container);
 		}));
 
+		let insertDropBefore: Before2D | undefined = undefined;
 		// Allow to drag
-		this._register(dom.addDisposableListener(this.container, dom.EventType.DRAG_START, (e: DragEvent) => {
-			if (e.dataTransfer) {
-				e.dataTransfer.effectAllowed = 'move';
-			}
-
-			// Registe as dragged to local transfer
-			this.compositeTransfer.setData([new DraggedCompositeIdentifier(this.activity.id)], DraggedCompositeIdentifier.prototype);
-
-			// Trigger the action even on drag start to prevent clicks from failing that started a drag
-			if (!this.getAction().checked) {
-				this.getAction().run();
-			}
-		}));
-
-		this._register(new DragAndDropObserver(this.container, {
-			onDragEnter: e => {
-				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
-					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
-					if (Array.isArray(data) && data[0].id !== this.activity.id) {
-						const validDropTarget = this.dndHandler.onDragEnter(new CompositeDragAndDropData('composite', data[0].id), this.activity.id, e);
-						this.updateFromDragging(container, validDropTarget);
-					}
-				}
-
-				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
-					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
-					if (Array.isArray(data) && data[0].id !== this.activity.id) {
-						const validDropTarget = this.dndHandler.onDragEnter(new CompositeDragAndDropData('view', data[0].id), this.activity.id, e);
-						this.updateFromDragging(container, validDropTarget);
-					}
-				}
-			},
-
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.container, () => { return { type: 'composite', id: this.activity.id }; }, {
 			onDragOver: e => {
-				dom.EventHelper.stop(e, true);
-				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
-					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
-					if (Array.isArray(data)) {
-						const draggedCompositeId = data[0].id;
-						if (draggedCompositeId !== this.activity.id) {
-							if (e.dataTransfer && !this.dndHandler.onDragOver(new CompositeDragAndDropData('composite', draggedCompositeId), this.activity.id, e)) {
-								e.dataTransfer.dropEffect = 'none';
-							}
-						}
-					}
-				}
-
-				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
-					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
-					if (Array.isArray(data)) {
-						const draggedViewId = data[0].id;
-						if (e.dataTransfer && !this.dndHandler.onDragOver(new CompositeDragAndDropData('view', draggedViewId), this.activity.id, e)) {
-							e.dataTransfer.dropEffect = 'none';
-						}
-					}
-				}
+				const isValidMove = e.dragAndDropData.getData().id !== this.activity.id && this.dndHandler.onDragOver(e.dragAndDropData, this.activity.id, e.eventData);
+				toggleDropEffect(e.eventData.dataTransfer, 'move', isValidMove);
+				insertDropBefore = this.updateFromDragging(container, isValidMove, e.eventData);
 			},
 
 			onDragLeave: e => {
-				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype) ||
-					this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
-					this.updateFromDragging(container, false);
-				}
+				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
 			},
 
 			onDragEnd: e => {
-				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
-					this.updateFromDragging(container, false);
-
-					this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
-				}
+				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
 			},
 
 			onDrop: e => {
-				dom.EventHelper.stop(e, true);
-
-				if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
-					const data = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype);
-					if (Array.isArray(data)) {
-						const draggedCompositeId = data[0].id;
-						if (draggedCompositeId !== this.activity.id) {
-							this.updateFromDragging(container, false);
-							this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
-
-							this.dndHandler.drop(new CompositeDragAndDropData('composite', draggedCompositeId), this.activity.id, e);
-						}
-					}
+				dom.EventHelper.stop(e.eventData, true);
+				this.dndHandler.drop(e.dragAndDropData, this.activity.id, e.eventData, insertDropBefore);
+				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
+			},
+			onDragStart: e => {
+				if (e.dragAndDropData.getData().id !== this.activity.id) {
+					return;
 				}
 
-				if (this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) {
-					const data = this.compositeTransfer.getData(DraggedViewIdentifier.prototype);
-					if (Array.isArray(data)) {
-						const draggedViewId = data[0].id;
-						this.updateFromDragging(container, false);
-						this.compositeTransfer.clearData(DraggedViewIdentifier.prototype);
-
-						this.dndHandler.drop(new CompositeDragAndDropData('view', draggedViewId), this.activity.id, e);
-					}
+				if (e.eventData.dataTransfer) {
+					e.eventData.dataTransfer.effectAllowed = 'move';
 				}
+				// Remove focus indicator when dragging
+				this.blur();
 			}
 		}));
 
 		// Activate on drag over to reveal targets
 		[this.badge, this.label].forEach(b => this._register(new DelayedDragHandler(b, () => {
-			if (!(this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype) ||
-				this.compositeTransfer.hasData(DraggedViewIdentifier.prototype)) &&
-				!this.getAction().checked) {
+			if (!this.getAction().checked) {
 				this.getAction().run();
 			}
 		})));
@@ -637,11 +562,42 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		this.updateStyles();
 	}
 
-	private updateFromDragging(element: HTMLElement, isDragging: boolean): void {
-		const theme = this.themeService.getColorTheme();
-		const dragBackground = this.options.colors(theme).dragAndDropBackground;
+	private updateFromDragging(element: HTMLElement, showFeedback: boolean, event: DragEvent): Before2D | undefined {
+		const rect = element.getBoundingClientRect();
+		const posX = event.clientX;
+		const posY = event.clientY;
+		const height = rect.bottom - rect.top;
+		const width = rect.right - rect.left;
 
-		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : '';
+		const forceTop = posY <= rect.top + height * 0.4;
+		const forceBottom = posY > rect.bottom - height * 0.4;
+		const preferTop = posY <= rect.top + height * 0.5;
+
+		const forceLeft = posX <= rect.left + width * 0.4;
+		const forceRight = posX > rect.right - width * 0.4;
+		const preferLeft = posX <= rect.left + width * 0.5;
+
+		const classes = element.classList;
+		const lastClasses = {
+			vertical: classes.contains('top') ? 'top' : (classes.contains('bottom') ? 'bottom' : undefined),
+			horizontal: classes.contains('left') ? 'left' : (classes.contains('right') ? 'right' : undefined)
+		};
+
+		const top = forceTop || (preferTop && !lastClasses.vertical) || (!forceBottom && lastClasses.vertical === 'top');
+		const bottom = forceBottom || (!preferTop && !lastClasses.vertical) || (!forceTop && lastClasses.vertical === 'bottom');
+		const left = forceLeft || (preferLeft && !lastClasses.horizontal) || (!forceRight && lastClasses.horizontal === 'left');
+		const right = forceRight || (!preferLeft && !lastClasses.horizontal) || (!forceLeft && lastClasses.horizontal === 'right');
+
+		dom.toggleClass(element, 'top', showFeedback && top);
+		dom.toggleClass(element, 'bottom', showFeedback && bottom);
+		dom.toggleClass(element, 'left', showFeedback && left);
+		dom.toggleClass(element, 'right', showFeedback && right);
+
+		if (!showFeedback) {
+			return undefined;
+		}
+
+		return { verticallyBefore: top, horizontallyBefore: left };
 	}
 
 	private showContextMenu(container: HTMLElement): void {
@@ -692,9 +648,11 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		if (this.getAction().checked) {
 			dom.addClass(this.container, 'checked');
 			this.container.setAttribute('aria-label', nls.localize('compositeActive', "{0} active", this.container.title));
+			this.container.setAttribute('aria-expanded', 'true');
 		} else {
 			dom.removeClass(this.container, 'checked');
 			this.container.setAttribute('aria-label', this.container.title);
+			this.container.setAttribute('aria-expanded', 'false');
 		}
 		this.updateStyles();
 	}
@@ -713,9 +671,6 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	dispose(): void {
 		super.dispose();
-
-		this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
-
 		this.label.remove();
 	}
 }

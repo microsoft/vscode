@@ -494,5 +494,6 @@
 		"walkThrough.embeddedEditorBackground": "#00000014",
 		"editorIndentGuide.background": "#aaaaaa60",
 		"editorIndentGuide.activeBackground": "#777777b0"
-	}
+	},
+	"semanticHighlighting": true
 }

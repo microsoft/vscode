@@ -42,6 +42,12 @@
         "filenames": [
           ".npmignore"
         ]
+      },
+      {
+        "id": "properties",
+        "filenames": [
+          ".npmrc"
+        ]
       }
     ],
     "views": {
@@ -49,7 +55,8 @@
         {
           "id": "npm",
           "name": "%view.name%",
-          "when": "npm:showScriptExplorer || config.npm.enableScriptExplorer"
+          "when": "npm:showScriptExplorer || config.npm.enableScriptExplorer",
+          "icon": "images/code.svg"
         }
       ]
     },

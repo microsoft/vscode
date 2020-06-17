@@ -41,6 +41,9 @@ const enum Refilter {
 	Incr = 2
 }
 
+/**
+ * Sorted, filtered completion view model
+ * */
 export class CompletionModel {
 
 	private readonly _items: CompletionItem[];
@@ -61,7 +64,8 @@ export class CompletionModel {
 		lineContext: LineContext,
 		wordDistance: WordDistance,
 		options: InternalSuggestOptions,
-		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none'
+		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none',
+		readonly clipboardText: string | undefined
 	) {
 		this._items = items;
 		this._column = column;
@@ -101,7 +105,7 @@ export class CompletionModel {
 	}
 
 	adopt(except: Set<CompletionItemProvider>): CompletionItem[] {
-		let res = new Array<CompletionItem>();
+		let res: CompletionItem[] = [];
 		for (let i = 0; i < this._items.length;) {
 			if (!except.has(this._items[i].provider)) {
 				res.push(this._items[i]);
@@ -150,6 +154,10 @@ export class CompletionModel {
 		for (let i = 0; i < source.length; i++) {
 
 			const item = source[i];
+
+			if (item.isInvalid) {
+				continue; // SKIP invalid items
+			}
 
 			// collect those supports that signaled having
 			// an incomplete result

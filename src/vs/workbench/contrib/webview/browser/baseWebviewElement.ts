@@ -7,12 +7,13 @@ import { addClass } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WebviewExtensionDescription, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
-import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const enum WebviewMessageChannels {
@@ -21,6 +22,7 @@ export const enum WebviewMessageChannels {
 	didScroll = 'did-scroll',
 	didFocus = 'did-focus',
 	didBlur = 'did-blur',
+	didLoad = 'did-load',
 	doUpdateState = 'do-update-state',
 	doReload = 'do-reload',
 	loadResource = 'load-resource',
@@ -46,6 +48,22 @@ interface WebviewContent {
 	readonly state: string | undefined;
 }
 
+namespace WebviewState {
+	export const enum Type { Initializing, Ready }
+
+	export class Initializing {
+		readonly type = Type.Initializing;
+
+		constructor(
+			public readonly pendingMessages: Array<{ readonly channel: string, readonly data?: any }>
+		) { }
+	}
+
+	export const Ready = { type: Type.Ready } as const;
+
+	export type State = typeof Ready | Initializing;
+}
+
 export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private _element: T | undefined;
@@ -54,17 +72,16 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private _focused: boolean | undefined;
 	protected get focused(): boolean { return !!this._focused; }
 
-	private readonly _ready: Promise<void>;
+	private _state: WebviewState.State = new WebviewState.Initializing([]);
 
 	protected content: WebviewContent;
-
-	public extension: WebviewExtensionDescription | undefined;
 
 	constructor(
 		// TODO: matb, this should not be protected. The only reason it needs to be is that the base class ends up using it in the call to createElement
 		protected readonly id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
+		public readonly extension: WebviewExtensionDescription | undefined,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly _environementService: IEnvironmentService,
@@ -78,17 +95,20 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			state: undefined
 		};
 
-		this._element = this.createElement(options);
+		this._element = this.createElement(options, contentOptions);
 
-		this._ready = new Promise(resolve => {
-			const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
-				if (this.element) {
-					addClass(this.element, 'ready');
-				}
-				subscription.dispose();
-				resolve();
-			}));
-		});
+		const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
+			if (this.element) {
+				addClass(this.element, 'ready');
+			}
+
+			if (this._state.type === WebviewState.Type.Initializing) {
+				this._state.pendingMessages.forEach(({ channel, data }) => this.doPostMessage(channel, data));
+			}
+			this._state = WebviewState.Ready;
+
+			subscription.dispose();
+		}));
 
 		this._register(this.on('no-csp-found', () => {
 			this.handleNoCspFound();
@@ -153,6 +173,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink = this._onDidClickLink.event;
 
+	private readonly _onDidReload = this._register(new Emitter<void>());
+	public readonly onDidReload = this._onDidReload.event;
+
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
 
@@ -168,23 +191,28 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocus.event;
 
-	public sendMessage(data: any): void {
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	public readonly onDidBlur = this._onDidBlur.event;
+
+	public postMessage(data: any): void {
 		this._send('message', data);
 	}
 
 	protected _send(channel: string, data?: any): void {
-		this._ready
-			.then(() => this.postMessage(channel, data))
-			.catch(err => console.error(err));
+		if (this._state.type === WebviewState.Type.Initializing) {
+			this._state.pendingMessages.push({ channel, data });
+		} else {
+			this.doPostMessage(channel, data);
+		}
 	}
 
 	protected abstract readonly extraContentOptions: { readonly [key: string]: string };
 
-	protected abstract createElement(options: WebviewOptions): T;
+	protected abstract createElement(options: WebviewOptions, contentOptions: WebviewContentOptions): T;
 
 	protected abstract on<T = unknown>(channel: string, handler: (data: T) => void): IDisposable;
 
-	protected abstract postMessage(channel: string, data?: any): void;
+	protected abstract doPostMessage(channel: string, data?: any): void;
 
 	private _hasAlertedAboutMissingCsp = false;
 	private handleNoCspFound(): void {
@@ -213,6 +241,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	public reload(): void {
 		this.doUpdateContent();
+		const subscription = this._register(this.on(WebviewMessageChannels.didLoad, () => {
+			this._onDidReload.fire();
+			subscription.dispose();
+		}));
 	}
 
 	public set html(value: string) {
@@ -237,6 +269,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this.doUpdateContent();
 	}
 
+	public set localResourcesRoot(resources: URI[]) {
+		/** no op */
+	}
+
 	public set state(state: string | undefined) {
 		this.content = {
 			html: this.content.html,
@@ -259,14 +295,16 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	protected style(): void {
-		const { styles, activeTheme } = this.webviewThemeDataProvider.getWebviewThemeData();
-		this._send('styles', { styles, activeTheme });
+		const { styles, activeTheme, themeLabel } = this.webviewThemeDataProvider.getWebviewThemeData();
+		this._send('styles', { styles, activeTheme, themeName: themeLabel });
 	}
 
 	protected handleFocusChange(isFocused: boolean): void {
 		this._focused = isFocused;
 		if (isFocused) {
 			this._onDidFocus.fire();
+		} else {
+			this._onDidBlur.fire();
 		}
 	}
 

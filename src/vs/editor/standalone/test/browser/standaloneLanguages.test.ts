@@ -33,7 +33,7 @@ suite('TokenizationSupport2Adapter', () => {
 	}
 
 	class MockThemeService implements IStandaloneThemeService {
-		_serviceBrand: undefined;
+		declare readonly _serviceBrand: undefined;
 		public setTheme(themeName: string): string {
 			throw new Error('Not implemented');
 		}
@@ -42,6 +42,8 @@ suite('TokenizationSupport2Adapter', () => {
 		}
 		public getColorTheme(): IStandaloneTheme {
 			return {
+				label: 'mock',
+
 				tokenTheme: new MockTokenTheme(),
 
 				themeName: LIGHT,
@@ -56,9 +58,11 @@ suite('TokenizationSupport2Adapter', () => {
 					throw new Error('Not implemented');
 				},
 
-				getTokenStyleMetadata: (type: string, modifiers: string[]): ITokenStyle | undefined => {
+				getTokenStyleMetadata: (type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined => {
 					return undefined;
 				},
+
+				semanticHighlighting: false,
 
 				tokenColorMap: []
 			};

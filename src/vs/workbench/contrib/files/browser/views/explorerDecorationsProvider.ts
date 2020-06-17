@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
-import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
+import { listInvalidItemForeground, listDeemphasizedForeground } from 'vs/platform/theme/common/colorRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { explorerRootErrorEmitter } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
@@ -34,6 +34,11 @@ export function provideDecorations(fileStat: ExplorerItem): IDecorationData | un
 			letter: '?'
 		};
 	}
+	if (fileStat.isExcluded) {
+		return {
+			color: listDeemphasizedForeground,
+		};
+	}
 
 	return undefined;
 }
@@ -50,11 +55,6 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 		this.toDispose.add(this._onDidChange);
 		this.toDispose.add(contextService.onDidChangeWorkspaceFolders(e => {
 			this._onDidChange.fire(e.changed.concat(e.added).map(wf => wf.uri));
-		}));
-		this.toDispose.add(explorerService.onDidChangeItem(change => {
-			if (change.item) {
-				this._onDidChange.fire([change.item.resource]);
-			}
 		}));
 		this.toDispose.add(explorerRootErrorEmitter.event((resource => {
 			this._onDidChange.fire([resource]);

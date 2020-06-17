@@ -11,7 +11,7 @@ import { tail } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
+import { extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -29,7 +29,7 @@ import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/file
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ColorIdentifier, ColorFunction } from 'vs/platform/theme/common/colorRegistry';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -38,7 +38,7 @@ import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { BreadcrumbsPicker, createBreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorPartOptions, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -71,7 +71,7 @@ class Item extends BreadcrumbsItem {
 			return false;
 		}
 		if (this.element instanceof FileElement && other.element instanceof FileElement) {
-			return (isEqual(this.element.uri, other.element.uri, false) &&
+			return (extUri.isEqual(this.element.uri, other.element.uri) &&
 				this.options.showFileIcons === other.options.showFileIcons &&
 				this.options.showSymbolIcons === other.options.showSymbolIcons);
 		}
@@ -91,7 +91,7 @@ class Item extends BreadcrumbsItem {
 				fileKind: this.element.kind,
 				fileDecorations: { colors: this.options.showDecorationColors, badges: false },
 			});
-			dom.addClass(container, FileKind[this.element.kind].toLowerCase());
+			container.classList.add(FileKind[this.element.kind].toLowerCase());
 			this._disposables.add(label);
 
 		} else if (this.element instanceof OutlineModel) {
@@ -104,7 +104,7 @@ class Item extends BreadcrumbsItem {
 		} else if (this.element instanceof OutlineGroup) {
 			// provider
 			let label = new IconLabel(container);
-			label.setLabel(this.element.provider.displayName || '');
+			label.setLabel(this.element.label);
 			this._disposables.add(label);
 
 		} else if (this.element instanceof OutlineElement) {
@@ -113,7 +113,7 @@ class Item extends BreadcrumbsItem {
 				let icon = document.createElement('div');
 				icon.className = SymbolKinds.toCssClassName(this.element.symbol.kind);
 				container.appendChild(icon);
-				dom.addClass(container, 'shows-symbol-icon');
+				container.classList.add('shows-symbol-icon');
 			}
 			let label = new IconLabel(container);
 			let title = this.element.symbol.name.replace(/\r|\n|\r\n/g, '\u23CE');
@@ -134,6 +134,11 @@ export class BreadcrumbsControl {
 
 	static readonly HEIGHT = 22;
 
+	private static readonly SCROLLBAR_SIZES = {
+		default: 3,
+		large: 8
+	};
+
 	static readonly Payload_Reveal = {};
 	static readonly Payload_RevealAside = {};
 	static readonly Payload_Pick = {};
@@ -148,6 +153,7 @@ export class BreadcrumbsControl {
 
 	private readonly _cfUseQuickPick: BreadcrumbsConfig<boolean>;
 	private readonly _cfShowIcons: BreadcrumbsConfig<boolean>;
+	private readonly _cfTitleScrollbarSizing: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarSizing']>;
 
 	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
@@ -168,7 +174,7 @@ export class BreadcrumbsControl {
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
@@ -177,10 +183,15 @@ export class BreadcrumbsControl {
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
 	) {
 		this.domNode = document.createElement('div');
-		dom.addClass(this.domNode, 'breadcrumbs-control');
+		this.domNode.classList.add('breadcrumbs-control');
 		dom.append(container, this.domNode);
 
-		this._widget = new BreadcrumbsWidget(this.domNode);
+		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(_configurationService);
+		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(_configurationService);
+		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(_configurationService);
+
+		const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
+		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing]);
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
@@ -189,9 +200,6 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsPossible = BreadcrumbsControl.CK_BreadcrumbsPossible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
-
-		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(_configurationService);
-		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(_configurationService);
 
 		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
 	}
@@ -213,25 +221,22 @@ export class BreadcrumbsControl {
 	}
 
 	isHidden(): boolean {
-		return dom.hasClass(this.domNode, 'hidden');
+		return this.domNode.classList.contains('hidden');
 	}
 
 	hide(): void {
 		this._breadcrumbsDisposables.clear();
 		this._ckBreadcrumbsVisible.set(false);
-		dom.toggleClass(this.domNode, 'hidden', true);
+		this.domNode.classList.toggle('hidden', true);
 	}
 
 	update(): boolean {
 		this._breadcrumbsDisposables.clear();
 
 		// honor diff editors and such
-		let input = this._editorGroup.activeEditor;
-		if (input instanceof SideBySideEditorInput) {
-			input = input.master;
-		}
+		const uri = toResource(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 
-		if (!input || !input.resource || !this._fileService.canHandleResource(input.resource!)) {
+		if (!uri || !this._fileService.canHandleResource(uri)) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
@@ -243,11 +248,10 @@ export class BreadcrumbsControl {
 			}
 		}
 
-		dom.toggleClass(this.domNode, 'hidden', false);
+		this.domNode.classList.toggle('hidden', false);
 		this._ckBreadcrumbsVisible.set(true);
 		this._ckBreadcrumbsPossible.set(true);
 
-		const uri = input.resource;
 		const editor = this._getActiveCodeEditor();
 		const model = new EditorBreadcrumbsModel(
 			uri, editor,
@@ -255,8 +259,8 @@ export class BreadcrumbsControl {
 			this._textResourceConfigurationService,
 			this._workspaceService
 		);
-		dom.toggleClass(this.domNode, 'relative-path', model.isRelative());
-		dom.toggleClass(this.domNode, 'backslash-path', this._labelService.getSeparator(uri.scheme, uri.authority) === '\\');
+		this.domNode.classList.toggle('relative-path', model.isRelative());
+		this.domNode.classList.toggle('backslash-path', this._labelService.getSeparator(uri.scheme, uri.authority) === '\\');
 
 		const updateBreadcrumbs = () => {
 			const showIcons = this._cfShowIcons.getValue();
@@ -276,6 +280,14 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.add(model);
 		this._breadcrumbsDisposables.add(listener);
 		this._breadcrumbsDisposables.add(configListener);
+
+		const updateScrollbarSizing = () => {
+			const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
+			this._widget.setHorizontalScrollbarSize(BreadcrumbsControl.SCROLLBAR_SIZES[sizing]);
+		};
+		updateScrollbarSizing();
+		const updateScrollbarSizeListener = this._cfTitleScrollbarSizing.onDidChange(updateScrollbarSizing);
+		this._breadcrumbsDisposables.add(updateScrollbarSizeListener);
 
 		// close picker on hide/update
 		this._breadcrumbsDisposables.add({
@@ -343,7 +355,7 @@ export class BreadcrumbsControl {
 			// using quick pick
 			this._widget.setFocused(undefined);
 			this._widget.setSelection(undefined);
-			this._quickOpenService.show(element instanceof TreeElement ? '@' : '');
+			this._quickInputService.quickAccess.show(element instanceof TreeElement ? '@' : '');
 			return;
 		}
 
@@ -488,7 +500,7 @@ export class BreadcrumbsControl {
 			const model = OutlineModel.get(element);
 			if (model) {
 				this._codeEditorService.openCodeEditor({
-					resource: model.textModel.uri,
+					resource: model.uri,
 					options: {
 						selection: Range.collapseToStart(element.symbol.selectionRange),
 						selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
@@ -735,7 +747,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			// open symbol in editor
 			return editors.openEditor({
-				resource: outlineElement.textModel.uri,
+				resource: outlineElement.uri,
 				options: { selection: Range.collapseToStart(element.symbol.selectionRange) }
 			}, SIDE_GROUP);
 
