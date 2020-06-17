@@ -176,7 +176,7 @@ export class CodeCell extends Disposable {
 
 			let prevElement: HTMLElement | undefined = undefined;
 
-			this.viewCell.outputs.reverse().forEach(output => {
+			[...this.viewCell.outputs].reverse().forEach(output => {
 				if (this.outputElements.has(output)) {
 					// already exist
 					prevElement = this.outputElements.get(output);
