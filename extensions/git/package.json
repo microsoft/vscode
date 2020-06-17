@@ -1871,7 +1871,7 @@
       {
         "view": "explorer",
         "contents": "%view.workbench.cloneRepository%",
-        "when": "config.git.enabled"
+        "when": "config.git.enabled && git.state == initialized"
       }
     ]
   },
