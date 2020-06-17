@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { protocol, session } from 'electron';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { session } from 'electron';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IWebviewPortMapping, WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
 import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
+import { IWebviewPortMapping, WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
 
 interface PortMappingData {
 	readonly extensionLocation: URI | undefined;
@@ -34,7 +33,14 @@ export class WebviewPortMappingProvider extends Disposable {
 		super();
 
 		const sess = session.fromPartition(webviewPartitionId);
-		sess.webRequest.onBeforeRequest(async (details, callback) => {
+
+		sess.webRequest.onBeforeRequest({
+			urls: [
+				'*://localhost:*/',
+				'*://127.0.0.1:*/',
+				'*://0.0.0.0:*/',
+			]
+		}, async (details, callback) => {
 			const webviewId = details.webContentsId && this._webContentsIdsToWebviewIds.get(details.webContentsId);
 			if (!webviewId) {
 				return callback({});
@@ -48,8 +54,6 @@ export class WebviewPortMappingProvider extends Disposable {
 			const redirect = await entry.manager.getRedirect(entry.metadata.resolvedAuthority, details.url);
 			return callback(redirect ? { redirectURL: redirect } : {});
 		});
-
-		this._register(toDisposable(() => protocol.unregisterProtocol(Schemas.vscodeWebviewResource)));
 	}
 
 	public async registerWebview(id: string, webContentsId: number, metadata: PortMappingData): Promise<void> {

@@ -470,7 +470,6 @@ export class NativeWindow extends Disposable {
 		// Register external URI resolver
 		this.openerService.registerExternalUriResolver({
 			resolveExternalUri: async (uri: URI, options?: OpenOptions) => {
-				console.log('xxxxxxx');
 				if (options?.allowTunneling) {
 					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
 					if (portMappingRequest) {

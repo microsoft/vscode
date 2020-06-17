@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { protocol, session } from 'electron';
+import { session } from 'electron';
 import { Readable } from 'stream';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -31,6 +31,7 @@ export class WebviewProtocolProvider extends Disposable {
 		super();
 
 		const sess = session.fromPartition(webviewPartitionId);
+
 		sess.protocol.registerStreamProtocol(Schemas.vscodeWebviewResource, async (request, callback): Promise<void> => {
 			try {
 				const uri = URI.parse(request.url);
@@ -66,7 +67,7 @@ export class WebviewProtocolProvider extends Disposable {
 			return callback({ data: null, statusCode: 404 });
 		});
 
-		this._register(toDisposable(() => protocol.unregisterProtocol(Schemas.vscodeWebviewResource)));
+		this._register(toDisposable(() => sess.protocol.unregisterProtocol(Schemas.vscodeWebviewResource)));
 	}
 
 	private streamToNodeReadable(stream: VSBufferReadableStream): Readable {
