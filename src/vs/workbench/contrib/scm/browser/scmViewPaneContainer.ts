@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scmViewPaneContainer';
+import 'vs/css!./media/scm';
 import { localize } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { VIEWLET_ID, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
