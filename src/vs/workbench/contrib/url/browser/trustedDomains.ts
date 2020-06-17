@@ -145,7 +145,7 @@ export function extractGitHubRemotesFromGitConfig(gitConfig: string): string[] {
 async function getRemotes(fileService: IFileService, textFileService: ITextFileService, contextService: IWorkspaceContextService): Promise<string[]> {
 	const workspaceUris = contextService.getWorkspace().folders.map(folder => folder.uri);
 	const domains = await Promise.race([
-		new Promise<string[][]>(resolve => setTimeout(() => resolve([]), 2000)),
+		new Promise<string[][]>(resolve => setTimeout(() => resolve([]), 250)),
 		Promise.all<string[]>(workspaceUris.map(async workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
