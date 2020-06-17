@@ -66,7 +66,7 @@ export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | un
 				d.dispose();
 			}
 		}
-		return arg;
+		return Array.isArray(arg) ? [] : arg;
 	} else if (arg) {
 		markTracked(arg);
 		arg.dispose();
