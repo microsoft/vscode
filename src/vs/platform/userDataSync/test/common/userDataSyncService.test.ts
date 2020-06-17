@@ -11,6 +11,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { joinPath } from 'vs/base/common/resources';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 suite('UserDataSyncService', () => {
 
@@ -506,6 +507,24 @@ suite('UserDataSyncService', () => {
 			assert.ok(hasExecutionIdHeader, `Should have execution header: ${request.url}`);
 		}
 
+	});
+
+	test('test can run sync taks only once', async () => {
+		// Setup the client
+		const target = new UserDataSyncTestServer();
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		const testObject = client.instantiationService.get(IUserDataSyncService);
+
+		const syncTask = await testObject.createSyncTask();
+		await syncTask.run(CancellationToken.None);
+
+		try {
+			await syncTask.run(CancellationToken.None);
+			assert.fail('Should fail running the task again');
+		} catch (error) {
+			/* expected */
+		}
 	});
 
 });
