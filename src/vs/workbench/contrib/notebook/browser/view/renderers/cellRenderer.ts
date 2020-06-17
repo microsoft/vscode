@@ -53,17 +53,17 @@ import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/vie
 const $ = DOM.$;
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
-	private _lineHeight: number;
+	private readonly lineHeight: number;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this._lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
+		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
 	}
 
 	getHeight(element: CellViewModel): number {
-		return element.getHeight(this._lineHeight);
+		return element.getHeight(this.lineHeight);
 	}
 
 	hasDynamicHeight(element: CellViewModel): boolean {
@@ -82,11 +82,11 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewMo
 export class CodiconActionViewItem extends ContextAwareMenuEntryActionViewItem {
 	constructor(
 		readonly _action: MenuItemAction,
-		_keybindingService: IKeybindingService,
-		_notificationService: INotificationService,
-		_contextMenuService: IContextMenuService
+		keybindingService: IKeybindingService,
+		notificationService: INotificationService,
+		contextMenuService: IContextMenuService
 	) {
-		super(_action, _keybindingService, _notificationService, _contextMenuService);
+		super(_action, keybindingService, notificationService, contextMenuService);
 	}
 	updateLabel(): void {
 		if (this.options.label && this.label) {
@@ -123,14 +123,14 @@ export class CellEditorOptions {
 	};
 
 	private _value: IEditorOptions;
-	private _disposable: IDisposable;
+	private disposable: IDisposable;
 
 	private readonly _onDidChange = new Emitter<IEditorOptions>();
 	readonly onDidChange: Event<IEditorOptions> = this._onDidChange.event;
 
 	constructor(configurationService: IConfigurationService, language: string) {
 
-		this._disposable = configurationService.onDidChangeConfiguration(e => {
+		this.disposable = configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor')) {
 				this._value = computeEditorOptions();
 				this._onDidChange.fire(this.value);
@@ -150,7 +150,7 @@ export class CellEditorOptions {
 
 	dispose(): void {
 		this._onDidChange.dispose();
-		this._disposable.dispose();
+		this.disposable.dispose();
 	}
 
 	get value(): IEditorOptions {
@@ -378,13 +378,13 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 	private getDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
 		if (templateData.currentRenderedCell!.editState === CellEditState.Editing) {
-			return this._getEditDragImage(templateData);
+			return this.getEditDragImage(templateData);
 		} else {
-			return this._getMarkdownDragImage(templateData);
+			return this.getMarkdownDragImage(templateData);
 		}
 	}
 
-	private _getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
+	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
 		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
 		dragImageContainer.innerHTML = templateData.container.innerHTML;
 
@@ -398,7 +398,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		return dragImageContainer;
 	}
 
-	private _getEditDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
+	private getEditDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
 		return new CodeCellDragImageRenderer().getDragImage(templateData, templateData.currentEditor!, 'markdown');
 	}
 
@@ -681,10 +681,10 @@ export class CellDragAndDropController extends Disposable {
 }
 
 export class CellLanguageStatusBarItem extends Disposable {
-	private labelElement: HTMLElement;
+	private readonly labelElement: HTMLElement;
 
-	private _cell: ICellViewModel | undefined;
-	private _editor: INotebookEditor | undefined;
+	private cell: ICellViewModel | undefined;
+	private editor: INotebookEditor | undefined;
 
 	private cellDisposables: DisposableStore;
 
@@ -699,7 +699,7 @@ export class CellLanguageStatusBarItem extends Disposable {
 
 		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.CLICK, () => {
 			this.instantiationService.invokeFunction(accessor => {
-				new ChangeCellLanguageAction().run(accessor, { notebookEditor: this._editor!, cell: this._cell! });
+				new ChangeCellLanguageAction().run(accessor, { notebookEditor: this.editor!, cell: this.cell! });
 			});
 		}));
 		this._register(this.cellDisposables = new DisposableStore());
@@ -707,15 +707,15 @@ export class CellLanguageStatusBarItem extends Disposable {
 
 	update(cell: ICellViewModel, editor: INotebookEditor): void {
 		this.cellDisposables.clear();
-		this._cell = cell;
-		this._editor = editor;
+		this.cell = cell;
+		this.editor = editor;
 
 		this.render();
-		this.cellDisposables.add(this._cell.model.onDidChangeLanguage(() => this.render()));
+		this.cellDisposables.add(this.cell.model.onDidChangeLanguage(() => this.render()));
 	}
 
 	private render(): void {
-		this.labelElement.textContent = this.modeService.getLanguageName(this._cell!.language!);
+		this.labelElement.textContent = this.modeService.getLanguageName(this.cell!.language!);
 	}
 }
 
@@ -727,7 +727,7 @@ class EditorTextRenderer {
 			return null;
 		}
 
-		const colorMap = this._getDefaultColorMap();
+		const colorMap = this.getDefaultColorMap();
 		const fontInfo = editor.getOptions().get(EditorOption.fontInfo);
 		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
 
@@ -740,11 +740,11 @@ class EditorTextRenderer {
 			+ `line-height: ${fontInfo.lineHeight}px;`
 			+ `white-space: pre;`
 			+ `">`
-			+ this._getRichTextLines(model, modelRange, colorMap)
+			+ this.getRichTextLines(model, modelRange, colorMap)
 			+ '</div>';
 	}
 
-	private _getRichTextLines(model: ITextModel, modelRange: Range, colorMap: string[]): string {
+	private getRichTextLines(model: ITextModel, modelRange: Range, colorMap: string[]): string {
 		const startLineNumber = modelRange.startLineNumber;
 		const startColumn = modelRange.startColumn;
 		const endLineNumber = modelRange.endLineNumber;
@@ -770,7 +770,7 @@ class EditorTextRenderer {
 		return result;
 	}
 
-	private _getDefaultColorMap(): string[] {
+	private getDefaultColorMap(): string[] {
 		let colorMap = modes.TokenizationRegistry.getColorMap();
 		let result: string[] = ['#000000'];
 		if (colorMap) {
@@ -784,7 +784,7 @@ class EditorTextRenderer {
 
 class CodeCellDragImageRenderer {
 	getDragImage(templateData: BaseCellRenderTemplate, editor: ICodeEditor, type: 'code' | 'markdown'): HTMLElement {
-		let dragImage = this._getDragImage(templateData, editor, type);
+		let dragImage = this.getDragImageImpl(templateData, editor, type);
 		if (!dragImage) {
 			// TODO@roblourens I don't think this can happen
 			dragImage = document.createElement('div');
@@ -794,7 +794,7 @@ class CodeCellDragImageRenderer {
 		return dragImage;
 	}
 
-	private _getDragImage(templateData: BaseCellRenderTemplate, editor: ICodeEditor, type: 'code' | 'markdown'): HTMLElement | null {
+	private getDragImageImpl(templateData: BaseCellRenderTemplate, editor: ICodeEditor, type: 'code' | 'markdown'): HTMLElement | null {
 		const dragImageContainer = DOM.$(`.cell-drag-image.monaco-list-row.focused.${type}-cell-row`);
 		dragImageContainer.innerHTML = templateData.container.innerHTML;
 

@@ -90,15 +90,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private editorExecutingNotebook: IContextKey<boolean> | null = null;
 	private notebookHasMultipleKernels: IContextKey<boolean> | null = null;
 	private outputRenderer: OutputRenderer;
-	protected readonly _contributions: { [key: string]: INotebookEditorContribution; };
+	protected readonly contributions: { [key: string]: INotebookEditorContribution; };
 	private scrollBeyondLastLine: boolean;
 	private readonly memento: Memento;
+	private readonly onDidFocusEmitter = this._register(new Emitter<void>());
+	public readonly onDidFocus = this.onDidFocusEmitter.event;
+	private cellContextKeyManager: CellContextKeyManager | null = null;
+	private isVisible = false;
+	private readonly uuid = generateUuid();
+
 	private _isDisposed: boolean = false;
-	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
-	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
-	private _cellContextKeyManager: CellContextKeyManager | null = null;
-	private _isVisible = false;
-	private readonly _uuid = generateUuid();
 
 	get isDisposed() {
 		return this._isDisposed;
@@ -110,19 +111,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@INotebookService private notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@ILayoutService private readonly _layoutService: ILayoutService
+		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super();
 		this.memento = new Memento(NotebookEditorWidget.ID, storageService);
 
 		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
-		this._contributions = {};
+		this.contributions = {};
 		this.scrollBeyondLastLine = this.configurationService.getValue<boolean>('editor.scrollBeyondLastLine');
 
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.scrollBeyondLastLine')) {
 				this.scrollBeyondLastLine = this.configurationService.getValue<boolean>('editor.scrollBeyondLastLine');
-				if (this.dimension && this._isVisible) {
+				if (this.dimension && this.isVisible) {
 					this.layout(this.dimension);
 				}
 			}
@@ -132,7 +133,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	public getId(): string {
-		return this._uuid;
+		return this.uuid;
 	}
 
 	private readonly _onDidChangeModel = new Emitter<NotebookTextModel | undefined>();
@@ -231,12 +232,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		DOM.addClass(this.overlayContainer, 'notebook-editor');
 		this.overlayContainer.style.visibility = 'hidden';
 
-		this._layoutService.container.appendChild(this.overlayContainer);
+		this.layoutService.container.appendChild(this.overlayContainer);
 		this.createBody(this.overlayContainer);
 		this.generateFontInfo();
 		this.editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.contextKeyService);
 		this.editorFocus.set(true);
-		this._isVisible = true;
+		this.isVisible = true;
 		this.outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.contextKeyService);
 		this.editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
 		this.editorEditable.set(true);
@@ -251,7 +252,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		for (const desc of contributions) {
 			try {
 				const contribution = this.instantiationService.createInstance(desc.ctor, this);
-				this._contributions[desc.id] = contribution;
+				this.contributions[desc.id] = contribution;
 			} catch (err) {
 				onUnexpectedError(err);
 			}
@@ -364,7 +365,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		const widgetFocusTracker = DOM.trackFocus(this.getDomNode());
 		this._register(widgetFocusTracker);
-		this._register(widgetFocusTracker.onDidFocus(() => this._onDidFocusWidget.fire()));
+		this._register(widgetFocusTracker.onDidFocus(() => this.onDidFocusEmitter.fire()));
 	}
 
 	getDomNode() {
@@ -372,7 +373,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	onWillHide() {
-		this._isVisible = false;
+		this.isVisible = false;
 		this.editorFocus?.set(false);
 		this.overlayContainer.style.visibility = 'hidden';
 		this.overlayContainer.style.left = '-50000px';
@@ -383,7 +384,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	focus() {
-		this._isVisible = true;
+		this.isVisible = true;
 		this.editorFocus?.set(true);
 		this.list?.domFocus();
 		this._onDidFocusEditorWidget.fire();
@@ -398,22 +399,22 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// clear state
 		this.dndController?.clearGlobalDragState();
 
-		this._setKernels(textModel);
+		this.setKernels(textModel);
 
 		this.localStore.add(this.notebookService.onDidChangeKernels(() => {
 			if (this.activeKernel === undefined) {
-				this._setKernels(textModel);
+				this.setKernels(textModel);
 			}
 		}));
 
 		this.localStore.add(this.list!.onDidChangeFocus(() => {
 			const focused = this.list!.getFocusedElements()[0];
 			if (focused) {
-				if (!this._cellContextKeyManager) {
-					this._cellContextKeyManager = this.localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as any));
+				if (!this.cellContextKeyManager) {
+					this.cellContextKeyManager = this.localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as any));
 				}
 
-				this._cellContextKeyManager.updateForElement(focused as any);
+				this.cellContextKeyManager.updateForElement(focused as any);
 			}
 		}));
 
@@ -472,7 +473,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.list?.clear();
 	}
 
-	private _setKernels(textModel: NotebookTextModel) {
+	private setKernels(textModel: NotebookTextModel) {
 		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
 		const availableKernels = this.notebookService.getContributedNotebookKernels(textModel.viewType, textModel.uri);
 
@@ -522,7 +523,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.webview.webview.onDidFocus(() => {
 			this.outputFocus?.set(true);
 			this.updateEditorFocus();
-			this._onDidFocusWidget.fire();
+			this.onDidFocusEmitter.fire();
 		});
 
 		this.localStore.add(this.webview.onMessage(message => {
@@ -553,10 +554,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			// contribution state restore
 
 			const contributionsState = viewState?.contributionsState || {};
-			const keys = Object.keys(this._contributions);
+			const keys = Object.keys(this.contributions);
 			for (let i = 0, len = keys.length; i < len; i++) {
 				const id = keys[i];
-				const contribution = this._contributions[id];
+				const contribution = this.contributions[id];
 				if (typeof contribution.restoreViewState === 'function') {
 					contribution.restoreViewState(contributionsState[id]);
 				}
@@ -696,9 +697,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// Save contribution view states
 		const contributionsState: { [key: string]: any } = {};
 
-		const keys = Object.keys(this._contributions);
+		const keys = Object.keys(this.contributions);
 		for (const id of keys) {
-			const contribution = this._contributions[id];
+			const contribution = this.contributions[id];
 			if (typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();
 			}
@@ -1218,7 +1219,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	//#region Editor Contributions
 	public getContribution<T extends INotebookEditorContribution>(id: string): T {
-		return <T>(this._contributions[id] || null);
+		return <T>(this.contributions[id] || null);
 	}
 
 	//#endregion
@@ -1226,10 +1227,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	dispose() {
 		this._isDisposed = true;
 		this.notebookService.removeNotebookEditor(this);
-		const keys = Object.keys(this._contributions);
+		const keys = Object.keys(this.contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			const contributionId = keys[i];
-			this._contributions[contributionId].dispose();
+			this.contributions[contributionId].dispose();
 		}
 
 		this.localStore.clear();

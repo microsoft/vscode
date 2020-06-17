@@ -31,9 +31,9 @@ export class NotebookEditor extends BaseEditor {
 
 	private readonly editorMemento: IEditorMemento<INotebookEditorViewState>;
 	private readonly groupListener = this._register(new MutableDisposable());
-	private readonly _widgetDisposableStore: DisposableStore = new DisposableStore();
-	private _widget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
-	private _rootElement!: HTMLElement;
+	private readonly widgetDisposableStore: DisposableStore = new DisposableStore();
+	private widget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
+	private rootElement!: HTMLElement;
 	private dimension?: DOM.Dimension;
 
 	// todo@rebornix is there a reason that `super.fireOnDidFocus` isn't used?
@@ -58,14 +58,14 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	set viewModel(newModel: NotebookViewModel | undefined) {
-		if (this._widget.value) {
-			this._widget.value.viewModel = newModel;
+		if (this.widget.value) {
+			this.widget.value.viewModel = newModel;
 			this._onDidChangeModel.fire();
 		}
 	}
 
 	get viewModel() {
-		return this._widget.value?.viewModel;
+		return this.widget.value?.viewModel;
 	}
 
 	get minimumWidth(): number { return 375; }
@@ -82,26 +82,26 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this._rootElement = DOM.append(parent, DOM.$('.notebook-editor'));
+		this.rootElement = DOM.append(parent, DOM.$('.notebook-editor'));
 
 		// this._widget.createEditor();
-		this._register(this.onDidFocus(() => this._widget.value?.updateEditorFocus()));
-		this._register(this.onDidBlur(() => this._widget.value?.updateEditorFocus()));
+		this._register(this.onDidFocus(() => this.widget.value?.updateEditorFocus()));
+		this._register(this.onDidBlur(() => this.widget.value?.updateEditorFocus()));
 	}
 
 	getDomNode() {
-		return this._rootElement;
+		return this.rootElement;
 	}
 
 	getControl(): NotebookEditorWidget | undefined {
-		return this._widget.value;
+		return this.widget.value;
 	}
 
 	onWillHide() {
 		this.saveEditorViewState(this.input);
-		if (this.input && this._widget.value) {
+		if (this.input && this.widget.value) {
 			// the widget is not transfered to other editor inputs
-			this._widget.value.onWillHide();
+			this.widget.value.onWillHide();
 		}
 		super.onWillHide();
 	}
@@ -113,7 +113,7 @@ export class NotebookEditor extends BaseEditor {
 
 	focus() {
 		super.focus();
-		this._widget.value?.focus();
+		this.widget.value?.focus();
 	}
 
 	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
@@ -123,21 +123,21 @@ export class NotebookEditor extends BaseEditor {
 		this.saveEditorViewState(this.input);
 		await super.setInput(input, options, token);
 
-		this._widgetDisposableStore.clear();
+		this.widgetDisposableStore.clear();
 
 		// there currently is a widget which we still own so
 		// we need to hide it before getting a new widget
-		if (this._widget.value) {
-			this._widget.value.onWillHide();
+		if (this.widget.value) {
+			this.widget.value.onWillHide();
 		}
 
-		this._widget = this.instantiationService.invokeFunction(this.notebookWidgetService.retrieveWidget, group, input);
+		this.widget = this.instantiationService.invokeFunction(this.notebookWidgetService.retrieveWidget, group, input);
 
 		if (this.dimension) {
-			this._widget.value!.layout(this.dimension, this._rootElement);
+			this.widget.value!.layout(this.dimension, this.rootElement);
 		}
 
-		const model = await input.resolve(this._widget.value!.getId());
+		const model = await input.resolve(this.widget.value!.getId());
 
 		if (model === null) {
 			this.notificationService.prompt(
@@ -157,19 +157,19 @@ export class NotebookEditor extends BaseEditor {
 
 		const viewState = this.loadTextEditorViewState(input);
 
-		await this._widget.value!.setModel(model.notebook, viewState, options);
-		this._widgetDisposableStore.add(this._widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
+		await this.widget.value!.setModel(model.notebook, viewState, options);
+		this.widgetDisposableStore.add(this.widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
 
 		if (this.editorGroupService instanceof EditorPart) {
-			this._widgetDisposableStore.add(this.editorGroupService.createEditorDropTarget(this._widget.value!.getDomNode(), {
+			this.widgetDisposableStore.add(this.editorGroupService.createEditorDropTarget(this.widget.value!.getDomNode(), {
 				groupContainsPredicate: (group) => this.group?.id === group.group.id
 			}));
 		}
 	}
 
 	clearInput(): void {
-		if (this._widget.value) {
-			this._widget.value.onWillHide();
+		if (this.widget.value) {
+			this.widget.value.onWillHide();
 		}
 		super.clearInput();
 	}
@@ -181,8 +181,8 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	private saveEditorViewState(input: IEditorInput | undefined): void {
-		if (this.group && this._widget.value && input instanceof NotebookEditorInput) {
-			const state = this._widget.value.getEditorViewState();
+		if (this.group && this.widget.value && input instanceof NotebookEditorInput) {
+			const state = this.widget.value.getEditorViewState();
 			this.editorMemento.saveEditorState(this.group, input.resource, state);
 		}
 	}
@@ -196,15 +196,15 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	layout(dimension: DOM.Dimension): void {
-		this._rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
-		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
+		this.rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
+		this.rootElement.classList.toggle('narrow-width', dimension.width < 600);
 		this.dimension = dimension;
 
-		if (!this._widget.value || !(this._input instanceof NotebookEditorInput)) {
+		if (!this.widget.value || !(this._input instanceof NotebookEditorInput)) {
 			return;
 		}
 
-		if (this._input.resource.toString() !== this._widget.value.viewModel?.uri.toString() && this._widget.value?.viewModel) {
+		if (this._input.resource.toString() !== this.widget.value.viewModel?.uri.toString() && this.widget.value?.viewModel) {
 			// input and widget mismatch
 			// this happens when
 			// 1. open document A, pin the document
@@ -214,7 +214,7 @@ export class NotebookEditor extends BaseEditor {
 			return;
 		}
 
-		this._widget.value.layout(this.dimension, this._rootElement);
+		this.widget.value.layout(this.dimension, this.rootElement);
 	}
 
 	//#endregion
