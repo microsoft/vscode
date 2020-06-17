@@ -121,7 +121,7 @@ export class UserDataSyncClient extends Disposable {
 	}
 
 	sync(): Promise<void> {
-		return this.instantiationService.get(IUserDataSyncService).sync(CancellationToken.None);
+		return this.instantiationService.get(IUserDataSyncService).sync();
 	}
 
 	read(resource: SyncResource): Promise<IUserData> {
@@ -154,9 +154,14 @@ export class UserDataSyncTestServer implements IRequestService {
 	get responses(): { status: number }[] { return this._responses; }
 	reset(): void { this._requests = []; this._responses = []; this._requestsWithAllHeaders = []; }
 
+	constructor(private readonly rateLimit = Number.MAX_SAFE_INTEGER) { }
+
 	async resolveProxy(url: string): Promise<string | undefined> { return url; }
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		if (this._requests.length === this.rateLimit) {
+			return this.toResponse(429);
+		}
 		const headers: IHeaders = {};
 		if (options.headers) {
 			if (options.headers['If-None-Match']) {

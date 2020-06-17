@@ -224,7 +224,7 @@ export class UserDataSyncError extends Error {
 	}
 
 	static toUserDataSyncError(error: Error): UserDataSyncError {
-		if (error instanceof UserDataSyncStoreError) {
+		if (error instanceof UserDataSyncError) {
 			return error;
 		}
 		const match = /^(.+) \(UserDataSyncError\) (.+)?$/.exec(error.name);
@@ -237,6 +237,12 @@ export class UserDataSyncError extends Error {
 }
 
 export class UserDataSyncStoreError extends UserDataSyncError {
+	constructor(message: string, code: UserDataSyncErrorCode) {
+		super(message, code);
+	}
+}
+
+export class UserDataAutoSyncError extends UserDataSyncError {
 	constructor(message: string, code: UserDataSyncErrorCode) {
 		super(message, code);
 	}
@@ -340,6 +346,11 @@ export interface IUserDataSyncResourceEnablementService {
 
 export type SyncResourceConflicts = { syncResource: SyncResource, conflicts: Conflict[] };
 
+export interface ISyncTask {
+	manifest: IUserDataManifest | null;
+	run(token: CancellationToken): Promise<void>;
+}
+
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 export interface IUserDataSyncService {
 	_serviceBrand: any;
@@ -357,11 +368,13 @@ export interface IUserDataSyncService {
 	readonly onDidChangeLastSyncTime: Event<number>;
 
 	pull(): Promise<void>;
-	sync(token: CancellationToken): Promise<void>;
+	sync(): Promise<void>;
 	stop(): Promise<void>;
 	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
+
+	createSyncTask(): Promise<ISyncTask>
 
 	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
