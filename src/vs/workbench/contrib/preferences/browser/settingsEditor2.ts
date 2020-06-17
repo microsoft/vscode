@@ -35,7 +35,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback, attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { getUserDataSyncStore, IUserDataSyncService, SyncStatus, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
@@ -1402,13 +1402,15 @@ class SyncControls extends Disposable {
 		container: HTMLElement,
 		@ICommandService private readonly commandService: ICommandService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService
+		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super();
 
 		const headerRightControlsContainer = DOM.append(container, $('.settings-right-controls'));
 		const turnOnSyncButtonContainer = DOM.append(headerRightControlsContainer, $('.turn-on-sync'));
 		this.turnOnSyncButton = this._register(new Button(turnOnSyncButtonContainer, { title: true }));
+		this._register(attachButtonStyler(this.turnOnSyncButton, themeService));
 		this.lastSyncedLabel = DOM.append(headerRightControlsContainer, $('.last-synced-label'));
 		DOM.hide(this.lastSyncedLabel);
 
