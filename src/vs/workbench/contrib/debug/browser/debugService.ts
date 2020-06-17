@@ -375,8 +375,6 @@ export class DebugService implements IDebugService {
 		const unresolvedConfig = deepClone(config);
 		if (options && options.noDebug) {
 			config!.noDebug = true;
-		} else {
-			delete config!.noDebug;
 		}
 
 		if (!type) {
