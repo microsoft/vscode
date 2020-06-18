@@ -33,11 +33,11 @@ export class NotebookEditorInput extends EditorInput {
 		public readonly name: string,
 		public readonly viewType: string | undefined,
 		public readonly options: NotebookEditorInputOptions,
-		@INotebookService private readonly notebookService: INotebookService,
-		@INotebookEditorModelResolverService private readonly notebookModelResolverService: INotebookEditorModelResolverService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@INotebookService private readonly _notebookService: INotebookService,
+		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
+		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._defaultDirtyState = !!options.startDirty;
@@ -75,7 +75,7 @@ export class NotebookEditorInput extends EditorInput {
 			return false; // the editor needs to be dirty for being saved
 		}
 
-		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+		if (this._filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 			return true; // a short auto save is configured, treat this as being saved
 		}
 
@@ -97,7 +97,7 @@ export class NotebookEditorInput extends EditorInput {
 		}
 
 		const dialogPath = this._textModel.object.resource;
-		const target = await this.fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
+		const target = await this._fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
 		if (!target) {
 			return undefined; // save cancelled
 		}
@@ -112,7 +112,7 @@ export class NotebookEditorInput extends EditorInput {
 	// called when users rename a notebook document
 	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		if (this._textModel) {
-			const contributedNotebookProviders = this.notebookService.getContributedNotebookProviders(target);
+			const contributedNotebookProviders = this._notebookService.getContributedNotebookProviders(target);
 
 			if (contributedNotebookProviders.find(provider => provider.id === this._textModel!.object.viewType)) {
 				return this._move(group, target);
@@ -122,7 +122,7 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	private _move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
-		const editorInput = NotebookEditorInput.create(this.instantiationService, newResource, basename(newResource), this.viewType);
+		const editorInput = NotebookEditorInput.create(this._instantiationService, newResource, basename(newResource), this.viewType);
 		return { editor: editorInput };
 	}
 
@@ -135,12 +135,12 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async resolve(editorId?: string): Promise<INotebookEditorModel | null> {
-		if (!await this.notebookService.canResolve(this.viewType!)) {
+		if (!await this._notebookService.canResolve(this.viewType!)) {
 			return null;
 		}
 
 		if (!this._textModel) {
-			this._textModel = await this.notebookModelResolverService.resolve(this.resource, this.viewType!, editorId);
+			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!, editorId);
 
 			this._register(this._textModel.object.onDidChangeDirty(() => {
 				this._onDidChangeDirty.fire();

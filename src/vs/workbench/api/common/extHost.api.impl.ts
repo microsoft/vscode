@@ -46,7 +46,7 @@ import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { ExtHostUrls } from 'vs/workbench/api/common/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
-import { ExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
+import { IExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { throwProposedApiError, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -97,6 +97,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostLogService = accessor.get(ILogService);
 	const extHostTunnelService = accessor.get(IExtHostTunnelService);
 	const extHostApiDeprecation = accessor.get(IExtHostApiDeprecationService);
+	const extHostWindow = accessor.get(IExtHostWindow);
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, <ExtHostLogServiceShape><any>extHostLogService);
@@ -105,6 +106,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
 	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
 	rpcProtocol.set(ExtHostContext.ExtHostTunnelService, extHostTunnelService);
+	rpcProtocol.set(ExtHostContext.ExtHostWindow, extHostWindow);
 
 	// automatically create and register addressable instances
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));
@@ -131,7 +133,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
-	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHosLabelService, new ExtHostLabelService(rpcProtocol));
 	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, initData.environment, extensionStoragePaths));

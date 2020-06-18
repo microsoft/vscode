@@ -229,6 +229,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private getServer(extension: ILocalExtension): IExtensionManagementServer | null {
-		return this.extensionManagementServerService.getExtensionManagementServer(extension.location);
+		return this.extensionManagementServerService.getExtensionManagementServer(extension);
 	}
 }

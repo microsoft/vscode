@@ -175,6 +175,8 @@ export interface IExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
+	readonly readmeUrl?: URI;
+	readonly changelogUrl?: URI;
 }
 
 /**

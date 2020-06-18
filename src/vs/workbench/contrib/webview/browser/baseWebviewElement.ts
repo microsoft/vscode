@@ -15,6 +15,7 @@ import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } fr
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const enum WebviewMessageChannels {
 	onmessage = 'onmessage',
@@ -83,6 +84,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		contentOptions: WebviewContentOptions,
 		public readonly extension: WebviewExtensionDescription | undefined,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
+		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly _environementService: IEnvironmentService,
 		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
@@ -98,6 +100,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._element = this.createElement(options, contentOptions);
 
 		const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
+			this._logService.debug(`Webview(${this.id}): webview ready`);
+
 			if (this.element) {
 				addClass(this.element, 'ready');
 			}
@@ -240,7 +244,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	public reload(): void {
-		this.doUpdateContent();
+		this.doUpdateContent(this.content);
+
 		const subscription = this._register(this.on(WebviewMessageChannels.didLoad, () => {
 			this._onDidReload.fire();
 			subscription.dispose();
@@ -248,25 +253,26 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	public set html(value: string) {
-		this.content = {
+		this.doUpdateContent({
 			html: value,
 			options: this.content.options,
 			state: this.content.state,
-		};
-		this.doUpdateContent();
+		});
 	}
 
 	public set contentOptions(options: WebviewContentOptions) {
+		this._logService.debug(`Webview(${this.id}): will update content options`);
+
 		if (areWebviewInputOptionsEqual(options, this.content.options)) {
+			this._logService.debug(`Webview(${this.id}): skipping content options update`);
 			return;
 		}
 
-		this.content = {
+		this.doUpdateContent({
 			html: this.content.html,
 			options: options,
 			state: this.content.state,
-		};
-		this.doUpdateContent();
+		});
 	}
 
 	public set localResourcesRoot(resources: URI[]) {
@@ -285,7 +291,11 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._send('initial-scroll-position', value);
 	}
 
-	private doUpdateContent() {
+	private doUpdateContent(newContent: WebviewContent) {
+		this._logService.debug(`Webview(${this.id}): will update content`);
+
+		this.content = newContent;
+
 		this._send('content', {
 			contents: this.content.html,
 			options: this.content.options,

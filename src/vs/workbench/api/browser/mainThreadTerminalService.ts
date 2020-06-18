@@ -81,7 +81,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._proxy.$initEnvironmentVariableCollections(serializedCollections);
 		}
 
-		this._terminalService.extHostReady(extHostContext.remoteAuthority);
+		this._terminalService.extHostReady(extHostContext.remoteAuthority!); // TODO@Tyriar: remove null assertion
 	}
 
 	public dispose(): void {
