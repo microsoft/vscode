@@ -37,7 +37,6 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 	private readonly _extensionHostLogFile: URI;
 
 	constructor(
-		private readonly _autoStart: boolean,
 		private readonly _extensions: Promise<IExtensionDescription[]>,
 		private readonly _extensionHostLogsLocation: URI,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -157,7 +156,7 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 			logLevel: this._logService.getLevel(),
 			logsLocation: this._extensionHostLogsLocation,
 			logFile: this._extensionHostLogFile,
-			autoStart: this._autoStart,
+			autoStart: true,
 			remote: {
 				authority: this._environmentService.configuration.remoteAuthority,
 				connectionData: null,
