@@ -301,7 +301,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		const notebookInput = NotebookEditorInput.create(this.instantiationService, notebookUri, originalInput.getName(), info.id);
-		const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions, override: false, index });
+		const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions, override: false, index, forceReload: Boolean(cellOptions) });
 		return { override: this.editorService.openEditor(notebookInput, notebookOptions, group) };
 	}
 }
