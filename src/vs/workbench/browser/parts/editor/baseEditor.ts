@@ -58,7 +58,7 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	protected _options: EditorOptions | undefined;
 	get options(): EditorOptions | undefined { return this._options; }
 
-	private _group?: IEditorGroup;
+	private _group: IEditorGroup | undefined;
 	get group(): IEditorGroup | undefined { return this._group; }
 
 	constructor(
@@ -78,7 +78,8 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	}
 
 	/**
-	 * Called to create the editor in the parent HTMLElement.
+	 * Called to create the editor in the parent HTMLElement. Subclasses implement
+	 * this method to construct the editor widget.
 	 */
 	protected abstract createEditor(parent: HTMLElement): void;
 
@@ -140,11 +141,6 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	 * Called before the editor is being removed from the DOM.
 	 */
 	onWillHide() { }
-
-	/**
-	 * Called after the editor has been removed from the DOM.
-	 */
-	onDidHide() { }
 
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
 		const mementoKey = `${this.getId()}${key}`;

@@ -204,7 +204,6 @@ export class EditorControl extends Disposable {
 			this._activeEditorPane.onWillHide();
 			this.parent.removeChild(editorPaneContainer);
 			hide(editorPaneContainer);
-			this._activeEditorPane.onDidHide();
 		}
 
 		// Indicate to editor pane
