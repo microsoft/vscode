@@ -281,7 +281,7 @@ suite('Debug - Breakpoints', () => {
 		assert.equal(result.className, 'codicon-debug-breakpoint-conditional');
 
 		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[4]);
-		assert.equal(result.message, '/myfolder/my file first.js');
+		assert.equal(result.message, 'Breakpoint');
 		assert.equal(result.className, 'codicon-debug-breakpoint');
 
 		result = getBreakpointMessageAndClassName(State.Stopped, false, breakpoints[2]);
