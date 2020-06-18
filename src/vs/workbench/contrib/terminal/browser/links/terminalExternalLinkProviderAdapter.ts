@@ -10,13 +10,16 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
 import { ITerminalExternalLinkProvider, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 
+/**
+ * An adapter to convert a simple external link provider into an internal link provider that
+ * manages link lifecycle, hovers, etc. and gets registered in xterm.js.
+ */
 export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvider {
 
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _instance: ITerminalInstance,
 		private readonly _externalLinkProvider: ITerminalExternalLinkProvider,
-		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => void,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
@@ -24,7 +27,6 @@ export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvide
 	}
 
 	protected async _provideLinks(y: number): Promise<TerminalLink[]> {
-		// TODO: Need to return async
 		let startLine = y - 1;
 		let endLine = startLine;
 
@@ -48,7 +50,7 @@ export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvide
 			return [];
 		}
 
-		// TODO: Add handling default handling of links via the target property
+		// TODO: Add handling default handling of links via the target property on the ext host
 		return externalLinks.map(link => {
 			const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
 				startColumn: link.startIndex + 1,
@@ -56,8 +58,8 @@ export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvide
 				endColumn: link.startIndex + link.length + 1,
 				endLineNumber: 1
 			}, startLine);
-			const matchingText = lineContent.substr(link.startIndex, link.length);
-			return this._instantiationService.createInstance(TerminalLink, bufferRange, matchingText, this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true, link.label);
+			const matchingText = lineContent.substr(link.startIndex, link.length) || '';
+			return this._instantiationService.createInstance(TerminalLink, bufferRange, matchingText, this._xterm.buffer.active.viewportY, (_, text) => link.activate(text), this._tooltipCallback, true, link.label);
 		});
 	}
 }

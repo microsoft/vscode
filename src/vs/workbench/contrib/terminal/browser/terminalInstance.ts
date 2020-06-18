@@ -1495,39 +1495,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._processManager.getCwd();
 	}
 
-
 	public registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable {
-		if (!this._xterm) {
+		if (!this._linkManager) {
 			throw new Error('TerminalInstance.registerLinkProvider before xterm was created');
 		}
-		// TODO: Convert into TerminalBaseLinkProvider
-		const xterm = this._xterm;
-		const instance = this;
-		console.log('TerminalInstance.registerLinkProvider');
-		return xterm.registerLinkProvider({
-			async provideLinks(bufferLineNumber, callback) {
-				console.log('TerminalInstance provideLinks');
-				// TODO: Get and handle the full wrapped line
-				const bufferLine = xterm.buffer.active.getLine(bufferLineNumber - 1);
-				if (!bufferLine) {
-					return callback(undefined);
-				}
-				const lineString = bufferLine.translateToString();
-				const lineLinks = await provider.provideLinks(instance, lineString);
-				if (!lineLinks) {
-					return callback(undefined);
-				}
-				console.log('  result', lineLinks);
-				callback(lineLinks.map(l => ({
-					range: {
-						start: { x: l.startIndex, y: bufferLineNumber },
-						end: { x: l.startIndex + l.length, y: bufferLineNumber }
-					},
-					text: lineString.substr(l.startIndex, l.length),
-					activate: (_, text) => console.log('Activated! ' + text)
-				})));
-			}
-		});
+		return this._linkManager.registerExternalLinkProvider(this, provider);
 	}
 }
 
