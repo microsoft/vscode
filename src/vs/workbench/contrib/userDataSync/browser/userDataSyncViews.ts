@@ -7,7 +7,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewsRegistry, Extensions, ITreeViewDescriptor, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, IViewsService, TreeViewItemHandleArg, ViewContainer, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
+import { TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, SyncStatus, IUserDataSyncResourceEnablementService, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
@@ -36,6 +36,7 @@ import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { generateUuid } from 'vs/base/common/uuid';
+import { TreeView } from 'vs/workbench/contrib/views/browser/treeView';
 
 export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 

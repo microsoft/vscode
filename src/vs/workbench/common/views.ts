@@ -581,6 +581,7 @@ export interface ITreeView extends IDisposable {
 
 	setFocus(item: ITreeItem): void;
 
+	show(container: any): void;
 }
 
 export interface IRevealOptions {
