@@ -49,6 +49,9 @@
                 },
                 "emmet.includeLanguages": {
                     "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
                     "default": {},
                     "markdownDescription": "%emmetIncludeLanguages%"
                 },

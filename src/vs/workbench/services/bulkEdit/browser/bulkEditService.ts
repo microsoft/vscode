@@ -165,7 +165,7 @@ class BulkEditModel implements IDisposable {
 		this._tasks = [];
 		const promises: Promise<any>[] = [];
 
-		this._edits.forEach((value, key) => {
+		for (let [key, value] of this._edits) {
 			const promise = this._textModelResolverService.createModelReference(URI.parse(key)).then(async ref => {
 				let task: ModelEditTask;
 				let makeMinimal = false;
@@ -195,7 +195,7 @@ class BulkEditModel implements IDisposable {
 				this._progress.report(undefined);
 			});
 			promises.push(promise);
-		});
+		}
 
 		await Promise.all(promises);
 

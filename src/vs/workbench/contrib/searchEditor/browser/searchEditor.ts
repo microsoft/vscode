@@ -410,7 +410,7 @@ export class SearchEditor extends BaseTextEditor {
 		this.searchResultEditor.focus();
 	}
 
-	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; }) {
+	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; focusResults?: boolean }) {
 		const options = { resetCursor: true, delay: 0, ..._options };
 
 		if (!this.pauseSearching) {
@@ -420,6 +420,9 @@ export class SearchEditor extends BaseTextEditor {
 				if (options.resetCursor) {
 					this.searchResultEditor.setPosition(new Position(1, 1));
 					this.searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
+				}
+				if (options.focusResults) {
+					this.searchResultEditor.focus();
 				}
 			}, options.delay);
 		}

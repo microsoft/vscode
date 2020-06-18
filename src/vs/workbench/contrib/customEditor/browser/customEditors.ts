@@ -432,8 +432,8 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		this._register(this.editorService.overrideOpenEditor({
-			open: (editor, options, group, context, id) => {
-				return this.onEditorOpening(editor, options, group, id);
+			open: (editor, options, group) => {
+				return this.onEditorOpening(editor, options, group);
 			},
 			getEditorOverrides: (resource: URI, _options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {
 				const currentEditor = group?.editors.find(editor => isEqual(editor.resource, resource));
@@ -476,9 +476,9 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 	private onEditorOpening(
 		editor: IEditorInput,
 		options: ITextEditorOptions | undefined,
-		group: IEditorGroup,
-		id?: string,
+		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
+		const id = typeof options?.override === 'string' ? options.override : undefined;
 		if (editor instanceof CustomEditorInput) {
 			if (editor.group === group.id && (editor.viewType === id || typeof id !== 'string')) {
 				// No need to do anything

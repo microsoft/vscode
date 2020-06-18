@@ -9,6 +9,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 
+export enum WorkspaceStorageSettings {
+	WORKSPACE_FIRST_OPEN = 'workbench.workspaceFirstOpen'
+}
+
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
 export enum WillSaveStateReason {

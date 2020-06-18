@@ -40,7 +40,7 @@ import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';
-import { CompositeDragAndDropObserver, DragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { CompositeDragAndDropObserver, DragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
@@ -924,6 +924,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 				}
 			},
+			onDragOver: (e) => {
+				if (this.panes.length === 0) {
+					toggleDropEffect(e.eventData.dataTransfer, 'move', overlay !== undefined);
+				}
+			},
 			onDragLeave: (e) => {
 				overlay?.dispose();
 				overlay = undefined;
@@ -1362,6 +1367,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 						}
 					}
 				}
+			},
+			onDragOver: (e) => {
+				toggleDropEffect(e.eventData.dataTransfer, 'move', overlay !== undefined);
 			},
 			onDragLeave: (e) => {
 				overlay?.dispose();

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -26,7 +26,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
-import { ITelemetryService, machineIdKey, trueMachineIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
@@ -261,13 +261,6 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:exit', (event: Event, code: number) => {
-			this.logService.trace('IPC#vscode:exit', code);
-
-			this.dispose();
-			this.lifecycleMainService.kill(code);
-		});
-
 		ipc.on('vscode:fetchShellEnv', async (event: IpcMainEvent) => {
 			const webContents = event.sender;
 
@@ -293,13 +286,6 @@ export class CodeApplication extends Disposable {
 		// Some listeners after window opened
 		(async () => {
 			await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
-
-			// After waking up from sleep  (after window opened)
-			powerMonitor.on('resume', () => {
-				if (this.windowsMainService) {
-					this.windowsMainService.sendToAll('vscode:osResume', undefined);
-				}
-			});
 
 			// Keyboard layout changes (after window opened)
 			const nativeKeymap = await import('native-keymap');
@@ -365,8 +351,8 @@ export class CodeApplication extends Disposable {
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const { machineId, trueMachineId } = await this.resolveMachineId();
-		this.logService.trace(`Resolved machine identifier: ${machineId} (trueMachineId: ${trueMachineId})`);
+		const machineId = await this.resolveMachineId();
+		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Spawn shared process after the first window has opened and 3s have passed
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
@@ -387,7 +373,7 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Services
-		const appInstantiationService = await this.createServices(machineId, trueMachineId, sharedProcess, sharedProcessReady);
+		const appInstantiationService = await this.createServices(machineId, sharedProcess, sharedProcessReady);
 
 		// Create driver
 		if (this.environmentService.driverHandle) {
@@ -412,32 +398,21 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	private async resolveMachineId(): Promise<{ machineId: string, trueMachineId?: string }> {
+	private async resolveMachineId(): Promise<string> {
 
 		// We cache the machineId for faster lookups on startup
-		// and resolve it only once initially if not cached
+		// and resolve it only once initially if not cached or we need to replace the macOS iBridge device
 		let machineId = this.stateService.getItem<string>(machineIdKey);
-		if (!machineId) {
+		if (!machineId || (isMacintosh && machineId === '6c9d2bc8f91b89624add29c0abeae7fb42bf539fa1cdb2e3e57cd668fa9bcead')) {
 			machineId = await getMachineId();
 
 			this.stateService.setItem(machineIdKey, machineId);
 		}
 
-		// Check if machineId is hashed iBridge Device
-		let trueMachineId: string | undefined;
-		if (isMacintosh && machineId === '6c9d2bc8f91b89624add29c0abeae7fb42bf539fa1cdb2e3e57cd668fa9bcead') {
-			trueMachineId = this.stateService.getItem<string>(trueMachineIdKey);
-			if (!trueMachineId) {
-				trueMachineId = await getMachineId();
-
-				this.stateService.setItem(trueMachineIdKey, trueMachineId);
-			}
-		}
-
-		return { machineId, trueMachineId };
+		return machineId;
 	}
 
-	private async createServices(machineId: string, trueMachineId: string | undefined, sharedProcess: SharedProcess, sharedProcessReady: Promise<Client<string>>): Promise<IInstantiationService> {
+	private async createServices(machineId: string, sharedProcess: SharedProcess, sharedProcessReady: Promise<Client<string>>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
 		switch (process.platform) {
@@ -489,7 +464,7 @@ export class CodeApplication extends Disposable {
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
 			const commonProperties = resolveCommonProperties(product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
 			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
-			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, trueMachineId, sendErrorTelemetry: true };
+			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, sendErrorTelemetry: true };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
 		} else {

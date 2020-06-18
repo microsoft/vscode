@@ -60,7 +60,8 @@ export class ProxyAuthHandler extends Disposable {
 			webPreferences: {
 				nodeIntegration: true,
 				webviewTag: true,
-				enableWebSQL: false
+				enableWebSQL: false,
+				nativeWindowOpen: true
 			}
 		};
 

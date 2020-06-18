@@ -132,7 +132,7 @@ export class MarkdownContentProvider {
 		// Use a workspace relative path if there is a workspace
 		const root = vscode.workspace.getWorkspaceFolder(resource);
 		if (root) {
-			return resourceProvider.asWebviewUri(vscode.Uri.file(path.join(root.uri.fsPath, href))).toString();
+			return resourceProvider.asWebviewUri(vscode.Uri.joinPath(root.uri, href)).toString();
 		}
 
 		// Otherwise look relative to the markdown file

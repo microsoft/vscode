@@ -27,7 +27,7 @@ import { URI } from 'vs/base/common/uri';
 import { dirname, basename } from 'vs/base/common/resources';
 import { LIGHT, FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon, IThemeService } from 'vs/platform/theme/common/themeService';
 import { FileKind } from 'vs/platform/files/common/files';
-import { WorkbenchAsyncDataTree, TreeResourceNavigator } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
@@ -435,7 +435,7 @@ export class TreeView extends Disposable implements ITreeView {
 					return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
 				},
 				getRole(element: ITreeItem): string | undefined {
-					return element.accessibilityInformation?.role;
+					return element.accessibilityInformation?.role ?? 'treeitem';
 				},
 				getWidgetAriaLabel(): string {
 					return widgetAriaLabel;
@@ -476,9 +476,7 @@ export class TreeView extends Disposable implements ITreeView {
 		}));
 		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 
-		const treeNavigator = new TreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false });
-		this._register(treeNavigator);
-		this._register(treeNavigator.onDidOpenResource(e => {
+		this._register(this.tree.onDidOpen(e => {
 			if (!e.browserEvent) {
 				return;
 			}

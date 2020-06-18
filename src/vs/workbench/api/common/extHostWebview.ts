@@ -273,7 +273,7 @@ class CustomDocumentStoreEntry {
 
 	constructor(
 		public readonly document: vscode.CustomDocument,
-		private readonly _storagePath: string,
+		private readonly _storagePath: URI | undefined,
 	) { }
 
 	private readonly _edits = new Cache<vscode.CustomDocumentEditEvent>('custom documents');
@@ -305,7 +305,11 @@ class CustomDocumentStoreEntry {
 	}
 
 	getNewBackupUri(): URI {
-		return joinPath(URI.file(this._storagePath), hashPath(this.document.uri) + (this._backupCounter++));
+		if (!this._storagePath) {
+			throw new Error('Backup requires a valid storage path');
+		}
+		const fileName = hashPath(this.document.uri) + (this._backupCounter++);
+		return joinPath(this._storagePath, fileName);
 	}
 
 	updateBackup(backup: vscode.CustomDocumentBackup): void {
@@ -334,7 +338,7 @@ class CustomDocumentStore {
 		return this._documents.get(this.key(viewType, resource));
 	}
 
-	public add(viewType: string, document: vscode.CustomDocument, storagePath: string): CustomDocumentStoreEntry {
+	public add(viewType: string, document: vscode.CustomDocument, storagePath: URI | undefined): CustomDocumentStoreEntry {
 		const key = this.key(viewType, document.uri);
 		if (this._documents.has(key)) {
 			throw new Error(`Document already exists for viewType:${viewType} resource:${document.uri}`);
@@ -592,8 +596,11 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		const revivedResource = URI.revive(resource);
 		const document = await entry.provider.openCustomDocument(revivedResource, { backupId }, cancellation);
 
-		const storageRoot = this._extensionStoragePaths?.workspaceValue(entry.extension) ?? this._extensionStoragePaths?.globalValue(entry.extension);
-		this._documents.add(viewType, document, storageRoot!);
+		let storageRoot: URI | undefined;
+		if (this.supportEditing(entry.provider) && this._extensionStoragePaths) {
+			storageRoot = URI.file(this._extensionStoragePaths.workspaceValue(entry.extension) ?? this._extensionStoragePaths.globalValue(entry.extension));
+		}
+		this._documents.add(viewType, document, storageRoot);
 
 		return { editable: this.supportEditing(entry.provider) };
 	}

@@ -220,7 +220,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 	private async moveOrCopy(source: URI, target: URI, move: boolean, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 
 		// validate move/copy operation before starting
-		const validateMoveOrCopy = move ? this.fileService.canMove(source, target, overwrite) : this.fileService.canCopy(source, target, overwrite);
+		const validateMoveOrCopy = await (move ? this.fileService.canMove(source, target, overwrite) : this.fileService.canCopy(source, target, overwrite));
 		if (validateMoveOrCopy instanceof Error) {
 			throw validateMoveOrCopy;
 		}
@@ -275,7 +275,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
 
 		// validate delete operation before starting
-		const validateDelete = this.fileService.canDelete(resource, options);
+		const validateDelete = await this.fileService.canDelete(resource, options);
 		if (validateDelete instanceof Error) {
 			throw validateDelete;
 		}

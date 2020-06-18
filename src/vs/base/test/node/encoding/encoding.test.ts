@@ -7,9 +7,10 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as encoding from 'vs/base/node/encoding';
 import * as terminalEncoding from 'vs/base/node/terminalEncoding';
-import { Readable } from 'stream';
+import * as streams from 'vs/base/common/stream';
 import * as iconv from 'iconv-lite';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from 'vs/base/common/buffer';
 
 export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
 	try {
@@ -22,7 +23,7 @@ export async function detectEncodingByBOM(file: string): Promise<typeof encoding
 }
 
 interface ReadResult {
-	buffer: Buffer | null;
+	buffer: VSBuffer | null;
 	bytesRead: number;
 }
 
@@ -43,7 +44,7 @@ function readExactlyByFile(file: string, totalBytes: number): Promise<ReadResult
 						return reject(err); // we want to bubble this error up (file is actually a folder)
 					}
 
-					return resolve({ buffer: resultBuffer, bytesRead });
+					return resolve({ buffer: resultBuffer ? VSBuffer.wrap(resultBuffer) : null, bytesRead });
 				});
 			}
 
@@ -128,7 +129,7 @@ suite('Encoding', () => {
 		process.env['VSCODE_CLI_ENCODING'] = 'utf16le';
 
 		const enc = await terminalEncoding.resolveTerminalEncoding();
-		assert.ok(encoding.encodingExists(enc));
+		assert.ok(await encoding.encodingExists(enc));
 		assert.equal(enc, 'utf16le');
 	});
 
@@ -231,32 +232,33 @@ suite('Encoding', () => {
 		});
 	}
 
-	async function readAllAsString(stream: NodeJS.ReadableStream) {
-		return new Promise<string>((resolve, reject) => {
-			let all = '';
-			stream.on('data', chunk => {
-				all += chunk;
-				assert.equal(typeof chunk, 'string');
+	function newTestReadableStream(buffers: Buffer[]): VSBufferReadableStream {
+		const stream = newWriteableBufferStream();
+		buffers
+			.map(VSBuffer.wrap)
+			.forEach(buffer => {
+				setTimeout(() => {
+					stream.write(buffer);
+				});
 			});
-			stream.on('end', () => {
-				resolve(all);
-			});
-			stream.on('error', reject);
+		setTimeout(() => {
+			stream.end();
 		});
+		return stream;
+	}
+
+	async function readAllAsString(stream: streams.ReadableStream<string>) {
+		return streams.consumeStream(stream, strings => strings.join(''));
 	}
 
 	test('toDecodeStream - some stream', async function () {
+		const source = newTestReadableStream([
+			Buffer.from([65, 66, 67]),
+			Buffer.from([65, 66, 67]),
+			Buffer.from([65, 66, 67]),
+		]);
 
-		let source = new Readable({
-			read(size) {
-				this.push(Buffer.from([65, 66, 67]));
-				this.push(Buffer.from([65, 66, 67]));
-				this.push(Buffer.from([65, 66, 67]));
-				this.push(null);
-			}
-		});
-
-		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: detected => detected || encoding.UTF8 });
+		const { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
 
 		assert.ok(detected);
 		assert.ok(stream);
@@ -266,17 +268,13 @@ suite('Encoding', () => {
 	});
 
 	test('toDecodeStream - some stream, expect too much data', async function () {
+		const source = newTestReadableStream([
+			Buffer.from([65, 66, 67]),
+			Buffer.from([65, 66, 67]),
+			Buffer.from([65, 66, 67]),
+		]);
 
-		let source = new Readable({
-			read(size) {
-				this.push(Buffer.from([65, 66, 67]));
-				this.push(Buffer.from([65, 66, 67]));
-				this.push(Buffer.from([65, 66, 67]));
-				this.push(null);
-			}
-		});
-
-		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64, guessEncoding: false, overwriteEncoding: detected => detected || encoding.UTF8 });
+		const { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
 
 		assert.ok(detected);
 		assert.ok(stream);
@@ -286,14 +284,10 @@ suite('Encoding', () => {
 	});
 
 	test('toDecodeStream - some stream, no data', async function () {
+		const source = newWriteableBufferStream();
+		source.end();
 
-		let source = new Readable({
-			read(size) {
-				this.push(null); // empty
-			}
-		});
-
-		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 512, guessEncoding: false, overwriteEncoding: detected => detected || encoding.UTF8 });
+		const { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 512, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
 
 		assert.ok(detected);
 		assert.ok(stream);
@@ -304,29 +298,105 @@ suite('Encoding', () => {
 
 
 	test('toDecodeStream - encoding, utf16be', async function () {
+		const path = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
+		const source = streamToBufferReadableStream(fs.createReadStream(path));
 
-		let path = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
-		let source = fs.createReadStream(path);
-
-		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64, guessEncoding: false, overwriteEncoding: detected => detected || encoding.UTF8 });
+		const { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
 
 		assert.equal(detected.encoding, 'utf16be');
 		assert.equal(detected.seemsBinary, false);
 
-		let expected = await readAndDecodeFromDisk(path, detected.encoding);
-		let actual = await readAllAsString(stream);
+		const expected = await readAndDecodeFromDisk(path, detected.encoding);
+		const actual = await readAllAsString(stream);
 		assert.equal(actual, expected);
 	});
 
 
 	test('toDecodeStream - empty file', async function () {
+		const path = getPathFromAmdModule(require, './fixtures/empty.txt');
+		const source = streamToBufferReadableStream(fs.createReadStream(path));
+		const { detected, stream } = await encoding.toDecodeStream(source, { guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
 
-		let path = getPathFromAmdModule(require, './fixtures/empty.txt');
-		let source = fs.createReadStream(path);
-		let { detected, stream } = await encoding.toDecodeStream(source, { guessEncoding: false, overwriteEncoding: detected => detected || encoding.UTF8 });
-
-		let expected = await readAndDecodeFromDisk(path, detected.encoding);
-		let actual = await readAllAsString(stream);
+		const expected = await readAndDecodeFromDisk(path, detected.encoding);
+		const actual = await readAllAsString(stream);
 		assert.equal(actual, expected);
+	});
+
+	test('toDecodeStream - decodes buffer entirely', async function () {
+		const emojis = Buffer.from('🖥️💻💾');
+		const incompleteEmojis = emojis.slice(0, emojis.length - 1);
+
+		const buffers: Buffer[] = [];
+		for (let i = 0; i < incompleteEmojis.length; i++) {
+			buffers.push(incompleteEmojis.slice(i, i + 1));
+		}
+
+		const source = newTestReadableStream(buffers);
+		const { stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+
+		const expected = incompleteEmojis.toString(encoding.UTF8);
+		const actual = await readAllAsString(stream);
+
+		assert.equal(actual, expected);
+	});
+
+	test('toEncodeReadable - encoding, utf16be', async function () {
+		const path = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
+		const source = await readAndDecodeFromDisk(path, encoding.UTF16be);
+
+		const expected = VSBuffer.wrap(
+			iconv.encode(source, encoding.toNodeEncoding(encoding.UTF16be))
+		).toString();
+
+		const actual = streams.consumeReadable(
+			await encoding.toEncodeReadable(streams.toReadable(source), encoding.UTF16be),
+			VSBuffer.concat
+		).toString();
+
+		assert.equal(actual, expected);
+	});
+
+	test('toEncodeReadable - empty readable to utf8', async function () {
+		const source: streams.Readable<string> = {
+			read() {
+				return null;
+			}
+		};
+
+		const actual = streams.consumeReadable(
+			await encoding.toEncodeReadable(source, encoding.UTF8),
+			VSBuffer.concat
+		).toString();
+
+		assert.equal(actual, '');
+	});
+
+	[{
+		utfEncoding: encoding.UTF8,
+		relatedBom: encoding.UTF8_BOM
+	}, {
+		utfEncoding: encoding.UTF8_with_bom,
+		relatedBom: encoding.UTF8_BOM
+	}, {
+		utfEncoding: encoding.UTF16be,
+		relatedBom: encoding.UTF16be_BOM,
+	}, {
+		utfEncoding: encoding.UTF16le,
+		relatedBom: encoding.UTF16le_BOM
+	}].forEach(({ utfEncoding, relatedBom }) => {
+		test(`toEncodeReadable - empty readable to ${utfEncoding} with BOM`, async function () {
+			const source: streams.Readable<string> = {
+				read() {
+					return null;
+				}
+			};
+
+			const encodedReadable = encoding.toEncodeReadable(source, utfEncoding, { addBOM: true });
+
+			const expected = VSBuffer.wrap(Buffer.from(relatedBom)).toString();
+			const actual = streams.consumeReadable(await encodedReadable, VSBuffer.concat).toString();
+
+			assert.equal(actual, expected);
+		});
 	});
 });

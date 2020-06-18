@@ -46,6 +46,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { env as processEnv, cwd as processCwd } from 'vs/base/common/process';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -202,6 +203,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private terminalInstanceService: ITerminalInstanceService,
 		private pathService: IPathService,
 		private viewDescriptorService: IViewDescriptorService,
+		private logService: ILogService,
 		taskSystemInfoResolver: TaskSystemInfoResolver,
 	) {
 
@@ -722,7 +724,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					processStartedSignaled = true;
 				}
 			}, (_error) => {
-				// The process never got ready. Need to think how to handle this.
+				this.logService.error('Task terminal process never got ready');
 			});
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
 			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
@@ -764,8 +766,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 					let reveal = task.command.presentation!.reveal;
 					if ((reveal === RevealKind.Silent) && ((exitCode !== 0) || (watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 						(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
-						this.terminalService.setActiveInstance(terminal!);
-						this.terminalService.showPanel(false);
+						try {
+							this.terminalService.setActiveInstance(terminal!);
+							this.terminalService.showPanel(false);
+						} catch (e) {
+							// If the terminal has already been disposed, then setting the active instance will fail. #99828
+							// There is nothing else to do here.
+						}
 					}
 					watchingProblemMatcher.done();
 					watchingProblemMatcher.dispose();
@@ -843,8 +850,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this.viewsService.openView(Constants.MARKERS_VIEW_ID);
 					} else if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
 						(startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
-						this.terminalService.setActiveInstance(terminal);
-						this.terminalService.showPanel(false);
+						try {
+							this.terminalService.setActiveInstance(terminal);
+							this.terminalService.showPanel(false);
+						} catch (e) {
+							// If the terminal has already been disposed, then setting the active instance will fail. #99828
+							// There is nothing else to do here.
+						}
 					}
 					// Hack to work around #92868 until terminal is fixed.
 					setTimeout(() => {
@@ -1274,7 +1286,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (platform === Platform.Platform.Windows) {
 			if (basename === 'cmd' && commandQuoted && argQuoted) {
 				commandLine = '"' + commandLine + '"';
-			} else if (basename === 'powershell' && commandQuoted) {
+			} else if ((basename === 'powershell' || basename === 'pwsh') && commandQuoted) {
 				commandLine = '& ' + commandLine;
 			}
 		}

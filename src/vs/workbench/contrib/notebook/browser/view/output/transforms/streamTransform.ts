@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IRenderOutput, CellOutputKind, IStreamOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { registerOutputTransform } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
+import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 class StreamRenderer implements IOutputTransformContribution {
@@ -28,4 +28,4 @@ class StreamRenderer implements IOutputTransformContribution {
 	}
 }
 
-registerOutputTransform('notebook.output.stream', CellOutputKind.Text, StreamRenderer);
+NotebookRegistry.registerOutputTransform('notebook.output.stream', CellOutputKind.Text, StreamRenderer);

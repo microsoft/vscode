@@ -479,27 +479,27 @@ export class ActionBar extends Disposable implements IActionRunner {
 			DOM.addClass(this.domNode, 'animated');
 		}
 
-		let previousKeys: KeyCode[];
-		let nextKeys: KeyCode[];
+		let previousKey: KeyCode;
+		let nextKey: KeyCode;
 
 		switch (this.options.orientation) {
 			case ActionsOrientation.HORIZONTAL:
-				previousKeys = [KeyCode.LeftArrow, KeyCode.UpArrow];
-				nextKeys = [KeyCode.RightArrow, KeyCode.DownArrow];
+				previousKey = KeyCode.LeftArrow;
+				nextKey = KeyCode.RightArrow;
 				break;
 			case ActionsOrientation.HORIZONTAL_REVERSE:
-				previousKeys = [KeyCode.RightArrow, KeyCode.DownArrow];
-				nextKeys = [KeyCode.LeftArrow, KeyCode.UpArrow];
+				previousKey = KeyCode.RightArrow;
+				nextKey = KeyCode.LeftArrow;
 				this.domNode.className += ' reverse';
 				break;
 			case ActionsOrientation.VERTICAL:
-				previousKeys = [KeyCode.LeftArrow, KeyCode.UpArrow];
-				nextKeys = [KeyCode.RightArrow, KeyCode.DownArrow];
+				previousKey = KeyCode.UpArrow;
+				nextKey = KeyCode.DownArrow;
 				this.domNode.className += ' vertical';
 				break;
 			case ActionsOrientation.VERTICAL_REVERSE:
-				previousKeys = [KeyCode.RightArrow, KeyCode.DownArrow];
-				nextKeys = [KeyCode.LeftArrow, KeyCode.UpArrow];
+				previousKey = KeyCode.DownArrow;
+				nextKey = KeyCode.UpArrow;
 				this.domNode.className += ' vertical reverse';
 				break;
 		}
@@ -508,9 +508,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
-			if (previousKeys && (event.equals(previousKeys[0]) || event.equals(previousKeys[1]))) {
+			if (event.equals(previousKey)) {
 				this.focusPrevious();
-			} else if (nextKeys && (event.equals(nextKeys[0]) || event.equals(nextKeys[1]))) {
+			} else if (event.equals(nextKey)) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
 				this._onDidCancel.fire();
@@ -696,7 +696,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	clear(): void {
-		this.viewItems = dispose(this.viewItems);
+		dispose(this.viewItems);
+		this.viewItems = [];
 		DOM.clearNode(this.actionsList);
 	}
 

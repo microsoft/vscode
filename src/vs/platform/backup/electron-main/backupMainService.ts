@@ -19,7 +19,7 @@ import { IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspa
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
-import { fileUriComparer } from 'vs/platform/windows/node/window';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 
 export class BackupMainService implements IBackupMainService {
 
@@ -35,7 +35,7 @@ export class BackupMainService implements IBackupMainService {
 	// Comparers for paths and resources that will
 	// - ignore path casing on Windows/macOS
 	// - respect path casing on Linux
-	private readonly backupUriComparer = fileUriComparer;
+	private readonly backupUriComparer = extUriBiasedIgnorePathCase;
 	private readonly backupPathComparer = { isEqual: (pathA: string, pathB: string) => isEqual(pathA, pathB, !platform.isLinux) };
 
 	constructor(
