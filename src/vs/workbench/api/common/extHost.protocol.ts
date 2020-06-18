@@ -1379,6 +1379,8 @@ export interface IShellAndArgsDto {
 }
 
 export interface ITerminalLinkDto {
+	/** The ID of the link to enable activation and disposal. */
+	id: number;
 	/** The startIndex of the link in the line. */
 	startIndex: number;
 	/** The length of the link in the line. */
@@ -1414,6 +1416,7 @@ export interface ExtHostTerminalServiceShape {
 	$getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	$handleLink(id: number, link: string): Promise<boolean>;
 	$provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]>;
+	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 }
 
