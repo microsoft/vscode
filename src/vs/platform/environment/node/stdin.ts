@@ -54,13 +54,11 @@ export async function readFromStdin(targetPath: string, verbose: boolean): Promi
 
 	// Pipe into tmp file using terminals encoding
 	const decoder = iconv.getDecoder(encoding);
-	process.stdin.on('error', stdinFileStream.destroy);
-	process.stdin.on('data', (chunk) => {
-		stdinFileStream.write(decoder.write(chunk));
-	});
+	process.stdin.on('data', chunk => stdinFileStream.write(decoder.write(chunk)));
 	process.stdin.on('end', () => {
 		stdinFileStream.write(decoder.end());
 		stdinFileStream.end();
 	});
-	process.stdin.on('close', stdinFileStream.close);
+	process.stdin.on('error', error => stdinFileStream.destroy(error));
+	process.stdin.on('close', () => stdinFileStream.close());
 }
