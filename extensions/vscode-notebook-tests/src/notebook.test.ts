@@ -389,7 +389,7 @@ suite('notebook workflow', () => {
 			`first move down, active cell ${vscode.notebook.activeNotebookEditor!.selection!.uri.toString()}, ${vscode.notebook.activeNotebookEditor!.selection!.document.getText()}`);
 		await firstMoveDownEvent;
 
-		let moveCellEventRet: vscode.NotebookCellsChangeEvent | undefined
+		let moveCellEventRet: vscode.NotebookCellsChangeEvent | undefined;
 		vscode.notebook.onDidChangeNotebookCells(e => {
 			moveCellEventRet = e;
 		});
