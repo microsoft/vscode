@@ -198,18 +198,18 @@ export class EditorControl extends Disposable {
 		// Stop any running operation
 		this.editorOperation.stop();
 
-		// Remove editor pane from parent and hide
-		const editorPaneContainer = this._activeEditorPane.getContainer();
-		if (editorPaneContainer) {
-			this._activeEditorPane.onWillHide();
-			this.parent.removeChild(editorPaneContainer);
-			hide(editorPaneContainer);
-			this._activeEditorPane.onDidHide();
-		}
-
-		// Indicate to editor pane
+		// Indicate to editor pane before removing the editor from
+		// the DOM to give a chance to persist certain state that
+		// might depend on still being the active DOM element.
 		this._activeEditorPane.clearInput();
 		this._activeEditorPane.setVisible(false, this.groupView);
+
+		// Remove editor pane from parent
+		const editorPaneContainer = this._activeEditorPane.getContainer();
+		if (editorPaneContainer) {
+			this.parent.removeChild(editorPaneContainer);
+			hide(editorPaneContainer);
+		}
 
 		// Clear active editor pane
 		this.doSetActiveEditorPane(null);

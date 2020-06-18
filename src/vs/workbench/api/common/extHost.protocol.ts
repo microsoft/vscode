@@ -108,7 +108,7 @@ export interface IConfigurationInitData extends IConfigurationData {
 }
 
 export interface IExtHostContext extends IRPCProtocol {
-	remoteAuthority: string;
+	remoteAuthority: string | null;
 }
 
 export interface IMainContext extends IRPCProtocol {

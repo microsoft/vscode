@@ -229,7 +229,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 	private onEditorOpening2(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
 
-		const id = typeof options?.override === 'string' ? options.override : undefined;
+		let id = typeof options?.override === 'string' ? options.override : undefined;
 		if (id === undefined && originalInput.isUntitled()) {
 			return undefined;
 		}
@@ -252,6 +252,11 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		if (id === undefined) {
+			const exitingNotebookEditor = <NotebookEditorInput | undefined>group.editors.find(editor => editor instanceof NotebookEditorInput && isEqual(editor.resource, notebookUri));
+			id = exitingNotebookEditor?.viewType;
+		}
+
+		if (id === undefined) {
 			const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, notebookUri) && !(editor instanceof NotebookEditorInput));
 
 			if (existingEditors.length) {
@@ -270,8 +275,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 			const associatedEditors = distinct([
 				...this.getUserAssociatedNotebookEditors(notebookUri),
-				...this.getContributedEditors(notebookUri)
-			], editor => editor.id).filter(editor => editor.priority === NotebookEditorPriority.default);
+				...(this.getContributedEditors(notebookUri).filter(editor => editor.priority === NotebookEditorPriority.default))
+			], editor => editor.id);
 
 			if (!associatedEditors.length) {
 				// there is no notebook editor contribution which is enabled by default
