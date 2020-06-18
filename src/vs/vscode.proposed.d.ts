@@ -1456,15 +1456,13 @@ declare module 'vscode' {
 
 	export interface NotebookConcatTextDocument extends TextDocument {
 		isClosed: boolean;
-		dispose(): void;
-		onDidChange: Event<void>;
 		version: number;
 		getText(): string;
 		getText(range: Range): string;
 		offsetAt(position: Position): number;
 		positionAt(offset: number): Position;
-		locationAt(positionOrRange: Position | Range): Location;
 		positionAt(location: Location): Position;
+		locationAt(positionOrRange: Position | Range): Location;
 	}
 
 	export interface NotebookEditorCellEdit {

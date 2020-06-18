@@ -52,10 +52,6 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		this._toDispose.dispose();
 	}
 
-	public getAllDocumentData(): ExtHostDocumentData[] {
-		return this._documentsAndEditors.allDocuments();
-	}
-
 	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData | undefined {
 		if (!resource) {
 			return undefined;

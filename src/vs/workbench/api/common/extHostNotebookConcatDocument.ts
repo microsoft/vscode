@@ -16,6 +16,46 @@ import { basename } from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostDocumentLine } from 'vs/workbench/api/common/extHostDocumentData';
 
+
+export class ExtHostNotebookConcatDocuments {
+
+	private readonly _onDidAddConcatDocument = new Emitter<vscode.NotebookConcatTextDocument>();
+	private readonly _onDidRemoveConcatDocument = new Emitter<vscode.NotebookConcatTextDocument>();
+	private readonly _onDidChangeConcatDocument = new Emitter<vscode.TextDocumentChangeEvent>();
+
+	readonly onDidAddConcatDocument: Event<vscode.NotebookConcatTextDocument> = this._onDidAddConcatDocument.event;
+	readonly onDidRemoveConcatDocument: Event<vscode.NotebookConcatTextDocument> = this._onDidRemoveConcatDocument.event;
+	readonly onDidChangeConcatDocument: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeConcatDocument.event;
+
+	private readonly _notebookDocuments = new Set<ExtHostNotebookConcatDocument>();
+
+	constructor(
+		private readonly _extHostNotebooks: ExtHostNotebookController,
+		private readonly _extHostDocuments: ExtHostDocuments,
+	) { }
+
+	allConcatDocuments(): vscode.NotebookConcatTextDocument[] {
+		return [...this._notebookDocuments.values()];
+	}
+
+	createNotebookConcatDocument(notebook: vscode.NotebookDocument, selector: vscode.DocumentSelector | undefined) {
+		const disposables = new DisposableStore();
+		const result = new ExtHostNotebookConcatDocument(this._extHostNotebooks, this._extHostDocuments, notebook, selector);
+		disposables.add(result);
+		disposables.add(result.onDidChange((changes) => this._onDidChangeConcatDocument.fire({ document: result, contentChanges: changes })));
+		disposables.add(this._extHostNotebooks.onDidCloseNotebookDocument(candidate => {
+			if (candidate === notebook) {
+				disposables.dispose();
+				this._notebookDocuments.delete(result);
+				this._onDidRemoveConcatDocument.fire(result);
+			}
+		}));
+		this._notebookDocuments.add(result);
+		this._onDidAddConcatDocument.fire(result);
+		return result;
+	}
+}
+
 export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextDocument, vscode.TextDocument {
 
 	private _disposables = new DisposableStore();
@@ -27,8 +67,8 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 	private _cellLines!: PrefixSumComputer;
 	private _versionId = 0;
 
-	private readonly _onDidChange = new Emitter<void>();
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<readonly vscode.TextDocumentContentChangeEvent[]>();
+	readonly onDidChange: Event<readonly vscode.TextDocumentContentChangeEvent[]> = this._onDidChange.event;
 
 	readonly uri: vscode.Uri;
 	readonly fileName: string;
@@ -54,14 +94,15 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 				this._cellLengths.changeValue(cellIdx, this._cells[cellIdx].document.getText().length + 1);
 				this._cellLines.changeValue(cellIdx, this._cells[cellIdx].document.lineCount);
 				this._versionId += 1;
-				this._onDidChange.fire(undefined);
+				// this._onDidChange.fire(e.contentChanges); //todo@jrieken make adjust the event properly, range and rangeOffset
+				this._onDidChange.fire([]);
 			}
 		}));
 		const documentChange = (document: vscode.NotebookDocument) => {
 			if (document === this._notebook) {
 				this._init();
 				this._versionId += 1;
-				this._onDidChange.fire(undefined);
+				this._onDidChange.fire([]);
 			}
 		};
 
