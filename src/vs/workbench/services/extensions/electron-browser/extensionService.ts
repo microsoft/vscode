@@ -13,7 +13,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInitDataProvider, RemoteProcessExtensionHost } from 'vs/workbench/services/extensions/common/remoteProcessExtensionHost';
+import { IInitDataProvider, RemoteExtensionHost } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
@@ -23,7 +23,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, toExtension, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/common/extensionHostProcessManager';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
@@ -366,15 +366,15 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const result: ExtensionHostProcessManager[] = [];
 
-		const extHostProcessWorker = this._instantiationService.createInstance(LocalProcessExtensionHost, autoStart, extensions, this._environmentService.extHostLogsPath);
-		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, true, extHostProcessWorker, null, initialActivationEvents);
-		result.push(extHostProcessManager);
+		const localProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, autoStart, extensions, this._environmentService.extHostLogsPath);
+		const localProcessExtHostManager = this._instantiationService.createInstance(ExtensionHostProcessManager, localProcessExtHost, null, initialActivationEvents);
+		result.push(localProcessExtHostManager);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteProcessExtensionHost, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
-			const remoteExtHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, remoteExtHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
-			result.push(remoteExtHostProcessManager);
+			const remoteExtHost = this._instantiationService.createInstance(RemoteExtensionHost, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
+			const remoteExtHostManager = this._instantiationService.createInstance(ExtensionHostProcessManager, remoteExtHost, remoteAgentConnection.remoteAuthority, initialActivationEvents);
+			result.push(remoteExtHostManager);
 		}
 
 		return result;
@@ -383,7 +383,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected _onExtensionHostCrashed(extensionHost: ExtensionHostProcessManager, code: number, signal: string | null): void {
 		super._onExtensionHostCrashed(extensionHost, code, signal);
 
-		if (extensionHost.isLocal) {
+		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
 			if (code === 55) {
 				this._notificationService.prompt(
 					Severity.Error,

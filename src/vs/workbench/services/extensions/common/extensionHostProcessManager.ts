@@ -21,7 +21,7 @@ import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 // Enable to see detailed message communication between window and extension host
@@ -32,6 +32,7 @@ const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export class ExtensionHostProcessManager extends Disposable {
 
+	public readonly kind: ExtensionHostKind;
 	public readonly onDidExit: Event<[number, string | null]>;
 
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
@@ -51,7 +52,6 @@ export class ExtensionHostProcessManager extends Disposable {
 	private _resolveAuthorityAttempt: number;
 
 	constructor(
-		public readonly isLocal: boolean,
 		extensionHostProcessWorker: IExtensionHost,
 		private readonly _remoteAuthority: string | null,
 		initialActivationEvents: string[],
@@ -64,6 +64,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		this._extensionHostProcessCustomers = [];
 
 		this._extensionHostProcessWorker = extensionHostProcessWorker;
+		this.kind = this._extensionHostProcessWorker.kind;
 		this.onDidExit = this._extensionHostProcessWorker.onExit;
 		this._extensionHostProcessProxy = this._extensionHostProcessWorker.start()!.then(
 			(protocol) => {

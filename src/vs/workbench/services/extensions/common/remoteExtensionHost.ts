@@ -43,9 +43,9 @@ export interface IInitDataProvider {
 	getInitData(): Promise<IRemoteInitData>;
 }
 
-export class RemoteProcessExtensionHost extends Disposable implements IExtensionHost {
+export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
-	public readonly kind = ExtensionHostKind.RemoteProcess;
+	public readonly kind = ExtensionHostKind.Remote;
 
 	private _onExit: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onExit.event;

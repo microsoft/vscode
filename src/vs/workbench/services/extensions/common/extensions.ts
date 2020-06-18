@@ -87,7 +87,7 @@ export interface IExtensionHostProfile {
 export const enum ExtensionHostKind {
 	LocalProcess,
 	LocalWebWorker,
-	RemoteProcess
+	Remote
 }
 
 export interface IExtensionHost {
