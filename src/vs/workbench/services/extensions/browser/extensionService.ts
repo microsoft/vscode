@@ -9,7 +9,7 @@ import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/exte
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionService, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionHost, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -25,9 +25,9 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 import { DeltaExtensionsResult } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IWebExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/webExtensionManagementService';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -45,7 +45,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
-		@IStaticExtensionsService private readonly _staticExtensions: IStaticExtensionsService,
+		@IWebExtensionManagementService private readonly _webExtensionManagementService: IWebExtensionManagementService,
 	) {
 		super(
 			instantiationService,
@@ -105,7 +105,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// fetch the remote environment
 		let [remoteEnv, localExtensions] = await Promise.all([
 			this._remoteAgentService.getEnvironment(),
-			this._staticExtensions.getExtensions()
+			this._webExtensionManagementService.getInstalled().then(extensions => extensions.map(toExtensionDescription))
 		]);
 
 		let result: DeltaExtensionsResult;
