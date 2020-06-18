@@ -28,6 +28,7 @@ import { localize } from 'vs/nls';
 export class WebWorkerExtensionHost implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.LocalWebWorker;
+	public readonly remoteAuthority = null;
 
 	private _toDispose = new DisposableStore();
 	private _isTerminating: boolean = false;

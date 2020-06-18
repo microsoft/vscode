@@ -52,7 +52,6 @@ export class ExtensionHostManager extends Disposable {
 
 	constructor(
 		extensionHost: IExtensionHost,
-		private readonly _remoteAuthority: string | null,
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
@@ -113,7 +112,7 @@ export class ExtensionHostManager extends Disposable {
 		const down = await this._measureDown(proxy);
 		const up = await this._measureUp(proxy);
 		return {
-			remoteAuthority: this._remoteAuthority,
+			remoteAuthority: this._extensionHost.remoteAuthority,
 			latency,
 			down,
 			up
@@ -181,7 +180,7 @@ export class ExtensionHostManager extends Disposable {
 		this._rpcProtocol = new RPCProtocol(protocol, logger);
 		this._register(this._rpcProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
-			remoteAuthority: this._remoteAuthority,
+			remoteAuthority: this._extensionHost.remoteAuthority,
 			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._rpcProtocol!.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._rpcProtocol!.set(identifier, instance),
 			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._rpcProtocol!.assertRegistered(identifiers),

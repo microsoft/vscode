@@ -92,6 +92,7 @@ export const enum ExtensionHostKind {
 
 export interface IExtensionHost {
 	readonly kind: ExtensionHostKind;
+	readonly remoteAuthority: string | null;
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol> | null;

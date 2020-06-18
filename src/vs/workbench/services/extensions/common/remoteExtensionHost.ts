@@ -46,15 +46,14 @@ export interface IInitDataProvider {
 export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.Remote;
+	public readonly remoteAuthority: string;
 
 	private _onExit: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onExit.event;
 
 	private _protocol: PersistentProtocol | null;
-
-	private readonly _isExtensionDevHost: boolean;
-
 	private _terminating: boolean;
+	private readonly _isExtensionDevHost: boolean;
 
 	constructor(
 		private readonly _allExtensions: Promise<IExtensionDescription[]>,
@@ -72,6 +71,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		@ISignService private readonly _signService: ISignService
 	) {
 		super();
+		this.remoteAuthority = this._initDataProvider.remoteAuthority;
 		this._protocol = null;
 		this._terminating = false;
 

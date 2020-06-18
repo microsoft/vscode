@@ -367,13 +367,13 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const result: ExtensionHostManager[] = [];
 
 		const localProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, autoStart, extensions, this._environmentService.extHostLogsPath);
-		const localProcessExtHostManager = this._instantiationService.createInstance(ExtensionHostManager, localProcessExtHost, null, initialActivationEvents);
+		const localProcessExtHostManager = this._instantiationService.createInstance(ExtensionHostManager, localProcessExtHost, initialActivationEvents);
 		result.push(localProcessExtHostManager);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
 			const remoteExtHost = this._instantiationService.createInstance(RemoteExtensionHost, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
-			const remoteExtHostManager = this._instantiationService.createInstance(ExtensionHostManager, remoteExtHost, remoteAgentConnection.remoteAuthority, initialActivationEvents);
+			const remoteExtHostManager = this._instantiationService.createInstance(ExtensionHostManager, remoteExtHost, initialActivationEvents);
 			result.push(remoteExtHostManager);
 		}
 
