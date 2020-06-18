@@ -387,7 +387,7 @@ suite('notebook workflow', () => {
 		await vscode.commands.executeCommand('notebook.cell.moveDown');
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(vscode.notebook.activeNotebookEditor!.selection!), 1,
 			`first move down, active cell ${vscode.notebook.activeNotebookEditor!.selection!.uri.toString()}, ${vscode.notebook.activeNotebookEditor!.selection!.document.getText()}`);
-    await firstMoveDownEvent;
+		await firstMoveDownEvent;
 
 		let moveCellEventRet: vscode.NotebookCellsChangeEvent | undefined
 		vscode.notebook.onDidChangeNotebookCells(e => {
@@ -413,8 +413,8 @@ suite('notebook workflow', () => {
 		}, 'content change event should always come first');
 
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 2,
-			`second move down, active cell ${vscode.notebook.activeNotebookEditor!.selection!.uri.toString()}, ${vscode.notebook.activeNotebookEditor!.selection!.source}
-			${vscode.notebook.activeNotebookEditor!.document.cells.map(cell => cell.uri.toString() + ':' + cell.source).join('\t')}
+			`second move down, active cell ${vscode.notebook.activeNotebookEditor!.selection!.uri.toString()}, ${vscode.notebook.activeNotebookEditor!.selection!.document.getText()}
+			${vscode.notebook.activeNotebookEditor!.document.cells.map(cell => cell.uri.toString() + ':' + cell.document.getText()).join('\t')}
 			`);
 
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[0].document.getText(), 'test');
