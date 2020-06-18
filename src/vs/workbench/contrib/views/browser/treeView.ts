@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -38,7 +38,8 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { IHoverService, IHoverTarget } from 'vs/workbench/contrib/hover/browser/hover';
+import { IHoverService } from 'vs/workbench/contrib/hover/browser/hover';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -683,6 +684,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	static readonly TREE_TEMPLATE_ID = 'treeExplorer';
 
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
+	private readonly hoverDelay: number;
 
 	constructor(
 		private treeViewId: string,
@@ -696,6 +698,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super();
+		this.hoverDelay = this.configurationService.getValue<number>('editor.hover.delay');
 	}
 
 	get templateId(): string {
@@ -779,13 +782,38 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.actionBar.actionRunner = this._actionRunner;
 		}
 		this.setAlignment(templateData.container, node);
-		templateData.elementDisposable = (this.themeService.onDidFileIconThemeChange(() => this.setAlignment(templateData.container, node)));
-		templateData.container.onmouseover = templateData.icon.onmouseover = (e) => {
-			if (node.tooltip && !isString(node.tooltip)) {
-				const target: IHoverTarget = { targetElements: [templateData.container, templateData.icon], dispose: () => { return; } };
-				this.hoverService.showHover({ text: node.tooltip, target });
+		const disposableStore = new DisposableStore();
+		templateData.elementDisposable = disposableStore;
+		disposableStore.add(this.themeService.onDidFileIconThemeChange(() => this.setAlignment(templateData.container, node)));
+		this.setupHovers(node.tooltip, templateData.container, disposableStore);
+	}
+
+	private setupHovers(tooltip: string | IMarkdownString | undefined, htmlElement: HTMLElement, disposableStore: DisposableStore): void {
+		if (!tooltip || isString(tooltip)) {
+			return;
+		}
+		const text: IMarkdownString = tooltip;
+		const hoverService = this.hoverService;
+		const hoverDelay = this.hoverDelay;
+		function mouseOver(this: HTMLElement, e: MouseEvent): any {
+			let isHovering = true;
+			function mouseLeave(this: HTMLElement, e: MouseEvent): any {
+				isHovering = false;
 			}
-		};
+			this.addEventListener(DOM.EventType.MOUSE_LEAVE, mouseLeave, { passive: true });
+			setTimeout(() => {
+				if (isHovering) {
+					hoverService.showHover({ text, target: this });
+				}
+				this.removeEventListener(DOM.EventType.MOUSE_LEAVE, mouseLeave);
+			}, hoverDelay);
+		}
+		htmlElement.addEventListener(DOM.EventType.MOUSE_OVER, mouseOver, { passive: true });
+		disposableStore.add({
+			dispose: () => {
+				htmlElement.removeEventListener(DOM.EventType.MOUSE_OVER, mouseOver);
+			}
+		});
 	}
 
 	private setAlignment(container: HTMLElement, treeItem: ITreeItem) {
