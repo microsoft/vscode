@@ -4,18 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IGalleryExtension, IReportedExtension, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import builtinExtensions from 'vs/platform/extensions/common/builtinExtensions';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-export const IWebExtensionManagementService = createDecorator<IWebExtensionManagementService>('IWebExtensionManagementService');
-export interface IWebExtensionManagementService extends IExtensionManagementService { }
-
-export class WebExtensionManagementService implements IWebExtensionManagementService {
+export class WebExtensionManagementService implements IExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -66,5 +61,3 @@ export class WebExtensionManagementService implements IWebExtensionManagementSer
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> { throw new Error('unsupported'); }
 
 }
-
-registerSingleton(IWebExtensionManagementService, WebExtensionManagementService, true);

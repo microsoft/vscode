@@ -229,7 +229,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 	private onEditorOpening2(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
 
-		const id = typeof options?.override === 'string' ? options.override : undefined;
+		let id = typeof options?.override === 'string' ? options.override : undefined;
 		if (id === undefined && originalInput.isUntitled()) {
 			return undefined;
 		}
@@ -249,6 +249,11 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		if (data) {
 			notebookUri = data.notebook;
 			cellOptions = { resource: originalInput.resource, options };
+		}
+
+		if (id === undefined) {
+			const exitingNotebookEditor = <NotebookEditorInput | undefined>group.editors.find(editor => editor instanceof NotebookEditorInput && isEqual(editor.resource, notebookUri));
+			id = exitingNotebookEditor?.viewType;
 		}
 
 		if (id === undefined) {
