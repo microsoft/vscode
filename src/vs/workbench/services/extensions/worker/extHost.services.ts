@@ -22,6 +22,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLogService } from 'vs/workbench/api/worker/extHostLogService';
 import { IExtHostTunnelService, ExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 import { IExtHostApiDeprecationService, ExtHostApiDeprecationService, } from 'vs/workbench/api/common/extHostApiDeprecationService';
+import { IExtHostWindow, ExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
 import { NotImplementedProxy } from 'vs/base/common/types';
 
 // register singleton services
@@ -29,6 +30,7 @@ registerSingleton(ILogService, ExtHostLogService);
 registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService);
 registerSingleton(IExtHostOutputService, ExtHostOutputService);
 registerSingleton(IExtHostWorkspace, ExtHostWorkspace);
+registerSingleton(IExtHostWindow, ExtHostWindow);
 registerSingleton(IExtHostDecorations, ExtHostDecorations);
 registerSingleton(IExtHostConfiguration, ExtHostConfiguration);
 registerSingleton(IExtHostCommands, ExtHostCommands);
