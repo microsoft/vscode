@@ -11,7 +11,7 @@ import * as nls from 'vs/nls';
 import { runWhenIdle } from 'vs/base/common/async';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInitDataProvider, RemoteExtensionHost } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -40,7 +40,6 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { IWebExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/webExtensionManagementService';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -69,7 +68,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IWebExtensionManagementService private readonly _webExtensionManagementService: IWebExtensionManagementService,
+		@IExtensionManagementServerService private readonly _extensionManagementServerService: IExtensionManagementServerService,
 		@IElectronService private readonly _electronService: IElectronService,
 		@IHostService private readonly _hostService: IHostService,
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
@@ -446,7 +445,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const remoteAuthority = this._environmentService.configuration.remoteAuthority;
 		const extensionHost = this._extensionHostManagers[0];
 
-		const allExtensions = flatten(await Promise.all([this._extensionScanner.scannedExtensions, this._webExtensionManagementService.getInstalled().then(extensions => extensions.map(toExtensionDescription))]));
+		const allExtensions = flatten(await Promise.all([
+			this._extensionScanner.scannedExtensions,
+			this._extensionManagementServerService.webExtensionManagementServer
+				? this._extensionManagementServerService.webExtensionManagementServer.extensionManagementService.getInstalled().then(extensions => extensions.map(toExtensionDescription))
+				: Promise.resolve([])
+		]));
 
 		// enable or disable proposed API per extension
 		this._checkEnableProposedApi(allExtensions);

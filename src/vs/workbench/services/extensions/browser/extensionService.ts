@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -27,7 +27,6 @@ import { Schemas } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { DeltaExtensionsResult } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IWebExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/webExtensionManagementService';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -45,7 +44,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
-		@IWebExtensionManagementService private readonly _webExtensionManagementService: IWebExtensionManagementService,
+		@IExtensionManagementServerService private readonly _extensionManagementServerService: IExtensionManagementServerService,
 	) {
 		super(
 			instantiationService,
@@ -105,7 +104,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// fetch the remote environment
 		let [remoteEnv, localExtensions] = await Promise.all([
 			this._remoteAgentService.getEnvironment(),
-			this._webExtensionManagementService.getInstalled().then(extensions => extensions.map(toExtensionDescription))
+			this._extensionManagementServerService.webExtensionManagementServer
+				? this._extensionManagementServerService.webExtensionManagementServer.extensionManagementService.getInstalled().then(extensions => extensions.map(toExtensionDescription))
+				: Promise.resolve([])
 		]);
 
 		let result: DeltaExtensionsResult;
