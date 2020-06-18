@@ -2228,6 +2228,40 @@ declare module 'vscode' {
 		 * such as `[CodeActionKind.Refactor.Extract.append('function'), CodeActionKind.Refactor.Extract.append('constant'), ...]`.
 		 */
 		readonly providedCodeActionKinds?: ReadonlyArray<CodeActionKind>;
+
+		/**
+		 * Static documentation for a class of code actions.
+		 *
+		 * Documentation from the provider is shown in the code actions menu if either:
+		 *
+		 * - Code actions of `kind` are requested by VS Code. In this case, VS Code will show the documentation that
+		 *   most closely matches the requested code action kind. For example, if a provider has documentation for
+		 *   both `Refactor` and `RefactorExtract`, when the user requests code actions for `RefactorExtract`,
+		 *   VS Code will use the documentation for `RefactorExtract` instead of the documentation for `Refactor`.
+		 *
+		 * - Any code actions of `kind` are returned by the provider.
+		 *
+		 * At most one documentation entry will be shown per provider.
+		 */
+		readonly documentation?: ReadonlyArray<{
+			/**
+			 * The kind of the code action being documented.
+			 *
+			 * If the kind is generic, such as `CodeActionKind.Refactor`, the documentation will be shown whenever any
+			 * refactorings are returned. If the kind if more specific, such as `CodeActionKind.RefactorExtract`, the
+			 * documentation will only be shown when extract refactoring code actions are returned.
+			 */
+			readonly kind: CodeActionKind;
+
+			/**
+			 * Command that displays the documentation to the user.
+			 *
+			 * This can display the documentation directly in VS Code or open a website using [`env.openExternal`](#env.openExternal);
+			 *
+			 * The title of this documentation code action is taken from [`Command.title`](#Command.title)
+			 */
+			readonly command: Command;
+		}>;
 	}
 
 	/**
