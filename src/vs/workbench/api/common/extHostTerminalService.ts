@@ -670,8 +670,9 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			return;
 		}
 		cachedLink.provider.handleTerminalLink(cachedLink.link);
-
-		// TODO: Handle when result is false
+		// TODO: Handle when result is false? Should this be return void instead and remove
+		// TerminalLink.target? It's a simple call to window.openUri for the extension otherwise
+		// and would simplify the API.
 	}
 
 	private _onProcessExit(id: number, exitCode: number | undefined): void {
