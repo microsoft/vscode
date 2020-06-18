@@ -461,16 +461,6 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 				];
 			}
 		}));
-
-		this._register(this.editorService.onDidCloseEditor(({ editor }) => {
-			if (!(editor instanceof CustomEditorInput)) {
-				return;
-			}
-
-			if (!this.editorService.editors.some(other => other === editor)) {
-				editor.dispose();
-			}
-		}));
 	}
 
 	private onEditorOpening(
