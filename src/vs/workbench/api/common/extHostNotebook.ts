@@ -938,31 +938,28 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._notebookContentProviders.set(viewType, { extension, provider });
 
 		const listener = provider.onDidChangeNotebook
-			? provider.onDidChangeNotebook(e => this._proxy.$onNotebookChange(viewType, e.document.uri))
+			? provider.onDidChangeNotebook(e => {
+				const document = this._documents.get(URI.revive(e.document.uri).toString());
+
+				if (!document) {
+					throw new Error(`Notebook document ${e.document.uri.toString()} not found`);
+				}
+
+				if (isEditEvent(e)) {
+					const editId = document.addEdit(e);
+					this._proxy.$onDidEdit(e.document.uri, viewType, editId, e.label);
+				} else {
+					this._proxy.$onContentChange(e.document.uri, viewType);
+				}
+			})
 			: Disposable.None;
 
 		const supportBackup = !!provider.backupNotebook;
 
 		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, supportBackup, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
 
-		const contentChangeListener = provider.onDidChangeNotebook(e => {
-			const document = this._documents.get(URI.revive(e.document.uri).toString());
-
-			if (!document) {
-				throw new Error(`Notebook document ${e.document.uri.toString()} not found`);
-			}
-
-			if (isEditEvent(e)) {
-				const editId = document.addEdit(e);
-				this._proxy.$onDidEdit(e.document.uri, viewType, editId, e.label);
-			} else {
-				this._proxy.$onContentChange(e.document.uri, viewType);
-			}
-		});
-
 		return new extHostTypes.Disposable(() => {
 			listener.dispose();
-			contentChangeListener.dispose();
 			this._notebookContentProviders.delete(viewType);
 			this._proxy.$unregisterNotebookProvider(viewType);
 		});
