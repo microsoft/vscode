@@ -29,7 +29,7 @@ const LOG_EXTENSION_HOST_COMMUNICATION = false;
 const LOG_USE_COLORS = true;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
-export class ExtensionHostProcessManager extends Disposable {
+export class ExtensionHostManager extends Disposable {
 
 	public readonly kind: ExtensionHostKind;
 	public readonly onDidExit: Event<[number, string | null]>;
@@ -52,7 +52,6 @@ export class ExtensionHostProcessManager extends Disposable {
 
 	constructor(
 		extensionHost: IExtensionHost,
-		private readonly _remoteAuthority: string | null,
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
@@ -105,7 +104,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	}
 
 	private async measure(): Promise<ExtHostLatencyResult | null> {
-		const proxy = await this._getExtensionHostProcessProxy();
+		const proxy = await this._getProxy();
 		if (!proxy) {
 			return null;
 		}
@@ -113,14 +112,14 @@ export class ExtensionHostProcessManager extends Disposable {
 		const down = await this._measureDown(proxy);
 		const up = await this._measureUp(proxy);
 		return {
-			remoteAuthority: this._remoteAuthority,
+			remoteAuthority: this._extensionHost.remoteAuthority,
 			latency,
 			down,
 			up
 		};
 	}
 
-	private async _getExtensionHostProcessProxy(): Promise<ExtHostExtensionServiceShape | null> {
+	private async _getProxy(): Promise<ExtHostExtensionServiceShape | null> {
 		if (!this._proxy) {
 			return null;
 		}
@@ -159,7 +158,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		const sw = StopWatch.create(true);
 		await proxy.$test_up(buff);
 		sw.stop();
-		return ExtensionHostProcessManager._convert(SIZE, sw.elapsed());
+		return ExtensionHostManager._convert(SIZE, sw.elapsed());
 	}
 
 	private async _measureDown(proxy: ExtHostExtensionServiceShape): Promise<number> {
@@ -168,7 +167,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		const sw = StopWatch.create(true);
 		await proxy.$test_down(SIZE);
 		sw.stop();
-		return ExtensionHostProcessManager._convert(SIZE, sw.elapsed());
+		return ExtensionHostManager._convert(SIZE, sw.elapsed());
 	}
 
 	private _createExtensionHostCustomers(protocol: IMessagePassingProtocol): ExtHostExtensionServiceShape {
@@ -181,7 +180,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		this._rpcProtocol = new RPCProtocol(protocol, logger);
 		this._register(this._rpcProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
-			remoteAuthority: this._remoteAuthority,
+			remoteAuthority: this._extensionHost.remoteAuthority,
 			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._rpcProtocol!.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._rpcProtocol!.set(identifier, instance),
 			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._rpcProtocol!.assertRegistered(identifiers),
@@ -211,7 +210,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	}
 
 	public async activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
-		const proxy = await this._getExtensionHostProcessProxy();
+		const proxy = await this._getProxy();
 		if (!proxy) {
 			return false;
 		}
@@ -260,7 +259,7 @@ export class ExtensionHostProcessManager extends Disposable {
 				}
 			});
 		}
-		const proxy = await this._getExtensionHostProcessProxy();
+		const proxy = await this._getProxy();
 		if (!proxy) {
 			throw new Error(`Cannot resolve authority`);
 		}
@@ -274,7 +273,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	}
 
 	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
-		const proxy = await this._getExtensionHostProcessProxy();
+		const proxy = await this._getProxy();
 		if (!proxy) {
 			return;
 		}
@@ -282,7 +281,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	}
 
 	public async deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
-		const proxy = await this._getExtensionHostProcessProxy();
+		const proxy = await this._getProxy();
 		if (!proxy) {
 			return;
 		}
@@ -290,7 +289,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	}
 
 	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
-		const proxy = await this._getExtensionHostProcessProxy();
+		const proxy = await this._getProxy();
 		if (!proxy) {
 			return;
 		}

@@ -138,7 +138,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const server = this.extensionManagementServerService.getExtensionManagementServer(extension.location);
+			const server = this.extensionManagementServerService.getExtensionManagementServer(extension);
 			for (const extensionKind of getExtensionKind(extension.manifest, this.productService, this.configurationService)) {
 				if (extensionKind === 'ui') {
 					if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.localExtensionManagementServer === server) {

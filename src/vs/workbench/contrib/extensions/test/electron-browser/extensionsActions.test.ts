@@ -34,7 +34,7 @@ import { URI } from 'vs/base/common/uri';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
-import { ExtensionIdentifier, IExtensionContributions, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionContributions, ExtensionType, IExtensionDescription, IExtension } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILabelService, IFormatterChangeEvent } from 'vs/platform/label/common/label';
@@ -99,7 +99,7 @@ async function setupTest() {
 	instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 
 	instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
-		#localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', authority: 'vscode-local' };
+		#localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
 		constructor() {
 			super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IConfigurationService), instantiationService.get(IProductService), instantiationService.get(ILogService), instantiationService.get(ILabelService));
 		}
@@ -2518,7 +2518,7 @@ function aPage<T>(...objects: T[]): IPager<T> {
 
 function aSingleRemoteExtensionManagementServerService(instantiationService: TestInstantiationService, remoteExtensionManagementService?: IExtensionManagementService): IExtensionManagementServerService {
 	const remoteExtensionManagementServer: IExtensionManagementServer = {
-		authority: 'vscode-remote',
+		id: 'vscode-remote',
 		label: 'remote',
 		extensionManagementService: remoteExtensionManagementService || createExtensionManagementService()
 	};
@@ -2526,8 +2526,9 @@ function aSingleRemoteExtensionManagementServerService(instantiationService: Tes
 		_serviceBrand: undefined,
 		localExtensionManagementServer: null,
 		remoteExtensionManagementServer,
-		getExtensionManagementServer: (location: URI) => {
-			if (location.scheme === REMOTE_HOST_SCHEME) {
+		webExtensionManagementServer: null,
+		getExtensionManagementServer: (extension: IExtension) => {
+			if (extension.location.scheme === REMOTE_HOST_SCHEME) {
 				return remoteExtensionManagementServer;
 			}
 			return null;
@@ -2537,12 +2538,12 @@ function aSingleRemoteExtensionManagementServerService(instantiationService: Tes
 
 function aMultiExtensionManagementServerService(instantiationService: TestInstantiationService, localExtensionManagementService?: IExtensionManagementService, remoteExtensionManagementService?: IExtensionManagementService): IExtensionManagementServerService {
 	const localExtensionManagementServer: IExtensionManagementServer = {
-		authority: 'vscode-local',
+		id: 'vscode-local',
 		label: 'local',
 		extensionManagementService: localExtensionManagementService || createExtensionManagementService()
 	};
 	const remoteExtensionManagementServer: IExtensionManagementServer = {
-		authority: 'vscode-remote',
+		id: 'vscode-remote',
 		label: 'remote',
 		extensionManagementService: remoteExtensionManagementService || createExtensionManagementService()
 	};
@@ -2550,14 +2551,15 @@ function aMultiExtensionManagementServerService(instantiationService: TestInstan
 		_serviceBrand: undefined,
 		localExtensionManagementServer,
 		remoteExtensionManagementServer,
-		getExtensionManagementServer: (location: URI) => {
-			if (location.scheme === Schemas.file) {
+		webExtensionManagementServer: null,
+		getExtensionManagementServer: (extension: IExtension) => {
+			if (extension.location.scheme === Schemas.file) {
 				return localExtensionManagementServer;
 			}
-			if (location.scheme === REMOTE_HOST_SCHEME) {
+			if (extension.location.scheme === REMOTE_HOST_SCHEME) {
 				return remoteExtensionManagementServer;
 			}
-			return null;
+			throw new Error('');
 		}
 	};
 }

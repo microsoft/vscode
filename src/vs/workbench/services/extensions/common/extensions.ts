@@ -92,6 +92,7 @@ export const enum ExtensionHostKind {
 
 export interface IExtensionHost {
 	readonly kind: ExtensionHostKind;
+	readonly remoteAuthority: string | null;
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol> | null;
@@ -261,6 +262,17 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 		identifier: { id: getGalleryExtensionId(extensionDescription.publisher, extensionDescription.name), uuid: extensionDescription.uuid },
 		manifest: extensionDescription,
 		location: extensionDescription.extensionLocation,
+	};
+}
+
+export function toExtensionDescription(extension: IExtension): IExtensionDescription {
+	return {
+		identifier: new ExtensionIdentifier(extension.identifier.id),
+		isBuiltin: extension.type === ExtensionType.System,
+		isUnderDevelopment: false,
+		extensionLocation: extension.location,
+		...extension.manifest,
+		uuid: extension.identifier.uuid
 	};
 }
 
