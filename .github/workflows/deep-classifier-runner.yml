@@ -1,7 +1,7 @@
 name: "Deep Classifier: Runner"
 on:
   schedule:
-    - cron: 0 * * * *
+    - cron: 0/30 * * * *
   repository_dispatch:
     types: [trigger-deep-classifier-runner]
 
@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'microsoft/vscode-github-triage-actions'
-          ref: v29
+          ref: v30
           path: ./actions
       - name: Install Actions
         run: npm install --production --prefix ./actions
@@ -24,7 +24,7 @@ jobs:
         uses: ./actions/classifier-deep/apply/fetch-sources
         with:
           # slightly overlapping to protect against issues slipping through the cracks if a run is delayed
-          from: 70
+          from: 40
           until: 5
           configPath: classifier
           blobContainerName: vscode-issue-classifier
