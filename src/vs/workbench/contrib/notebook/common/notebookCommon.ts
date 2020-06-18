@@ -271,7 +271,6 @@ export interface INotebookTextModel {
 	renderers: Set<string>;
 	onDidChangeCells?: Event<NotebookCellTextModelSplice[]>;
 	onDidChangeContent: Event<void>;
-	onDidChangeUnknown: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }
 

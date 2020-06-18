@@ -25,6 +25,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { hash } from 'vs/base/common/hash';
 import { generateUuid } from 'vs/base/common/uuid';
+import { Cache } from './cache';
 
 interface IObservable<T> {
 	proxy: T;
@@ -249,6 +250,43 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	private _backupCounter = 1;
 
 	private _backup?: vscode.NotebookDocumentBackup;
+
+
+	private readonly _edits = new Cache<vscode.NotebookDocumentEditEvent>('notebook documents');
+
+
+	addEdit(item: vscode.NotebookDocumentEditEvent): number {
+		return this._edits.add([item]);
+	}
+
+	async undo(editId: number, isDirty: boolean): Promise<void> {
+		await this.getEdit(editId).undo();
+		// if (!isDirty) {
+		// 	this.disposeBackup();
+		// }
+	}
+
+	async redo(editId: number, isDirty: boolean): Promise<void> {
+		await this.getEdit(editId).redo();
+		// if (!isDirty) {
+		// 	this.disposeBackup();
+		// }
+	}
+
+	private getEdit(editId: number): vscode.NotebookDocumentEditEvent {
+		const edit = this._edits.get(editId, 0);
+		if (!edit) {
+			throw new Error('No edit found');
+		}
+
+		return edit;
+	}
+
+	disposeEdits(editIds: number[]): void {
+		for (const id of editIds) {
+			this._edits.delete(id);
+		}
+	}
 
 	private _disposed = false;
 
@@ -906,8 +944,25 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		const supportBackup = !!provider.backupNotebook;
 
 		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, supportBackup, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
+
+		const contentChangeListener = provider.onDidChangeNotebook(e => {
+			const document = this._documents.get(URI.revive(e.document.uri).toString());
+
+			if (!document) {
+				throw new Error(`Notebook document ${e.document.uri.toString()} not found`);
+			}
+
+			if (isEditEvent(e)) {
+				const editId = document.addEdit(e);
+				this._proxy.$onDidEdit(e.document.uri, viewType, editId, e.label);
+			} else {
+				this._proxy.$onContentChange(e.document.uri, viewType);
+			}
+		});
+
 		return new extHostTypes.Disposable(() => {
 			listener.dispose();
+			contentChangeListener.dispose();
 			this._notebookContentProviders.delete(viewType);
 			this._proxy.$unregisterNotebookProvider(viewType);
 		});
@@ -1079,6 +1134,26 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		return false;
 	}
+
+	async $undoNotebook(viewType: string, uri: UriComponents, editId: number, isDirty: boolean): Promise<void> {
+		const document = this._documents.get(URI.revive(uri).toString());
+		if (!document) {
+			return;
+		}
+
+		document.undo(editId, isDirty);
+
+	}
+
+	async $redoNotebook(viewType: string, uri: UriComponents, editId: number, isDirty: boolean): Promise<void> {
+		const document = this._documents.get(URI.revive(uri).toString());
+		if (!document) {
+			return;
+		}
+
+		document.redo(editId, isDirty);
+	}
+
 
 	async $backup(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string | undefined> {
 		const document = this._documents.get(URI.revive(uri).toString());
@@ -1352,4 +1427,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 function hashPath(resource: URI): string {
 	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
 	return hash(str) + '';
+}
+
+function isEditEvent(e: vscode.NotebookDocumentEditEvent | vscode.NotebookDocumentContentChangeEvent): e is vscode.NotebookDocumentEditEvent {
+	return typeof (e as vscode.NotebookDocumentEditEvent).undo === 'function'
+		&& typeof (e as vscode.NotebookDocumentEditEvent).redo === 'function';
 }

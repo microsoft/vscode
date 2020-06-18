@@ -568,6 +568,70 @@ suite('notebook undo redo', () => {
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
+
+	test('execute and then undo redo', async function () {
+		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		const cellsChangeEvent = getEventOncePromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		const cellChangeEventRet = await cellsChangeEvent;
+		assert.equal(cellChangeEventRet.document, vscode.notebook.activeNotebookEditor?.document);
+		assert.equal(cellChangeEventRet.changes.length, 1);
+		assert.deepEqual(cellChangeEventRet.changes[0], {
+			start: 1,
+			deletedCount: 0,
+			deletedItems: [],
+			items: [
+				vscode.notebook.activeNotebookEditor!.document.cells[1]
+			]
+		});
+
+		const secondCell = vscode.notebook.activeNotebookEditor!.document.cells[1];
+
+		const moveCellEvent = getEventOncePromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
+		await vscode.commands.executeCommand('notebook.cell.moveUp');
+		const moveCellEventRet = await moveCellEvent;
+		assert.deepEqual(moveCellEventRet, {
+			document: vscode.notebook.activeNotebookEditor!.document,
+			changes: [
+				{
+					start: 1,
+					deletedCount: 1,
+					deletedItems: [secondCell],
+					items: []
+				},
+				{
+					start: 0,
+					deletedCount: 0,
+					deletedItems: [],
+					items: [vscode.notebook.activeNotebookEditor?.document.cells[0]]
+				}
+			]
+		});
+
+		const cellOutputChange = getEventOncePromise<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs);
+		await vscode.commands.executeCommand('notebook.cell.execute');
+		const cellOutputsAddedRet = await cellOutputChange;
+		assert.deepEqual(cellOutputsAddedRet, {
+			document: vscode.notebook.activeNotebookEditor!.document,
+			cells: [vscode.notebook.activeNotebookEditor!.document.cells[0]]
+		});
+		assert.equal(cellOutputsAddedRet.cells[0].outputs.length, 1);
+
+		const cellOutputClear = getEventOncePromise<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs);
+		await vscode.commands.executeCommand('notebook.undo');
+		const cellOutputsCleardRet = await cellOutputClear;
+		assert.deepEqual(cellOutputsCleardRet, {
+			document: vscode.notebook.activeNotebookEditor!.document,
+			cells: [vscode.notebook.activeNotebookEditor!.document.cells[0]]
+		});
+		assert.equal(cellOutputsAddedRet.cells[0].outputs.length, 0);
+
+		await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	});
+
 });
 
 suite('notebook working copy', () => {
