@@ -21,7 +21,7 @@ import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 // Enable to see detailed message communication between window and extension host
@@ -43,7 +43,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	private readonly _extensionHostProcessFinishedActivateEvents: { [activationEvent: string]: boolean; };
 	private _extensionHostProcessRPCProtocol: RPCProtocol | null;
 	private readonly _extensionHostProcessCustomers: IDisposable[];
-	private readonly _extensionHostProcessWorker: IExtensionHostStarter;
+	private readonly _extensionHostProcessWorker: IExtensionHost;
 	/**
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
 	 */
@@ -52,7 +52,7 @@ export class ExtensionHostProcessManager extends Disposable {
 
 	constructor(
 		public readonly isLocal: boolean,
-		extensionHostProcessWorker: IExtensionHostStarter,
+		extensionHostProcessWorker: IExtensionHost,
 		private readonly _remoteAuthority: string | null,
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,

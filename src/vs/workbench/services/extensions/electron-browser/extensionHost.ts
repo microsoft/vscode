@@ -37,7 +37,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IExtensionHostStarter, ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { joinPath } from 'vs/base/common/resources';
@@ -45,7 +45,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
-export class ExtensionHostProcessWorker implements IExtensionHostStarter {
+export class ExtensionHostProcessWorker implements IExtensionHost {
 
 	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
 	public readonly onExit: Event<[number, string]> = this._onExit.event;

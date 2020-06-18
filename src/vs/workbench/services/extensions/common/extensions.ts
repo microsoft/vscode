@@ -84,7 +84,7 @@ export interface IExtensionHostProfile {
 	getAggregatedTimes(): Map<ProfileSegmentId, number>;
 }
 
-export interface IExtensionHostStarter {
+export interface IExtensionHost {
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol> | null;

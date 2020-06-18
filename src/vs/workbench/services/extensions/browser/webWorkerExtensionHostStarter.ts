@@ -17,7 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionHostStarter, ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { joinPath } from 'vs/base/common/resources';
@@ -25,7 +25,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
 
-export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
+export class WebWorkerExtensionHostStarter implements IExtensionHost {
 
 	private _toDispose = new DisposableStore();
 	private _isTerminating: boolean = false;

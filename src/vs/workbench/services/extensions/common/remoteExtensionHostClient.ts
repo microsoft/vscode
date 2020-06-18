@@ -13,7 +13,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IExtensionHostStarter, ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -43,7 +43,7 @@ export interface IInitDataProvider {
 	getInitData(): Promise<IRemoteInitData>;
 }
 
-export class RemoteExtensionHostClient extends Disposable implements IExtensionHostStarter {
+export class RemoteExtensionHostClient extends Disposable implements IExtensionHost {
 
 	private _onExit: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onExit.event;
