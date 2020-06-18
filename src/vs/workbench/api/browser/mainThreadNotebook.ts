@@ -476,7 +476,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return this._proxy.$executeNotebook(viewType, uri, undefined, useAttachedKernel, token);
 	}
 
-	async $postMessage(handle: number, value: any): Promise<boolean> {
+	async $postMessage(handle: number, forRendererId: string | undefined, value: any): Promise<boolean> {
 
 		const activeEditorPane = this.editorService.activeEditorPane as any | undefined;
 		if (activeEditorPane?.isNotebookEditor) {
