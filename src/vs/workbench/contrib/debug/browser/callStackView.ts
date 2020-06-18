@@ -507,7 +507,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IDebugSession>, FuzzyScore>, index: number, templateData: ISessionTemplateData, height: number | undefined): void {
 		const lastElement = node.element.elements[node.element.elements.length - 1];
 		const matches = createMatches(node.filterData);
-		const label = node.element.elements.map(e => e.getLabel()).join(' ');
+		const label = node.element.elements[0].getLabel();
 		this.doRenderElement(lastElement, label, matches, templateData);
 	}
 

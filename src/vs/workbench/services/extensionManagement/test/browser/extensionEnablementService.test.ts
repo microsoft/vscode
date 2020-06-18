@@ -526,7 +526,7 @@ suite('ExtensionEnablementService Test', () => {
 
 function anExtensionManagementServer(authority: string, instantiationService: TestInstantiationService): IExtensionManagementServer {
 	return {
-		authority,
+		id: authority,
 		label: authority,
 		extensionManagementService: instantiationService.get(IExtensionManagementService)
 	};
@@ -543,14 +543,15 @@ function anExtensionManagementServerService(localExtensionManagementServer: IExt
 		_serviceBrand: undefined,
 		localExtensionManagementServer,
 		remoteExtensionManagementServer,
-		getExtensionManagementServer: (location: URI) => {
-			if (location.scheme === Schemas.file) {
+		webExtensionManagementServer: null,
+		getExtensionManagementServer: (extension: IExtension) => {
+			if (extension.location.scheme === Schemas.file) {
 				return localExtensionManagementServer;
 			}
-			if (location.scheme === REMOTE_HOST_SCHEME) {
+			if (extension.location.scheme === REMOTE_HOST_SCHEME) {
 				return remoteExtensionManagementServer;
 			}
-			return null;
+			throw new Error(`Invalid Extension ${extension.location}`);
 		}
 	};
 }
