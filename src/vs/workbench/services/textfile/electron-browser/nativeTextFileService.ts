@@ -16,7 +16,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, UTF8_BOM, toDecodeStream, toEncodeReadable, IDecodeStreamResult, detectEncodingByBOMFromBuffer } from 'vs/base/node/encoding';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, UTF8_BOM, toDecodeStream, toEncodeReadable, IDecodeStreamResult, detectEncodingByBOMFromBuffer } from 'vs/base/common/encoding';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { joinPath, extname, isEqualOrParent } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';

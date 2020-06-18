@@ -29,7 +29,7 @@ import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { LogLevel, ILogService } from 'vs/platform/log/common/log';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/base/node/encoding';
+import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/base/common/encoding';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';

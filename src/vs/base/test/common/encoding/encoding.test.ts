@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+// FIX BEFORE MERGE
+// eslint-disable-next-line code-import-patterns
 import * as fs from 'fs';
-import * as encoding from 'vs/base/node/encoding';
-import * as terminalEncoding from 'vs/base/node/terminalEncoding';
+import * as encoding from 'vs/base/common/encoding';
 import * as streams from 'vs/base/common/stream';
+// FIX BEFORE MERGE
+// eslint-disable-next-line code-import-patterns
 import * as iconv from 'iconv-lite-umd';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from 'vs/base/common/buffer';
@@ -118,19 +121,6 @@ suite('Encoding', () => {
 
 		const detectedEncoding = await detectEncodingByBOM(file);
 		assert.equal(detectedEncoding, null);
-	});
-
-	test('resolve terminal encoding (detect)', async function () {
-		const enc = await terminalEncoding.resolveTerminalEncoding();
-		assert.ok(enc.length > 0);
-	});
-
-	test('resolve terminal encoding (environment)', async function () {
-		process.env['VSCODE_CLI_ENCODING'] = 'utf16le';
-
-		const enc = await terminalEncoding.resolveTerminalEncoding();
-		assert.ok(await encoding.encodingExists(enc));
-		assert.equal(enc, 'utf16le');
 	});
 
 	test('detectEncodingFromBuffer (JSON saved as PNG)', async function () {

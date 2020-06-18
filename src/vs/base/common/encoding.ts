@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// FIX BEFORE MERGE
+// eslint-disable-next-line code-import-patterns
 import { DecoderStream } from 'iconv-lite-umd';
 import { Readable, ReadableStream, newWriteableStream } from 'vs/base/common/stream';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
