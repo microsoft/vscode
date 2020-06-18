@@ -102,6 +102,12 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	/**
 	 * Called to indicate to the editor that the input should be cleared and
 	 * resources associated with the input should be freed.
+	 *
+	 * This method can be called based on different contexts, e.g. when opening
+	 * a different editor control or when closing all editors in a group.
+	 *
+	 * To monitor the lifecycle of editor inputs, you should not rely on this
+	 * method, rather refer to the listeners on `IEditorGroup` via `IEditorGroupService`.
 	 */
 	clearInput(): void {
 		this._input = undefined;
