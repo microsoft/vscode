@@ -9,12 +9,11 @@ import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/exte
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import { ExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
 import { RemoteExtensionHost, IInitDataProvider } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -85,20 +84,18 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		};
 	}
 
-	protected _createExtensionHosts(_isInitialStart: boolean, initialActivationEvents: string[]): ExtensionHostManager[] {
-		const result: ExtensionHostManager[] = [];
+	protected _createExtensionHosts(_isInitialStart: boolean): IExtensionHost[] {
+		const result: IExtensionHost[] = [];
 
 		const webExtensions = this.getExtensions().then(extensions => extensions.filter(ext => canExecuteOnWeb(ext, this._productService, this._configService)));
 		const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, webExtensions, URI.file(this._environmentService.logsPath).with({ scheme: this._environmentService.logFile.scheme }));
-		const webWorkerExtHostManager = this._instantiationService.createInstance(ExtensionHostManager, webWorkerExtHost, initialActivationEvents);
-		result.push(webWorkerExtHostManager);
+		result.push(webWorkerExtHost);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
 			const remoteExtensions = this.getExtensions().then(extensions => extensions.filter(ext => !canExecuteOnWeb(ext, this._productService, this._configService)));
 			const remoteExtHost = this._instantiationService.createInstance(RemoteExtensionHost, remoteExtensions, this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
-			const remoteExtHostManager = this._instantiationService.createInstance(ExtensionHostManager, remoteExtHost, initialActivationEvents);
-			result.push(remoteExtHostManager);
+			result.push(remoteExtHost);
 		}
 
 		return result;

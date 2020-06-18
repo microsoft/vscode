@@ -23,7 +23,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionService, toExtension, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, toExtension, ExtensionHostKind, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
@@ -352,7 +352,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		};
 	}
 
-	protected _createExtensionHosts(isInitialStart: boolean, initialActivationEvents: string[]): ExtensionHostManager[] {
+	protected _createExtensionHosts(isInitialStart: boolean): IExtensionHost[] {
 		let autoStart: boolean;
 		let extensions: Promise<IExtensionDescription[]>;
 		if (isInitialStart) {
@@ -364,17 +364,15 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			extensions = this.getExtensions().then((extensions) => extensions.filter(ext => ext.extensionLocation.scheme === Schemas.file));
 		}
 
-		const result: ExtensionHostManager[] = [];
+		const result: IExtensionHost[] = [];
 
 		const localProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, autoStart, extensions, this._environmentService.extHostLogsPath);
-		const localProcessExtHostManager = this._instantiationService.createInstance(ExtensionHostManager, localProcessExtHost, initialActivationEvents);
-		result.push(localProcessExtHostManager);
+		result.push(localProcessExtHost);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
 			const remoteExtHost = this._instantiationService.createInstance(RemoteExtensionHost, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
-			const remoteExtHostManager = this._instantiationService.createInstance(ExtensionHostManager, remoteExtHost, initialActivationEvents);
-			result.push(remoteExtHostManager);
+			result.push(remoteExtHost);
 		}
 
 		return result;
