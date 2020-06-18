@@ -768,8 +768,9 @@ export function getBreakpointMessageAndClassName(state: State, breakpointsActiva
 		};
 	}
 
+	const message = ('message' in breakpoint && breakpoint.message) ? breakpoint.message : breakpoint instanceof Breakpoint ? breakpoint.uri.path : nls.localize('breakpoint', "Breakpoint");
 	return {
 		className: 'codicon-debug-breakpoint',
-		message: ('message' in breakpoint && breakpoint.message) ? breakpoint.message : nls.localize('breakpoint', "Breakpoint")
+		message
 	};
 }
