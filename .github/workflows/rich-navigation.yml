@@ -1,5 +1,6 @@
 name: "Rich Navigation Indexing"
 on:
+  pull_request:
   push:
     branches:
       - master
@@ -16,3 +17,4 @@ jobs:
     - uses: microsoft/RichCodeNavIndexer@master
       with:
         languages: typescript
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
