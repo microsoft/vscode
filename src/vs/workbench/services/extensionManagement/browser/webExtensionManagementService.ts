@@ -3,12 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionIdentifier, IExtensionManifest, IExtension } from 'vs/platform/extensions/common/extensions';
 import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IGalleryExtension, IReportedExtension, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
-import builtinExtensions from 'vs/platform/extensions/common/builtinExtensions';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { isWeb } from 'vs/base/common/platform';
+
+let builtinExtensions: IExtension[] = [];
+
+// Web
+if (isWeb) {
+
+	// Running out of sources
+	if (Object.keys(builtinExtensions).length === 0) {
+		// Find builtin extensions by checking for DOM
+		const builtinExtensionsElement = document.getElementById('vscode-workbench-builtin-extensions');
+		const builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
+		if (builtinExtensionsElementAttribute) {
+			try {
+				builtinExtensions = JSON.parse(builtinExtensionsElementAttribute);
+			} catch (error) { /* ignore error*/ }
+		}
+	}
+}
+
+// Unknown
+else {
+	throw new Error('Unable to resolve builtin extensions');
+}
+
+builtinExtensions = builtinExtensions.map(extension => ({
+	...extension,
+	location: URI.revive(extension.location),
+	readmeUrl: URI.revive(extension.readmeUrl),
+	changelogUrl: URI.revive(extension.changelogUrl),
+}));
 
 export class WebExtensionManagementService implements IExtensionManagementService {
 
