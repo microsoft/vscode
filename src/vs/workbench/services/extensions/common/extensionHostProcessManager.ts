@@ -27,7 +27,6 @@ import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtens
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
 const LOG_USE_COLORS = true;
-
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export class ExtensionHostProcessManager extends Disposable {
@@ -41,32 +40,32 @@ export class ExtensionHostProcessManager extends Disposable {
 	/**
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
-	private readonly _extensionHostProcessFinishedActivateEvents: { [activationEvent: string]: boolean; };
-	private _extensionHostProcessRPCProtocol: RPCProtocol | null;
-	private readonly _extensionHostProcessCustomers: IDisposable[];
-	private readonly _extensionHostProcessWorker: IExtensionHost;
+	private readonly _finishedActivateEvents: { [activationEvent: string]: boolean; };
+	private _rpcProtocol: RPCProtocol | null;
+	private readonly _customers: IDisposable[];
+	private readonly _extensionHost: IExtensionHost;
 	/**
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
 	 */
-	private _extensionHostProcessProxy: Promise<{ value: ExtHostExtensionServiceShape; } | null> | null;
+	private _proxy: Promise<{ value: ExtHostExtensionServiceShape; } | null> | null;
 	private _resolveAuthorityAttempt: number;
 
 	constructor(
-		extensionHostProcessWorker: IExtensionHost,
+		extensionHost: IExtensionHost,
 		private readonly _remoteAuthority: string | null,
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
-		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
-		this._extensionHostProcessRPCProtocol = null;
-		this._extensionHostProcessCustomers = [];
+		this._finishedActivateEvents = Object.create(null);
+		this._rpcProtocol = null;
+		this._customers = [];
 
-		this._extensionHostProcessWorker = extensionHostProcessWorker;
-		this.kind = this._extensionHostProcessWorker.kind;
-		this.onDidExit = this._extensionHostProcessWorker.onExit;
-		this._extensionHostProcessProxy = this._extensionHostProcessWorker.start()!.then(
+		this._extensionHost = extensionHost;
+		this.kind = this._extensionHost.kind;
+		this.onDidExit = this._extensionHost.onExit;
+		this._proxy = this._extensionHost.start()!.then(
 			(protocol) => {
 				return { value: this._createExtensionHostCustomers(protocol) };
 			},
@@ -76,7 +75,7 @@ export class ExtensionHostProcessManager extends Disposable {
 				return null;
 			}
 		);
-		this._extensionHostProcessProxy.then(() => {
+		this._proxy.then(() => {
 			initialActivationEvents.forEach((activationEvent) => this.activateByEvent(activationEvent));
 			this._register(registerLatencyTestProvider({
 				measure: () => this.measure()
@@ -86,21 +85,21 @@ export class ExtensionHostProcessManager extends Disposable {
 	}
 
 	public dispose(): void {
-		if (this._extensionHostProcessWorker) {
-			this._extensionHostProcessWorker.dispose();
+		if (this._extensionHost) {
+			this._extensionHost.dispose();
 		}
-		if (this._extensionHostProcessRPCProtocol) {
-			this._extensionHostProcessRPCProtocol.dispose();
+		if (this._rpcProtocol) {
+			this._rpcProtocol.dispose();
 		}
-		for (let i = 0, len = this._extensionHostProcessCustomers.length; i < len; i++) {
-			const customer = this._extensionHostProcessCustomers[i];
+		for (let i = 0, len = this._customers.length; i < len; i++) {
+			const customer = this._customers[i];
 			try {
 				customer.dispose();
 			} catch (err) {
 				errors.onUnexpectedError(err);
 			}
 		}
-		this._extensionHostProcessProxy = null;
+		this._proxy = null;
 
 		super.dispose();
 	}
@@ -122,10 +121,10 @@ export class ExtensionHostProcessManager extends Disposable {
 	}
 
 	private async _getExtensionHostProcessProxy(): Promise<ExtHostExtensionServiceShape | null> {
-		if (!this._extensionHostProcessProxy) {
+		if (!this._proxy) {
 			return null;
 		}
-		const p = await this._extensionHostProcessProxy;
+		const p = await this._proxy;
 		if (!p) {
 			return null;
 		}
@@ -179,13 +178,13 @@ export class ExtensionHostProcessManager extends Disposable {
 			logger = new RPCLogger();
 		}
 
-		this._extensionHostProcessRPCProtocol = new RPCProtocol(protocol, logger);
-		this._register(this._extensionHostProcessRPCProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
+		this._rpcProtocol = new RPCProtocol(protocol, logger);
+		this._register(this._rpcProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
 			remoteAuthority: this._remoteAuthority! /* TODO: alexdima, remove not-null assertion */,
-			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._extensionHostProcessRPCProtocol!.getProxy(identifier),
-			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._extensionHostProcessRPCProtocol!.set(identifier, instance),
-			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._extensionHostProcessRPCProtocol!.assertRegistered(identifiers),
+			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._rpcProtocol!.getProxy(identifier),
+			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._rpcProtocol!.set(identifier, instance),
+			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._rpcProtocol!.assertRegistered(identifiers),
 		};
 
 		// Named customers
@@ -193,22 +192,22 @@ export class ExtensionHostProcessManager extends Disposable {
 		for (let i = 0, len = namedCustomers.length; i < len; i++) {
 			const [id, ctor] = namedCustomers[i];
 			const instance = this._instantiationService.createInstance(ctor, extHostContext);
-			this._extensionHostProcessCustomers.push(instance);
-			this._extensionHostProcessRPCProtocol.set(id, instance);
+			this._customers.push(instance);
+			this._rpcProtocol.set(id, instance);
 		}
 
 		// Customers
 		const customers = ExtHostCustomersRegistry.getCustomers();
 		for (const ctor of customers) {
 			const instance = this._instantiationService.createInstance(ctor, extHostContext);
-			this._extensionHostProcessCustomers.push(instance);
+			this._customers.push(instance);
 		}
 
 		// Check that no named customers are missing
 		const expected: ProxyIdentifier<any>[] = Object.keys(MainContext).map((key) => (<any>MainContext)[key]);
-		this._extensionHostProcessRPCProtocol.assertRegistered(expected);
+		this._rpcProtocol.assertRegistered(expected);
 
-		return this._extensionHostProcessRPCProtocol.getProxy(ExtHostContext.ExtHostExtensionService);
+		return this._rpcProtocol.getProxy(ExtHostContext.ExtHostExtensionService);
 	}
 
 	public async activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
@@ -220,10 +219,10 @@ export class ExtensionHostProcessManager extends Disposable {
 	}
 
 	public activateByEvent(activationEvent: string): Promise<void> {
-		if (this._extensionHostProcessFinishedActivateEvents[activationEvent] || !this._extensionHostProcessProxy) {
+		if (this._finishedActivateEvents[activationEvent] || !this._proxy) {
 			return NO_OP_VOID_PROMISE;
 		}
-		return this._extensionHostProcessProxy.then((proxy) => {
+		return this._proxy.then((proxy) => {
 			if (!proxy) {
 				// this case is already covered above and logged.
 				// i.e. the extension host could not be started
@@ -231,16 +230,16 @@ export class ExtensionHostProcessManager extends Disposable {
 			}
 			return proxy.value.$activateByEvent(activationEvent);
 		}).then(() => {
-			this._extensionHostProcessFinishedActivateEvents[activationEvent] = true;
+			this._finishedActivateEvents[activationEvent] = true;
 		});
 	}
 
 	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
-		if (this._extensionHostProcessWorker) {
+		if (this._extensionHost) {
 			if (tryEnableInspector) {
-				await this._extensionHostProcessWorker.enableInspectPort();
+				await this._extensionHost.enableInspectPort();
 			}
-			let port = this._extensionHostProcessWorker.getInspectPort();
+			let port = this._extensionHost.getInspectPort();
 			if (port) {
 				return port;
 			}
