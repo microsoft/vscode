@@ -270,8 +270,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 			const associatedEditors = distinct([
 				...this.getUserAssociatedNotebookEditors(notebookUri),
-				...this.getContributedEditors(notebookUri)
-			], editor => editor.id).filter(editor => editor.priority === NotebookEditorPriority.default);
+				...(this.getContributedEditors(notebookUri).filter(editor => editor.priority === NotebookEditorPriority.default))
+			], editor => editor.id);
 
 			if (!associatedEditors.length) {
 				// there is no notebook editor contribution which is enabled by default
