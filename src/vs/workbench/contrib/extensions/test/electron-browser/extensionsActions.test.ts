@@ -1122,7 +1122,7 @@ suite('ReloadAction', () => {
 
 	test('Test ReloadAction when extension is newly installed', async () => {
 		const onDidChangeExtensionsEmitter: Emitter<void> = new Emitter<void>();
-		const runningExtensions = [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }];
+		const runningExtensions = [ExtensionsActions.toExtensionDescription(aLocalExtension('b'))];
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			getExtensions: () => Promise.resolve(runningExtensions),
 			onDidChangeExtensions: onDidChangeExtensionsEmitter.event,
@@ -1145,7 +1145,7 @@ suite('ReloadAction', () => {
 
 	test('Test ReloadAction when extension is newly installed and reload is not required', async () => {
 		const onDidChangeExtensionsEmitter: Emitter<void> = new Emitter<void>();
-		const runningExtensions = [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }];
+		const runningExtensions = [ExtensionsActions.toExtensionDescription(aLocalExtension('b'))];
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			getExtensions: () => Promise.resolve(runningExtensions),
 			onDidChangeExtensions: onDidChangeExtensionsEmitter.event,
@@ -1166,7 +1166,7 @@ suite('ReloadAction', () => {
 	});
 
 	test('Test ReloadAction when extension is installed and uninstalled', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [ExtensionsActions.toExtensionDescription(aLocalExtension('b'))]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const gallery = aGalleryExtension('a');
@@ -1184,7 +1184,7 @@ suite('ReloadAction', () => {
 	});
 
 	test('Test ReloadAction when extension is uninstalled', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.a'), extensionLocation: URI.file('pub.a'), version: '1.0.0' }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [ExtensionsActions.toExtensionDescription(aLocalExtension('a', { version: '1.0.0' }))]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const local = aLocalExtension('a');
@@ -1218,7 +1218,7 @@ suite('ReloadAction', () => {
 	});
 
 	test('Test ReloadAction when extension is uninstalled and installed', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.a'), version: '1.0.0', extensionLocation: URI.file('pub.a') }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [ExtensionsActions.toExtensionDescription(aLocalExtension('a', { version: '1.0.0' }))]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const local = aLocalExtension('a');
@@ -1238,7 +1238,7 @@ suite('ReloadAction', () => {
 	});
 
 	test('Test ReloadAction when extension is updated while running', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.a'), version: '1.0.1', extensionLocation: URI.file('pub.a') }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [ExtensionsActions.toExtensionDescription(aLocalExtension('a', { version: '1.0.1' }))]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const local = aLocalExtension('a', { version: '1.0.1' });
@@ -1260,7 +1260,7 @@ suite('ReloadAction', () => {
 	});
 
 	test('Test ReloadAction when extension is updated when not running', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [ExtensionsActions.toExtensionDescription(aLocalExtension('b'))]);
 		const local = aLocalExtension('a', { version: '1.0.1' });
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
@@ -1278,7 +1278,7 @@ suite('ReloadAction', () => {
 	});
 
 	test('Test ReloadAction when extension is disabled when running', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.a'), extensionLocation: URI.file('pub.a') }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [ExtensionsActions.toExtensionDescription(aLocalExtension('a'))]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const local = aLocalExtension('a');
@@ -1294,7 +1294,7 @@ suite('ReloadAction', () => {
 	});
 
 	test('Test ReloadAction when extension enablement is toggled when running', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.a'), version: '1.0.0', extensionLocation: URI.file('pub.a') }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [ExtensionsActions.toExtensionDescription(aLocalExtension('a', { version: '1.0.0' }))]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const local = aLocalExtension('a');
@@ -1308,7 +1308,7 @@ suite('ReloadAction', () => {
 	});
 
 	test('Test ReloadAction when extension is enabled when not running', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [ExtensionsActions.toExtensionDescription(aLocalExtension('b'))]);
 		const local = aLocalExtension('a');
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
@@ -1324,7 +1324,7 @@ suite('ReloadAction', () => {
 	});
 
 	test('Test ReloadAction when extension enablement is toggled when not running', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [ExtensionsActions.toExtensionDescription(aLocalExtension('b'))]);
 		const local = aLocalExtension('a');
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
@@ -1339,7 +1339,7 @@ suite('ReloadAction', () => {
 	});
 
 	test('Test ReloadAction when extension is updated when not running and enabled', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [ExtensionsActions.toExtensionDescription(aLocalExtension('b'))]);
 		const local = aLocalExtension('a', { version: '1.0.1' });
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
@@ -1359,7 +1359,7 @@ suite('ReloadAction', () => {
 	});
 
 	test('Test ReloadAction when a localization extension is newly installed', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [ExtensionsActions.toExtensionDescription(aLocalExtension('b'))]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const gallery = aGalleryExtension('a');
@@ -1375,7 +1375,7 @@ suite('ReloadAction', () => {
 	});
 
 	test('Test ReloadAction when a localization extension is updated while running', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.a'), version: '1.0.1', extensionLocation: URI.file('pub.a') }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [ExtensionsActions.toExtensionDescription(aLocalExtension('a', { version: '1.0.1' }))]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const local = aLocalExtension('a', { version: '1.0.1', contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } });

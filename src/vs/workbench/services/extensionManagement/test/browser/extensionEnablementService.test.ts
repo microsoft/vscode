@@ -461,7 +461,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test remote ui extension is disabled by kind when there is no local server', async () => {
-		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService)));
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService), null));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(!testObject.isEnabled(localWorkspaceExtension));
@@ -499,7 +499,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test web extension on remote server is not disabled by kind when there is no local server', async () => {
-		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService)));
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService), anExtensionManagementServer('web', instantiationService)));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['web'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(testObject.isEnabled(localWorkspaceExtension));
@@ -507,7 +507,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test web extension with no server is not disabled by kind when there is no local server', async () => {
-		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService)));
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService), anExtensionManagementServer('web', instantiationService)));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['web'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.https }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(testObject.isEnabled(localWorkspaceExtension));
@@ -515,7 +515,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test web extension with no server is not disabled by kind when there is no local and remote server', async () => {
-		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, null));
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, null, anExtensionManagementServer('web', instantiationService)));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['web'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.https }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(testObject.isEnabled(localWorkspaceExtension));
@@ -535,10 +535,10 @@ function anExtensionManagementServer(authority: string, instantiationService: Te
 function aMultiExtensionManagementServerService(instantiationService: TestInstantiationService): IExtensionManagementServerService {
 	const localExtensionManagementServer = anExtensionManagementServer('vscode-local', instantiationService);
 	const remoteExtensionManagementServer = anExtensionManagementServer('vscode-remote', instantiationService);
-	return anExtensionManagementServerService(localExtensionManagementServer, remoteExtensionManagementServer);
+	return anExtensionManagementServerService(localExtensionManagementServer, remoteExtensionManagementServer, null);
 }
 
-function anExtensionManagementServerService(localExtensionManagementServer: IExtensionManagementServer | null, remoteExtensionManagementServer: IExtensionManagementServer | null): IExtensionManagementServerService {
+function anExtensionManagementServerService(localExtensionManagementServer: IExtensionManagementServer | null, remoteExtensionManagementServer: IExtensionManagementServer | null, webExtensionManagementServer: IExtensionManagementServer | null): IExtensionManagementServerService {
 	return {
 		_serviceBrand: undefined,
 		localExtensionManagementServer,
@@ -551,7 +551,7 @@ function anExtensionManagementServerService(localExtensionManagementServer: IExt
 			if (extension.location.scheme === REMOTE_HOST_SCHEME) {
 				return remoteExtensionManagementServer;
 			}
-			throw new Error(`Invalid Extension ${extension.location}`);
+			return webExtensionManagementServer;
 		}
 	};
 }
