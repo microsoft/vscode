@@ -11,7 +11,6 @@ import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
 
@@ -42,31 +41,29 @@ export async function loadLocalResource(
 		extensionLocation: URI | undefined;
 		roots: ReadonlyArray<URI>;
 		remoteConnectionData?: IRemoteConnectionData | null;
+		rewriteUri?: (uri: URI) => URI,
 	},
 	fileService: IFileService,
 	requestService: IRequestService,
 ): Promise<WebviewResourceResponse.StreamResponse> {
-	const resourceToLoad = getResourceToLoad(requestUri, options.roots);
+	let resourceToLoad = getResourceToLoad(requestUri, options.roots);
 	if (!resourceToLoad) {
 		return WebviewResourceResponse.AccessDenied;
 	}
+
 	const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
 
-	if (options.remoteConnectionData) {
-		// Remote uris must go to the resolved server.
-		if (resourceToLoad.scheme === Schemas.vscodeRemote || (options.extensionLocation?.scheme === REMOTE_HOST_SCHEME)) {
-			const scheme = options.remoteConnectionData.host === 'localhost' || options.remoteConnectionData.host === '127.0.0.1' ? 'http' : 'https';
-			const uri = URI.parse(`${scheme}://${options.remoteConnectionData.host}:${options.remoteConnectionData.port}`).with({
-				path: '/vscode-remote-resource',
-				query: `tkn=${options.remoteConnectionData.connectionToken}&path=${encodeURIComponent(resourceToLoad.path)}`,
-			});
+	// Perform extra normalization if needed
+	if (options.rewriteUri) {
+		resourceToLoad = options.rewriteUri(resourceToLoad);
+	}
 
-			const response = await requestService.request({ url: uri.toString(true) }, CancellationToken.None);
-			if (response.res.statusCode === 200) {
-				return new WebviewResourceResponse.StreamSuccess(response.stream, mime);
-			}
-			return WebviewResourceResponse.Failed;
+	if (resourceToLoad.scheme === Schemas.http || resourceToLoad.scheme === Schemas.https) {
+		const response = await requestService.request({ url: resourceToLoad.toString(true) }, CancellationToken.None);
+		if (response.res.statusCode === 200) {
+			return new WebviewResourceResponse.StreamSuccess(response.stream, mime);
 		}
+		return WebviewResourceResponse.Failed;
 	}
 
 	try {

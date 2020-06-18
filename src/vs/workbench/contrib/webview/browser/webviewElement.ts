@@ -6,6 +6,7 @@
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -13,6 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -146,11 +148,31 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		try {
 			const remoteAuthority = this._workbenchEnvironmentService.configuration.remoteAuthority;
 			const remoteConnectionData = remoteAuthority ? this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
+			const extensionLocation = this.extension?.location;
+
+			// If we are loading a file resource from a remote extension, rewrite the uri to go remote
+			let rewriteUri: undefined | ((uri: URI) => URI);
+			if (extensionLocation?.scheme === REMOTE_HOST_SCHEME) {
+				rewriteUri = (uri) => {
+					if (uri.scheme === Schemas.file && extensionLocation?.scheme === REMOTE_HOST_SCHEME) {
+						return URI.from({
+							scheme: REMOTE_HOST_SCHEME,
+							authority: extensionLocation.authority,
+							path: '/vscode-resource',
+							query: JSON.stringify({
+								requestResourcePath: uri.path
+							})
+						});
+					}
+					return uri;
+				};
+			}
 
 			const result = await loadLocalResource(uri, {
-				extensionLocation: this.extension?.location,
+				extensionLocation: extensionLocation,
 				roots: this.content.options.localResourceRoots || [],
-				remoteConnectionData
+				remoteConnectionData,
+				rewriteUri,
 			}, this.fileService, this.requestService);
 
 			if (result.type === WebviewResourceResponse.Type.Success) {
