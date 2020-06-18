@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isUNC } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
@@ -18,7 +18,6 @@ import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes'
 
 export const webviewPartitionId = 'webview';
 
-
 export namespace WebviewResourceResponse {
 	export enum Type { Success, Failed, AccessDenied }
 
@@ -31,44 +30,13 @@ export namespace WebviewResourceResponse {
 		) { }
 	}
 
-	export class BufferSuccess {
-		readonly type = Type.Success;
-
-		constructor(
-			public readonly buffer: VSBuffer,
-			public readonly mimeType: string
-		) { }
-	}
-
 	export const Failed = { type: Type.Failed } as const;
 	export const AccessDenied = { type: Type.AccessDenied } as const;
 
-	export type BufferResponse = BufferSuccess | typeof Failed | typeof AccessDenied;
 	export type StreamResponse = StreamSuccess | typeof Failed | typeof AccessDenied;
 }
 
 export async function loadLocalResource(
-	requestUri: URI,
-	fileService: IFileService,
-	extensionLocation: URI | undefined,
-	roots: ReadonlyArray<URI>
-): Promise<WebviewResourceResponse.BufferResponse> {
-	const resourceToLoad = getResourceToLoad(requestUri, extensionLocation, roots);
-	if (!resourceToLoad) {
-		return WebviewResourceResponse.AccessDenied;
-	}
-
-	try {
-		const data = await fileService.readFile(resourceToLoad);
-		const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
-		return new WebviewResourceResponse.BufferSuccess(data.value, mime);
-	} catch (err) {
-		console.log(err);
-		return WebviewResourceResponse.Failed;
-	}
-}
-
-export async function loadLocalResourceStream(
 	requestUri: URI,
 	options: {
 		extensionLocation: URI | undefined;
@@ -78,7 +46,7 @@ export async function loadLocalResourceStream(
 	fileService: IFileService,
 	requestService: IRequestService,
 ): Promise<WebviewResourceResponse.StreamResponse> {
-	const resourceToLoad = getResourceToLoad(requestUri, options.extensionLocation, options.roots);
+	const resourceToLoad = getResourceToLoad(requestUri, options.roots);
 	if (!resourceToLoad) {
 		return WebviewResourceResponse.AccessDenied;
 	}
@@ -87,7 +55,8 @@ export async function loadLocalResourceStream(
 	if (options.remoteConnectionData) {
 		// Remote uris must go to the resolved server.
 		if (resourceToLoad.scheme === Schemas.vscodeRemote || (options.extensionLocation?.scheme === REMOTE_HOST_SCHEME)) {
-			const uri = URI.parse(`http://${options.remoteConnectionData.host}:${options.remoteConnectionData.port}`).with({
+			const scheme = options.remoteConnectionData.host === 'localhost' || options.remoteConnectionData.host === '127.0.0.1' ? 'http' : 'https';
+			const uri = URI.parse(`${scheme}://${options.remoteConnectionData.host}:${options.remoteConnectionData.port}`).with({
 				path: '/vscode-remote-resource',
 				query: `tkn=${options.remoteConnectionData.connectionToken}&path=${encodeURIComponent(resourceToLoad.path)}`,
 			});
@@ -111,7 +80,6 @@ export async function loadLocalResourceStream(
 
 function getResourceToLoad(
 	requestUri: URI,
-	extensionLocation: URI | undefined,
 	roots: ReadonlyArray<URI>
 ): URI | undefined {
 	const normalizedPath = normalizeRequestPath(requestUri);

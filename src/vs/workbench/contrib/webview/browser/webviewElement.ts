@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener } from 'vs/base/browser/dom';
+import { streamToBuffer } from 'vs/base/common/buffer';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -13,6 +14,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
 import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
@@ -32,6 +34,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		webviewThemeDataProvider: WebviewThemeDataProvider,
 		@ITunnelService tunnelService: ITunnelService,
 		@IFileService private readonly fileService: IFileService,
+		@IRequestService private readonly requestService: IRequestService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -141,15 +144,22 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 
 	private async loadResource(requestPath: string, uri: URI) {
 		try {
-			const result = await loadLocalResource(uri, this.fileService, this.extension ? this.extension.location : undefined,
-				this.content.options.localResourceRoots || []);
+			const remoteAuthority = this._workbenchEnvironmentService.configuration.remoteAuthority;
+			const remoteConnectionData = remoteAuthority ? this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
+
+			const result = await loadLocalResource(uri, {
+				extensionLocation: this.extension?.location,
+				roots: this.content.options.localResourceRoots || [],
+				remoteConnectionData
+			}, this.fileService, this.requestService);
 
 			if (result.type === WebviewResourceResponse.Type.Success) {
+				const { buffer } = await streamToBuffer(result.stream);
 				return this._send('did-load-resource', {
 					status: 200,
 					path: requestPath,
 					mime: result.mimeType,
-					data: result.buffer.buffer,
+					data: buffer,
 				});
 			}
 		} catch  {

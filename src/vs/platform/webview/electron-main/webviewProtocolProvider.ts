@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { loadLocalResourceStream, webviewPartitionId, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
+import { loadLocalResource, webviewPartitionId, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
 
 interface WebviewMetadata {
 	readonly extensionLocation: URI | undefined;
@@ -39,7 +39,7 @@ export class WebviewProtocolProvider extends Disposable {
 				const id = uri.authority;
 				const metadata = this.webviewMetadata.get(id);
 				if (metadata) {
-					const result = await loadLocalResourceStream(uri, {
+					const result = await loadLocalResource(uri, {
 						extensionLocation: metadata.extensionLocation,
 						roots: metadata.localResourceRoots,
 						remoteConnectionData: metadata.remoteConnectionData,
