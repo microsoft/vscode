@@ -12,16 +12,15 @@ let builtinExtensions: IExtension[] = [];
 // Web
 if (isWeb) {
 
-	// Built time configuration (do NOT modify)
-	builtinExtensions = { /*BUILD->INSERT_BUILTIN_EXTENSIONS*/ } as IExtension[];
-
 	// Running out of sources
 	if (Object.keys(builtinExtensions).length === 0) {
 		// Find builtin extensions by checking for DOM
 		const builtinExtensionsElement = document.getElementById('vscode-workbench-builtin-extensions');
 		const builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
 		if (builtinExtensionsElementAttribute) {
-			builtinExtensions = JSON.parse(builtinExtensionsElementAttribute);
+			try {
+				builtinExtensions = JSON.parse(builtinExtensionsElementAttribute);
+			} catch (error) { /* ignore error*/ }
 		}
 	}
 }
