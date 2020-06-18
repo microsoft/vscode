@@ -137,11 +137,6 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 		this._group = group;
 	}
 
-	/**
-	 * Called before the editor is being removed from the DOM.
-	 */
-	onWillHide() { }
-
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
 		const mementoKey = `${this.getId()}${key}`;
 

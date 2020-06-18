@@ -97,18 +97,17 @@ export class NotebookEditor extends BaseEditor {
 		return this._widget.value;
 	}
 
-	onWillHide() {
-		this._saveEditorViewState(this.input);
-		if (this.input && this._widget.value) {
-			// the widget is not transfered to other editor inputs
-			this._widget.value.onWillHide();
-		}
-		super.onWillHide();
-	}
-
 	setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 		this._groupListener.value = group?.onWillCloseEditor(e => this._saveEditorViewState(e.editor));
+
+		if (!visible) {
+			this._saveEditorViewState(this.input);
+			if (this.input && this._widget.value) {
+				// the widget is not transfered to other editor inputs
+				this._widget.value.onWillHide();
+			}
+		}
 	}
 
 	focus() {
