@@ -23,6 +23,7 @@ import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import Severity from 'vs/base/common/severity';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -635,7 +636,7 @@ export interface ITreeItem {
 
 	resourceUri?: UriComponents;
 
-	tooltip?: string;
+	tooltip?: string | IMarkdownString;
 
 	contextValue?: string;
 

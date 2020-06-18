@@ -43,6 +43,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IHoverService, IHoverTarget } from 'vs/workbench/contrib/hover/browser/hover';
 
 export class TreeViewPane extends ViewPane {
 
@@ -432,7 +433,7 @@ export class TreeView extends Disposable implements ITreeView {
 						return element.accessibilityInformation.label;
 					}
 
-					return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
+					return isString(element.tooltip) ? element.tooltip : element.label ? element.label.label : '';
 				},
 				getRole(element: ITreeItem): string | undefined {
 					return element.accessibilityInformation?.role ?? 'treeitem';
@@ -485,6 +486,8 @@ export class TreeView extends Disposable implements ITreeView {
 				this.commandService.executeCommand(selection[0].command.id, ...(selection[0].command.arguments || []));
 			}
 		}));
+
+		// this._register(this.tree.onMouseOver(e => this.onMouseOver(e)));
 	}
 
 	private onContextMenu(treeMenus: TreeMenus, treeEvent: ITreeContextMenuEvent<ITreeItem>, actionRunner: MultipleSelectionActionRunner): void {
@@ -526,6 +529,12 @@ export class TreeView extends Disposable implements ITreeView {
 			actionRunner
 		});
 	}
+
+	// private onMouseOver(e: ITreeMouseEvent<ITreeItem>) {
+	// 	if (e.element?.tooltip && !isString(e.element.tooltip)) {
+	// 		this.hoverService.showHover({ text: e.element.tooltip, target: e.target.})
+	// 	}
+	// }
 
 	protected updateMessage(): void {
 		if (this._message) {
@@ -756,7 +765,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		private aligner: Aligner,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super();
 	}
@@ -809,7 +819,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}) : undefined;
 		const icon = this.themeService.getColorTheme().type === LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
-		const title = node.tooltip ? node.tooltip : resource ? undefined : label;
+		const title = node.tooltip ? isString(node.tooltip) ? node.tooltip : undefined : resource ? undefined : label;
 
 		// reset
 		templateData.actionBar.clear();
@@ -843,6 +853,14 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}
 		this.setAlignment(templateData.container, node);
 		templateData.elementDisposable = (this.themeService.onDidFileIconThemeChange(() => this.setAlignment(templateData.container, node)));
+		templateData.container.onmouseover = templateData.icon.onmouseover = (e) => {
+			console.log('mouseover');
+			if (node.tooltip && !isString(node.tooltip)) {
+				console.log('show hover');
+				const target: IHoverTarget = { targetElements: [templateData.container, templateData.icon], dispose: () => { return; } };
+				this.hoverService.showHover({ text: node.tooltip, target });
+			}
+		};
 	}
 
 	private setAlignment(container: HTMLElement, treeItem: ITreeItem) {
@@ -1013,6 +1031,7 @@ export class CustomTreeView extends TreeView {
 		@INotificationService notificationService: INotificationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService hoverService: IHoverService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, contextKeyService);
