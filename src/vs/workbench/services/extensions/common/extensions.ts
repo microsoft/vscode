@@ -84,7 +84,14 @@ export interface IExtensionHostProfile {
 	getAggregatedTimes(): Map<ProfileSegmentId, number>;
 }
 
+export const enum ExtensionHostKind {
+	LocalProcess,
+	LocalWebWorker,
+	RemoteProcess
+}
+
 export interface IExtensionHost {
+	readonly kind: ExtensionHostKind;
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol> | null;
