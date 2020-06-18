@@ -12,7 +12,6 @@ jobs:
     - uses: actions/checkout@v2
     - name: Use Node.js
       uses: actions/setup-node@v1
-    - run: npm install -g node-gyp
     - name: Install dependencies
       run: yarn --frozen-lockfile
       continue-on-error: true
