@@ -15,10 +15,10 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/common/extensionHostProcessManager';
-import { RemoteExtensionHostClient, IInitDataProvider } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
+import { RemoteProcessExtensionHost, IInitDataProvider } from 'vs/workbench/services/extensions/common/remoteProcessExtensionHost';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { WebWorkerExtensionHostStarter } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHostStarter';
+import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { URI } from 'vs/base/common/uri';
 import { canExecuteOnWeb } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -89,14 +89,14 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const result: ExtensionHostProcessManager[] = [];
 
 		const webExtensions = this.getExtensions().then(extensions => extensions.filter(ext => canExecuteOnWeb(ext, this._productService, this._configService)));
-		const webHostProcessWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, webExtensions, URI.file(this._environmentService.logsPath).with({ scheme: this._environmentService.logFile.scheme }));
+		const webHostProcessWorker = this._instantiationService.createInstance(WebWorkerExtensionHost, webExtensions, URI.file(this._environmentService.logsPath).with({ scheme: this._environmentService.logFile.scheme }));
 		const webHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, webHostProcessWorker, null, initialActivationEvents);
 		result.push(webHostProcessManager);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
 			const remoteExtensions = this.getExtensions().then(extensions => extensions.filter(ext => !canExecuteOnWeb(ext, this._productService, this._configService)));
-			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, remoteExtensions, this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
+			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteProcessExtensionHost, remoteExtensions, this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
 			const remoteExtHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, remoteExtHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
 			result.push(remoteExtHostProcessManager);
 		}

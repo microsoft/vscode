@@ -45,7 +45,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
-export class ExtensionHostProcessWorker implements IExtensionHost {
+export class LocalProcessExtensionHost implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.LocalProcess;
 

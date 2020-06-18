@@ -43,7 +43,7 @@ export interface IInitDataProvider {
 	getInitData(): Promise<IRemoteInitData>;
 }
 
-export class RemoteExtensionHostClient extends Disposable implements IExtensionHost {
+export class RemoteProcessExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.RemoteProcess;
 

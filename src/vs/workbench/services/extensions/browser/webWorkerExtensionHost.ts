@@ -25,7 +25,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
 
-export class WebWorkerExtensionHostStarter implements IExtensionHost {
+export class WebWorkerExtensionHost implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.LocalWebWorker;
 

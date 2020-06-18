@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
+import { LocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-browser/localProcessExtensionHost';
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
@@ -13,7 +13,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInitDataProvider, RemoteExtensionHostClient } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
+import { IInitDataProvider, RemoteProcessExtensionHost } from 'vs/workbench/services/extensions/common/remoteProcessExtensionHost';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
@@ -366,13 +366,13 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const result: ExtensionHostProcessManager[] = [];
 
-		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._environmentService.extHostLogsPath);
+		const extHostProcessWorker = this._instantiationService.createInstance(LocalProcessExtensionHost, autoStart, extensions, this._environmentService.extHostLogsPath);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, true, extHostProcessWorker, null, initialActivationEvents);
 		result.push(extHostProcessManager);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
+			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteProcessExtensionHost, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
 			const remoteExtHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, remoteExtHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
 			result.push(remoteExtHostProcessManager);
 		}
