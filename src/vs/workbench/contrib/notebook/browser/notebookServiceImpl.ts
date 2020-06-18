@@ -683,6 +683,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._onNotebookEditorAdd.fire(editor);
 	}
 
+	getNotebookEditor(editorId: string) {
+		return this._notebookEditors.get(editorId);
+	}
+
 	listNotebookEditors(): INotebookEditor[] {
 		return [...this._notebookEditors].map(e => e[1]);
 	}

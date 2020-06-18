@@ -709,7 +709,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void>;
 	$updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata | undefined): Promise<void>;
 	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void>;
-	$postMessage(handle: number, forRendererId: string | undefined, value: any): Promise<boolean>;
+	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 
 	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
 	$onContentChange(resource: UriComponents, viewType: string): void;

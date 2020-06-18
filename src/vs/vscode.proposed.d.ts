@@ -1543,9 +1543,9 @@ declare module 'vscode' {
 		render(document: NotebookDocument, request: NotebookRenderRequest): string;
 
 		/**
-		 * Called before the first `render()` for each notebook editor. Takes a
-		 * communication object that can be used to send messages back and forth
-		 * to the webview.
+		 * Call before HTML from the renderer is executed, and will be called for
+		 * every editor associated with notebook documents where the renderer
+		 * is or was used.
 		 *
 		 * The communication object will only send and receive messages to the
 		 * render API, retrieved via `acquireNotebookRendererApi`, acquired with
@@ -1689,6 +1689,14 @@ declare module 'vscode' {
 	 * {@link NotebookOutputRenderer} to communicate with the webview.
 	 */
 	export interface NotebookCommunication {
+		/**
+		 * ID of the editor this object communicates with. A single notebook
+		 * document can have multiple attached webviews and editors, when the
+		 * notebook is split for instance. The editor ID lets you differentiate
+		 * between them.
+		 */
+		readonly editorId: string;
+
 		/**
 		 * Fired when the output hosting webview posts a message.
 		 */

@@ -159,7 +159,7 @@ export interface IUpdatePreloadResourceMessage {
 export interface ICustomRendererMessage {
 	__vscode_notebook_message: boolean;
 	type: 'customRendererMessage';
-	rendererType: string;
+	rendererId: string;
 	message: unknown;
 }
 
@@ -184,7 +184,8 @@ export type ToWebviewMessage =
 	| IHideOutputMessage
 	| IShowOutputMessage
 	| IUpdatePreloadResourceMessage
-	| IFocusOutputMessage;
+	| IFocusOutputMessage
+	| ICustomRendererMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 
@@ -277,6 +278,15 @@ export class BackLayerWebView extends Disposable {
 				<script>${preloadsScriptStr(outputNodePadding)}</script>
 			</body>
 		</html>`;
+	}
+
+	postRendererMessage(rendererId: string, message: any) {
+		this._sendMessageToWebview({
+			__vscode_notebook_message: true,
+			type: 'customRendererMessage',
+			message,
+			rendererId
+		});
 	}
 
 	private resolveOutputId(id: string): { cell: CodeCellViewModel, output: IProcessedOutput } | undefined {
@@ -410,7 +420,7 @@ ${loaderJs}
 				} else if (data.type === 'clicked-data-url') {
 					this._onDidClickDataLink(data);
 				} else if (data.type === 'customRendererMessage') {
-					this._onMessage.fire({ message: data.message, forRenderer: data.rendererType });
+					this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
 				}
 				return;
 			}
