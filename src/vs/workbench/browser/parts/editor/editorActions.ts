@@ -581,7 +581,7 @@ abstract class BaseCloseAllAction extends Action {
 			else {
 				let name: string;
 				if (editor instanceof SideBySideEditorInput) {
-					name = editor.master.getName(); // prefer shorter names by using master's name in this case
+					name = editor.primary.getName(); // prefer shorter names by using primary's name in this case
 				} else {
 					name = editor.getName();
 				}

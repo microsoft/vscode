@@ -185,8 +185,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		for (const editor of this.visibleEditors) {
 			const resources = distinct(coalesce([
-				toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
-				toResource(editor, { supportSideBySide: SideBySideEditor.DETAILS })
+				toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY }),
+				toResource(editor, { supportSideBySide: SideBySideEditor.SECONDARY })
 			]), resource => resource.toString());
 
 			for (const resource of resources) {
@@ -380,8 +380,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		for (const editor of this.editors) {
 			if (options.supportSideBySide && editor instanceof SideBySideEditorInput) {
-				conditionallyAddEditor(editor.master);
-				conditionallyAddEditor(editor.details);
+				conditionallyAddEditor(editor.primary);
+				conditionallyAddEditor(editor.secondary);
 			} else {
 				conditionallyAddEditor(editor);
 			}
@@ -1193,13 +1193,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		return new Promise(resolve => {
 			const listener = this.onDidCloseEditor(async event => {
-				const detailsResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.DETAILS });
-				const masterResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.MASTER });
+				const primaryResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+				const secondaryResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.SECONDARY });
 
 				// Remove from resources to wait for being closed based on the
 				// resources from editors that got closed
 				remainingEditors = remainingEditors.filter(({ resource }) => {
-					if (this.uriIdentityService.extUri.isEqual(resource, masterResource) || this.uriIdentityService.extUri.isEqual(resource, detailsResource)) {
+					if (this.uriIdentityService.extUri.isEqual(resource, primaryResource) || this.uriIdentityService.extUri.isEqual(resource, secondaryResource)) {
 						return false; // remove - the closing editor matches this resource
 					}
 

@@ -251,6 +251,6 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	getResource(): URI | undefined {
-		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
+		return toResource(this.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 	}
 }

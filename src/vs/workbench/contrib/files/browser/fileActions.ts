@@ -633,7 +633,7 @@ export class ShowActiveFileInExplorer extends Action {
 	}
 
 	async run(): Promise<void> {
-		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 		} else {
@@ -701,7 +701,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 
 	async run(): Promise<void> {
-		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (fileResource) {
 			if (this.fileService.canHandleResource(fileResource)) {
 				this.hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
@@ -813,7 +813,7 @@ export class CompareWithClipboardAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
