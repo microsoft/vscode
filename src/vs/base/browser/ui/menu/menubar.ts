@@ -446,6 +446,16 @@ export class MenuBar extends Disposable {
 		return this.container.clientHeight;
 	}
 
+	toggleFocus(): void {
+		if (!this.isFocused && this.options.visibility !== 'hidden') {
+			this.mnemonicsInUse = true;
+			this.focusedMenu = { index: this.numMenusShown > 0 ? 0 : MenuBar.OVERFLOW_INDEX };
+			this.focusState = MenubarState.FOCUSED;
+		} else if (!this.isOpen) {
+			this.setUnfocusedState();
+		}
+	}
+
 	private updateOverflowAction(): void {
 		if (!this.menuCache || !this.menuCache.length) {
 			return;

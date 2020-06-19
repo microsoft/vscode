@@ -124,13 +124,13 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		}
 	}
 
-	async read(resource: ServerResource, oldValue: IUserData | null): Promise<IUserData> {
+	async read(resource: ServerResource, oldValue: IUserData | null, headers: IHeaders = {}): Promise<IUserData> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
 		}
 
 		const url = joinPath(this.userDataSyncStore.url, 'resource', resource, 'latest').toString();
-		const headers: IHeaders = {};
+		headers = { ...headers };
 		// Disable caching as they are cached by synchronisers
 		headers['Cache-Control'] = 'no-cache';
 		if (oldValue) {
@@ -156,13 +156,14 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		return { ref, content };
 	}
 
-	async write(resource: ServerResource, data: string, ref: string | null): Promise<string> {
+	async write(resource: ServerResource, data: string, ref: string | null, headers: IHeaders = {}): Promise<string> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
 		}
 
 		const url = joinPath(this.userDataSyncStore.url, 'resource', resource).toString();
-		const headers: IHeaders = { 'Content-Type': 'text/plain' };
+		headers = { ...headers };
+		headers['Content-Type'] = 'text/plain';
 		if (ref) {
 			headers['If-Match'] = ref;
 		}
@@ -180,13 +181,14 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		return newRef;
 	}
 
-	async manifest(): Promise<IUserDataManifest | null> {
+	async manifest(headers: IHeaders = {}): Promise<IUserDataManifest | null> {
 		if (!this.userDataSyncStore) {
 			throw new Error('No settings sync store url configured.');
 		}
 
 		const url = joinPath(this.userDataSyncStore.url, 'manifest').toString();
-		const headers: IHeaders = { 'Content-Type': 'application/json' };
+		headers = { ...headers };
+		headers['Content-Type'] = 'application/json';
 
 		const context = await this.request({ type: 'GET', url, headers }, CancellationToken.None);
 		if (!isSuccess(context)) {

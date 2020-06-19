@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
 
 export const IRemoteAuthorityResolverService = createDecorator<IRemoteAuthorityResolverService>('remoteAuthorityResolverService');
 
@@ -29,6 +30,12 @@ export interface ResolverResult {
 	authority: ResolvedAuthority;
 	options?: ResolvedOptions;
 	tunnelInformation?: TunnelInformation;
+}
+
+export interface IRemoteConnectionData {
+	host: string;
+	port: number;
+	connectionToken: string | undefined;
 }
 
 export enum RemoteAuthorityResolverErrorCode {
@@ -79,9 +86,13 @@ export interface IRemoteAuthorityResolverService {
 
 	readonly _serviceBrand: undefined;
 
-	resolveAuthority(authority: string): Promise<ResolverResult>;
+	readonly onDidChangeConnectionData: Event<void>;
 
-	clearResolvedAuthority(authority: string): void;
-	setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void;
-	setResolvedAuthorityError(authority: string, err: any): void;
+	resolveAuthority(authority: string): Promise<ResolverResult>;
+	getConnectionData(authority: string): IRemoteConnectionData | null;
+
+	_clearResolvedAuthority(authority: string): void;
+	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void;
+	_setResolvedAuthorityError(authority: string, err: any): void;
+	_setAuthorityConnectionToken(authority: string, connectionToken: string): void;
 }

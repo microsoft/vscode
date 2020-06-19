@@ -14,16 +14,17 @@ import { IStringDictionary } from 'vs/base/common/collections';
 export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
 
 export interface IExtensionManagementServer {
-	extensionManagementService: IExtensionManagementService;
-	authority: string;
+	id: string;
 	label: string;
+	extensionManagementService: IExtensionManagementService;
 }
 
 export interface IExtensionManagementServerService {
 	readonly _serviceBrand: undefined;
 	readonly localExtensionManagementServer: IExtensionManagementServer | null;
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
-	getExtensionManagementServer(location: URI): IExtensionManagementServer | null;
+	readonly webExtensionManagementServer: IExtensionManagementServer | null;
+	getExtensionManagementServer(extension: IExtension): IExtensionManagementServer | null;
 }
 
 export const enum EnablementState {
@@ -61,6 +62,14 @@ export interface IWorkbenchExtensionEnablementService {
 	 * Returns `true` if the given extension identifier is enabled.
 	 */
 	isEnabled(extension: IExtension): boolean;
+
+	/**
+	 * Returns `true` if the given extension identifier is disabled globally.
+	 * Extensions can be disabled globally or in workspace or both.
+	 * If an extension is disabled in both then enablement state shows only workspace.
+	 * This will
+	 */
+	isDisabledGlobally(extension: IExtension): boolean;
 
 	/**
 	 * Enable or disable the given extension.

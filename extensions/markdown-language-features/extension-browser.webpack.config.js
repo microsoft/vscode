@@ -18,10 +18,13 @@ const clientConfig = withDefaults({
 	},
 	resolve: {
 		alias: {
-			'vscode-extension-telemetry': path.resolve(__dirname, 'polyfills/vscode-extension-telemetry.js'),
-			'vscode-nls': path.resolve(__dirname, 'polyfills/vscode-nls.js'),
+			'vscode-extension-telemetry': path.resolve(__dirname, '../../build/polyfills/vscode-extension-telemetry.js'),
+			'vscode-nls': path.resolve(__dirname, '../../build/polyfills/vscode-nls.js'),
 		},
-	}
+	},
+	performance: {
+		hints: false
+	},
 });
 
 clientConfig.module.rules[0].use.shift(); // remove nls loader

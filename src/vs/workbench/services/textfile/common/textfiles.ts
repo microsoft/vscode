@@ -171,7 +171,7 @@ export class TextFileOperationError extends FileOperationError {
 }
 
 export interface IResourceEncodings {
-	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding;
+	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): Promise<IResourceEncoding>;
 }
 
 export interface IResourceEncoding {

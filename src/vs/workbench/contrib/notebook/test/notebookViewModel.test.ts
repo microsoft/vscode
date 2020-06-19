@@ -23,7 +23,7 @@ suite('NotebookViewModel', () => {
 	instantiationService.spy(IUndoRedoService, 'pushElement');
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel(0, 'notebook', URI.parse('test'));
+		const notebook = new NotebookTextModel(0, 'notebook', false, URI.parse('test'));
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
 		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);

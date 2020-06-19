@@ -6,7 +6,7 @@
 import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, MouseController, DefaultKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider, IKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider, IKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, hasParentWithClass, createStyleSheet, clearNode, addClasses, removeClasses } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -22,7 +22,6 @@ import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTr
 import { localize } from 'vs/nls';
 import { disposableTimeout } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
-import { values } from 'vs/base/common/map';
 import { clamp } from 'vs/base/common/numbers';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { SetMap } from 'vs/base/common/collections';
@@ -922,13 +921,6 @@ function isInputElement(e: HTMLElement): boolean {
 	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
 }
 
-function asTreeEvent<T>(event: IListEvent<ITreeNode<T, any>>): ITreeEvent<T> {
-	return {
-		elements: event.elements.map(node => node.element),
-		browserEvent: event.browserEvent
-	};
-}
-
 function asTreeMouseEvent<T>(event: IListMouseEvent<ITreeNode<T, any>>): ITreeMouseEvent<T> {
 	let target: TreeMouseEventTarget = TreeMouseEventTarget.Unknown;
 
@@ -961,8 +953,8 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly automaticKeyboardNavigation?: boolean;
 	readonly simpleKeyboardNavigation?: boolean;
 	readonly filterOnType?: boolean;
-	readonly openOnSingleClick?: boolean;
 	readonly smoothScrolling?: boolean;
+	readonly horizontalScrolling?: boolean;
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
@@ -1042,7 +1034,7 @@ class Trait<T> {
 			const set = this.createNodeSet();
 			const visit = (node: ITreeNode<T, any>) => set.delete(node);
 			deletedNodes.forEach(node => dfs(node, visit));
-			this.set(values(set));
+			this.set([...set.values()]);
 			return;
 		}
 
@@ -1091,7 +1083,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		super(list);
 	}
 
-	protected onPointer(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
+	protected onViewPointer(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
 		if (isInputElement(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
@@ -1099,19 +1091,14 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		const node = e.element;
 
 		if (!node) {
-			return super.onPointer(e);
+			return super.onViewPointer(e);
 		}
 
 		if (this.isSelectionRangeChangeEvent(e) || this.isSelectionSingleChangeEvent(e)) {
-			return super.onPointer(e);
+			return super.onViewPointer(e);
 		}
 
 		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
-
-		if (!this.tree.openOnSingleClick && e.browserEvent.detail !== 2 && !onTwistie) {
-			return super.onPointer(e);
-		}
-
 		let expandOnlyOnTwistieClick = false;
 
 		if (typeof this.tree.expandOnlyOnTwistieClick === 'function') {
@@ -1121,7 +1108,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		}
 
 		if (expandOnlyOnTwistieClick && !onTwistie) {
-			return super.onPointer(e);
+			return super.onViewPointer(e);
 		}
 
 		if (node.collapsible) {
@@ -1135,7 +1122,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			}
 		}
 
-		super.onPointer(e);
+		super.onViewPointer(e);
 	}
 
 	protected onDoubleClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
@@ -1238,12 +1225,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return this.eventBufferer.wrapEvent(this.focus.onDidChange); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return this.eventBufferer.wrapEvent(this.selection.onDidChange); }
-	get onDidOpen(): Event<ITreeEvent<T>> { return Event.map(this.view.onDidOpen, asTreeEvent); }
-	get onDidPin(): Event<ITreeEvent<T>> { return Event.map(this.view.onDidPin, asTreeEvent); }
 
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseClick, asTreeMouseEvent); }
 	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseDblClick, asTreeMouseEvent); }
 	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.map(this.view.onContextMenu, asTreeContextMenuEvent); }
+	get onTap(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onTap, asTreeMouseEvent); }
+	get onPointer(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onPointer, asTreeMouseEvent); }
 
 	get onKeyDown(): Event<KeyboardEvent> { return this.view.onKeyDown; }
 	get onKeyUp(): Event<KeyboardEvent> { return this.view.onKeyUp; }
@@ -1261,7 +1248,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get filterOnType(): boolean { return !!this._options.filterOnType; }
 	get onDidChangeTypeFilterPattern(): Event<string> { return this.typeFilterController ? this.typeFilterController.onDidChangePattern : Event.None; }
 
-	get openOnSingleClick(): boolean { return typeof this._options.openOnSingleClick === 'undefined' ? true : this._options.openOnSingleClick; }
 	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
 
 	private readonly _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
@@ -1328,7 +1314,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 					set.add(node);
 				}
 
-				return values(set);
+				return [...set.values()];
 			}).event;
 
 		if (_options.keyboardSupport !== false) {
@@ -1362,7 +1348,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.updateOptions({
 			enableKeyboardNavigation: this._options.simpleKeyboardNavigation,
 			automaticKeyboardNavigation: this._options.automaticKeyboardNavigation,
-			smoothScrolling: this._options.smoothScrolling
+			smoothScrolling: this._options.smoothScrolling,
+			horizontalScrolling: this._options.horizontalScrolling
 		});
 
 		if (this.typeFilterController) {
@@ -1599,11 +1586,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	getFocus(): T[] {
 		return this.focus.get();
-	}
-
-	open(elements: TRef[], browserEvent?: UIEvent): void {
-		const indexes = elements.map(e => this.model.getListIndex(e)).filter(i => i >= 0);
-		this.view.open(indexes, browserEvent);
 	}
 
 	reveal(location: TRef, relativeTop?: number): void {

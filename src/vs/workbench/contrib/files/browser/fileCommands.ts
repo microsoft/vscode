@@ -43,6 +43,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { openEditorWith } from 'vs/workbench/contrib/files/common/openWith';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 // Commands
 
@@ -84,6 +85,8 @@ export const PREVIOUS_COMPRESSED_FOLDER = 'previousCompressedFolder';
 export const NEXT_COMPRESSED_FOLDER = 'nextCompressedFolder';
 export const FIRST_COMPRESSED_FOLDER = 'firstCompressedFolder';
 export const LAST_COMPRESSED_FOLDER = 'lastCompressedFolder';
+export const NEW_UNTITLED_FILE_COMMAND_ID = 'workbench.action.files.newUntitledFile';
+export const NEW_UNTITLED_FILE_LABEL = nls.localize('newUntitledFile', "New Untitled File");
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -509,10 +512,10 @@ CommandsRegistry.registerCommand({
 	handler: (accessor, resource: URI | object) => {
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const contextService = accessor.get(IWorkspaceContextService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
 		const workspace = contextService.getWorkspace();
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService)).filter(r =>
-			// Need to verify resources are workspaces since multi selection can trigger this command on some non workspace resources
-			workspace.folders.some(f => isEqual(f.uri, r))
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService)).filter(resource =>
+			workspace.folders.some(folder => uriIdentityService.extUri.isEqual(folder.uri, resource)) // Need to verify resources are workspaces since multi selection can trigger this command on some non workspace resources
 		);
 
 		return workspaceEditingService.removeFolders(resources);
@@ -594,5 +597,43 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const explorer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
 		const view = explorer.getExplorerView();
 		view.lastCompressedStat();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: null,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_N,
+	id: NEW_UNTITLED_FILE_COMMAND_ID,
+	description: {
+		description: NEW_UNTITLED_FILE_LABEL,
+		args: [
+			{
+				name: 'viewType', description: 'The editor view type', schema: {
+					'type': 'object',
+					'required': ['viewType'],
+					'properties': {
+						'viewType': {
+							'type': 'string'
+						}
+					}
+				}
+			}
+		]
+	},
+	handler: async (accessor, args?: { viewType: string }) => {
+		const editorService = accessor.get(IEditorService);
+
+		if (args) {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const configurationService = accessor.get(IConfigurationService);
+			const quickInputService = accessor.get(IQuickInputService);
+
+			const textInput = editorService.createEditorInput({ options: { pinned: true } });
+			const group = editorGroupsService.activeGroup;
+			await openEditorWith(textInput, args.viewType, { pinned: true }, group, editorService, configurationService, quickInputService);
+		} else {
+			await editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
+		}
 	}
 });

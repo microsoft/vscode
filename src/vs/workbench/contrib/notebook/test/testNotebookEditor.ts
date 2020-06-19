@@ -22,6 +22,8 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CellKind, CellUri, INotebookEditorModel, IProcessedOutput, NotebookCellMetadata, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
+import { NotImplementedError } from 'vs/base/common/errors';
+import { Schemas } from 'vs/base/common/network';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -242,6 +244,14 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 
+	get viewType() {
+		return this._notebook.viewType;
+	}
+
+	get resource() {
+		return this._notebook.uri;
+	}
+
 	get notebook() {
 		return this._notebook;
 	}
@@ -264,6 +274,10 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		return this._dirty;
 	}
 
+	isUntitled() {
+		return this._notebook.uri.scheme === Schemas.untitled;
+	}
+
 	getNotebook(): NotebookTextModel {
 		return this._notebook;
 	}
@@ -278,12 +292,20 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 
 		return false;
 	}
+
+	saveAs(): Promise<boolean> {
+		throw new NotImplementedError();
+	}
+
+	revert(): Promise<void> {
+		throw new NotImplementedError();
+	}
 }
 
 export function withTestNotebook(instantiationService: IInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IProcessedOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
-	const notebook = new NotebookTextModel(0, viewType, URI.parse('test'));
+	const notebook = new NotebookTextModel(0, viewType, false, URI.parse('test'));
 	notebook.cells = cells.map((cell, index) => {
 		return new NotebookCellTextModel(notebook.uri, index, cell[0], cell[1], cell[2], cell[3], cell[4]);
 	});

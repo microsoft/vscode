@@ -79,7 +79,7 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 	 * to return a promise that resolves to `undefined` to prevent the opening
 	 * alltogether.
 	 */
-	prevent(callback: () => undefined | Promise<IEditorPane | undefined>): void;
+	prevent(callback: () => Promise<IEditorPane | undefined> | undefined): void;
 }
 
 export interface IEditorGroupsAccessor {

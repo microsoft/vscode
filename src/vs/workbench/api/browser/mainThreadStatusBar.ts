@@ -32,7 +32,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		if (accessibilityInformation) {
 			ariaLabel = accessibilityInformation.label;
 		} else {
-			ariaLabel = text.indexOf('$(') === -1 ? text : tooltip || text;
+			ariaLabel = text && text.indexOf('$(') === -1 ? text : tooltip || text;
 		}
 		const entry: IStatusbarEntry = { text, tooltip, command, color, ariaLabel };
 

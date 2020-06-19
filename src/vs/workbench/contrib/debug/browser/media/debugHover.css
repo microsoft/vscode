@@ -12,6 +12,7 @@
 	user-select: text;
 	-webkit-user-select: text;
 	word-break: break-all;
+	white-space: pre;
 }
 
 .monaco-editor .debug-hover-widget .complex-value {

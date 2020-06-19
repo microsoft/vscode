@@ -172,8 +172,8 @@ class OneReferenceTemplate {
 
 	set(element: OneReference, score?: FuzzyScore): void {
 		const preview = element.parent.getPreview(element)?.preview(element.range);
-		if (!preview) {
-			// this means we FAILED to resolve the document...
+		if (!preview || !preview.value) {
+			// this means we FAILED to resolve the document or the value is the empty string
 			this.label.set(`${basename(element.uri)}:${element.range.startLineNumber + 1}:${element.range.startColumn + 1}`);
 		} else {
 			// render search match as highlight unless

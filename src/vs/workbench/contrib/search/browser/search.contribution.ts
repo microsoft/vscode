@@ -559,6 +559,27 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 // Show Search 'when' is redundant but if the two conflict with exactly the same keybinding and 'when' clause, then they can show up as "unbound" - #51780
 registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenSearchViewletAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }, Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	description: {
+		description: nls.localize('findInFiles.description', "Open the search viewlet"),
+		args: [
+			{
+				name: nls.localize('findInFiles.args', "A set of options for the search viewlet"),
+				schema: {
+					type: 'object',
+					properties: {
+						query: { 'type': 'string' },
+						replace: { 'type': 'string' },
+						triggerSearch: { 'type': 'boolean' },
+						filesToInclude: { 'type': 'string' },
+						filesToExclude: { 'type': 'string' },
+						isRegex: { 'type': 'boolean' },
+						isCaseSensitive: { 'type': 'boolean' },
+						matchWholeWord: { 'type': 'boolean' },
+					}
+				}
+			},
+		]
+	},
 	id: Constants.FindInFilesActionId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: null,
@@ -756,7 +777,7 @@ configurationRegistry.registerConfiguration({
 			enum: ['sidebar', 'panel'],
 			default: 'sidebar',
 			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
-			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. Please use the search view's context menu instead.")
+			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. Please use drag and drop instead by dragging the search icon.")
 		},
 		'search.collapseResults': {
 			type: 'string',
@@ -833,8 +854,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.searchEditor.defaultNumberOfContextLines': {
 			type: ['number', 'null'],
-			default: null,
-			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding context lines to use when creating new Search Editors with `Search Editor: Open new Search Editor` and `Search Editor: Open new Search Editor to the Side`. If defined, this overrides `#search.searchEditor.reusePriorSearchConfiguration#`.")
+			default: 1,
+			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding context lines to use when creating new Search Editors. If using `#search.searchEditor.reusePriorSearchConfiguration#`, this can be set to `null` (empty) to use the prior Search Editor's configuration.")
 		},
 		'search.sortOrder': {
 			'type': 'string',

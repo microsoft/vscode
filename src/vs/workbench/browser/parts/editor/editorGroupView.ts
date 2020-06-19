@@ -525,17 +525,23 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const editor = event.editor;
 		const editorsToClose = [editor];
 
-		// Include both sides of side by side editors when being closed and not opened multiple times
-		if (editor instanceof SideBySideEditorInput && !this.accessor.groups.some(groupView => groupView.group.contains(editor))) {
+		// Include both sides of side by side editors when being closed
+		if (editor instanceof SideBySideEditorInput) {
 			editorsToClose.push(editor.master, editor.details);
 		}
 
-		// Dispose the editor when it is no longer open in any group including diff editors
-		editorsToClose.forEach(editorToClose => {
-			if (!this.accessor.groups.some(groupView => groupView.group.contains(editorToClose, true /* include side by side editor master & details */))) {
-				editorToClose.dispose();
+		// For each editor to close, we call dispose() to free up any resources.
+		// However, certain editors might be shared across multiple editor groups
+		// (including being visible in side by side / diff editors) and as such we
+		// only dispose when they are not opened elsewhere.
+		for (const editor of editorsToClose) {
+			if (!this.accessor.groups.some(groupView => groupView.group.contains(editor, {
+				strictEquals: true,		// only if this input is not shared across editor groups
+				supportSideBySide: true // include side by side editor master & details
+			}))) {
+				editor.dispose();
 			}
-		});
+		}
 
 		/* __GDPR__
 			"editorClosed" : {

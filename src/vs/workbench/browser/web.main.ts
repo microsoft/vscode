@@ -38,7 +38,7 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogService } from 'vs/platform/log/common/fileLogService';
@@ -51,7 +51,6 @@ import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Settings } from 'vs/workbench/browser/layout';
 
 class BrowserMain extends Disposable {
 
@@ -64,11 +63,6 @@ class BrowserMain extends Disposable {
 
 	async open(): Promise<IWorkbench> {
 		const services = await this.initServices();
-
-		const firstOpen = services.storageService.getBoolean(Settings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE);
-		if (firstOpen === undefined || firstOpen) {
-			services.storageService.store(Settings.WORKSPACE_FIRST_OPEN, !(firstOpen ?? false), StorageScope.WORKSPACE);
-		}
 
 		await domContentLoaded();
 		mark('willStartWorkbench');
@@ -166,10 +160,7 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
-		const productService = {
-			_serviceBrand: undefined,
-			...product
-		};
+		const productService: IProductService = { _serviceBrand: undefined, ...product, ...this.configuration.productConfiguration };
 		serviceCollection.set(IProductService, productService);
 
 		// Remote
