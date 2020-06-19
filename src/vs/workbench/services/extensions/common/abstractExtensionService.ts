@@ -276,6 +276,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
+	protected _checkEnabledAndProposedAPI(extensions: IExtensionDescription[]): IExtensionDescription[] {
+		// enable or disable proposed API per extension
+		this._checkEnableProposedApi(extensions);
+
+		// keep only enabled extensions
+		return extensions.filter(extension => this._isEnabled(extension));
+	}
+
 	private _isExtensionUnderDevelopment(extension: IExtensionDescription): boolean {
 		if (this._environmentService.isExtensionDevelopment) {
 			const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
