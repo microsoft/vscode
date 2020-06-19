@@ -15,6 +15,7 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { basename } from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostDocumentLine } from 'vs/workbench/api/common/extHostDocumentData';
+import { ExtHostDocumentContentProvider } from 'vs/workbench/api/common/extHostDocumentContentProviders';
 
 
 export class ExtHostNotebookConcatDocuments {
@@ -27,12 +28,23 @@ export class ExtHostNotebookConcatDocuments {
 	readonly onDidRemoveConcatDocument: Event<vscode.NotebookConcatTextDocument> = this._onDidRemoveConcatDocument.event;
 	readonly onDidChangeConcatDocument: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeConcatDocument.event;
 
-	private readonly _notebookDocuments = new Set<ExtHostNotebookConcatDocument>();
+	private readonly _notebookDocuments = new ResourceMap<ExtHostNotebookConcatDocument>();
 
 	constructor(
 		private readonly _extHostNotebooks: ExtHostNotebookController,
 		private readonly _extHostDocuments: ExtHostDocuments,
-	) { }
+		extHostDocumentContentProvider: ExtHostDocumentContentProvider
+	) {
+		extHostDocumentContentProvider.registerTextDocumentContentProvider(ExtHostNotebookConcatDocument.scheme, {
+			provideTextDocumentContent: (uri) => {
+				// todo@jrieken BIG problem... this duplicates the whole concat document
+				// and also makes it appear twice in the extension host
+				console.log('HERE', uri.toString());
+				const doc = this._notebookDocuments.get(uri);
+				return doc?.getText();
+			}
+		});
+	}
 
 	allConcatDocuments(): vscode.NotebookConcatTextDocument[] {
 		return [...this._notebookDocuments.values()];
@@ -46,17 +58,19 @@ export class ExtHostNotebookConcatDocuments {
 		disposables.add(this._extHostNotebooks.onDidCloseNotebookDocument(candidate => {
 			if (candidate === notebook) {
 				disposables.dispose();
-				this._notebookDocuments.delete(result);
+				this._notebookDocuments.delete(result.uri);
 				this._onDidRemoveConcatDocument.fire(result);
 			}
 		}));
-		this._notebookDocuments.add(result);
+		this._notebookDocuments.set(result.uri, result);
 		this._onDidAddConcatDocument.fire(result);
 		return result;
 	}
 }
 
 export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextDocument, vscode.TextDocument {
+
+	static scheme = 'vscode-concat-doc';
 
 	private _disposables = new DisposableStore();
 	private _isClosed = false;
@@ -82,7 +96,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		private readonly _notebook: vscode.NotebookDocument,
 		private readonly _selector: vscode.DocumentSelector | undefined,
 	) {
-		this.uri = _notebook.uri.with({ scheme: 'vscode-notebook-concat-doc' });
+		this.uri = _notebook.uri.with({ scheme: ExtHostNotebookConcatDocument.scheme, path: `${_notebook.uri.path}.css` });
 		this.fileName = basename(this.uri);
 		this.languageId = this._createLanguageId();
 
