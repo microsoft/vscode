@@ -40,7 +40,7 @@ export class MainThreadNotebookDocument extends Disposable {
 	) {
 		super();
 
-		this._textModel = new NotebookTextModel(handle, viewType, supportBackup, uri);
+		this._textModel = new NotebookTextModel(handle, viewType, supportBackup, uri, undoRedoService);
 		this._register(this._textModel.onDidModelChangeProxy(e => {
 			this._proxy.$acceptModelChanged(this.uri, e);
 			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: { selections: this._textModel.selections }, metadata: null });

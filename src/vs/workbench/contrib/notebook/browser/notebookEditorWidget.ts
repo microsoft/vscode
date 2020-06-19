@@ -889,7 +889,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			(direction === 'above' ? index : nextIndex) :
 			index;
 		const newCell = this._notebookViewModel!.createCell(insertIndex, initialText.split(/\r?\n/g), language, type, cell?.metadata, true);
-		return newCell;
+		return newCell as CellViewModel;
 	}
 
 	async splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null> {
@@ -929,41 +929,41 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return true;
 	}
 
-	async moveCellDown(cell: ICellViewModel): Promise<boolean> {
+	async moveCellDown(cell: ICellViewModel): Promise<ICellViewModel | null> {
 		if (!this._notebookViewModel!.metadata.editable) {
-			return false;
+			return null;
 		}
 
 		const index = this._notebookViewModel!.getCellIndex(cell);
 		if (index === this._notebookViewModel!.length - 1) {
-			return false;
+			return null;
 		}
 
 		const newIdx = index + 1;
 		return this._moveCellToIndex(index, newIdx);
 	}
 
-	async moveCellUp(cell: ICellViewModel): Promise<boolean> {
+	async moveCellUp(cell: ICellViewModel): Promise<ICellViewModel | null> {
 		if (!this._notebookViewModel!.metadata.editable) {
-			return false;
+			return null;
 		}
 
 		const index = this._notebookViewModel!.getCellIndex(cell);
 		if (index === 0) {
-			return false;
+			return null;
 		}
 
 		const newIdx = index - 1;
 		return this._moveCellToIndex(index, newIdx);
 	}
 
-	async moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<boolean> {
+	async moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<ICellViewModel | null> {
 		if (!this._notebookViewModel!.metadata.editable) {
-			return false;
+			return null;
 		}
 
 		if (cell === relativeToCell) {
-			return false;
+			return null;
 		}
 
 		const originalIdx = this._notebookViewModel!.getCellIndex(cell);
@@ -977,23 +977,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._moveCellToIndex(originalIdx, newIdx);
 	}
 
-	private async _moveCellToIndex(index: number, newIdx: number): Promise<boolean> {
+	private async _moveCellToIndex(index: number, newIdx: number): Promise<ICellViewModel | null> {
 		if (index === newIdx) {
-			return false;
+			return null;
 		}
 
 		if (!this._notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
 			throw new Error('Notebook Editor move cell, index out of range');
 		}
 
-		let r: (val: boolean) => void;
+		let r: (val: ICellViewModel | null) => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
 			if (this._isDisposed) {
-				r(false);
+				r(null);
 			}
 
-			this._list?.revealElementInView(this._notebookViewModel!.viewCells[newIdx]);
-			r(true);
+			const viewCell = this._notebookViewModel!.viewCells[newIdx];
+			this._list?.revealElementInView(viewCell);
+			r(viewCell);
 		});
 
 		return new Promise(resolve => { r = resolve; });
