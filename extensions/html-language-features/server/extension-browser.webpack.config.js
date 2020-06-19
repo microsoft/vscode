@@ -10,16 +10,27 @@
 const withDefaults = require('../../shared.webpack.config');
 const path = require('path');
 
-module.exports = withDefaults({
-	context: path.join(__dirname),
+const serverConfig = withDefaults({
+	target: 'webworker',
+	context: __dirname,
 	entry: {
-		extension: './src/node/htmlServerMain.ts',
+		extension: './src/browser/htmlServerMain.ts',
 	},
 	output: {
 		filename: 'htmlServerMain.js',
-		path: path.join(__dirname, 'dist', 'node'),
+		path: path.join(__dirname, 'dist', 'browser'),
+		libraryTarget: 'var'
 	},
-	externals: {
-		'typescript': 'commonjs typescript'
+	performance: {
+		hints: false
+	},
+	resolve: {
+		alias: {
+			'vscode-nls': path.resolve(__dirname, '../../../build/polyfills/vscode-nls.js')
+		}
 	}
 });
+serverConfig.module.rules[0].use.shift(); // remove nls loader
+serverConfig.module.noParse =  /typescript\/lib\/typescript\.js/;
+
+module.exports = serverConfig;

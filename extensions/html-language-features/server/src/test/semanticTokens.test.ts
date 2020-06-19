@@ -7,6 +7,7 @@ import 'mocha';
 import * as assert from 'assert';
 import { TextDocument, getLanguageModes, ClientCapabilities, Range, Position } from '../modes/languageModes';
 import { newSemanticTokenProvider } from '../modes/semanticTokens';
+import { getNodeFSRequestService } from '../node/nodeFs';
 
 interface ExpectedToken {
 	startLine: number;
@@ -21,7 +22,7 @@ function assertTokens(lines: string[], expected: ExpectedToken[], ranges?: Range
 		settings: {},
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
+	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
 	const semanticTokensProvider = newSemanticTokenProvider(languageModes);
 
 	const legend = semanticTokensProvider.legend;

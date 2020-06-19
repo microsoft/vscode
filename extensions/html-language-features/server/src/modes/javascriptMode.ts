@@ -8,20 +8,21 @@ import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
 	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString,
 	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange,
-	LanguageMode, Settings, SemanticTokenData, Workspace
+	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext
 } from './languageModes';
 import { getWordAtText, startsWith, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
-import { join } from 'path';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
+import { joinPath } from '../requests';
+
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
-let jquery_d_ts = join(__dirname, '../lib/jquery.d.ts'); // when packaged
+let jquery_d_ts = joinPath(__dirname, '../lib/jquery.d.ts'); // when packaged
 if (!ts.sys.fileExists(jquery_d_ts)) {
-	jquery_d_ts = join(__dirname, '../../lib/jquery.d.ts'); // from source
+	jquery_d_ts = joinPath(__dirname, '../../lib/jquery.d.ts'); // from source
 }
 
 export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', workspace: Workspace): LanguageMode {
@@ -64,7 +65,8 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			};
 		},
 		getCurrentDirectory: () => '',
-		getDefaultLibFileName: (options) => ts.getDefaultLibFilePath(options)
+		getDefaultLibFileName: (options) => ts.getDefaultLibFilePath(options),
+
 	};
 	let jsLanguageService = ts.createLanguageService(host);
 
@@ -88,7 +90,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				};
 			});
 		},
-		doComplete(document: TextDocument, position: Position): CompletionList {
+		async doComplete(document: TextDocument, position: Position, _documentContext: DocumentContext): Promise<CompletionList> {
 			updateCurrentTextDocument(document);
 			let offset = currentTextDocument.offsetAt(position);
 			let completions = jsLanguageService.getCompletionsAtPosition(workingFile, offset, { includeExternalModuleExports: false, includeInsertTextCompletions: false });
