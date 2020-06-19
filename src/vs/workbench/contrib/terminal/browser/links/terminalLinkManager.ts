@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -13,7 +13,7 @@ import { ITerminalProcessManager, ITerminalConfiguration, TERMINAL_CONFIG_SECTIO
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Terminal, IViewportRange } from 'xterm';
+import { Terminal, IViewportRange, ILinkProvider } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalBeforeHandleLinkEvent, LINK_INTERCEPT_THRESHOLD, ITerminalExternalLinkProvider, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -45,6 +45,8 @@ export class TerminalLinkManager extends DisposableStore {
 	private _widgetManager: TerminalWidgetManager | undefined;
 	private _processCwd: string | undefined;
 	private _hasBeforeHandleLinkListeners = false;
+	private _standardLinkProviders: ILinkProvider[] = [];
+	private _standardLinkProvidersDisposables: IDisposable[] = [];
 
 	protected static _LINK_INTERCEPT_THRESHOLD = LINK_INTERCEPT_THRESHOLD;
 	public static readonly LINK_INTERCEPT_THRESHOLD = TerminalLinkManager._LINK_INTERCEPT_THRESHOLD;
@@ -71,6 +73,28 @@ export class TerminalLinkManager extends DisposableStore {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
+
+		// Protocol links
+		const wrappedActivateCallback = this._wrapLinkHandler((_, link) => this._handleProtocolLink(link));
+		const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider, this._xterm, wrappedActivateCallback, this._tooltipCallback2.bind(this));
+		this._standardLinkProviders.push(protocolProvider);
+
+		// Validated local links
+		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
+			const wrappedTextLinkActivateCallback = this._wrapLinkHandler((_, link) => this._handleLocalLink(link));
+			const validatedProvider = this._instantiationService.createInstance(TerminalValidatedLocalLinkProvider,
+				this._xterm,
+				this._processManager.os || OS,
+				wrappedTextLinkActivateCallback,
+				this._wrapLinkHandler.bind(this),
+				this._tooltipCallback2.bind(this),
+				async (link, cb) => cb(await this._resolvePath(link)));
+			this._standardLinkProviders.push(validatedProvider);
+		}
+
+		// Word links
+		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, this._wrapLinkHandler.bind(this), this._tooltipCallback2.bind(this));
+		this._standardLinkProviders.push(wordProvider);
 
 		this._registerStandardLinkProviders();
 	}
@@ -124,32 +148,19 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private _registerStandardLinkProviders(): void {
-		// Protocol links
-		const wrappedActivateCallback = this._wrapLinkHandler((_, link) => this._handleProtocolLink(link));
-		const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider, this._xterm, wrappedActivateCallback, this._tooltipCallback2.bind(this));
-		this._xterm.registerLinkProvider(protocolProvider);
-
-		// Validated local links
-		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
-			const wrappedTextLinkActivateCallback = this._wrapLinkHandler((_, link) => this._handleLocalLink(link));
-			const validatedProvider = this._instantiationService.createInstance(TerminalValidatedLocalLinkProvider,
-				this._xterm,
-				this._processManager.os || OS,
-				wrappedTextLinkActivateCallback,
-				this._wrapLinkHandler.bind(this),
-				this._tooltipCallback2.bind(this),
-				async (link, cb) => cb(await this._resolvePath(link)));
-			this._xterm.registerLinkProvider(validatedProvider);
+		dispose(this._standardLinkProvidersDisposables);
+		this._standardLinkProvidersDisposables = [];
+		for (const p of this._standardLinkProviders) {
+			this._standardLinkProvidersDisposables.push(this._xterm.registerLinkProvider(p));
 		}
-
-		// Word links
-		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, this._wrapLinkHandler.bind(this), this._tooltipCallback2.bind(this));
-		this._xterm.registerLinkProvider(wordProvider);
 	}
 
 	public registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
 		const wrappedLinkProvider = this._instantiationService.createInstance(TerminalExternalLinkProviderAdapter, this._xterm, instance, linkProvider, this._tooltipCallback2.bind(this));
-		return this._xterm.registerLinkProvider(wrappedLinkProvider);
+		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
+		// Re-register the standard link providers so they are a lower priority that the new one
+		this._registerStandardLinkProviders();
+		return newLinkProvider;
 	}
 
 	protected _wrapLinkHandler(handler: (event: MouseEvent | undefined, link: string) => void): XtermLinkMatcherHandler {
