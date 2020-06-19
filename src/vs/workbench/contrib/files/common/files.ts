@@ -33,11 +33,6 @@ export const VIEWLET_ID = 'workbench.view.explorer';
  */
 export const VIEW_ID = 'workbench.explorer.fileView';
 
-/**
- * Id of the default editor for open with.
- */
-export const DEFAULT_EDITOR_ID = 'default';
-
 export interface IExplorerService {
 	readonly _serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
