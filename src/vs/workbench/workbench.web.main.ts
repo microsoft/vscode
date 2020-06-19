@@ -34,7 +34,7 @@ import 'vs/workbench/services/output/common/outputChannelModelService';
 import 'vs/workbench/services/textfile/browser/browserTextFileService';
 import 'vs/workbench/services/keybinding/browser/keymapService';
 import 'vs/workbench/services/extensions/browser/extensionService';
-import 'vs/workbench/services/extensionManagement/common/extensionManagementServerService';
+import 'vs/workbench/services/extensionManagement/browser/extensionManagementServerService';
 import 'vs/workbench/services/telemetry/browser/telemetryService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import 'vs/workbench/services/credentials/browser/credentialsService';
@@ -61,8 +61,7 @@ import { BackupFileService } from 'vs/workbench/services/backup/common/backupFil
 import { IExtensionManagementService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { TunnelService } from 'vs/workbench/services/remote/common/tunnelService';
+import { ITunnelService, TunnelService } from 'vs/platform/remote/common/tunnel';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';

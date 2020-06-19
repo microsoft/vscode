@@ -29,7 +29,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/plat
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
-	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService,
+	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncResourceEnablementService,
 	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
@@ -97,7 +97,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private readonly accountBadgeDisposable = this._register(new MutableDisposable());
 
 	constructor(
-		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -110,7 +110,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOutputService private readonly outputService: IOutputService,
 		@IUserDataSyncAccountService readonly authTokenService: IUserDataSyncAccountService,
-		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
+		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -134,7 +134,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 			this._register(Event.any(
 				Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500),
-				this.userDataSyncEnablementService.onDidChangeEnablement,
+				this.userDataAutoSyncService.onDidChangeEnablement,
 				this.userDataSyncWorkbenchService.onDidChangeAccountStatus
 			)(() => {
 				this.updateAccountBadge();
@@ -288,7 +288,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			case UserDataSyncErrorCode.Incompatible:
 			case UserDataSyncErrorCode.Gone:
 			case UserDataSyncErrorCode.UpgradeRequired:
-				this.disableSync();
+				this.userDataSyncWorkbenchService.turnoff(false);
 				this.notificationService.notify({
 					severity: Severity.Error,
 					message: localize('error upgrade required', "Preferences sync is disabled because the current version ({0}, {1}) is not compatible with the sync service. Please update before turning on sync.", this.productService.version, this.productService.commit),
@@ -383,7 +383,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 		let badge: IBadge | undefined = undefined;
 
-		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.userDataSyncEnablementService.isEnabled() && this.userDataSyncWorkbenchService.accountStatus === AccountStatus.Unavailable) {
+		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.userDataAutoSyncService.isEnabled() && this.userDataSyncWorkbenchService.accountStatus === AccountStatus.Unavailable) {
 			badge = new NumberBadge(1, () => localize('sign in to sync preferences', "Sign in to Sync Preferences"));
 		}
 
@@ -486,7 +486,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.ignoreFocusOut = true;
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
+			quickPick.selectedItems = items.filter(item => this.userDataSyncResourceEnablementService.isResourceEnabled(item.id));
 			let accepted: boolean = false;
 			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
 				accepted = true;
@@ -529,10 +529,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private updateConfiguration(items: ConfigureSyncQuickPickItem[], selectedItems: ReadonlyArray<ConfigureSyncQuickPickItem>): void {
 		for (const item of items) {
-			const wasEnabled = this.userDataSyncEnablementService.isResourceEnabled(item.id);
+			const wasEnabled = this.userDataSyncResourceEnablementService.isResourceEnabled(item.id);
 			const isEnabled = !!selectedItems.filter(selected => selected.id === item.id)[0];
 			if (wasEnabled !== isEnabled) {
-				this.userDataSyncEnablementService.setResourceEnablement(item.id!, isEnabled);
+				this.userDataSyncResourceEnablementService.setResourceEnablement(item.id!, isEnabled);
 			}
 		}
 	}
@@ -549,7 +549,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.ok = true;
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
+			quickPick.selectedItems = items.filter(item => this.userDataSyncResourceEnablementService.isResourceEnabled(item.id));
 			disposables.add(quickPick.onDidAccept(async () => {
 				if (quickPick.selectedItems.length) {
 					this.updateConfiguration(items, quickPick.selectedItems);
@@ -579,17 +579,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private disableSync(source?: SyncResource): void {
-		if (source === undefined) {
-			this.userDataSyncEnablementService.setEnablement(false);
-		} else {
-			switch (source) {
-				case SyncResource.Settings: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Settings, false);
-				case SyncResource.Keybindings: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Keybindings, false);
-				case SyncResource.Snippets: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Snippets, false);
-				case SyncResource.Extensions: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Extensions, false);
-				case SyncResource.GlobalState: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.GlobalState, false);
-			}
+	private disableSync(source: SyncResource): void {
+		switch (source) {
+			case SyncResource.Settings: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.Settings, false);
+			case SyncResource.Keybindings: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.Keybindings, false);
+			case SyncResource.Snippets: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.Snippets, false);
+			case SyncResource.Extensions: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.Extensions, false);
+			case SyncResource.GlobalState: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.GlobalState, false);
 		}
 	}
 
@@ -642,7 +638,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private registerActions(): void {
-		if (this.userDataSyncEnablementService.canToggleEnablement()) {
+		if (this.userDataAutoSyncService.canToggleEnablement()) {
 			this.registerTurnOnSyncAction();
 			this.registerTurnOffSyncAction();
 		}
@@ -893,7 +889,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					items.push({ id: configureSyncCommand.id, label: configureSyncCommand.title });
 					items.push({ type: 'separator' });
 					items.push({ id: syncNowCommand.id, label: syncNowCommand.title, description: syncNowCommand.description(that.userDataSyncService) });
-					if (that.userDataSyncEnablementService.canToggleEnablement()) {
+					if (that.userDataAutoSyncService.canToggleEnablement()) {
 						const account = that.userDataSyncWorkbenchService.current;
 						items.push({ id: turnOffSyncCommand.id, label: turnOffSyncCommand.title, description: account ? `${account.accountName} (${that.authenticationService.getDisplayName(account.authenticationProviderId)})` : undefined });
 					}
@@ -945,8 +941,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(accessor: ServicesAccessor): Promise<any> {
-				accessor.get(ITelemetryService).publicLog2(`sync/actions/${syncNowCommand.id}`);
-				return that.userDataSyncService.sync();
+				return that.userDataAutoSyncService.triggerSync([syncNowCommand.id], false);
 			}
 		}));
 	}

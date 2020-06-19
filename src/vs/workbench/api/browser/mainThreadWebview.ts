@@ -252,7 +252,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 	public async $postMessage(handle: extHostProtocol.WebviewPanelHandle, message: any): Promise<boolean> {
 		const webview = this.getWebviewInput(handle);
-		webview.webview.sendMessage(message);
+		webview.webview.postMessage(message);
 		return true;
 	}
 

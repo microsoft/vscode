@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2, env, UIKind } from 'vscode';
+import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2, env, UIKind, ShellExecution, TaskExecution } from 'vscode';
 
 // Disable tasks tests:
 // - Web https://github.com/microsoft/vscode/issues/90528
@@ -118,7 +118,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 								writeEmitter.fire('exiting');
 								closeEmitter.fire();
 							},
-							close: () => {}
+							close: () => { }
 						};
 						return Promise.resolve(pty);
 					});
@@ -136,6 +136,60 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 				}
 			}));
 			commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
+		});
+
+		test('Execution from onDidEndTaskProcess is equal to original', () => {
+			return new Promise(async (resolve, reject) => {
+				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
+				let taskExecution: TaskExecution | undefined;
+
+				disposables.push(tasks.onDidStartTaskProcess(e => {
+					if (taskExecution === undefined) {
+						reject('taskExecution is still undefined when process started.');
+					} else if (e.execution !== taskExecution) {
+						reject('Unexpected task execution value in start process.');
+					}
+				}));
+
+				disposables.push(tasks.onDidEndTaskProcess(e => {
+					if (taskExecution === undefined) {
+						reject('taskExecution is still undefined when process ended.');
+					} else if (e.execution === taskExecution) {
+						resolve();
+					} else {
+						reject('Unexpected task execution value in end process.');
+					}
+				}));
+
+				taskExecution = await tasks.executeTask(task);
+			});
+		});
+
+		test('Execution from onDidStartTaskProcess is equal to original', () => {
+			return new Promise(async (resolve, reject) => {
+				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
+				let taskExecution: TaskExecution | undefined;
+
+				disposables.push(tasks.onDidStartTaskProcess(e => {
+					if (taskExecution === undefined) {
+						reject('taskExecution is still undefined when process started.');
+					} else if (e.execution === taskExecution) {
+						resolve();
+					} else {
+						reject('Unexpected task execution value in start process.');
+					}
+				}));
+
+				disposables.push(tasks.onDidEndTaskProcess(e => {
+					if (taskExecution === undefined) {
+						reject('taskExecution is still undefined when process ended.');
+					} else if (e.execution !== taskExecution) {
+						reject('Unexpected task execution value in end process.');
+					}
+				}));
+
+				taskExecution = await tasks.executeTask(task);
+			});
 		});
 	});
 });

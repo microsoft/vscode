@@ -47,8 +47,7 @@ import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/working
 import { sequence, timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { once } from 'vs/base/common/functional';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorGroup, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
 import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/contrib/files/common/openWith';
@@ -119,24 +118,6 @@ export class NewFolderAction extends Action {
 
 	run(): Promise<void> {
 		return this.commandService.executeCommand(NEW_FOLDER_COMMAND_ID);
-	}
-}
-
-/* Create new file from anywhere: Open untitled */
-export class GlobalNewUntitledFileAction extends Action {
-	static readonly ID = 'workbench.action.files.newUntitledFile';
-	static readonly LABEL = nls.localize('newUntitledFile', "New Untitled File");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<void> {
-		await this.editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
 	}
 }
 
@@ -465,6 +446,7 @@ export class GlobalCompareResourcesAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ITextModelService private readonly textModelService: ITextModelService
 	) {
 		super(id, label);
 	}
@@ -472,29 +454,35 @@ export class GlobalCompareResourcesAction extends Action {
 	async run(): Promise<void> {
 		const activeInput = this.editorService.activeEditor;
 		const activeResource = activeInput ? activeInput.resource : undefined;
-		if (activeResource) {
+		if (activeResource && this.textModelService.canHandleResource(activeResource)) {
 
 			// Compare with next editor that opens
 			const toDispose = this.editorService.overrideOpenEditor({
-				getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
-					return [];
-				},
 				open: editor => {
+
 					// Only once!
 					toDispose.dispose();
 
 					// Open editor as diff
 					const resource = editor.resource;
-					if (resource) {
+					if (resource && this.textModelService.canHandleResource(resource)) {
 						return {
 							override: this.editorService.openEditor({
 								leftResource: activeResource,
-								rightResource: resource
+								rightResource: resource,
+								options: { override: false }
 							})
 						};
 					}
 
-					return undefined;
+					// Otherwise stay on current resource
+					this.notificationService.info(nls.localize('fileToCompareNoFile', "Please select a file to compare with."));
+					return {
+						override: this.editorService.openEditor({
+							resource: activeResource,
+							options: { override: false }
+						})
+					};
 				}
 			});
 
@@ -576,7 +564,7 @@ export class ToggleEditorTypeCommand extends Action {
 			return;
 		}
 
-		await firstNonActiveOverride[0].open(input, options, group, OpenEditorContext.NEW_EDITOR, firstNonActiveOverride[1].id)?.override;
+		await firstNonActiveOverride[0].open(input, { ...options, override: firstNonActiveOverride[1].id }, group, OpenEditorContext.NEW_EDITOR)?.override;
 	}
 }
 

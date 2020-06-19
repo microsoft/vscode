@@ -14,7 +14,9 @@ import { localize } from 'vs/nls';
 
 export abstract class KeyValueLogProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
-	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.FileReadWrite;
+	readonly capabilities: FileSystemProviderCapabilities =
+		FileSystemProviderCapabilities.FileReadWrite
+		| FileSystemProviderCapabilities.PathCaseSensitive;
 	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());

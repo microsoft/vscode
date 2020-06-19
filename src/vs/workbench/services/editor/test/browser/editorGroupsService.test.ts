@@ -449,6 +449,8 @@ suite('EditorGroupsService', () => {
 		assert.equal(editorCloseCounter1, 1);
 		assert.equal(editorWillCloseCounter, 1);
 
+		assert.ok(inputInactive.gotDisposed);
+
 		assert.equal(group.activeEditor, input);
 
 		assert.equal(editorStickyCounter, 0);
@@ -482,8 +484,34 @@ suite('EditorGroupsService', () => {
 		assert.equal(group.getEditorByIndex(1), inputInactive);
 
 		await group.closeEditors([input, inputInactive]);
+
+		assert.ok(input.gotDisposed);
+		assert.ok(inputInactive.gotDisposed);
+
 		assert.equal(group.isEmpty, true);
 		part.dispose();
+	});
+
+	test('closeEditors (one, opened in multiple groups)', async () => {
+		const [part] = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty, true);
+
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
+		await rightGroup.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
+
+		await rightGroup.closeEditor(input);
+
+		assert.ok(!input.gotDisposed);
+
+		await group.closeEditor(input);
+
+		assert.ok(input.gotDisposed);
 	});
 
 	test('closeEditors (except one)', async () => {

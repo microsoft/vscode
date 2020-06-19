@@ -46,7 +46,6 @@ jsonRegistry.registerSchema(launchSchemaId, launchSchema);
 
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 const DEBUG_SELECTED_ROOT = 'debug.selectedroot';
-const DEBUG_SELECTED_CONFIG = 'debug.selectedconfig';
 
 export class ConfigurationManager implements IConfigurationManager {
 	private debuggers: Debugger[];
@@ -84,12 +83,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		const previousSelectedLaunch = this.launches.find(l => l.uri.toString() === previousSelectedRoot);
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
-		const storedConfig = this.storageService.get(DEBUG_SELECTED_CONFIG, StorageScope.WORKSPACE);
-		const selectedConfig = typeof storedConfig === 'string' ? JSON.parse(storedConfig) : undefined;
 		if (previousSelectedLaunch && previousSelectedLaunch.getConfigurationNames().length) {
-			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE), selectedConfig);
+			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
 		} else if (this.launches.length > 0) {
-			this.selectConfiguration(undefined, selectedConfig ? selectedConfig.name : undefined, selectedConfig);
+			this.selectConfiguration(undefined);
 		}
 	}
 
@@ -105,25 +102,25 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined {
-		let dap = this.debugAdapterFactories.get(session.configuration.type);
-		if (dap) {
-			return dap.createDebugAdapter(session);
+		let factory = this.debugAdapterFactories.get(session.configuration.type);
+		if (factory) {
+			return factory.createDebugAdapter(session);
 		}
 		return undefined;
 	}
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		let dap = this.debugAdapterFactories.get(debugType);
-		if (dap) {
-			return dap.substituteVariables(folder, config);
+		let factory = this.debugAdapterFactories.get(debugType);
+		if (factory) {
+			return factory.substituteVariables(folder, config);
 		}
 		return Promise.resolve(config);
 	}
 
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
-		let tl = this.debugAdapterFactories.get(debugType);
-		if (tl) {
-			return tl.runInTerminal(args);
+		let factory = this.debugAdapterFactories.get(debugType);
+		if (factory) {
+			return factory.runInTerminal(args);
 		}
 		return Promise.resolve(void 0);
 	}
@@ -483,13 +480,12 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.setSelectedLaunchName(names.length ? names[0] : undefined);
 		}
 
-		this.selectedConfig = config || (this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined);
-		if (this.selectedConfig) {
-			this.debugConfigurationTypeContext.set(this.selectedConfig.type);
-			this.storageService.store(DEBUG_SELECTED_CONFIG, JSON.stringify(this.selectedConfig), StorageScope.WORKSPACE);
+		this.selectedConfig = config;
+		const configForType = this.selectedConfig || (this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined);
+		if (configForType) {
+			this.debugConfigurationTypeContext.set(configForType.type);
 		} else {
 			this.debugConfigurationTypeContext.reset();
-			this.storageService.remove(DEBUG_SELECTED_CONFIG, StorageScope.WORKSPACE);
 		}
 
 		if (this.selectedLaunch !== previousLaunch || this.selectedName !== previousName) {
@@ -720,6 +716,9 @@ class Launch extends AbstractLaunch implements ILaunch {
 
 	async writeConfiguration(configuration: IConfig): Promise<void> {
 		const fullConfig = objects.deepClone(this.getConfig()!);
+		if (!fullConfig.configurations) {
+			fullConfig.configurations = [];
+		}
 		fullConfig.configurations.push(configuration);
 		await this.configurationService.updateValue('launch', fullConfig, { resource: this.workspace.uri }, ConfigurationTarget.WORKSPACE_FOLDER);
 	}

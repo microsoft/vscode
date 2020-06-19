@@ -1111,7 +1111,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		this.gotDisposed = true;
 	}
 	movedEditor: IMoveResult | undefined = undefined;
-	move(): IMoveResult | undefined { return this.movedEditor; }
+	rename(): IMoveResult | undefined { return this.movedEditor; }
 }
 
 export class TestEditorPart extends EditorPart {

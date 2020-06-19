@@ -228,9 +228,9 @@ export class ExtensionsScanner extends Disposable {
 			const children = await pfs.readdir(extensionPath);
 			const { manifest, metadata } = await this.readManifest(extensionPath);
 			const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-			const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)) : null;
+			const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)) : undefined;
 			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
-			const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)) : null;
+			const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)) : undefined;
 			const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 			const local = <ILocalExtension>{ type, identifier, manifest, location: URI.file(extensionPath), readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isMachineScoped: false };
 			if (metadata) {

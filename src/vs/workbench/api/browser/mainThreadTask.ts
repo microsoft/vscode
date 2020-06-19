@@ -510,41 +510,41 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
-	public $executeTask(value: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO> {
-		return new Promise<TaskExecutionDTO>((resolve, reject) => {
-			if (TaskHandleDTO.is(value)) {
-				const workspaceFolder = typeof value.workspaceFolder === 'string' ? value.workspaceFolder : this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
-				if (workspaceFolder) {
-					this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task | undefined) => {
-						if (!task) {
-							reject(new Error('Task not found'));
-						} else {
-							this._taskService.run(task).then(undefined, reason => {
-								// eat the error, it has already been surfaced to the user and we don't care about it here
-							});
-							const result: TaskExecutionDTO = {
-								id: value.id,
-								task: TaskDTO.from(task)
-							};
-							resolve(result);
-						}
-					}, (_error) => {
-						reject(new Error('Task not found'));
-					});
-				} else {
-					reject(new Error('No workspace folder'));
+	public async $getTaskExecution(value: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO> {
+		if (TaskHandleDTO.is(value)) {
+			const workspaceFolder = typeof value.workspaceFolder === 'string' ? value.workspaceFolder : this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
+			if (workspaceFolder) {
+				const task = await this._taskService.getTask(workspaceFolder, value.id, true);
+				if (task) {
+					return {
+						id: task._id,
+						task: TaskDTO.from(task)
+					};
 				}
+				throw new Error('Task not found');
 			} else {
-				const task = TaskDTO.to(value, this._workspaceContextServer, true)!;
-				this._taskService.run(task).then(undefined, reason => {
-					// eat the error, it has already been surfaced to the user and we don't care about it here
-				});
-				const result: TaskExecutionDTO = {
-					id: task._id,
-					task: TaskDTO.from(task)
-				};
-				resolve(result);
+				throw new Error('No workspace folder');
 			}
+		} else {
+			const task = TaskDTO.to(value, this._workspaceContextServer, true)!;
+			return {
+				id: task._id,
+				task: TaskDTO.from(task)
+			};
+		}
+	}
+
+	public $executeTask(value: TaskDTO): Promise<TaskExecutionDTO> {
+		return new Promise<TaskExecutionDTO>((resolve, reject) => {
+			const task = TaskDTO.to(value, this._workspaceContextServer, true)!;
+			this._taskService.run(task).then(undefined, reason => {
+				// eat the error, it has already been surfaced to the user and we don't care about it here
+			});
+			const result: TaskExecutionDTO = {
+				id: task._id,
+				task: TaskDTO.from(task)
+			};
+			resolve(result);
 		});
 	}
 
