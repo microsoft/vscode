@@ -357,6 +357,7 @@ export interface IUserDataSyncService {
 
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
+	readonly onSynchronizeResource: Event<SyncResource>;
 
 	readonly conflicts: SyncResourceConflicts[];
 	readonly onDidChangeConflicts: Event<SyncResourceConflicts[]>;
