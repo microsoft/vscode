@@ -2,6 +2,6 @@
 # yarn lockfile v1
 
 
-"typescript@https://typescript.visualstudio.com/cf7ac146-d525-443c-b23c-0d58337efebc/_apis/build/builds/74212/artifacts?artifactName=tgz&fileId=2056AC579024F64F4D733979778E0700E6D317EE140EA5F9D238E4B88C38090F02&fileName=/typescript-4.0.0-insiders.20200518.tgz":
-  version "4.0.0-insiders.20200518"
-  resolved "https://typescript.visualstudio.com/cf7ac146-d525-443c-b23c-0d58337efebc/_apis/build/builds/74212/artifacts?artifactName=tgz&fileId=2056AC579024F64F4D733979778E0700E6D317EE140EA5F9D238E4B88C38090F02&fileName=/typescript-4.0.0-insiders.20200518.tgz#a584afdae5a83f0d4a2d177ad1c6f9435a2293c5"
+"typescript@https://typescript.visualstudio.com/cf7ac146-d525-443c-b23c-0d58337efebc/_apis/build/builds/76276/artifacts?artifactName=tgz&fileId=78E053053EC04273CA27295F7B8557AA75922D9BBBB3576EC2256F647AD5273202&fileName=/typescript-4.0.0-insiders.20200612.tgz":
+  version "4.0.0-insiders.20200612"
+  resolved "https://typescript.visualstudio.com/cf7ac146-d525-443c-b23c-0d58337efebc/_apis/build/builds/76276/artifacts?artifactName=tgz&fileId=78E053053EC04273CA27295F7B8557AA75922D9BBBB3576EC2256F647AD5273202&fileName=/typescript-4.0.0-insiders.20200612.tgz#56d14a37a058bab28c83620c99ba4167170edc7b"
