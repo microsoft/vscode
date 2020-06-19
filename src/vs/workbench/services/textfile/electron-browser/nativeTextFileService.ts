@@ -15,7 +15,7 @@ import { join, dirname } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { UTF8, UTF8_with_bom, toDecodeStream, toEncodeReadable, IDecodeStreamResult } from 'vs/base/common/encoding';
+import { UTF8, UTF8_with_bom, toDecodeStream, toEncodeReadable, IDecodeStreamResult } from 'vs/workbench/services/textfile/common/encoding';
 import { bufferToStream, VSBufferReadable } from 'vs/base/common/buffer';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextSnapshot } from 'vs/editor/common/model';

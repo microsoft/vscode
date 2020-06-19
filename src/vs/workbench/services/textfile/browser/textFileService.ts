@@ -38,7 +38,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, UTF8_BOM, detectEncodingByBOMFromBuffer } from 'vs/base/common/encoding';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, UTF8_BOM, detectEncodingByBOMFromBuffer } from 'vs/workbench/services/textfile/common/encoding';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.

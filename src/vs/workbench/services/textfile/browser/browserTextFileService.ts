@@ -43,6 +43,10 @@ class BrowserEncodingOracle extends EncodingOracle {
 		return { encoding: 'utf8', hasBOM: false };
 	}
 
+	async getWriteEncoding(): Promise<{ encoding: string, addBOM: boolean }> {
+		return { encoding: 'utf8', addBOM: false };
+	}
+
 	async getReadEncoding(): Promise<string> {
 		return 'utf8';
 	}
