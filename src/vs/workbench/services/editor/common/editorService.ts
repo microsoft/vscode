@@ -74,7 +74,6 @@ export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRe
 export interface IRevertAllEditorsOptions extends IRevertOptions, IBaseSaveRevertAllEditorOptions { }
 
 export interface ICustomEditorInfo {
-
 	readonly id: string;
 	readonly displayName: string;
 	readonly providerDisplayName: string;
@@ -82,6 +81,7 @@ export interface ICustomEditorInfo {
 
 export interface ICustomEditorViewTypesHandler {
 	readonly onDidChangeViewTypes: Event<void>;
+
 	getViewTypes(): ICustomEditorInfo[];
 }
 

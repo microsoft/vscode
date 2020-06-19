@@ -367,7 +367,7 @@
 				try {
 					csp.setAttribute('content', host.rewriteCSP(csp.getAttribute('content'), data.endpoint));
 				} catch (e) {
-					console.error('Could not rewrite csp');
+					console.error(`Could not rewrite csp: ${e}`);
 				}
 			}
 

@@ -465,9 +465,10 @@ class ExtensionsContributions implements IWorkbenchContribution {
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService
 	) {
 
-		const canManageExtensions = extensionManagementServerService.localExtensionManagementServer || extensionManagementServerService.remoteExtensionManagementServer;
-
-		if (canManageExtensions) {
+		if (extensionManagementServerService.localExtensionManagementServer
+			|| extensionManagementServerService.remoteExtensionManagementServer
+			|| extensionManagementServerService.webExtensionManagementServer
+		) {
 			Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
 				ctor: InstallExtensionQuickAccessProvider,
 				prefix: InstallExtensionQuickAccessProvider.PREFIX,

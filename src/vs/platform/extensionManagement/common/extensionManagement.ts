@@ -12,7 +12,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionManifest, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IExeBasedExtensionTip } from 'vs/platform/product/common/productService';
 
-export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';
+export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 
 export interface IGalleryExtensionProperties {
@@ -91,16 +91,10 @@ export interface IGalleryMetadata {
 }
 
 export interface ILocalExtension extends IExtension {
-	readonly manifest: IExtensionManifest;
 	isMachineScoped: boolean;
 	publisherId: string | null;
 	publisherDisplayName: string | null;
-	readmeUrl: URI | null;
-	changelogUrl: URI | null;
 }
-
-export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
-export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
 
 export const enum SortBy {
 	NoneOrRelevance = 0,
@@ -148,6 +142,7 @@ export interface ITranslation {
 	contents: { [key: string]: {} };
 }
 
+export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
 export interface IExtensionGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
@@ -195,6 +190,7 @@ export class ExtensionManagementError extends Error {
 	}
 }
 
+export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export interface IExtensionManagementService {
 	readonly _serviceBrand: undefined;
 

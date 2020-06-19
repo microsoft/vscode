@@ -17,7 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionHostStarter, ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostLogFileName, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { joinPath } from 'vs/base/common/resources';
@@ -25,7 +25,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
 
-export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
+export class WebWorkerExtensionHost implements IExtensionHost {
+
+	public readonly kind = ExtensionHostKind.LocalWebWorker;
+	public readonly remoteAuthority = null;
 
 	private _toDispose = new DisposableStore();
 	private _isTerminating: boolean = false;
@@ -37,7 +40,6 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 	private readonly _extensionHostLogFile: URI;
 
 	constructor(
-		private readonly _autoStart: boolean,
 		private readonly _extensions: Promise<IExtensionDescription[]>,
 		private readonly _extensionHostLogsLocation: URI,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -157,7 +159,7 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 			logLevel: this._logService.getLevel(),
 			logsLocation: this._extensionHostLogsLocation,
 			logFile: this._extensionHostLogFile,
-			autoStart: this._autoStart,
+			autoStart: true,
 			remote: {
 				authority: this._environmentService.configuration.remoteAuthority,
 				connectionData: null,

@@ -26,8 +26,8 @@ class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMac
 		return this.channel.call<IUserDataSyncMachine[]>('getMachines');
 	}
 
-	addCurrentMachine(name: string): Promise<void> {
-		return this.channel.call('addCurrentMachine', [name]);
+	addCurrentMachine(): Promise<void> {
+		return this.channel.call('addCurrentMachine');
 	}
 
 	removeCurrentMachine(): Promise<void> {

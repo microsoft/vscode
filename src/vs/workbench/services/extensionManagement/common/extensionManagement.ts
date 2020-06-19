@@ -14,16 +14,17 @@ import { IStringDictionary } from 'vs/base/common/collections';
 export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
 
 export interface IExtensionManagementServer {
-	extensionManagementService: IExtensionManagementService;
-	authority: string;
+	id: string;
 	label: string;
+	extensionManagementService: IExtensionManagementService;
 }
 
 export interface IExtensionManagementServerService {
 	readonly _serviceBrand: undefined;
 	readonly localExtensionManagementServer: IExtensionManagementServer | null;
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
-	getExtensionManagementServer(location: URI): IExtensionManagementServer | null;
+	readonly webExtensionManagementServer: IExtensionManagementServer | null;
+	getExtensionManagementServer(extension: IExtension): IExtensionManagementServer | null;
 }
 
 export const enum EnablementState {

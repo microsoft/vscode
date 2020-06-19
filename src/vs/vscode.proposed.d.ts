@@ -1512,7 +1512,7 @@ declare module 'vscode' {
 		metadata: NotebookDocumentMetadata;
 	}
 
-	export interface NotebookConcatTextDocument {
+	export interface NotebookConcatTextDocument extends TextDocument {
 		isClosed: boolean;
 		dispose(): void;
 		onDidChange: Event<void>;
@@ -1583,8 +1583,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookOutputSelector {
-		type: string;
-		subTypes?: string[];
+		mimeTypes?: string[];
 	}
 
 	export interface NotebookRenderRequest {
@@ -1663,12 +1662,45 @@ declare module 'vscode' {
 		readonly metadata: NotebookDocumentMetadata;
 	}
 
+	interface NotebookDocumentContentChangeEvent {
+
+		/**
+		 * The document that the edit is for.
+		 */
+		readonly document: NotebookDocument;
+	}
+
 	interface NotebookDocumentEditEvent {
 
 		/**
 		 * The document that the edit is for.
 		 */
 		readonly document: NotebookDocument;
+
+		/**
+		 * Undo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user undoes this edit. To implement `undo`, your
+		 * extension should restore the document and editor to the state they were in just before this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
+		 */
+		undo(): Thenable<void> | void;
+
+		/**
+		 * Redo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user redoes this edit. To implement `redo`, your
+		 * extension should restore the document and editor to the state they were in just after this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
+		 */
+		redo(): Thenable<void> | void;
+
+		/**
+		 * Display name describing the edit.
+		 *
+		 * This will be shown to users in the UI for undo/redo operations.
+		 */
+		readonly label?: string;
 	}
 
 	interface NotebookDocumentBackup {
@@ -1698,10 +1730,28 @@ declare module 'vscode' {
 
 	export interface NotebookContentProvider {
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
+		resolveNotebook(document: NotebookDocument, webview: {
+			/**
+			 * Fired when the output hosting webview posts a message.
+			 */
+			readonly onDidReceiveMessage: Event<any>;
+			/**
+			 * Post a message to the output hosting webview.
+			 *
+			 * Messages are only delivered if the editor is live.
+			 *
+			 * @param message Body of the message. This must be a string or other json serilizable object.
+			 */
+			postMessage(message: any): Thenable<boolean>;
+
+			/**
+			 * Convert a uri for the local file system to one that can be used inside outputs webview.
+			 */
+			asWebviewUri(localResource: Uri): Uri;
+		}): Promise<void>;
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		readonly onDidChangeNotebook: Event<NotebookDocumentEditEvent>;
-		revertNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent>;
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
 
 		kernel?: NotebookKernel;

@@ -706,7 +706,7 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
 		const dto = TaskDTO.from(task, extension);
 		if (dto === undefined) {
-			return Promise.reject(new Error('Task is not valid'));
+			throw new Error('Task is not valid');
 		}
 
 		// If this task is a custom execution, then we need to save it away
@@ -718,7 +718,10 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 			throw new Error('Not implemented');
 		}
 
-		return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, task));
+		// Always get the task execution first to prevent timing issues when retrieving it later
+		const execution = await this.getTaskExecution(await this._proxy.$getTaskExecution(dto), task);
+		this._proxy.$executeTask(dto).catch(error => { throw new Error(error); });
+		return execution;
 	}
 
 	protected provideTasksInternal(validTypes: { [key: string]: boolean; }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.TaskDTO[], extension: IExtensionDescription } {

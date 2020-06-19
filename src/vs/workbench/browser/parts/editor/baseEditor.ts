@@ -58,7 +58,7 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	protected _options: EditorOptions | undefined;
 	get options(): EditorOptions | undefined { return this._options; }
 
-	private _group?: IEditorGroup;
+	private _group: IEditorGroup | undefined;
 	get group(): IEditorGroup | undefined { return this._group; }
 
 	constructor(
@@ -78,7 +78,8 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	}
 
 	/**
-	 * Called to create the editor in the parent HTMLElement.
+	 * Called to create the editor in the parent HTMLElement. Subclasses implement
+	 * this method to construct the editor widget.
 	 */
 	protected abstract createEditor(parent: HTMLElement): void;
 
@@ -101,6 +102,12 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	/**
 	 * Called to indicate to the editor that the input should be cleared and
 	 * resources associated with the input should be freed.
+	 *
+	 * This method can be called based on different contexts, e.g. when opening
+	 * a different editor control or when closing all editors in a group.
+	 *
+	 * To monitor the lifecycle of editor inputs, you should not rely on this
+	 * method, rather refer to the listeners on `IEditorGroup` via `IEditorGroupService`.
 	 */
 	clearInput(): void {
 		this._input = undefined;
@@ -135,16 +142,6 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		this._group = group;
 	}
-
-	/**
-	 * Called before the editor is being removed from the DOM.
-	 */
-	onWillHide() { }
-
-	/**
-	 * Called after the editor has been removed from the DOM.
-	 */
-	onDidHide() { }
 
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
 		const mementoKey = `${this.getId()}${key}`;

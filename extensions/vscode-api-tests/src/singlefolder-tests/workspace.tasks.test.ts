@@ -144,13 +144,17 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 				let taskExecution: TaskExecution | undefined;
 
 				disposables.push(tasks.onDidStartTaskProcess(e => {
-					if (e.execution !== taskExecution) {
+					if (taskExecution === undefined) {
+						reject('taskExecution is still undefined when process started.');
+					} else if (e.execution !== taskExecution) {
 						reject('Unexpected task execution value in start process.');
 					}
 				}));
 
 				disposables.push(tasks.onDidEndTaskProcess(e => {
-					if (e.execution === taskExecution) {
+					if (taskExecution === undefined) {
+						reject('taskExecution is still undefined when process ended.');
+					} else if (e.execution === taskExecution) {
 						resolve();
 					} else {
 						reject('Unexpected task execution value in end process.');
@@ -167,7 +171,9 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 				let taskExecution: TaskExecution | undefined;
 
 				disposables.push(tasks.onDidStartTaskProcess(e => {
-					if (e.execution === taskExecution) {
+					if (taskExecution === undefined) {
+						reject('taskExecution is still undefined when process started.');
+					} else if (e.execution === taskExecution) {
 						resolve();
 					} else {
 						reject('Unexpected task execution value in start process.');
@@ -175,7 +181,9 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 				}));
 
 				disposables.push(tasks.onDidEndTaskProcess(e => {
-					if (e.execution !== taskExecution) {
+					if (taskExecution === undefined) {
+						reject('taskExecution is still undefined when process ended.');
+					} else if (e.execution !== taskExecution) {
 						reject('Unexpected task execution value in end process.');
 					}
 				}));

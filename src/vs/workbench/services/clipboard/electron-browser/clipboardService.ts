@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { clipboard } from 'electron';
 import { URI } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -75,22 +74,6 @@ export class NativeClipboardService implements IClipboardService {
 			return bufferValue.split('\n').map(f => URI.parse(f));
 		} catch (error) {
 			return []; // do not trust clipboard data
-		}
-	}
-
-	/** @deprecated */
-	readFindTextSync(): string {
-		if (isMacintosh) {
-			return clipboard.readFindText();
-		}
-
-		return '';
-	}
-
-	/** @deprecated */
-	writeFindTextSync(text: string): void {
-		if (isMacintosh) {
-			clipboard.writeFindText(text);
 		}
 	}
 }
