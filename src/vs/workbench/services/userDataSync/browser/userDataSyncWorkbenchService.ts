@@ -232,8 +232,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			const pullFirst = await this.isSyncingWithAnotherMachine();
 			const disposable = this.userDataSyncService.onSynchronizeResource(resource =>
 				progress.report({ message: localize('syncing resource', "Syncing {0}...", getSyncAreaLabel(resource)) }));
-			await this.userDataAutoSyncService.turnOn(pullFirst);
-			disposable.dispose();
+			try {
+				await this.userDataAutoSyncService.turnOn(pullFirst);
+			} finally {
+				disposable.dispose();
+			}
 		});
 
 		this.notificationService.info(localize('sync turned on', "{0} is turned on", title));
