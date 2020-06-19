@@ -160,7 +160,9 @@ export async function toEncodeReadable(readable: Readable<string>, encoding: str
 					}
 				}
 
-				const leftovers = encoder.end();
+				// Use Uint8Array type to ensure we are not
+				// leaking existence of Buffer shim from iconv-lite-umd
+				const leftovers: Uint8Array | undefined = encoder.end();
 				if (leftovers && leftovers.length > 0) {
 					return VSBuffer.wrap(leftovers);
 				}
@@ -170,7 +172,10 @@ export async function toEncodeReadable(readable: Readable<string>, encoding: str
 
 			bytesRead += chunk.length;
 
-			return VSBuffer.wrap(encoder.write(chunk));
+			// Use Uint8Array to ensure we are not leaking
+			// existence of Buffer shim from iconv-lite-umd
+			const encodedChunk: Uint8Array = encoder.write(chunk);
+			return VSBuffer.wrap(encodedChunk);
 		}
 	};
 }
