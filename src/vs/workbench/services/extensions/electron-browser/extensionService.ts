@@ -500,48 +500,15 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			remoteExtensions = this._checkEnabledAndProposedAPI(remoteEnv.extensions);
 		}
 
-		const localExtensionsSet = new Set<string>();
-		localExtensions.forEach(ext => localExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier)));
-
-		const remoteExtensionsSet = new Set<string>();
-		remoteExtensions.forEach(ext => remoteExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier)));
-
-		const enum RunningLocation { None, LocalProcess, LocalWebWorker, Remote }
 		const hasLocalWebWorker = false;//this._isDev;
 		const hasRemote = Boolean(remoteAuthority);
-		const pickRunningLocation = (extension: IExtensionDescription): RunningLocation => {
-			const isLocalInstalled = localExtensionsSet.has(ExtensionIdentifier.toKey(extension.identifier));
-			const isRemoteInstalled = remoteExtensionsSet.has(ExtensionIdentifier.toKey(extension.identifier));
-			for (const extensionKind of getExtensionKind(extension, this._productService, this._configurationService)) {
-				if (extensionKind === 'ui' && isLocalInstalled) {
-					// ui extensions run locally if possible
-					return RunningLocation.LocalProcess;
-				}
-				if (extensionKind === 'workspace' && isRemoteInstalled) {
-					// workspace extensions run remotely if possible
-					return RunningLocation.Remote;
-				}
-				if (extensionKind === 'workspace' && !hasRemote) {
-					// workspace extensions also run locally if there is no remote
-					return RunningLocation.LocalProcess;
-				}
-				if (extensionKind === 'web' && isLocalInstalled && hasLocalWebWorker) {
-					// web worker extensions run in the local web worker if possible
-					return RunningLocation.LocalWebWorker;
-				}
-			}
-			return RunningLocation.None;
-		};
-
-		const runningLocation = new Map<string, RunningLocation>();
-		localExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext)));
-		remoteExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext)));
+		const runningLocation = determineRunningLocation(this._productService, this._configurationService, localExtensions, remoteExtensions, hasRemote, hasLocalWebWorker);
 
 		// remove non-UI extensions from the local extensions
-		localExtensions = localExtensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === RunningLocation.LocalProcess);
+		localExtensions = localExtensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === ExtensionRunningLocation.LocalProcess);
 
 		// in case of UI extensions overlap, the local extension wins
-		remoteExtensions = remoteExtensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === RunningLocation.Remote);
+		remoteExtensions = remoteExtensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === ExtensionRunningLocation.Remote);
 
 		if (remoteAuthority && remoteEnv) {
 			this._remoteInitData.set(remoteAuthority, {
@@ -647,8 +614,51 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		}
 		return true;
-
 	}
+}
+
+const enum ExtensionRunningLocation {
+	None,
+	LocalProcess,
+	LocalWebWorker,
+	Remote
+}
+
+function determineRunningLocation(productService: IProductService, configurationService: IConfigurationService, localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], hasRemote: boolean, hasLocalWebWorker: boolean): Map<string, ExtensionRunningLocation> {
+	const localExtensionsSet = new Set<string>();
+	localExtensions.forEach(ext => localExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier)));
+
+	const remoteExtensionsSet = new Set<string>();
+	remoteExtensions.forEach(ext => remoteExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier)));
+
+	const pickRunningLocation = (extension: IExtensionDescription): ExtensionRunningLocation => {
+		const isInstalledLocally = localExtensionsSet.has(ExtensionIdentifier.toKey(extension.identifier));
+		const isInstalledRemotely = remoteExtensionsSet.has(ExtensionIdentifier.toKey(extension.identifier));
+		for (const extensionKind of getExtensionKind(extension, productService, configurationService)) {
+			if (extensionKind === 'ui' && isInstalledLocally) {
+				// ui extensions run locally if possible
+				return ExtensionRunningLocation.LocalProcess;
+			}
+			if (extensionKind === 'workspace' && isInstalledRemotely) {
+				// workspace extensions run remotely if possible
+				return ExtensionRunningLocation.Remote;
+			}
+			if (extensionKind === 'workspace' && !hasRemote) {
+				// workspace extensions also run locally if there is no remote
+				return ExtensionRunningLocation.LocalProcess;
+			}
+			if (extensionKind === 'web' && isInstalledLocally && hasLocalWebWorker) {
+				// web worker extensions run in the local web worker if possible
+				return ExtensionRunningLocation.LocalWebWorker;
+			}
+		}
+		return ExtensionRunningLocation.None;
+	};
+
+	const runningLocation = new Map<string, ExtensionRunningLocation>();
+	localExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext)));
+	remoteExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext)));
+	return runningLocation;
 }
 
 registerSingleton(IExtensionService, ExtensionService);
