@@ -15,7 +15,6 @@ import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IExtensionHost, ExtensionHostLogFileName, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import * as platform from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
@@ -35,7 +34,13 @@ import { localize } from 'vs/nls';
 
 export interface IRemoteInitData {
 	readonly connectionData: IRemoteConnectionData | null;
-	readonly remoteEnvironment: IRemoteAgentEnvironment;
+	readonly pid: number;
+	readonly appRoot: URI;
+	readonly appSettingsHome: URI;
+	readonly extensionHostLogsPath: URI;
+	readonly globalStorageHome: URI;
+	readonly userHome: URI;
+	readonly extensions: IExtensionDescription[];
 }
 
 export interface IInitDataProvider {
@@ -202,22 +207,21 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			const resolvedExtensions = allExtensions.filter(extension => !extension.main).map(extension => extension.identifier);
 			const hostExtensions = allExtensions.filter(extension => extension.main && extension.api === 'none').map(extension => extension.identifier);
 			const workspace = this._contextService.getWorkspace();
-			const remoteEnv = remoteInitData.remoteEnvironment;
 			const r: IInitData = {
 				commit: this._productService.commit,
 				version: this._productService.version,
-				parentPid: remoteEnv.pid,
+				parentPid: remoteInitData.pid,
 				environment: {
 					isExtensionDevelopmentDebug,
-					appRoot: remoteEnv.appRoot,
-					appSettingsHome: remoteEnv.appSettingsHome,
+					appRoot: remoteInitData.appRoot,
+					appSettingsHome: remoteInitData.appSettingsHome,
 					appName: this._productService.nameLong,
 					appUriScheme: this._productService.urlProtocol,
 					appLanguage: platform.language,
 					extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 					extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-					globalStorageHome: remoteEnv.globalStorageHome,
-					userHome: remoteEnv.userHome,
+					globalStorageHome: remoteInitData.globalStorageHome,
+					userHome: remoteInitData.userHome,
 					webviewResourceRoot: this._environmentService.webviewResourceRoot,
 					webviewCspSource: this._environmentService.webviewCspSource,
 				},
@@ -233,11 +237,11 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				},
 				resolvedExtensions: resolvedExtensions,
 				hostExtensions: hostExtensions,
-				extensions: remoteEnv.extensions,
+				extensions: remoteInitData.extensions,
 				telemetryInfo,
 				logLevel: this._logService.getLevel(),
-				logsLocation: remoteEnv.extensionHostLogsPath,
-				logFile: joinPath(remoteEnv.extensionHostLogsPath, `${ExtensionHostLogFileName}.log`),
+				logsLocation: remoteInitData.extensionHostLogsPath,
+				logFile: joinPath(remoteInitData.extensionHostLogsPath, `${ExtensionHostLogFileName}.log`),
 				autoStart: true,
 				uiKind: platform.isWeb ? UIKind.Web : UIKind.Desktop
 			};

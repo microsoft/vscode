@@ -14,8 +14,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import { RemoteExtensionHost, IInitDataProvider } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { RemoteExtensionHost, IInitDataProvider, IRemoteInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { URI } from 'vs/base/common/uri';
@@ -32,7 +31,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
 	private _disposables = new DisposableStore();
-	private _remoteExtensionsEnvironmentData: IRemoteAgentEnvironment | null = null;
+	private _remoteInitData: IRemoteInitData | null = null;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -77,9 +76,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			remoteAuthority: remoteAuthority,
 			getInitData: async () => {
 				await this.whenInstalledExtensionsRegistered();
-				const connectionData = this._remoteAuthorityResolverService.getConnectionData(remoteAuthority);
-				const remoteEnvironment = this._remoteExtensionsEnvironmentData!;
-				return { connectionData, remoteEnvironment };
+				return this._remoteInitData!;
 			}
 		};
 	}
@@ -108,13 +105,15 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._staticExtensions.getExtensions()
 		]);
 
+		const remoteAgentConnection = this._remoteAgentService.getConnection();
+
 		let result: DeltaExtensionsResult;
 
 		// local: only enabled and web'ish extension
 		localExtensions = localExtensions!.filter(ext => this._isEnabled(ext) && canExecuteOnWeb(ext, this._productService, this._configService));
 		this._checkEnableProposedApi(localExtensions);
 
-		if (!remoteEnv) {
+		if (!remoteEnv || !remoteAgentConnection) {
 			result = this._registry.deltaExtensions(localExtensions, []);
 
 		} else {
@@ -128,7 +127,16 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			localExtensions = localExtensions.filter(extension => !isRemoteExtension.has(ExtensionIdentifier.toKey(extension.identifier)));
 
 			// save for remote extension's init data
-			this._remoteExtensionsEnvironmentData = remoteEnv;
+			this._remoteInitData = {
+				connectionData: this._remoteAuthorityResolverService.getConnectionData(remoteAgentConnection.remoteAuthority),
+				pid: remoteEnv.pid,
+				appRoot: remoteEnv.appRoot,
+				appSettingsHome: remoteEnv.appSettingsHome,
+				extensionHostLogsPath: remoteEnv.extensionHostLogsPath,
+				globalStorageHome: remoteEnv.globalStorageHome,
+				userHome: remoteEnv.userHome,
+				extensions: remoteEnv.extensions
+			};
 
 			result = this._registry.deltaExtensions(remoteEnv.extensions.concat(localExtensions), []);
 		}
