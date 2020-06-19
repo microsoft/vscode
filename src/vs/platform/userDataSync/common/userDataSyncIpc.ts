@@ -69,6 +69,8 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
+			case 'onTurnOnSync': return this.service.onTurnOnSync;
+			case 'onDidTurnOnSync': return this.service.onDidTurnOnSync;
 			case 'onError': return this.service.onError;
 		}
 		throw new Error(`Event not found: ${event}`);

@@ -143,6 +143,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this._register(userDataSyncService.onDidChangeConflicts(() => this.onDidChangeConflicts(this.userDataSyncService.conflicts)));
 			this._register(userDataSyncService.onSyncErrors(errors => this.onSynchronizerErrors(errors)));
 			this._register(userDataAutoSyncService.onError(error => this.onAutoSyncError(error)));
+			this._register(userDataAutoSyncService.onTurnOnSync(() => this.turningOnSync = true));
+			this._register(userDataAutoSyncService.onDidTurnOnSync(() => this.turningOnSync = false));
 
 			this.registerActions();
 			this.registerViews();
@@ -402,7 +404,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async turnOn(): Promise<void> {
-		this.turningOnSync = true;
 		try {
 			if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
 				if (!await this.askForConfirmation()) {
@@ -438,8 +439,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				}
 			}
 			this.notificationService.error(localize('turn on failed', "Error while starting Sync: {0}", toErrorMessage(e)));
-		} finally {
-			this.turningOnSync = false;
 		}
 	}
 
