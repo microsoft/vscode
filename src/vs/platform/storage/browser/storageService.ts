@@ -63,16 +63,10 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 		// Workspace Storage
 		this.workspaceStorageFile = joinPath(stateRoot, `${payload.id}.json`);
+
 		this.workspaceStorageDatabase = this._register(new FileStorageDatabase(this.workspaceStorageFile, false /* do not watch for external changes */, this.fileService));
 		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
 		this._register(this.workspaceStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.WORKSPACE })));
-
-		const firstOpen = this.workspaceStorage.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN);
-		if (firstOpen === undefined) {
-			this.workspaceStorage.set(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, !(await this.fileService.exists(this.workspaceStorageFile)));
-		} else if (firstOpen) {
-			this.workspaceStorage.set(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, false);
-		}
 
 		// Global Storage
 		this.globalStorageFile = joinPath(stateRoot, 'global.json');
@@ -85,6 +79,15 @@ export class BrowserStorageService extends Disposable implements IStorageService
 			this.workspaceStorage.init(),
 			this.globalStorage.init()
 		]);
+
+		// Check to see if this is the first time we are "opening" this workspace
+		const firstOpen = this.workspaceStorage.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN);
+		if (firstOpen === undefined) {
+			// NOTE@eamodio We can't reliably check to see if a workspace was added before this setting was introduced, so just pretend it is the first time
+			this.workspaceStorage.set(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, true);
+		} else if (firstOpen) {
+			this.workspaceStorage.set(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, false);
+		}
 
 		// In the browser we do not have support for long running unload sequences. As such,
 		// we cannot ask for saving state in that moment, because that would result in a
