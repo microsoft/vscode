@@ -65,7 +65,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 				// decode and write buffered content
 				const iconv = await import('iconv-lite-umd');
 				decoder = iconv.getDecoder(toNodeEncoding(detected.encoding));
-				const decoded = decoder.write(Buffer.from(VSBuffer.concat(bufferedChunks).buffer));
+				const decoded = decoder.write(VSBuffer.concat(bufferedChunks).buffer);
 				target.write(decoded);
 
 				bufferedChunks.length = 0;
@@ -89,7 +89,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 
 			// if the decoder is ready, we just write directly
 			if (decoder) {
-				target.write(decoder.write(Buffer.from(chunk.buffer)));
+				target.write(decoder.write(chunk.buffer));
 			}
 
 			// otherwise we need to buffer the data until the stream is ready
