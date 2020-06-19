@@ -356,6 +356,7 @@ export interface INotebookEditor extends IEditor {
 }
 
 export interface INotebookCellList {
+	isDisposed: boolean
 	readonly contextKeyService: IContextKeyService;
 	elementAt(position: number): ICellViewModel | undefined;
 	elementHeight(element: ICellViewModel): number;

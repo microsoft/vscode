@@ -188,6 +188,10 @@ export class NotebookEditor extends BaseEditor {
 
 	private _saveEditorViewState(input: IEditorInput | undefined): void {
 		if (this.group && this._widget.value && input instanceof NotebookEditorInput) {
+			if (this._widget.value.isDisposed) {
+				return;
+			}
+
 			const state = this._widget.value.getEditorViewState();
 			this._editorMemento.saveEditorState(this.group, input.resource, state);
 		}

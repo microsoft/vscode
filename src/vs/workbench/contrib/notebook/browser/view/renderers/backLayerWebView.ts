@@ -318,6 +318,10 @@ ${loaderJs}
 	}
 
 	async initialize(content: string) {
+		if (!document.body.contains(this.element)) {
+			throw new Error('Element is already detached from the DOM tree');
+		}
+
 		this.webview = this._createInset(this.webviewService, content);
 		this.webview.mountTo(this.element);
 		this._register(this.webview);
