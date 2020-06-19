@@ -168,28 +168,51 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	attachViewModel(model: NotebookViewModel) {
 		this._viewModel = model;
 		this._viewModelStore.add(model.onDidChangeViewCells((e) => {
-			DOM.scheduleAtNextAnimationFrame(() => {
-				if (this._isDisposed) {
-					return;
-				}
+			if (this._isDisposed) {
+				return;
+			}
 
-				const currentRanges = this._hiddenRangeIds.map(id => this._viewModel!.getTrackedRange(id)).filter(range => range !== null) as ICellRange[];
-				const newVisibleViewCells: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], currentRanges);
+			const currentRanges = this._hiddenRangeIds.map(id => this._viewModel!.getTrackedRange(id)).filter(range => range !== null) as ICellRange[];
+			const newVisibleViewCells: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], currentRanges);
 
-				const oldVisibleViewCells: CellViewModel[] = [];
-				const oldViewCellMapping = new Set<string>();
-				for (let i = 0; i < this.length; i++) {
-					oldVisibleViewCells.push(this.element(i));
-					oldViewCellMapping.add(this.element(i).uri.toString());
-				}
+			const oldVisibleViewCells: CellViewModel[] = [];
+			const oldViewCellMapping = new Set<string>();
+			for (let i = 0; i < this.length; i++) {
+				oldVisibleViewCells.push(this.element(i));
+				oldViewCellMapping.add(this.element(i).uri.toString());
+			}
 
-				const viewDiffs = diff<CellViewModel>(oldVisibleViewCells, newVisibleViewCells, a => {
-					return oldViewCellMapping.has(a.uri.toString());
+			const viewDiffs = diff<CellViewModel>(oldVisibleViewCells, newVisibleViewCells, a => {
+				return oldViewCellMapping.has(a.uri.toString());
+			});
+
+			if (e.synchronous) {
+				viewDiffs.reverse().forEach((diff) => {
+					// remove output in the webview
+					const hideOutputs: IProcessedOutput[] = [];
+					const deletedOutputs: IProcessedOutput[] = [];
+
+					for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
+						const cell = this.element(i);
+						if (this._viewModel!.hasCell(cell.handle)) {
+							hideOutputs.push(...cell?.model.outputs);
+						} else {
+							deletedOutputs.push(...cell?.model.outputs);
+						}
+					}
+
+					this.splice2(diff.start, diff.deleteCount, diff.toInsert);
+
+					hideOutputs.forEach(output => this._onDidHideOutput.fire(output));
+					deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
 				});
+			} else {
+				DOM.scheduleAtNextAnimationFrame(() => {
+					if (this._isDisposed) {
+						return;
+					}
 
-				if (e.synchronous) {
 					viewDiffs.reverse().forEach((diff) => {
-						// remove output in the webview
 						const hideOutputs: IProcessedOutput[] = [];
 						const deletedOutputs: IProcessedOutput[] = [];
 
@@ -207,29 +230,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 						hideOutputs.forEach(output => this._onDidHideOutput.fire(output));
 						deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
 					});
-				} else {
-					DOM.scheduleAtNextAnimationFrame(() => {
-						viewDiffs.reverse().forEach((diff) => {
-							const hideOutputs: IProcessedOutput[] = [];
-							const deletedOutputs: IProcessedOutput[] = [];
-
-							for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
-								const cell = this.element(i);
-								if (this._viewModel!.hasCell(cell.handle)) {
-									hideOutputs.push(...cell?.model.outputs);
-								} else {
-									deletedOutputs.push(...cell?.model.outputs);
-								}
-							}
-
-							this.splice2(diff.start, diff.deleteCount, diff.toInsert);
-
-							hideOutputs.forEach(output => this._onDidHideOutput.fire(output));
-							deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
-						});
-					});
-				}
-			});
+				});
+			}
 		}));
 
 		this._viewModelStore.add(model.onDidChangeSelection(() => {
