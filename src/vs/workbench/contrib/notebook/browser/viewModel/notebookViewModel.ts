@@ -1121,16 +1121,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		});
 	}
 
-	canUndo(): boolean {
-		return this._undoService.canUndo(this.uri);
+	async undo() {
+		await this._undoService.undo(this.uri);
 	}
 
-	undo() {
-		this._undoService.undo(this.uri);
-	}
-
-	redo() {
-		this._undoService.redo(this.uri);
+	async redo() {
+		await this._undoService.redo(this.uri);
 	}
 
 	equal(notebook: NotebookTextModel) {

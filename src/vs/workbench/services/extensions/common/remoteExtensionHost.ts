@@ -13,7 +13,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IExtensionHostStarter, ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostLogFileName, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -43,16 +43,17 @@ export interface IInitDataProvider {
 	getInitData(): Promise<IRemoteInitData>;
 }
 
-export class RemoteExtensionHostClient extends Disposable implements IExtensionHostStarter {
+export class RemoteExtensionHost extends Disposable implements IExtensionHost {
+
+	public readonly kind = ExtensionHostKind.Remote;
+	public readonly remoteAuthority: string;
 
 	private _onExit: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onExit.event;
 
 	private _protocol: PersistentProtocol | null;
-
-	private readonly _isExtensionDevHost: boolean;
-
 	private _terminating: boolean;
+	private readonly _isExtensionDevHost: boolean;
 
 	constructor(
 		private readonly _allExtensions: Promise<IExtensionDescription[]>,
@@ -70,6 +71,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 		@ISignService private readonly _signService: ISignService
 	) {
 		super();
+		this.remoteAuthority = this._initDataProvider.remoteAuthority;
 		this._protocol = null;
 		this._terminating = false;
 

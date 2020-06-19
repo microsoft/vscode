@@ -390,7 +390,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._onDidFocusEditorWidget.fire();
 	}
 
-	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, options: EditorOptions | undefined): Promise<void> {
+	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined): Promise<void> {
 		if (this._notebookViewModel === undefined || !this._notebookViewModel.equal(textModel)) {
 			this._detachModel();
 			await this._attachModel(textModel, viewState);
@@ -417,9 +417,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this._cellContextKeyManager.updateForElement(focused as any);
 			}
 		}));
+	}
 
+	async setOptions(options: NotebookEditorOptions | undefined) {
 		// reveal cell if editor options tell to do so
-		if (options instanceof NotebookEditorOptions && options.cellOptions) {
+		if (options?.cellOptions) {
 			const cellOptions = options.cellOptions;
 			const cell = this._notebookViewModel!.viewCells.find(cell => cell.uri.toString() === cellOptions.resource.toString());
 			if (cell) {

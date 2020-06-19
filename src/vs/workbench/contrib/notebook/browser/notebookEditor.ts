@@ -16,7 +16,7 @@ import { EditorOptions, IEditorMemento, IEditorInput } from 'vs/workbench/common
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { NotebookEditorWidget, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -157,7 +157,8 @@ export class NotebookEditor extends BaseEditor {
 
 		const viewState = this._loadTextEditorViewState(input);
 
-		await this._widget.value!.setModel(model.notebook, viewState, options);
+		await this._widget.value!.setModel(model.notebook, viewState);
+		await this._widget.value!.setOptions(options instanceof NotebookEditorOptions ? options : undefined);
 		this._widgetDisposableStore.add(this._widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
 
 		this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {
@@ -172,6 +173,12 @@ export class NotebookEditor extends BaseEditor {
 		super.clearInput();
 	}
 
+	setOptions(options: EditorOptions | undefined): void {
+		if (options instanceof NotebookEditorOptions) {
+			this._widget.value?.setOptions(options);
+		}
+		super.setOptions(options);
+	}
 
 	protected saveState(): void {
 		this._saveEditorViewState(this.input);
