@@ -207,7 +207,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 					deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
 				});
 			} else {
-				DOM.scheduleAtNextAnimationFrame(() => {
+				this._viewModelStore.add(DOM.scheduleAtNextAnimationFrame(() => {
 					if (this._isDisposed) {
 						return;
 					}
@@ -230,7 +230,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 						hideOutputs.forEach(output => this._onDidHideOutput.fire(output));
 						deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
 					});
-				});
+				}));
 			}
 		}));
 

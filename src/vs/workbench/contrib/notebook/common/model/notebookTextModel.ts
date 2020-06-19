@@ -170,7 +170,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._increaseVersionId();
 	}
 
-	$applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], emitToExtHost: boolean): boolean {
+	$applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], emitToExtHost: boolean, synchronous: boolean): boolean {
 		if (modelVersionId !== this._versionId) {
 			return false;
 		}
@@ -259,7 +259,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			emitSelections: this._emitSelectionsDelegate.bind(this)
 		}, undefined, undefined));
 
-		this._onDidChangeCells.fire({ synchronous: true, splices: diffs });
+		this._onDidChangeCells.fire({ synchronous: synchronous, splices: diffs });
 		return true;
 	}
 

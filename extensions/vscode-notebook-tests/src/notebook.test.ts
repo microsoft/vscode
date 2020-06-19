@@ -56,7 +56,7 @@ async function splitEditor() {
 	await once;
 }
 
-suite('API tests', () => {
+suite('Notebook API tests', () => {
 	test('document open/close event', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		const firstDocumentOpen = getEventOncePromise(vscode.notebook.onDidOpenNotebookDocument);
