@@ -140,19 +140,14 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const server = this.extensionManagementServerService.getExtensionManagementServer(extension.location);
 			for (const extensionKind of getExtensionKind(extension.manifest, this.productService, this.configurationService)) {
-				if (extensionKind === 'ui') {
+				if (extensionKind === 'ui' || extensionKind === 'web') {
+					// web behaves like ui
 					if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.localExtensionManagementServer === server) {
 						return false;
 					}
 				}
 				if (extensionKind === 'workspace') {
 					if (server === this.extensionManagementServerService.remoteExtensionManagementServer) {
-						return false;
-					}
-				}
-				if (extensionKind === 'web') {
-					// Web extensions are not yet supported to be disabled by kind. Enable them always on web.
-					if (this.extensionManagementServerService.localExtensionManagementServer === null) {
 						return false;
 					}
 				}

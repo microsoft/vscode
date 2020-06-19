@@ -13,7 +13,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInitDataProvider, RemoteExtensionHost, IRemoteInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
+import { IRemoteExtensionHostDataProvider, RemoteExtensionHost, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
@@ -41,6 +41,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
+
+const ENABLE_LOCAL_WEB_WORKER = false;
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -51,8 +54,9 @@ class DeltaExtensionsQueueItem {
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
-	private readonly _remoteInitData: Map<string, IRemoteInitData>;
-
+	private readonly _enableLocalWebWorker: boolean;
+	private readonly _remoteInitData: Map<string, IRemoteExtensionHostInitData>;
+	private _runningLocation: Map<string, ExtensionRunningLocation>;
 	private readonly _extensionScanner: CachedExtensionScanner;
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
 
@@ -85,6 +89,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			productService
 		);
 
+		this._enableLocalWebWorker = (ENABLE_LOCAL_WEB_WORKER && this._isDev);
+
 		if (this._extensionEnablementService.allUserExtensionsDisabled) {
 			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
 				label: nls.localize('Reload', "Reload"),
@@ -94,7 +100,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}]);
 		}
 
-		this._remoteInitData = new Map<string, IRemoteInitData>();
+		this._remoteInitData = new Map<string, IRemoteExtensionHostInitData>();
+		this._runningLocation = new Map<string, ExtensionRunningLocation>();
 
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 		this._deltaExtensionsQueue = [];
@@ -144,9 +151,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		});
 	}
 
-	private _getLocalProcessExtensionHost(): ExtensionHostManager | null {
-		if (this._extensionHostManagers.length > 0) {
-			return this._extensionHostManagers[0];
+	private _getExtensionHostManager(kind: ExtensionHostKind): ExtensionHostManager | null {
+		for (const extensionHostManager of this._extensionHostManagers) {
+			if (extensionHostManager.kind === kind) {
+				return extensionHostManager;
+			}
 		}
 		return null;
 	}
@@ -231,7 +240,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._doHandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
 
 		// Update the extension host
-		const localProcessExtensionHost = this._getLocalProcessExtensionHost();
+		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
 		if (localProcessExtensionHost) {
 			await localProcessExtensionHost.deltaExtensions(toAdd, toRemove.map(e => e.identifier));
 		}
@@ -343,7 +352,35 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	//#endregion
 
-	private _createProvider(remoteAuthority: string): IInitDataProvider {
+	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
+		return flatten(await Promise.all([this._extensionScanner.scannedExtensions, this._staticExtensions.getExtensions()]));
+	}
+
+	private _createLocalExtensionHostDataProvider(isInitialStart: boolean, desiredRunningLocation: ExtensionRunningLocation) {
+		return {
+			getInitData: async () => {
+				if (isInitialStart) {
+					const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions());
+					const runningLocation = determineRunningLocation(this._productService, this._configurationService, localExtensions, [], false, this._enableLocalWebWorker);
+					const localProcessExtensions = filterByRunningLocation(localExtensions, runningLocation, desiredRunningLocation);
+					return {
+						autoStart: false,
+						extensions: localProcessExtensions
+					};
+				} else {
+					// restart case
+					const allExtensions = await this.getExtensions();
+					const localProcessExtensions = filterByRunningLocation(allExtensions, this._runningLocation, desiredRunningLocation);
+					return {
+						autoStart: true,
+						extensions: localProcessExtensions
+					};
+				}
+			}
+		};
+	}
+
+	private _createRemoteExtensionHostDataProvider(remoteAuthority: string): IRemoteExtensionHostDataProvider {
 		return {
 			remoteAuthority: remoteAuthority,
 			getInitData: async () => {
@@ -354,25 +391,19 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	protected _createExtensionHosts(isInitialStart: boolean): IExtensionHost[] {
-		let autoStart: boolean;
-		let extensions: Promise<IExtensionDescription[]>;
-		if (isInitialStart) {
-			autoStart = false;
-			extensions = this._extensionScanner.scannedExtensions.then(extensions => extensions.filter(extension => this._isEnabled(extension))); // remove disabled extensions
-		} else {
-			// restart case
-			autoStart = true;
-			extensions = this.getExtensions().then((extensions) => extensions.filter(ext => ext.extensionLocation.scheme === Schemas.file));
-		}
-
 		const result: IExtensionHost[] = [];
 
-		const localProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, autoStart, extensions, this._environmentService.extHostLogsPath);
+		const localProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.LocalProcess));
 		result.push(localProcessExtHost);
+
+		if (this._enableLocalWebWorker) {
+			const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.LocalWebWorker));
+			result.push(webWorkerExtHost);
+		}
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const remoteExtHost = this._instantiationService.createInstance(RemoteExtensionHost, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
+			const remoteExtHost = this._instantiationService.createInstance(RemoteExtensionHost, this._createRemoteExtensionHostDataProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
 			result.push(remoteExtHost);
 		}
 
@@ -431,7 +462,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			return;
 		}
 
-		const localProcessExtensionHost = this._getLocalProcessExtensionHost()!;
+		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
 		this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
 		try {
 			const result = await localProcessExtensionHost.resolveAuthority(remoteAuthority);
@@ -445,10 +476,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._extensionScanner.startScanningExtensions(this.createLogger());
 
 		const remoteAuthority = this._environmentService.configuration.remoteAuthority;
-		const localProcessExtensionHost = this._getLocalProcessExtensionHost()!;
+		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
 
-		let localExtensions = this._checkEnabledAndProposedAPI(flatten(await Promise.all([this._extensionScanner.scannedExtensions, this._staticExtensions.getExtensions()])));
-		let remoteExtensions: IExtensionDescription[] = [];
+		let localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions());
 		let remoteEnv: IRemoteAgentEnvironment | null = null;
 
 		if (remoteAuthority) {
@@ -468,7 +498,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 
 				// Proceed with the local extension host
-				await this._startLocalExtensionHost(localExtensions, localExtensions.map(extension => extension.identifier));
+				await this._startLocalExtensionHost(localExtensions);
 				return;
 			}
 
@@ -493,22 +523,29 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			if (!remoteEnv) {
 				this._notificationService.notify({ severity: Severity.Error, message: nls.localize('getEnvironmentFailure', "Could not fetch remote environment") });
 				// Proceed with the local extension host
-				await this._startLocalExtensionHost(localExtensions, localExtensions.map(extension => extension.identifier));
+				await this._startLocalExtensionHost(localExtensions);
 				return;
 			}
-
-			remoteExtensions = this._checkEnabledAndProposedAPI(remoteEnv.extensions);
 		}
 
-		const hasLocalWebWorker = false;//this._isDev;
-		const hasRemote = Boolean(remoteAuthority);
-		const runningLocation = determineRunningLocation(this._productService, this._configurationService, localExtensions, remoteExtensions, hasRemote, hasLocalWebWorker);
+		await this._startLocalExtensionHost(localExtensions, remoteAuthority, remoteEnv);
+	}
+
+	private async _startLocalExtensionHost(localExtensions: IExtensionDescription[], remoteAuthority: string | undefined = undefined, remoteEnv: IRemoteAgentEnvironment | null = null): Promise<void> {
+
+		let remoteExtensions = remoteEnv ? this._checkEnabledAndProposedAPI(remoteEnv.extensions) : [];
+
+		this._runningLocation = determineRunningLocation(this._productService, this._configurationService, localExtensions, remoteExtensions, Boolean(remoteAuthority), this._enableLocalWebWorker);
 
 		// remove non-UI extensions from the local extensions
-		localExtensions = localExtensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === ExtensionRunningLocation.LocalProcess);
+		const localProcessExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalProcess);
+		const localWebWorkerExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
+		remoteExtensions = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionRunningLocation.Remote);
 
-		// in case of UI extensions overlap, the local extension wins
-		remoteExtensions = remoteExtensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === ExtensionRunningLocation.Remote);
+		const result = this._registry.deltaExtensions(remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions), []);
+		if (result.removedDueToLooping.length > 0) {
+			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+		}
 
 		if (remoteAuthority && remoteEnv) {
 			this._remoteInitData.set(remoteAuthority, {
@@ -519,25 +556,24 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				extensionHostLogsPath: remoteEnv.extensionHostLogsPath,
 				globalStorageHome: remoteEnv.globalStorageHome,
 				userHome: remoteEnv.userHome,
-				extensions: remoteExtensions
+				extensions: remoteExtensions,
+				allExtensions: this._registry.getAllExtensionDescriptions(),
 			});
-		}
-		await this._startLocalExtensionHost(remoteExtensions.concat(localExtensions), localExtensions.map(extension => extension.identifier));
-	}
-
-	private async _startLocalExtensionHost(allExtensions: IExtensionDescription[], localExtensions: ExtensionIdentifier[]): Promise<void> {
-		const localProcessExtensionHost = this._getLocalProcessExtensionHost()!;
-		const result = this._registry.deltaExtensions(allExtensions, []);
-		if (result.removedDueToLooping.length > 0) {
-			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
 		}
 
 		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
-		localProcessExtensionHost.start(localExtensions.filter(id => this._registry.containsExtension(id)));
+
+		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
+		localProcessExtensionHost.start(localProcessExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
+
+		const localWebWorkerExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalWebWorker);
+		if (localWebWorkerExtensionHost) {
+			localWebWorkerExtensionHost.start(localWebWorkerExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
+		}
 	}
 
 	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
-		const localProcessExtensionHost = this._getLocalProcessExtensionHost();
+		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
 		if (localProcessExtensionHost) {
 			return localProcessExtensionHost.getInspectPort(tryEnableInspector);
 		}
@@ -571,7 +607,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		};
 
 		const resolverExtensionId = recommendation.extensionId;
-		const allExtensions = flatten(await Promise.all([this._extensionScanner.scannedExtensions, this._staticExtensions.getExtensions()]));
+		const allExtensions = await this._scanAllLocalExtensions();
 		const extension = allExtensions.filter(e => e.identifier.value === resolverExtensionId)[0];
 		if (extension) {
 			if (!this._isEnabled(extension)) {
@@ -649,6 +685,10 @@ function determineRunningLocation(productService: IProductService, configuration
 			}
 			if (extensionKind === 'web' && isInstalledLocally && hasLocalWebWorker) {
 				// web worker extensions run in the local web worker if possible
+				if (typeof extension.browser !== 'undefined') {
+					// The "browser" field determines the entry point
+					(<any>extension).main = extension.browser;
+				}
 				return ExtensionRunningLocation.LocalWebWorker;
 			}
 		}
@@ -659,6 +699,10 @@ function determineRunningLocation(productService: IProductService, configuration
 	localExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext)));
 	remoteExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext)));
 	return runningLocation;
+}
+
+function filterByRunningLocation(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation>, desiredRunningLocation: ExtensionRunningLocation): IExtensionDescription[] {
+	return extensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === desiredRunningLocation);
 }
 
 registerSingleton(IExtensionService, ExtensionService);
