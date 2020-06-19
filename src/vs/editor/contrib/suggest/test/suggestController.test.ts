@@ -433,6 +433,7 @@ suite('SuggestController', function () {
 						label: 'let',
 						insertText: 'hello',
 						range: Range.fromPositions(position),
+						commitCharacters: ['('],
 						insertHandler: (info) => {
 							if (info.commitChar === '(') {
 								const insertEdit: IIdentifiedSingleEditOperation = {
@@ -443,7 +444,7 @@ suite('SuggestController', function () {
 								const bracketsEdit: IIdentifiedSingleEditOperation = {
 									forceMoveMarkers: true,
 									range: Range.fromPositions(position),
-									text: '()'
+									text: '(test)'
 								};
 								doc.applyEdits([insertEdit, bracketsEdit]);
 							}
@@ -464,7 +465,7 @@ suite('SuggestController', function () {
 		controller.acceptSelectedSuggestion(false, false, '('.charCodeAt(0));
 		await p2;
 
-		assert.equal(editor.getValue(), 'hello()abc');
+		assert.equal(editor.getValue(), 'hello(test)abc');
 	});
 
 	test('insert handler (replace insert)', async function () {
@@ -504,7 +505,7 @@ suite('SuggestController', function () {
 		await p1;
 
 		let p2 = Event.toPromise(controller.model.onDidCancel);
-		controller.acceptSelectedSuggestion(false, false, '\t'.charCodeAt(0));
+		editor.trigger('keyboard', 'acceptSelectedSuggestion', { commitChar: '\t' });
 		await p2;
 
 		assert.equal(editor.getValue(), 'hello');
