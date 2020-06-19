@@ -176,7 +176,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				// close stale conflicts editor previews
 				if (conflictsEditorInputs.length) {
 					conflictsEditorInputs.forEach(input => {
-						if (!conflicts.some(({ local }) => isEqual(local, input.master.resource))) {
+						if (!conflicts.some(({ local }) => isEqual(local, input.primary.resource))) {
 							input.dispose();
 						}
 					});
@@ -338,7 +338,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			return;
 		}
 		const resource = source === SyncResource.Settings ? this.workbenchEnvironmentService.settingsResource : this.workbenchEnvironmentService.keybindingsResource;
-		if (isEqual(resource, toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }))) {
+		if (isEqual(resource, toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }))) {
 			// Do not show notification if the file in error is active
 			return;
 		}
@@ -591,14 +591,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private getConflictsEditorInputs(syncResource: SyncResource): DiffEditorInput[] {
 		return this.editorService.editors.filter(input => {
-			const resource = input instanceof DiffEditorInput ? input.master.resource : input.resource;
+			const resource = input instanceof DiffEditorInput ? input.primary.resource : input.resource;
 			return resource && getSyncResourceFromLocalPreview(resource!, this.workbenchEnvironmentService) === syncResource;
 		}) as DiffEditorInput[];
 	}
 
 	private getAllConflictsEditorInputs(): IEditorInput[] {
 		return this.editorService.editors.filter(input => {
-			const resource = input instanceof DiffEditorInput ? input.master.resource : input.resource;
+			const resource = input instanceof DiffEditorInput ? input.primary.resource : input.resource;
 			return resource && getSyncResourceFromLocalPreview(resource!, this.workbenchEnvironmentService) !== undefined;
 		});
 	}

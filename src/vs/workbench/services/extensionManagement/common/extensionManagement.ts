@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { IExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtension, IScannedExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -136,4 +136,10 @@ export interface IExtensionRecommendationsService {
 	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void;
 	getIgnoredRecommendations(): ReadonlyArray<string>;
 	onRecommendationChange: Event<RecommendationChangeNotification>;
+}
+
+export const IWebExtensionsScannerService = createDecorator<IWebExtensionsScannerService>('IWebExtensionsScannerService');
+export interface IWebExtensionsScannerService {
+	readonly _serviceBrand: undefined;
+	scanExtensions(type?: ExtensionType): Promise<IScannedExtension[]>;
 }

@@ -298,10 +298,10 @@ readdirp@~3.2.0:
   dependencies:
     picomatch "^2.0.4"
 
-semver-umd@^5.5.6:
-  version "5.5.6"
-  resolved "https://registry.yarnpkg.com/semver-umd/-/semver-umd-5.5.6.tgz#1d185bbd2caec825c564b54907cd09e14083f228"
-  integrity sha512-6ARYXVi4Y4VO5HfyCjT/6xyykBtJwEXSGQ8ON4UPQSFOjZUDsbAE0J614QcBBsLTTyQMEqvsXN804vAqpydjzw==
+semver-umd@^5.5.7:
+  version "5.5.7"
+  resolved "https://registry.yarnpkg.com/semver-umd/-/semver-umd-5.5.7.tgz#966beb5e96c7da6fbf09c3da14c2872d6836c528"
+  integrity sha512-XgjPNlD0J6aIc8xoTN6GQGwWc2Xg0kq8NzrqMVuKG/4Arl6ab1F8+Am5Y/XKKCR+FceFr2yN/Uv5ZJBhRyRqKg==
 
 semver@^5.3.0:
   version "5.6.0"

@@ -27,21 +27,9 @@ export class HoverService implements IHoverService {
 		this._currentHoverOptions = options;
 
 		const hover = this._instantiationService.createInstance(HoverWidget, options);
+		hover.onDispose(() => this._currentHoverOptions = undefined);
 		const provider = this._contextViewService as IContextViewProvider;
-		const contextViewDelegate: IDelegate = {
-			render: container => {
-				hover.render(container);
-				hover.onDispose(() => this._currentHoverOptions = undefined);
-				if (focus) {
-					hover.focus();
-				}
-				return hover;
-			},
-			anchorPosition: hover.anchor,
-			getAnchor: () => ({ x: hover.x, y: hover.y }),
-			layout: () => hover.layout()
-		};
-		provider.showContextView(contextViewDelegate);
+		provider.showContextView(new HoverContextViewDelegate(hover, focus));
 		hover.onRequestLayout(() => provider.layout());
 	}
 
@@ -51,5 +39,37 @@ export class HoverService implements IHoverService {
 		}
 		this._currentHoverOptions = undefined;
 		this._contextViewService.hideContextView();
+	}
+}
+
+class HoverContextViewDelegate implements IDelegate {
+
+	get anchorPosition() {
+		return this._hover.anchor;
+	}
+
+	constructor(
+		private readonly _hover: HoverWidget,
+		private readonly _focus: boolean = false
+	) {
+	}
+
+	render(container: HTMLElement) {
+		this._hover.render(container);
+		if (this._focus) {
+			this._hover.focus();
+		}
+		return this._hover;
+	}
+
+	getAnchor() {
+		return {
+			x: this._hover.x,
+			y: this._hover.y
+		};
+	}
+
+	layout() {
+		this._hover.layout();
 	}
 }

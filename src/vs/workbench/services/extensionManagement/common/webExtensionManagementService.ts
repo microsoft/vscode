@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionIdentifier, IExtensionManifest, IScannedExtension } from 'vs/platform/extensions/common/extensions';
 import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IGalleryExtension, IReportedExtension, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
-import builtinExtensions from 'vs/platform/extensions/common/builtinExtensions';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IRequestService, isSuccess, asText } from 'vs/platform/request/common/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 export class WebExtensionManagementService implements IExtensionManagementService {
 
@@ -19,35 +22,39 @@ export class WebExtensionManagementService implements IExtensionManagementServic
 	onUninstallExtension: Event<IExtensionIdentifier> = Event.None;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = Event.None;
 
-	private readonly systemExtensions: ILocalExtension[];
-	private readonly staticExtensions: ILocalExtension[];
-
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWebExtensionsScannerService private readonly webExtensionsScannerService: IWebExtensionsScannerService,
+		@IRequestService private readonly requestService: IRequestService,
 	) {
-		this.systemExtensions = builtinExtensions.map(e => ({ ...e, type: ExtensionType.System, isMachineScoped: false, publisherId: null, publisherDisplayName: null }));
-		const staticExtensions = environmentService.options && Array.isArray(environmentService.options.staticExtensions) ? environmentService.options.staticExtensions : [];
-
-		this.staticExtensions = staticExtensions.map(data => <ILocalExtension>{
-			type: ExtensionType.User,
-			identifier: { id: `${data.packageJSON.publisher}.${data.packageJSON.name}` },
-			manifest: data.packageJSON,
-			location: data.extensionLocation,
-			isMachineScoped: false,
-			publisherId: null,
-			publisherDisplayName: null
-		});
 	}
 
 	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		const extensions = [];
-		if (type === undefined || type === ExtensionType.System) {
-			extensions.push(...this.systemExtensions);
+		const extensions = await this.webExtensionsScannerService.scanExtensions(type);
+		return Promise.all(extensions.map(e => this.toLocalExtension(e)));
+	}
+
+	private async toLocalExtension(scannedExtension: IScannedExtension): Promise<ILocalExtension> {
+		let manifest = scannedExtension.packageJSON;
+		if (scannedExtension.packageNLSUrl) {
+			try {
+				const context = await this.requestService.request({ type: 'GET', url: scannedExtension.packageNLSUrl.toString() }, CancellationToken.None);
+				if (isSuccess(context)) {
+					const content = await asText(context);
+					if (content) {
+						manifest = localizeManifest(manifest, JSON.parse(content));
+					}
+				}
+			} catch (error) { /* ignore */ }
 		}
-		if (type === undefined || type === ExtensionType.User) {
-			extensions.push(...this.staticExtensions);
-		}
-		return extensions;
+		return <ILocalExtension>{
+			type: ExtensionType.System,
+			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
+			manifest,
+			location: scannedExtension.location,
+			isMachineScoped: false,
+			publisherId: null,
+			publisherDisplayName: null
+		};
 	}
 
 	zip(extension: ILocalExtension): Promise<URI> { throw new Error('unsupported'); }

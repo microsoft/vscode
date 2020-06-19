@@ -377,8 +377,8 @@ suite('EditorService', () => {
 
 		// Untyped Input (diff)
 		input = service.createEditorInput({
-			leftResource: toResource.call(this, '/master.html'),
-			rightResource: toResource.call(this, '/detail.html')
+			leftResource: toResource.call(this, '/primary.html'),
+			rightResource: toResource.call(this, '/secondary.html')
 		});
 		assert(input instanceof DiffEditorInput);
 	});

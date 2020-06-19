@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IResourceLabelProps {
-	resource?: URI | { master?: URI, detail?: URI };
+	resource?: URI | { primary?: URI, secondary?: URI };
 	name?: string | string[];
 	description?: string;
 }
@@ -38,7 +38,7 @@ function toResource(props: IResourceLabelProps | undefined): URI | undefined {
 		return props.resource;
 	}
 
-	return props.resource.master;
+	return props.resource.primary;
 }
 
 export interface IResourceLabelOptions extends IIconLabelValueOptions {
@@ -379,9 +379,9 @@ class ResourceLabelWidget extends IconLabel {
 
 	setResource(label: IResourceLabelProps, options: IResourceLabelOptions = Object.create(null)): void {
 		const resource = toResource(label);
-		const isMasterDetail = label?.resource && !URI.isUri(label.resource);
+		const isSideBySideEditor = label?.resource && !URI.isUri(label.resource);
 
-		if (!options.forceLabel && !isMasterDetail && resource?.scheme === Schemas.untitled) {
+		if (!options.forceLabel && !isSideBySideEditor && resource?.scheme === Schemas.untitled) {
 			// Untitled labels are very dynamic because they may change
 			// whenever the content changes (unless a path is associated).
 			// As such we always ask the actual editor for it's name and
@@ -390,7 +390,7 @@ class ResourceLabelWidget extends IconLabel {
 			// we assume that the client does not want to display them
 			// and as such do not override.
 			//
-			// We do not touch the label if it represents a master-detail
+			// We do not touch the label if it represents a primary-secondary
 			// because in that case we expect it to carry a proper label
 			// and description.
 			const untitledModel = this.textFileService.untitled.get(resource);

@@ -26,9 +26,8 @@ import { EditorInput, EditorOptions, GroupIdentifier, IEditorInput, IEditorPane,
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
-import { defaultEditorOverrideEntry } from 'vs/workbench/contrib/files/common/openWith';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
-import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
+import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId, defaultEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICustomEditorInfo, ICustomEditorViewTypesHandler, IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { ContributedCustomEditors, defaultCustomEditor } from '../common/contributedCustomEditors';

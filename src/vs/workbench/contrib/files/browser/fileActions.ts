@@ -47,10 +47,8 @@ import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/working
 import { sequence, timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { once } from 'vs/base/common/functional';
-import { OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
-import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/contrib/files/common/openWith';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -499,75 +497,6 @@ export class GlobalCompareResourcesAction extends Action {
 	}
 }
 
-export class ReopenResourcesAction extends Action {
-
-	static readonly ID = 'workbench.files.action.reopenWithEditor';
-	static readonly LABEL = nls.localize('workbench.files.action.reopenWithEditor', "Reopen With...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<void> {
-		const activeInput = this.editorService.activeEditor;
-		if (!activeInput) {
-			return;
-		}
-
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (!activeEditorPane) {
-			return;
-		}
-
-		const options = activeEditorPane.options;
-		const group = activeEditorPane.group;
-		await openEditorWith(activeInput, undefined, options, group, this.editorService, this.configurationService, this.quickInputService);
-	}
-}
-
-export class ToggleEditorTypeCommand extends Action {
-
-	static readonly ID = 'workbench.files.action.toggleEditorType';
-	static readonly LABEL = nls.localize('workbench.files.action.toggleEditorType', "Toggle Editor Type");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<void> {
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (!activeEditorPane) {
-			return;
-		}
-
-		const input = activeEditorPane.input;
-		if (!input.resource) {
-			return;
-		}
-
-		const options = activeEditorPane.options;
-		const group = activeEditorPane.group;
-
-		const overrides = getAllAvailableEditors(input.resource, options, group, this.editorService);
-		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
-		if (!firstNonActiveOverride) {
-			return;
-		}
-
-		await firstNonActiveOverride[0].open(input, { ...options, override: firstNonActiveOverride[1].id }, group, OpenEditorContext.NEW_EDITOR)?.override;
-	}
-}
-
 export class ToggleAutoSaveAction extends Action {
 	static readonly ID = 'workbench.action.toggleAutoSave';
 	static readonly LABEL = nls.localize('toggleAutoSave', "Toggle Auto Save");
@@ -704,7 +633,7 @@ export class ShowActiveFileInExplorer extends Action {
 	}
 
 	async run(): Promise<void> {
-		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 		} else {
@@ -772,7 +701,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 
 	async run(): Promise<void> {
-		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (fileResource) {
 			if (this.fileService.canHandleResource(fileResource)) {
 				this.hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
@@ -884,7 +813,7 @@ export class CompareWithClipboardAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {

@@ -115,7 +115,11 @@ export class HoverWidget extends Widget {
 			this._hover.containerDomNode.appendChild(statusBarElement);
 		}
 
-		this._mouseTracker = new CompositeMouseTracker([this._hover.containerDomNode, ...this._target.targetElements]);
+		const mouseTrackerTargets = [...this._target.targetElements];
+		if (!options.hideOnHover || (options.actions && options.actions.length > 0)) {
+			mouseTrackerTargets.push(this._hover.containerDomNode);
+		}
+		this._mouseTracker = new CompositeMouseTracker(mouseTrackerTargets);
 		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
 		this._register(this._mouseTracker);
 	}

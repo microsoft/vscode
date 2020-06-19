@@ -91,13 +91,13 @@ async function initialize() {
 		const packageJSONPath = path.join(EXTENSIONS_ROOT, folderName, 'package.json');
 		if (await exists(packageJSONPath)) {
 			try {
-				const manifest = JSON.parse((await readFile(packageJSONPath)).toString());
-				if (manifest.main && !manifest.browser) {
+				const packageJSON = JSON.parse((await readFile(packageJSONPath)).toString());
+				if (packageJSON.main && !packageJSON.browser) {
 					return; // unsupported
 				}
 
-				if (manifest.browser) {
-					manifest.main = manifest.browser;
+				if (packageJSON.browser) {
+					packageJSON.main = packageJSON.browser;
 
 					const webpackConfigLocations = await util.promisify(glob)(
 						path.join(EXTENSIONS_ROOT, folderName, '**', 'extension-browser.webpack.config.js'),
@@ -117,31 +117,14 @@ async function initialize() {
 					}
 				}
 
-				const packageNlsPath = path.join(EXTENSIONS_ROOT, folderName, 'package.nls.json');
-				if (await exists(packageNlsPath)) {
-					const packageNls = JSON.parse((await readFile(packageNlsPath)).toString());
-					const translate = (obj) => {
-						for (let key in obj) {
-							const val = obj[key];
-							if (Array.isArray(val)) {
-								val.forEach(translate);
-							} else if (val && typeof val === 'object') {
-								translate(val);
-							} else if (typeof val === 'string' && val.charCodeAt(0) === CharCode_PC && val.charCodeAt(val.length - 1) === CharCode_PC) {
-								const translated = packageNls[val.substr(1, val.length - 2)];
-								if (translated) {
-									obj[key] = translated;
-								}
-							}
-						}
-					};
-					translate(manifest);
-				}
-				manifest.extensionKind = ['web']; // enable for Web
+				packageJSON.extensionKind = ['web']; // enable for Web
+
+				const packageNLSPath = path.join(folderName, 'package.nls.json');
+				const packageNLSExists = await exists(path.join(EXTENSIONS_ROOT, packageNLSPath));
 				builtinExtensions.push({
-					identifier: { id: `${manifest.publisher}.${manifest.name}`},
-					manifest,
+					packageJSON,
 					location: toStaticExtensionUri(folderName),
+					packageNLSUrl: packageNLSExists ? toStaticExtensionUri(packageNLSPath) : undefined,
 					readmeUrl,
 					changelogUrl
 				});

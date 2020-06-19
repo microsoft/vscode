@@ -632,7 +632,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (URI.isUri(editorResource)) {
 			associatedResources.push(editorResource);
 		} else if (editorResource) {
-			associatedResources.push(...coalesce([editorResource.master, editorResource.detail]));
+			associatedResources.push(...coalesce([editorResource.primary, editorResource.secondary]));
 		}
 
 		// Remove from list of recently closed before...
