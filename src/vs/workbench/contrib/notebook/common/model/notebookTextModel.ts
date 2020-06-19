@@ -70,17 +70,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
-	private readonly _onDidChangeCells = new Emitter<{ synchronous: boolean, splices: NotebookCellTextModelSplice[] }>();
+	private readonly _onDidChangeCells = this._register(new Emitter<{ synchronous: boolean, splices: NotebookCellTextModelSplice[] }>());
 	get onDidChangeCells() { return this._onDidChangeCells.event; }
-	private readonly _emitSelections = new Emitter<number[]>();
+	private readonly _emitSelections = this._register(new Emitter<number[]>());
 	get emitSelections() { return this._emitSelections.event; }
-	private _onDidModelChangeProxy = new Emitter<NotebookCellsChangedEvent>();
+	private _onDidModelChangeProxy = this._register(new Emitter<NotebookCellsChangedEvent>());
 	get onDidModelChangeProxy(): Event<NotebookCellsChangedEvent> { return this._onDidModelChangeProxy.event; }
-	private _onDidSelectionChangeProxy = new Emitter<number[] | null>();
+	private _onDidSelectionChangeProxy = this._register(new Emitter<number[] | null>());
 	get onDidSelectionChange(): Event<number[] | null> { return this._onDidSelectionChangeProxy.event; }
-	private _onDidChangeContent = new Emitter<void>();
+	private _onDidChangeContent = this._register(new Emitter<void>());
 	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
-	private _onDidChangeMetadata = new Emitter<NotebookDocumentMetadata>();
+	private _onDidChangeMetadata = this._register(new Emitter<NotebookDocumentMetadata>());
 	onDidChangeMetadata: Event<NotebookDocumentMetadata> = this._onDidChangeMetadata.event;
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
@@ -170,7 +170,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._increaseVersionId();
 	}
 
-	$applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], emitToExtHost: boolean = true): boolean {
+	$applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], emitToExtHost: boolean): boolean {
 		if (modelVersionId !== this._versionId) {
 			return false;
 		}

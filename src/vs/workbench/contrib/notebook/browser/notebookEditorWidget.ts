@@ -105,10 +105,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._isDisposed;
 	}
 
-	private readonly _onDidChangeModel = new Emitter<NotebookTextModel | undefined>();
+	private readonly _onDidChangeModel = this._register(new Emitter<NotebookTextModel | undefined>());
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
 
-	private readonly _onDidFocusEditorWidget = new Emitter<void>();
+	private readonly _onDidFocusEditorWidget = this._register(new Emitter<void>());
 	readonly onDidFocusEditorWidget = this._onDidFocusEditorWidget.event;
 
 	set viewModel(newModel: NotebookViewModel | undefined) {
@@ -129,7 +129,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private _activeKernel: INotebookKernelInfo | undefined = undefined;
-	private readonly _onDidChangeKernel = new Emitter<void>();
+	private readonly _onDidChangeKernel = this._register(new Emitter<void>());
 	readonly onDidChangeKernel: Event<void> = this._onDidChangeKernel.event;
 
 	get activeKernel() {

@@ -200,7 +200,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._notebook.metadata;
 	}
 
-	private readonly _onDidChangeViewCells = new Emitter<INotebookViewCellsUpdateEvent>();
+	private readonly _onDidChangeViewCells = this._register(new Emitter<INotebookViewCellsUpdateEvent>());
 	get onDidChangeViewCells(): Event<INotebookViewCellsUpdateEvent> { return this._onDidChangeViewCells.event; }
 
 	private _lastNotebookEditResource: URI[] = [];
@@ -216,7 +216,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._layoutInfo;
 	}
 
-	private readonly _onDidChangeSelection = new Emitter<void>();
+	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	get onDidChangeSelection(): Event<void> { return this._onDidChangeSelection.event; }
 
 	private _selections: number[] = [];
