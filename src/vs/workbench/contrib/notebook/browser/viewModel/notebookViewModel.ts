@@ -358,9 +358,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	updateSelectionsFromEdits(selections: number[]) {
-		if (this._focused) {
-			this.selectionHandles = selections;
-		}
+		// if (this._focused) {
+		this.selectionHandles = selections;
+		// }
 	}
 
 	getFoldingStartIndex(index: number): number {
