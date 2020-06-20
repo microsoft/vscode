@@ -13,6 +13,12 @@ import * as path from 'path';
 import * as PConst from '../protocol.const';
 import { parseKindModifier } from '../utils/modifiers';
 
+namespace Experimental {
+	export interface CallHierarchyItem extends Proto.CallHierarchyItem {
+		readonly kindModifiers?: string;
+	}
+}
+
 class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
 	public static readonly minVersion = API.v380;
 
@@ -76,7 +82,7 @@ function isSourceFileItem(item: Proto.CallHierarchyItem) {
 	return item.kind === PConst.Kind.script || item.kind === PConst.Kind.module && item.selectionSpan.start.line === 1 && item.selectionSpan.start.offset === 1;
 }
 
-function fromProtocolCallHierarchyItem(item: Proto.CallHierarchyItem): vscode.CallHierarchyItem {
+function fromProtocolCallHierarchyItem(item: Experimental.CallHierarchyItem): vscode.CallHierarchyItem {
 	const useFileName = isSourceFileItem(item);
 	const name = useFileName ? path.basename(item.file) : item.name;
 	const detail = useFileName ? vscode.workspace.asRelativePath(path.dirname(item.file)) : '';
