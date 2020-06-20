@@ -715,7 +715,8 @@ export class CellLanguageStatusBarItem extends Disposable {
 	}
 
 	private render(): void {
-		this.labelElement.textContent = this.modeService.getLanguageName(this.cell!.language!) || this.modeService.getLanguageName('plaintext');
+		const modeId = this.modeService.getModeIdForLanguageName(this.cell!.language) || this.cell!.language;
+		this.labelElement.textContent = this.modeService.getLanguageName(modeId) || this.modeService.getLanguageName('plaintext');
 	}
 }
 
