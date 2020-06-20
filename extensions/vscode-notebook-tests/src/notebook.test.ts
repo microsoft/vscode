@@ -57,6 +57,18 @@ async function splitEditor() {
 }
 
 suite('Notebook API tests', () => {
+	// test.only('crash', async function () {
+	// 	for (let i = 0; i < 200; i++) {
+	// 		let resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+	// 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+	// 		await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+
+	// 		resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './empty.vsctestnb'));
+	// 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+	// 		await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+	// 	}
+	// });
+
 	test('document open/close event', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		const firstDocumentOpen = getEventOncePromise(vscode.notebook.onDidOpenNotebookDocument);

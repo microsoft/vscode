@@ -245,6 +245,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private _hiddenRanges: ICellRange[] = [];
 	private _focused: boolean = false;
 
+	get focused() {
+		return this._focused;
+	}
+
 	constructor(
 		public viewType: string,
 		private _notebook: NotebookTextModel,
