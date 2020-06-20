@@ -243,6 +243,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	public readonly id: string;
 	private _foldingRanges: FoldingRegions | null = null;
 	private _hiddenRanges: ICellRange[] = [];
+	private _focused: boolean = false;
 
 	constructor(
 		public viewType: string,
@@ -324,7 +325,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			// text model emit selection change (for example, undo/redo)
 			// we should update the selection handle wisely
 			// TODO, if the editor is note selected, undo/redo should not change the focused element selection
-			this.selectionHandles = selections;
+			this.updateSelectionsFromEdits(selections);
 		}));
 
 		this._register(this.eventDispatcher.onDidChangeLayout((e) => {
@@ -350,6 +351,16 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._viewCells.forEach(cell => {
 			this._handleToViewCellMapping.set(cell.handle, cell);
 		});
+	}
+
+	setFocus(focused: boolean) {
+		this._focused = focused;
+	}
+
+	updateSelectionsFromEdits(selections: number[]) {
+		if (this._focused) {
+			this.selectionHandles = selections;
+		}
 	}
 
 	getFoldingStartIndex(index: number): number {
@@ -726,7 +737,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 							this.deleteCell(index, true, false);
 						},
 						emitSelections: (selections: number[]) => {
-							this.selectionHandles = selections;
+							this.updateSelectionsFromEdits(selections);
 						}
 					}
 				));
@@ -805,7 +816,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 						return createCellViewModel(this._instantiationService, this, cell);
 					},
 					emitSelections: (selections: number[]) => {
-						this.selectionHandles = selections;
+						this.updateSelectionsFromEdits(selections);
 					}
 				})
 			);
@@ -859,7 +870,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 						return createCellViewModel(this._instantiationService, this, cell);
 					},
 					emitSelections: (selections: number[]) => {
-						this.selectionHandles = selections;
+						this.updateSelectionsFromEdits(selections);
 					}
 				})
 			);
