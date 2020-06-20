@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { joinPath, dirname, basename, toLocalResource } from 'vs/base/common/resources';
+import { joinPath, dirname, basename, toLocalResource, extUri } from 'vs/base/common/resources';
 import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
@@ -224,7 +224,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Just save if target is same as models own resource
-		if (source.toString() === target.toString()) {
+		if (extUri.isEqual(source, target)) {
 			return this.save(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
 		}
 
