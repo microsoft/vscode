@@ -163,7 +163,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 		return false;
 	}
 
-	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+	save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		return this.doSave(group, options, false);
 	}
 
@@ -185,7 +185,12 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 			return undefined; // save cancelled
 		}
 
-		return this.editorService.createEditorInput({ resource: target });
+		// If the target is a different resource, return with a new editor input
+		if (!extUri.isEqual(target, this.resource)) {
+			return this.editorService.createEditorInput({ resource: target });
+		}
+
+		return this;
 	}
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
