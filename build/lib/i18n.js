@@ -1175,9 +1175,10 @@ function createIslFile(originalFilePath, messages, language, innoSetup) {
     });
     const basename = path.basename(originalFilePath);
     const filePath = `${basename}.${language.id}.isl`;
+    const encoded = iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage);
     return new File({
         path: filePath,
-        contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage)
+        contents: Buffer.from(encoded),
     });
 }
 function encodeEntities(value) {
