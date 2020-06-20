@@ -25,7 +25,7 @@ import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { isWindows } from 'vs/base/common/platform';
 import { readFileSync, statSync } from 'fs';
-import { detectEncodingByBOM } from 'vs/base/test/node/encoding/encoding.test';
+import { detectEncodingByBOM } from 'vs/workbench/services/textfile/test/node/encoding/encoding.test';
 import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 suite('Files - TextFileService i/o', function () {
