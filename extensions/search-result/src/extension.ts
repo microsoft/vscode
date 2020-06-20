@@ -91,7 +91,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 
 		vscode.languages.registerDocumentLinkProvider(SEARCH_RESULT_SELECTOR, {
-			async provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<any[]> {
+			async provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentLink[]> {
 				return parseSearchResults(document, token)
 					.filter(({ type }) => type === 'file')
 					.map(({ location }) => ({ range: location.originSelectionRange!, target: location.targetUri }));
