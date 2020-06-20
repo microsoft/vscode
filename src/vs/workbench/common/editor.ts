@@ -649,9 +649,15 @@ export interface IModeSupport {
 export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeSupport {
 
 	/**
-	 * Gets the resource this editor is about.
+	 * Gets the resource this file input is about.
 	 */
 	readonly resource: URI;
+
+	/**
+	 * Gets the label of the editor. In most cases this will
+	 * be identical to the resource.
+	 */
+	readonly label: URI;
 
 	/**
 	 * Sets the preferred label to use for this file input.
