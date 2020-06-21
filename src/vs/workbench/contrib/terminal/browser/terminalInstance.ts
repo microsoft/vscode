@@ -214,12 +214,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (_container) {
 				this._attachToElement(_container);
 			}
-
-			this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
-				if (error) {
-					this._onProcessExit(error);
-				}
-			});
+			this._createProcess();
 		});
 
 		this.addDisposable(this._configurationService.onDidChangeConfiguration(e => {
@@ -884,7 +879,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	protected _createProcessManager(): void {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
 		this._processManager.onProcessReady(() => {
-			console.log('_processManager.onProcessReady');
 			this._onProcessIdReady.fire(this);
 		});
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
@@ -930,6 +924,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				});
 			});
 		}
+	}
+
+	private _createProcess(): void {
+		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
+			if (error) {
+				this._onProcessExit(error);
+			}
+		});
 	}
 
 	private getShellType(executable: string): TerminalShellType {
@@ -1123,6 +1125,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._processManager.onProcessData(data => this._onProcessData(data));
+		this._createProcess();
 	}
 
 	public relaunch(): void {
