@@ -511,7 +511,6 @@ export interface ITerminalInstance {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 
-	// TODO: Improve naming of ITerminalLinkProvider and ITerminalLink, they conflict with the wrappers that are applied internally (TerminalBaseLinkProvider)
 	/**
 	 * @throws when called before xterm.js is ready.
 	 */
