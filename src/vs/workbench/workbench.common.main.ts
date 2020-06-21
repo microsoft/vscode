@@ -85,6 +85,7 @@ import 'vs/workbench/services/views/browser/viewDescriptorService';
 import 'vs/workbench/services/quickinput/browser/quickInputService';
 import 'vs/workbench/services/userDataSync/browser/userDataSyncWorkbenchService';
 import 'vs/workbench/services/authentication/browser/authenticationService';
+import 'vs/workbench/services/hover/browser/hoverService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -283,8 +284,5 @@ import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
 
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';
-
-// Hover
-import 'vs/workbench/contrib/hover/browser/hover.contribution';
 
 //#endregion

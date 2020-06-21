@@ -11,7 +11,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IHoverService, IHoverOptions } from 'vs/workbench/contrib/hover/browser/hover';
+import { IHoverService, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
 
 export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWidget {
 	readonly id = 'env-var-info';
