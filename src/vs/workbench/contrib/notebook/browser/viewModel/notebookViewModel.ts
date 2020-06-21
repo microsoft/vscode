@@ -243,7 +243,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	public readonly id: string;
 	private _foldingRanges: FoldingRegions | null = null;
 	private _hiddenRanges: ICellRange[] = [];
-	private _focused: boolean = false;
+	private _focused: boolean = true;
 
 	get focused() {
 		return this._focused;
@@ -362,9 +362,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	updateSelectionsFromEdits(selections: number[]) {
-		// if (this._focused) {
-		this.selectionHandles = selections;
-		// }
+		if (this._focused) {
+			this.selectionHandles = selections;
+		}
 	}
 
 	getFoldingStartIndex(index: number): number {
