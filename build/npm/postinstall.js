@@ -68,7 +68,7 @@ runtime "${runtime}"`;
 	yarnInstall(watchPath);
 }
 
-yarnInstall(`build`); // node modules required for build
+yarnInstall('build'); // node modules required for build
 yarnInstall('test/automation'); // node modules required for smoketest
 yarnInstall('test/smoke'); // node modules required for smoketest
 yarnInstall('test/integration/browser'); // node modules required for integration
