@@ -257,6 +257,7 @@ export interface ITerminalInstance {
 
 	onFocused: Event<ITerminalInstance>;
 	onProcessIdReady: Event<ITerminalInstance>;
+	onLinksReady: Event<ITerminalInstance>;
 	onRequestExtHostProcess: Event<ITerminalInstance>;
 	onDimensionsChanged: Event<void>;
 	onMaximumDimensionsChanged: Event<void>;
@@ -295,11 +296,10 @@ export interface ITerminalInstance {
 
 	readonly exitCode: number | undefined;
 
+	readonly areLinksReady: boolean;
+
 	/** A promise that resolves when the terminal's pty/process have been created. */
 	processReady: Promise<void>;
-
-	/** Whether xterm.js has been created. */
-	isXtermReady: boolean;
 
 	/** A promise that resolves when xterm.js has been created. */
 	xtermReady: Promise<void>;

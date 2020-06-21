@@ -55,6 +55,7 @@ export class TerminalService implements ITerminalService {
 	private _activeTabIndex: number;
 	private _linkHandlers: { [key: string]: TerminalLinkHandlerCallback } = {};
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
+	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
@@ -73,6 +74,8 @@ export class TerminalService implements ITerminalService {
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
 	private readonly _onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
+	private readonly _onInstanceLinksReady = new Emitter<ITerminalInstance>();
+	public get onInstanceLinksReady(): Event<ITerminalInstance> { return this._onInstanceLinksReady.event; }
 	private readonly _onInstanceRequestSpawnExtHostProcess = new Emitter<ISpawnExtHostProcessRequest>();
 	public get onInstanceRequestSpawnExtHostProcess(): Event<ISpawnExtHostProcessRequest> { return this._onInstanceRequestSpawnExtHostProcess.event; }
 	private readonly _onInstanceRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
@@ -131,7 +134,7 @@ export class TerminalService implements ITerminalService {
 			const instance = this.getActiveInstance();
 			this._onActiveInstanceChanged.fire(instance ? instance : undefined);
 		});
-		this.onInstanceXtermReady(instance => this._setInstanceLinkProviders(instance));
+		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
 
 		this._handleContextKeys();
 	}
@@ -433,6 +436,7 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		instance.addDisposable(instance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
+		instance.addDisposable(instance.onLinksReady(this._onInstanceLinksReady.fire, this._onInstanceLinksReady));
 		instance.addDisposable(instance.onDimensionsChanged(() => this._onInstanceDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
@@ -483,20 +487,18 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable {
-		// TODO: Register it from the main thread class
 		const disposables: IDisposable[] = [];
 		this._linkProviders.add(linkProvider);
 		for (const instance of this.terminalInstances) {
 			// Only register immediately when xterm is ready
-			if (instance.isXtermReady) {
+			if (instance.areLinksReady) {
 				disposables.push(instance.registerLinkProvider(linkProvider));
 			}
 		}
-		console.log('registerLinkProvider register');
+		this._linkProviderDisposables.set(linkProvider, disposables);
 		return {
 			dispose: () => {
-				console.log('registerLinkProvider dispose');
-				// TODO: Remove from xterm instances
+				const disposables = this._linkProviderDisposables.get(linkProvider) || [];
 				for (const disposable of disposables) {
 					disposable.dispose();
 				}
@@ -507,7 +509,9 @@ export class TerminalService implements ITerminalService {
 
 	private _setInstanceLinkProviders(instance: ITerminalInstance): void {
 		for (const linkProvider of this._linkProviders) {
-			instance.registerLinkProvider(linkProvider);
+			const disposables = this._linkProviderDisposables.get(linkProvider);
+			const provider = instance.registerLinkProvider(linkProvider);
+			disposables?.push(provider);
 		}
 	}
 

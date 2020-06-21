@@ -627,8 +627,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		// when new links are provided.
 		this._terminalLinkCache.delete(terminalId);
 
-		// TODO: Store link activate callback
-		// TODO: Discard of links when appropriate
 		const result: ITerminalLinkDto[] = [];
 		const context: vscode.TerminalLinkContext = { terminal, line };
 		const promises: vscode.ProviderResult<{ provider: vscode.TerminalLinkProvider, links: vscode.TerminalLink[] }>[] = [];

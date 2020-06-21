@@ -95,6 +95,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _xtermReadyPromise: Promise<XTermTerminal>;
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: ((title: string) => any) | undefined;
+	private _areLinksReady: boolean = false;
 
 	private _messageTitleDisposable: IDisposable | undefined;
 
@@ -127,7 +128,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// TODO: How does this work with detached processes?
 	// TODO: Should this be an event as it can fire twice?
 	public get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
-	public get isXtermReady(): boolean { return !!this._xterm; }
+	public get areLinksReady(): boolean { return this._areLinksReady; }
 	public get xtermReady(): Promise<void> { return this._xtermReadyPromise.then(() => { }); }
 	public get exitCode(): number | undefined { return this._exitCode; }
 	public get title(): string { return this._title; }
@@ -146,6 +147,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
 	private readonly _onProcessIdReady = new Emitter<ITerminalInstance>();
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
+	private readonly _onLinksReady = new Emitter<ITerminalInstance>();
+	public get onLinksReady(): Event<ITerminalInstance> { return this._onLinksReady.event; }
 	private readonly _onTitleChanged = new Emitter<ITerminalInstance>();
 	public get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
 	private readonly _onData = new Emitter<string>();
@@ -203,7 +206,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
 
 		this._initDimensions();
-		this._createProcess();
+		this._createProcessManager();
 
 		this._xtermReadyPromise = this._createXterm();
 		this._xtermReadyPromise.then(() => {
@@ -211,6 +214,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (_container) {
 				this._attachToElement(_container);
 			}
+
+			this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
+				if (error) {
+					this._onProcessExit(error);
+				}
+			});
 		});
 
 		this.addDisposable(this._configurationService.onDidChangeConfiguration(e => {
@@ -418,6 +427,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				e.terminal = this;
 				this._onBeforeHandleLink.fire(e);
 			});
+			this._areLinksReady = true;
+			this._onLinksReady.fire(this);
 		});
 
 		this._commandTrackerAddon = new CommandTrackerAddon();
@@ -870,9 +881,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}
 
-	protected _createProcess(): void {
+	protected _createProcessManager(): void {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
-		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
+		this._processManager.onProcessReady(() => {
+			console.log('_processManager.onProcessReady');
+			this._onProcessIdReady.fire(this);
+		});
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(data => this._onData.fire(data));
 		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e));
@@ -916,14 +930,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				});
 			});
 		}
-
-		// Create the process asynchronously to allow the terminal's container to be created so
-		// dimensions are accurate
-		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
-			if (error) {
-				this._onProcessExit(error);
-			}
-		});
 	}
 
 	private getShellType(executable: string): TerminalShellType {
@@ -1110,7 +1116,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Launch the process unless this is only a renderer.
 		// In the renderer only cases, we still need to set the title correctly.
 		const oldTitle = this._title;
-		this._createProcess();
+		this._createProcessManager();
 
 		if (oldTitle !== this._title) {
 			this.setTitle(this._title, TitleEventSource.Process);
@@ -1497,7 +1503,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable {
 		if (!this._linkManager) {
-			throw new Error('TerminalInstance.registerLinkProvider before xterm was created');
+			throw new Error('TerminalInstance.registerLinkProvider before link manager was ready');
 		}
 		return this._linkManager.registerExternalLinkProvider(this, provider);
 	}

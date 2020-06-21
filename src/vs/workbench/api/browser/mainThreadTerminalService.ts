@@ -176,7 +176,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $startLinkProvider(): void {
 		this._linkProvider?.dispose();
-		// TODO: Verify sharing a link provider works fine with removal of intersecting links
 		this._linkProvider = this._terminalService.registerLinkProvider(new ExtensionTerminalLinkProvider(this._proxy));
 	}
 
@@ -432,10 +431,7 @@ class ExtensionTerminalLinkProvider implements ITerminalExternalLinkProvider {
 			startIndex: dto.startIndex,
 			length: dto.length,
 			label: dto.label,
-			activate(text: string) {
-				console.log('Activated! ' + text);
-				proxy.$activateLink(instance.id, dto.id);
-			}
+			activate: () => proxy.$activateLink(instance.id, dto.id)
 		}));
 	}
 }

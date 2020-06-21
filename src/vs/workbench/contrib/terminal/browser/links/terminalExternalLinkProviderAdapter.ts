@@ -50,7 +50,6 @@ export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvide
 			return [];
 		}
 
-		// TODO: Add handling default handling of links via the target property on the ext host
 		return externalLinks.map(link => {
 			const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
 				startColumn: link.startIndex + 1,
