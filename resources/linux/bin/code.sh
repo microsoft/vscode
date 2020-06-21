@@ -5,7 +5,7 @@
 
 # test that VSCode wasn't installed inside WSL
 if grep -qi Microsoft /proc/version && [ -z "$DONT_PROMPT_WSL_INSTALL" ]; then
-	echo "To use VS Code with the Windows Subsystem for Linux, please install VS Code in Windows and uninstall the Linux version in WSL. You can then use the '@@PRODNAME@@' command in a WSL terminal just as you would in a normal command prompt." 1>&2
+	echo "To use @@PRODNAME@@ with the Windows Subsystem for Linux, please install @@PRODNAME@@ in Windows and uninstall the Linux version in WSL. You can then use the \`@@NAME@@\` command in a WSL terminal just as you would in a normal command prompt." 1>&2
 	printf "Do you want to continue anyway? [y/N] " 1>&2
 	read -r YN
 	YN=$(printf '%s' "$YN" | tr '[:upper:]' '[:lower:]')
