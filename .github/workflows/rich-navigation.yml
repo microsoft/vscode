@@ -13,7 +13,9 @@ jobs:
     - name: Use Node.js
       uses: actions/setup-node@v1
     - name: Install dependencies
-      run: yarn install
+      run: yarn --frozen-lockfile
     - uses: microsoft/RichCodeNavIndexer@master
       with:
         languages: typescript
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+      continue-on-error: true
