@@ -1230,6 +1230,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	dispose() {
 		this._isDisposed = true;
+		// dispose webview first
+		this._webview?.dispose();
+
 		this.notebookService.removeNotebookEditor(this);
 		const keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
@@ -1239,7 +1242,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._localStore.clear();
 		this._list?.dispose();
-		this._webview?.dispose();
 
 		this._overlayContainer.remove();
 		this.viewModel?.dispose();
