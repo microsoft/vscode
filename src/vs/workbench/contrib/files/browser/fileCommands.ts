@@ -178,7 +178,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				// Dispose once no more diff editor is opened with the scheme
 				if (registerEditorListener) {
 					providerDisposables.push(editorService.onDidVisibleEditorsChange(() => {
-						if (!editorService.editors.some(editor => !!toResource(editor, { supportSideBySide: SideBySideEditor.DETAILS, filterByScheme: COMPARE_WITH_SAVED_SCHEMA }))) {
+						if (!editorService.editors.some(editor => !!toResource(editor, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: COMPARE_WITH_SAVED_SCHEMA }))) {
 							providerDisposables = dispose(providerDisposables);
 						}
 					}));
@@ -356,8 +356,8 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 			// We only allow this when saving, not for "Save As".
 			// See also https://github.com/microsoft/vscode/issues/4180
 			if (activeGroup.activeEditor instanceof SideBySideEditorInput && !options?.saveAs) {
-				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.master });
-				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.details });
+				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
+				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
 			} else {
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor });
 			}
@@ -380,7 +380,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 		const resource = focusedCodeEditor.getModel()?.uri;
 
 		// Check that the resource of the model was not saved already
-		if (resource && !editors.some(({ editor }) => isEqual(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }), resource))) {
+		if (resource && !editors.some(({ editor }) => isEqual(toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), resource))) {
 			const model = textFileService.files.get(resource);
 			if (!model?.isReadonly()) {
 				await textFileService.save(resource, options);

@@ -173,28 +173,28 @@ interface ISerializedSideBySideEditorInput {
 	name: string;
 	description: string | undefined;
 
-	detailsSerialized: string;
-	masterSerialized: string;
+	primarySerialized: string;
+	secondarySerialized: string;
 
-	detailsTypeId: string;
-	masterTypeId: string;
+	primaryTypeId: string;
+	secondaryTypeId: string;
 }
 
 export abstract class AbstractSideBySideEditorInputFactory implements IEditorInputFactory {
 
-	private getInputFactories(detailsId: string, masterId: string): [IEditorInputFactory | undefined, IEditorInputFactory | undefined] {
+	private getInputFactories(secondaryId: string, primaryId: string): [IEditorInputFactory | undefined, IEditorInputFactory | undefined] {
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
 
-		return [registry.getEditorInputFactory(detailsId), registry.getEditorInputFactory(masterId)];
+		return [registry.getEditorInputFactory(secondaryId), registry.getEditorInputFactory(primaryId)];
 	}
 
 	canSerialize(editorInput: EditorInput): boolean {
 		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
 
-		if (input.details && input.master) {
-			const [detailsInputFactory, masterInputFactory] = this.getInputFactories(input.details.getTypeId(), input.master.getTypeId());
+		if (input.primary && input.secondary) {
+			const [secondaryInputFactory, primaryInputFactory] = this.getInputFactories(input.secondary.getTypeId(), input.primary.getTypeId());
 
-			return !!(detailsInputFactory?.canSerialize(input.details) && masterInputFactory?.canSerialize(input.master));
+			return !!(secondaryInputFactory?.canSerialize(input.secondary) && primaryInputFactory?.canSerialize(input.primary));
 		}
 
 		return false;
@@ -203,20 +203,20 @@ export abstract class AbstractSideBySideEditorInputFactory implements IEditorInp
 	serialize(editorInput: EditorInput): string | undefined {
 		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
 
-		if (input.details && input.master) {
-			const [detailsInputFactory, masterInputFactory] = this.getInputFactories(input.details.getTypeId(), input.master.getTypeId());
-			if (detailsInputFactory && masterInputFactory) {
-				const detailsSerialized = detailsInputFactory.serialize(input.details);
-				const masterSerialized = masterInputFactory.serialize(input.master);
+		if (input.primary && input.secondary) {
+			const [secondaryInputFactory, primaryInputFactory] = this.getInputFactories(input.secondary.getTypeId(), input.primary.getTypeId());
+			if (primaryInputFactory && secondaryInputFactory) {
+				const primarySerialized = primaryInputFactory.serialize(input.primary);
+				const secondarySerialized = secondaryInputFactory.serialize(input.secondary);
 
-				if (detailsSerialized && masterSerialized) {
+				if (primarySerialized && secondarySerialized) {
 					const serializedEditorInput: ISerializedSideBySideEditorInput = {
 						name: input.getName(),
 						description: input.getDescription(),
-						detailsSerialized,
-						masterSerialized,
-						detailsTypeId: input.details.getTypeId(),
-						masterTypeId: input.master.getTypeId()
+						primarySerialized: primarySerialized,
+						secondarySerialized: secondarySerialized,
+						primaryTypeId: input.primary.getTypeId(),
+						secondaryTypeId: input.secondary.getTypeId()
 					};
 
 					return JSON.stringify(serializedEditorInput);
@@ -230,33 +230,33 @@ export abstract class AbstractSideBySideEditorInputFactory implements IEditorInp
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const deserialized: ISerializedSideBySideEditorInput = JSON.parse(serializedEditorInput);
 
-		const [detailsInputFactory, masterInputFactory] = this.getInputFactories(deserialized.detailsTypeId, deserialized.masterTypeId);
-		if (detailsInputFactory && masterInputFactory) {
-			const detailsInput = detailsInputFactory.deserialize(instantiationService, deserialized.detailsSerialized);
-			const masterInput = masterInputFactory.deserialize(instantiationService, deserialized.masterSerialized);
+		const [secondaryInputFactory, primaryInputFactory] = this.getInputFactories(deserialized.secondaryTypeId, deserialized.primaryTypeId);
+		if (primaryInputFactory && secondaryInputFactory) {
+			const primaryInput = primaryInputFactory.deserialize(instantiationService, deserialized.primarySerialized);
+			const secondaryInput = secondaryInputFactory.deserialize(instantiationService, deserialized.secondarySerialized);
 
-			if (detailsInput && masterInput) {
-				return this.createEditorInput(deserialized.name, deserialized.description, detailsInput, masterInput);
+			if (primaryInput && secondaryInput) {
+				return this.createEditorInput(deserialized.name, deserialized.description, secondaryInput, primaryInput);
 			}
 		}
 
 		return undefined;
 	}
 
-	protected abstract createEditorInput(name: string, description: string | undefined, detailsInput: EditorInput, masterInput: EditorInput): EditorInput;
+	protected abstract createEditorInput(name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput;
 }
 
 class SideBySideEditorInputFactory extends AbstractSideBySideEditorInputFactory {
 
-	protected createEditorInput(name: string, description: string | undefined, detailsInput: EditorInput, masterInput: EditorInput): EditorInput {
-		return new SideBySideEditorInput(name, description, detailsInput, masterInput);
+	protected createEditorInput(name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
+		return new SideBySideEditorInput(name, description, secondaryInput, primaryInput);
 	}
 }
 
 class DiffEditorInputFactory extends AbstractSideBySideEditorInputFactory {
 
-	protected createEditorInput(name: string, description: string | undefined, detailsInput: EditorInput, masterInput: EditorInput): EditorInput {
-		return new DiffEditorInput(name, description, detailsInput, masterInput);
+	protected createEditorInput(name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
+		return new DiffEditorInput(name, description, secondaryInput, primaryInput);
 	}
 }
 

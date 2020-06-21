@@ -7,20 +7,30 @@
 
 'use strict';
 
+const withDefaults = require('../shared.webpack.config');
 const path = require('path');
 
-const withDefaults = require('../shared.webpack.config');
-
-module.exports = withDefaults({
+const clientConfig = withDefaults({
+	target: 'webworker',
 	context: __dirname,
 	entry: {
-		extension: './src/npmMain.ts',
+		extension: './src/npmBrowserMain.ts'
 	},
 	output: {
-		filename: 'npmMain.js',
+		filename: 'npmBrowserMain.js'
+	},
+	performance: {
+		hints: false
 	},
 	resolve: {
-		mainFields: ['module', 'main'],
-		extensions: ['.ts', '.js'] // support ts-files and js-files
+		alias: {
+			'vscode-nls': path.resolve(__dirname, '../../build/polyfills/vscode-nls.js')
+		}
+	},
+	node: {
+		'child_process': 'empty'
 	}
 });
+clientConfig.module.rules[0].use.shift(); // remove nls loader
+
+module.exports = clientConfig;

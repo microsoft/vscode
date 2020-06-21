@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.47.0",
-  "distro": "9521a559bbdc4e0fb1de84f14deb16cf56e7fdfa",
+  "distro": "6eb887883773e6b33879837bdf8dda3340a9fa75",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -41,7 +41,7 @@
     "graceful-fs": "4.2.3",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",
-    "iconv-lite-umd": "0.6.2",
+    "iconv-lite-umd": "0.6.3",
     "jschardet": "2.1.1",
     "keytar": "^5.5.0",
     "minimist": "^1.2.5",
@@ -98,7 +98,7 @@
     "css-loader": "^3.2.0",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "7.3.1",
+    "electron": "8.3.3",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
     "event-stream": "3.3.4",

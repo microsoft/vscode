@@ -357,6 +357,7 @@ export interface IUserDataSyncService {
 
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
+	readonly onSynchronizeResource: Event<SyncResource>;
 
 	readonly conflicts: SyncResourceConflicts[];
 	readonly onDidChangeConflicts: Event<SyncResourceConflicts[]>;
@@ -390,6 +391,8 @@ export interface IUserDataSyncService {
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
+	readonly onTurnOnSync: Event<void>
+	readonly onDidTurnOnSync: Event<UserDataSyncError | undefined>
 	readonly onError: Event<UserDataSyncError>;
 	readonly onDidChangeEnablement: Event<boolean>;
 	isEnabled(): boolean;
