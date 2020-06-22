@@ -1215,12 +1215,13 @@ class SCMInputWidget extends Disposable {
 		updateTemplate();
 
 		// Update visibility
-		const onDidChangeVisibility = () => {
-			toggleClass(this.element, 'hidden', !input.visible);
-			this._onDidChangeHeight.fire();
-		};
-		this.repositoryDisposables.add(input.onDidChangeVisibility(onDidChangeVisibility, this));
-		onDidChangeVisibility();
+		// TODO@Joao: input visibility should be a list splice
+		// const onDidChangeVisibility = () => {
+		// 	toggleClass(this.element, 'hidden', !input.visible);
+		// 	this._onDidChangeHeight.fire();
+		// };
+		// this.repositoryDisposables.add(input.onDidChangeVisibility(onDidChangeVisibility, this));
+		// onDidChangeVisibility();
 
 		// Save model
 		this.model = { input, textModel };
