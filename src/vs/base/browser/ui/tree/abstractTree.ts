@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IListOptions, List, IListStyles, MouseController, DefaultKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List, IListStyles, MouseController, DefaultKeyboardNavigationDelegate, isInputElement, isMonacoEditor } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider, IKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, hasParentWithClass, createStyleSheet, clearNode, addClasses, removeClasses } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
@@ -917,10 +917,6 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	}
 }
 
-function isInputElement(e: HTMLElement): boolean {
-	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
-}
-
 function asTreeMouseEvent<T>(event: IListMouseEvent<ITreeNode<T, any>>): ITreeMouseEvent<T> {
 	let target: TreeMouseEventTarget = TreeMouseEventTarget.Unknown;
 
@@ -1084,7 +1080,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 	}
 
 	protected onViewPointer(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
-		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 

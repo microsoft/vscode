@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { append, $, addClass, toggleClass, removeClass } from 'vs/base/browser/dom';
+import { append, $, addClass, toggleClass, removeClass, Dimension } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
@@ -141,6 +141,11 @@ class StatusBarActionViewItem extends ActionViewItem {
 	}
 }
 
+interface ISCMLayout {
+	height: number | undefined;
+	width: number | undefined;
+	readonly onDidChange: Event<void>;
+}
 
 interface RepositoryTemplate {
 	readonly name: HTMLElement;
@@ -148,6 +153,7 @@ interface RepositoryTemplate {
 	readonly countContainer: HTMLElement;
 	readonly count: CountBadge;
 	readonly actionBar: ActionBar;
+	readonly input: SCMInput;
 	disposable: IDisposable;
 	readonly templateDisposable: IDisposable;
 }
@@ -161,8 +167,10 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 	readonly onDidRenderElement = this._onDidRenderElement.event;
 
 	constructor(
-		@ICommandService protected commandService: ICommandService,
-		@IThemeService protected themeService: IThemeService
+		private layoutCache: ISCMLayout,
+		@ICommandService private commandService: ICommandService,
+		@IThemeService private themeService: IThemeService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 	) { }
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
@@ -170,21 +178,27 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-twistie');
 
 		const provider = append(container, $('.scm-provider'));
-		append(provider, $('span.icon.codicon.codicon-repo'));
-		const label = append(provider, $('.label'));
+
+		const header = append(provider, $('.header'));
+		append(header, $('span.icon.codicon.codicon-repo'));
+		const label = append(header, $('.label'));
 		const name = append(label, $('span.name'));
 		const description = append(label, $('span.description'));
-		const actionBar = new ActionBar(provider, { actionViewItemProvider: a => new StatusBarActionViewItem(a as StatusBarAction) });
-		const countContainer = append(provider, $('.count'));
+		const actionBar = new ActionBar(header, { actionViewItemProvider: a => new StatusBarActionViewItem(a as StatusBarAction) });
+		const countContainer = append(header, $('.count'));
 		const count = new CountBadge(countContainer);
 		const badgeStyler = attachBadgeStyler(count, this.themeService);
-		const disposable = Disposable.None;
-		const templateDisposable = combinedDisposable(actionBar, badgeStyler);
 
-		return { name, description, countContainer, count, actionBar, disposable, templateDisposable };
+		const body = append(provider, $('.body'));
+		const input = this.instantiationService.createInstance(SCMInput, body);
+
+		const disposable = Disposable.None;
+		const templateDisposable = combinedDisposable(actionBar, badgeStyler, input);
+
+		return { name, description, countContainer, count, actionBar, input, disposable, templateDisposable };
 	}
 
-	renderElement(node: ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate): void {
+	renderElement(node: ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
 		templateData.disposable.dispose();
 
 		const disposables = new DisposableStore();
@@ -219,6 +233,13 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 
 		disposables.add(repository.provider.onDidChange(update, null));
 		update();
+
+		templateData.input.repository = repository;
+		disposables.add({ dispose: () => templateData.input.repository = undefined });
+
+		const layoutEditor = () => templateData.input.layout();
+		disposables.add(this.layoutCache.onDidChange(layoutEditor));
+		layoutEditor();
 
 		templateData.disposable = disposables;
 	}
@@ -1023,6 +1044,10 @@ class SCMInput extends Disposable {
 	private _onDidChangeHeight = new Emitter<void>();
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
+	get repository(): ISCMRepository | undefined {
+		return this.model?.repository;
+	}
+
 	set repository(repository: ISCMRepository | undefined) {
 		this.repositoryDisposables.dispose();
 		this.repositoryDisposables = new DisposableStore();
@@ -1082,6 +1107,7 @@ class SCMInput extends Disposable {
 		};
 
 		const triggerValidation = () => validationDelayer.trigger(validate);
+		this.repositoryDisposables.add(validationDelayer);
 		this.repositoryDisposables.add(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
 
 		// Adaptive indentation rules
@@ -1216,6 +1242,21 @@ class SCMInput extends Disposable {
 		this._register(onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 	}
 
+	layout(): void {
+		// const editorContentHeight = this.inputEditor.getContentHeight();
+		// const editorHeight = Math.min(editorContentHeight, 134);
+
+		const dimension: Dimension = {
+			width: this.element.clientWidth - 2,
+			height: 26,
+			// height: editorHeight - 2
+		};
+
+		// templateData.input.layout(/* { height: editorHeight, width: this.layoutCache.width! - 12 - 2 - 2 } */);
+		this.inputEditor.layout(dimension);
+		// this.validationContainer.style.top = `${dimension.height + 1}px`;
+	}
+
 	private getInputEditorFontFamily(): string {
 		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily').trim();
 
@@ -1233,9 +1274,13 @@ class SCMInput extends Disposable {
 
 export class SCMViewPane extends ViewPane {
 
-	// TODO@joao: can we remove these?
-	private cachedHeight: number | undefined = undefined;
-	private cachedWidth: number | undefined = undefined;
+	private _onDidLayout = new Emitter<void>();
+	private layoutCache: ISCMLayout = {
+		height: undefined,
+		width: undefined,
+		onDidChange: this._onDidLayout.event
+	};
+
 	private listContainer!: HTMLElement;
 	private tree!: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 	private viewModel!: ViewModel;
@@ -1287,7 +1332,7 @@ export class SCMViewPane extends ViewPane {
 		this._register(actionRunner.onDidBeforeRun(() => this.tree.domFocus()));
 
 		const renderers = [
-			new RepositoryRenderer(this.commandService, this.themeService),
+			new RepositoryRenderer(this.layoutCache, this.commandService, this.themeService, this.instantiationService),
 			new ResourceGroupRenderer(actionViewItemProvider, this.themeService, this.menus),
 			new ResourceRenderer(() => this.viewModel, this.listLabels, actionViewItemProvider, actionRunner, this.themeService, this.menus)
 		];
@@ -1306,6 +1351,8 @@ export class SCMViewPane extends ViewPane {
 			{
 				identityProvider,
 				horizontalScrolling: false,
+				setRowLineHeight: false,
+				expandOnlyOnTwistieClick: e => isSCMRepository(e),
 				filter,
 				sorter,
 				keyboardNavigationLabelProvider,
@@ -1360,7 +1407,7 @@ export class SCMViewPane extends ViewPane {
 		this.storageService.store(`scm.viewMode`, this.viewModel.mode, StorageScope.WORKSPACE);
 	}
 
-	layoutBody(height: number | undefined = this.cachedHeight, width: number | undefined = this.cachedWidth): void {
+	layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
 		if (height === undefined) {
 			return;
 		}
@@ -1369,8 +1416,9 @@ export class SCMViewPane extends ViewPane {
 			super.layoutBody(height, width);
 		}
 
-		this.cachedHeight = height;
-		this.cachedWidth = width;
+		this.layoutCache.height = height;
+		this.layoutCache.width = width;
+		this._onDidLayout.fire();
 
 		// if (this.repository.input.visible) {
 		// 	removeClass(this.inputContainer, 'hidden');
