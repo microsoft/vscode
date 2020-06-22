@@ -1106,11 +1106,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		}
 
 		// Persist centered view state
-		const centeredLayoutState = this.centeredLayoutWidget.state;
-		if (this.centeredLayoutWidget.isDefault(centeredLayoutState)) {
-			delete this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY];
-		} else {
-			this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = centeredLayoutState;
+		if (this.centeredLayoutWidget) {
+			const centeredLayoutState = this.centeredLayoutWidget.state;
+			if (this.centeredLayoutWidget.isDefault(centeredLayoutState)) {
+				delete this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY];
+			} else {
+				this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = centeredLayoutState;
+			}
 		}
 
 		super.saveState();
