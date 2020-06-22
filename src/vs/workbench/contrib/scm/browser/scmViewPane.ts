@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
+import { append, $, addClass, toggleClass, removeClass } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
@@ -58,7 +58,7 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import * as platform from 'vs/base/common/platform';
-import { escape, compare } from 'vs/base/common/strings';
+import { escape, compare, format } from 'vs/base/common/strings';
 import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -995,24 +995,223 @@ class SCMSortByStatusAction extends SCMSortAction {
 	}
 }
 
-export class SCMViewPane extends ViewPane {
+class SCMInput extends Disposable {
 
 	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
+
+	private element: HTMLElement;
+	private validationContainer: HTMLElement;
+	private inputEditor: CodeEditorWidget;
+	private inputModel: ITextModel;
+	private commitTemplate = '';
+	protected contextKeyService: IContextKeyService;
+
+	private _onDidChangeHeight = new Emitter<void>();
+	readonly onDidChangeHeight = this._onDidChangeHeight.event;
+
+	constructor(
+		container: HTMLElement,
+		private repository: ISCMRepository,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IConfigurationService protected configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		this.element = append(container, $('.scm-editor'));
+
+		this.contextKeyService = contextKeyService.createScoped(this.element);
+		this.contextKeyService.createKey('scmRepository', repository);
+
+		const editorContainer = append(this.element, $('.scm-editor-container'));
+
+		const placeholderTextContainer = append(editorContainer, $('.scm-editor-placeholder'));
+		const updatePlaceholder = () => {
+			const binding = keybindingService.lookupKeybinding('scm.acceptInput');
+			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
+			const placeholderText = format(repository.input.placeholder, label);
+
+			this.inputEditor.updateOptions({ ariaLabel: placeholderText });
+			placeholderTextContainer.textContent = placeholderText;
+		};
+
+		this.validationContainer = append(editorContainer, $('.scm-editor-validation'));
+
+		const validationDelayer = new ThrottledDelayer<any>(200);
+		const validate = () => {
+			const position = this.inputEditor.getSelection()?.getStartPosition();
+			const offset = position && this.inputModel.getOffsetAt(position);
+			const value = this.inputModel.getValue();
+
+			return repository.input.validateInput(value, offset || 0).then(result => {
+				if (!result) {
+					removeClass(editorContainer, 'validation-info');
+					removeClass(editorContainer, 'validation-warning');
+					removeClass(editorContainer, 'validation-error');
+					removeClass(this.validationContainer, 'validation-info');
+					removeClass(this.validationContainer, 'validation-warning');
+					removeClass(this.validationContainer, 'validation-error');
+					this.validationContainer.textContent = null;
+				} else {
+					toggleClass(editorContainer, 'validation-info', result.type === InputValidationType.Information);
+					toggleClass(editorContainer, 'validation-warning', result.type === InputValidationType.Warning);
+					toggleClass(editorContainer, 'validation-error', result.type === InputValidationType.Error);
+					toggleClass(this.validationContainer, 'validation-info', result.type === InputValidationType.Information);
+					toggleClass(this.validationContainer, 'validation-warning', result.type === InputValidationType.Warning);
+					toggleClass(this.validationContainer, 'validation-error', result.type === InputValidationType.Error);
+					this.validationContainer.textContent = result.message;
+				}
+			});
+		};
+
+		const triggerValidation = () => validationDelayer.trigger(validate);
+
+		const editorOptions: IEditorConstructionOptions = {
+			...getSimpleEditorOptions(),
+			lineDecorationsWidth: 4,
+			dragAndDrop: false,
+			cursorWidth: 1,
+			fontSize: 13,
+			lineHeight: 20,
+			fontFamily: this.getInputEditorFontFamily(),
+			wrappingStrategy: 'advanced',
+			wrappingIndent: 'none',
+			padding: { top: 3, bottom: 3 },
+			quickSuggestions: false
+		};
+		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+			isSimpleWidget: true,
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				SuggestController.ID,
+				SnippetController2.ID,
+				MenuPreventer.ID,
+				SelectionClipboardContributionID,
+				ContextMenuController.ID,
+				ColorDetector.ID,
+				ModesHoverController.ID,
+				LinkDetector.ID
+			])
+		};
+
+		const services = new ServiceCollection([IContextKeyService, this.contextKeyService]);
+		const instantiationService2 = instantiationService.createChild(services);
+		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, editorContainer, editorOptions, codeEditorWidgetOptions);
+
+		this._register(this.inputEditor);
+
+		this._register(this.inputEditor.onDidFocusEditorText(() => addClass(editorContainer, 'synthetic-focus')));
+		this._register(this.inputEditor.onDidBlurEditorText(() => removeClass(editorContainer, 'synthetic-focus')));
+
+		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
+		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
+
+		let query: string | undefined;
+
+		if (repository.provider.rootUri) {
+			query = `rootUri=${encodeURIComponent(repository.provider.rootUri.toString())}`;
+		}
+
+		const uri = URI.from({
+			scheme: Schemas.vscode,
+			path: `scm/${repository.provider.contextValue}/${repository.provider.id}/input`,
+			query
+		});
+
+		this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
+
+		const mode = modeService.create('scminput');
+		this.inputModel = modelService.getModel(uri) || modelService.createModel('', mode, uri);
+		this.inputEditor.setModel(this.inputModel);
+
+		this._register(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
+
+		const opts = modelService.getCreationOptions(this.inputModel.getLanguageIdentifier().language, this.inputModel.uri, this.inputModel.isForSimpleWidget);
+		const onEnter = Event.filter(this.inputEditor.onKeyDown, e => e.keyCode === KeyCode.Enter);
+		this._register(onEnter(() => this.inputModel.detectIndentation(opts.insertSpaces, opts.tabSize)));
+
+		// Keep model in sync with API
+		this.inputModel.setValue(repository.input.value);
+		this._register(repository.input.onDidChange(value => {
+			if (value === this.inputModel.getValue()) {
+				return;
+			}
+			this.inputModel.setValue(value);
+			this.inputEditor.setPosition(this.inputModel.getFullModelRange().getEndPosition());
+		}));
+
+		// Keep API in sync with model and update placeholder and validation
+		toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
+		this.inputModel.onDidChangeContent(() => {
+			repository.input.value = this.inputModel.getValue();
+			toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
+			triggerValidation();
+		});
+
+		updatePlaceholder();
+		this._register(repository.input.onDidChangePlaceholder(updatePlaceholder, null));
+		this._register(keybindingService.onDidUpdateKeybindings(updatePlaceholder, null));
+
+		const onDidChangeContentHeight = Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged);
+		this._register(onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
+
+		this._register(repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
+		this.onDidChangeCommitTemplate();
+
+		// Input box visibility
+		this._register(repository.input.onDidChangeVisibility(this.updateInputBoxVisibility, this));
+		this.updateInputBoxVisibility();
+	}
+
+	private getInputEditorFontFamily(): string {
+		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily').trim();
+
+		if (inputFontFamily.toLowerCase() === 'editor') {
+			return this.configurationService.getValue<string>('editor.fontFamily').trim();
+		}
+
+		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {
+			return inputFontFamily;
+		}
+
+		return this.defaultInputFontFamily;
+	}
+
+	private onDidChangeCommitTemplate(): void {
+		if (typeof this.repository.provider.commitTemplate === 'undefined' || !this.repository.input.visible) {
+			return;
+		}
+
+		const oldCommitTemplate = this.commitTemplate;
+		this.commitTemplate = this.repository.provider.commitTemplate;
+
+		const value = this.inputModel.getValue();
+
+		if (value && value !== oldCommitTemplate) {
+			return;
+		}
+
+		this.inputModel.setValue(this.commitTemplate);
+	}
+
+	private updateInputBoxVisibility(): void {
+		toggleClass(this.element, 'hidden', !this.repository.input.visible);
+		this._onDidChangeHeight.fire();
+	}
+}
+
+export class SCMViewPane extends ViewPane {
 
 	// TODO@joao: can we remove these?
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
-	private inputContainer!: HTMLElement;
-	private validationContainer!: HTMLElement;
-	private inputEditor!: CodeEditorWidget;
-	private inputModel!: ITextModel;
 	private listContainer!: HTMLElement;
 	private tree!: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 	private viewModel!: ViewModel;
 	private listLabels!: ResourceLabels;
 	private menus = new Map<ISCMProvider, SCMMenus>();
-	// protected contextKeyService: IContextKeyService;
-	private commitTemplate = '';
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1030,162 +1229,15 @@ export class SCMViewPane extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService,
 		@IStorageService private storageService: IStorageService,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-
 		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
-
-		// TODO@joao: move this to the container of the input box
-		// this.contextKeyService = contextKeyService.createScoped(this.element);
-		// this.contextKeyService.createKey('scmRepository', this.repository);
 	}
 
 	protected renderBody(container: HTMLElement): void {
 		super.renderBody(container);
-
-		// TODO@joao: Input
-		// this.inputContainer = append(container, $('.scm-editor'));
-		// const editorContainer = append(this.inputContainer, $('.scm-editor-container'));
-
-		// const placeholderTextContainer = append(editorContainer, $('.scm-editor-placeholder'));
-		// const updatePlaceholder = () => {
-		// 	const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
-		// 	const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
-		// 	const placeholderText = format(this.repository.input.placeholder, label);
-
-		// 	this.inputEditor.updateOptions({ ariaLabel: placeholderText });
-		// 	placeholderTextContainer.textContent = placeholderText;
-		// };
-
-		// this.validationContainer = append(editorContainer, $('.scm-editor-validation'));
-
-		// const validationDelayer = new ThrottledDelayer<any>(200);
-		// const validate = () => {
-		// 	const position = this.inputEditor.getSelection()?.getStartPosition();
-		// 	const offset = position && this.inputModel.getOffsetAt(position);
-		// 	const value = this.inputModel.getValue();
-
-		// 	return this.repository.input.validateInput(value, offset || 0).then(result => {
-		// 		if (!result) {
-		// 			removeClass(editorContainer, 'validation-info');
-		// 			removeClass(editorContainer, 'validation-warning');
-		// 			removeClass(editorContainer, 'validation-error');
-		// 			removeClass(this.validationContainer, 'validation-info');
-		// 			removeClass(this.validationContainer, 'validation-warning');
-		// 			removeClass(this.validationContainer, 'validation-error');
-		// 			this.validationContainer.textContent = null;
-		// 		} else {
-		// 			toggleClass(editorContainer, 'validation-info', result.type === InputValidationType.Information);
-		// 			toggleClass(editorContainer, 'validation-warning', result.type === InputValidationType.Warning);
-		// 			toggleClass(editorContainer, 'validation-error', result.type === InputValidationType.Error);
-		// 			toggleClass(this.validationContainer, 'validation-info', result.type === InputValidationType.Information);
-		// 			toggleClass(this.validationContainer, 'validation-warning', result.type === InputValidationType.Warning);
-		// 			toggleClass(this.validationContainer, 'validation-error', result.type === InputValidationType.Error);
-		// 			this.validationContainer.textContent = result.message;
-		// 		}
-		// 	});
-		// };
-
-		// const triggerValidation = () => validationDelayer.trigger(validate);
-
-		// const editorOptions: IEditorConstructionOptions = {
-		// 	...getSimpleEditorOptions(),
-		// 	lineDecorationsWidth: 4,
-		// 	dragAndDrop: false,
-		// 	cursorWidth: 1,
-		// 	fontSize: 13,
-		// 	lineHeight: 20,
-		// 	fontFamily: this.getInputEditorFontFamily(),
-		// 	wrappingStrategy: 'advanced',
-		// 	wrappingIndent: 'none',
-		// 	padding: { top: 3, bottom: 3 },
-		// 	quickSuggestions: false
-		// };
-		// const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-		// 	isSimpleWidget: true,
-		// 	contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-		// 		SuggestController.ID,
-		// 		SnippetController2.ID,
-		// 		MenuPreventer.ID,
-		// 		SelectionClipboardContributionID,
-		// 		ContextMenuController.ID,
-		// 		ColorDetector.ID,
-		// 		ModesHoverController.ID,
-		// 		LinkDetector.ID
-		// 	])
-		// };
-
-		// const services = new ServiceCollection([IContextKeyService, this.contextKeyService]);
-		// const instantiationService = this.instantiationService.createChild(services);
-		// this.inputEditor = instantiationService.createInstance(CodeEditorWidget, editorContainer, editorOptions, codeEditorWidgetOptions);
-
-		// this._register(this.inputEditor);
-
-		// this._register(this.inputEditor.onDidFocusEditorText(() => addClass(editorContainer, 'synthetic-focus')));
-		// this._register(this.inputEditor.onDidBlurEditorText(() => removeClass(editorContainer, 'synthetic-focus')));
-
-		// const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
-		// this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
-
-		// let query: string | undefined;
-
-		// if (this.repository.provider.rootUri) {
-		// 	query = `rootUri=${encodeURIComponent(this.repository.provider.rootUri.toString())}`;
-		// }
-
-		// const uri = URI.from({
-		// 	scheme: Schemas.vscode,
-		// 	path: `scm/${this.repository.provider.contextValue}/${this.repository.provider.id}/input`,
-		// 	query
-		// });
-
-		// this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
-
-		// const mode = this.modeService.create('scminput');
-		// this.inputModel = this.modelService.getModel(uri) || this.modelService.createModel('', mode, uri);
-		// this.inputEditor.setModel(this.inputModel);
-
-		// this._register(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
-
-		// const opts = this.modelService.getCreationOptions(this.inputModel.getLanguageIdentifier().language, this.inputModel.uri, this.inputModel.isForSimpleWidget);
-		// const onEnter = Event.filter(this.inputEditor.onKeyDown, e => e.keyCode === KeyCode.Enter);
-		// this._register(onEnter(() => this.inputModel.detectIndentation(opts.insertSpaces, opts.tabSize)));
-
-		// Keep model in sync with API
-		// this.inputModel.setValue(this.repository.input.value);
-		// this._register(this.repository.input.onDidChange(value => {
-		// 	if (value === this.inputModel.getValue()) {
-		// 		return;
-		// 	}
-		// 	this.inputModel.setValue(value);
-		// 	this.inputEditor.setPosition(this.inputModel.getFullModelRange().getEndPosition());
-		// }));
-
-		// Keep API in sync with model and update placeholder and validation
-		// toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
-		// this.inputModel.onDidChangeContent(() => {
-		// 	this.repository.input.value = this.inputModel.getValue();
-		// 	toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
-		// 	triggerValidation();
-		// });
-
-		// updatePlaceholder();
-		// this._register(this.repository.input.onDidChangePlaceholder(updatePlaceholder, null));
-		// this._register(this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null));
-
-		// const onDidChangeContentHeight = Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged);
-		// this._register(onDidChangeContentHeight(() => this.layoutBody()));
-
-		// this._register(this.repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
-		// this.onDidChangeCommitTemplate();
-
-		// Input box visibility
-		// this._register(this.repository.input.onDidChangeVisibility(this.updateInputBoxVisibility, this));
-		// this.updateInputBoxVisibility();
 
 		// List
 		this.listContainer = append(container, $('.scm-status.show-file-icons'));
@@ -1423,43 +1475,6 @@ export class SCMViewPane extends ViewPane {
 		return this.tree.getSelection()
 			.filter(r => !!r && !isSCMResourceGroup(r))! as any;
 	}
-
-	// private onDidChangeCommitTemplate(): void {
-	// 	if (typeof this.repository.provider.commitTemplate === 'undefined' || !this.repository.input.visible) {
-	// 		return;
-	// 	}
-
-	// 	const oldCommitTemplate = this.commitTemplate;
-	// 	this.commitTemplate = this.repository.provider.commitTemplate;
-
-	// 	const value = this.inputModel.getValue();
-
-	// 	if (value && value !== oldCommitTemplate) {
-	// 		return;
-	// 	}
-
-	// 	this.inputModel.setValue(this.commitTemplate);
-	// }
-
-	// private updateInputBoxVisibility(): void {
-	// 	if (this.cachedHeight) {
-	// 		this.layoutBody(this.cachedHeight);
-	// 	}
-	// }
-
-	// private getInputEditorFontFamily(): string {
-	// 	const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily').trim();
-
-	// 	if (inputFontFamily.toLowerCase() === 'editor') {
-	// 		return this.configurationService.getValue<string>('editor.fontFamily').trim();
-	// 	}
-
-	// 	if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {
-	// 		return inputFontFamily;
-	// 	}
-
-	// 	return this.defaultInputFontFamily;
-	// }
 
 	shouldShowWelcome(): boolean {
 		return this.scmService.repositories.length === 0;
