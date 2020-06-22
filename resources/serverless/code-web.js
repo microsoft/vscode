@@ -61,10 +61,6 @@ const exists = (path) => util.promisify(fs.exists)(path);
 const readFile = (path) => util.promisify(fs.readFile)(path);
 const CharCode_PC = '%'.charCodeAt(0);
 
-function toStaticExtensionUri(path) {
-	return { scheme: SCHEME, authority: AUTHORITY, path: `/static-extension/${path}` };
-}
-
 async function initialize() {
 	const builtinExtensions = [];
 	const webpackConfigs = [];
@@ -84,9 +80,9 @@ async function initialize() {
 		}
 
 		const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-		const readmeUrl = readme ? toStaticExtensionUri(path.join(extensionPath, readme)) : undefined;
+		const readmePath = readme ? path.join(extensionPath, readme) : undefined;
 		const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
-		const changelogUrl = changelog ? toStaticExtensionUri(path.join(extensionPath, changelog)) : undefined;
+		const changelogPath = changelog ? path.join(extensionPath, changelog) : undefined;
 
 		const packageJSONPath = path.join(EXTENSIONS_ROOT, folderName, 'package.json');
 		if (await exists(packageJSONPath)) {
@@ -122,11 +118,11 @@ async function initialize() {
 				const packageNLSPath = path.join(folderName, 'package.nls.json');
 				const packageNLSExists = await exists(path.join(EXTENSIONS_ROOT, packageNLSPath));
 				builtinExtensions.push({
+					extensionPath: folderName,
 					packageJSON,
-					location: toStaticExtensionUri(folderName),
-					packageNLSUrl: packageNLSExists ? toStaticExtensionUri(packageNLSPath) : undefined,
-					readmeUrl,
-					changelogUrl
+					packageNLSPath: packageNLSExists ? packageNLSPath : undefined,
+					readmePath,
+					changelogPath
 				});
 			} catch (e) {
 				console.log(e);
@@ -271,6 +267,7 @@ async function handleRoot(req, res) {
 		folderUri: ghPath
 			? { scheme: 'github', authority: 'HEAD', path: ghPath }
 			: { scheme: 'memfs', path: `/sample-folder` },
+		builtinExtensionsServiceUrl: `${SCHEME}://${AUTHORITY}/static-extension`
 	}));
 
 	const data = (await util.promisify(fs.readFile)(WEB_MAIN)).toString()
