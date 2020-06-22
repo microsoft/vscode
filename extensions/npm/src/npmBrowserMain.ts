@@ -3,8 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkedString } from 'vscode';
+import * as httpRequest from 'request-light';
+import * as vscode from 'vscode';
+import { addJSONProviders } from './features/jsonContributions';
 
-export function textToMarkedString(text: string): MarkedString {
-	return text.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&'); // escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
+	context.subscriptions.push(addJSONProviders(httpRequest.xhr, false));
+}
+
+export function deactivate(): void {
 }

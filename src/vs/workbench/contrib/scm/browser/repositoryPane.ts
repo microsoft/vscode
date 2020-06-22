@@ -667,7 +667,7 @@ class ViewModel {
 			return;
 		}
 
-		const uri = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+		const uri = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		if (!uri) {
 			return;

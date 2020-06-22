@@ -20,14 +20,15 @@
   "dependencies": {
     "jsonc-parser": "^2.2.1",
     "minimatch": "^3.0.4",
-    "request-light": "^0.2.5",
+    "request-light": "^0.4.0",
     "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
     "@types/node": "^12.11.7"
   },
-  "main": "./out/main",
+  "main": "./out/npmMain",
+  "browser": "./dist/npmBrowserMain",
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask",
     "onCommand:npm.runScriptFromFolder",
@@ -181,12 +182,12 @@
         }
       ],
       "explorer/context": [
-				{
-					"when": "config.npm.enableRunFromFolder && explorerViewletVisible && explorerResourceIsFolder",
+        {
+          "when": "config.npm.enableRunFromFolder && explorerViewletVisible && explorerResourceIsFolder",
           "command": "npm.runScriptFromFolder",
-					"group": "2_workspace"
-				}
-			]
+          "group": "2_workspace"
+        }
+      ]
     },
     "configuration": {
       "id": "npm",

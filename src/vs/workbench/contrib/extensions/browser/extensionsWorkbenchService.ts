@@ -38,6 +38,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { asDomUri } from 'vs/base/browser/dom';
 import { getIgnoredExtensions } from 'vs/platform/userDataSync/common/extensionsMerge';
+import { isWeb } from 'vs/base/common/platform';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -489,6 +490,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private readonly localExtensions: Extensions | null = null;
 	private readonly remoteExtensions: Extensions | null = null;
+	private readonly webExtensions: Extensions | null = null;
 	private syncDelayer: ThrottledDelayer<void>;
 	private autoUpdateDelayer: ThrottledDelayer<void>;
 
@@ -522,6 +524,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (extensionManagementServerService.remoteExtensionManagementServer) {
 			this.remoteExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.remoteExtensionManagementServer, ext => this.getExtensionState(ext)));
 			this._register(this.remoteExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
+		}
+		if (extensionManagementServerService.webExtensionManagementServer) {
+			this.webExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.webExtensionManagementServer, ext => this.getExtensionState(ext)));
+			this._register(this.webExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
 		}
 
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
@@ -563,6 +569,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (this.remoteExtensions) {
 			result.push(...this.remoteExtensions.local);
 		}
+		if (this.webExtensions) {
+			result.push(...this.webExtensions.local);
+		}
 		return result;
 	}
 
@@ -573,6 +582,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		if (this.remoteExtensions) {
 			allLocal.push(...this.remoteExtensions.local);
+		}
+		if (this.webExtensions) {
+			allLocal.push(...this.webExtensions.local);
 		}
 		return allLocal.filter(e => e.outdated && e.local && e.state === ExtensionState.Installed);
 	}
@@ -585,6 +597,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (this.remoteExtensions && this.extensionManagementServerService.remoteExtensionManagementServer === server) {
 				return this.remoteExtensions.queryInstalled();
 			}
+			if (this.webExtensions && this.extensionManagementServerService.webExtensionManagementServer === server) {
+				return this.webExtensions.queryInstalled();
+			}
 		}
 
 		if (this.localExtensions) {
@@ -592,6 +607,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		if (this.remoteExtensions) {
 			await this.remoteExtensions.queryInstalled();
+		}
+		if (this.webExtensions) {
+			await this.webExtensions.queryInstalled();
 		}
 		return this.local;
 	}
@@ -647,18 +665,18 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (extensions.length === 1) {
 			return extensions[0];
 		}
-		const pickRemoteOrFirstExtension = (from: IExtension[]): IExtension => {
-			const remoteExtension = from.filter(e => e.server === this.extensionManagementServerService.remoteExtensionManagementServer)[0];
-			return remoteExtension ? remoteExtension : from[0];
-		};
 		const enabledExtensions = extensions.filter(e => e.local && this.extensionEnablementService.isEnabled(e.local));
-		return enabledExtensions.length === 1 ? enabledExtensions[0] : pickRemoteOrFirstExtension(extensions);
+		if (enabledExtensions.length === 1) {
+			return enabledExtensions[0];
+		}
+		return enabledExtensions.find(e => e.server === this.extensionManagementServerService.remoteExtensionManagementServer) || enabledExtensions[0];
 	}
 
 	private fromGallery(gallery: IGalleryExtension, maliciousExtensionSet: Set<string>): IExtension {
 		Promise.all([
 			this.localExtensions ? this.localExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false),
-			this.remoteExtensions ? this.remoteExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false)
+			this.remoteExtensions ? this.remoteExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false),
+			this.webExtensions ? this.webExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false)
 		])
 			.then(result => {
 				if (result[0] || result[1]) {
@@ -695,13 +713,20 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private getExtensionState(extension: Extension): ExtensionState {
 		const isInstalling = this.installing.some(i => areSameExtensions(i.identifier, extension.identifier));
 		if (extension.server) {
-			const state = (extension.server === this.extensionManagementServerService.localExtensionManagementServer ? this.localExtensions! : this.remoteExtensions!).getExtensionState(extension);
+			const state = (extension.server === this.extensionManagementServerService.localExtensionManagementServer
+				? this.localExtensions! : extension.server === this.extensionManagementServerService.remoteExtensionManagementServer ? this.remoteExtensions! : this.webExtensions!).getExtensionState(extension);
 			return state === ExtensionState.Uninstalled && isInstalling ? ExtensionState.Installing : state;
 		} else if (isInstalling) {
 			return ExtensionState.Installing;
 		}
 		if (this.remoteExtensions) {
 			const state = this.remoteExtensions.getExtensionState(extension);
+			if (state !== ExtensionState.Uninstalled) {
+				return state;
+			}
+		}
+		if (this.webExtensions) {
+			const state = this.webExtensions.getExtensionState(extension);
 			if (state !== ExtensionState.Uninstalled) {
 				return state;
 			}
@@ -783,7 +808,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		if (this.extensionManagementServerService.localExtensionManagementServer || this.extensionManagementServerService.remoteExtensionManagementServer) {
+		if (this.extensionManagementServerService.localExtensionManagementServer
+			|| this.extensionManagementServerService.remoteExtensionManagementServer
+			|| this.extensionManagementServerService.webExtensionManagementServer) {
 			return true;
 		}
 
@@ -867,9 +894,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	isExtensionIgnoredToSync(extension: IExtension): boolean {
-		const localExtensions = (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer
-			? this.local.filter(i => i.server === this.extensionManagementServerService.localExtensionManagementServer)
-			: this.local)
+		const localExtensions = (!isWeb && this.localExtensions ? this.localExtensions.local : this.local)
 			.filter(l => !!l.local)
 			.map(l => l.local!);
 
@@ -1059,7 +1084,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private _activityCallBack: (() => void) | null = null;
 	private updateActivity(): void {
 		if ((this.localExtensions && this.localExtensions.local.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling))
-			|| (this.remoteExtensions && this.remoteExtensions.local.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling))) {
+			|| (this.remoteExtensions && this.remoteExtensions.local.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling))
+			|| (this.webExtensions && this.webExtensions.local.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling))) {
 			if (!this._activityCallBack) {
 				this.progressService.withProgress({ location: ProgressLocation.Extensions }, () => new Promise(c => this._activityCallBack = c));
 			}

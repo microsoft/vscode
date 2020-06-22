@@ -18,6 +18,8 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 	declare readonly _serviceBrand: undefined;
 
 	private readonly channel: IChannel;
+	get onTurnOnSync(): Event<void> { return this.channel.listen<void>('onTurnOnSync'); }
+	get onDidTurnOnSync(): Event<UserDataSyncError | undefined> { return Event.map(this.channel.listen<Error | undefined>('onDidTurnOnSync'), e => e ? UserDataSyncError.toUserDataSyncError(e) : undefined); }
 	get onError(): Event<UserDataSyncError> { return Event.map(this.channel.listen<Error>('onError'), e => UserDataSyncError.toUserDataSyncError(e)); }
 
 	constructor(

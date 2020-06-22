@@ -12,7 +12,8 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { loadLocalResourceStream, webviewPartitionId, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
+import { loadLocalResource, webviewPartitionId, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 interface WebviewMetadata {
 	readonly extensionLocation: URI | undefined;
@@ -39,11 +40,31 @@ export class WebviewProtocolProvider extends Disposable {
 				const id = uri.authority;
 				const metadata = this.webviewMetadata.get(id);
 				if (metadata) {
-					const result = await loadLocalResourceStream(uri, {
+
+					// Try to further rewrite remote uris so that they go to the resolved server on the main thread
+					let rewriteUri: undefined | ((uri: URI) => URI);
+					if (metadata.remoteConnectionData) {
+						rewriteUri = (uri) => {
+							if (metadata.remoteConnectionData) {
+								if (uri.scheme === Schemas.vscodeRemote || (metadata.extensionLocation?.scheme === REMOTE_HOST_SCHEME)) {
+									const scheme = metadata.remoteConnectionData.host === 'localhost' || metadata.remoteConnectionData.host === '127.0.0.1' ? 'http' : 'https';
+									return URI.parse(`${scheme}://${metadata.remoteConnectionData.host}:${metadata.remoteConnectionData.port}`).with({
+										path: '/vscode-remote-resource',
+										query: `tkn=${metadata.remoteConnectionData.connectionToken}&path=${encodeURIComponent(uri.path)}`,
+									});
+								}
+							}
+							return uri;
+						};
+					}
+
+					const result = await loadLocalResource(uri, {
 						extensionLocation: metadata.extensionLocation,
 						roots: metadata.localResourceRoots,
 						remoteConnectionData: metadata.remoteConnectionData,
+						rewriteUri,
 					}, this.fileService, this.requestService);
+
 					if (result.type === WebviewResourceResponse.Type.Success) {
 						return callback({
 							statusCode: 200,

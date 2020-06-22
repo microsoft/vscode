@@ -25,6 +25,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { isWindows } from 'vs/base/common/platform';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -254,7 +255,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const options: ISaveDialogOptions = {
 			defaultUri,
 			title: nls.localize('saveAsTitle', "Save As"),
-			availableFileSystems,
+			availableFileSystems
 		};
 
 		interface IFilter { name: string; extensions: string[]; }
@@ -282,8 +283,12 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// We have no matching filter, e.g. because the language
 		// is unknown. We still add the extension to the list of
 		// filters though so that it can be picked
-		// (https://github.com/microsoft/vscode/issues/96283)
-		if (!matchingFilter && ext) {
+		// (https://github.com/microsoft/vscode/issues/96283) but
+		// only on Windows where this is an issue. Adding this to
+		// macOS would result in the following bugs:
+		// https://github.com/microsoft/vscode/issues/100614 and
+		// https://github.com/microsoft/vscode/issues/100241
+		if (isWindows && !matchingFilter && ext) {
 			matchingFilter = { name: trim(ext, '.').toUpperCase(), extensions: [trim(ext, '.')] };
 		}
 

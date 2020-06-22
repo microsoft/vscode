@@ -39,6 +39,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onDidChangeStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
 
+	private _onSynchronizeResource: Emitter<SyncResource> = this._register(new Emitter<SyncResource>());
+	readonly onSynchronizeResource: Event<SyncResource> = this._onSynchronizeResource.event;
+
 	readonly onDidChangeLocal: Event<SyncResource>;
 
 	private _conflicts: SyncResourceConflicts[] = [];
@@ -91,6 +94,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		try {
 			for (const synchroniser of this.synchronisers) {
 				try {
+					this._onSynchronizeResource.fire(synchroniser.resource);
 					await synchroniser.pull();
 				} catch (e) {
 					this.handleSynchronizerError(e, synchroniser.resource);
@@ -175,6 +179,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 					return;
 				}
 				try {
+					this._onSynchronizeResource.fire(synchroniser.resource);
 					await synchroniser.sync(manifest, syncHeaders);
 				} catch (e) {
 					this.handleSynchronizerError(e, synchroniser.resource);
