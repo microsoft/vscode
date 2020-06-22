@@ -1232,6 +1232,10 @@ class EditorClassName extends ComputedEditorOption<EditorOption.editorClassName,
 		if (options.get(EditorOption.showUnused)) {
 			className += ' showUnused';
 		}
+
+		if (options.get(EditorOption.showDeprecated)) {
+			className += ' showDeprecated';
+		}
 		return className;
 	}
 }
