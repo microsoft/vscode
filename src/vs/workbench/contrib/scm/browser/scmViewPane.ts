@@ -33,7 +33,7 @@ import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
-import { ISequence, ISplice } from 'vs/base/common/sequence';
+import { ISequence, ISplice, SimpleSequence } from 'vs/base/common/sequence';
 import { ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterable } from 'vs/base/common/iterator';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
@@ -885,29 +885,6 @@ class ViewModel {
 		}
 
 		this.items = [];
-	}
-}
-
-class SimpleSequence<T> implements ISequence<T> {
-
-	private _elements: T[];
-	get elements(): T[] { return this._elements; }
-
-	readonly onDidSplice: Event<ISplice<T>>;
-	private disposable: IDisposable;
-
-	constructor(elements: T[], onDidAdd: Event<T>, onDidRemove: Event<T>) {
-		this._elements = [...elements];
-		this.onDidSplice = Event.any(
-			Event.map(onDidAdd, e => ({ start: this.elements.length, deleteCount: 0, toInsert: [e] })),
-			Event.map(Event.filter(Event.map(onDidRemove, e => this.elements.indexOf(e)), i => i > -1), i => ({ start: i, deleteCount: 1, toInsert: [] }))
-		);
-
-		this.disposable = this.onDidSplice(({ start, deleteCount, toInsert }) => this._elements.splice(start, deleteCount, ...toInsert));
-	}
-
-	dispose(): void {
-		this.disposable.dispose();
 	}
 }
 
