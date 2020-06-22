@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
-import { IListStyles, IStyleController, MouseController, IListOptions } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -124,6 +124,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			notebookEditorCursorAtBoundaryContext.set('none');
 		}));
 
+		this._localDisposableStore.add(this.view.onMouseDblClick(() => {
+			const focus = this.getFocusedElements()[0];
+			if (focus && focus.cellKind === CellKind.Markdown) {
+				focus.editState = CellEditState.Editing;
+				focus.focusMode = CellFocusMode.Editor;
+			}
+		}));
 	}
 
 	elementAt(position: number): ICellViewModel | undefined {
@@ -144,10 +151,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		return this.view.elementHeight(index);
-	}
-
-	protected createMouseController(_options: IListOptions<CellViewModel>): MouseController<CellViewModel> {
-		return new NotebookMouseController(this);
 	}
 
 	detachViewModel() {
@@ -885,15 +888,4 @@ function getEditorAttachedPromise(element: CellViewModel) {
 
 function isContextMenuFocused() {
 	return !!DOM.findParentWithClass(<HTMLElement>document.activeElement, 'context-view');
-}
-
-
-class NotebookMouseController extends MouseController<CellViewModel> {
-	protected onDoubleClick(): void {
-		const focus = this.list.getFocusedElements()[0];
-		if (focus && focus.cellKind === CellKind.Markdown) {
-			focus.editState = CellEditState.Editing;
-			focus.focusMode = CellFocusMode.Editor;
-		}
-	}
 }

@@ -9,7 +9,7 @@ import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceS
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { ITerminalInstanceService, ITerminalService, ITerminalInstance, ITerminalBeforeHandleLinkEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalService, ITerminalInstance, ITerminalBeforeHandleLinkEvent, ITerminalExternalLinkProvider, ITerminalLink } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
@@ -25,6 +25,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
 	private _linkHandler: IDisposable | undefined;
+	/**
+	 * A single shared terminal link provider for the exthost. When an ext registers a link
+	 * provider, this is registered with the terminal on the renderer side and all links are
+	 * provided through this, even from multiple ext link providers. Xterm should remove lower
+	 * priority intersecting links itself.
+	 */
+	private _linkProvider: IDisposable | undefined;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -81,11 +88,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._proxy.$initEnvironmentVariableCollections(serializedCollections);
 		}
 
-		this._terminalService.extHostReady(extHostContext.remoteAuthority);
+		this._terminalService.extHostReady(extHostContext.remoteAuthority!); // TODO@Tyriar: remove null assertion
 	}
 
 	public dispose(): void {
 		this._toDispose.dispose();
+		this._linkHandler?.dispose();
+		this._linkProvider?.dispose();
 
 		// TODO@Daniel: Should all the previously created terminals be disposed
 		// when the extension host process goes down ?
@@ -162,6 +171,17 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $stopHandlingLinks(): void {
 		this._linkHandler?.dispose();
+		this._linkHandler = undefined;
+	}
+
+	public $startLinkProvider(): void {
+		this._linkProvider?.dispose();
+		this._linkProvider = this._terminalService.registerLinkProvider(new ExtensionTerminalLinkProvider(this._proxy));
+	}
+
+	public $stopLinkProvider(): void {
+		this._linkProvider?.dispose();
+		this._linkProvider = undefined;
 	}
 
 	private async _handleLink(e: ITerminalBeforeHandleLinkEvent): Promise<boolean> {
@@ -393,5 +413,24 @@ class TerminalDataEventTracker extends Disposable {
 	private _registerInstance(instance: ITerminalInstance): void {
 		// Buffer data events to reduce the amount of messages going to the extension host
 		this._register(this._bufferer.startBuffering(instance.id, instance.onData));
+	}
+}
+
+class ExtensionTerminalLinkProvider implements ITerminalExternalLinkProvider {
+	constructor(
+		private readonly _proxy: ExtHostTerminalServiceShape
+	) {
+	}
+
+	async provideLinks(instance: ITerminalInstance, line: string): Promise<ITerminalLink[] | undefined> {
+		const proxy = this._proxy;
+		const extHostLinks = await proxy.$provideLinks(instance.id, line);
+		return extHostLinks.map(dto => ({
+			id: dto.id,
+			startIndex: dto.startIndex,
+			length: dto.length,
+			label: dto.label,
+			activate: () => proxy.$activateLink(instance.id, dto.id)
+		}));
 	}
 }

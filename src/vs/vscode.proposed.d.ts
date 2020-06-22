@@ -1054,6 +1054,64 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Terminal link provider https://github.com/microsoft/vscode/issues/91606
+
+	export namespace window {
+		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
+	}
+
+	export interface TerminalLinkContext {
+		/**
+		 * This is the text from the unwrapped line in the terminal.
+		 */
+		line: string;
+
+		/**
+		 * The terminal the link belongs to.
+		 */
+		terminal: Terminal;
+	}
+
+	export interface TerminalLinkProvider<T = TerminalLink> {
+		provideTerminalLinks(context: TerminalLinkContext): ProviderResult<T[]>
+
+		/**
+		 * Handle an activated terminal link.
+		 *
+		 * @returns Whether the link was handled, if not VS Code will attempt to open it.
+		 */
+		handleTerminalLink(link: T): ProviderResult<boolean>;
+	}
+
+	export interface TerminalLink {
+		/**
+		 * The start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
+		 */
+		startIndex: number;
+
+		/**
+		 * The length of the link on [TerminalLinkContext.line](#TerminalLinkContext.line]
+		 */
+		length: number;
+
+		/**
+		 * The uri this link points to. If set, and {@link TerminalLinkProvider.handlerTerminalLink}
+		 * is not implemented or returns false, then VS Code will try to open the Uri.
+		 */
+		target?: Uri;
+
+		/**
+		 * The tooltip text when you hover over this link.
+		 *
+		 * If a tooltip is provided, is will be displayed in a string that includes instructions on
+		 * how to trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary
+		 * depending on OS, user settings, and localization.
+		 */
+		tooltip?: string;
+	}
+
+	//#endregion
+
 	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
@@ -1454,7 +1512,7 @@ declare module 'vscode' {
 		metadata: NotebookDocumentMetadata;
 	}
 
-	export interface NotebookConcatTextDocument {
+	export interface NotebookConcatTextDocument extends TextDocument {
 		isClosed: boolean;
 		dispose(): void;
 		onDidChange: Event<void>;
@@ -1525,8 +1583,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookOutputSelector {
-		type: string;
-		subTypes?: string[];
+		mimeTypes?: string[];
 	}
 
 	export interface NotebookRenderRequest {
@@ -1605,12 +1662,45 @@ declare module 'vscode' {
 		readonly metadata: NotebookDocumentMetadata;
 	}
 
+	interface NotebookDocumentContentChangeEvent {
+
+		/**
+		 * The document that the edit is for.
+		 */
+		readonly document: NotebookDocument;
+	}
+
 	interface NotebookDocumentEditEvent {
 
 		/**
 		 * The document that the edit is for.
 		 */
 		readonly document: NotebookDocument;
+
+		/**
+		 * Undo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user undoes this edit. To implement `undo`, your
+		 * extension should restore the document and editor to the state they were in just before this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
+		 */
+		undo(): Thenable<void> | void;
+
+		/**
+		 * Redo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user redoes this edit. To implement `redo`, your
+		 * extension should restore the document and editor to the state they were in just after this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
+		 */
+		redo(): Thenable<void> | void;
+
+		/**
+		 * Display name describing the edit.
+		 *
+		 * This will be shown to users in the UI for undo/redo operations.
+		 */
+		readonly label?: string;
 	}
 
 	interface NotebookDocumentBackup {
@@ -1640,10 +1730,28 @@ declare module 'vscode' {
 
 	export interface NotebookContentProvider {
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
+		resolveNotebook(document: NotebookDocument, webview: {
+			/**
+			 * Fired when the output hosting webview posts a message.
+			 */
+			readonly onDidReceiveMessage: Event<any>;
+			/**
+			 * Post a message to the output hosting webview.
+			 *
+			 * Messages are only delivered if the editor is live.
+			 *
+			 * @param message Body of the message. This must be a string or other json serilizable object.
+			 */
+			postMessage(message: any): Thenable<boolean>;
+
+			/**
+			 * Convert a uri for the local file system to one that can be used inside outputs webview.
+			 */
+			asWebviewUri(localResource: Uri): Uri;
+		}): Promise<void>;
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		readonly onDidChangeNotebook: Event<NotebookDocumentEditEvent>;
-		revertNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent>;
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
 
 		kernel?: NotebookKernel;

@@ -3,18 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
-import { ITextFileService, IResourceEncodings, IResourceEncoding, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
+import { AbstractTextFileService, EncodingOracle } from 'vs/workbench/services/textfile/browser/textFileService';
+import { ITextFileService, IResourceEncoding, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
 export class BrowserTextFileService extends AbstractTextFileService {
 
-	readonly encoding: IResourceEncodings = {
-		getPreferredWriteEncoding(): IResourceEncoding {
-			return { encoding: 'utf8', hasBOM: false };
+	private _browserEncoding: EncodingOracle | undefined;
+
+	get encoding(): EncodingOracle {
+		if (!this._browserEncoding) {
+			this._browserEncoding = this._register(this.instantiationService.createInstance(BrowserEncodingOracle));
 		}
-	};
+
+		return this._browserEncoding;
+	}
 
 	protected registerListeners(): void {
 		super.registerListeners();
@@ -31,6 +35,20 @@ export class BrowserTextFileService extends AbstractTextFileService {
 		}
 
 		return false;
+	}
+}
+
+class BrowserEncodingOracle extends EncodingOracle {
+	async getPreferredWriteEncoding(): Promise<IResourceEncoding> {
+		return { encoding: 'utf8', hasBOM: false };
+	}
+
+	async getWriteEncoding(): Promise<{ encoding: string, addBOM: boolean }> {
+		return { encoding: 'utf8', addBOM: false };
+	}
+
+	async getReadEncoding(): Promise<string> {
+		return 'utf8';
 	}
 }
 

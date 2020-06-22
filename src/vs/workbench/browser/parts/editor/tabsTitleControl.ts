@@ -1087,7 +1087,7 @@ export class TabsTitleControl extends TitleControl {
 		);
 
 		// Tests helper
-		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (resource) {
 			tabContainer.setAttribute('data-resource-name', basenameOrAuthority(resource));
 		} else {

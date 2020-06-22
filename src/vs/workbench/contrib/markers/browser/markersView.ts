@@ -198,7 +198,8 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		if (this.hasNoProblems() && this.messageBoxContainer) {
 			this.messageBoxContainer.focus();
 		} else if (this.tree) {
-			this.tree.getHTMLElement().focus();
+			this.tree.domFocus();
+			this.setTreeSelection();
 		}
 	}
 
@@ -295,6 +296,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	private refreshPanel(markerOrChange?: Marker | MarkerChangesEvent): void {
 		if (this.isVisible() && this.tree) {
+			const hasSelection = this.tree.getSelection().length > 0;
 			this.cachedFilterStats = undefined;
 
 			if (markerOrChange) {
@@ -321,6 +323,20 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 			this.tree.toggleVisibility(total === 0 || filtered === 0);
 			this.renderMessage();
 			this._onDidChangeFilterStats.fire(this.getFilterStats());
+
+			if (hasSelection) {
+				this.setTreeSelection();
+			}
+		}
+	}
+
+	private setTreeSelection(): void {
+		if (this.tree && this.tree.getSelection().length === 0) {
+			const firstMarker = this.markersWorkbenchService.markersModel.resourceMarkers[0].markers[0];
+			if (firstMarker) {
+				this.tree.setFocus([firstMarker]);
+				this.tree.setSelection([firstMarker]);
+			}
 		}
 	}
 

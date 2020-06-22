@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isMacintosh } from 'vs/base/common/platform';
-import { SyncActionDescriptor, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { IWebviewService, webviewDeveloperCategory } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
+import { IWebviewService, webviewDeveloperCategory, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { getFocusedWebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewCommands';
 import * as webviewCommands from 'vs/workbench/contrib/webview/electron-browser/webviewCommands';
+import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { ElectronWebviewService } from 'vs/workbench/contrib/webview/electron-browser/webviewService';
+import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
 
 registerSingleton(IWebviewService, ElectronWebviewService, true);
 
@@ -23,17 +26,53 @@ actionRegistry.registerWorkbenchAction(
 	webviewCommands.OpenWebviewDeveloperToolsAction.ALIAS,
 	webviewDeveloperCategory);
 
-function registerWebViewCommands(editorId: string): void {
-	const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', editorId), ContextKeyExpr.not('editorFocus') /* https://github.com/Microsoft/vscode/issues/58668 */)!;
+if (isMacintosh) {
+	function getActiveElectronBasedWebview(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
+		const webview = getFocusedWebviewEditor(accessor);
+		if (!webview) {
+			return undefined;
+		}
 
-	// These commands are only needed on MacOS where we have to disable the menu bar commands
-	if (isMacintosh) {
-		registerAction2(class extends webviewCommands.CopyWebviewEditorCommand { constructor() { super(contextKeyExpr); } });
-		registerAction2(class extends webviewCommands.PasteWebviewEditorCommand { constructor() { super(contextKeyExpr); } });
-		registerAction2(class extends webviewCommands.CutWebviewEditorCommand { constructor() { super(contextKeyExpr); } });
-		registerAction2(class extends webviewCommands.UndoWebviewEditorCommand { constructor() { super(contextKeyExpr); } });
-		registerAction2(class extends webviewCommands.RedoWebviewEditorCommand { constructor() { super(contextKeyExpr); } });
+		if (webview instanceof ElectronWebviewBasedWebview) {
+			return webview;
+		} else if ('getInnerWebview' in (webview as WebviewOverlay)) {
+			const innerWebview = (webview as WebviewOverlay).getInnerWebview();
+			if (innerWebview instanceof ElectronWebviewBasedWebview) {
+				return innerWebview;
+			}
+		}
+
+		return undefined;
 	}
-}
 
-registerWebViewCommands(WebviewEditor.ID);
+	function withWebview(accessor: ServicesAccessor, f: (webviewe: ElectronWebviewBasedWebview) => void) {
+		const webview = getActiveElectronBasedWebview(accessor);
+		if (webview) {
+			f(webview);
+			return true;
+		}
+		return false;
+	}
+
+	const PRIORITY = 100;
+
+	UndoCommand.addImplementation(PRIORITY, accessor => {
+		return withWebview(accessor, webview => webview.undo());
+	});
+
+	RedoCommand.addImplementation(PRIORITY, accessor => {
+		return withWebview(accessor, webview => webview.redo());
+	});
+
+	CopyAction?.addImplementation(PRIORITY, accessor => {
+		return withWebview(accessor, webview => webview.copy());
+	});
+
+	PasteAction?.addImplementation(PRIORITY, accessor => {
+		return withWebview(accessor, webview => webview.paste());
+	});
+
+	CutAction?.addImplementation(PRIORITY, accessor => {
+		return withWebview(accessor, webview => webview.cut());
+	});
+}

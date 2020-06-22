@@ -5,20 +5,19 @@
 
 import * as nls from 'vs/nls';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/common/extensionHostProcessManager';
-import { RemoteExtensionHostClient, IInitDataProvider } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
+import { AbstractExtensionService, parseScannedExtension } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { RemoteExtensionHost, IInitDataProvider } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { WebWorkerExtensionHostStarter } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHostStarter';
+import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { URI } from 'vs/base/common/uri';
 import { canExecuteOnWeb } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -26,7 +25,6 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 import { DeltaExtensionsResult } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
@@ -46,7 +44,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
-		@IStaticExtensionsService private readonly _staticExtensions: IStaticExtensionsService,
+		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
 	) {
 		super(
 			instantiationService,
@@ -85,20 +83,18 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		};
 	}
 
-	protected _createExtensionHosts(_isInitialStart: boolean, initialActivationEvents: string[]): ExtensionHostProcessManager[] {
-		const result: ExtensionHostProcessManager[] = [];
+	protected _createExtensionHosts(_isInitialStart: boolean): IExtensionHost[] {
+		const result: IExtensionHost[] = [];
 
 		const webExtensions = this.getExtensions().then(extensions => extensions.filter(ext => canExecuteOnWeb(ext, this._productService, this._configService)));
-		const webHostProcessWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, true, webExtensions, URI.file(this._environmentService.logsPath).with({ scheme: this._environmentService.logFile.scheme }));
-		const webHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, webHostProcessWorker, null, initialActivationEvents);
-		result.push(webHostProcessManager);
+		const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, webExtensions, URI.file(this._environmentService.logsPath).with({ scheme: this._environmentService.logFile.scheme }));
+		result.push(webWorkerExtHost);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
 			const remoteExtensions = this.getExtensions().then(extensions => extensions.filter(ext => !canExecuteOnWeb(ext, this._productService, this._configService)));
-			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, remoteExtensions, this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
-			const remoteExtHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, remoteExtHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
-			result.push(remoteExtHostProcessManager);
+			const remoteExtHost = this._instantiationService.createInstance(RemoteExtensionHost, remoteExtensions, this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
+			result.push(remoteExtHost);
 		}
 
 		return result;
@@ -108,7 +104,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// fetch the remote environment
 		let [remoteEnv, localExtensions] = await Promise.all([
 			this._remoteAgentService.getEnvironment(),
-			this._staticExtensions.getExtensions()
+			this._webExtensionsScannerService.scanExtensions().then(extensions => extensions.map(parseScannedExtension))
 		]);
 
 		let result: DeltaExtensionsResult;

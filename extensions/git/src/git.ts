@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as cp from 'child_process';
 import * as which from 'which';
 import { EventEmitter } from 'events';
-import iconv = require('iconv-lite');
+import * as iconv from 'iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
 import { CancellationToken, Progress, Uri } from 'vscode';

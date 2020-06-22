@@ -73,9 +73,9 @@ import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/label/common/labelService';
+import 'vs/workbench/services/extensionManagement/common/webExtensionsScannerService';
 import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
 import 'vs/workbench/services/notification/common/notificationService';
-import 'vs/workbench/services/extensions/common/staticExtensions';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -85,10 +85,13 @@ import 'vs/workbench/services/views/browser/viewDescriptorService';
 import 'vs/workbench/services/quickinput/browser/quickInputService';
 import 'vs/workbench/services/userDataSync/browser/userDataSyncWorkbenchService';
 import 'vs/workbench/services/authentication/browser/authenticationService';
+import 'vs/workbench/services/hover/browser/hoverService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { IBuiltinExtensionsScannerService } from 'vs/platform/extensions/common/extensions';
+import { BuiltinExtensionsScannerService } from 'vs/platform/extensions/browser/builtinExtensionsScannerService';
 import { IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -111,10 +114,11 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
+import { IUserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
 
-registerSingleton(IUserDataSyncEnablementService, UserDataSyncEnablementService);
+registerSingleton(IBuiltinExtensionsScannerService, BuiltinExtensionsScannerService);
+registerSingleton(IUserDataSyncResourceEnablementService, UserDataSyncResourceEnablementService);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
@@ -279,8 +283,5 @@ import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
 
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';
-
-// Hover
-import 'vs/workbench/contrib/hover/browser/hover.contribution';
 
 //#endregion

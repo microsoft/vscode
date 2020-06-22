@@ -52,7 +52,6 @@ import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 import 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import 'vs/workbench/services/extensionManagement/node/extensionManagementService';
 import 'vs/workbench/services/accessibility/electron-browser/accessibilityService';
-import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';
@@ -60,7 +59,6 @@ import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService'
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncAccountService';
 import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
 import 'vs/workbench/services/localizations/electron-browser/localizationsService';
-import 'vs/workbench/services/clipboard/electron-browser/clipboardService';
 import 'vs/workbench/services/path/electron-browser/pathService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -68,9 +66,12 @@ import { ICredentialsService } from 'vs/platform/credentials/common/credentials'
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/electron-browser/userDataAutoSyncService';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { TunnelService } from 'vs/platform/remote/node/tunnelService';
 
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
+registerSingleton(ITunnelService, TunnelService);
 
 //#endregion
 

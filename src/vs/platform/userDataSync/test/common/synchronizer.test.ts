@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncEnablementService, IRemoteUserData, ISyncData, ISyncPreview } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncResourceEnablementService, IRemoteUserData, ISyncData, ISyncPreview } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
@@ -186,7 +186,7 @@ suite('TestSynchronizer', () => {
 
 	test('sync should not run if disabled', async () => {
 		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
-		client.instantiationService.get(IUserDataSyncEnablementService).setResourceEnablement(testObject.resource, false);
+		client.instantiationService.get(IUserDataSyncResourceEnablementService).setResourceEnablement(testObject.resource, false);
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));

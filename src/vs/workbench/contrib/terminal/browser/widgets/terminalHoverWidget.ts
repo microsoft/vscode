@@ -9,7 +9,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import * as dom from 'vs/base/browser/dom';
 import { IViewportRange } from 'xterm';
-import { IHoverTarget, IHoverService } from 'vs/workbench/contrib/hover/browser/hover';
+import { IHoverTarget, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverHighlight } from 'vs/platform/theme/common/colorRegistry';
 

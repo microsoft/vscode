@@ -29,7 +29,7 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 	}
 
 	getTitle(verbosity: Verbosity): string {
-		return this.master.getTitle(verbosity);
+		return this.primary.getTitle(verbosity);
 	}
 }
 

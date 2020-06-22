@@ -9,7 +9,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import {
 	SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService,
-	IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, Conflict, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncPreview, IUserDataManifest, ISyncData, IRemoteUserData
+	IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, Conflict, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncPreview, IUserDataManifest, ISyncData, IRemoteUserData
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname, isEqual, basename } from 'vs/base/common/resources';
@@ -85,7 +85,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService protected readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService protected readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
-		@IUserDataSyncEnablementService protected readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataSyncResourceEnablementService protected readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -97,7 +97,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		this.currentMachineIdPromise = getServiceMachineId(environmentService, fileService, storageService);
 	}
 
-	protected isEnabled(): boolean { return this.userDataSyncEnablementService.isResourceEnabled(this.resource); }
+	protected isEnabled(): boolean { return this.userDataSyncResourceEnablementService.isResourceEnabled(this.resource); }
 
 	protected async triggerLocalChange(): Promise<void> {
 		if (this.isEnabled()) {
@@ -551,12 +551,12 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
-		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
 		this._register(this.fileService.watch(dirname(file)));
 		this._register(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
 	}
@@ -631,13 +631,13 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
-		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUserDataSyncUtilService protected readonly userDataSyncUtilService: IUserDataSyncUtilService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(file, resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(file, resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
 	}
 
 	protected hasErrors(content: string): boolean {

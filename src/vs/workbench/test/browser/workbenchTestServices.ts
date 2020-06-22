@@ -1056,6 +1056,9 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 }
 
 export class TestFileEditorInput extends EditorInput implements IFileEditorInput {
+
+	readonly label = this.resource;
+
 	gotDisposed = false;
 	gotSaved = false;
 	gotSavedAs = false;

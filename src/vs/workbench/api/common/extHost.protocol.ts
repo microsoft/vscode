@@ -108,7 +108,7 @@ export interface IConfigurationInitData extends IConfigurationData {
 }
 
 export interface IExtHostContext extends IRPCProtocol {
-	remoteAuthority: string;
+	remoteAuthority: string | null;
 }
 
 export interface IMainContext extends IRPCProtocol {
@@ -450,6 +450,8 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$stopSendingDataEvents(): void;
 	$startHandlingLinks(): void;
 	$stopHandlingLinks(): void;
+	$startLinkProvider(): void;
+	$stopLinkProvider(): void;
 	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined): void;
 
 	// Process
@@ -710,6 +712,9 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata | undefined): Promise<void>;
 	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void>;
 	$postMessage(handle: number, value: any): Promise<boolean>;
+
+	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
+	$onContentChange(resource: UriComponents, viewType: string): void;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -774,7 +779,8 @@ export interface MainThreadTaskShape extends IDisposable {
 	$registerTaskProvider(handle: number, type: string): Promise<void>;
 	$unregisterTaskProvider(handle: number): Promise<void>;
 	$fetchTasks(filter?: tasks.TaskFilterDTO): Promise<tasks.TaskDTO[]>;
-	$executeTask(task: tasks.TaskHandleDTO | tasks.TaskDTO): Promise<tasks.TaskExecutionDTO>;
+	$getTaskExecution(value: tasks.TaskHandleDTO | tasks.TaskDTO): Promise<tasks.TaskExecutionDTO>;
+	$executeTask(task: tasks.TaskDTO): Promise<tasks.TaskExecutionDTO>;
 	$terminateTask(id: string): Promise<void>;
 	$registerTaskSystem(scheme: string, info: tasks.TaskSystemInfoDTO): void;
 	$customExecutionComplete(id: string, result?: number): Promise<void>;
@@ -1376,6 +1382,17 @@ export interface IShellAndArgsDto {
 	args: string[] | string | undefined;
 }
 
+export interface ITerminalLinkDto {
+	/** The ID of the link to enable activation and disposal. */
+	id: number;
+	/** The startIndex of the link in the line. */
+	startIndex: number;
+	/** The length of the link in the line. */
+	length: number;
+	/** The descriptive label for what the link does when activated. */
+	label?: string;
+}
+
 export interface ITerminalDimensionsDto {
 	columns: number;
 	rows: number;
@@ -1402,6 +1419,8 @@ export interface ExtHostTerminalServiceShape {
 	$getAvailableShells(): Promise<IShellDefinitionDto[]>;
 	$getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	$handleLink(id: number, link: string): Promise<boolean>;
+	$provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]>;
+	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 }
 
@@ -1582,11 +1601,11 @@ export interface INotebookDocumentsAndEditorsDelta {
 
 export interface ExtHostNotebookShape {
 	$resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto | undefined>;
+	$resolveNotebookEditor(viewType: string, uri: UriComponents, editorId: string): Promise<void>;
 	$executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
 	$executeNotebook2(kernelId: string, viewType: string, uri: UriComponents, cellHandle: number | undefined, token: CancellationToken): Promise<void>;
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
-	$revert(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<void>;
 	$backup(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string | undefined>;
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void;
 	$renderOutputs(uriComponents: UriComponents, id: string, request: IOutputRenderRequest<UriComponents>): Promise<IOutputRenderResponse<UriComponents> | undefined>;
@@ -1595,6 +1614,9 @@ export interface ExtHostNotebookShape {
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void;
 	$acceptEditorPropertiesChanged(uriComponents: UriComponents, data: INotebookEditorPropertiesChangeData): void;
 	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): Promise<void>;
+	$undoNotebook(viewType: string, uri: UriComponents, editId: number, isDirty: boolean): Promise<void>;
+	$redoNotebook(viewType: string, uri: UriComponents, editId: number, isDirty: boolean): Promise<void>;
+
 }
 
 export interface ExtHostStorageShape {
