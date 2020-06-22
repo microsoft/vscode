@@ -604,7 +604,10 @@ export interface CompletionItem {
 	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
 	 * characters will be ignored.
 	 */
-	commitCharacters?: string[] | ReadonlyArray<{ char: string, commitWithoutInsert?: boolean }>;
+	commitCharacters?: string[] | {
+		char: string;
+		commitWithoutInsert?: boolean;
+	}[];
 	/**
 	 * An optional array of additional text edits that are applied when
 	 * selecting this completion. Edits must not overlap with the main edit

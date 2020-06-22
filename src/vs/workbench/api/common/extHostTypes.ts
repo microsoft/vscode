@@ -1509,7 +1509,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	insertText?: string | SnippetString;
 	keepWhitespace?: boolean;
 	range?: Range | { inserting: Range; replacing: Range; };
-	commitCharacters?: string[];
+	commitCharacters?: string[] | { char: string, commitWithoutInsert?: boolean }[];
 	textEdit?: TextEdit;
 	additionalTextEdits?: TextEdit[];
 	command?: vscode.Command;

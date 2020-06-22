@@ -3934,7 +3934,7 @@ declare module 'vscode' {
 		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
 		 * characters will be ignored.
 		 */
-		commitCharacters?: string[];
+		commitCharacters?: string[] | { char: string, commitWithoutInsert?: boolean }[];
 
 		/**
 		 * Keep whitespace of the [insertText](#CompletionItem.insertText) as is. By default, the editor adjusts leading
