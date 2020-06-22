@@ -20,7 +20,7 @@ if grep -qi Microsoft /proc/version; then
 		WSL_BUILD=0
 	fi
 
-	if [ $WSL_BUILD -ge 17063 ]; then
+	if [[ $WSL_BUILD -ge 17063 ]] || [[ -v WSL_DISTRO_NAME ]]; then
 		# $WSL_DISTRO_NAME is available since WSL builds 18362, also for WSL2
 		# WSLPATH is available since WSL build 17046
 		# WSLENV is available since WSL build 17063
