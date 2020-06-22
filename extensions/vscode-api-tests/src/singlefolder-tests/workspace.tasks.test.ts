@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2, env, UIKind, ShellExecution, TaskExecution, Terminal } from 'vscode';
+import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2, env, UIKind, ShellExecution, TaskExecution, Terminal, Event } from 'vscode';
 
 // Disable tasks tests:
 // - Web https://github.com/microsoft/vscode/issues/90528
@@ -218,6 +218,55 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 				}));
 
 				taskExecution = await tasks.executeTask(task);
+			});
+		});
+
+		// https://github.com/microsoft/vscode/issues/100577
+		test('A CustomExecution task can be fetched and executed', () => {
+			return new Promise(async (resolve, reject) => {
+				class CustomTerminal implements Pseudoterminal {
+					private readonly writeEmitter = new EventEmitter<string>();
+					public readonly onDidWrite: Event<string> = this.writeEmitter.event;
+					public async close(): Promise<void> { }
+					public open(): void {
+						this.close();
+						resolve();
+					}
+				}
+
+				function buildTask(): Task {
+					const task = new Task(
+						{
+							type: 'customTesting',
+						},
+						TaskScope.Workspace,
+						'Test Task',
+						'customTesting',
+						new CustomExecution(
+							async (): Promise<Pseudoterminal> => {
+								return new CustomTerminal();
+							}
+						)
+					);
+					return task;
+				}
+
+				disposables.push(tasks.registerTaskProvider('customTesting', {
+					provideTasks: () => {
+						return [buildTask()];
+					},
+					resolveTask(_task: Task): undefined {
+						return undefined;
+					}
+				}));
+
+				const task = await tasks.fetchTasks({ type: 'customTesting' });
+
+				if (task && task.length > 0) {
+					await tasks.executeTask(task[0]);
+				} else {
+					reject('fetched task can\'t be undefined');
+				}
 			});
 		});
 	});
