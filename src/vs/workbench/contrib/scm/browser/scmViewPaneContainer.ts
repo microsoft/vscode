@@ -66,19 +66,19 @@ export class SCMViewPaneContainer extends ViewPaneContainer {
 		return localize('source control', "Source Control");
 	}
 
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (!(action instanceof MenuItemAction)) {
-			return undefined;
-		}
+	// getActionViewItem(action: IAction): IActionViewItem | undefined {
+	// 	if (!(action instanceof MenuItemAction)) {
+	// 		return undefined;
+	// 	}
 
-		return new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
-	}
+	// 	return new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+	// }
 
-	getActions(): IAction[] {
-		return this.menus.getTitleActions();
-	}
+	// getActions(): IAction[] {
+	// 	return this.menus.getTitleActions();
+	// }
 
-	getSecondaryActions(): IAction[] {
-		return this.menus.getTitleSecondaryActions();
-	}
+	// getSecondaryActions(): IAction[] {
+	// 	return this.menus.getTitleSecondaryActions();
+	// }
 }

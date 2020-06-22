@@ -166,6 +166,9 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 	) { }
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
+		// hack
+		addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-twistie');
+
 		const provider = append(container, $('.scm-provider'));
 		append(provider, $('span.icon.codicon.codicon-repo'));
 		const name = append(provider, $('.name'));
@@ -1336,19 +1339,18 @@ export class SCMViewPane extends ViewPane {
 
 	// TODO@joao
 	getSecondaryActions(): IAction[] {
-		return [];
-		// if (!this.viewModel) {
-		// 	return [];
-		// }
+		if (!this.viewModel) {
+			return [];
+		}
 
-		// const result: IAction[] = [new SCMViewSubMenuAction(this.viewModel)];
+		const result: IAction[] = [new SCMViewSubMenuAction(this.viewModel)];
 		// const secondaryActions = this.menus.getTitleSecondaryActions();
 
 		// if (secondaryActions.length > 0) {
 		// 	result.push(new Separator(), ...secondaryActions);
 		// }
 
-		// return result;
+		return result;
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
