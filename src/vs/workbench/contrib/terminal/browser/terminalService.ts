@@ -88,8 +88,6 @@ export class TerminalService implements ITerminalService {
 	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
 	private readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance>();
 	public get onInstanceTitleChanged(): Event<ITerminalInstance> { return this._onInstanceTitleChanged.event; }
-	private readonly _onInstanceXtermReady = new Emitter<ITerminalInstance>();
-	public get onInstanceXtermReady(): Event<ITerminalInstance> { return this._onInstanceXtermReady.event; }
 	private readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
 	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	private readonly _onTabDisposed = new Emitter<ITerminalTab>();
@@ -490,7 +488,6 @@ export class TerminalService implements ITerminalService {
 		const disposables: IDisposable[] = [];
 		this._linkProviders.add(linkProvider);
 		for (const instance of this.terminalInstances) {
-			// Only register immediately when xterm is ready
 			if (instance.areLinksReady) {
 				disposables.push(instance.registerLinkProvider(linkProvider));
 			}
@@ -665,7 +662,6 @@ export class TerminalService implements ITerminalService {
 	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		const instance = this._instantiationService.createInstance(TerminalInstance, this._terminalFocusContextKey, this._terminalShellTypeContextKey, this._configHelper, container, shellLaunchConfig);
 		this._onInstanceCreated.fire(instance);
-		instance.xtermReady.then(() => this._onInstanceXtermReady.fire(instance));
 		return instance;
 	}
 

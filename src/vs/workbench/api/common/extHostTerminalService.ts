@@ -341,23 +341,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
 			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
 		});
-
-		this.registerLinkProvider({
-			provideTerminalLinks(ctx) {
-				const links: vscode.TerminalLink[] = [
-					{
-						startIndex: 0,
-						length: 10,
-						tooltip: `Open this custom "${ctx.line.substr(0, 10)}" link`
-					}
-				];
-				return links;
-			},
-			handleTerminalLink(link) {
-				console.log('Handled link on ext host, tooltip=' + link.tooltip);
-				return true;
-			}
-		});
 	}
 
 	public abstract createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;

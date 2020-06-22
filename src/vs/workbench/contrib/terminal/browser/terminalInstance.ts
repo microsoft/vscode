@@ -129,7 +129,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// TODO: Should this be an event as it can fire twice?
 	public get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
 	public get areLinksReady(): boolean { return this._areLinksReady; }
-	public get xtermReady(): Promise<void> { return this._xtermReadyPromise.then(() => { }); }
 	public get exitCode(): number | undefined { return this._exitCode; }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }

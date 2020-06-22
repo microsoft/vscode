@@ -425,7 +425,6 @@ class ExtensionTerminalLinkProvider implements ITerminalExternalLinkProvider {
 	async provideLinks(instance: ITerminalInstance, line: string): Promise<ITerminalLink[] | undefined> {
 		const proxy = this._proxy;
 		const extHostLinks = await proxy.$provideLinks(instance.id, line);
-		console.log('ExtensionTerminalLinkProvider#provideLinks', extHostLinks);
 		return extHostLinks.map(dto => ({
 			id: dto.id,
 			startIndex: dto.startIndex,

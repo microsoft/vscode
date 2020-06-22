@@ -301,9 +301,6 @@ export interface ITerminalInstance {
 	/** A promise that resolves when the terminal's pty/process have been created. */
 	processReady: Promise<void>;
 
-	/** A promise that resolves when xterm.js has been created. */
-	xtermReady: Promise<void>;
-
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
 	 * explicit name given to the terminal instance through the extension API.
