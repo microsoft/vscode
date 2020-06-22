@@ -20,7 +20,7 @@ import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensi
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { ExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, IScannedExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -28,6 +28,16 @@ import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtens
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
+
+export function parseScannedExtension(extension: IScannedExtension): IExtensionDescription {
+	return {
+		identifier: new ExtensionIdentifier(`${extension.packageJSON.publisher}.${extension.packageJSON.name}`),
+		isBuiltin: extension.type === ExtensionType.System,
+		isUnderDevelopment: false,
+		extensionLocation: extension.location,
+		...extension.packageJSON,
+	};
+}
 
 export abstract class AbstractExtensionService extends Disposable implements IExtensionService {
 
@@ -276,6 +286,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
+	protected _checkEnabledAndProposedAPI(extensions: IExtensionDescription[]): IExtensionDescription[] {
+		// enable or disable proposed API per extension
+		this._checkEnableProposedApi(extensions);
+
+		// keep only enabled extensions
+		return extensions.filter(extension => this._isEnabled(extension));
+	}
+
 	private _isExtensionUnderDevelopment(extension: IExtensionDescription): boolean {
 		if (this._environmentService.isExtensionDevelopment) {
 			const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
@@ -292,21 +310,17 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected _isEnabled(extension: IExtensionDescription): boolean {
-		return !this._isDisabled(extension);
-	}
-
-	protected _isDisabled(extension: IExtensionDescription): boolean {
 		if (this._isExtensionUnderDevelopment(extension)) {
 			// Never disable extensions under development
-			return false;
+			return true;
 		}
 
 		if (ExtensionIdentifier.equals(extension.identifier, BetterMergeId)) {
 			// Check if this is the better merge extension which was migrated to a built-in extension
-			return true;
+			return false;
 		}
 
-		return !this._extensionEnablementService.isEnabled(toExtension(extension));
+		return this._extensionEnablementService.isEnabled(toExtension(extension));
 	}
 
 	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {

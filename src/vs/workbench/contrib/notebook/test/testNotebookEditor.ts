@@ -110,7 +110,7 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	isNotebookEditor = true;
 
-	postMessage(message: any): void {
+	postMessage(): void {
 		throw new Error('Method not implemented.');
 	}
 

@@ -8,7 +8,7 @@ import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IHoverTarget, IHoverOptions } from 'vs/workbench/contrib/hover/browser/hover';
+import { IHoverTarget, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -115,7 +115,11 @@ export class HoverWidget extends Widget {
 			this._hover.containerDomNode.appendChild(statusBarElement);
 		}
 
-		this._mouseTracker = new CompositeMouseTracker([this._hover.containerDomNode, ...this._target.targetElements]);
+		const mouseTrackerTargets = [...this._target.targetElements];
+		if (!options.hideOnHover || (options.actions && options.actions.length > 0)) {
+			mouseTrackerTargets.push(this._hover.containerDomNode);
+		}
+		this._mouseTracker = new CompositeMouseTracker(mouseTrackerTargets);
 		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
 		this._register(this._mouseTracker);
 	}

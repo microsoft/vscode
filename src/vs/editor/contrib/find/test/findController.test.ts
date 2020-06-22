@@ -39,8 +39,8 @@ export class TestFindController extends CommonFindController {
 		this.hasFocus = false;
 	}
 
-	protected _start(opts: IFindStartOptions): void {
-		super._start(opts);
+	protected async _start(opts: IFindStartOptions): Promise<void> {
+		await super._start(opts);
 
 		if (opts.shouldFocus !== FindStartFocusAction.NoFocusChange) {
 			this.hasFocus = true;

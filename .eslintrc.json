@@ -519,7 +519,8 @@
                     "**/vs/workbench/services/**/common/**",
                     "**/vs/workbench/api/**/common/**",
                     "vscode-textmate",
-                    "vscode-oniguruma"
+                    "vscode-oniguruma",
+                    "iconv-lite-umd"
                 ]
             },
             {

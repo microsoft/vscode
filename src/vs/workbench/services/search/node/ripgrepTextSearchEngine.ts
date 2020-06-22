@@ -116,7 +116,8 @@ export class RipgrepTextSearchEngine {
 }
 
 /**
- * Read the first line of stderr and return an error for display or undefined, based on a whitelist.
+ * Read the first line of stderr and return an error for display or undefined, based on a list of
+ * allowed properties.
  * Ripgrep produces stderr output which is not from a fatal error, and we only want the search to be
  * "failed" when a fatal error was produced.
  */

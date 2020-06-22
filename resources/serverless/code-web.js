@@ -61,10 +61,6 @@ const exists = (path) => util.promisify(fs.exists)(path);
 const readFile = (path) => util.promisify(fs.readFile)(path);
 const CharCode_PC = '%'.charCodeAt(0);
 
-function toStaticExtensionUri(path) {
-	return { scheme: SCHEME, authority: AUTHORITY, path: `/static-extension/${path}` };
-}
-
 async function initialize() {
 	const builtinExtensions = [];
 	const webpackConfigs = [];
@@ -84,20 +80,20 @@ async function initialize() {
 		}
 
 		const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-		const readmeUrl = readme ? toStaticExtensionUri(path.join(extensionPath, readme)) : undefined;
+		const readmePath = readme ? path.join(extensionPath, readme) : undefined;
 		const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
-		const changelogUrl = changelog ? toStaticExtensionUri(path.join(extensionPath, changelog)) : undefined;
+		const changelogPath = changelog ? path.join(extensionPath, changelog) : undefined;
 
 		const packageJSONPath = path.join(EXTENSIONS_ROOT, folderName, 'package.json');
 		if (await exists(packageJSONPath)) {
 			try {
-				const manifest = JSON.parse((await readFile(packageJSONPath)).toString());
-				if (manifest.main && !manifest.browser) {
+				const packageJSON = JSON.parse((await readFile(packageJSONPath)).toString());
+				if (packageJSON.main && !packageJSON.browser) {
 					return; // unsupported
 				}
 
-				if (manifest.browser) {
-					manifest.main = manifest.browser;
+				if (packageJSON.browser) {
+					packageJSON.main = packageJSON.browser;
 
 					const webpackConfigLocations = await util.promisify(glob)(
 						path.join(EXTENSIONS_ROOT, folderName, '**', 'extension-browser.webpack.config.js'),
@@ -117,33 +113,16 @@ async function initialize() {
 					}
 				}
 
-				const packageNlsPath = path.join(EXTENSIONS_ROOT, folderName, 'package.nls.json');
-				if (await exists(packageNlsPath)) {
-					const packageNls = JSON.parse((await readFile(packageNlsPath)).toString());
-					const translate = (obj) => {
-						for (let key in obj) {
-							const val = obj[key];
-							if (Array.isArray(val)) {
-								val.forEach(translate);
-							} else if (val && typeof val === 'object') {
-								translate(val);
-							} else if (typeof val === 'string' && val.charCodeAt(0) === CharCode_PC && val.charCodeAt(val.length - 1) === CharCode_PC) {
-								const translated = packageNls[val.substr(1, val.length - 2)];
-								if (translated) {
-									obj[key] = translated;
-								}
-							}
-						}
-					};
-					translate(manifest);
-				}
-				manifest.extensionKind = ['web']; // enable for Web
+				packageJSON.extensionKind = ['web']; // enable for Web
+
+				const packageNLSPath = path.join(folderName, 'package.nls.json');
+				const packageNLSExists = await exists(path.join(EXTENSIONS_ROOT, packageNLSPath));
 				builtinExtensions.push({
-					identifier: { id: `${manifest.publisher}.${manifest.name}`},
-					manifest,
-					location: toStaticExtensionUri(folderName),
-					readmeUrl,
-					changelogUrl
+					extensionPath: folderName,
+					packageJSON,
+					packageNLSPath: packageNLSExists ? packageNLSPath : undefined,
+					readmePath,
+					changelogPath
 				});
 			} catch (e) {
 				console.log(e);
@@ -288,6 +267,7 @@ async function handleRoot(req, res) {
 		folderUri: ghPath
 			? { scheme: 'github', authority: 'HEAD', path: ghPath }
 			: { scheme: 'memfs', path: `/sample-folder` },
+		builtinExtensionsServiceUrl: `${SCHEME}://${AUTHORITY}/static-extension`
 	}));
 
 	const data = (await util.promisify(fs.readFile)(WEB_MAIN)).toString()

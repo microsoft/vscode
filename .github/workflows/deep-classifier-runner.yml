@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'microsoft/vscode-github-triage-actions'
-          ref: v30
+          ref: v31
           path: ./actions
       - name: Install Actions
         run: npm install --production --prefix ./actions
@@ -45,5 +45,6 @@ jobs:
         uses: ./actions/classifier-deep/apply/apply-labels
         with:
           configPath: classifier
+          allowLabels: "needs more info|new release"
           appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
