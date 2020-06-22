@@ -88,7 +88,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			productService
 		);
 
-		this._enableLocalWebWorker = (ENABLE_LOCAL_WEB_WORKER && this._isDev);
+		this._enableLocalWebWorker = ENABLE_LOCAL_WEB_WORKER;
 
 		if (this._extensionEnablementService.allUserExtensionsDisabled) {
 			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
