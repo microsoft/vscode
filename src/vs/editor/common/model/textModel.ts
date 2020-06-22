@@ -343,11 +343,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 				(bufferTextLength > TextModel.LARGE_FILE_SIZE_THRESHOLD)
 				|| (bufferLineCount > TextModel.LARGE_FILE_LINE_COUNT_THRESHOLD)
 			);
+			this._isTooLargeForSyncing = (bufferTextLength > TextModel.MODEL_SYNC_LIMIT);
 		} else {
 			this._isTooLargeForTokenization = false;
+			this._isTooLargeForSyncing = false;
 		}
-
-		this._isTooLargeForSyncing = (bufferTextLength > TextModel.MODEL_SYNC_LIMIT);
 
 		this._versionId = 1;
 		this._alternativeVersionId = 1;
