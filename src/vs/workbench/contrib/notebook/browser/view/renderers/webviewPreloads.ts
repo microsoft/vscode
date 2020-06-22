@@ -262,6 +262,7 @@ function webviewPreloads() {
 
 	const onWillDestroyOutput = createEmitter<[string | undefined /* namespace */, IDestroyCellInfo | undefined /* cell uri */]>();
 	const onDidCreateOutput = createEmitter<[string | undefined /* namespace */, ICreateCellInfo]>();
+	const onDidReceiveMessage = createEmitter<[string, unknown]>();
 
 	const matchesNs = (namespace: string, query: string | undefined) => namespace === '*' || query === namespace || query === 'undefined';
 
@@ -271,7 +272,14 @@ function webviewPreloads() {
 		}
 
 		return {
-			postMessage: vscode.postMessage,
+			postMessage(message: unknown) {
+				vscode.postMessage({
+					__vscode_notebook_message: true,
+					type: 'customRendererMessage',
+					rendererId: namespace,
+					message,
+				});
+			},
 			setState(newState: T) {
 				vscode.setState({ ...vscode.getState(), [namespace]: newState });
 			},
@@ -279,6 +287,7 @@ function webviewPreloads() {
 				const state = vscode.getState();
 				return typeof state === 'object' && state ? state[namespace] as T : undefined;
 			},
+			onDidReceiveMessage: mapEmitter(onDidReceiveMessage, ([ns, data]) => ns === namespace ? data : dontEmit),
 			onWillDestroyOutput: mapEmitter(onWillDestroyOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
 			onDidCreateOutput: mapEmitter(onDidCreateOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
 		};
@@ -406,6 +415,9 @@ function webviewPreloads() {
 					focusFirstFocusableInCell(event.data.id);
 					break;
 				}
+			case 'customRendererMessage':
+				onDidReceiveMessage.fire([event.data.rendererId, event.data.message]);
+				break;
 		}
 	});
 

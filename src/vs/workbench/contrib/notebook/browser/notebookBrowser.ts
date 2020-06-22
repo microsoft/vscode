@@ -270,7 +270,7 @@ export interface INotebookEditor extends IEditor {
 	/**
 	 * Send message to the webview for outputs.
 	 */
-	postMessage(message: any): void;
+	postMessage(forRendererId: string | undefined, message: any): void;
 
 	/**
 	 * Trigger the editor to scroll from scroll event programmatically

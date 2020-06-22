@@ -1607,6 +1607,20 @@ declare module 'vscode' {
 		 */
 		render(document: NotebookDocument, request: NotebookRenderRequest): string;
 
+		/**
+		 * Call before HTML from the renderer is executed, and will be called for
+		 * every editor associated with notebook documents where the renderer
+		 * is or was used.
+		 *
+		 * The communication object will only send and receive messages to the
+		 * render API, retrieved via `acquireNotebookRendererApi`, acquired with
+		 * this specific renderer's ID.
+		 *
+		 * If you need to keep an association between the communication object
+		 * and the document for use in the `render()` method, you can use a WeakMap.
+		 */
+		resolveNotebook?(document: NotebookDocument, communication: NotebookCommunication): void;
+
 		readonly preloads?: Uri[];
 	}
 
@@ -1735,27 +1749,41 @@ declare module 'vscode' {
 		readonly backupId?: string;
 	}
 
+	/**
+	 * Communication object passed to the {@link NotebookContentProvider} and
+	 * {@link NotebookOutputRenderer} to communicate with the webview.
+	 */
+	export interface NotebookCommunication {
+		/**
+		 * ID of the editor this object communicates with. A single notebook
+		 * document can have multiple attached webviews and editors, when the
+		 * notebook is split for instance. The editor ID lets you differentiate
+		 * between them.
+		 */
+		readonly editorId: string;
+
+		/**
+		 * Fired when the output hosting webview posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+		/**
+		 * Post a message to the output hosting webview.
+		 *
+		 * Messages are only delivered if the editor is live.
+		 *
+		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		/**
+		 * Convert a uri for the local file system to one that can be used inside outputs webview.
+		 */
+		asWebviewUri(localResource: Uri): Uri;
+	}
+
 	export interface NotebookContentProvider {
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
-		resolveNotebook(document: NotebookDocument, webview: {
-			/**
-			 * Fired when the output hosting webview posts a message.
-			 */
-			readonly onDidReceiveMessage: Event<any>;
-			/**
-			 * Post a message to the output hosting webview.
-			 *
-			 * Messages are only delivered if the editor is live.
-			 *
-			 * @param message Body of the message. This must be a string or other json serilizable object.
-			 */
-			postMessage(message: any): Thenable<boolean>;
-
-			/**
-			 * Convert a uri for the local file system to one that can be used inside outputs webview.
-			 */
-			asWebviewUri(localResource: Uri): Uri;
-		}): Promise<void>;
+		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent>;
