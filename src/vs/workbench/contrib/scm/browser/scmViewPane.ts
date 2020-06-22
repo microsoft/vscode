@@ -143,8 +143,8 @@ class StatusBarActionViewItem extends ActionViewItem {
 
 
 interface RepositoryTemplate {
-	readonly title: HTMLElement;
-	readonly type: HTMLElement;
+	readonly name: HTMLElement;
+	readonly description: HTMLElement;
 	readonly countContainer: HTMLElement;
 	readonly count: CountBadge;
 	readonly actionBar: ActionBar;
@@ -171,9 +171,9 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 
 		const provider = append(container, $('.scm-provider'));
 		append(provider, $('span.icon.codicon.codicon-repo'));
-		const name = append(provider, $('.name'));
-		const title = append(name, $('span.title'));
-		const type = append(name, $('span.type'));
+		const label = append(provider, $('.label'));
+		const name = append(label, $('span.name'));
+		const description = append(label, $('span.description'));
 		const actionBar = new ActionBar(provider, { actionViewItemProvider: a => new StatusBarActionViewItem(a as StatusBarAction) });
 		const countContainer = append(provider, $('.count'));
 		const count = new CountBadge(countContainer);
@@ -181,7 +181,7 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const disposable = Disposable.None;
 		const templateDisposable = combinedDisposable(actionBar, badgeStyler);
 
-		return { title, type, countContainer, count, actionBar, disposable, templateDisposable };
+		return { name, description, countContainer, count, actionBar, disposable, templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate): void {
@@ -191,11 +191,11 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const repository = node.element;
 
 		if (repository.provider.rootUri) {
-			templateData.title.textContent = basename(repository.provider.rootUri);
-			templateData.type.textContent = repository.provider.label;
+			templateData.name.textContent = basename(repository.provider.rootUri);
+			templateData.description.textContent = repository.provider.label;
 		} else {
-			templateData.title.textContent = repository.provider.label;
-			templateData.type.textContent = '';
+			templateData.name.textContent = repository.provider.label;
+			templateData.description.textContent = '';
 		}
 
 		const actions: IAction[] = [];
@@ -471,7 +471,13 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 class ProviderListDelegate implements IListVirtualDelegate<TreeElement> {
 
-	getHeight() { return 22; }
+	getHeight(element: TreeElement) {
+		if (isSCMRepository(element)) {
+			return 66;
+		} else {
+			return 22;
+		}
+	}
 
 	getTemplateId(element: TreeElement) {
 		if (isSCMRepository(element)) {

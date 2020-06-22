@@ -33,7 +33,6 @@
 .scm-viewlet .scm-provider {
 	display: flex;
 	align-items: center;
-	flex-wrap: wrap;
 	height: 100%;
 	flex-flow: nowrap;
 }
@@ -42,18 +41,17 @@
 	margin-right: 4px;
 }
 
-.scm-viewlet .scm-provider > .name {
+.scm-viewlet .scm-provider > .label {
 	display: flex;
 	flex-shrink: 1;
 	overflow: hidden;
 }
 
-.scm-viewlet .scm-provider > .name > .title {
+.scm-viewlet .scm-provider > .label > .name {
 	text-decoration: underline;
 }
 
-.scm-viewlet .scm-provider > .type,
-.scm-viewlet .scm-provider > .name > .type {
+.scm-viewlet .scm-provider > .label > .description {
 	opacity: 0.7;
 	margin-left: 0.5em;
 	font-size: 0.9em;
