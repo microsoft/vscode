@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.packageMarketplaceWebExtensionsStream = exports.packageMarketplaceExtensionsStream = exports.packageLocalWebExtensionsStream = exports.packageLocalExtensionsStream = exports.fromMarketplace = void 0;
+exports.scanBuiltinExtensions = exports.packageMarketplaceWebExtensionsStream = exports.packageMarketplaceExtensionsStream = exports.packageLocalWebExtensionsStream = exports.packageLocalExtensionsStream = exports.fromMarketplace = void 0;
 const es = require("event-stream");
 const fs = require("fs");
 const glob = require("glob");
@@ -261,3 +261,27 @@ function packageMarketplaceWebExtensionsStream(builtInExtensions) {
     return es.merge(extensions);
 }
 exports.packageMarketplaceWebExtensionsStream = packageMarketplaceWebExtensionsStream;
+function scanBuiltinExtensions(extensionsRoot, forWeb) {
+    const scannedExtensions = [];
+    const extensionsFolders = fs.readdirSync(extensionsRoot);
+    for (const extensionFolder of extensionsFolders) {
+        const packageJSON = JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, 'package.json')).toString('utf8'));
+        const extensionKind = packageJSON['extensionKind'] || [];
+        if (forWeb && extensionKind.indexOf('web') === -1) {
+            continue;
+        }
+        const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
+        const packageNLS = children.filter(child => child === 'package.nls.json')[0];
+        const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+        const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+        scannedExtensions.push({
+            extensionPath: extensionFolder,
+            packageJSON: packageJSON,
+            packagsNLSPath: packageNLS ? path.join(extensionFolder, packageNLS) : undefined,
+            readmePath: readme ? path.join(extensionFolder, readme) : undefined,
+            changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
+        });
+    }
+    return scannedExtensions;
+}
+exports.scanBuiltinExtensions = scanBuiltinExtensions;
