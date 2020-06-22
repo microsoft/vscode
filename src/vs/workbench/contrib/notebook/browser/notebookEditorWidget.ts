@@ -1221,6 +1221,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
+	toggleClassName(className: string) {
+		DOM.toggleClass(this._overlayContainer, className);
+	}
+
+	addClassName(className: string) {
+		DOM.addClass(this._overlayContainer, className);
+	}
+
+	removeClassName(className: string) {
+		DOM.removeClass(this._overlayContainer, className);
+	}
+
+
 	//#endregion
 
 	//#region Editor Contributions
