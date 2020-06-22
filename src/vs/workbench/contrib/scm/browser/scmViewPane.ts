@@ -16,7 +16,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
@@ -995,118 +995,39 @@ class SCMSortByStatusAction extends SCMSortAction {
 	}
 }
 
+interface ISCMInputModel {
+	readonly repository: ISCMRepository;
+	readonly textModel: ITextModel;
+}
+
 class SCMInput extends Disposable {
 
 	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
 
 	private element: HTMLElement;
+	private editorContainer: HTMLElement;
+	private placeholderTextContainer: HTMLElement;
 	private validationContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
-	private inputModel: ITextModel;
-	private commitTemplate = '';
-	protected contextKeyService: IContextKeyService;
+
+	private model: ISCMInputModel | undefined;
+	private repositoryContextKey: IContextKey<ISCMRepository | undefined>;
+	private repositoryDisposables = new DisposableStore();
 
 	private _onDidChangeHeight = new Emitter<void>();
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
-	constructor(
-		container: HTMLElement,
-		private repository: ISCMRepository,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService protected configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
+	set repository(repository: ISCMRepository | undefined) {
+		this.repositoryDisposables.dispose();
+		this.repositoryDisposables = new DisposableStore();
+		this.repositoryContextKey.set(repository);
 
-		this.element = append(container, $('.scm-editor'));
-
-		this.contextKeyService = contextKeyService.createScoped(this.element);
-		this.contextKeyService.createKey('scmRepository', repository);
-
-		const editorContainer = append(this.element, $('.scm-editor-container'));
-
-		const placeholderTextContainer = append(editorContainer, $('.scm-editor-placeholder'));
-		const updatePlaceholder = () => {
-			const binding = keybindingService.lookupKeybinding('scm.acceptInput');
-			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
-			const placeholderText = format(repository.input.placeholder, label);
-
-			this.inputEditor.updateOptions({ ariaLabel: placeholderText });
-			placeholderTextContainer.textContent = placeholderText;
-		};
-
-		this.validationContainer = append(editorContainer, $('.scm-editor-validation'));
-
-		const validationDelayer = new ThrottledDelayer<any>(200);
-		const validate = () => {
-			const position = this.inputEditor.getSelection()?.getStartPosition();
-			const offset = position && this.inputModel.getOffsetAt(position);
-			const value = this.inputModel.getValue();
-
-			return repository.input.validateInput(value, offset || 0).then(result => {
-				if (!result) {
-					removeClass(editorContainer, 'validation-info');
-					removeClass(editorContainer, 'validation-warning');
-					removeClass(editorContainer, 'validation-error');
-					removeClass(this.validationContainer, 'validation-info');
-					removeClass(this.validationContainer, 'validation-warning');
-					removeClass(this.validationContainer, 'validation-error');
-					this.validationContainer.textContent = null;
-				} else {
-					toggleClass(editorContainer, 'validation-info', result.type === InputValidationType.Information);
-					toggleClass(editorContainer, 'validation-warning', result.type === InputValidationType.Warning);
-					toggleClass(editorContainer, 'validation-error', result.type === InputValidationType.Error);
-					toggleClass(this.validationContainer, 'validation-info', result.type === InputValidationType.Information);
-					toggleClass(this.validationContainer, 'validation-warning', result.type === InputValidationType.Warning);
-					toggleClass(this.validationContainer, 'validation-error', result.type === InputValidationType.Error);
-					this.validationContainer.textContent = result.message;
-				}
-			});
-		};
-
-		const triggerValidation = () => validationDelayer.trigger(validate);
-
-		const editorOptions: IEditorConstructionOptions = {
-			...getSimpleEditorOptions(),
-			lineDecorationsWidth: 4,
-			dragAndDrop: false,
-			cursorWidth: 1,
-			fontSize: 13,
-			lineHeight: 20,
-			fontFamily: this.getInputEditorFontFamily(),
-			wrappingStrategy: 'advanced',
-			wrappingIndent: 'none',
-			padding: { top: 3, bottom: 3 },
-			quickSuggestions: false
-		};
-		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-				SuggestController.ID,
-				SnippetController2.ID,
-				MenuPreventer.ID,
-				SelectionClipboardContributionID,
-				ContextMenuController.ID,
-				ColorDetector.ID,
-				ModesHoverController.ID,
-				LinkDetector.ID
-			])
-		};
-
-		const services = new ServiceCollection([IContextKeyService, this.contextKeyService]);
-		const instantiationService2 = instantiationService.createChild(services);
-		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, editorContainer, editorOptions, codeEditorWidgetOptions);
-
-		this._register(this.inputEditor);
-
-		this._register(this.inputEditor.onDidFocusEditorText(() => addClass(editorContainer, 'synthetic-focus')));
-		this._register(this.inputEditor.onDidBlurEditorText(() => removeClass(editorContainer, 'synthetic-focus')));
-
-		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
-		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
+		if (!repository) {
+			this.model?.textModel.dispose();
+			this.inputEditor.setModel(undefined);
+			this.model = undefined;
+			return;
+		}
 
 		let query: string | undefined;
 
@@ -1122,47 +1043,171 @@ class SCMInput extends Disposable {
 
 		this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
 
-		const mode = modeService.create('scminput');
-		this.inputModel = modelService.getModel(uri) || modelService.createModel('', mode, uri);
-		this.inputEditor.setModel(this.inputModel);
+		const mode = this.modeService.create('scminput');
+		const textModel = this.modelService.getModel(uri) || this.modelService.createModel('', mode, uri);
+		this.inputEditor.setModel(textModel);
 
-		this._register(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
+		// Validation
+		const validationDelayer = new ThrottledDelayer<any>(200);
+		const validate = async () => {
+			const position = this.inputEditor.getSelection()?.getStartPosition();
+			const offset = position && textModel.getOffsetAt(position);
+			const value = textModel.getValue();
 
-		const opts = modelService.getCreationOptions(this.inputModel.getLanguageIdentifier().language, this.inputModel.uri, this.inputModel.isForSimpleWidget);
+			const result = await repository.input.validateInput(value, offset || 0);
+
+			if (!result) {
+				removeClass(this.editorContainer, 'validation-info');
+				removeClass(this.editorContainer, 'validation-warning');
+				removeClass(this.editorContainer, 'validation-error');
+				removeClass(this.validationContainer, 'validation-info');
+				removeClass(this.validationContainer, 'validation-warning');
+				removeClass(this.validationContainer, 'validation-error');
+				this.validationContainer.textContent = null;
+			} else {
+				toggleClass(this.editorContainer, 'validation-info', result.type === InputValidationType.Information);
+				toggleClass(this.editorContainer, 'validation-warning', result.type === InputValidationType.Warning);
+				toggleClass(this.editorContainer, 'validation-error', result.type === InputValidationType.Error);
+				toggleClass(this.validationContainer, 'validation-info', result.type === InputValidationType.Information);
+				toggleClass(this.validationContainer, 'validation-warning', result.type === InputValidationType.Warning);
+				toggleClass(this.validationContainer, 'validation-error', result.type === InputValidationType.Error);
+				this.validationContainer.textContent = result.message;
+			}
+		};
+
+		const triggerValidation = () => validationDelayer.trigger(validate);
+		this.repositoryDisposables.add(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
+
+		// Adaptive indentation rules
+		const opts = this.modelService.getCreationOptions(textModel.getLanguageIdentifier().language, textModel.uri, textModel.isForSimpleWidget);
 		const onEnter = Event.filter(this.inputEditor.onKeyDown, e => e.keyCode === KeyCode.Enter);
-		this._register(onEnter(() => this.inputModel.detectIndentation(opts.insertSpaces, opts.tabSize)));
+		this.repositoryDisposables.add(onEnter(() => textModel.detectIndentation(opts.insertSpaces, opts.tabSize)));
 
 		// Keep model in sync with API
-		this.inputModel.setValue(repository.input.value);
-		this._register(repository.input.onDidChange(value => {
-			if (value === this.inputModel.getValue()) {
+		textModel.setValue(repository.input.value);
+		this.repositoryDisposables.add(repository.input.onDidChange(value => {
+			if (value === textModel.getValue()) { // circuit breaker
 				return;
 			}
-			this.inputModel.setValue(value);
-			this.inputEditor.setPosition(this.inputModel.getFullModelRange().getEndPosition());
+			textModel.setValue(value);
+			this.inputEditor.setPosition(textModel.getFullModelRange().getEndPosition());
 		}));
 
-		// Keep API in sync with model and update placeholder and validation
-		toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
-		this.inputModel.onDidChangeContent(() => {
-			repository.input.value = this.inputModel.getValue();
-			toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
+		// Keep API in sync with model, update placeholder visibility and validate
+		const updatePlaceholderVisibility = () => toggleClass(this.placeholderTextContainer, 'hidden', textModel.getValueLength() > 0);
+		this.repositoryDisposables.add(textModel.onDidChangeContent(() => {
+			repository.input.value = textModel.getValue();
+			updatePlaceholderVisibility();
 			triggerValidation();
-		});
+		}));
+		updatePlaceholderVisibility();
 
-		updatePlaceholder();
-		this._register(repository.input.onDidChangePlaceholder(updatePlaceholder, null));
-		this._register(keybindingService.onDidUpdateKeybindings(updatePlaceholder, null));
+		// Update placeholder text
+		const updatePlaceholderText = () => {
+			const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
+			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
+			const placeholderText = format(repository.input.placeholder, label);
+
+			this.inputEditor.updateOptions({ ariaLabel: placeholderText });
+			this.placeholderTextContainer.textContent = placeholderText;
+		};
+		this.repositoryDisposables.add(repository.input.onDidChangePlaceholder(updatePlaceholderText));
+		this.repositoryDisposables.add(this.keybindingService.onDidUpdateKeybindings(updatePlaceholderText));
+		updatePlaceholderText();
+
+		// Update input template
+		let commitTemplate = '';
+		const updateTemplate = () => {
+			if (typeof repository.provider.commitTemplate === 'undefined' || !repository.input.visible) {
+				return;
+			}
+
+			const oldCommitTemplate = commitTemplate;
+			commitTemplate = repository.provider.commitTemplate;
+
+			const value = textModel.getValue();
+
+			if (value && value !== oldCommitTemplate) {
+				return;
+			}
+
+			textModel.setValue(commitTemplate);
+		};
+		this.repositoryDisposables.add(repository.provider.onDidChangeCommitTemplate(updateTemplate, this));
+		updateTemplate();
+
+		// Update visibility
+		const onDidChangeVisibility = () => {
+			toggleClass(this.element, 'hidden', !repository.input.visible);
+			this._onDidChangeHeight.fire();
+		};
+		this.repositoryDisposables.add(repository.input.onDidChangeVisibility(onDidChangeVisibility, this));
+		onDidChangeVisibility();
+
+		// Save model
+		this.model = { repository, textModel };
+	}
+
+	constructor(
+		container: HTMLElement,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IModelService private modelService: IModelService,
+		@IModeService private modeService: IModeService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		this.element = append(container, $('.scm-editor'));
+		this.editorContainer = append(this.element, $('.scm-editor-container'));
+		this.placeholderTextContainer = append(this.editorContainer, $('.scm-editor-placeholder'));
+		this.validationContainer = append(this.editorContainer, $('.scm-editor-validation'));
+
+		const contextKeyService2 = contextKeyService.createScoped(this.element);
+		this.repositoryContextKey = contextKeyService2.createKey('scmRepository', undefined);
+
+		const editorOptions: IEditorConstructionOptions = {
+			...getSimpleEditorOptions(),
+			lineDecorationsWidth: 4,
+			dragAndDrop: false,
+			cursorWidth: 1,
+			fontSize: 13,
+			lineHeight: 20,
+			fontFamily: this.getInputEditorFontFamily(),
+			wrappingStrategy: 'advanced',
+			wrappingIndent: 'none',
+			padding: { top: 3, bottom: 3 },
+			quickSuggestions: false
+		};
+
+		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+			isSimpleWidget: true,
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				SuggestController.ID,
+				SnippetController2.ID,
+				MenuPreventer.ID,
+				SelectionClipboardContributionID,
+				ContextMenuController.ID,
+				ColorDetector.ID,
+				ModesHoverController.ID,
+				LinkDetector.ID
+			])
+		};
+
+		const services = new ServiceCollection([IContextKeyService, contextKeyService2]);
+		const instantiationService2 = instantiationService.createChild(services);
+		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, this.editorContainer, editorOptions, codeEditorWidgetOptions);
+		this._register(this.inputEditor);
+
+		this._register(this.inputEditor.onDidFocusEditorText(() => addClass(this.editorContainer, 'synthetic-focus')));
+		this._register(this.inputEditor.onDidBlurEditorText(() => removeClass(this.editorContainer, 'synthetic-focus')));
+
+		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
+		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
 
 		const onDidChangeContentHeight = Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged);
 		this._register(onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
-
-		this._register(repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
-		this.onDidChangeCommitTemplate();
-
-		// Input box visibility
-		this._register(repository.input.onDidChangeVisibility(this.updateInputBoxVisibility, this));
-		this.updateInputBoxVisibility();
 	}
 
 	private getInputEditorFontFamily(): string {
@@ -1177,28 +1222,6 @@ class SCMInput extends Disposable {
 		}
 
 		return this.defaultInputFontFamily;
-	}
-
-	private onDidChangeCommitTemplate(): void {
-		if (typeof this.repository.provider.commitTemplate === 'undefined' || !this.repository.input.visible) {
-			return;
-		}
-
-		const oldCommitTemplate = this.commitTemplate;
-		this.commitTemplate = this.repository.provider.commitTemplate;
-
-		const value = this.inputModel.getValue();
-
-		if (value && value !== oldCommitTemplate) {
-			return;
-		}
-
-		this.inputModel.setValue(this.commitTemplate);
-	}
-
-	private updateInputBoxVisibility(): void {
-		toggleClass(this.element, 'hidden', !this.repository.input.visible);
-		this._onDidChangeHeight.fire();
 	}
 }
 
