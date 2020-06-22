@@ -40,9 +40,10 @@ export interface IPathService {
 	/**
 	 * Resolves the user-home directory for the target environment.
 	 * If the envrionment is connected to a remote, this will be the
-	 * remote's user home directory, otherwise the local one.
+	 * remote's user home directory, otherwise the local one unless
+	 * `preferLocal` is set to `true`.
 	 */
-	readonly userHome: Promise<URI>;
+	userHome(options?: { preferLocal: boolean }): Promise<URI>;
 
 	/**
 	 * @deprecated use `userHome` instead.
@@ -60,7 +61,7 @@ export abstract class AbstractPathService implements IPathService {
 	private maybeUnresolvedUserHome: URI | undefined;
 
 	constructor(
-		localUserHome: URI,
+		private localUserHome: URI,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
 
@@ -81,8 +82,8 @@ export abstract class AbstractPathService implements IPathService {
 		})();
 	}
 
-	get userHome(): Promise<URI> {
-		return this.resolveUserHome;
+	async userHome(options?: { preferLocal: boolean }): Promise<URI> {
+		return options?.preferLocal ? this.localUserHome : this.resolveUserHome;
 	}
 
 	get resolvedUserHome(): URI | undefined {

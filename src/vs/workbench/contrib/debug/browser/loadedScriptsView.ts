@@ -348,7 +348,7 @@ class SessionTreeItem extends BaseTreeItem {
 					// on unix try to tildify absolute paths
 					path = normalize(path);
 					if (!isWindows) {
-						path = tildify(path, (await this._pathService.userHome).fsPath);
+						path = tildify(path, (await this._pathService.userHome()).fsPath);
 					}
 				}
 			}
