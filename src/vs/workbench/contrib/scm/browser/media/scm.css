@@ -34,39 +34,35 @@
 	display: flex;
 	flex-direction: column;
 	height: 100%;
-}
-
-.scm-viewlet .scm-provider > .header {
-	display: flex;
 	align-items: center;
 	flex-flow: nowrap;
 }
 
-.scm-viewlet .scm-provider > .header > .icon {
+.scm-viewlet .scm-provider > .icon {
 	margin-right: 4px;
 }
 
-.scm-viewlet .scm-provider > .header > .label {
+.scm-viewlet .scm-provider > .label {
 	display: flex;
 	flex-shrink: 1;
 	overflow: hidden;
 }
 
-.scm-viewlet .scm-provider > .header > .label > .name {
+.scm-viewlet .scm-provider > .label > .name {
 	text-decoration: underline;
 }
 
-.scm-viewlet .scm-provider > .header > .label > .description {
+.scm-viewlet .scm-provider > .label > .description {
 	opacity: 0.7;
 	margin-left: 0.5em;
 	font-size: 0.9em;
 }
 
-.scm-viewlet .scm-provider > .header > .monaco-action-bar {
+.scm-viewlet .scm-provider > .monaco-action-bar {
 	flex: 1;
 }
 
-.scm-viewlet .scm-provider > .header > .monaco-action-bar .action-item {
+.scm-viewlet .scm-provider > .monaco-action-bar .action-item {
 	margin-left: 4px;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -75,19 +71,19 @@
 	min-width: 14px;
 }
 
-.scm-viewlet .scm-provider > .header > .monaco-action-bar .action-label {
+.scm-viewlet .scm-provider > .monaco-action-bar .action-label {
 	text-overflow: ellipsis;
 	overflow: hidden;
 	min-width: 14px; /* minimum size of icons */
 }
 
-.scm-viewlet .scm-provider > .header > .monaco-action-bar .action-label .codicon {
+.scm-viewlet .scm-provider > .monaco-action-bar .action-label .codicon {
 	font-size: 14px;
 	vertical-align: sub;
 	display: inline-flex;
 }
 
-.scm-viewlet .scm-provider > .header > .monaco-action-bar .action-item:last-of-type {
+.scm-viewlet .scm-provider > .monaco-action-bar .action-item:last-of-type {
 	padding-right: 0;
 }
 
@@ -180,6 +176,10 @@
 	line-height: 22px;
 }
 
+.scm-viewlet .scm-input {
+	height: 100%;
+}
+
 .scm-viewlet .scm-editor {
 	box-sizing: border-box;
 	width: 100%;
@@ -209,6 +209,7 @@
 	font-size: 0.9em;
 	padding: 1px 3px;
 	display: none;
+	top: calc(100%);
 }
 
 .scm-viewlet .scm-editor-container.synthetic-focus > .scm-editor-validation {

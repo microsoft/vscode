@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMResource, ISCMRepository, ISCMResourceGroup } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -13,6 +13,10 @@ import { equals } from 'vs/base/common/arrays';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
+}
+
+export function isSCMInput(element: any): element is ISCMInput {
+	return !!(element as ISCMInput).validateInput && typeof (element as ISCMInput).value === 'string';
 }
 
 export function isSCMResourceGroup(element: any): element is ISCMResourceGroup {

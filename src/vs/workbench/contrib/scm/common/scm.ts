@@ -80,6 +80,8 @@ export interface IInputValidator {
 }
 
 export interface ISCMInput {
+	readonly repository: ISCMRepository;
+
 	value: string;
 	readonly onDidChange: Event<string>;
 
