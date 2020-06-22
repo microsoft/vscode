@@ -437,20 +437,25 @@ suite.only('vscode API - window', () => {
 	});
 
 	test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
-		const tracker = createQuickPickTracker<string>();
-		const first = tracker.nextItem();
 		const picks = window.showQuickPick([
 			{ label: 'eins' },
 			{ label: 'zwei', picked: true },
 			{ label: 'drei', picked: true }
 		], {
-			onDidSelectItem: tracker.onDidSelectItem,
 			canPickMany: true
 		});
-		assert.equal(await first, 'eins');
+		await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		if (await Promise.race([picks, new Promise<boolean>(resolve => setTimeout(() => resolve(false), 100))]) === false) {
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			if (await Promise.race([picks, new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1000))]) === false) {
+				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+				if (await Promise.race([picks, new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1000))]) === false) {
+					assert.ok(false, 'Picks not resolved!');
+				}
+			}
+		}
 		assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
-		return tracker.done();
 	});
 
 	test('showQuickPick, undefined on cancel', function () {
