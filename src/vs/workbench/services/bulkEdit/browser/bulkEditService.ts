@@ -96,13 +96,13 @@ class BulkEdit {
 
 	private async _performFileEdits(edits: WorkspaceFileEdit[], progress: IProgress<void>) {
 		this._logService.debug('_performFileEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkFileEdits, progress, edits);
+		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), progress, edits);
 		await model.apply();
 	}
 
 	private async _performTextEdits(edits: WorkspaceTextEdit[], progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkTextEdits, this._label, this._editor, progress, edits);
+		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._editor, progress, edits);
 		await model.apply();
 	}
 }

@@ -13,7 +13,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -120,7 +119,7 @@ export class BulkTextEdits {
 	private readonly _edits = new ResourceMap<WorkspaceTextEdit[]>();
 
 	constructor(
-		private readonly _label: string | undefined,
+		private readonly _label: string,
 		private readonly _editor: ICodeEditor | undefined,
 		private readonly _progress: IProgress<void>,
 		edits: WorkspaceTextEdit[],
@@ -228,7 +227,7 @@ export class BulkTextEdits {
 			} else {
 				// prepare multi model undo element
 				const multiModelEditStackElement = new MultiModelEditStackElement(
-					this._label || localize('workspaceEdit', "Workspace Edit"),
+					this._label,
 					tasks.map(t => new SingleModelEditStackElement(t.model, t.getBeforeCursorState()))
 				);
 				this._undoRedoService.pushElement(multiModelEditStackElement);
