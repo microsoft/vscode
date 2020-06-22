@@ -594,6 +594,10 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	definitionLinkOpensInPeek?: boolean;
+	/**
+	 * Controls strikethrough deprecated variables.
+	 */
+	showDeprecated?: boolean;
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -3591,6 +3595,7 @@ export const enum EditorOption {
 	wordWrapMinified,
 	wrappingIndent,
 	wrappingStrategy,
+	showDeprecated,
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
@@ -4076,6 +4081,10 @@ export const EditorOptions = {
 	showUnused: register(new EditorBooleanOption(
 		EditorOption.showUnused, 'showUnused', true,
 		{ description: nls.localize('showUnused', "Controls fading out of unused code.") }
+	)),
+	showDeprecated: register(new EditorBooleanOption(
+		EditorOption.showDeprecated, 'showDeprecated', true,
+		{ description: nls.localize('showDeprecated', "Controls strikethrough deprecated variables.") }
 	)),
 	snippetSuggestions: register(new EditorStringEnumOption(
 		EditorOption.snippetSuggestions, 'snippetSuggestions',
