@@ -38,8 +38,8 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { IHoverService } from 'vs/workbench/contrib/hover/browser/hover';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
