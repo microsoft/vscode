@@ -237,7 +237,3 @@
 .scm-viewlet .scm-editor-container .mtk1 {
 	color: inherit;
 }
-
-.scm-viewlet .scm-status.show-file-icons.hide-arrows.tree-view-mode .monaco-tl-indent .indent-guide:first-child {
-	border: none;
-}

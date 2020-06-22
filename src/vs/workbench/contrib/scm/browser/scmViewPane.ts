@@ -901,7 +901,7 @@ class ViewModel {
 	private render(item: IRepositoryItem | IGroupItem): ICompressedTreeElement<TreeElement> {
 		if (isRepositoryItem(item)) {
 			const children: ICompressedTreeElement<TreeElement>[] = [
-				{ element: item.element.input, incompressible: true, collapsible: true },
+				{ element: item.element.input, incompressible: true, collapsible: false },
 				...item.groupItems.map(i => this.render(i))
 			];
 
