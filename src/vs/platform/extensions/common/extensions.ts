@@ -6,6 +6,7 @@
 import * as strings from 'vs/base/common/strings';
 import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import { URI } from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
 export const USER_MANIFEST_CACHE_FILE = 'user';
@@ -245,4 +246,19 @@ export interface IExtensionDescription extends IExtensionManifest {
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;
+}
+
+export interface IScannedExtension {
+	readonly location: URI;
+	readonly type: ExtensionType;
+	readonly packageJSON: IExtensionManifest
+	readonly packageNLSUrl?: URI;
+	readonly readmeUrl?: URI;
+	readonly changelogUrl?: URI;
+}
+
+export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');
+export interface IBuiltinExtensionsScannerService {
+	readonly _serviceBrand: undefined;
+	scanBuiltinExtensions(): Promise<IScannedExtension[]>;
 }

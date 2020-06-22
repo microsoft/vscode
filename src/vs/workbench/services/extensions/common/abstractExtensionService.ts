@@ -20,7 +20,7 @@ import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensi
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { ExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, IScannedExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -28,6 +28,16 @@ import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtens
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
+
+export function parseScannedExtension(extension: IScannedExtension): IExtensionDescription {
+	return {
+		identifier: new ExtensionIdentifier(`${extension.packageJSON.publisher}.${extension.packageJSON.name}`),
+		isBuiltin: extension.type === ExtensionType.System,
+		isUnderDevelopment: false,
+		extensionLocation: extension.location,
+		...extension.packageJSON,
+	};
+}
 
 export abstract class AbstractExtensionService extends Disposable implements IExtensionService {
 

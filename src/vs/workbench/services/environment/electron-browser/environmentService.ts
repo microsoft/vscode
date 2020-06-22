@@ -24,8 +24,6 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 
 	readonly log?: string;
 	readonly extHostLogsPath: URI;
-
-	readonly userHome: URI;
 }
 
 export interface INativeEnvironmentConfiguration extends IEnvironmentConfiguration, INativeWindowConfiguration { }

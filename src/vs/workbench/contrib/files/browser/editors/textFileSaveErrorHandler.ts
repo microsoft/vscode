@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { basename } from 'vs/base/common/resources';
+import { basename, extUri } from 'vs/base/common/resources';
 import { Action, IAction } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -115,7 +115,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 
 			// If the user tried to save from the opened conflict editor, show its message again
-			if (this.activeConflictResolutionResource && this.activeConflictResolutionResource.toString() === model.resource.toString()) {
+			if (this.activeConflictResolutionResource && extUri.isEqual(this.activeConflictResolutionResource, model.resource)) {
 				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
 					return; // return if this message is ignored
 				}

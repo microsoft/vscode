@@ -65,7 +65,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 				// decode and write buffered content
 				const iconv = await import('iconv-lite-umd');
 				decoder = iconv.getDecoder(toNodeEncoding(detected.encoding));
-				const decoded = decoder.write(Buffer.from(VSBuffer.concat(bufferedChunks).buffer));
+				const decoded = decoder.write(VSBuffer.concat(bufferedChunks).buffer);
 				target.write(decoded);
 
 				bufferedChunks.length = 0;
@@ -89,7 +89,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 
 			// if the decoder is ready, we just write directly
 			if (decoder) {
-				target.write(decoder.write(Buffer.from(chunk.buffer)));
+				target.write(decoder.write(chunk.buffer));
 			}
 
 			// otherwise we need to buffer the data until the stream is ready
@@ -234,7 +234,13 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-16', 'utf-32'];
 async function guessEncodingByBuffer(buffer: VSBuffer): Promise<string | null> {
 	const jschardet = await import('jschardet');
 
-	const guessed = jschardet.detect(Buffer.from(buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES).buffer)); // ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
+	// ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
+	const limitedBuffer = buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES);
+	// override type since jschardet expects Buffer even though can accept Uint8Array
+	// can be fixed once https://github.com/aadsm/jschardet/pull/58 is merged
+	const jschardetTypingsWorkaround = limitedBuffer.buffer as any;
+
+	const guessed = jschardet.detect(jschardetTypingsWorkaround);
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}

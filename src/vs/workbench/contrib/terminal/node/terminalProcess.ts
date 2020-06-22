@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import * as pty from 'node-pty';
@@ -53,7 +52,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	) {
 		super();
 		let name: string;
-		if (os.platform() === 'win32') {
+		if (platform.isWindows) {
 			name = path.basename(this._shellLaunchConfig.executable || '');
 		} else {
 			// Using 'xterm-256color' here helps ensure that the majority of Linux distributions will use a

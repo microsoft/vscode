@@ -34,7 +34,6 @@ import 'vs/workbench/electron-browser/desktop.main';
 
 //#region --- workbench services
 
-import 'vs/workbench/services/dialogs/electron-browser/fileDialogService';
 import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/textMate/electron-browser/textMateService';
 import 'vs/workbench/services/search/node/searchService';
@@ -59,7 +58,6 @@ import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService'
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncAccountService';
 import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
 import 'vs/workbench/services/localizations/electron-browser/localizationsService';
-import 'vs/workbench/services/clipboard/electron-browser/clipboardService';
 import 'vs/workbench/services/path/electron-browser/pathService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
