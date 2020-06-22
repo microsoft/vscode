@@ -265,7 +265,11 @@ function scanBuiltinExtensions(extensionsRoot, forWeb) {
     const scannedExtensions = [];
     const extensionsFolders = fs.readdirSync(extensionsRoot);
     for (const extensionFolder of extensionsFolders) {
-        const packageJSON = JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, 'package.json')).toString('utf8'));
+        const packageJSONPath = path.join(extensionsRoot, extensionFolder, 'package.json');
+        if (!fs.existsSync(packageJSONPath)) {
+            continue;
+        }
+        const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
         const extensionKind = packageJSON['extensionKind'] || [];
         if (forWeb && extensionKind.indexOf('web') === -1) {
             continue;

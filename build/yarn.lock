@@ -1428,12 +1428,10 @@ https-proxy-agent@^4.0.0:
     agent-base "5"
     debug "4"
 
-iconv-lite@0.6.0:
-  version "0.6.0"
-  resolved "https://registry.yarnpkg.com/iconv-lite/-/iconv-lite-0.6.0.tgz#66a93b80df0bd05d2a43a7426296b7f91073f125"
-  integrity sha512-43ZpGYZ9QtuutX5l6WC1DSO8ane9N+Ct5qPLF2OV7vM9abM69gnAbVkh66ibaZd3aOGkoP1ZmringlKhLBkw2Q==
-  dependencies:
-    safer-buffer ">= 2.1.2 < 3"
+iconv-lite-umd@0.6.3:
+  version "0.6.3"
+  resolved "https://registry.yarnpkg.com/iconv-lite-umd/-/iconv-lite-umd-0.6.3.tgz#61307cab8ac29939992d0724d3ab8799467f0e97"
+  integrity sha512-fQ/8XE8reiCZ6t+SX4tX6/tQdV4tThJZv5qtMe5Sk+IWsExz0S2Zd+GiBS5IEPgDxnsmiJSpH67+qzN3FT4lKw==
 
 ignore@^5.1.1:
   version "5.1.2"
