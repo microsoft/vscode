@@ -569,7 +569,7 @@ suite('notebook undo redo', () => {
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 
-	test('execute and then undo redo', async function () {
+	test.skip('execute and then undo redo', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 

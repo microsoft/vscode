@@ -568,7 +568,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		const firstOpen = storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE);
+		// The `firstRun` flag check is a safety-net hack for Codespaces, until we can verify the first open fix
+		const firstOpen = (storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE) || (defaultLayout as { firstRun: boolean })?.firstRun);
 		if (!firstOpen) {
 			return;
 		}
@@ -790,7 +791,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[] } | undefined {
 		const defaultLayout = this.environmentService.options?.defaultLayout;
-		if (defaultLayout?.editors?.length && this.storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE)) {
+		// The `firstRun` flag check is a safety-net hack for Codespaces, until we can verify the first open fix
+		if (defaultLayout?.editors?.length && (this.storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE) || (defaultLayout as { firstRun: boolean })?.firstRun)) {
 			this._openedDefaultEditors = true;
 
 			return {

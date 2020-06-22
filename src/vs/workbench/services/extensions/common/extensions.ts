@@ -265,6 +265,17 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 	};
 }
 
+export function toExtensionDescription(extension: IExtension): IExtensionDescription {
+	return {
+		identifier: new ExtensionIdentifier(extension.identifier.id),
+		isBuiltin: extension.type === ExtensionType.System,
+		isUnderDevelopment: false,
+		extensionLocation: extension.location,
+		...extension.manifest,
+		uuid: extension.identifier.uuid
+	};
+}
+
 
 export class NullExtensionService implements IExtensionService {
 	declare readonly _serviceBrand: undefined;

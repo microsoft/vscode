@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecoderStream } from 'iconv-lite';
+import { DecoderStream } from 'iconv-lite-umd';
 import { Readable, ReadableStream, newWriteableStream } from 'vs/base/common/stream';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
@@ -63,9 +63,9 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 				detected.encoding = await options.overwriteEncoding(detected.encoding);
 
 				// decode and write buffered content
-				const iconv = await import('iconv-lite');
+				const iconv = await import('iconv-lite-umd');
 				decoder = iconv.getDecoder(toNodeEncoding(detected.encoding));
-				const decoded = decoder.write(Buffer.from(VSBuffer.concat(bufferedChunks).buffer));
+				const decoded = decoder.write(VSBuffer.concat(bufferedChunks).buffer);
 				target.write(decoded);
 
 				bufferedChunks.length = 0;
@@ -89,7 +89,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 
 			// if the decoder is ready, we just write directly
 			if (decoder) {
-				target.write(decoder.write(Buffer.from(chunk.buffer)));
+				target.write(decoder.write(chunk.buffer));
 			}
 
 			// otherwise we need to buffer the data until the stream is ready
@@ -129,7 +129,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 }
 
 export async function toEncodeReadable(readable: Readable<string>, encoding: string, options?: { addBOM?: boolean }): Promise<VSBufferReadable> {
-	const iconv = await import('iconv-lite');
+	const iconv = await import('iconv-lite-umd');
 	const encoder = iconv.getEncoder(toNodeEncoding(encoding), options);
 
 	let bytesRead = 0;
@@ -176,7 +176,7 @@ export async function toEncodeReadable(readable: Readable<string>, encoding: str
 }
 
 export async function encodingExists(encoding: string): Promise<boolean> {
-	const iconv = await import('iconv-lite');
+	const iconv = await import('iconv-lite-umd');
 
 	return iconv.encodingExists(toNodeEncoding(encoding));
 }
@@ -234,7 +234,13 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-16', 'utf-32'];
 async function guessEncodingByBuffer(buffer: VSBuffer): Promise<string | null> {
 	const jschardet = await import('jschardet');
 
-	const guessed = jschardet.detect(Buffer.from(buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES).buffer)); // ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
+	// ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
+	const limitedBuffer = buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES);
+	// override type since jschardet expects Buffer even though can accept Uint8Array
+	// can be fixed once https://github.com/aadsm/jschardet/pull/58 is merged
+	const jschardetTypingsWorkaround = limitedBuffer.buffer as any;
+
+	const guessed = jschardet.detect(jschardetTypingsWorkaround);
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}

@@ -66,6 +66,13 @@ export interface IHoverOptions {
 	 * be used to open the links using its default options.
 	 */
 	linkHandler?(url: string): void;
+
+	/**
+	 * Whether to hide the hover when the mouse leaves the `target` and enters the actual hover.
+	 * This is false by default and note that it will be ignored if any `actions` are provided such
+	 * that they are accessible.
+	 */
+	hideOnHover?: boolean;
 }
 
 export interface IHoverAction {

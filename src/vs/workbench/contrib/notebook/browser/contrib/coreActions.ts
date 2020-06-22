@@ -1005,13 +1005,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const viewModel = context.notebookEditor.viewModel;
-
-		if (!viewModel) {
-			return;
-		}
-
-		viewModel.undo();
+		await context.notebookEditor.viewModel?.undo();
 	}
 });
 
@@ -1029,7 +1023,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel?.redo();
+		await context.notebookEditor.viewModel?.redo();
 	}
 });
 

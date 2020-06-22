@@ -35,7 +35,7 @@ import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/noteb
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
+import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -229,7 +229,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 	private onEditorOpening2(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
 
-		const id = typeof options?.override === 'string' ? options.override : undefined;
+		let id = typeof options?.override === 'string' ? options.override : undefined;
 		if (id === undefined && originalInput.isUntitled()) {
 			return undefined;
 		}
@@ -249,6 +249,11 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		if (data) {
 			notebookUri = data.notebook;
 			cellOptions = { resource: originalInput.resource, options };
+		}
+
+		if (id === undefined) {
+			const exitingNotebookEditor = <NotebookEditorInput | undefined>group.editors.find(editor => editor instanceof NotebookEditorInput && isEqual(editor.resource, notebookUri));
+			id = exitingNotebookEditor?.viewType;
 		}
 
 		if (id === undefined) {

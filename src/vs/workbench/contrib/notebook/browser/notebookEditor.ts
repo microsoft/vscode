@@ -17,7 +17,7 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/noteb
 import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookEditorWidget, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -49,12 +49,13 @@ export class NotebookEditor extends BaseEditor {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@INotebookEditorWidgetService private readonly _notebookWidgetService: INotebookEditorWidgetService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
-		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
 	set viewModel(newModel: NotebookViewModel | undefined) {
@@ -160,11 +161,9 @@ export class NotebookEditor extends BaseEditor {
 		await this._widget.value!.setOptions(options instanceof NotebookEditorOptions ? options : undefined);
 		this._widgetDisposableStore.add(this._widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
 
-		if (this._editorGroupService instanceof EditorPart) {
-			this._widgetDisposableStore.add(this._editorGroupService.createEditorDropTarget(this._widget.value!.getDomNode(), {
-				groupContainsPredicate: (group) => this.group?.id === group.group.id
-			}));
-		}
+		this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {
+			containsGroup: (group) => this.group?.id === group.group.id
+		}));
 	}
 
 	clearInput(): void {

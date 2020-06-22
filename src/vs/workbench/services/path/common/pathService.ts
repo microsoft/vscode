@@ -61,13 +61,13 @@ export abstract class AbstractPathService implements IPathService {
 	private maybeUnresolvedUserHome: URI | undefined;
 
 	constructor(
-		fallbackUserHome: () => URI,
+		fallbackUserHome: URI,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
 		this.remoteOS = this.remoteAgentService.getEnvironment().then(env => env?.os || OS);
 
 		this.resolveUserHome = this.remoteAgentService.getEnvironment().then(env => {
-			const userHome = this.maybeUnresolvedUserHome = env?.userHome || fallbackUserHome();
+			const userHome = this.maybeUnresolvedUserHome = env?.userHome || fallbackUserHome;
 
 			return userHome;
 		});

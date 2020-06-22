@@ -347,7 +347,7 @@ export class TimelinePane extends ViewPane {
 
 		const editor = this.editorService.activeEditor;
 		if (editor) {
-			uri = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+			uri = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		}
 
 		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||

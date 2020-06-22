@@ -14,13 +14,19 @@ import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHov
 let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	registerTaskProvider(context);
-	treeDataProvider = registerExplorer(context);
-	registerHoverProvider(context);
-
 	configureHttpRequest();
-	let d = vscode.workspace.onDidChangeConfiguration((e) => {
-		configureHttpRequest();
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration('http.proxy') || e.affectsConfiguration('http.proxyStrictSSL')) {
+			configureHttpRequest();
+		}
+	}));
+
+	const canRunNPM = canRunNpmInCurrentWorkspace();
+	context.subscriptions.push(addJSONProviders(httpRequest.xhr, canRunNPM));
+
+	treeDataProvider = registerExplorer(context);
+
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
 		if (e.affectsConfiguration('npm.exclude') || e.affectsConfiguration('npm.autoDetect')) {
 			invalidateTasksCache();
 			if (treeDataProvider) {
@@ -32,21 +38,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				treeDataProvider.refresh();
 			}
 		}
-	});
-	context.subscriptions.push(d);
+	}));
 
-	d = vscode.workspace.onDidChangeTextDocument((e) => {
-		invalidateHoverScriptsCache(e.document);
-	});
-	context.subscriptions.push(d);
+	registerTaskProvider(context);
+	registerHoverProvider(context);
+
 	context.subscriptions.push(vscode.commands.registerCommand('npm.runSelectedScript', runSelectedScript));
-	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 
 	if (await hasPackageJson()) {
 		vscode.commands.executeCommand('setContext', 'npm:showScriptExplorer', true);
 	}
 
 	context.subscriptions.push(vscode.commands.registerCommand('npm.runScriptFromFolder', selectAndRunScriptFromFolder));
+}
+
+function canRunNpmInCurrentWorkspace() {
+	if (vscode.workspace.workspaceFolders) {
+		return vscode.workspace.workspaceFolders.some(f => f.uri.scheme === 'file');
+	}
+	return false;
 }
 
 function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {

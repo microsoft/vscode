@@ -6,7 +6,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 // @ts-check
-/** @typedef {import('../../src/vs/workbench/workbench.web.api').IWorkbenchConstructionOptions} WebConfiguration **/
 
 const http = require('http');
 const url = require('url');
@@ -62,15 +61,34 @@ const exists = (path) => util.promisify(fs.exists)(path);
 const readFile = (path) => util.promisify(fs.readFile)(path);
 const CharCode_PC = '%'.charCodeAt(0);
 
+function toStaticExtensionUri(path) {
+	return { scheme: SCHEME, authority: AUTHORITY, path: `/static-extension/${path}` };
+}
+
 async function initialize() {
-	const extensionFolders = await util.promisify(fs.readdir)(EXTENSIONS_ROOT);
-
-	const staticExtensions = [];
-
+	const builtinExtensions = [];
 	const webpackConfigs = [];
 
-	await Promise.all(extensionFolders.map(async extensionFolder => {
-		const packageJSONPath = path.join(EXTENSIONS_ROOT, extensionFolder, 'package.json');
+	const children = await util.promisify(fs.readdir)(EXTENSIONS_ROOT, { withFileTypes: true });
+	const folders = children.filter(c => !c.isFile());
+	await Promise.all(folders.map(async folder => {
+		const folderName = folder.name;
+		const extensionPath = path.join(EXTENSIONS_ROOT, folderName);
+
+		let children = [];
+		try {
+			children = await util.promisify(fs.readdir)(extensionPath);
+		} catch (error) {
+			console.log(error);
+			return;
+		}
+
+		const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+		const readmeUrl = readme ? toStaticExtensionUri(path.join(extensionPath, readme)) : undefined;
+		const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+		const changelogUrl = changelog ? toStaticExtensionUri(path.join(extensionPath, changelog)) : undefined;
+
+		const packageJSONPath = path.join(EXTENSIONS_ROOT, folderName, 'package.json');
 		if (await exists(packageJSONPath)) {
 			try {
 				const packageJSON = JSON.parse((await readFile(packageJSONPath)).toString());
@@ -82,7 +100,7 @@ async function initialize() {
 					packageJSON.main = packageJSON.browser;
 
 					const webpackConfigLocations = await util.promisify(glob)(
-						path.join(EXTENSIONS_ROOT, extensionFolder, '**', 'extension-browser.webpack.config.js'),
+						path.join(EXTENSIONS_ROOT, folderName, '**', 'extension-browser.webpack.config.js'),
 						{ ignore: ['**/node_modules'] }
 					);
 
@@ -99,31 +117,16 @@ async function initialize() {
 					}
 				}
 
-				const packageNlsPath = path.join(EXTENSIONS_ROOT, extensionFolder, 'package.nls.json');
-				if (await exists(packageNlsPath)) {
-					const packageNls = JSON.parse((await readFile(packageNlsPath)).toString());
-					const translate = (obj) => {
-						for (let key in obj) {
-							const val = obj[key];
-							if (Array.isArray(val)) {
-								val.forEach(translate);
-							} else if (val && typeof val === 'object') {
-								translate(val);
-							} else if (typeof val === 'string' && val.charCodeAt(0) === CharCode_PC && val.charCodeAt(val.length - 1) === CharCode_PC) {
-								const translated = packageNls[val.substr(1, val.length - 2)];
-								if (translated) {
-									obj[key] = translated;
-								}
-							}
-						}
-					};
-					translate(packageJSON);
-				}
 				packageJSON.extensionKind = ['web']; // enable for Web
-				staticExtensions.push({
+
+				const packageNLSPath = path.join(folderName, 'package.nls.json');
+				const packageNLSExists = await exists(path.join(EXTENSIONS_ROOT, packageNLSPath));
+				builtinExtensions.push({
 					packageJSON,
-					extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/static-extension/${extensionFolder}` },
-					isBuiltin: true
+					location: toStaticExtensionUri(folderName),
+					packageNLSUrl: packageNLSExists ? toStaticExtensionUri(packageNLSPath) : undefined,
+					readmeUrl,
+					changelogUrl
 				});
 			} catch (e) {
 				console.log(e);
@@ -139,7 +142,7 @@ async function initialize() {
 					reject();
 				} else {
 					console.log(stats.toString());
-					resolve(staticExtensions);
+					resolve(builtinExtensions);
 				}
 			});
 		} else {
@@ -149,14 +152,14 @@ async function initialize() {
 					reject();
 				} else {
 					console.log(stats.toString());
-					resolve(staticExtensions);
+					resolve(builtinExtensions);
 				}
 			});
 		}
 	});
 }
 
-const staticExtensionsPromise = initialize();
+const builtinExtensionsPromise = initialize();
 
 const mapCallbackUriToRequestId = new Map();
 
@@ -262,14 +265,9 @@ async function handleRoot(req, res) {
 		}
 	}
 
-	const staticExtensions = await staticExtensionsPromise;
-	/** @type {WebConfiguration} */
-	const webConfig = {
-		staticExtensions: staticExtensions,
-	};
+	const builtinExtensions = await builtinExtensionsPromise;
 
 	const webConfigJSON = escapeAttribute(JSON.stringify({
-		...webConfig,
 		folderUri: ghPath
 			? { scheme: 'github', authority: 'HEAD', path: ghPath }
 			: { scheme: 'memfs', path: `/sample-folder` },
@@ -277,6 +275,7 @@ async function handleRoot(req, res) {
 
 	const data = (await util.promisify(fs.readFile)(WEB_MAIN)).toString()
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => webConfigJSON) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
+		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(builtinExtensions)))
 		.replace('{{WEBVIEW_ENDPOINT}}', '')
 		.replace('{{REMOTE_USER_DATA_URI}}', '');
 

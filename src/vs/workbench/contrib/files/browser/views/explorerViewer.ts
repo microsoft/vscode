@@ -134,6 +134,7 @@ export interface ICompressedNavigationController {
 	first(): void;
 	last(): void;
 	setIndex(index: number): void;
+	updateCollapsed(collapsed: boolean): void;
 }
 
 export class CompressedNavigationController implements ICompressedNavigationController, IDisposable {
@@ -153,7 +154,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 	private _onDidChange = new Emitter<void>();
 	readonly onDidChange = this._onDidChange.event;
 
-	constructor(private id: string, readonly items: ExplorerItem[], templateData: IFileTemplateData) {
+	constructor(private id: string, readonly items: ExplorerItem[], templateData: IFileTemplateData, private depth: number, private collapsed: boolean) {
 		this._index = items.length - 1;
 
 		this.updateLabels(templateData);
@@ -165,7 +166,9 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 
 		for (let i = 0; i < this.labels.length; i++) {
 			this.labels[i].setAttribute('aria-label', this.items[i].name);
+			this.labels[i].setAttribute('aria-level', `${this.depth + i}`);
 		}
+		this.updateCollapsed(this.collapsed);
 
 		if (this._index < this.labels.length) {
 			DOM.addClass(this.labels[this._index], 'active');
@@ -214,6 +217,13 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 		DOM.addClass(this.labels[this._index], 'active');
 
 		this._onDidChange.fire();
+	}
+
+	updateCollapsed(collapsed: boolean): void {
+		this.collapsed = collapsed;
+		for (let i = 0; i < this.labels.length; i++) {
+			this.labels[i].setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+		}
 	}
 
 	dispose(): void {
@@ -308,7 +318,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			const label = node.element.elements.map(e => e.name);
 			disposables.add(this.renderStat(stat, label, id, node.filterData, templateData));
 
-			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData);
+			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData, node.depth, node.collapsed);
 			disposables.add(compressedNavigationController);
 			this.compressedNavigationControllers.set(stat, compressedNavigationController);
 

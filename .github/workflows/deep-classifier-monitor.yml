@@ -15,7 +15,7 @@ jobs:
           path: ./actions
       - name: Install Actions
         run: npm install --production --prefix ./actions
-      - name: "Run Classifier: Scraper"
+      - name: "Run Classifier: Monitor"
         uses: ./actions/classifier-deep/monitor
         with:
           botName: vscode-triage-bot

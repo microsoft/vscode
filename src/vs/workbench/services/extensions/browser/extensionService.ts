@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -13,7 +13,7 @@ import { IExtensionService, IExtensionHost } from 'vs/workbench/services/extensi
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { AbstractExtensionService, parseScannedExtension } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { RemoteExtensionHost, IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
@@ -23,7 +23,6 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 import { DeltaExtensionsResult } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
@@ -43,7 +42,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
-		@IStaticExtensionsService private readonly _staticExtensions: IStaticExtensionsService,
+		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
 	) {
 		super(
 			instantiationService,
@@ -112,7 +111,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// fetch the remote environment
 		let [remoteEnv, localExtensions] = await Promise.all([
 			this._remoteAgentService.getEnvironment(),
-			this._staticExtensions.getExtensions()
+			this._webExtensionsScannerService.scanExtensions().then(extensions => extensions.map(parseScannedExtension))
 		]);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();

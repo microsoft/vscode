@@ -234,7 +234,7 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.clear();
 
 		// honor diff editors and such
-		const uri = toResource(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+		const uri = toResource(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		if (!uri || !this._fileService.canHandleResource(uri)) {
 			// cleanup and return when there is no input or when
