@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2, env, UIKind, ShellExecution, TaskExecution } from 'vscode';
+import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2, env, UIKind, ShellExecution, TaskExecution, Terminal } from 'vscode';
 
 // Disable tasks tests:
 // - Web https://github.com/microsoft/vscode/issues/90528
@@ -28,26 +28,55 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 			const taskType: string = 'customTesting';
 			const taskName = 'First custom task';
 			let isPseudoterminalClosed = false;
+			let terminal: Terminal | undefined;
+			// There's a strict order that should be observed here:
+			// 1. The terminal opens
+			// 2. The terminal is written to.
+			// 3. The terminal is closed.
+			enum TestOrder {
+				Start,
+				TerminalOpened,
+				TerminalWritten,
+				TerminalClosed
+			}
+
+			let testOrder = TestOrder.Start;
+
 			disposables.push(window.onDidOpenTerminal(term => {
-				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						assert.equal(e.data, 'testing\r\n');
-					} catch (e) {
-						done(e);
-					}
-					disposables.push(window.onDidCloseTerminal(() => {
-						try {
-							// Pseudoterminal.close should have fired by now, additionally we want
-							// to make sure all events are flushed before continuing with more tests
-							assert.ok(isPseudoterminalClosed);
-						} catch (e) {
-							done(e);
-							return;
-						}
-						done();
-					}));
-					term.dispose();
-				}));
+				try {
+					assert.equal(testOrder, TestOrder.Start);
+				} catch (e) {
+					done(e);
+				}
+				testOrder = TestOrder.TerminalOpened;
+				terminal = term;
+			}));
+			disposables.push(window.onDidWriteTerminalData(e => {
+				try {
+					assert.equal(testOrder, TestOrder.TerminalOpened);
+					testOrder = TestOrder.TerminalWritten;
+					assert.notEqual(terminal, undefined);
+					assert.equal(e.data, 'testing\r\n');
+				} catch (e) {
+					done(e);
+				}
+
+				if (terminal) {
+					terminal.dispose();
+				}
+			}));
+			disposables.push(window.onDidCloseTerminal(() => {
+				try {
+					assert.equal(testOrder, TestOrder.TerminalWritten);
+					testOrder = TestOrder.TerminalClosed;
+					// Pseudoterminal.close should have fired by now, additionally we want
+					// to make sure all events are flushed before continuing with more tests
+					assert.ok(isPseudoterminalClosed);
+				} catch (e) {
+					done(e);
+					return;
+				}
+				done();
 			}));
 			disposables.push(tasks.registerTaskProvider(taskType, {
 				provideTasks: () => {
