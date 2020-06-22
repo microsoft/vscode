@@ -194,6 +194,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'array',
 				description: localize('handleUriConfirmedExtensions', "When an extension is listed here, a confirmation prompt will not be shown when that extension handles a URI."),
 				default: []
+			},
+			'extensions.webWorker': {
+				type: 'boolean',
+				description: localize('extensionsWebWorker', "Enable web worker extension host."),
+				default: false
 			}
 		}
 	});
