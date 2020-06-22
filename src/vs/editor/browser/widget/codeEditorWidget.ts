@@ -151,7 +151,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	public readonly onDidFocusEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToTrue;
 	public readonly onDidBlurEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToFalse;
 
-	private readonly _onWillType: Emitter<string> = this._register(new Emitter<string>());
+	private readonly _onWillType: Emitter<editorBrowser.IEditorWillTypeEvent> = this._register(new Emitter<editorBrowser.IEditorWillTypeEvent>());
 	public readonly onWillType = this._onWillType.event;
 
 	private readonly _onDidType: Emitter<string> = this._register(new Emitter<string>());
@@ -1059,10 +1059,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData || text.length === 0) {
 			return;
 		}
+		const willTypeEvent: editorBrowser.IEditorWillTypeEvent = {
+			text: text,
+			cancelType: false
+		};
 		if (source === 'keyboard') {
-			this._onWillType.fire(text);
+			this._onWillType.fire(willTypeEvent);
 		}
-		this._modelData.viewModel.type(text, source);
+		if (!willTypeEvent.cancelType) {
+			this._modelData.viewModel.type(text, source);
+		}
 		if (source === 'keyboard') {
 			this._onDidType.fire(text);
 		}

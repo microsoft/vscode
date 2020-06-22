@@ -510,4 +510,33 @@ suite('SuggestController', function () {
 
 		assert.equal(editor.getValue(), 'hello');
 	});
+
+	test('dont insert commit character', async function () {
+		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+			provideCompletionItems(doc, position) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Snippet,
+						label: 'let',
+						insertText: 'hello',
+						range: Range.fromPositions(position),
+						commitCharacters: [{ char: '(', commitWithoutInsert: true }],
+					}]
+				};
+			}
+		}));
+
+		editor.setValue('abc');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+		await p1;
+
+		let p2 = Event.toPromise(controller.model.onDidCancel);
+		editor.trigger('keyboard', 'type', { text: '(' });
+		await p2;
+
+		assert.equal(editor.getValue(), 'helloabc');
+	});
 });
