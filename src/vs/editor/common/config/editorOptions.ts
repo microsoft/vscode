@@ -1217,26 +1217,28 @@ class EditorClassName extends ComputedEditorOption<EditorOption.editorClassName,
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: string): string {
-		let className = 'monaco-editor';
+		const classNames = ['monaco-editor'];
 		if (options.get(EditorOption.extraEditorClassName)) {
-			className += ' ' + options.get(EditorOption.extraEditorClassName);
+			classNames.push(options.get(EditorOption.extraEditorClassName));
 		}
 		if (env.extraEditorClassName) {
-			className += ' ' + env.extraEditorClassName;
+			classNames.push(env.extraEditorClassName);
 		}
 		if (options.get(EditorOption.mouseStyle) === 'default') {
-			className += ' mouse-default';
+			classNames.push('mouse-default');
 		} else if (options.get(EditorOption.mouseStyle) === 'copy') {
-			className += ' mouse-copy';
+			classNames.push('mouse-copy');
 		}
+
 		if (options.get(EditorOption.showUnused)) {
-			className += ' showUnused';
+			classNames.push('showUnused');
 		}
 
 		if (options.get(EditorOption.showDeprecated)) {
-			className += ' showDeprecated';
+			classNames.push('showDeprecated');
 		}
-		return className;
+
+		return classNames.join(' ');
 	}
 }
 
