@@ -715,13 +715,18 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 }
 
 const getFileOverwriteConfirm = (name: string) => {
-	return getOverwriteConfirm(localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", name));
+	return <IConfirmation>{
+		message: localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", name),
+		detail: localize('irreversible', "This action is irreversible!"),
+		primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+		type: 'warning'
+	};
 };
 
-const getOverwriteConfirm = (message: string) => {
+const getMultipleFilesOverwriteConfirm = (overwritesCount: number, detail: string) => {
 	return <IConfirmation>{
-		message,
-		detail: localize('irreversible', "This action is irreversible!"),
+		message: localize('confirmManyOverwrites', "The following {0} files and/or folders already exist in the destination folder. Do you want to replace them?", overwritesCount),
+		detail: detail + '\n' + localize('irreversible', "This action is irreversible!"),
 		primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
 		type: 'warning'
 	};
@@ -1381,9 +1386,21 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-				const confirm = getOverwriteConfirm(
-					localize('confirmManyOverwrites',
-						"Some files and/or folders already exist in the destination folder. Do you want to replace all of them?"));
+
+				let confirm: IConfirmation;
+				const overwrites: URI[] = [];
+				for (const { target } of sourceTargetPairs) {
+					const exist = await this.fileService.exists(target);
+					if (exist) {
+						overwrites.push(target);
+					}
+				}
+
+				if (overwrites.length > 1) {
+					confirm = getMultipleFilesOverwriteConfirm(overwrites.length, getFileNamesMessage(overwrites));
+				} else {
+					confirm = getFileOverwriteConfirm(basename(overwrites[0]));
+				}
 
 				// Move with overwrite if the user confirms
 				const { confirmed } = await this.dialogService.confirm(confirm);
