@@ -45,8 +45,7 @@ export interface IPathService {
 	readonly userHome: Promise<URI>;
 
 	/**
-	 * Access to `userHome` in a sync fashion. This may be `undefined`
-	 * as long as the remote environment was not resolved.
+	 * @deprecated use `userHome` instead.
 	 */
 	readonly resolvedUserHome: URI | undefined;
 }
@@ -55,22 +54,31 @@ export abstract class AbstractPathService implements IPathService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private remoteOS: Promise<OperatingSystem>;
+	private resolveOS: Promise<OperatingSystem>;
 
 	private resolveUserHome: Promise<URI>;
 	private maybeUnresolvedUserHome: URI | undefined;
 
 	constructor(
-		fallbackUserHome: URI,
+		localUserHome: URI,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
-		this.remoteOS = this.remoteAgentService.getEnvironment().then(env => env?.os || OS);
 
-		this.resolveUserHome = this.remoteAgentService.getEnvironment().then(env => {
-			const userHome = this.maybeUnresolvedUserHome = env?.userHome || fallbackUserHome;
+		// OS
+		this.resolveOS = (async () => {
+			const env = await this.remoteAgentService.getEnvironment();
+
+			return env?.os || OS;
+		})();
+
+		// User Home
+		this.resolveUserHome = (async () => {
+			const env = await this.remoteAgentService.getEnvironment();
+			const userHome = this.maybeUnresolvedUserHome = env?.userHome || localUserHome;
+
 
 			return userHome;
-		});
+		})();
 	}
 
 	get userHome(): Promise<URI> {
@@ -82,7 +90,7 @@ export abstract class AbstractPathService implements IPathService {
 	}
 
 	get path(): Promise<IPath> {
-		return this.remoteOS.then(os => {
+		return this.resolveOS.then(os => {
 			return os === OperatingSystem.Windows ?
 				win32 :
 				posix;
@@ -95,7 +103,8 @@ export abstract class AbstractPathService implements IPathService {
 		// normalize to fwd-slashes on windows,
 		// on other systems bwd-slashes are valid
 		// filename character, eg /f\oo/ba\r.txt
-		if ((await this.remoteOS) === OperatingSystem.Windows) {
+		const os = await this.resolveOS;
+		if (os === OperatingSystem.Windows) {
 			_path = _path.replace(/\\/g, '/');
 		}
 
