@@ -35,13 +35,27 @@ export class ExtHostNotebookConcatDocuments {
 		private readonly _extHostDocuments: ExtHostDocuments,
 		extHostDocumentContentProvider: ExtHostDocumentContentProvider
 	) {
-		extHostDocumentContentProvider.registerTextDocumentContentProvider(ExtHostNotebookConcatDocument.scheme, {
-			provideTextDocumentContent: (uri) => {
+		const that = this;
+
+		extHostDocumentContentProvider.registerTextDocumentContentProvider(ExtHostNotebookConcatDocument.scheme, new class implements vscode.TextDocumentContentProvider {
+
+			private readonly _onDidChange = new Emitter<vscode.Uri>();
+			readonly onDidChange: Event<vscode.Uri> = this._onDidChange.event;
+
+			provideTextDocumentContent(uri: vscode.Uri) {
 				// todo@jrieken BIG problem... this duplicates the whole concat document
 				// and also makes it appear twice in the extension host
-				console.log('HERE', uri.toString());
-				const doc = this._notebookDocuments.get(uri);
-				return doc?.getText();
+				// console.log('HERE', uri.toString());
+				const doc = that._notebookDocuments.get(uri);
+				if (!doc) {
+					return;
+				}
+				// LEAK
+				doc.onDidChange(() => {
+					console.log('onDidChange');
+					this._onDidChange.fire(uri);
+				});
+				return doc.getText();
 			}
 		});
 	}
