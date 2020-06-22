@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class NativeClipboardService implements IClipboardService {
 
@@ -51,13 +52,12 @@ export class NativeClipboardService implements IClipboardService {
 		return this.bufferToResources(await this.electronService.readClipboardBuffer(NativeClipboardService.FILE_FORMAT));
 	}
 
-
 	async hasResources(): Promise<boolean> {
 		return this.electronService.hasClipboard(NativeClipboardService.FILE_FORMAT);
 	}
 
-	private resourcesToBuffer(resources: URI[]): Buffer {
-		return Buffer.from(resources.map(r => r.toString()).join('\n'));
+	private resourcesToBuffer(resources: URI[]): Uint8Array {
+		return VSBuffer.fromString(resources.map(r => r.toString()).join('\n')).buffer;
 	}
 
 	private bufferToResources(buffer: Uint8Array): URI[] {
