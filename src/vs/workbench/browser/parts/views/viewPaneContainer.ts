@@ -450,7 +450,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private setActions(): void {
 		if (this.toolbar) {
-			this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
+			this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()));
 			this.toolbar.context = this.getActionsContext();
 		}
 	}
