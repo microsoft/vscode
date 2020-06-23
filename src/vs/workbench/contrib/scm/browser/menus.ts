@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ISCMResource, ISCMResourceGroup, ISCMProvider, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { isSCMResource } from './util';
@@ -16,6 +16,8 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { equals } from 'vs/base/common/arrays';
 import { ISplice, ISequence } from 'vs/base/common/sequence';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { localize } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;
@@ -39,8 +41,8 @@ export function getSCMResourceContextKey(resource: ISCMResourceGroup | ISCMResou
 export class SCMRepositoryMenus implements IDisposable {
 
 	private contextKeyService: IContextKeyService;
-	readonly titleMenu: IMenu;
 
+	readonly titleMenu: IMenu;
 	private titleActionDisposable: IDisposable = Disposable.None;
 	private titleActions: IAction[] = [];
 	private titleSecondaryActions: IAction[] = [];
@@ -54,8 +56,9 @@ export class SCMRepositoryMenus implements IDisposable {
 	private readonly disposables = new DisposableStore();
 
 	constructor(
-		provider: ISCMProvider | undefined,
+		readonly provider: ISCMProvider | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
@@ -72,7 +75,6 @@ export class SCMRepositoryMenus implements IDisposable {
 
 		this.titleMenu = this.menuService.createMenu(MenuId.SCMTitle, this.contextKeyService);
 		this.disposables.add(this.titleMenu);
-
 		this.titleMenu.onDidChange(this.updateTitleActions, this, this.disposables);
 		this.updateTitleActions();
 	}
@@ -102,6 +104,34 @@ export class SCMRepositoryMenus implements IDisposable {
 
 	getTitleSecondaryActions(): IAction[] {
 		return this.titleSecondaryActions;
+	}
+
+	getRepositoryContextActions(): IAction[] {
+		if (!this.provider) {
+			return [];
+		}
+
+		const contextKeyService = this.contextKeyService.createScoped();
+		const scmProviderKey = contextKeyService.createKey<string | undefined>('scmProvider', undefined);
+		scmProviderKey.set(this.provider.contextValue);
+
+		const menu = this.menuService.createMenu(MenuId.SCMSourceControl, contextKeyService);
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+		const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
+
+		disposable.dispose();
+		menu.dispose();
+		contextKeyService.dispose();
+
+		if (this.provider.rootUri) {
+			secondary.push(new Action('_openInTerminal', localize('open in terminal', "Open In Terminal"), undefined, true, async () => {
+				await this.commandService.executeCommand('openInTerminal', this.provider!.rootUri);
+			}));
+		}
+
+		return secondary;
 	}
 
 	getResourceGroupContextActions(group: ISCMResourceGroup): IAction[] {

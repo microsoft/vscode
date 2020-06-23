@@ -1642,10 +1642,13 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		const element = e.element;
+		let context: any = element;
 		let actions: IAction[] = [];
 
 		if (isSCMRepository(element)) {
-			// TODO@joao
+			const menus = this.menus.getRepositoryMenus(element.provider);
+			context = element.provider;
+			actions = menus.getRepositoryContextActions();
 		} else if (isSCMInput(element)) {
 			// TODO@joao
 		} else if (isSCMResourceGroup(element)) {
@@ -1670,7 +1673,7 @@ export class SCMViewPane extends ViewPane {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => element,
+			getActionsContext: () => context,
 			actionRunner
 		});
 	}
