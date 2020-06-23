@@ -9,7 +9,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, CELL_BOTTOM_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
+import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -94,7 +94,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	private computeEditorWidth(outerWidth: number): number {
-		return outerWidth - (CELL_MARGIN * 2 + CELL_RUN_GUTTER);
+		return outerWidth - (CODE_CELL_LEFT_MARGIN + CELL_MARGIN + CELL_RUN_GUTTER);
 	}
 
 	layoutChange(state: CodeCellLayoutChangeEvent) {
