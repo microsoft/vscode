@@ -327,7 +327,7 @@ export class CodeCell extends Disposable {
 
 			if (pickedMimeTypeRenderer.isResolved) {
 				// html
-				result = this.notebookEditor.getOutputRenderer().render({ outputKind: CellOutputKind.Rich, data: { 'text/html': pickedMimeTypeRenderer.output! } } as any, innerContainer, 'text/html');
+				result = this.notebookEditor.getOutputRenderer().render({ outputId: currOutput.outputId, outputKind: CellOutputKind.Rich, data: { 'text/html': pickedMimeTypeRenderer.output! } }, innerContainer, 'text/html');
 			} else {
 				result = this.notebookEditor.getOutputRenderer().render(currOutput, innerContainer, pickedMimeTypeRenderer.mimeType);
 			}

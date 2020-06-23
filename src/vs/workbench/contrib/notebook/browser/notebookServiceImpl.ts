@@ -705,7 +705,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	listVisibleNotebookEditors(): INotebookEditor[] {
 		return this._editorService.visibleEditorPanes
-			.filter(pane => (pane as any).isNotebookEditor)
+			.filter(pane => (pane as unknown as { isNotebookEditor?: boolean }).isNotebookEditor)
 			.map(pane => pane.getControl() as INotebookEditor)
 			.filter(editor => !!editor)
 			.filter(editor => this._notebookEditors.has(editor.getId()));

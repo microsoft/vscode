@@ -1124,7 +1124,7 @@ export class TimerRenderer {
 			const duration = Date.now() - startTime;
 			this.container.textContent = this.formatDuration(duration);
 		}, 100);
-		this.intervalTimer = intervalTimer as any;
+		this.intervalTimer = intervalTimer as unknown as number | undefined;
 
 		return toDisposable(() => {
 			clearInterval(intervalTimer);
