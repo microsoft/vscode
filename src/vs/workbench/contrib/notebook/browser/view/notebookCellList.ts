@@ -532,7 +532,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	updateElementHeight2(element: ICellViewModel, size: number): void {
 		const index = this._getViewIndexUpperBound(element);
-		if (index === undefined) {
+		if (index === undefined || index < 0 || index >= this.length) {
 			return;
 		}
 
