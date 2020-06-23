@@ -15,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 import { ILogService } from 'vs/platform/log/common/log';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 interface IFileOperation {
 	uris: URI[];
@@ -55,7 +56,7 @@ class CreateOperation implements IFileOperation {
 	constructor(
 		readonly newUri: URI,
 		readonly options: WorkspaceFileEditOptions,
-		readonly contents: string | undefined,
+		readonly contents: VSBuffer | undefined,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -70,7 +71,6 @@ class CreateOperation implements IFileOperation {
 		if (this.options.overwrite === undefined && this.options.ignoreIfExists && await this._fileService.exists(this.newUri)) {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
-		//todo@jrieken, @bpasero allow to accept VSBuffer
 		await this._textFileService.create(this.newUri, this.contents, { overwrite: this.options.overwrite });
 		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options);
 	}
@@ -83,7 +83,6 @@ class DeleteOperation implements IFileOperation {
 		readonly options: WorkspaceFileEditOptions,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IFileService private readonly _fileService: IFileService,
-		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -102,9 +101,9 @@ class DeleteOperation implements IFileOperation {
 			return new Noop();
 		}
 
-		let contents: string | undefined;
+		let contents: VSBuffer | undefined;
 		try {
-			contents = (await this._textFileService.read(this.oldUri)).value;
+			contents = (await this._fileService.readFile(this.oldUri)).value;
 		} catch (err) {
 			this._logService.critical(err);
 		}
