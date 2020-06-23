@@ -134,6 +134,7 @@ export interface ICompressedNavigationController {
 	first(): void;
 	last(): void;
 	setIndex(index: number): void;
+	updateCollapsed(collapsed: boolean): void;
 }
 
 export class CompressedNavigationController implements ICompressedNavigationController, IDisposable {
@@ -153,7 +154,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 	private _onDidChange = new Emitter<void>();
 	readonly onDidChange = this._onDidChange.event;
 
-	constructor(private id: string, readonly items: ExplorerItem[], templateData: IFileTemplateData) {
+	constructor(private id: string, readonly items: ExplorerItem[], templateData: IFileTemplateData, private depth: number, private collapsed: boolean) {
 		this._index = items.length - 1;
 
 		this.updateLabels(templateData);
@@ -165,7 +166,9 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 
 		for (let i = 0; i < this.labels.length; i++) {
 			this.labels[i].setAttribute('aria-label', this.items[i].name);
+			this.labels[i].setAttribute('aria-level', `${this.depth + i}`);
 		}
+		this.updateCollapsed(this.collapsed);
 
 		if (this._index < this.labels.length) {
 			DOM.addClass(this.labels[this._index], 'active');
@@ -214,6 +217,13 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 		DOM.addClass(this.labels[this._index], 'active');
 
 		this._onDidChange.fire();
+	}
+
+	updateCollapsed(collapsed: boolean): void {
+		this.collapsed = collapsed;
+		for (let i = 0; i < this.labels.length; i++) {
+			this.labels[i].setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+		}
 	}
 
 	dispose(): void {
@@ -308,7 +318,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			const label = node.element.elements.map(e => e.name);
 			disposables.add(this.renderStat(stat, label, id, node.filterData, templateData));
 
-			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData);
+			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData, node.depth, node.collapsed);
 			disposables.add(compressedNavigationController);
 			this.compressedNavigationControllers.set(stat, compressedNavigationController);
 
@@ -734,6 +744,14 @@ interface IWebkitDataTransferItemEntryReader {
 	readEntries(resolve: (file: IWebkitDataTransferItemEntry[]) => void, reject: () => void): void
 }
 
+interface IUploadOperation {
+	filesTotal: number;
+	filesUploaded: number;
+
+	startTime: number;
+	bytesUploaded: number;
+}
+
 export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
 
@@ -974,7 +992,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		const results: { isFile: boolean, resource: URI }[] = [];
 		const cts = new CancellationTokenSource();
-		const operation = { total: entries.length, worked: 0 };
+		const operation: IUploadOperation = { filesTotal: entries.length, filesUploaded: 0, startTime: Date.now(), bytesUploaded: 0 };
 
 		// Start upload and report progress globally
 		const uploadPromise = this.progressService.withProgress({
@@ -1015,30 +1033,33 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	private async doUploadWebFileEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: { total: number; worked: number; }, token: CancellationToken): Promise<{ isFile: boolean, resource: URI } | undefined> {
+	private async doUploadWebFileEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: IUploadOperation, token: CancellationToken): Promise<{ isFile: boolean, resource: URI } | undefined> {
 		if (token.isCancellationRequested || !entry.name || (!entry.isFile && !entry.isDirectory)) {
 			return undefined;
 		}
 
 		// Report progress
-		let totalBytesUploaded = 0;
+		let fileBytesUploaded = 0;
 		const reportProgress = (fileSize: number, bytesUploaded: number): void => {
-			totalBytesUploaded += bytesUploaded;
+			fileBytesUploaded += bytesUploaded;
+			operation.bytesUploaded += bytesUploaded;
+
+			const bytesUploadedPerSecond = operation.bytesUploaded / ((Date.now() - operation.startTime) / 1000);
 
 			let message: string;
-			if (operation.total === 1 && entry.name) {
+			if (operation.filesTotal === 1 && entry.name) {
 				message = entry.name;
 			} else {
-				message = localize('uploadProgress', "{0} of {1} files", operation.worked, operation.total);
+				message = localize('uploadProgress', "{0} of {1} files ({2}/s)", operation.filesUploaded, operation.filesTotal, BinarySize.formatSize(bytesUploadedPerSecond));
 			}
 
 			if (fileSize > BinarySize.MB) {
-				message = localize('uploadProgressDetail', "{0} ({1} of {2})", message, BinarySize.formatSize(totalBytesUploaded), BinarySize.formatSize(fileSize));
+				message = localize('uploadProgressDetail', "{0} ({1} of {2}, {3}/s)", message, BinarySize.formatSize(fileBytesUploaded), BinarySize.formatSize(fileSize), BinarySize.formatSize(bytesUploadedPerSecond));
 			}
 
 			progress.report({ message });
 		};
-		operation.worked++;
+		operation.filesUploaded++;
 		reportProgress(0, 0);
 
 		// Handle file upload
@@ -1057,7 +1078,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// Fallback to unbuffered upload for other browsers
 			else {
-				await this.doUploadWebFileEntryUnbuffered(resource, file);
+				await this.doUploadWebFileEntryUnbuffered(resource, file, reportProgress);
 			}
 
 			return { isFile: true, resource };
@@ -1087,7 +1108,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			} while (!done);
 
 			// Update operation total based on new counts
-			operation.total += childEntries.length;
+			operation.filesTotal += childEntries.length;
 
 			// Upload all entries as files to target
 			const folderTarget = target && target.getChild(entry.name) || undefined;
@@ -1145,13 +1166,17 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		await writeFilePromise;
 	}
 
-	private doUploadWebFileEntryUnbuffered(resource: URI, file: File): Promise<void> {
+	private doUploadWebFileEntryUnbuffered(resource: URI, file: File, progressReporter: (fileSize: number, bytesUploaded: number) => void): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			const reader = new FileReader();
 			reader.onload = async event => {
 				try {
 					if (event.target?.result instanceof ArrayBuffer) {
-						await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)));
+						const buffer = VSBuffer.wrap(new Uint8Array(event.target.result));
+						await this.fileService.writeFile(resource, buffer);
+
+						// Report progress
+						progressReporter(file.size, buffer.byteLength);
 					} else {
 						throw new Error('Could not read from dropped file.');
 					}

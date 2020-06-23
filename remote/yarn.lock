@@ -176,12 +176,10 @@ https-proxy-agent@^2.2.3:
     agent-base "^4.3.0"
     debug "^3.1.0"
 
-iconv-lite@0.5.0:
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/iconv-lite/-/iconv-lite-0.5.0.tgz#59cdde0a2a297cc2aeb0c6445a195ee89f127550"
-  integrity sha512-NnEhI9hIEKHOzJ4f697DMz9IQEXr/MMJ5w64vN2/4Ai+wRnvV7SBrL0KLoRlwaKVghOc7LQ5YkPLuX146b6Ydw==
-  dependencies:
-    safer-buffer ">= 2.1.2 < 3"
+iconv-lite-umd@0.6.3:
+  version "0.6.3"
+  resolved "https://registry.yarnpkg.com/iconv-lite-umd/-/iconv-lite-umd-0.6.3.tgz#61307cab8ac29939992d0724d3ab8799467f0e97"
+  integrity sha512-fQ/8XE8reiCZ6t+SX4tX6/tQdV4tThJZv5qtMe5Sk+IWsExz0S2Zd+GiBS5IEPgDxnsmiJSpH67+qzN3FT4lKw==
 
 ip@^1.1.5:
   version "1.1.5"
@@ -300,15 +298,10 @@ readdirp@~3.2.0:
   dependencies:
     picomatch "^2.0.4"
 
-"safer-buffer@>= 2.1.2 < 3":
-  version "2.1.2"
-  resolved "https://registry.yarnpkg.com/safer-buffer/-/safer-buffer-2.1.2.tgz#44fa161b0187b9549dd84bb91802f9bd8385cd6a"
-  integrity sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==
-
-semver-umd@^5.5.6:
-  version "5.5.6"
-  resolved "https://registry.yarnpkg.com/semver-umd/-/semver-umd-5.5.6.tgz#1d185bbd2caec825c564b54907cd09e14083f228"
-  integrity sha512-6ARYXVi4Y4VO5HfyCjT/6xyykBtJwEXSGQ8ON4UPQSFOjZUDsbAE0J614QcBBsLTTyQMEqvsXN804vAqpydjzw==
+semver-umd@^5.5.7:
+  version "5.5.7"
+  resolved "https://registry.yarnpkg.com/semver-umd/-/semver-umd-5.5.7.tgz#966beb5e96c7da6fbf09c3da14c2872d6836c528"
+  integrity sha512-XgjPNlD0J6aIc8xoTN6GQGwWc2Xg0kq8NzrqMVuKG/4Arl6ab1F8+Am5Y/XKKCR+FceFr2yN/Uv5ZJBhRyRqKg==
 
 semver@^5.3.0:
   version "5.6.0"

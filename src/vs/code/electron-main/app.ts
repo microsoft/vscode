@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -172,11 +172,12 @@ export class CodeApplication extends Disposable {
 						return false;
 					}
 
-					if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%20role%3D%22document%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
-						return true;
+					const uri = URI.parse(source);
+					if (uri.scheme === Schemas.vscodeWebview) {
+						return uri.path === '/index.html';
 					}
 
-					const srcUri = URI.parse(source).fsPath.toLowerCase();
+					const srcUri = uri.fsPath.toLowerCase();
 					const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
 
 					return srcUri.startsWith(rootUri + sep);
@@ -261,13 +262,6 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:exit', (event: Event, code: number) => {
-			this.logService.trace('IPC#vscode:exit', code);
-
-			this.dispose();
-			this.lifecycleMainService.kill(code);
-		});
-
 		ipc.on('vscode:fetchShellEnv', async (event: IpcMainEvent) => {
 			const webContents = event.sender;
 
@@ -293,13 +287,6 @@ export class CodeApplication extends Disposable {
 		// Some listeners after window opened
 		(async () => {
 			await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
-
-			// After waking up from sleep  (after window opened)
-			powerMonitor.on('resume', () => {
-				if (this.windowsMainService) {
-					this.windowsMainService.sendToAll('vscode:osResume', undefined);
-				}
-			});
 
 			// Keyboard layout changes (after window opened)
 			const nativeKeymap = await import('native-keymap');

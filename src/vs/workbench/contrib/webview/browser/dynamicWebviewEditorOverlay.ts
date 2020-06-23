@@ -113,7 +113,11 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 			const webview = this._webviewService.createWebviewElement(this.id, this._options, this._contentOptions, this.extension);
 			this._webview.value = webview;
 			webview.state = this._state;
-			webview.html = this._html;
+
+			if (this._html) {
+				webview.html = this._html;
+			}
+
 			if (this._options.tryRestoreScrollPosition) {
 				webview.initialScrollProgress = this._initialScrollProgress;
 			}

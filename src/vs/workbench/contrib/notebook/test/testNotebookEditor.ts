@@ -23,6 +23,7 @@ import { CellKind, CellUri, INotebookEditorModel, IProcessedOutput, NotebookCell
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
 import { NotImplementedError } from 'vs/base/common/errors';
+import { Schemas } from 'vs/base/common/network';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -50,6 +51,9 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+
+	uri?: URI | undefined;
+	textModel?: NotebookTextModel | undefined;
 
 	hasModel(): boolean {
 		return true;
@@ -109,7 +113,19 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	isNotebookEditor = true;
 
-	postMessage(message: any): void {
+	postMessage(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	toggleClassName(className: string): void {
+		throw new Error('Method not implemented.');
+	}
+
+	addClassName(className: string): void {
+		throw new Error('Method not implemented.');
+	}
+
+	removeClassName(className: string): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -271,6 +287,10 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 
 	isDirty() {
 		return this._dirty;
+	}
+
+	isUntitled() {
+		return this._notebook.uri.scheme === Schemas.untitled;
 	}
 
 	getNotebook(): NotebookTextModel {

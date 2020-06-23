@@ -27,8 +27,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TreeResourceNavigator } from 'vs/platform/list/browser/listService';
-
 
 export class CommentsPanel extends ViewPane {
 	private treeLabels!: ResourceLabels;
@@ -150,10 +148,16 @@ export class CommentsPanel extends ViewPane {
 
 	private createTree(): void {
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
-		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer, { overrideStyles: { listBackground: this.getBackgroundColor() } }));
+		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer, {
+			overrideStyles: { listBackground: this.getBackgroundColor() },
+			openOnFocus: true,
+			accessibilityProvider: { // TODO@rebornix implement a proper accessibility provider
+				getAriaLabel(element: any): string | null { return null; },
+				getWidgetAriaLabel(): string { return 'Comments'; }
+			}
+		}));
 
-		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
-		this._register(commentsNavigator.onDidOpenResource(e => {
+		this._register(this.tree.onDidOpen(e => {
 			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide);
 		}));
 	}

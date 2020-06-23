@@ -156,6 +156,8 @@ export class LaunchMainService implements ILaunchMainService {
 			else {
 				const lastActive = this.windowsMainService.getLastActiveWindow();
 				if (lastActive) {
+					// Force focus the app before requesting window focus
+					app.focus({ steal: true });
 					lastActive.focus();
 
 					usedWindows = [lastActive];

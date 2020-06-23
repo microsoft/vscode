@@ -11,9 +11,15 @@ import { GithubCredentialProviderManager } from './credentialProvider';
 
 export async function activate(context: vscode.ExtensionContext) {
 	const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git')!.exports;
-	const gitAPI = gitExtension.getAPI(1);
 
-	context.subscriptions.push(...registerCommands(gitAPI));
-	context.subscriptions.push(gitAPI.registerRemoteSourceProvider(new GithubRemoteSourceProvider(gitAPI)));
-	context.subscriptions.push(new GithubCredentialProviderManager(gitAPI));
+	try {
+		const gitAPI = gitExtension.getAPI(1);
+
+		context.subscriptions.push(...registerCommands(gitAPI));
+		context.subscriptions.push(gitAPI.registerRemoteSourceProvider(new GithubRemoteSourceProvider(gitAPI)));
+		context.subscriptions.push(new GithubCredentialProviderManager(gitAPI));
+	} catch (err) {
+		console.error('Could not initialize GitHub extension');
+		console.warn(err);
+	}
 }

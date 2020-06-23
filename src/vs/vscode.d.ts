@@ -2228,6 +2228,40 @@ declare module 'vscode' {
 		 * such as `[CodeActionKind.Refactor.Extract.append('function'), CodeActionKind.Refactor.Extract.append('constant'), ...]`.
 		 */
 		readonly providedCodeActionKinds?: ReadonlyArray<CodeActionKind>;
+
+		/**
+		 * Static documentation for a class of code actions.
+		 *
+		 * Documentation from the provider is shown in the code actions menu if either:
+		 *
+		 * - Code actions of `kind` are requested by VS Code. In this case, VS Code will show the documentation that
+		 *   most closely matches the requested code action kind. For example, if a provider has documentation for
+		 *   both `Refactor` and `RefactorExtract`, when the user requests code actions for `RefactorExtract`,
+		 *   VS Code will use the documentation for `RefactorExtract` instead of the documentation for `Refactor`.
+		 *
+		 * - Any code actions of `kind` are returned by the provider.
+		 *
+		 * At most one documentation entry will be shown per provider.
+		 */
+		readonly documentation?: ReadonlyArray<{
+			/**
+			 * The kind of the code action being documented.
+			 *
+			 * If the kind is generic, such as `CodeActionKind.Refactor`, the documentation will be shown whenever any
+			 * refactorings are returned. If the kind if more specific, such as `CodeActionKind.RefactorExtract`, the
+			 * documentation will only be shown when extract refactoring code actions are returned.
+			 */
+			readonly kind: CodeActionKind;
+
+			/**
+			 * Command that displays the documentation to the user.
+			 *
+			 * This can display the documentation directly in VS Code or open a website using [`env.openExternal`](#env.openExternal);
+			 *
+			 * The title of this documentation code action is taken from [`Command.title`](#Command.title)
+			 */
+			readonly command: Command;
+		}>;
 	}
 
 	/**
@@ -5421,6 +5455,30 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The ExtensionMode is provided on the `ExtensionContext` and indicates the
+	 * mode the specific extension is running in.
+	 */
+	export enum ExtensionMode {
+		/**
+		 * The extension is installed normally (for example, from the marketplace
+		 * or VSIX) in VS Code.
+		 */
+		Production = 1,
+
+		/**
+		 * The extension is running from an `--extensionDevelopmentPath` provided
+		 * when launching VS Code.
+		 */
+		Development = 2,
+
+		/**
+		 * The extension is running from an `--extensionTestsPath` and
+		 * the extension host is running unit tests.
+		 */
+		Test = 3,
+	}
+
+	/**
 	 * An extension context is a collection of utilities private to an
 	 * extension.
 	 *
@@ -5497,6 +5555,13 @@ declare module 'vscode' {
 		 * the parent directory is guaranteed to be existent.
 		 */
 		readonly logPath: string;
+
+		/**
+		 * The mode the extension is running in. This is specific to the current
+		 * extension. One extension may be in `ExtensionMode.Development` while
+		 * other extensions in the host run in `ExtensionMode.Release`.
+		 */
+		readonly extensionMode: ExtensionMode;
 	}
 
 	/**
@@ -9284,7 +9349,7 @@ declare module 'vscode' {
 
 	/**
 	 * A workspace folder is one of potentially many roots opened by the editor. All workspace folders
-	 * are equal which means there is no notion of an active or master workspace folder.
+	 * are equal which means there is no notion of an active or primary workspace folder.
 	 */
 	export interface WorkspaceFolder {
 

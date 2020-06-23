@@ -15,7 +15,6 @@ import { hash } from 'vs/base/common/hash';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { Configuration } from 'vs/editor/browser/config/configuration';
-import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -1552,9 +1551,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		let commandDelegate: ICommandDelegate;
 		if (this.isSimpleWidget) {
 			commandDelegate = {
-				executeEditorCommand: (editorCommand: CoreEditorCommand, args: any): void => {
-					editorCommand.runCoreEditorCommand(viewModel, args);
-				},
 				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
 					this._paste('keyboard', text, pasteOnNewLine, multicursorText, mode);
 				},
@@ -1576,9 +1572,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			};
 		} else {
 			commandDelegate = {
-				executeEditorCommand: (editorCommand: CoreEditorCommand, args: any): void => {
-					editorCommand.runCoreEditorCommand(viewModel, args);
-				},
 				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
 					const payload: editorCommon.PastePayload = { text, pasteOnNewLine, multicursorText, mode };
 					this._commandService.executeCommand(editorCommon.Handler.Paste, payload);
@@ -2018,5 +2011,5 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	const deprecatedForeground = theme.getColor(editorForeground) || 'inherit';
-	collector.addRule(`.monaco-editor .${ClassName.EditorDeprecatedInlineDecoration} { text-decoration: line-through; text-decoration-color: ${deprecatedForeground}}`);
+	collector.addRule(`.monaco-editor.showDeprecated .${ClassName.EditorDeprecatedInlineDecoration} { text-decoration: line-through; text-decoration-color: ${deprecatedForeground}}`);
 });

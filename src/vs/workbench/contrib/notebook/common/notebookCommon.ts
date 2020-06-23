@@ -99,8 +99,7 @@ export interface INotebookDisplayOrder {
 }
 
 export interface INotebookMimeTypeSelector {
-	type: string;
-	subTypes?: string[];
+	mimeTypes?: string[];
 }
 
 export interface INotebookRendererInfo {
@@ -186,6 +185,7 @@ export interface IOrderedMimeType {
 
 export interface ITransformedDisplayOutputDto {
 	outputKind: CellOutputKind.Rich;
+	outputId: string;
 	data: { [key: string]: any; }
 	metadata?: NotebookCellOutputMetadata;
 
@@ -206,6 +206,7 @@ export type IRawOutput = IDisplayOutput | IStreamOutput | IErrorOutput;
 
 export interface IOutputRenderRequestOutputInfo {
 	index: number;
+	outputId: string;
 	handlerId: string;
 	mimeType: string;
 	output?: IRawOutput;
@@ -222,6 +223,7 @@ export interface IOutputRenderRequest<T> {
 
 export interface IOutputRenderResponseOutputInfo {
 	index: number;
+	outputId: string;
 	mimeType: string;
 	handlerId: string;
 	transformedOutput: string;
@@ -269,7 +271,6 @@ export interface INotebookTextModel {
 	renderers: Set<string>;
 	onDidChangeCells?: Event<NotebookCellTextModelSplice[]>;
 	onDidChangeContent: Event<void>;
-	onDidChangeUnknown: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }
 
@@ -565,6 +566,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly viewType: string;
 	readonly notebook: NotebookTextModel;
 	isDirty(): boolean;
+	isUntitled(): boolean;
 	save(): Promise<boolean>;
 	saveAs(target: URI): Promise<boolean>;
 	revert(options?: IRevertOptions | undefined): Promise<void>;

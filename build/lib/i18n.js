@@ -16,7 +16,7 @@ const https = require("https");
 const gulp = require("gulp");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
-const iconv = require("iconv-lite");
+const iconv = require("iconv-lite-umd");
 const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 function log(message, ...rest) {
     fancyLog(ansiColors.green('[i18n]'), message, ...rest);
@@ -1175,9 +1175,10 @@ function createIslFile(originalFilePath, messages, language, innoSetup) {
     });
     const basename = path.basename(originalFilePath);
     const filePath = `${basename}.${language.id}.isl`;
+    const encoded = iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage);
     return new File({
         path: filePath,
-        contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage)
+        contents: Buffer.from(encoded),
     });
 }
 function encodeEntities(value) {

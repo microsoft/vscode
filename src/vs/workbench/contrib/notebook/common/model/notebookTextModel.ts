@@ -78,8 +78,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 	private _onDidChangeMetadata = new Emitter<NotebookDocumentMetadata>();
 	onDidChangeMetadata: Event<NotebookDocumentMetadata> = this._onDidChangeMetadata.event;
-	private readonly _onDidChangeUnknown = new Emitter<void>();
-	readonly onDidChangeUnknown: Event<void> = this._onDidChangeUnknown.event;
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	cells: NotebookCellTextModel[];
@@ -104,6 +102,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onDidSelectionChangeProxy.fire(this._selections);
 	}
 
+	private _dirty = false;
+	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
 	constructor(
 		public handle: number,
 		public viewType: string,
@@ -112,6 +114,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	) {
 		super();
 		this.cells = [];
+	}
+
+	get isDirty() {
+		return this._dirty;
+	}
+
+	setDirty(newState: boolean) {
+		if (this._dirty !== newState) {
+			this._dirty = newState;
+			this._onDidChangeDirty.fire();
+		}
 	}
 
 	createCellTextModel(
@@ -135,7 +148,21 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const cellUri = CellUri.generate(this.uri, cellHandle);
 			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
 		});
-		this.insertNewCell(0, mainCells, false);
+
+		this._isUntitled = false;
+
+		for (let i = 0; i < mainCells.length; i++) {
+			this._mapping.set(mainCells[i].handle, mainCells[i]);
+			let dirtyStateListener = mainCells[i].onDidChangeContent(() => {
+				this.setDirty(true);
+				this._onDidChangeContent.fire();
+			});
+
+			this._cellListeners.set(mainCells[i].handle, dirtyStateListener);
+		}
+
+		this.cells.splice(0, 0, ...mainCells);
+		this._increaseVersionId();
 	}
 
 	$applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], emitToExtHost: boolean = true): boolean {
@@ -228,7 +255,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	handleUnknownChange() {
-		this._onDidChangeUnknown.fire();
+		this.setDirty(true);
 	}
 
 	updateLanguages(languages: string[]) {
@@ -270,10 +297,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		let dirtyStateListener = cell.onDidChangeContent(() => {
 			this._isUntitled = false;
+			this.setDirty(true);
 			this._onDidChangeContent.fire();
 		});
 
 		this._cellListeners.set(cell.handle, dirtyStateListener);
+		this.setDirty(true);
 		this._onDidChangeContent.fire();
 
 		this._onDidModelChangeProxy.fire({
@@ -303,6 +332,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		for (let i = 0; i < cells.length; i++) {
 			this._mapping.set(cells[i].handle, cells[i]);
 			let dirtyStateListener = cells[i].onDidChangeContent(() => {
+				this.setDirty(true);
 				this._onDidChangeContent.fire();
 			});
 
@@ -310,7 +340,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 		this.cells.splice(index, 0, ...cells);
+		this.setDirty(true);
 		this._onDidChangeContent.fire();
+
 		this._increaseVersionId();
 
 		if (emitToExtHost) {
@@ -345,6 +377,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._cellListeners.delete(cell.handle);
 		}
 		this.cells.splice(index, count);
+		this.setDirty(true);
 		this._onDidChangeContent.fire();
 
 		this._increaseVersionId();
@@ -359,6 +392,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		const cells = this.cells.splice(index, 1);
 		this.cells.splice(newIdx, 0, ...cells);
+		this.setDirty(true);
 		this._onDidChangeContent.fire();
 
 		this._increaseVersionId();

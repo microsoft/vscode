@@ -60,12 +60,12 @@ suite('vscode API - workspace', () => {
 		}
 	});
 
-	test('openTextDocument', () => {
-		let len = vscode.workspace.textDocuments.length;
-		return vscode.workspace.openTextDocument(join(vscode.workspace.rootPath || '', './simple.txt')).then(doc => {
-			assert.ok(doc);
-			assert.equal(vscode.workspace.textDocuments.length, len + 1);
-		});
+	test('openTextDocument', async () => {
+		const len = vscode.workspace.textDocuments.length;
+		const uri = await createRandomFile();
+		const doc = await vscode.workspace.openTextDocument(uri);
+		assert.ok(doc);
+		assert.equal(vscode.workspace.textDocuments.length, len + 1);
 	});
 
 	test('openTextDocument, illegal path', () => {

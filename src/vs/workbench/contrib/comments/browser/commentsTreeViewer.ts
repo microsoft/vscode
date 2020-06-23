@@ -17,7 +17,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
@@ -150,7 +150,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	}
 }
 
-export interface ICommentsListOptions {
+export interface ICommentsListOptions extends IWorkbenchAsyncDataTreeOptions<any, any> {
 	overrideStyles?: IColorMapping;
 }
 

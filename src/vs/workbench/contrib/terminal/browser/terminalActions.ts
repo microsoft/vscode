@@ -37,6 +37,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -389,6 +390,19 @@ export class ClearTerminalAction extends Action {
 			t.clear();
 			t.focus();
 		});
+	}
+}
+
+export class TerminalLaunchTroubleshootAction extends Action {
+
+	constructor(
+		@IOpenerService private readonly _openerService: IOpenerService
+	) {
+		super('workbench.action.terminal.launchHelp', localize('terminalLaunchTroubleshoot', "Troubleshoot"));
+	}
+
+	async run(): Promise<void> {
+		this._openerService.open('https://aka.ms/vscode-troubleshoot-terminal-launch');
 	}
 }
 

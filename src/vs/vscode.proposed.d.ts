@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { MarkdownString } from 'vscode';
+
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -854,6 +856,7 @@ declare module 'vscode' {
 	export interface DebugSessionOptions {
 		/**
 		 * Controls whether this session should run without debugging, thus ignoring breakpoints.
+		 * When this property is not specified, the value from the parent session (if there is one) is used.
 		 */
 		noDebug?: boolean;
 	}
@@ -1053,6 +1056,64 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Terminal link provider https://github.com/microsoft/vscode/issues/91606
+
+	export namespace window {
+		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
+	}
+
+	export interface TerminalLinkContext {
+		/**
+		 * This is the text from the unwrapped line in the terminal.
+		 */
+		line: string;
+
+		/**
+		 * The terminal the link belongs to.
+		 */
+		terminal: Terminal;
+	}
+
+	export interface TerminalLinkProvider<T = TerminalLink> {
+		provideTerminalLinks(context: TerminalLinkContext): ProviderResult<T[]>
+
+		/**
+		 * Handle an activated terminal link.
+		 *
+		 * @returns Whether the link was handled, if not VS Code will attempt to open it.
+		 */
+		handleTerminalLink(link: T): ProviderResult<boolean>;
+	}
+
+	export interface TerminalLink {
+		/**
+		 * The start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
+		 */
+		startIndex: number;
+
+		/**
+		 * The length of the link on [TerminalLinkContext.line](#TerminalLinkContext.line]
+		 */
+		length: number;
+
+		/**
+		 * The uri this link points to. If set, and {@link TerminalLinkProvider.handlerTerminalLink}
+		 * is not implemented or returns false, then VS Code will try to open the Uri.
+		 */
+		target?: Uri;
+
+		/**
+		 * The tooltip text when you hover over this link.
+		 *
+		 * If a tooltip is provided, is will be displayed in a string that includes instructions on
+		 * how to trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary
+		 * depending on OS, user settings, and localization.
+		 */
+		tooltip?: string;
+	}
+
+	//#endregion
+
 	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
@@ -1096,7 +1157,14 @@ declare module 'vscode' {
 		label?: string | TreeItemLabel | /* for compilation */ any;
 
 		/**
+		 * Content to be shown when you hover over the tree item.
+		 */
+		tooltip?: string | MarkdownString | /* for compilation */ any;
+
+		/**
 		 * Accessibility information used when screen reader interacts with this tree item.
+		 * Generally, a TreeItem has no need to set the `role` of the accessibilityInformation;
+		 * however, there are cases where a TreeItem is not displayed in a tree-like way where setting the `role` may make sense.
 		 */
 		accessibilityInformation?: AccessibilityInformation;
 
@@ -1451,7 +1519,7 @@ declare module 'vscode' {
 		metadata: NotebookDocumentMetadata;
 	}
 
-	export interface NotebookConcatTextDocument {
+	export interface NotebookConcatTextDocument extends TextDocument {
 		isClosed: boolean;
 		dispose(): void;
 		onDidChange: Event<void>;
@@ -1522,8 +1590,13 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookOutputSelector {
-		type: string;
-		subTypes?: string[];
+		mimeTypes?: string[];
+	}
+
+	export interface NotebookRenderRequest {
+		output: CellDisplayOutput;
+		mimeType: string;
+		outputId: string;
 	}
 
 	export interface NotebookOutputRenderer {
@@ -1532,8 +1605,23 @@ declare module 'vscode' {
 		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
 		 *
 		 */
-		render(document: NotebookDocument, output: CellDisplayOutput, mimeType: string): string;
-		preloads?: Uri[];
+		render(document: NotebookDocument, request: NotebookRenderRequest): string;
+
+		/**
+		 * Call before HTML from the renderer is executed, and will be called for
+		 * every editor associated with notebook documents where the renderer
+		 * is or was used.
+		 *
+		 * The communication object will only send and receive messages to the
+		 * render API, retrieved via `acquireNotebookRendererApi`, acquired with
+		 * this specific renderer's ID.
+		 *
+		 * If you need to keep an association between the communication object
+		 * and the document for use in the `render()` method, you can use a WeakMap.
+		 */
+		resolveNotebook?(document: NotebookDocument, communication: NotebookCommunication): void;
+
+		readonly preloads?: Uri[];
 	}
 
 	export interface NotebookCellsChangeData {
@@ -1595,12 +1683,45 @@ declare module 'vscode' {
 		readonly metadata: NotebookDocumentMetadata;
 	}
 
+	interface NotebookDocumentContentChangeEvent {
+
+		/**
+		 * The document that the edit is for.
+		 */
+		readonly document: NotebookDocument;
+	}
+
 	interface NotebookDocumentEditEvent {
 
 		/**
 		 * The document that the edit is for.
 		 */
 		readonly document: NotebookDocument;
+
+		/**
+		 * Undo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user undoes this edit. To implement `undo`, your
+		 * extension should restore the document and editor to the state they were in just before this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
+		 */
+		undo(): Thenable<void> | void;
+
+		/**
+		 * Redo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user redoes this edit. To implement `redo`, your
+		 * extension should restore the document and editor to the state they were in just after this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
+		 */
+		redo(): Thenable<void> | void;
+
+		/**
+		 * Display name describing the edit.
+		 *
+		 * This will be shown to users in the UI for undo/redo operations.
+		 */
+		readonly label?: string;
 	}
 
 	interface NotebookDocumentBackup {
@@ -1628,13 +1749,45 @@ declare module 'vscode' {
 		readonly backupId?: string;
 	}
 
+	/**
+	 * Communication object passed to the {@link NotebookContentProvider} and
+	 * {@link NotebookOutputRenderer} to communicate with the webview.
+	 */
+	export interface NotebookCommunication {
+		/**
+		 * ID of the editor this object communicates with. A single notebook
+		 * document can have multiple attached webviews and editors, when the
+		 * notebook is split for instance. The editor ID lets you differentiate
+		 * between them.
+		 */
+		readonly editorId: string;
+
+		/**
+		 * Fired when the output hosting webview posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+		/**
+		 * Post a message to the output hosting webview.
+		 *
+		 * Messages are only delivered if the editor is live.
+		 *
+		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		/**
+		 * Convert a uri for the local file system to one that can be used inside outputs webview.
+		 */
+		asWebviewUri(localResource: Uri): Uri;
+	}
+
 	export interface NotebookContentProvider {
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
+		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		readonly onDidChangeNotebook: Event<NotebookDocumentEditEvent>;
-		revertNotebook?(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		backupNotebook?(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
+		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent>;
+		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
 
 		kernel?: NotebookKernel;
 	}
@@ -1688,43 +1841,6 @@ declare module 'vscode' {
 		 * @param selector
 		 */
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
-	}
-
-	//#endregion
-
-	//#region @connor4312 extension mode: https://github.com/microsoft/vscode/issues/95926
-
-	/**
-	 * The ExtensionMode is provided on the `ExtensionContext` and indicates the
-	 * mode the specific extension is running in.
-	 */
-	export enum ExtensionMode {
-		/**
-		 * The extension is installed normally (for example, from the marketplace
-		 * or VSIX) in VS Code.
-		 */
-		Release = 1,
-
-		/**
-		 * The extension is running from an `--extensionDevelopmentPath` provided
-		 * when launching VS Code.
-		 */
-		Development = 2,
-
-		/**
-		 * The extension is running from an `--extensionDevelopmentPath` and
-		 * the extension host is running unit tests.
-		 */
-		Test = 3,
-	}
-
-	export interface ExtensionContext {
-		/**
-		 * The mode the extension is running in. This is specific to the current
-		 * extension. One extension may be in `ExtensionMode.Development` while
-		 * other extensions in the host run in `ExtensionMode.Release`.
-		 */
-		readonly extensionMode: ExtensionMode;
 	}
 
 	//#endregion
@@ -1916,26 +2032,6 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		*/
 		export function registerTimelineProvider(scheme: string | string[], provider: TimelineProvider): Disposable;
-	}
-
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/86788
-
-	export interface CodeActionProviderMetadata {
-		/**
-		 * Static documentation for a class of code actions.
-		 *
-		 * The documentation is shown in the code actions menu if either:
-		 *
-		 * - Code actions of `kind` are requested by VS Code. In this case, VS Code will show the documentation that
-		 *   most closely matches the requested code action kind. For example, if a provider has documentation for
-		 *   both `Refactor` and `RefactorExtract`, when the user requests code actions for `RefactorExtract`,
-		 *   VS Code will use the documentation for `RefactorExtract` intead of the documentation for `Refactor`.
-		 *
-		 * - Any code actions of `kind` are returned by the provider.
-		 */
-		readonly documentation?: ReadonlyArray<{ readonly kind: CodeActionKind, readonly command: Command; }>;
 	}
 
 	//#endregion

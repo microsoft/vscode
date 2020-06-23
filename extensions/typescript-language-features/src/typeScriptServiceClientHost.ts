@@ -26,6 +26,12 @@ import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
 
+namespace Experimental {
+	export interface Diagnostic extends Proto.Diagnostic {
+		readonly reportsDeprecated?: {}
+	}
+}
+
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = new Set([
 	...errorCodes.variableDeclaredButNeverUsed,
@@ -233,11 +239,11 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	private createMarkerDatas(
 		diagnostics: Proto.Diagnostic[],
 		source: string
-	): (vscode.Diagnostic & { reportUnnecessary: any })[] {
+	): (vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any })[] {
 		return diagnostics.map(tsDiag => this.tsDiagnosticToVsDiagnostic(tsDiag, source));
 	}
 
-	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any } {
+	private tsDiagnosticToVsDiagnostic(diagnostic: Experimental.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any } {
 		const { start, end, text } = diagnostic;
 		const range = new vscode.Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
 		const converted = new vscode.Diagnostic(range, text, this.getDiagnosticSeverity(diagnostic));
@@ -255,11 +261,19 @@ export default class TypeScriptServiceClientHost extends Disposable {
 				return new vscode.DiagnosticRelatedInformation(typeConverters.Location.fromTextSpan(this.client.toResource(span.file), span), info.message);
 			}));
 		}
+		const tags: vscode.DiagnosticTag[] = [];
 		if (diagnostic.reportsUnnecessary) {
-			converted.tags = [vscode.DiagnosticTag.Unnecessary];
+			tags.push(vscode.DiagnosticTag.Unnecessary);
 		}
-		(converted as vscode.Diagnostic & { reportUnnecessary: any }).reportUnnecessary = diagnostic.reportsUnnecessary;
-		return converted as vscode.Diagnostic & { reportUnnecessary: any };
+		if (diagnostic.reportsDeprecated) {
+			tags.push(vscode.DiagnosticTag.Deprecated);
+		}
+		converted.tags = tags.length ? tags : undefined;
+
+		const resultConverted = converted as vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any };
+		resultConverted.reportUnnecessary = diagnostic.reportsUnnecessary;
+		resultConverted.reportDeprecated = diagnostic.reportsDeprecated;
+		return resultConverted;
 	}
 
 	private getDiagnosticSeverity(diagnostic: Proto.Diagnostic): vscode.DiagnosticSeverity {

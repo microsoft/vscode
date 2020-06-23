@@ -110,6 +110,7 @@ export interface ICellViewModel {
 	currentTokenSource: CancellationTokenSource | undefined;
 	focusMode: CellFocusMode;
 	getText(): string;
+	getTextLength(): number;
 	metadata: NotebookCellMetadata | undefined;
 	textModel: ITextModel | undefined;
 	hasModel(): this is IEditableCellViewModel;
@@ -269,7 +270,22 @@ export interface INotebookEditor extends IEditor {
 	/**
 	 * Send message to the webview for outputs.
 	 */
-	postMessage(message: any): void;
+	postMessage(forRendererId: string | undefined, message: any): void;
+
+	/**
+	 * Toggle class name on the notebook editor root DOM node.
+	 */
+	toggleClassName(className: string): void;
+
+	/**
+	 * Remove class name on the notebook editor root DOM node.
+	 */
+	addClassName(className: string): void;
+
+	/**
+	 * Remove class name on the notebook editor root DOM node.
+	 */
+	removeClassName(className: string): void;
 
 	/**
 	 * Trigger the editor to scroll from scroll event programmatically
@@ -435,6 +451,7 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;
 	outputContainer: HTMLElement;
+	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
 	progressBar: ProgressBar;
 	timer: TimerRenderer;

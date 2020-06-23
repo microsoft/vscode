@@ -105,6 +105,7 @@ export class NativeStorageService extends Disposable implements IStorageService 
 				);
 				await workspaceStorage.init();
 
+				// Check to see if this is the first time we are "opening" this workspace
 				const firstOpen = workspaceStorage.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN);
 				if (firstOpen === undefined) {
 					workspaceStorage.set(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, !result.wasCreated);

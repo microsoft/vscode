@@ -15,7 +15,7 @@ import { ParsedArgs } from 'vs/platform/environment/node/argv';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, screen, BrowserWindow, MessageBoxOptions, Display, app, nativeTheme } from 'electron';
+import { screen, BrowserWindow, MessageBoxOptions, Display, app, nativeTheme } from 'electron';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -212,19 +212,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private registerListeners(): void {
 
-		// React to workbench ready events from windows
-		ipc.on('vscode:workbenchReady', (event: Event, windowId: number) => {
-			this.logService.trace('IPC#vscode-workbenchReady');
-
-			const win = this.getWindowById(windowId);
-			if (win) {
-				win.setReady();
-
-				// Event
-				this._onWindowReady.fire(win);
-			}
-		});
-
 		// React to HC color scheme changes (Windows)
 		if (isWindows) {
 			nativeTheme.on('updated', () => {
@@ -265,13 +252,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	// Note that onBeforeShutdown() and onBeforeWindowClose() are fired in different order depending on the OS:
 	// - macOS: since the app will not quit when closing the last window, you will always first get
-	//          the onBeforeShutdown() event followed by N onbeforeWindowClose() events for each window
+	//          the onBeforeShutdown() event followed by N onBeforeWindowClose() events for each window
 	// - other: on other OS, closing the last window will quit the app so the order depends on the
 	//          user interaction: closing the last window will first trigger onBeforeWindowClose()
 	//          and then onBeforeShutdown(). Using the quit action however will first issue onBeforeShutdown()
 	//          and then onBeforeWindowClose().
 	//
-	// Here is the behaviour on different OS dependig on action taken (Electron 1.7.x):
+	// Here is the behavior on different OS depending on action taken (Electron 1.7.x):
 	//
 	// Legend
 	// -  quit(N): quit application with N windows opened
@@ -333,7 +320,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// 3.) All windows (except extension host) for N >= 2 to support restoreWindows: all or for auto update
 		//
-		// Carefull here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
+		// Careful here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
 		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
 		// to come from the stored lastClosedWindowState on Win/Linux at least
 		if (this.getWindowCount() > 1) {
@@ -1434,24 +1421,25 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (options.forceNewTabbedWindow) {
 				const activeWindow = this.getLastActiveWindow();
 				if (activeWindow) {
-					activeWindow.addTabbedWindow(window);
+					activeWindow.addTabbedWindow(createdWindow);
 				}
 			}
 
 			// Add to our list of windows
-			WindowsMainService.WINDOWS.push(window);
+			WindowsMainService.WINDOWS.push(createdWindow);
 
 			// Indicate number change via event
 			this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length - 1, newCount: WindowsMainService.WINDOWS.length });
 
 			// Window Events
-			once(window.onClose)(() => this.onWindowClosed(createdWindow));
-			once(window.onDestroy)(() => this.onBeforeWindowClose(createdWindow)); // try to save state before destroy because close will not fire
-			window.win.webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
-			window.win.webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
+			once(createdWindow.onReady)(() => this._onWindowReady.fire(createdWindow));
+			once(createdWindow.onClose)(() => this.onWindowClosed(createdWindow));
+			once(createdWindow.onDestroy)(() => this.onBeforeWindowClose(createdWindow)); // try to save state before destroy because close will not fire
+			createdWindow.win.webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
+			createdWindow.win.webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
 
 			// Lifecycle
-			(this.lifecycleMainService as LifecycleMainService).registerWindow(window);
+			(this.lifecycleMainService as LifecycleMainService).registerWindow(createdWindow);
 		}
 
 		// Existing window

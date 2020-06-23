@@ -568,7 +568,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		const firstOpen = storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE);
+		// The `firstRun` flag check is a safety-net hack for Codespaces, until we can verify the first open fix
+		const firstOpen = (storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE) || (defaultLayout as { firstRun: boolean })?.firstRun);
 		if (!firstOpen) {
 			return;
 		}
@@ -790,7 +791,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[] } | undefined {
 		const defaultLayout = this.environmentService.options?.defaultLayout;
-		if (defaultLayout?.editors?.length && this.storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE)) {
+		// The `firstRun` flag check is a safety-net hack for Codespaces, until we can verify the first open fix
+		if (defaultLayout?.editors?.length && (this.storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE) || (defaultLayout as { firstRun: boolean })?.firstRun)) {
 			this._openedDefaultEditors = true;
 
 			return {
@@ -841,88 +843,103 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			mark('didRestoreEditors');
 		})());
 
-		// Restore views
-		if (this.state.views.defaults?.length) {
-			mark('willOpenDefaultViews');
+		// Restore default views
+		const restoreDefaultViewsPromise = (async () => {
+			if (this.state.views.defaults?.length) {
+				mark('willOpenDefaultViews');
 
-			const defaultViews = [...this.state.views.defaults];
+				const defaultViews = [...this.state.views.defaults];
 
-			let locationsRestored: boolean[] = [];
+				let locationsRestored: boolean[] = [];
 
-			const tryOpenView = async (viewId: string, index: number) => {
-				const location = this.viewDescriptorService.getViewLocationById(viewId);
-				if (location) {
+				const tryOpenView = async (viewId: string, index: number) => {
+					const location = this.viewDescriptorService.getViewLocationById(viewId);
+					if (location) {
 
-					// If the view is in the same location that has already been restored, remove it and continue
-					if (locationsRestored[location]) {
-						defaultViews.splice(index, 1);
+						// If the view is in the same location that has already been restored, remove it and continue
+						if (locationsRestored[location]) {
+							defaultViews.splice(index, 1);
 
-						return;
+							return;
+						}
+
+						const view = await this.viewsService.openView(viewId);
+						if (view) {
+							locationsRestored[location] = true;
+							defaultViews.splice(index, 1);
+						}
 					}
-
-					const view = await this.viewsService.openView(viewId);
-					if (view) {
-						locationsRestored[location] = true;
-						defaultViews.splice(index, 1);
-					}
-				}
-			};
-
-			let i = -1;
-			for (const viewId of defaultViews) {
-				await tryOpenView(viewId, ++i);
-			}
-
-			// If we still have views left over, wait until all extensions have been registered and try again
-			if (defaultViews.length) {
-				await this.extensionService.whenInstalledExtensionsRegistered();
+				};
 
 				let i = -1;
 				for (const viewId of defaultViews) {
 					await tryOpenView(viewId, ++i);
 				}
-			}
 
-			// If we opened a view in the sidebar, stop any restore there
-			if (locationsRestored[ViewContainerLocation.Sidebar]) {
-				this.state.sideBar.viewletToRestore = undefined;
-			}
+				// If we still have views left over, wait until all extensions have been registered and try again
+				if (defaultViews.length) {
+					await this.extensionService.whenInstalledExtensionsRegistered();
 
-			// If we opened a view in the panel, stop any restore there
-			if (locationsRestored[ViewContainerLocation.Panel]) {
-				this.state.panel.panelToRestore = undefined;
-			}
+					let i = -1;
+					for (const viewId of defaultViews) {
+						await tryOpenView(viewId, ++i);
+					}
+				}
 
-			mark('didOpenDefaultViews');
-		}
+				// If we opened a view in the sidebar, stop any restore there
+				if (locationsRestored[ViewContainerLocation.Sidebar]) {
+					this.state.sideBar.viewletToRestore = undefined;
+				}
+
+				// If we opened a view in the panel, stop any restore there
+				if (locationsRestored[ViewContainerLocation.Panel]) {
+					this.state.panel.panelToRestore = undefined;
+				}
+
+				mark('didOpenDefaultViews');
+			}
+		})();
+		restorePromises.push(restoreDefaultViewsPromise);
 
 		// Restore Sidebar
-		if (this.state.sideBar.viewletToRestore) {
-			restorePromises.push((async () => {
-				mark('willRestoreViewlet');
+		restorePromises.push((async () => {
 
-				const viewlet = await this.viewletService.openViewlet(this.state.sideBar.viewletToRestore);
-				if (!viewlet) {
-					await this.viewletService.openViewlet(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id); // fallback to default viewlet as needed
-				}
+			// Restoring views could mean that sidebar already
+			// restored, as such we need to test again
+			await restoreDefaultViewsPromise;
+			if (!this.state.sideBar.viewletToRestore) {
+				return;
+			}
 
-				mark('didRestoreViewlet');
-			})());
-		}
+			mark('willRestoreViewlet');
+
+			const viewlet = await this.viewletService.openViewlet(this.state.sideBar.viewletToRestore);
+			if (!viewlet) {
+				await this.viewletService.openViewlet(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id); // fallback to default viewlet as needed
+			}
+
+			mark('didRestoreViewlet');
+		})());
 
 		// Restore Panel
-		if (this.state.panel.panelToRestore) {
-			restorePromises.push((async () => {
-				mark('willRestorePanel');
+		restorePromises.push((async () => {
 
-				const panel = await this.panelService.openPanel(this.state.panel.panelToRestore!);
-				if (!panel) {
-					await this.panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
-				}
+			// Restoring views could mean that panel already
+			// restored, as such we need to test again
+			await restoreDefaultViewsPromise;
+			if (!this.state.panel.panelToRestore) {
+				return;
+			}
 
-				mark('didRestorePanel');
-			})());
-		}
+			mark('willRestorePanel');
+
+			const panel = await this.panelService.openPanel(this.state.panel.panelToRestore!);
+			if (!panel) {
+				await this.panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
+			}
+
+			mark('didRestorePanel');
+		})());
 
 		// Restore Zen Mode
 		if (this.state.zenMode.restore) {

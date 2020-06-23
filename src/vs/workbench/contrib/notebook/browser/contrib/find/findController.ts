@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/notebookFind';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -24,6 +25,10 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 
+const FIND_HIDE_TRANSITION = 'find-hide-transition';
+const FIND_SHOW_TRANSITION = 'find-show-transition';
+
+
 export class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.find';
 	protected _findWidgetFocused: IContextKey<boolean>;
@@ -32,6 +37,8 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 	private _currentMatch: number = -1;
 	private _allMatchesDecorations: ICellModelDecorations[] = [];
 	private _currentMatchDecorations: ICellModelDecorations[] = [];
+	private _showTimeout: number | null = null;
+	private _hideTimeout: number | null = null;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
@@ -136,11 +143,6 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		this._notebookEditor.revealRangeInCenterIfOutsideViewportAsync(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
 	}
 
-	hide() {
-		super.hide();
-		this.set([]);
-	}
-
 	protected findFirst(): void { }
 
 	protected onFocusTrackerFocus() {
@@ -243,10 +245,56 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		});
 	}
 
+	show(initialInput?: string): void {
+		super.show(initialInput);
+
+		if (this._showTimeout === null) {
+			if (this._hideTimeout !== null) {
+				window.clearTimeout(this._hideTimeout);
+				this._hideTimeout = null;
+				this._notebookEditor.removeClassName(FIND_HIDE_TRANSITION);
+			}
+
+			this._notebookEditor.addClassName(FIND_SHOW_TRANSITION);
+			this._showTimeout = window.setTimeout(() => {
+				this._notebookEditor.removeClassName(FIND_SHOW_TRANSITION);
+				this._showTimeout = null;
+			}, 200);
+		} else {
+			// no op
+		}
+	}
+
+	hide() {
+		super.hide();
+		this.set([]);
+
+		if (this._hideTimeout === null) {
+			if (this._showTimeout !== null) {
+				window.clearTimeout(this._showTimeout);
+				this._showTimeout = null;
+				this._notebookEditor.removeClassName(FIND_SHOW_TRANSITION);
+			}
+			this._notebookEditor.addClassName(FIND_HIDE_TRANSITION);
+			this._hideTimeout = window.setTimeout(() => {
+				this._notebookEditor.removeClassName(FIND_HIDE_TRANSITION);
+			}, 200);
+		} else {
+			// no op
+		}
+	}
+
 	clear() {
 		this._currentMatch = -1;
 		this._findMatches = [];
 	}
+
+	dispose() {
+		this._notebookEditor?.removeClassName(FIND_SHOW_TRANSITION);
+		this._notebookEditor?.removeClassName(FIND_HIDE_TRANSITION);
+		super.dispose();
+	}
+
 }
 
 registerNotebookContribution(NotebookFindWidget.id, NotebookFindWidget);
