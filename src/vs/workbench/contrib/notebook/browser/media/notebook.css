@@ -443,7 +443,6 @@
 	left: 0px;
 	right: 0px;
 	opacity: 0;
-	/* transition: opacity 0.2s ease-in-out; */
 	z-index: 10;
 }
 
