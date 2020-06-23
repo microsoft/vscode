@@ -32,5 +32,13 @@ const serverConfig = withDefaults({
 });
 serverConfig.module.rules[0].use.shift(); // remove nls loader
 serverConfig.module.noParse =  /typescript\/lib\/typescript\.js/;
+serverConfig.module.rules.push({
+	test: /javascriptLibs.ts$/,
+	use: [
+		{
+			loader: path.resolve(__dirname, 'build', 'javaScriptLibraryLoader.js')
+		}
+	]
+});
 
 module.exports = serverConfig;
