@@ -678,7 +678,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		if (ResourceTree.isResourceNode(element)) {
 			return element.name;
 		} else if (isSCMRepository(element)) {
-			return element.provider.label; // TODO@joao
+			return undefined;
 		} else if (isSCMInput(element)) {
 			return undefined;
 		} else if (isSCMResourceGroup(element)) {
@@ -734,7 +734,7 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 		if (ResourceTree.isResourceNode(element)) {
 			return this.labelService.getUriLabel(element.uri, { relative: true, noPrefix: true }) || element.name;
 		} else if (isSCMRepository(element)) {
-			return element.provider.label; // TODO@joao
+			return element.provider.label;
 		} else if (isSCMInput(element)) {
 			return localize('input', "Source Control Input");
 		} else if (isSCMResourceGroup(element)) {
