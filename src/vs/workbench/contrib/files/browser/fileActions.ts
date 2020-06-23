@@ -222,7 +222,7 @@ async function deleteFiles(workingCopyFileService: IWorkingCopyFileService, dial
 
 	// Call function
 	try {
-		await workingCopyFileService.delete(distinctElements.map(e => e.resource), { useTrash: useTrash, recursive: true });
+		await workingCopyFileService.delete(distinctElements.map(e => e.resource), { useTrash, recursive: true });
 	} catch (error) {
 
 		// Handle error to delete file(s) from a modal confirmation dialog
@@ -1083,8 +1083,8 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			return { source: fileToPaste, target: targetFile };
 		}));
 
-		let stats: IFileStatWithMetadata[] = [];
 		// Move/Copy File
+		let stats: IFileStatWithMetadata[] = [];
 		if (pasteShouldMove) {
 			stats = await workingCopyFileService.move(sourceTargetPairs);
 		} else {
@@ -1100,11 +1100,9 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 				await explorerService.select(stat.resource);
 			}
 		}
-	}
-	catch (e) {
+	} catch (e) {
 		onError(notificationService, new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))));
-	}
-	finally {
+	} finally {
 		if (pasteShouldMove) {
 			// Cut is done. Make sure to clear cut state.
 			await explorerService.setToCopy([], false);
