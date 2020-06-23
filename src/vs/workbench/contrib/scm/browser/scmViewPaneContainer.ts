@@ -46,8 +46,9 @@ export class SCMViewPaneContainer extends ViewPaneContainer {
 	) {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
-		this.menus = instantiationService.createInstance(SCMMenus, undefined);
-		this._register(this.menus.onDidChangeTitle(this.updateTitleArea, this));
+		this.menus = instantiationService.createInstance(SCMMenus);
+		const menus = this.menus.getDefaultMenus();
+		this._register(menus.onDidChangeTitle(this.updateTitleArea, this));
 	}
 
 	create(parent: HTMLElement): void {

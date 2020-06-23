@@ -10,11 +10,13 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMResourceGroup, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { isSCMResource } from './util';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { equals } from 'vs/base/common/arrays';
 import { ISplice } from 'vs/base/common/sequence';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { memoize } from 'vs/base/common/decorators';
 
 function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;
@@ -35,7 +37,7 @@ export function getSCMResourceContextKey(resource: ISCMResourceGroup | ISCMResou
 	return isSCMResource(resource) ? resource.resourceGroup.id : resource.id;
 }
 
-export class SCMMenus implements IDisposable {
+export class SCMRepositoryMenus implements IDisposable {
 
 	private contextKeyService: IContextKeyService;
 	private titleMenu: IMenu;
@@ -181,5 +183,28 @@ export class SCMMenus implements IDisposable {
 	dispose(): void {
 		this.disposables.dispose();
 		this.resourceGroupMenuEntries.forEach(e => e.disposable.dispose());
+	}
+}
+
+export class SCMMenus {
+
+	private menus = new WeakMap<ISCMProvider, SCMRepositoryMenus>();
+
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) { }
+
+	@memoize
+	getDefaultMenus(): SCMRepositoryMenus {
+		return this.instantiationService.createInstance(SCMRepositoryMenus, undefined);
+	}
+
+	getRepositoryMenus(provider: ISCMProvider): SCMRepositoryMenus {
+		let result = this.menus.get(provider);
+
+		if (!result) {
+			result = this.instantiationService.createInstance(SCMRepositoryMenus, provider);
+			this.menus.set(provider, result);
+		}
+
+		return result;
 	}
 }

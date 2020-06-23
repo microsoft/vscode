@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose }
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, addClass, toggleClass, removeClass, Dimension } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMService, ISCMRepository, ISCMProvider, ISCMInput } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMService, ISCMRepository, ISCMInput } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -335,7 +335,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 	constructor(
 		private actionViewItemProvider: IActionViewItemProvider,
 		private themeService: IThemeService,
-		private menus: Map<ISCMProvider, SCMMenus>
+		private menus: SCMMenus
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
@@ -365,7 +365,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		template.count.setCount(group.elements.length);
 
 		const disposables = new DisposableStore();
-		const menus = this.menus.get(group.provider)!;
+		const menus = this.menus.getRepositoryMenus(group.provider);
 		disposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceGroupMenu(group), template.actionBar));
 
 		template.elementDisposables = disposables;
@@ -425,7 +425,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		private actionViewItemProvider: IActionViewItemProvider,
 		private actionRunner: ActionRunner,
 		private themeService: IThemeService,
-		private menus: Map<ISCMProvider, SCMMenus>
+		private menus: SCMMenus
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceTemplate {
@@ -471,18 +471,18 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
-				const menus = this.menus.get(resourceOrFolder.element.resourceGroup.provider)!;
+				const menus = this.menus.getRepositoryMenus(resourceOrFolder.element.resourceGroup.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.element.resourceGroup), template.actionBar));
 				toggleClass(template.name, 'strike-through', resourceOrFolder.element.decorations.strikeThrough);
 				toggleClass(template.element, 'faded', resourceOrFolder.element.decorations.faded);
 			} else {
-				const menus = this.menus.get(resourceOrFolder.context.provider)!;
+				const menus = this.menus.getRepositoryMenus(resourceOrFolder.context.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
 				removeClass(template.name, 'strike-through');
 				removeClass(template.element, 'faded');
 			}
 		} else {
-			const menus = this.menus.get(resourceOrFolder.resourceGroup.provider)!;
+			const menus = this.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
 			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.resourceGroup), template.actionBar));
 			toggleClass(template.name, 'strike-through', resourceOrFolder.decorations.strikeThrough);
 			toggleClass(template.element, 'faded', resourceOrFolder.decorations.faded);
@@ -529,7 +529,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		template.actionBar.clear();
 		template.actionBar.context = folder;
 
-		const menus = this.menus.get(folder.context.provider)!;
+		const menus = this.menus.getRepositoryMenus(folder.context.provider);
 		elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(folder.context), template.actionBar));
 
 		removeClass(template.name, 'strike-through');
@@ -921,7 +921,9 @@ class ViewModel {
 	}
 
 	private refresh(item?: IRepositoryItem | IGroupItem): void {
-		if (item) {
+		if (this.items.length === 1 && (!item || isRepositoryItem(item))) {
+			this.tree.setChildren(null, this.render(this.items[0]).children);
+		} else if (item) {
 			this.tree.setChildren(item.element, this.render(item).children);
 		} else {
 			this.tree.setChildren(null, this.items.map(item => this.render(item)));
@@ -1363,7 +1365,7 @@ export class SCMViewPane extends ViewPane {
 	private tree!: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 	private viewModel!: ViewModel;
 	private listLabels!: ResourceLabels;
-	private menus = new Map<ISCMProvider, SCMMenus>();
+	private menus: SCMMenus;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1385,6 +1387,7 @@ export class SCMViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		this.menus = instantiationService.createInstance(SCMMenus);
 		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
 	}
 
@@ -1452,9 +1455,6 @@ export class SCMViewPane extends ViewPane {
 		if (typeof storageMode === 'string') {
 			viewMode = storageMode;
 		}
-
-		this._register(this.scmService.onDidAddRepository(r => this.menus.set(r.provider, this.instantiationService.createInstance(SCMMenus, r.provider))));
-		this._register(this.scmService.onDidRemoveRepository(r => this.menus.delete(r.provider)));
 
 		const repositories = new SimpleSequence(this.scmService.repositories, this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository);
 		this._register(repositories);
@@ -1542,7 +1542,7 @@ export class SCMViewPane extends ViewPane {
 	// TODO@joao
 	getActions(): IAction[] {
 		return [];
-		// return this.menus.getTitleActions();
+		// return this.menus.getRepositoryMenusTitleActions(;
 	}
 
 	// TODO@joao
@@ -1552,7 +1552,7 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		const result: IAction[] = [new SCMViewSubMenuAction(this.viewModel)];
-		// const secondaryActions = this.menus.getTitleSecondaryActions();
+		// const secondaryActions = this.menus.getRepositoryMenusTitleSecondaryActions(;
 
 		// if (secondaryActions.length > 0) {
 		// 	result.push(new Separator(), ...secondaryActions);
@@ -1603,18 +1603,18 @@ export class SCMViewPane extends ViewPane {
 		} else if (isSCMInput(element)) {
 			// TODO@joao
 		} else if (isSCMResourceGroup(element)) {
-			const menus = this.menus.get(element.provider)!;
+			const menus = this.menus.getRepositoryMenus(element.provider);
 			actions = menus.getResourceGroupContextActions(element);
 		} else if (ResourceTree.isResourceNode(element)) {
 			if (element.element) {
-				const menus = this.menus.get(element.element.resourceGroup.provider)!;
+				const menus = this.menus.getRepositoryMenus(element.element.resourceGroup.provider);
 				actions = menus.getResourceContextActions(element.element);
 			} else {
-				const menus = this.menus.get(element.context.provider)!;
+				const menus = this.menus.getRepositoryMenus(element.context.provider);
 				actions = menus.getResourceFolderContextActions(element.context);
 			}
 		} else {
-			const menus = this.menus.get(element.resourceGroup.provider)!;
+			const menus = this.menus.getRepositoryMenus(element.resourceGroup.provider);
 			actions = menus.getResourceContextActions(element);
 		}
 
