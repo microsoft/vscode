@@ -2304,7 +2304,7 @@ declare module 'vscode' {
 	 * A code lens provider adds [commands](#Command) to source text. The commands will be shown
 	 * as dedicated horizontal lines in between the source text.
 	 */
-	export interface CodeLensProvider<T = CodeLens> {
+	export interface CodeLensProvider<T extends CodeLens = CodeLens> {
 
 		/**
 		 * An optional event to signal that the code lenses from this provider have changed.
@@ -2836,7 +2836,7 @@ declare module 'vscode' {
 	 * The workspace symbol provider interface defines the contract between extensions and
 	 * the [symbol search](https://code.visualstudio.com/docs/editor/editingevolved#_open-symbol-by-name)-feature.
 	 */
-	export interface WorkspaceSymbolProvider<T = SymbolInformation> {
+	export interface WorkspaceSymbolProvider<T extends SymbolInformation = SymbolInformation> {
 
 		/**
 		 * Project-wide search for a symbol matching the given query string.
@@ -3895,7 +3895,7 @@ declare module 'vscode' {
 	 * Represents a collection of [completion items](#CompletionItem) to be presented
 	 * in the editor.
 	 */
-	export class CompletionList<T = CompletionItem> {
+	export class CompletionList<T extends CompletionItem = CompletionItem> {
 
 		/**
 		 * This list is not complete. Further typing should result in recomputing
@@ -3968,7 +3968,7 @@ declare module 'vscode' {
 	 * Providers are asked for completions either explicitly by a user gesture or -depending on the configuration-
 	 * implicitly when typing words or trigger characters.
 	 */
-	export interface CompletionItemProvider<T = CompletionItem> {
+	export interface CompletionItemProvider<T extends CompletionItem = CompletionItem> {
 
 		/**
 		 * Provide completion items for the given position and document.
@@ -4043,7 +4043,7 @@ declare module 'vscode' {
 	 * The document link provider defines the contract between extensions and feature of showing
 	 * links in the editor.
 	 */
-	export interface DocumentLinkProvider<T = DocumentLink> {
+	export interface DocumentLinkProvider<T extends DocumentLink = DocumentLink> {
 
 		/**
 		 * Provide links for the given document. Note that the editor ships with a default provider that detects
@@ -6106,7 +6106,7 @@ declare module 'vscode' {
 	 * A task provider allows to add tasks to the task service.
 	 * A task provider is registered via #tasks.registerTaskProvider.
 	 */
-	export interface TaskProvider<T = Task> {
+	export interface TaskProvider<T extends Task = Task> {
 		/**
 		 * Provides tasks.
 		 * @param token A cancellation token.
