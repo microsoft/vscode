@@ -142,7 +142,7 @@ export class NotebookEditor extends BaseEditor {
 		if (model === null) {
 			this._notificationService.prompt(
 				Severity.Error,
-				localize('fail.noEditor', "Cannot open resource with notebook editor type '${input.viewType}', please check if you have the right extension installed or enabled."),
+				localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed or enabled.", input.viewType),
 				[{
 					label: localize('fail.reOpen', "Reopen file with VS Code standard text editor"),
 					run: async () => {

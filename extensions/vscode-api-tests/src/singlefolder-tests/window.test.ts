@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, QuickPickItem } from 'vscode';
+import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, QuickPickItem, TextEditor } from 'vscode';
 import { join } from 'path';
 import { closeAllEditors, pathEquals, createRandomFile } from '../utils';
 
-suite.only('vscode API - window', () => {
+
+suite('vscode API - window', () => {
 
 	teardown(closeAllEditors);
 
@@ -146,6 +147,20 @@ suite.only('vscode API - window', () => {
 	});
 
 	test('active editor not always correct... #49125', async function () {
+
+		function assertActiveEditor(editor: TextEditor) {
+			if (window.activeTextEditor === editor) {
+				assert.ok(true);
+				return;
+			}
+			function printEditor(editor: TextEditor): string {
+				return `doc: ${editor.document.uri.toString()}, column: ${editor.viewColumn}, active: ${editor === window.activeTextEditor}`;
+			}
+			const visible = window.visibleTextEditors.map(editor => printEditor(editor));
+			assert.ok(false, `ACTIVE editor should be ${printEditor(editor)}, BUT HAVING ${visible.join(', ')}`);
+
+		}
+
 		const randomFile1 = await createRandomFile();
 		const randomFile2 = await createRandomFile();
 
@@ -155,10 +170,10 @@ suite.only('vscode API - window', () => {
 		]);
 		for (let c = 0; c < 4; c++) {
 			let editorA = await window.showTextDocument(docA, ViewColumn.One);
-			assert.equal(window.activeTextEditor, editorA);
+			assertActiveEditor(editorA);
 
 			let editorB = await window.showTextDocument(docB, ViewColumn.Two);
-			assert.equal(window.activeTextEditor, editorB);
+			assertActiveEditor(editorB);
 		}
 	});
 

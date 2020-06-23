@@ -144,6 +144,6 @@ export class ReloadWebviewAction extends Action {
 
 export function getFocusedWebviewEditor(accessor: ServicesAccessor): Webview | undefined {
 	const editorService = accessor.get(IEditorService);
-	const activeEditor = editorService.activeEditorPane;
+	const activeEditor = editorService.activeEditor;
 	return activeEditor instanceof WebviewInput ? activeEditor.webview : undefined;
 }

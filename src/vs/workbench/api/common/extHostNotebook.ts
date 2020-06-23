@@ -494,10 +494,6 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 			cell.detachTextDocument();
 		}
 	}
-
-	allEditors() {
-		return this._documentsAndEditors.allEditors();
-	}
 }
 
 export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellEdit {
@@ -1097,8 +1093,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		alreadyRegistered.add(renderer);
-		for (const editor of document.allEditors()) {
-			const comm = this._webviewComm.get(editor.id);
+		for (const editorId of this._editors.keys()) {
+			const comm = this._webviewComm.get(editorId);
 			if (comm) {
 				renderer.resolveNotebook(document, comm);
 			}

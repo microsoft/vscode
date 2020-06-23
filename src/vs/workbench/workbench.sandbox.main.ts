@@ -32,6 +32,7 @@ import 'vs/workbench/services/host/electron-sandbox/desktopHostService';
 import 'vs/workbench/services/request/electron-sandbox/requestService';
 import 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
 import 'vs/workbench/services/clipboard/electron-sandbox/clipboardService';
+import 'vs/workbench/services/contextmenu/electron-sandbox/contextmenuService';
 
 //#endregion
 

@@ -36,7 +36,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 
 			if (environmentService.isBuilt) {
 				// Built time configuration (do NOT modify)
-				scannedBuiltinExtensions = JSON.parse('{{BUILD->INSERT_BUILTIN_EXTENSIONS}}');
+				scannedBuiltinExtensions = [/*BUILD->INSERT_BUILTIN_EXTENSIONS*/];
 			} else {
 				// Find builtin extensions by checking for DOM
 				const builtinExtensionsElement = document.getElementById('vscode-workbench-builtin-extensions');

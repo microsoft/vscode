@@ -1525,7 +1525,6 @@ export interface ExtHostDebugServiceShape {
 
 export interface DecorationRequest {
 	readonly id: number;
-	readonly handle: number;
 	readonly uri: UriComponents;
 }
 
@@ -1533,7 +1532,7 @@ export type DecorationData = [number, boolean, string, string, ThemeColor];
 export type DecorationReply = { [id: number]: DecorationData; };
 
 export interface ExtHostDecorationsShape {
-	$provideDecorations(requests: DecorationRequest[], token: CancellationToken): Promise<DecorationReply>;
+	$provideDecorations(handle: number, requests: DecorationRequest[], token: CancellationToken): Promise<DecorationReply>;
 }
 
 export interface ExtHostWindowShape {

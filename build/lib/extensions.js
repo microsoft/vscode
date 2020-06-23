@@ -280,8 +280,8 @@ function scanBuiltinExtensions(extensionsRoot, forWeb) {
         const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
         scannedExtensions.push({
             extensionPath: extensionFolder,
-            packageJSON: packageJSON,
-            packagsNLSPath: packageNLS ? path.join(extensionFolder, packageNLS) : undefined,
+            packageJSON,
+            packageNLSPath: packageNLS ? path.join(extensionFolder, packageNLS) : undefined,
             readmePath: readme ? path.join(extensionFolder, readme) : undefined,
             changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
         });

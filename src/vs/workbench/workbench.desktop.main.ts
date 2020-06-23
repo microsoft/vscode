@@ -43,7 +43,6 @@ import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import 'vs/workbench/services/keybinding/electron-browser/keybinding.contribution';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
-import 'vs/workbench/services/contextmenu/electron-sandbox/contextmenuService'; // TODO@Miguel this cannot be moved to sandbox due to https://github.com/microsoft/vscode/issues/98495
 import 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/electron-browser/extensionTipsService';
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
