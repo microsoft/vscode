@@ -723,13 +723,18 @@ const getFileOverwriteConfirm = (name: string) => {
 	};
 };
 
-const getMultipleFilesOverwriteConfirm = (overwritesCount: number, detail: string) => {
-	return <IConfirmation>{
-		message: localize('confirmManyOverwrites', "The following {0} files and/or folders already exist in the destination folder. Do you want to replace them?", overwritesCount),
-		detail: detail + '\n' + localize('irreversible', "This action is irreversible!"),
-		primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-		type: 'warning'
-	};
+const getMultipleFilesOverwriteConfirm = (files: URI[]) => {
+	if (files.length > 1) {
+		return <IConfirmation>{
+			message: localize('confirmManyOverwrites', "The following {0} files and/or folders already exist in the destination folder. Do you want to replace them?", files.length),
+			detail: getFileNamesMessage(files) + '\n' + localize('irreversible', "This action is irreversible!"),
+			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+			type: 'warning'
+		};
+	} else {
+		return getFileOverwriteConfirm(basename(files[0]));
+	}
+
 };
 
 interface IWebkitDataTransfer {
@@ -1387,7 +1392,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
 
-				let confirm: IConfirmation;
 				const overwrites: URI[] = [];
 				for (const { target } of sourceTargetPairs) {
 					const exist = await this.fileService.exists(target);
@@ -1396,11 +1400,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					}
 				}
 
-				if (overwrites.length > 1) {
-					confirm = getMultipleFilesOverwriteConfirm(overwrites.length, getFileNamesMessage(overwrites));
-				} else {
-					confirm = getFileOverwriteConfirm(basename(overwrites[0]));
-				}
+				const confirm = getMultipleFilesOverwriteConfirm(overwrites);
 
 				// Move with overwrite if the user confirms
 				const { confirmed } = await this.dialogService.confirm(confirm);
