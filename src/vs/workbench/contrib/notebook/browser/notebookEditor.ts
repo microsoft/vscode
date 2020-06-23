@@ -232,7 +232,7 @@ export class NotebookEditor extends BaseEditor {
 		super.dispose();
 	}
 
-	toJSON(): any {
+	toJSON(): object {
 		return {
 			notebookHandle: this.viewModel?.handle
 		};

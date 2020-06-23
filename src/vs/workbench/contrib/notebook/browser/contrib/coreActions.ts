@@ -123,8 +123,8 @@ abstract class NotebookAction extends Action2 {
 
 	abstract async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
 
-	private isCellActionContext(context: any): context is INotebookCellActionContext {
-		return context && !!context.cell && !!context.notebookEditor;
+	private isCellActionContext(context?: INotebookCellActionContext): context is INotebookCellActionContext {
+		return !!context && !!context.cell && !!context.notebookEditor;
 	}
 
 	private getActiveCellContext(accessor: ServicesAccessor): INotebookCellActionContext | undefined {
