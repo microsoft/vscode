@@ -1368,12 +1368,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			for (const source of sources) {
 				sourceTargetPairs.push({ source: source.resource, target: findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming) });
 			}
-			const stats = await this.workingCopyFileService.copy(sourceTargetPairs);
-			stats.forEach(async stat => {
-				if (!stat.isDirectory) {
-					await this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
-				}
-			});
+			const editors = (await this.workingCopyFileService.copy(sourceTargetPairs)).filter(stat => !stat.isDirectory).map(stat => ({ resource: stat.resource, options: { pinned: true } }));
+			await this.editorService.openEditors(editors);
 
 			return;
 		}
