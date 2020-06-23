@@ -392,7 +392,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment()
+			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
+			toggleMenuTitle: nls.localize('viewsAndMoreActions', "Views and More Actions...")
 		}));
 
 		this.collectCompositeActions()();
