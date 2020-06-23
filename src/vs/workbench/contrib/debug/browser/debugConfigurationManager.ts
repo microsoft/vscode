@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
@@ -37,7 +37,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { sequence } from 'vs/base/common/async';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { first } from 'vs/base/common/arrays';
+import { first, flatten } from 'vs/base/common/arrays';
 import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 
@@ -258,14 +258,23 @@ export class ConfigurationManager implements IConfigurationManager {
 				return acc;
 			}
 
-			const explicitTypes = e.activationEvents.filter(e => e.includes(`${onDebugDynamicConfigurationsName}:`)).map(type => type.slice(onDebugDynamicConfigurationsName.length + 1));
-			if (explicitTypes.length) {
-				return [...acc, ...explicitTypes];
+			const explicitTypes: string[] = [];
+			let hasGenericEvent = false;
+			for (const event of e.activationEvents) {
+				if (event === onDebugDynamicConfigurationsName) {
+					hasGenericEvent = true;
+				} else if (event.startsWith(`${onDebugDynamicConfigurationsName}:`)) {
+					explicitTypes.push(event.slice(onDebugDynamicConfigurationsName.length + 1));
+				}
 			}
 
-			if (e.activationEvents.includes(onDebugDynamicConfigurationsName)) {
+			if (explicitTypes.length) {
+				return acc.concat(explicitTypes);
+			}
+
+			if (hasGenericEvent) {
 				const debuggerType = e.contributes?.debuggers?.[0].type;
-				return debuggerType ? [...acc, debuggerType] : acc;
+				return debuggerType ? acc.concat(debuggerType) : acc;
 			}
 
 			return acc;
@@ -275,23 +284,24 @@ export class ConfigurationManager implements IConfigurationManager {
 			return {
 				label: this.getDebuggerLabel(type)!,
 				pick: async () => {
-					const input = this.quickInputService.createQuickPick<IDynamicPickItem>();
+					const disposables = new DisposableStore();
+					const input = disposables.add(this.quickInputService.createQuickPick<IDynamicPickItem>());
 					input.busy = true;
 					input.placeholder = nls.localize('selectConfiguration', "Select Launch Configuration");
 					input.show();
 
 					let chosenDidCancel = false;
 					const chosenPromise = new Promise<IDynamicPickItem | undefined>(resolve => {
-						input.onDidAccept(() => resolve(input.activeItems[0]));
-						input.onDidTriggerItemButton(async (context) => {
+						disposables.add(input.onDidAccept(() => resolve(input.activeItems[0])));
+						disposables.add(input.onDidTriggerItemButton(async (context) => {
 							resolve(undefined);
 							const { launch, config } = context.item;
 							await launch.openConfigFile(false, config.type);
 							// Only Launch have a pin trigger button
 							await (launch as Launch).writeConfiguration(config);
 							this.selectConfiguration(launch, config.name);
-						});
-						input.onDidHide(() => { chosenDidCancel = true; resolve(); });
+						}));
+						disposables.add(input.onDidHide(() => { chosenDidCancel = true; resolve(); }));
 					});
 
 					await this.activateDebuggers(onDebugDynamicConfigurationsName, type);
@@ -312,8 +322,12 @@ export class ConfigurationManager implements IConfigurationManager {
 						}
 					});
 
-					const items = await Promise.all(picks).then(result => result.reduce((first, second) => first.concat(second), []));
+					const nestedPicks = await Promise.all(picks);
+					const items = flatten(nestedPicks);
+
 					let chosen: IDynamicPickItem | undefined;
+
+					// If there's exactly one item to choose from, pick it automatically
 					if (items.length === 1 && !chosenDidCancel) {
 						chosen = items[0];
 					} else {
@@ -322,7 +336,8 @@ export class ConfigurationManager implements IConfigurationManager {
 						chosen = await chosenPromise;
 					}
 
-					input.dispose();
+					disposables.dispose();
+
 					if (!chosen) {
 						// User canceled quick input we should notify the provider to cancel computing configurations
 						token.cancel();
