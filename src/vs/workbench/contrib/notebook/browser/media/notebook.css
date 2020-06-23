@@ -114,7 +114,6 @@
 .monaco-workbench .notebookOverlay .output {
 	position: absolute;
 	height: 0px;
-	width: 100%;
 	user-select: text;
 	transform: translate3d(0px, 0px, 0px);
 	cursor: auto;
