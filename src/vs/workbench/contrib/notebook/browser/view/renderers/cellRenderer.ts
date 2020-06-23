@@ -205,7 +205,7 @@ abstract class AbstractCellRenderer {
 		const menu = disposables.add(cellMenu.getCellInsertionMenu(contextKeyService));
 
 		const actions = this.getCellToolbarActions(menu);
-		toolbar.setActions(actions.primary, actions.secondary)();
+		toolbar.setActions(actions.primary, actions.secondary);
 
 		return toolbar;
 	}
@@ -263,7 +263,7 @@ abstract class AbstractCellRenderer {
 			const actions = this.getCellToolbarActions(menu);
 
 			const hadFocus = DOM.isAncestor(document.activeElement, templateData.toolbar.getContainer());
-			templateData.toolbar.setActions(actions.primary, actions.secondary)();
+			templateData.toolbar.setActions(actions.primary, actions.secondary);
 			if (hadFocus) {
 				this.notebookEditor.focus();
 			}
@@ -970,13 +970,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 			templateData.runToolbar.setActions([
 				this.instantiationService.createInstance(CancelCellAction)
-			])();
+			]);
 		} else {
 			templateData.progressBar.hide();
 
 			templateData.runToolbar.setActions([
 				this.instantiationService.createInstance(ExecuteCellAction)
-			])();
+			]);
 		}
 	}
 

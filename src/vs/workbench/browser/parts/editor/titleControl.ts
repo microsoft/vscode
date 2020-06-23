@@ -191,7 +191,7 @@ export abstract class TitleControl extends Themable {
 			secondaryEditorActions.some(action => action instanceof ExecuteCommandAction)  // see also https://github.com/Microsoft/vscode/issues/16298
 		) {
 			const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
-			editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
+			editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions);
 
 			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
 			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;
@@ -246,7 +246,7 @@ export abstract class TitleControl extends Themable {
 
 	protected clearEditorActionsToolbar(): void {
 		if (this.editorActionsToolbar) {
-			this.editorActionsToolbar.setActions([], [])();
+			this.editorActionsToolbar.setActions([], []);
 		}
 
 		this.currentPrimaryEditorActionIds = [];

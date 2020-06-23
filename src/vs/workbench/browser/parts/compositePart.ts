@@ -331,7 +331,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		toolBar.context = this.actionsContextProvider();
 
 		// Return fn to set into toolbar
-		return toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
+		return () => toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
 
 	protected getActiveComposite(): IComposite | undefined {
