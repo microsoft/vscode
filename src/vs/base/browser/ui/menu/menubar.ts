@@ -942,7 +942,6 @@ export class MenuBar extends Disposable {
 			menuHolder.style.top = `0px`;
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
-			console.log(customMenu.buttonElement.getBoundingClientRect().right - this.container.clientWidth);
 		} else {
 			menuHolder.style.top = `${this.container.clientHeight}px`;
 			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left}px`;
