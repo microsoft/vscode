@@ -18,7 +18,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellOutputKind, IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewElement, WebviewOptions, WebviewContentOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { dirname, joinPath } from 'vs/base/common/resources';
@@ -29,6 +29,9 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -225,12 +228,12 @@ export class BackLayerWebView extends Disposable {
 	private _loaded!: Promise<void>;
 	private _initalized?: Promise<void>;
 	private _disposed = false;
+	private _webviewThemeDataProvider: WebviewThemeDataProvider;
 
 	constructor(
 		public notebookEditor: INotebookEditor,
 		public id: string,
 		public documentUri: URI,
-		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -238,6 +241,7 @@ export class BackLayerWebView extends Disposable {
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFileService private readonly fileService: IFileService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -247,7 +251,21 @@ export class BackLayerWebView extends Disposable {
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
 		this.element.style.margin = `0px 0 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px`;
+
+		this._webviewThemeDataProvider = this.instantiationService.createInstance(WebviewThemeDataProvider);
+		this._register(this._webviewThemeDataProvider);
 	}
+
+	createWebviewElement(
+		id: string,
+		options: WebviewOptions,
+		contentOptions: WebviewContentOptions,
+		extension: WebviewExtensionDescription | undefined,
+	): WebviewElement {
+		return this.instantiationService.createInstance(IFrameWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider, true);
+	}
+
+
 	generateContent(outputNodePadding: number, coreDependencies: string, baseUrl: string) {
 		return html`
 		<html lang="en">
@@ -344,7 +362,7 @@ ${loaderJs}
 			throw new Error('Element is already detached from the DOM tree');
 		}
 
-		this.webview = this._createInset(this.webviewService, content);
+		this.webview = this._createInset(content);
 		this.webview.mountTo(this.element);
 		this._register(this.webview);
 
@@ -480,13 +498,13 @@ ${loaderJs}
 		await this.openerService.open(newFileUri);
 	}
 
-	private _createInset(webviewService: IWebviewService, content: string) {
+	private _createInset(content: string) {
 		const rootPath = URI.file(path.dirname(getPathFromAmdModule(require, '')));
 		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
 
 		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), ...workspaceFolders, rootPath];
 
-		const webview = webviewService.createWebviewElement(this.id, {
+		const webview = this.createWebviewElement(this.id, {
 			enableFindWidget: false,
 		}, {
 			allowMultipleAPIAcquire: true,
@@ -767,7 +785,7 @@ ${loaderJs}
 
 	dispose() {
 		this._disposed = true;
-		this.webview.dispose();
+		this.webview?.dispose();
 		super.dispose();
 	}
 }
