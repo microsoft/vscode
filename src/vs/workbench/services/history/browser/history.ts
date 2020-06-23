@@ -32,6 +32,7 @@ import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/d
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { extUri } from 'vs/base/common/resources';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -577,7 +578,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const resourceEditorInputA = arg1 as IResourceEditorInput;
 		const resourceEditorInputB = inputB as IResourceEditorInput;
 
-		return resourceEditorInputA && resourceEditorInputB && resourceEditorInputA.resource.toString() === resourceEditorInputB.resource.toString();
+		return resourceEditorInputA && resourceEditorInputB && extUri.isEqual(resourceEditorInputA.resource, resourceEditorInputB.resource);
 	}
 
 	private matchesFile(resource: URI, arg2: IEditorInput | IResourceEditorInput | FileChangesEvent): boolean {
@@ -595,12 +596,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 				return false; // make sure to only check this when workbench has restored (for https://github.com/Microsoft/vscode/issues/48275)
 			}
 
-			return inputResource.toString() === resource.toString();
+			return extUri.isEqual(inputResource, resource);
 		}
 
 		const resourceEditorInput = arg2 as IResourceEditorInput;
 
-		return resourceEditorInput?.resource.toString() === resource.toString();
+		return extUri.isEqual(resourceEditorInput?.resource, resource);
 	}
 
 	//#endregion

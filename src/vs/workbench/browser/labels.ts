@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
+import { dirname, isEqual, basenameOrAuthority, extUri } from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -307,7 +307,7 @@ class ResourceLabelWidget extends IconLabel {
 			return; // only update if resource exists
 		}
 
-		if (model.uri.toString() === resource.toString()) {
+		if (extUri.isEqual(model.uri, resource)) {
 			if (this.lastKnownDetectedModeId !== model.getModeId()) {
 				this.render(true); // update if the language id of the model has changed from our last known state
 			}

@@ -52,6 +52,9 @@ export class TestNotebookEditor implements INotebookEditor {
 	constructor(
 	) { }
 
+	uri?: URI | undefined;
+	textModel?: NotebookTextModel | undefined;
+
 	hasModel(): boolean {
 		return true;
 	}
@@ -110,7 +113,19 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	isNotebookEditor = true;
 
-	postMessage(message: any): void {
+	postMessage(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	toggleClassName(className: string): void {
+		throw new Error('Method not implemented.');
+	}
+
+	addClassName(className: string): void {
+		throw new Error('Method not implemented.');
+	}
+
+	removeClassName(className: string): void {
 		throw new Error('Method not implemented.');
 	}
 

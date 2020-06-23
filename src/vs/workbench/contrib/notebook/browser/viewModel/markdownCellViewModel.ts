@@ -26,13 +26,18 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		return this._layoutInfo;
 	}
 
-	set totalHeight(newHeight: number) {
+	set renderedMarkdownHeight(newHeight: number) {
+		const newTotalHeight = newHeight + BOTTOM_CELL_TOOLBAR_HEIGHT;
+		this.totalHeight = newTotalHeight;
+	}
+
+	private set totalHeight(newHeight: number) {
 		if (newHeight !== this.layoutInfo.totalHeight) {
 			this.layoutChange({ totalHeight: newHeight });
 		}
 	}
 
-	get totalHeight() {
+	private get totalHeight() {
 		throw new Error('MarkdownCellViewModel.totalHeight is write only');
 	}
 

@@ -45,6 +45,15 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
+export interface ILocalProcessExtensionHostInitData {
+	readonly autoStart: boolean;
+	readonly extensions: IExtensionDescription[];
+}
+
+export interface ILocalProcessExtensionHostDataProvider {
+	getInitData(): Promise<ILocalProcessExtensionHostInitData>;
+}
+
 export class LocalProcessExtensionHost implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.LocalProcess;
@@ -76,9 +85,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	private readonly _extensionHostLogFile: URI;
 
 	constructor(
-		private readonly _autoStart: boolean,
-		private readonly _extensions: Promise<IExtensionDescription[]>,
-		private readonly _extensionHostLogsLocation: URI,
+		private readonly _initDataProvider: ILocalProcessExtensionHostDataProvider,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IElectronService private readonly _electronService: IElectronService,
@@ -106,7 +113,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		this._extensionHostConnection = null;
 		this._messageProtocol = null;
 
-		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
+		this._extensionHostLogFile = joinPath(this._environmentService.extHostLogsPath, `${ExtensionHostLogFileName}.log`);
 
 		this._toDispose.add(this._onExit);
 		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
@@ -413,51 +420,48 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		});
 	}
 
-	private _createExtHostInitData(): Promise<IInitData> {
-		return Promise.all([this._telemetryService.getTelemetryInfo(), this._extensions])
-			.then(([telemetryInfo, extensionDescriptions]) => {
-				const workspace = this._contextService.getWorkspace();
-				const r: IInitData = {
-					commit: this._productService.commit,
-					version: this._productService.version,
-					parentPid: process.pid,
-					environment: {
-						isExtensionDevelopmentDebug: this._isExtensionDevDebug,
-						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
-						appSettingsHome: this._environmentService.appSettingsHome ? this._environmentService.appSettingsHome : undefined,
-						appName: this._productService.nameLong,
-						appUriScheme: this._productService.urlProtocol,
-						appLanguage: platform.language,
-						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-						globalStorageHome: URI.file(this._environmentService.globalStorageHome),
-						userHome: this._environmentService.userHome,
-						webviewResourceRoot: this._environmentService.webviewResourceRoot,
-						webviewCspSource: this._environmentService.webviewCspSource,
-					},
-					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
-						configuration: withNullAsUndefined(workspace.configuration),
-						id: workspace.id,
-						name: this._labelService.getWorkspaceLabel(workspace),
-						isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false
-					},
-					remote: {
-						authority: this._environmentService.configuration.remoteAuthority,
-						connectionData: null,
-						isRemote: false
-					},
-					resolvedExtensions: [],
-					hostExtensions: [],
-					extensions: extensionDescriptions,
-					telemetryInfo,
-					logLevel: this._logService.getLevel(),
-					logsLocation: this._extensionHostLogsLocation,
-					logFile: this._extensionHostLogFile,
-					autoStart: this._autoStart,
-					uiKind: UIKind.Desktop
-				};
-				return r;
-			});
+	private async _createExtHostInitData(): Promise<IInitData> {
+		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
+		const workspace = this._contextService.getWorkspace();
+		return {
+			commit: this._productService.commit,
+			version: this._productService.version,
+			parentPid: process.pid,
+			environment: {
+				isExtensionDevelopmentDebug: this._isExtensionDevDebug,
+				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
+				appSettingsHome: this._environmentService.appSettingsHome ? this._environmentService.appSettingsHome : undefined,
+				appName: this._productService.nameLong,
+				appUriScheme: this._productService.urlProtocol,
+				appLanguage: platform.language,
+				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
+				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
+				globalStorageHome: URI.file(this._environmentService.globalStorageHome),
+				userHome: this._environmentService.userHome,
+				webviewResourceRoot: this._environmentService.webviewResourceRoot,
+				webviewCspSource: this._environmentService.webviewCspSource,
+			},
+			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
+				configuration: withNullAsUndefined(workspace.configuration),
+				id: workspace.id,
+				name: this._labelService.getWorkspaceLabel(workspace),
+				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false
+			},
+			remote: {
+				authority: this._environmentService.configuration.remoteAuthority,
+				connectionData: null,
+				isRemote: false
+			},
+			resolvedExtensions: [],
+			hostExtensions: [],
+			extensions: initData.extensions,
+			telemetryInfo,
+			logLevel: this._logService.getLevel(),
+			logsLocation: this._environmentService.extHostLogsPath,
+			logFile: this._extensionHostLogFile,
+			autoStart: initData.autoStart,
+			uiKind: UIKind.Desktop
+		};
 	}
 
 	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {

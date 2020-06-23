@@ -261,6 +261,11 @@ interface IWorkbenchConstructionOptions {
 	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
 
 	/**
+	 * Service end-point hosting builtin extensions
+	 */
+	readonly builtinExtensionsServiceUrl?: string;
+
+	/**
 	 * Support for URL callbacks.
 	 */
 	readonly urlCallbackProvider?: IURLCallbackProvider;

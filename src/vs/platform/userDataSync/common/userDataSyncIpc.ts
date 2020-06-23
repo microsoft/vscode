@@ -22,6 +22,7 @@ export class UserDataSyncChannel implements IServerChannel {
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onDidChangeStatus': return this.service.onDidChangeStatus;
+			case 'onSynchronizeResource': return this.service.onSynchronizeResource;
 			case 'onDidChangeConflicts': return this.service.onDidChangeConflicts;
 			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
 			case 'onDidChangeLastSyncTime': return this.service.onDidChangeLastSyncTime;
@@ -68,6 +69,8 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
+			case 'onTurnOnSync': return this.service.onTurnOnSync;
+			case 'onDidTurnOnSync': return this.service.onDidTurnOnSync;
 			case 'onError': return this.service.onError;
 		}
 		throw new Error(`Event not found: ${event}`);

@@ -9,7 +9,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, CELL_BOTTOM_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -101,7 +101,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		// recompute
 		this._ensureOutputsTop();
 		const outputTotalHeight = this._outputsTop!.getTotalValue();
-		const totalHeight = EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_MARGIN + outputTotalHeight + BOTTOM_CELL_TOOLBAR_HEIGHT + CELL_STATUSBAR_HEIGHT;
+		const totalHeight = EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_MARGIN + outputTotalHeight + BOTTOM_CELL_TOOLBAR_HEIGHT + CELL_STATUSBAR_HEIGHT + CELL_BOTTOM_MARGIN;
 		const indicatorHeight = this.editorHeight + CELL_STATUSBAR_HEIGHT + outputTotalHeight;
 		const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN + this.editorHeight + CELL_STATUSBAR_HEIGHT;
 		const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT;
