@@ -61,9 +61,23 @@
 .scm-viewlet .scm-provider > .status {
 	flex: 1;
 	display: flex;
-	padding-right: 10px;
+	padding: 0 10px;
 	justify-content: flex-end;
 	overflow: hidden;
+}
+
+.scm-viewlet .scm-provider > .status > .monaco-action-bar {
+	display: flex;
+	align-items: center;
+}
+
+.scm-viewlet .scm-provider > .status > .monaco-action-bar > .actions-container {
+	box-sizing: border-box;
+	border-width: 1px;
+	border-style: solid;
+	height: calc(100% - 4px);
+	border-radius: 10px;
+	padding: 0 4px;
 }
 
 .scm-viewlet .scm-provider > .status > .monaco-action-bar .action-item {
@@ -106,8 +120,6 @@
 
 .scm-viewlet .monaco-list-row .resource-group > .name {
 	flex: 1;
-	font-size: 11px;
-	font-weight: bold;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }

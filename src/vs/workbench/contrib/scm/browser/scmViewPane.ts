@@ -43,11 +43,11 @@ import { compareFileNames, comparePaths } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
-import { flatten, find } from 'vs/base/common/arrays';
+import { flatten } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
@@ -989,7 +989,7 @@ class ViewModel {
 				const groupItem = item.groupItems[j];
 				const resource = this.mode === ViewModelMode.Tree
 					? groupItem.tree.getNode(uri)?.element
-					: find(groupItem.resources, r => isEqual(r.sourceUri, uri));
+					: groupItem.resources.find(r => isEqual(r.sourceUri, uri));
 
 				if (resource) {
 					this.tree.reveal(resource);
@@ -1002,22 +1002,22 @@ class ViewModel {
 	}
 
 	getViewActions(): IAction[] {
-		if (this.items.length !== 1) {
+		if (this.repositories.elements.length !== 1) {
 			return [];
 		}
 
-		const menus = this.menus.getRepositoryMenus(this.items[0].element.provider);
+		const menus = this.menus.getRepositoryMenus(this.repositories.elements[0].provider);
 		return menus.getTitleActions();
 	}
 
 	getViewSecondaryActions(): IAction[] {
 		const viewAction = new SCMViewSubMenuAction(this);
 
-		if (this.items.length !== 1) {
-			return [viewAction];
+		if (this.repositories.elements.length !== 1) {
+			return viewAction.entries;
 		}
 
-		const menus = this.menus.getRepositoryMenus(this.items[0].element.provider);
+		const menus = this.menus.getRepositoryMenus(this.repositories.elements[0].provider);
 		const secondaryActions = menus.getTitleSecondaryActions();
 
 		if (secondaryActions.length === 0) {
@@ -1028,11 +1028,11 @@ class ViewModel {
 	}
 
 	getViewActionsContext(): any {
-		if (this.items.length !== 1) {
+		if (this.repositories.elements.length !== 1) {
 			return undefined;
 		}
 
-		return this.items[0].element.provider;
+		return this.repositories.elements[0].provider;
 	}
 
 	dispose(): void {
@@ -1452,6 +1452,8 @@ export class SCMViewPane extends ViewPane {
 		this.menus = this.instantiationService.createInstance(SCMMenus, repositories);
 		this._register(this.menus);
 
+		this._register(repositories.onDidSplice(() => this.updateActions()));
+
 		const delegate = new ProviderListDelegate();
 
 		const actionViewItemProvider = (action: IAction) => this.getActionViewItem(action);
@@ -1758,5 +1760,10 @@ registerThemingParticipant((theme, collector) => {
 	const inputValidationErrorForegroundColor = theme.getColor(inputValidationErrorForeground);
 	if (inputValidationErrorForegroundColor) {
 		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-error { color: ${inputValidationErrorForegroundColor}; }`);
+	}
+
+	const repositoryStatusActionsBorderColor = theme.getColor(SIDE_BAR_BORDER);
+	if (repositoryStatusActionsBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-provider > .status > .monaco-action-bar > .actions-container { border-color: ${repositoryStatusActionsBorderColor}; }`);
 	}
 });
