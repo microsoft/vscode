@@ -327,7 +327,7 @@ export class ElectronMainService implements IElectronMainService {
 	}
 
 	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard'): Promise<void> {
-		return clipboard.writeBuffer(format, buffer as Buffer, type);
+		return clipboard.writeBuffer(format, Buffer.from(buffer), type);
 	}
 
 	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<Uint8Array> {

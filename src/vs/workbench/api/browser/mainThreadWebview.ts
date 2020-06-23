@@ -185,6 +185,15 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		});
 	}
 
+	dispose() {
+		super.dispose();
+
+		for (const disposable of this._editorProviders.values()) {
+			disposable.dispose();
+		}
+		this._editorProviders.clear();
+	}
+
 	public $createWebviewPanel(
 		extensionData: extHostProtocol.WebviewExtensionDescription,
 		handle: extHostProtocol.WebviewPanelHandle,
@@ -320,7 +329,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		options: modes.IWebviewPanelOptions,
 		capabilities: extHostProtocol.CustomTextEditorCapabilities,
 		supportsMultipleEditorsPerDocument: boolean,
-	): DisposableStore {
+	): void {
 		if (this._editorProviders.has(viewType)) {
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
@@ -396,8 +405,6 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		}));
 
 		this._editorProviders.set(viewType, disposables);
-
-		return disposables;
 	}
 
 	public $unregisterEditorProvider(viewType: string): void {

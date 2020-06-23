@@ -253,7 +253,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			return;
 		}
 
-		this._proxy.$acceptDocumentAndEditorsDelta(delta);
+		return this._proxy.$acceptDocumentAndEditorsDelta(delta);
 	}
 
 	registerListeners() {
@@ -476,16 +476,11 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return this._proxy.$executeNotebook(viewType, uri, undefined, useAttachedKernel, token);
 	}
 
-	async $postMessage(handle: number, value: any): Promise<boolean> {
-
-		const activeEditorPane = this.editorService.activeEditorPane as any | undefined;
-		if (activeEditorPane?.isNotebookEditor) {
-			const notebookEditor = (activeEditorPane.getControl() as INotebookEditor);
-
-			if (notebookEditor.viewModel?.handle === handle) {
-				notebookEditor.postMessage(value);
-				return true;
-			}
+	async $postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean> {
+		const editor = this._notebookService.getNotebookEditor(editorId) as INotebookEditor | undefined;
+		if (editor?.isNotebookEditor) {
+			editor.postMessage(forRendererId, value);
+			return true;
 		}
 
 		return false;
@@ -645,8 +640,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		return this._mainThreadNotebook.executeNotebook(viewType, uri, useAttachedKernel, token);
 	}
 
-	onDidReceiveMessage(editorId: string, message: any): void {
-		this._proxy.$onDidReceiveMessage(editorId, message);
+	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: unknown): void {
+		this._proxy.$onDidReceiveMessage(editorId, rendererType, message);
 	}
 
 	async removeNotebookDocument(notebook: INotebookTextModel): Promise<void> {
