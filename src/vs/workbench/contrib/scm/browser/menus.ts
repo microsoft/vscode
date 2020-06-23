@@ -10,13 +10,12 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ISCMResource, ISCMResourceGroup, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMResourceGroup, ISCMProvider, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { isSCMResource } from './util';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { equals } from 'vs/base/common/arrays';
-import { ISplice } from 'vs/base/common/sequence';
+import { ISplice, ISequence } from 'vs/base/common/sequence';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { memoize } from 'vs/base/common/decorators';
 
 function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;
@@ -65,8 +64,8 @@ export class SCMRepositoryMenus implements IDisposable {
 
 		if (provider) {
 			scmProviderKey.set(provider.contextValue);
-			this.onDidSpliceGroups({ start: 0, deleteCount: 0, toInsert: provider.groups.elements });
 			provider.groups.onDidSplice(this.onDidSpliceGroups, this, this.disposables);
+			this.onDidSpliceGroups({ start: 0, deleteCount: 0, toInsert: provider.groups.elements });
 		} else {
 			scmProviderKey.set('');
 		}
@@ -188,23 +187,46 @@ export class SCMRepositoryMenus implements IDisposable {
 
 export class SCMMenus {
 
-	private menus = new WeakMap<ISCMProvider, SCMRepositoryMenus>();
+	private readonly disposables = new DisposableStore();
+	private readonly entries: { repository: ISCMRepository, dispose: () => void }[] = [];
+	private readonly menus = new Map<ISCMProvider, SCMRepositoryMenus>();
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) { }
-
-	@memoize
-	getDefaultMenus(): SCMRepositoryMenus {
-		return this.instantiationService.createInstance(SCMRepositoryMenus, undefined);
+	constructor(
+		repositories: ISequence<ISCMRepository>,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		repositories.onDidSplice(this.onDidSplice, this, this.disposables);
+		this.onDidSplice({ start: 0, deleteCount: 0, toInsert: repositories.elements });
 	}
 
 	getRepositoryMenus(provider: ISCMProvider): SCMRepositoryMenus {
-		let result = this.menus.get(provider);
-
-		if (!result) {
-			result = this.instantiationService.createInstance(SCMRepositoryMenus, provider);
-			this.menus.set(provider, result);
+		if (!this.menus.has(provider)) {
+			throw new Error('SCM Repository menu not found');
 		}
 
-		return result;
+		return this.menus.get(provider)!;
+	}
+
+	private onDidSplice({ start, deleteCount, toInsert }: ISplice<ISCMRepository>): void {
+		const entriesToInsert = toInsert.map(repository => {
+			const menus = this.instantiationService.createInstance(SCMRepositoryMenus, repository.provider);
+			const dispose = () => {
+				menus.dispose();
+				this.menus.delete(repository.provider);
+			};
+
+			this.menus.set(repository.provider, menus);
+			return { repository, dispose };
+		});
+
+		const deletedEntries = this.entries.splice(start, deleteCount, ...entriesToInsert);
+
+		for (const entry of deletedEntries) {
+			entry.dispose();
+		}
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
 	}
 }

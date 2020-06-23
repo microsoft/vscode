@@ -11,7 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { SCMMenus } from './menus';
+import { SCMRepositoryMenus } from './menus';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -24,8 +24,6 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { addClass } from 'vs/base/browser/dom';
 
 export class SCMViewPaneContainer extends ViewPaneContainer {
-
-	private menus: SCMMenus;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -46,8 +44,8 @@ export class SCMViewPaneContainer extends ViewPaneContainer {
 	) {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
-		this.menus = instantiationService.createInstance(SCMMenus);
-		const menus = this.menus.getDefaultMenus();
+		const menus = instantiationService.createInstance(SCMRepositoryMenus, undefined);
+		this._register(menus);
 		this._register(menus.onDidChangeTitle(this.updateTitleArea, this));
 	}
 

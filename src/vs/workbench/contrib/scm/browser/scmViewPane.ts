@@ -826,6 +826,7 @@ class ViewModel {
 	constructor(
 		private repositories: ISequence<ISCMRepository>,
 		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
+		private menus: SCMMenus,
 		private _mode: ViewModelMode,
 		private _sortKey: ViewModelSortKey,
 		@IEditorService protected editorService: IEditorService,
@@ -987,6 +988,40 @@ class ViewModel {
 				}
 			}
 		}
+	}
+
+	getViewActions(): IAction[] {
+		if (this.items.length !== 1) {
+			return [];
+		}
+
+		const menus = this.menus.getRepositoryMenus(this.items[0].element.provider);
+		return menus.getTitleActions();
+	}
+
+	getViewSecondaryActions(): IAction[] {
+		const viewAction = new SCMViewSubMenuAction(this);
+
+		if (this.items.length !== 1) {
+			return [viewAction];
+		}
+
+		const menus = this.menus.getRepositoryMenus(this.items[0].element.provider);
+		const secondaryActions = menus.getTitleSecondaryActions();
+
+		if (secondaryActions.length === 0) {
+			return [viewAction];
+		}
+
+		return [viewAction, new Separator(), ...secondaryActions];
+	}
+
+	getViewActionsContext(): any {
+		if (this.items.length !== 1) {
+			return undefined;
+		}
+
+		return this.items[0].element.provider;
 	}
 
 	dispose(): void {
@@ -1365,7 +1400,7 @@ export class SCMViewPane extends ViewPane {
 	private tree!: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 	private viewModel!: ViewModel;
 	private listLabels!: ResourceLabels;
-	private menus: SCMMenus;
+	private menus!: SCMMenus;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1387,7 +1422,6 @@ export class SCMViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this.menus = instantiationService.createInstance(SCMMenus);
 		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
 	}
 
@@ -1400,6 +1434,12 @@ export class SCMViewPane extends ViewPane {
 		const updateActionsVisibility = () => toggleClass(this.listContainer, 'show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
 		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility);
 		updateActionsVisibility();
+
+		const repositories = new SimpleSequence(this.scmService.repositories, this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository);
+		this._register(repositories);
+
+		this.menus = this.instantiationService.createInstance(SCMMenus, repositories);
+		this._register(this.menus);
 
 		const delegate = new ProviderListDelegate();
 
@@ -1456,10 +1496,7 @@ export class SCMViewPane extends ViewPane {
 			viewMode = storageMode;
 		}
 
-		const repositories = new SimpleSequence(this.scmService.repositories, this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository);
-		this._register(repositories);
-
-		this.viewModel = this.instantiationService.createInstance(ViewModel, repositories, this.tree, viewMode, ViewModelSortKey.Path);
+		this.viewModel = this.instantiationService.createInstance(ViewModel, repositories, this.tree, this.menus, viewMode, ViewModelSortKey.Path);
 		this._register(this.viewModel);
 
 		addClass(this.listContainer, 'file-icon-themable-tree');
@@ -1539,26 +1576,20 @@ export class SCMViewPane extends ViewPane {
 		// }
 	}
 
-	// TODO@joao
 	getActions(): IAction[] {
-		return [];
-		// return this.menus.getRepositoryMenusTitleActions(;
+		if (!this.viewModel) {
+			return [];
+		}
+
+		return this.viewModel.getViewActions();
 	}
 
-	// TODO@joao
 	getSecondaryActions(): IAction[] {
 		if (!this.viewModel) {
 			return [];
 		}
 
-		const result: IAction[] = [new SCMViewSubMenuAction(this.viewModel)];
-		// const secondaryActions = this.menus.getRepositoryMenusTitleSecondaryActions(;
-
-		// if (secondaryActions.length > 0) {
-		// 	result.push(new Separator(), ...secondaryActions);
-		// }
-
-		return result;
+		return this.viewModel.getViewSecondaryActions();
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -1569,10 +1600,13 @@ export class SCMViewPane extends ViewPane {
 		return new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 	}
 
-	// TODO@joao
-	// getActionsContext(): any {
-	// 	return this.repository.provider;
-	// }
+	getActionsContext(): any {
+		if (!this.viewModel) {
+			return [];
+		}
+
+		return this.viewModel.getViewActionsContext();
+	}
 
 	private async open(e: IOpenEvent<TreeElement | null>): Promise<void> {
 		if (!e.element || isSCMRepository(e.element) || isSCMInput(e.element) || isSCMResourceGroup(e.element) || ResourceTree.isResourceNode(e.element)) {
