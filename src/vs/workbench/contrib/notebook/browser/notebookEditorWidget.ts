@@ -27,7 +27,7 @@ import { contrastBorder, editorBackground, focusBorder, foreground, registerColo
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
-import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_BOTTOM_PADDING, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, SCROLLABLE_ELEMENT_PADDING_TOP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_BOTTOM_PADDING, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, SCROLLABLE_ELEMENT_PADDING_TOP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
@@ -1462,6 +1462,7 @@ registerThemingParticipant((theme, collector) => {
 
 	// Cell Margin
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell.code { margin-left: ${CODE_CELL_LEFT_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row { padding-top: ${EDITOR_TOP_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row { padding-bottom: ${CELL_BOTTOM_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row .cell-bottom-toolbar-container { margin-top: ${CELL_BOTTOM_MARGIN}px; }`);
@@ -1473,7 +1474,8 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.notebookOverlay .cell .run-button-container { width: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.notebookOverlay .cell-drag-image .cell-editor-container > div { padding: ${EDITOR_TOP_PADDING}px 16px ${EDITOR_BOTTOM_PADDING}px 16px; }`);
 	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top { height: ${EDITOR_TOP_MARGIN}px; }`);
-	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side { bottom: ${BOTTOM_CELL_TOOLBAR_HEIGHT}px; width: ${CELL_MARGIN + CELL_RUN_GUTTER}px; }`);
+	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side { bottom: ${BOTTOM_CELL_TOOLBAR_HEIGHT}px; }`);
+	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator { width: ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator.cell-focus-indicator-right { width: ${CELL_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom { height: ${CELL_BOTTOM_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-shadow-container-bottom { top: ${CELL_BOTTOM_MARGIN}px; }`);
