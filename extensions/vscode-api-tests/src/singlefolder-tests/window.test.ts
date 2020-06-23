@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, QuickPickItem } from 'vscode';
+import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, QuickPickItem, TextEditor } from 'vscode';
 import { join } from 'path';
 import { closeAllEditors, pathEquals, createRandomFile } from '../utils';
+
 
 suite('vscode API - window', () => {
 
@@ -145,22 +146,36 @@ suite('vscode API - window', () => {
 		});
 	});
 
-	// test('active editor not always correct... #49125', async function () {
-	// 	const randomFile1 = await createRandomFile();
-	// 	const randomFile2 = await createRandomFile();
+	test('active editor not always correct... #49125', async function () {
 
-	// 	const [docA, docB] = await Promise.all([
-	// 		workspace.openTextDocument(randomFile1),
-	// 		workspace.openTextDocument(randomFile2)
-	// 	]);
-	// 	for (let c = 0; c < 4; c++) {
-	// 		let editorA = await window.showTextDocument(docA, ViewColumn.One);
-	// 		assert.equal(window.activeTextEditor, editorA);
+		function assertActiveEditor(editor: TextEditor) {
+			if (window.activeTextEditor === editor) {
+				assert.ok(true);
+				return;
+			}
+			function printEditor(editor: TextEditor): string {
+				return `doc: ${editor.document.uri.toString()}, column: ${editor.viewColumn}, active: ${editor === window.activeTextEditor}`;
+			}
+			const visible = window.visibleTextEditors.map(editor => printEditor(editor));
+			assert.ok(false, `ACTIVE editor should be ${printEditor(editor)}, BUT HAVING ${visible.join(', ')}`);
 
-	// 		let editorB = await window.showTextDocument(docB, ViewColumn.Two);
-	// 		assert.equal(window.activeTextEditor, editorB);
-	// 	}
-	// });
+		}
+
+		const randomFile1 = await createRandomFile();
+		const randomFile2 = await createRandomFile();
+
+		const [docA, docB] = await Promise.all([
+			workspace.openTextDocument(randomFile1),
+			workspace.openTextDocument(randomFile2)
+		]);
+		for (let c = 0; c < 4; c++) {
+			let editorA = await window.showTextDocument(docA, ViewColumn.One);
+			assertActiveEditor(editorA);
+
+			let editorB = await window.showTextDocument(docB, ViewColumn.Two);
+			assertActiveEditor(editorB);
+		}
+	});
 
 	test('default column when opening a file', async () => {
 		const [docA, docB, docC] = await Promise.all([
