@@ -367,6 +367,9 @@ class EditStackSnapshot {
 	}
 }
 
+const missingEditStack = new ResourceEditStack('', '');
+missingEditStack.locked = true;
+
 export class UndoRedoService implements IUndoRedoService {
 	declare readonly _serviceBrand: undefined;
 
@@ -665,7 +668,7 @@ export class UndoRedoService implements IUndoRedoService {
 	private _getAffectedEditStacks(element: WorkspaceStackElement): EditStackSnapshot {
 		const affectedEditStacks: ResourceEditStack[] = [];
 		for (const strResource of element.strResources) {
-			affectedEditStacks.push(this._editStacks.get(strResource)!);
+			affectedEditStacks.push(this._editStacks.get(strResource) || missingEditStack);
 		}
 		return new EditStackSnapshot(affectedEditStacks);
 	}
