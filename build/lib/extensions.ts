@@ -311,7 +311,7 @@ export function packageMarketplaceWebExtensionsStream(builtInExtensions: IBuiltI
 export interface IScannedBuiltinExtension {
 	extensionPath: string,
 	packageJSON: any,
-	packagsNLSPath?: string,
+	packageNLSPath?: string,
 	readmePath?: string,
 	changelogPath?: string,
 }
@@ -335,8 +335,8 @@ export function scanBuiltinExtensions(extensionsRoot: string, forWeb: boolean): 
 		const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 		scannedExtensions.push({
 			extensionPath: extensionFolder,
-			packageJSON: packageJSON,
-			packagsNLSPath: packageNLS ? path.join(extensionFolder, packageNLS) : undefined,
+			packageJSON,
+			packageNLSPath: packageNLS ? path.join(extensionFolder, packageNLS) : undefined,
 			readmePath: readme ? path.join(extensionFolder, readme) : undefined,
 			changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
 		});
