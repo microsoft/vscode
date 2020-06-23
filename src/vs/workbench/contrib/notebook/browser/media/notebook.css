@@ -58,11 +58,11 @@
 	padding-top: 8px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .notebook-cell-focus-indicator {
-	top: 8px !important;
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-focus-indicator {
+	display: none;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image.markdown-cell-row .notebook-cell-focus-indicator {
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image.markdown-cell-row .cell-focus-indicator {
 	bottom: 8px;
 }
 
@@ -202,7 +202,6 @@
 	outline: none !important;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused {
 	outline: none !important;
 }
@@ -218,7 +217,7 @@
 	position: absolute;
 	height: 26px;
 	right: 32px;
-	top: -20px;
+	top: -12px;
 	/* this lines up the bottom toolbar border with the current line when on line 01 */
 	z-index: 30;
 }
@@ -371,37 +370,54 @@
 	outline: none !important;
 }
 
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-shadow-container {
+	height: 10px;
+	left: 0px;
+	right: 0px;
+	overflow: hidden;
+	position: absolute;
+}
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .notebook-cell-focus-indicator {
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-shadow-container-top {
+	top: -10px;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-shadow-top {
+	margin-top: 10px;
+	width: 100%;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator {
 	display: block;
 	content: ' ';
 	position: absolute;
-	width: 32px;
 	box-sizing: border-box;
-	border-left-width: 2px;
-	border-left-style: solid;
-	top: 22px;
+	top: 0px;
 	visibility: hidden;
-	opacity: 0.6;
+	opacity: 1;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .notebook-cell-focus-indicator:hover {
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom {
+	width: 100%;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right {
+	right: 0px;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator:hover {
 	cursor: grab;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .notebook-cell-focus-indicator .codicon:hover {
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator .codicon:hover {
 	cursor: pointer;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row:hover .notebook-cell-focus-indicator,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.cell-output-hover .notebook-cell-focus-indicator,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .notebook-cell-focus-indicator {
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row:hover .cell-focus-indicator,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.cell-output-hover .cell-focus-indicator,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator {
 	visibility: visible;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list:focus .monaco-list-row .notebook-cell-focus-indicator,
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row .notebook-cell-focus-indicator {
-	opacity: 1;
 }
 
 .monaco-workbench .notebookOverlay .monaco-list-row .cell-editor-part:before {

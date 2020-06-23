@@ -455,6 +455,12 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	editor: ICodeEditor;
 	progressBar: ProgressBar;
 	timer: TimerRenderer;
+	focusIndicatorRight: HTMLElement;
+	focusIndicatorBottom: HTMLElement;
+}
+
+export function isCodeCellRenderTemplate(templateData: BaseCellRenderTemplate): templateData is CodeCellRenderTemplate {
+	return !!(templateData as CodeCellRenderTemplate).runToolbar;
 }
 
 export interface IOutputTransformContribution {

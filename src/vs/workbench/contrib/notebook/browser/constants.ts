@@ -15,8 +15,9 @@ export const EDITOR_TOOLBAR_HEIGHT = 0;
 export const BOTTOM_CELL_TOOLBAR_HEIGHT = 32;
 export const CELL_STATUSBAR_HEIGHT = 22;
 
-// Top margin of editor
-export const EDITOR_TOP_MARGIN = 0;
+// Margin above editor
+export const EDITOR_TOP_MARGIN = 8;
+export const CELL_BOTTOM_MARGIN = 8;
 
 // Top and bottom padding inside the monaco editor in a cell, which are included in `cell.editorHeight`
 export const EDITOR_TOP_PADDING = 12;
