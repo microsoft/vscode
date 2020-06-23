@@ -66,20 +66,6 @@
 	overflow: hidden;
 }
 
-.scm-viewlet .scm-provider > .status > .monaco-action-bar {
-	display: flex;
-	align-items: center;
-}
-
-.scm-viewlet .scm-provider > .status > .monaco-action-bar > .actions-container {
-	box-sizing: border-box;
-	border-width: 1px;
-	border-style: solid;
-	height: calc(100% - 4px);
-	border-radius: 10px;
-	padding: 0 4px;
-}
-
 .scm-viewlet .scm-provider > .status > .monaco-action-bar .action-item {
 	margin-left: 4px;
 	text-overflow: ellipsis;
