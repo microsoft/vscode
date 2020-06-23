@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterable } from 'vs/base/common/iterator';
-import { IndexTreeModel, IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IndexTreeModel, IIndexTreeModelOptions, IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
@@ -41,7 +40,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 
 	constructor(
 		private user: string,
-		list: ISpliceable<ITreeNode<T, TFilterData>>,
+		list: IList<ITreeNode<T, TFilterData>>,
 		options: IObjectTreeModelOptions<T, TFilterData> = {}
 	) {
 		this.model = new IndexTreeModel(user, list, null, options);
