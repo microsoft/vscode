@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Delegate, Renderer, IExtensionsViewState } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { IExtension, IExtensionsWorkbenchService, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -316,33 +316,29 @@ export class ExtensionsListView extends ViewPane {
 			result = result
 				.filter(e => e.type === ExtensionType.System && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
+			const isThemeExtension = (e: IExtension): boolean => {
+				return (Array.isArray(e.local?.manifest?.contributes?.themes) && e.local!.manifest!.contributes!.themes.length > 0)
+					|| (Array.isArray(e.local?.manifest?.contributes?.iconThemes) && e.local!.manifest!.contributes!.iconThemes.length > 0);
+			};
 			if (showThemesOnly) {
-				const themesExtensions = result.filter(e => {
-					return e.local
-						&& e.local.manifest
-						&& e.local.manifest.contributes
-						&& Array.isArray(e.local.manifest.contributes.themes)
-						&& e.local.manifest.contributes.themes.length;
-				});
+				const themesExtensions = result.filter(isThemeExtension);
 				return this.getPagedModel(this.sortExtensions(themesExtensions, options));
 			}
+
+			const isLangaugeBasicExtension = (e: IExtension): boolean => {
+				return FORCE_FEATURE_EXTENSIONS.indexOf(e.identifier.id) === -1
+					&& (Array.isArray(e.local?.manifest?.contributes?.grammars) && e.local!.manifest!.contributes!.grammars.length > 0);
+			};
 			if (showBasicsOnly) {
-				const basics = result.filter(e => {
-					return e.local && e.local.manifest
-						&& e.local.manifest.contributes
-						&& Array.isArray(e.local.manifest.contributes.grammars)
-						&& e.local.manifest.contributes.grammars.length
-						&& FORCE_FEATURE_EXTENSIONS.indexOf(e.local.identifier.id) === -1;
-				});
+				const basics = result.filter(isLangaugeBasicExtension);
 				return this.getPagedModel(this.sortExtensions(basics, options));
 			}
 			if (showFeaturesOnly) {
 				const others = result.filter(e => {
 					return e.local
 						&& e.local.manifest
-						&& e.local.manifest.contributes
-						&& (!Array.isArray(e.local.manifest.contributes.grammars) || FORCE_FEATURE_EXTENSIONS.indexOf(e.local.identifier.id) !== -1)
-						&& !Array.isArray(e.local.manifest.contributes.themes);
+						&& !isThemeExtension(e)
+						&& !isLangaugeBasicExtension(e);
 				});
 				return this.getPagedModel(this.sortExtensions(others, options));
 			}
@@ -377,9 +373,9 @@ export class ExtensionsListView extends ViewPane {
 				const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(ExtensionIdentifier.toKey(e.identifier.value), e); return result; }, new Map<string, IExtensionDescription>());
 				result = result.sort((e1, e2) => {
 					const running1 = runningExtensionsById.get(ExtensionIdentifier.toKey(e1.identifier.id));
-					const isE1Running = running1 && this.extensionManagementServerService.getExtensionManagementServer(running1.extensionLocation) === e1.server;
+					const isE1Running = running1 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running1)) === e1.server;
 					const running2 = runningExtensionsById.get(ExtensionIdentifier.toKey(e2.identifier.id));
-					const isE2Running = running2 && this.extensionManagementServerService.getExtensionManagementServer(running2.extensionLocation) === e2.server;
+					const isE2Running = running2 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running2)) === e2.server;
 					if ((isE1Running && isE2Running)) {
 						return e1.displayName.localeCompare(e2.displayName);
 					}

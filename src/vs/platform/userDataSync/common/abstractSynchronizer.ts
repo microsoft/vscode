@@ -9,7 +9,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import {
 	SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService,
-	IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, Conflict, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncPreview, IUserDataManifest, ISyncData, IRemoteUserData
+	IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, Conflict, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncPreview, IUserDataManifest, ISyncData, IRemoteUserData
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname, isEqual, basename } from 'vs/base/common/resources';
@@ -27,6 +27,7 @@ import { equals } from 'vs/base/common/arrays';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IHeaders } from 'vs/base/parts/request/common/request';
 
 type SyncSourceClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -75,6 +76,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 	protected readonly lastSyncResource: URI;
 	protected readonly syncResourceLogLabel: string;
 
+	private syncHeaders: IHeaders = {};
+
 	constructor(
 		readonly resource: SyncResource,
 		@IFileService protected readonly fileService: IFileService,
@@ -82,7 +85,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService protected readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService protected readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
-		@IUserDataSyncEnablementService protected readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataSyncResourceEnablementService protected readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -94,7 +97,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		this.currentMachineIdPromise = getServiceMachineId(environmentService, fileService, storageService);
 	}
 
-	protected isEnabled(): boolean { return this.userDataSyncEnablementService.isResourceEnabled(this.resource); }
+	protected isEnabled(): boolean { return this.userDataSyncResourceEnablementService.isResourceEnabled(this.resource); }
 
 	protected async triggerLocalChange(): Promise<void> {
 		if (this.isEnabled()) {
@@ -150,39 +153,91 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
-	async sync(manifest: IUserDataManifest | null): Promise<void> {
+	async pull(): Promise<void> {
 		if (!this.isEnabled()) {
-			if (this.status !== SyncStatus.Idle) {
-				await this.stop();
-			}
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as it is disabled.`);
-			return;
-		}
-		if (this.status === SyncStatus.HasConflicts) {
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as there are conflicts.`);
-			return;
-		}
-		if (this.status === SyncStatus.Syncing) {
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as it is running already.`);
+			this.logService.info(`${this.syncResourceLogLabel}: Skipped pulling ${this.syncResourceLogLabel.toLowerCase()} as it is disabled.`);
 			return;
 		}
 
-		this.logService.trace(`${this.syncResourceLogLabel}: Started synchronizing ${this.resource.toLowerCase()}...`);
-		this.setStatus(SyncStatus.Syncing);
+		await this.stop();
 
-		const lastSyncUserData = await this.getLastSyncUserData();
-		const remoteUserData = await this.getLatestRemoteUserData(manifest, lastSyncUserData);
-
-		let status: SyncStatus = SyncStatus.Idle;
 		try {
-			status = await this.performSync(remoteUserData, lastSyncUserData);
-			if (status === SyncStatus.HasConflicts) {
-				this.logService.info(`${this.syncResourceLogLabel}: Detected conflicts while synchronizing ${this.resource.toLowerCase()}.`);
-			} else if (status === SyncStatus.Idle) {
-				this.logService.trace(`${this.syncResourceLogLabel}: Finished synchronizing ${this.resource.toLowerCase()}.`);
+			this.logService.info(`${this.syncResourceLogLabel}: Started pulling ${this.syncResourceLogLabel.toLowerCase()}...`);
+			this.setStatus(SyncStatus.Syncing);
+
+			const lastSyncUserData = await this.getLastSyncUserData();
+			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
+			const preview = await this.generatePullPreview(remoteUserData, lastSyncUserData, CancellationToken.None);
+
+			await this.applyPreview(preview, false);
+			this.logService.info(`${this.syncResourceLogLabel}: Finished pulling ${this.syncResourceLogLabel.toLowerCase()}.`);
+		} finally {
+			this.setStatus(SyncStatus.Idle);
+		}
+	}
+
+	async push(): Promise<void> {
+		if (!this.isEnabled()) {
+			this.logService.info(`${this.syncResourceLogLabel}: Skipped pushing ${this.syncResourceLogLabel.toLowerCase()} as it is disabled.`);
+			return;
+		}
+
+		this.stop();
+
+		try {
+			this.logService.info(`${this.syncResourceLogLabel}: Started pushing ${this.syncResourceLogLabel.toLowerCase()}...`);
+			this.setStatus(SyncStatus.Syncing);
+
+			const lastSyncUserData = await this.getLastSyncUserData();
+			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
+			const preview = await this.generatePushPreview(remoteUserData, lastSyncUserData, CancellationToken.None);
+
+			await this.applyPreview(preview, true);
+			this.logService.info(`${this.syncResourceLogLabel}: Finished pushing ${this.syncResourceLogLabel.toLowerCase()}.`);
+
+		} finally {
+			this.setStatus(SyncStatus.Idle);
+		}
+	}
+
+	async sync(manifest: IUserDataManifest | null, headers: IHeaders = {}): Promise<void> {
+		try {
+			this.syncHeaders = { ...headers };
+			if (!this.isEnabled()) {
+				if (this.status !== SyncStatus.Idle) {
+					await this.stop();
+				}
+				this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as it is disabled.`);
+				return;
+			}
+			if (this.status === SyncStatus.HasConflicts) {
+				this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as there are conflicts.`);
+				return;
+			}
+			if (this.status === SyncStatus.Syncing) {
+				this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as it is running already.`);
+				return;
+			}
+
+			this.logService.trace(`${this.syncResourceLogLabel}: Started synchronizing ${this.resource.toLowerCase()}...`);
+			this.setStatus(SyncStatus.Syncing);
+
+			const lastSyncUserData = await this.getLastSyncUserData();
+			const remoteUserData = await this.getLatestRemoteUserData(manifest, lastSyncUserData);
+
+			let status: SyncStatus = SyncStatus.Idle;
+			try {
+				status = await this.performSync(remoteUserData, lastSyncUserData);
+				if (status === SyncStatus.HasConflicts) {
+					this.logService.info(`${this.syncResourceLogLabel}: Detected conflicts while synchronizing ${this.resource.toLowerCase()}.`);
+				} else if (status === SyncStatus.Idle) {
+					this.logService.trace(`${this.syncResourceLogLabel}: Finished synchronizing ${this.resource.toLowerCase()}.`);
+				}
+			} finally {
+				this.setStatus(status);
 			}
 		} finally {
-			this.setStatus(status);
+			this.syncHeaders = {};
 		}
 	}
 
@@ -204,7 +259,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 			this.setStatus(SyncStatus.Syncing);
 			const lastSyncUserData = await this.getLastSyncUserData();
 			const remoteUserData = await this.getLatestRemoteUserData(null, lastSyncUserData);
-			await this.performReplace(syncData, remoteUserData, lastSyncUserData);
+			const preview = await this.generateReplacePreview(syncData, remoteUserData, lastSyncUserData);
+			await this.applyPreview(preview, false);
 			this.logService.info(`${this.syncResourceLogLabel}: Finished resetting ${this.resource.toLowerCase()}.`);
 		} finally {
 			this.setStatus(SyncStatus.Idle);
@@ -289,7 +345,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 			}
 
 			// apply preview
-			await this.applyPreview(preview);
+			await this.applyPreview(preview, false);
 
 			// reset preview
 			this.syncPreviewPromise = null;
@@ -322,7 +378,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		if (!preview.hasConflicts) {
 
 			// apply preview
-			await this.applyPreview(preview);
+			await this.applyPreview(preview, false);
 
 			// reset preview
 			this.syncPreviewPromise = null;
@@ -446,14 +502,14 @@ export abstract class AbstractSynchroniser extends Disposable {
 			return { ref: refOrLastSyncData, content };
 		} else {
 			const lastSyncUserData: IUserData | null = refOrLastSyncData ? { ref: refOrLastSyncData.ref, content: refOrLastSyncData.syncData ? JSON.stringify(refOrLastSyncData.syncData) : null } : null;
-			return this.userDataSyncStoreService.read(this.resource, lastSyncUserData);
+			return this.userDataSyncStoreService.read(this.resource, lastSyncUserData, this.syncHeaders);
 		}
 	}
 
 	protected async updateRemoteUserData(content: string, ref: string | null): Promise<IRemoteUserData> {
 		const machineId = await this.currentMachineIdPromise;
 		const syncData: ISyncData = { version: this.version, machineId, content };
-		ref = await this.userDataSyncStoreService.write(this.resource, JSON.stringify(syncData), ref);
+		ref = await this.userDataSyncStoreService.write(this.resource, JSON.stringify(syncData), ref, this.syncHeaders);
 		return { ref, syncData };
 	}
 
@@ -472,10 +528,12 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected abstract readonly version: number;
-	protected abstract performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void>;
+	protected abstract generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncPreview>;
+	protected abstract generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncPreview>;
+	protected abstract generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreview>;
 	protected abstract generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncPreview>;
 	protected abstract updatePreviewWithConflict(preview: ISyncPreview, conflictResource: URI, content: string, token: CancellationToken): Promise<ISyncPreview>;
-	protected abstract applyPreview(preview: ISyncPreview): Promise<void>;
+	protected abstract applyPreview(preview: ISyncPreview, forcePush: boolean): Promise<void>;
 }
 
 export interface IFileSyncPreview extends ISyncPreview {
@@ -493,12 +551,12 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
-		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
 		this._register(this.fileService.watch(dirname(file)));
 		this._register(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
 	}
@@ -561,7 +619,6 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 
 	protected abstract readonly localPreviewResource: URI;
 	protected abstract readonly remotePreviewResource: URI;
-	protected abstract applyPreview(preview: IFileSyncPreview): Promise<void>;
 }
 
 export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroniser {
@@ -574,13 +631,13 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
-		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUserDataSyncUtilService protected readonly userDataSyncUtilService: IUserDataSyncUtilService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(file, resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(file, resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
 	}
 
 	protected hasErrors(content: string): boolean {

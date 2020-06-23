@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellOutputKind, IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -76,7 +76,7 @@ export interface IBlurOutputMessage {
 }
 
 export interface IClickedDataUrlMessage {
-	__vscode_notebook_message: string;
+	__vscode_notebook_message: boolean;
 	type: 'clicked-data-url';
 	data: string;
 	downloadName?: string;
@@ -156,6 +156,13 @@ export interface IUpdatePreloadResourceMessage {
 	source: 'renderer' | 'kernel';
 }
 
+export interface ICustomRendererMessage {
+	__vscode_notebook_message: boolean;
+	type: 'customRendererMessage';
+	rendererId: string;
+	message: unknown;
+}
+
 export type FromWebviewMessage =
 	| WebviewIntialized
 	| IDimensionMessage
@@ -163,7 +170,9 @@ export type FromWebviewMessage =
 	| IMouseLeaveMessage
 	| IWheelMessage
 	| IScrollAckMessage
-	| IBlurOutputMessage;
+	| IBlurOutputMessage
+	| ICustomRendererMessage
+	| IClickedDataUrlMessage;
 
 export type ToWebviewMessage =
 	| IClearMessage
@@ -175,7 +184,8 @@ export type ToWebviewMessage =
 	| IHideOutputMessage
 	| IShowOutputMessage
 	| IUpdatePreloadResourceMessage
-	| IFocusOutputMessage;
+	| IFocusOutputMessage
+	| ICustomRendererMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 
@@ -194,7 +204,10 @@ function html(strings: TemplateStringsArray, ...values: any[]): string {
 	return str;
 }
 
-type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage | IBlurOutputMessage | WebviewIntialized | IClickedDataUrlMessage;
+export interface INotebookWebviewMessage {
+	message: unknown;
+	forRenderer?: string;
+}
 
 let version = 0;
 export class BackLayerWebView extends Disposable {
@@ -207,8 +220,8 @@ export class BackLayerWebView extends Disposable {
 	localResourceRootsCache: URI[] | undefined = undefined;
 	rendererRootsCache: URI[] = [];
 	kernelRootsCache: URI[] = [];
-	private readonly _onMessage = this._register(new Emitter<any>());
-	public readonly onMessage: Event<any> = this._onMessage.event;
+	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
+	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
 	private _loaded!: Promise<void>;
 	private _initalized?: Promise<void>;
 	private _disposed = false;
@@ -230,10 +243,10 @@ export class BackLayerWebView extends Disposable {
 
 		this.element = document.createElement('div');
 
-		this.element.style.width = `calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px)`;
+		this.element.style.width = `calc(100% - ${CODE_CELL_LEFT_MARGIN + CELL_MARGIN + CELL_RUN_GUTTER}px)`;
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
-		this.element.style.margin = `0px 0 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px`;
+		this.element.style.margin = `0px 0 0px ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px`;
 	}
 	generateContent(outputNodePadding: number, coreDependencies: string, baseUrl: string) {
 		return html`
@@ -265,6 +278,15 @@ export class BackLayerWebView extends Disposable {
 				<script>${preloadsScriptStr(outputNodePadding)}</script>
 			</body>
 		</html>`;
+	}
+
+	postRendererMessage(rendererId: string, message: any) {
+		this._sendMessageToWebview({
+			__vscode_notebook_message: true,
+			type: 'customRendererMessage',
+			message,
+			rendererId
+		});
 	}
 
 	private resolveOutputId(id: string): { cell: CodeCellViewModel, output: IProcessedOutput } | undefined {
@@ -341,7 +363,7 @@ ${loaderJs}
 			}
 		}));
 
-		this._register(this.webview.onMessage((data: IMessage) => {
+		this._register(this.webview.onMessage((data: FromWebviewMessage) => {
 			if (data.__vscode_notebook_message) {
 				if (data.type === 'dimension') {
 					let height = data.data.height;
@@ -397,11 +419,13 @@ ${loaderJs}
 					}
 				} else if (data.type === 'clicked-data-url') {
 					this._onDidClickDataLink(data);
+				} else if (data.type === 'customRendererMessage') {
+					this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
 				}
 				return;
 			}
 
-			this._onMessage.fire(data);
+			this._onMessage.fire({ message: data });
 		}));
 	}
 
@@ -459,7 +483,7 @@ ${loaderJs}
 			resolveFunc = resolve;
 		});
 
-		let dispose = webview.onMessage((data: IMessage) => {
+		let dispose = webview.onMessage((data: FromWebviewMessage) => {
 			if (data.__vscode_notebook_message && data.type === 'initialized') {
 				resolveFunc();
 				dispose.dispose();

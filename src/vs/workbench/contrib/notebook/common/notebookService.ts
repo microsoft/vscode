@@ -12,7 +12,6 @@ import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, IC
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookEditorModelManager } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
@@ -20,19 +19,18 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 export interface IMainNotebookController {
 	kernel: INotebookKernelInfoDto | undefined;
 	createNotebook(viewType: string, uri: URI, backup: INotebookTextModelBackup | undefined, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined>;
+	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
 	executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
-	onDidReceiveMessage(editorId: string, message: any): void;
+	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
 	executeNotebookCell(uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
 	removeNotebookDocument(notebook: INotebookTextModel): Promise<void>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(uri: URI, token: CancellationToken): Promise<string | undefined>;
-	revert(uri: URI, token: CancellationToken): Promise<void>;
 }
 
 export interface INotebookService {
 	readonly _serviceBrand: undefined;
-	modelManager: INotebookEditorModelManager;
 	canResolve(viewType: string): Promise<boolean>;
 	onDidChangeActiveEditor: Event<string | null>;
 	onDidChangeVisibleEditors: Event<string[]>;
@@ -67,14 +65,14 @@ export interface INotebookService {
 	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined>;
-	revert(viewType: string, uri: URI, token: CancellationToken): Promise<void>;
-	onDidReceiveMessage(viewType: string, editorId: string, message: any): void;
+	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: unknown): void;
 	setToCopy(items: NotebookCellTextModel[]): void;
 	getToCopy(): NotebookCellTextModel[] | undefined;
 
 	// editor events
 	addNotebookEditor(editor: IEditor): void;
 	removeNotebookEditor(editor: IEditor): void;
+	getNotebookEditor(editorId: string): IEditor | undefined;
 	listNotebookEditors(): readonly IEditor[];
 	listVisibleNotebookEditors(): readonly IEditor[];
 	listNotebookDocuments(): readonly NotebookTextModel[];

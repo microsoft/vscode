@@ -9,15 +9,6 @@
 const bootstrap = require('./bootstrap');
 
 /**
- * @param {object} destination
- * @param {object} source
- * @returns {object}
- */
-exports.assign = function assign(destination, source) {
-	return Object.keys(source).reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
-};
-
-/**
  * @param {string[]} modulePaths
  * @param {(result, configuration: object) => any} resultCallback
  * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
@@ -59,7 +50,7 @@ exports.load = function (modulePaths, resultCallback, options) {
 	}
 
 	// Correctly inherit the parent's environment
-	exports.assign(process.env, configuration.userEnv);
+	Object.assign(process.env, configuration.userEnv);
 
 	// Enable ASAR support
 	bootstrap.enableASARSupport(path.join(configuration.appRoot, 'node_modules'));

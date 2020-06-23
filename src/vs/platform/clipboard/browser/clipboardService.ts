@@ -97,14 +97,4 @@ export class BrowserClipboardService implements IClipboardService {
 	async hasResources(): Promise<boolean> {
 		return this.resources.length > 0;
 	}
-
-	/** @deprecated */
-	readFindTextSync(): string {
-		return this.findText;
-	}
-
-	/** @deprecated */
-	writeFindTextSync(text: string): void {
-		this.findText = text;
-	}
 }

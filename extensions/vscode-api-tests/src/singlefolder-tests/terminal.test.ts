@@ -49,7 +49,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
 		});
 
-		test('echo works in the default shell', (done) => {
+		(process.platform === 'linux' ? test.skip : test)('echo works in the default shell', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);

@@ -1056,11 +1056,13 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 }
 
 export class TestFileEditorInput extends EditorInput implements IFileEditorInput {
+
+	readonly label = this.resource;
+
 	gotDisposed = false;
 	gotSaved = false;
 	gotSavedAs = false;
 	gotReverted = false;
-	gotClosed: { group: GroupIdentifier, openedInOtherGroups: boolean } | undefined = undefined;
 	dirty = false;
 	private fails = false;
 
@@ -1107,16 +1109,12 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		return false;
 	}
 	isResolved(): boolean { return false; }
-	close(group: GroupIdentifier, openedInOtherGroups: boolean): void {
-		this.gotClosed = { group, openedInOtherGroups };
-		super.close(group, openedInOtherGroups);
-	}
 	dispose(): void {
 		super.dispose();
 		this.gotDisposed = true;
 	}
 	movedEditor: IMoveResult | undefined = undefined;
-	move(): IMoveResult | undefined { return this.movedEditor; }
+	rename(): IMoveResult | undefined { return this.movedEditor; }
 }
 
 export class TestEditorPart extends EditorPart {
@@ -1156,7 +1154,7 @@ export class TestPathService implements IPathService {
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
 
-	get userHome() { return Promise.resolve(this.fallbackUserHome); }
+	async userHome() { return this.fallbackUserHome; }
 	get resolvedUserHome() { return this.fallbackUserHome; }
 
 	async fileURI(path: string): Promise<URI> {

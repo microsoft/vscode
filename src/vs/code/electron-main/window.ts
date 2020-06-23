@@ -170,7 +170,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					nodeIntegration: true,
 					nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
 					webviewTag: true,
-					enableWebSQL: false
+					enableWebSQL: false,
+					nativeWindowOpen: true
 				}
 			};
 

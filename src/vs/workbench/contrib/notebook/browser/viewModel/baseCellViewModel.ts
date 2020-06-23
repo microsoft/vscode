@@ -155,7 +155,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._textModel = this._textEditor.getModel() || undefined;
 
 		if (this._editorViewStates) {
-			this.restoreViewState(this._editorViewStates);
+			this._restoreViewState(this._editorViewStates);
 		}
 
 		this._resolvedDecorations.forEach((value, key) => {
@@ -197,6 +197,10 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this.model.getValue();
 	}
 
+	getTextLength(): number {
+		return this.model.getTextLength();
+	}
+
 	private saveViewState(): void {
 		if (!this._textEditor) {
 			return;
@@ -217,7 +221,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._editorViewStates = editorViewStates;
 	}
 
-	private restoreViewState(state: editorCommon.ICodeEditorViewState | null): void {
+	private _restoreViewState(state: editorCommon.ICodeEditorViewState | null): void {
 		if (state) {
 			this._textEditor?.restoreViewState(state);
 		}

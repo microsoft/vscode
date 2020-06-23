@@ -104,7 +104,7 @@ export interface ITextFileService extends IDisposable {
 	 * Create a file. If the file exists it will be overwritten with the contents if
 	 * the options enable to overwrite.
 	 */
-	create(resource: URI, contents?: string | ITextSnapshot, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
+	create(resource: URI, contents?: string | ITextSnapshot | VSBuffer, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
 }
 
 export interface IReadTextFileOptions extends IReadFileOptions {
@@ -171,7 +171,7 @@ export class TextFileOperationError extends FileOperationError {
 }
 
 export interface IResourceEncodings {
-	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding;
+	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): Promise<IResourceEncoding>;
 }
 
 export interface IResourceEncoding {

@@ -377,8 +377,8 @@ suite('EditorService', () => {
 
 		// Untyped Input (diff)
 		input = service.createEditorInput({
-			leftResource: toResource.call(this, '/master.html'),
-			rightResource: toResource.call(this, '/detail.html')
+			leftResource: toResource.call(this, '/primary.html'),
+			rightResource: toResource.call(this, '/secondary.html')
 		});
 		assert(input instanceof DiffEditorInput);
 	});
@@ -1084,7 +1084,7 @@ suite('EditorService', () => {
 		const editor = await service.openEditor(input1, { pinned: true });
 		await service.openEditor(input2, { pinned: true });
 
-		const whenClosed = service.whenClosed([input1, input2]);
+		const whenClosed = service.whenClosed([{ resource: input1.resource }, { resource: input2.resource }]);
 
 		editor?.group?.closeAllEditors();
 

@@ -12,6 +12,7 @@ import { IPagedModel } from 'vs/base/common/paging';
 import { Event } from 'vs/base/common/event';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { IThemable } from 'vs/base/common/styler';
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<TElement, TTemplateData> {
 	renderPlaceholder(index: number, templateData: TTemplateData): void;
@@ -119,7 +120,7 @@ function fromPagedListOptions<T>(modelProvider: () => IPagedModel<T>, options: I
 	};
 }
 
-export class PagedList<T> implements IDisposable {
+export class PagedList<T> implements IThemable, IDisposable {
 
 	private list: List<number>;
 	private _model!: IPagedModel<T>;
@@ -168,8 +169,20 @@ export class PagedList<T> implements IDisposable {
 		return this.list.onDidDispose;
 	}
 
+	get onMouseClick(): Event<IListMouseEvent<T>> {
+		return Event.map(this.list.onMouseClick, ({ element, index, browserEvent }) => ({ element: element === undefined ? undefined : this._model.get(element), index, browserEvent }));
+	}
+
 	get onMouseDblClick(): Event<IListMouseEvent<T>> {
 		return Event.map(this.list.onMouseDblClick, ({ element, index, browserEvent }) => ({ element: element === undefined ? undefined : this._model.get(element), index, browserEvent }));
+	}
+
+	get onTap(): Event<IListMouseEvent<T>> {
+		return Event.map(this.list.onTap, ({ element, index, browserEvent }) => ({ element: element === undefined ? undefined : this._model.get(element), index, browserEvent }));
+	}
+
+	get onPointer(): Event<IListMouseEvent<T>> {
+		return Event.map(this.list.onPointer, ({ element, index, browserEvent }) => ({ element: element === undefined ? undefined : this._model.get(element), index, browserEvent }));
 	}
 
 	get onDidChangeFocus(): Event<IListEvent<T>> {

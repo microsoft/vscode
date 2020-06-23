@@ -34,7 +34,7 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
-import { DEFAULT_CUSTOM_EDITOR, updateViewTypeSchema, editorAssociationsConfigurationNode } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
+import { DEFAULT_CUSTOM_EDITOR, updateViewTypeSchema, editorAssociationsConfigurationNode } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -185,8 +185,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		for (const editor of this.visibleEditors) {
 			const resources = distinct(coalesce([
-				toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
-				toResource(editor, { supportSideBySide: SideBySideEditor.DETAILS })
+				toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY }),
+				toResource(editor, { supportSideBySide: SideBySideEditor.SECONDARY })
 			]), resource => resource.toString());
 
 			for (const resource of resources) {
@@ -248,7 +248,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// Determine new resulting target resource
 				let targetResource: URI;
-				if (source.toString() === resource.toString()) {
+				if (extUri.isEqual(source, resource)) {
 					targetResource = target; // file got moved
 				} else {
 					const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);
@@ -256,8 +256,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
 				}
 
-				// Delegate move() to editor instance
-				const moveResult = editor.move(group.id, targetResource);
+				// Delegate rename() to editor instance
+				const moveResult = editor.rename(group.id, targetResource);
 				if (!moveResult) {
 					return; // not target - ignore
 				}
@@ -380,8 +380,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		for (const editor of this.editors) {
 			if (options.supportSideBySide && editor instanceof SideBySideEditorInput) {
-				conditionallyAddEditor(editor.master);
-				conditionallyAddEditor(editor.details);
+				conditionallyAddEditor(editor.primary);
+				conditionallyAddEditor(editor.secondary);
 			} else {
 				conditionallyAddEditor(editor);
 			}
@@ -506,7 +506,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		for (const handler of this.openEditorHandlers) {
-			const result = handler.open(event.editor, event.options, group, event.context ?? OpenEditorContext.NEW_EDITOR, event.options?.override);
+			const result = handler.open(event.editor, event.options, group, event.context ?? OpenEditorContext.NEW_EDITOR);
 			const override = result?.override;
 			if (override) {
 				event.prevent((() => override.then(editor => withNullAsUndefined(editor))));
@@ -1193,13 +1193,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		return new Promise(resolve => {
 			const listener = this.onDidCloseEditor(async event => {
-				const detailsResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.DETAILS });
-				const masterResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.MASTER });
+				const primaryResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+				const secondaryResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.SECONDARY });
 
 				// Remove from resources to wait for being closed based on the
 				// resources from editors that got closed
 				remainingEditors = remainingEditors.filter(({ resource }) => {
-					if (this.uriIdentityService.extUri.isEqual(resource, masterResource) || this.uriIdentityService.extUri.isEqual(resource, detailsResource)) {
+					if (this.uriIdentityService.extUri.isEqual(resource, primaryResource) || this.uriIdentityService.extUri.isEqual(resource, secondaryResource)) {
 						return false; // remove - the closing editor matches this resource
 					}
 
@@ -1278,10 +1278,6 @@ export class DelegatingEditorService implements IEditorService {
 		@IEditorService private editorService: EditorService
 	) { }
 
-	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) {
-		return this.editorService.getEditorOverrides(resource, options, group);
-	}
-
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
@@ -1351,6 +1347,7 @@ export class DelegatingEditorService implements IEditorService {
 	isOpen(editor: IEditorInput | IResourceEditorInput): boolean { return this.editorService.isOpen(editor as IResourceEditorInput /* TS fail */); }
 
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable { return this.editorService.overrideOpenEditor(handler); }
+	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) { return this.editorService.getEditorOverrides(resource, options, group); }
 
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T { return this.editorService.invokeWithinEditorContext(fn); }
 

@@ -52,7 +52,7 @@ export const findNextMatchIcon = registerIcon('find-next-match', Codicon.arrowDo
 export interface IFindController {
 	replace(): void;
 	replaceAll(): void;
-	getGlobalBufferTerm(): string;
+	getGlobalBufferTerm(): Promise<string>;
 }
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
@@ -224,9 +224,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				this._updateToggleSelectionFindButton();
 			}
 		}));
-		this._register(this._codeEditor.onDidFocusEditorWidget(() => {
+		this._register(this._codeEditor.onDidFocusEditorWidget(async () => {
 			if (this._isVisible) {
-				let globalBufferTerm = this._controller.getGlobalBufferTerm();
+				let globalBufferTerm = await this._controller.getGlobalBufferTerm();
 				if (globalBufferTerm && globalBufferTerm !== this._state.searchString) {
 					this._state.change({ searchString: globalBufferTerm }, true);
 					this._findInput.select();

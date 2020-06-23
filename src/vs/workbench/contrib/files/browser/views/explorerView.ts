@@ -450,6 +450,16 @@ export class ExplorerView extends ViewPane {
 			}
 		}));
 
+		this._register(this.tree.onDidChangeCollapseState(e => {
+			const element = e.node.element?.element;
+			if (element) {
+				const navigationController = this.renderer.getCompressedNavigationController(element instanceof Array ? element[0] : element);
+				if (navigationController) {
+					navigationController.updateCollapsed(e.node.collapsed);
+				}
+			}
+		}));
+
 		// save view state
 		this._register(this.storageService.onWillSaveState(() => {
 			this.storageService.store(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE);
@@ -658,7 +668,7 @@ export class ExplorerView extends ViewPane {
 		}
 
 		// check for files
-		return withNullAsUndefined(toResource(input, { supportSideBySide: SideBySideEditor.MASTER }));
+		return withNullAsUndefined(toResource(input, { supportSideBySide: SideBySideEditor.PRIMARY }));
 	}
 
 	public async selectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
