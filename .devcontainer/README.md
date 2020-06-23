@@ -62,7 +62,7 @@ To start working with Code - OSS, follow these steps:
 
     ```bash
     yarn install
-    scripts/code.sh
+    bash scripts/code.sh
     ```
 
 2. After the build is complete, open a web browser and go to [http://localhost:6080](http://localhost:6080) or use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901` and enter `vscode` as the password.

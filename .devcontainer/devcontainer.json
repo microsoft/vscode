@@ -32,7 +32,6 @@
 	"extensions": [
 		"dbaeumer.vscode-eslint",
 		"EditorConfig.EditorConfig",
-		"ms-vscode.js-debug-nightly",
 		"msjsdiag.debugger-for-chrome",
 		"mutantdino.resourcemonitor",
 		"GitHub.vscode-pull-request-github"
