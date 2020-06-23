@@ -58,32 +58,35 @@
 	font-size: 0.9em;
 }
 
-.scm-viewlet .scm-provider > .monaco-action-bar {
+.scm-viewlet .scm-provider > .status {
 	flex: 1;
+	display: flex;
+	padding-right: 10px;
+	justify-content: flex-end;
+	overflow: hidden;
 }
 
-.scm-viewlet .scm-provider > .monaco-action-bar .action-item {
+.scm-viewlet .scm-provider > .status > .monaco-action-bar .action-item {
 	margin-left: 4px;
-	overflow: hidden;
 	text-overflow: ellipsis;
 	display: flex;
 	align-items: center;
 	min-width: 14px;
 }
 
-.scm-viewlet .scm-provider > .monaco-action-bar .action-label {
+.scm-viewlet .scm-provider > .status > .monaco-action-bar .action-label {
 	text-overflow: ellipsis;
 	overflow: hidden;
 	min-width: 14px; /* minimum size of icons */
 }
 
-.scm-viewlet .scm-provider > .monaco-action-bar .action-label .codicon {
+.scm-viewlet .scm-provider > .status > .monaco-action-bar .action-label .codicon {
 	font-size: 14px;
 	vertical-align: sub;
 	display: inline-flex;
 }
 
-.scm-viewlet .scm-provider > .monaco-action-bar .action-item:last-of-type {
+.scm-viewlet .scm-provider > .status > .monaco-action-bar .action-item:last-of-type {
 	padding-right: 0;
 }
 

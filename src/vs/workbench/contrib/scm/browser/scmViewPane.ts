@@ -25,7 +25,7 @@ import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser
 import { SCMMenus } from './menus';
 import { ActionBar, IActionViewItemProvider, Separator, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, connectPrimaryMenuToInlineToolbarBar } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -77,6 +77,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { Command } from 'vs/editor/common/modes';
 import { renderCodicons } from 'vs/base/common/codicons';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -152,7 +153,8 @@ interface RepositoryTemplate {
 	readonly description: HTMLElement;
 	readonly countContainer: HTMLElement;
 	readonly count: CountBadge;
-	readonly actionBar: ActionBar;
+	readonly statusActionBar: ActionBar;
+	readonly toolBar: ToolBar;
 	disposable: IDisposable;
 	readonly templateDisposable: IDisposable;
 }
@@ -163,7 +165,10 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 	get templateId(): string { return RepositoryRenderer.TEMPLATE_ID; }
 
 	constructor(
+		private actionViewItemProvider: IActionViewItemProvider,
+		private menus: SCMMenus,
 		@ICommandService private commandService: ICommandService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService private themeService: IThemeService
 	) { }
 
@@ -176,14 +181,17 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const label = append(provider, $('.label'));
 		const name = append(label, $('span.name'));
 		const description = append(label, $('span.description'));
-		const actionBar = new ActionBar(provider, { actionViewItemProvider: a => new StatusBarActionViewItem(a as StatusBarAction) });
+		const status = append(provider, $('.status'));
+		const statusActionBar = new ActionBar(status, { actionViewItemProvider: a => new StatusBarActionViewItem(a as StatusBarAction) });
+		const actions = append(provider, $('.actions'));
+		const toolBar = new ToolBar(actions, this.contextMenuService, { actionViewItemProvider: this.actionViewItemProvider });
 		const countContainer = append(provider, $('.count'));
 		const count = new CountBadge(countContainer);
 		const badgeStyler = attachBadgeStyler(count, this.themeService);
 		const disposable = Disposable.None;
-		const templateDisposable = combinedDisposable(actionBar, badgeStyler);
+		const templateDisposable = combinedDisposable(statusActionBar, toolBar, badgeStyler);
 
-		return { name, description, countContainer, count, actionBar, disposable, templateDisposable };
+		return { name, description, countContainer, count, statusActionBar, toolBar, disposable, templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
@@ -209,16 +217,19 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 
 			const commands = repository.provider.statusBarCommands || [];
 			actions.splice(0, actions.length, ...commands.map(c => new StatusBarAction(c, this.commandService)));
-			templateData.actionBar.clear();
-			templateData.actionBar.push(actions);
+			templateData.statusActionBar.clear();
+			templateData.statusActionBar.push(actions);
 
 			const count = repository.provider.count || 0;
 			toggleClass(templateData.countContainer, 'hidden', count === 0);
 			templateData.count.setCount(count);
 		};
-
 		disposables.add(repository.provider.onDidChange(update, null));
 		update();
+
+		const menus = this.menus.getRepositoryMenus(repository.provider);
+		disposables.add(connectPrimaryMenuToInlineToolbarBar(menus.titleMenu, templateData.toolBar));
+		templateData.toolBar.context = repository.provider;
 
 		templateData.disposable = disposables;
 	}
@@ -334,8 +345,8 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 
 	constructor(
 		private actionViewItemProvider: IActionViewItemProvider,
-		private themeService: IThemeService,
-		private menus: SCMMenus
+		private menus: SCMMenus,
+		@IThemeService private themeService: IThemeService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
@@ -424,8 +435,8 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
 		private actionRunner: ActionRunner,
-		private themeService: IThemeService,
-		private menus: SCMMenus
+		private menus: SCMMenus,
+		@IThemeService private themeService: IThemeService
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceTemplate {
@@ -1452,12 +1463,11 @@ export class SCMViewPane extends ViewPane {
 		this._register(actionRunner);
 		this._register(actionRunner.onDidBeforeRun(() => this.tree.domFocus()));
 
-		const inputRenderer = new InputRenderer(this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height), this.instantiationService);
 		const renderers = [
-			new RepositoryRenderer(this.commandService, this.themeService),
-			inputRenderer,
-			new ResourceGroupRenderer(actionViewItemProvider, this.themeService, this.menus),
-			new ResourceRenderer(() => this.viewModel, this.listLabels, actionViewItemProvider, actionRunner, this.themeService, this.menus)
+			this.instantiationService.createInstance(RepositoryRenderer, actionViewItemProvider, this.menus),
+			this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height)),
+			this.instantiationService.createInstance(ResourceGroupRenderer, actionViewItemProvider, this.menus),
+			this.instantiationService.createInstance(ResourceRenderer, () => this.viewModel, this.listLabels, actionViewItemProvider, actionRunner, this.menus)
 		];
 
 		const filter = new SCMTreeFilter();

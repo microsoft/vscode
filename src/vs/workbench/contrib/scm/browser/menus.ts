@@ -39,7 +39,7 @@ export function getSCMResourceContextKey(resource: ISCMResourceGroup | ISCMResou
 export class SCMRepositoryMenus implements IDisposable {
 
 	private contextKeyService: IContextKeyService;
-	private titleMenu: IMenu;
+	readonly titleMenu: IMenu;
 
 	private titleActionDisposable: IDisposable = Disposable.None;
 	private titleActions: IAction[] = [];
