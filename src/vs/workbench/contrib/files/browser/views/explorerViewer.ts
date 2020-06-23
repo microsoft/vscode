@@ -1360,27 +1360,18 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
 	}
 
-	private async doHandleExplorerDrop(sources: ExplorerItem[], target: ExplorerItem, isCopy: boolean): Promise<void> {
-		// Reuse duplicate action if user copies
-		const sourceTargetPairs: { source: URI; target: URI }[] = [];
-		if (isCopy) {
-			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			for (const source of sources) {
-				sourceTargetPairs.push({ source: source.resource, target: findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming) });
-			}
-			const editors = (await this.workingCopyFileService.copy(sourceTargetPairs)).filter(stat => !stat.isDirectory).map(stat => ({ resource: stat.resource, options: { pinned: true } }));
-			await this.editorService.openEditors(editors);
+	private async doHandleExplorerDropOnCopy(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
+		// Reuse duplicate action when user copies
+		const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
+		const sourceTargetPairs = sources.map(({ resource, isDirectory }) => ({ source: resource, target: findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, incrementalNaming) }));
+		const editors = (await this.workingCopyFileService.copy(sourceTargetPairs)).filter(stat => !stat.isDirectory).map(({ resource }) => ({ resource, options: { pinned: true } }));
+		await this.editorService.openEditors(editors);
+	}
 
-			return;
-		}
+	private async doHandleExplorerDropOnMove(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
 
-		// Otherwise move
-		for (const source of sources) {
-			// Do not allow moving readonly items
-			if (!source.isReadonly) {
-				sourceTargetPairs.push({ source: source.resource, target: joinPath(target.resource, source.name) });
-			}
-		}
+		// Do not allow moving readonly items
+		const sourceTargetPairs = sources.filter(source => !source.isReadonly).map(source => ({ source: source.resource, target: joinPath(target.resource, source.name) }));
 
 		try {
 			await this.workingCopyFileService.move(sourceTargetPairs);
@@ -1390,8 +1381,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 				const overwrites: URI[] = [];
 				for (const { target } of sourceTargetPairs) {
-					const exist = await this.fileService.exists(target);
-					if (exist) {
+					if (await this.fileService.exists(target)) {
 						overwrites.push(target);
 					}
 				}
@@ -1412,6 +1402,14 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			else {
 				this.notificationService.error(error);
 			}
+		}
+	}
+
+	private async doHandleExplorerDrop(sources: ExplorerItem[], target: ExplorerItem, isCopy: boolean): Promise<void> {
+		if (isCopy) {
+			this.doHandleExplorerDropOnCopy(sources, target);
+		} else {
+			this.doHandleExplorerDropOnMove(sources, target);
 		}
 	}
 
