@@ -617,6 +617,9 @@ export interface ITreeItemLabel {
 
 }
 
+export type TreeTooltipProvider = () => Promise<IMarkdownString | undefined>;
+export const TREE_TOOLTIP_PROVIDER = '__TREE_TOOLTIP_PROVIDER__';
+
 export interface ITreeItem {
 
 	handle: string;
@@ -637,7 +640,7 @@ export interface ITreeItem {
 
 	resourceUri?: UriComponents;
 
-	tooltip?: string | IMarkdownString;
+	tooltip?: string | TreeTooltipProvider;
 
 	contextValue?: string;
 

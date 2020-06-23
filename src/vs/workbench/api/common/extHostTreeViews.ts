@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions } from 'vs/workbench/common/views';
+import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeTooltipProvider as TreeTooltipProvider, TREE_TOOLTIP_PROVIDER } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
@@ -19,8 +19,8 @@ import { equals, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 
 type TreeItemHandle = string;
 
@@ -143,6 +143,14 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		treeView.setVisible(isVisible);
 	}
 
+	$getTooltip(treeViewId: string, treeItemHandle: string): Promise<IMarkdownString | undefined> {
+		const treeView = this.treeViews.get(treeViewId);
+		if (!treeView) {
+			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+		}
+		return treeView.getTooltipMarkdown(treeItemHandle);
+	}
+
 	private createExtHostTreeView<T>(id: string, options: vscode.TreeViewOptions<T>, extension: IExtensionDescription): ExtHostTreeView<T> {
 		const treeView = new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService, extension);
 		this.treeViews.set(id, treeView);
@@ -160,6 +168,7 @@ type TreeData<T> = { message: boolean, element: T | Root | false };
 
 interface TreeNode extends IDisposable {
 	item: ITreeItem;
+	tooltipProvider?: TreeTooltipProvider;
 	parent: TreeNode | Root;
 	children?: TreeNode[];
 }
@@ -329,6 +338,17 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
+	async getTooltipMarkdown(treeItemHandle: string): Promise<IMarkdownString | undefined> {
+		const element = this.elements.get(treeItemHandle);
+		if (element) {
+			const node = this.nodes.get(element);
+			if (node && node.tooltipProvider) {
+				return node.tooltipProvider();
+			}
+		}
+		return undefined;
+	}
+
 	private resolveUnknownParentChain(element: T): Promise<TreeNode[]> {
 		return this.resolveParent(element)
 			.then((parent) => {
@@ -488,14 +508,18 @@ class ExtHostTreeView<T> extends Disposable {
 		return node;
 	}
 
-	private getTooltip(tooltip?: string | vscode.MarkdownString): string | IMarkdownString | undefined {
-		if (typeof tooltip === 'string') {
-			return tooltip;
-		} else if (tooltip === undefined) {
-			return undefined;
+	private getTooltip(tooltip?: string | vscode.TreeTooltipProvider): { tooltip: string | undefined, provider?: TreeTooltipProvider } {
+		if ((typeof tooltip === 'string') || (tooltip === undefined)) {
+			return { tooltip };
 		} else {
 			checkProposedApiEnabled(this.extension);
-			return MarkdownString.from(tooltip);
+			return {
+				tooltip: TREE_TOOLTIP_PROVIDER,
+				provider: async () => {
+					const resolved = await tooltip();
+					return MarkdownString.from(resolved);
+				}
+			};
 		}
 	}
 
@@ -503,13 +527,14 @@ class ExtHostTreeView<T> extends Disposable {
 		const disposable = new DisposableStore();
 		const handle = this.createHandle(element, extensionTreeItem, parent);
 		const icon = this.getLightIconPath(extensionTreeItem);
+		const tooltip = this.getTooltip(extensionTreeItem.tooltip);
 		const item = {
 			handle,
 			parentHandle: parent ? parent.item.handle : undefined,
 			label: toTreeItemLabel(extensionTreeItem.label, this.extension),
 			description: extensionTreeItem.description,
 			resourceUri: extensionTreeItem.resourceUri,
-			tooltip: this.getTooltip(extensionTreeItem.tooltip),
+			tooltip: tooltip.tooltip,
 			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command, disposable) : undefined,
 			contextValue: extensionTreeItem.contextValue,
 			icon,
@@ -521,6 +546,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 		return {
 			item,
+			tooltipProvider: tooltip.provider,
 			parent,
 			children: undefined,
 			dispose(): void { disposable.dispose(); }

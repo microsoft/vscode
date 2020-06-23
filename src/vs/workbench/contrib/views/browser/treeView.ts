@@ -13,7 +13,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMenuService, MenuId, MenuItemAction, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService, ContextKeyExpr, ContextKeyEqualsExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeItemLabel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeItemLabel, IViewDescriptorService, ViewContainer, ViewContainerLocation, TreeTooltipProvider } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -788,11 +788,10 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		this.setupHovers(node.tooltip, templateData.container, disposableStore);
 	}
 
-	private setupHovers(tooltip: string | IMarkdownString | undefined, htmlElement: HTMLElement, disposableStore: DisposableStore): void {
+	private setupHovers(tooltip: string | TreeTooltipProvider | undefined, htmlElement: HTMLElement, disposableStore: DisposableStore): void {
 		if (!tooltip || isString(tooltip)) {
 			return;
 		}
-		const text: IMarkdownString = tooltip;
 		const hoverService = this.hoverService;
 		const hoverDelay = this.hoverDelay;
 		function mouseOver(this: HTMLElement, e: MouseEvent): any {
@@ -801,9 +800,10 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				isHovering = false;
 			}
 			this.addEventListener(DOM.EventType.MOUSE_LEAVE, mouseLeave, { passive: true });
-			setTimeout(() => {
-				if (isHovering) {
-					hoverService.showHover({ text, target: this });
+			setTimeout(async () => {
+				let resolvedTooltip: IMarkdownString | undefined;
+				if (isHovering && tooltip && !isString(tooltip) && (resolvedTooltip = await tooltip())) {
+					hoverService.showHover({ text: resolvedTooltip, target: this });
 				}
 				this.removeEventListener(DOM.EventType.MOUSE_LEAVE, mouseLeave);
 			}, hoverDelay);

@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions } from 'vs/workbench/common/views';
+import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, TREE_TOOLTIP_PROVIDER } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -219,6 +219,11 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		if (elements) {
 			for (const element of elements) {
 				this.itemsMap.set(element.handle, element);
+				if (element.tooltip === TREE_TOOLTIP_PROVIDER) {
+					element.tooltip = () => {
+						return this._proxy.$getTooltip(this.treeViewId, element.handle);
+					};
+				}
 				result.push(element);
 			}
 		}

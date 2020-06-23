@@ -987,6 +987,7 @@ export interface ExtHostTreeViewsShape {
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
 	$setVisible(treeViewId: string, visible: boolean): void;
+	$getTooltip(treeViewId: string, treeItemHandle: string): Promise<IMarkdownString | undefined>;
 }
 
 export interface ExtHostWorkspaceShape {

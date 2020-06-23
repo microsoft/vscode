@@ -1150,6 +1150,8 @@ declare module 'vscode' {
 
 	}
 
+	export type TreeTooltipProvider = () => Thenable<MarkdownString>;
+
 	export class TreeItem2 extends TreeItem {
 		/**
 		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
@@ -1159,7 +1161,7 @@ declare module 'vscode' {
 		/**
 		 * Content to be shown when you hover over the tree item.
 		 */
-		tooltip?: string | MarkdownString | /* for compilation */ any;
+		tooltip?: string | TreeTooltipProvider | /* for compilation */ any;
 
 		/**
 		 * Accessibility information used when screen reader interacts with this tree item.
