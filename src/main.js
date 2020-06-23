@@ -86,10 +86,11 @@ setCurrentWorkingDirectory();
 // Register custom schemes with privileges
 protocol.registerSchemesAsPrivileged([
 	{
-		scheme: 'vscode-webview',
+		scheme: 'vscode-resource',
 		privileges: {
-			standard: true,
 			secure: true,
+			supportFetchAPI: true,
+			corsEnabled: true,
 		}
 	}, {
 		scheme: 'vscode-webview-resource',
