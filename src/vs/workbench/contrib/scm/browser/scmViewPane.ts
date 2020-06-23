@@ -245,11 +245,16 @@ interface InputTemplate {
 
 class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, InputTemplate> {
 
+	static readonly DEFAULT_HEIGHT = 26;
+
 	static readonly TEMPLATE_ID = 'input';
 	get templateId(): string { return InputRenderer.TEMPLATE_ID; }
 
+	private contentHeights = new WeakMap<ISCMInput, number>();
+
 	constructor(
-		private layoutCache: ISCMLayout,
+		private outerLayout: ISCMLayout,
+		private updateHeight: (input: ISCMInput, height: number) => void,
 		@IInstantiationService private instantiationService: IInstantiationService,
 	) { }
 
@@ -260,7 +265,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		return { inputWidget, disposable: Disposable.None, templateDisposable: inputWidget };
 	}
 
-	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate, height: number | undefined): void {
+	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate): void {
 		templateData.disposable.dispose();
 
 		const disposables = new DisposableStore();
@@ -268,8 +273,33 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		templateData.inputWidget.input = input;
 		disposables.add({ dispose: () => templateData.inputWidget.input = undefined });
 
+		// Rerender the element whenever the editor content height changes
+		const onDidChangeContentHeight = () => {
+			const contentHeight = templateData.inputWidget.getContentHeight();
+			const lastContentHeight = this.contentHeights.get(input)!;
+			this.contentHeights.set(input, contentHeight);
+
+			if (lastContentHeight !== contentHeight) {
+				if (lastContentHeight !== undefined) {
+					this.updateHeight(input, contentHeight + 10);
+					templateData.inputWidget.layout();
+				} else if (contentHeight !== InputRenderer.DEFAULT_HEIGHT) {
+					// first time render, we must rerender on the next stack frame
+					const timeout = setTimeout(() => {
+						this.updateHeight(input, contentHeight + 10);
+						templateData.inputWidget.layout();
+					});
+					disposables.add({ dispose: () => clearTimeout(timeout) });
+				}
+			}
+		};
+
+		disposables.add(templateData.inputWidget.onDidChangeContentHeight(onDidChangeContentHeight));
+		onDidChangeContentHeight();
+
+		// Layout the editor whenever the outer layout happens
 		const layoutEditor = () => templateData.inputWidget.layout();
-		disposables.add(this.layoutCache.onDidChange(layoutEditor));
+		disposables.add(this.outerLayout.onDidChange(layoutEditor));
 		layoutEditor();
 
 		templateData.disposable = disposables;
@@ -525,7 +555,7 @@ class ProviderListDelegate implements IListVirtualDelegate<TreeElement> {
 
 	getHeight(element: TreeElement) {
 		if (isSCMInput(element)) {
-			return 36;
+			return InputRenderer.DEFAULT_HEIGHT + 10;
 		} else {
 			return 22;
 		}
@@ -1087,8 +1117,7 @@ class SCMInputWidget extends Disposable {
 	private repositoryContextKey: IContextKey<ISCMRepository | undefined>;
 	private repositoryDisposables = new DisposableStore();
 
-	private _onDidChangeHeight = new Emitter<void>();
-	readonly onDidChangeHeight = this._onDidChangeHeight.event;
+	readonly onDidChangeContentHeight: Event<void>;
 
 	get input(): ISCMInput | undefined {
 		return this.model?.input;
@@ -1285,17 +1314,19 @@ class SCMInputWidget extends Disposable {
 		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
 		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
 
-		const onDidChangeContentHeight = Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged);
-		this._register(onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
+		this.onDidChangeContentHeight = Event.signal(Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged));
+	}
+
+	getContentHeight(): number {
+		const editorContentHeight = this.inputEditor.getContentHeight();
+		return Math.min(editorContentHeight, 134);
 	}
 
 	layout(): void {
-		// const editorContentHeight = this.inputEditor.getContentHeight();
-		// const editorHeight = Math.min(editorContentHeight, 134);
-
+		const editorHeight = this.getContentHeight();
 		const dimension: Dimension = {
 			width: this.element.clientWidth - 2,
-			height: 26,
+			height: editorHeight,
 			// height: editorHeight - 2
 		};
 
@@ -1378,9 +1409,10 @@ export class SCMViewPane extends ViewPane {
 		this._register(actionRunner);
 		this._register(actionRunner.onDidBeforeRun(() => this.tree.domFocus()));
 
+		const inputRenderer = new InputRenderer(this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height), this.instantiationService);
 		const renderers = [
 			new RepositoryRenderer(this.commandService, this.themeService),
-			new InputRenderer(this.layoutCache, this.instantiationService),
+			inputRenderer,
 			new ResourceGroupRenderer(actionViewItemProvider, this.themeService, this.menus),
 			new ResourceRenderer(() => this.viewModel, this.listLabels, actionViewItemProvider, actionRunner, this.themeService, this.menus)
 		];

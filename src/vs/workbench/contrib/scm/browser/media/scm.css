@@ -178,6 +178,7 @@
 
 .scm-viewlet .scm-input {
 	height: 100%;
+	margin-left: 6px;
 }
 
 .scm-viewlet .scm-editor {
