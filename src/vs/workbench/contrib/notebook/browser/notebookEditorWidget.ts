@@ -1451,8 +1451,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-shadow { box-shadow: 0px 2px 8px 2px ${cellShadowColor} }`);
 
 		// Markdown cells
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row:hover,
-		.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused { box-shadow: 0px 2px 8px 2px ${cellShadowColor} }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused { box-shadow: 0px 2px 8px 2px ${cellShadowColor} }`);
 	}
 
 	const cellInsertionIndicatorColor = theme.getColor(cellInsertionIndicator);
