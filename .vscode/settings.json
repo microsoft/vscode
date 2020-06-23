@@ -76,5 +76,6 @@
 	"[typescript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features"
 	},
-	"typescript.tsc.autoDetect": "off"
+	"typescript.tsc.autoDetect": "off",
+	"typescript.tsserver.useSeparateSyntaxServer": "dynamic"
 }

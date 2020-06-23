@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh } from 'vs/base/common/platform';
+import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -15,7 +15,6 @@ import { getFocusedWebviewEditor } from 'vs/workbench/contrib/webview/browser/we
 import * as webviewCommands from 'vs/workbench/contrib/webview/electron-browser/webviewCommands';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { ElectronWebviewService } from 'vs/workbench/contrib/webview/electron-browser/webviewService';
-import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
 
 registerSingleton(IWebviewService, ElectronWebviewService, true);
 
@@ -26,53 +25,40 @@ actionRegistry.registerWorkbenchAction(
 	webviewCommands.OpenWebviewDeveloperToolsAction.ALIAS,
 	webviewDeveloperCategory);
 
-if (isMacintosh) {
-	function getActiveElectronBasedWebview(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
-		const webview = getFocusedWebviewEditor(accessor);
-		if (!webview) {
-			return undefined;
-		}
-
-		if (webview instanceof ElectronWebviewBasedWebview) {
-			return webview;
-		} else if ('getInnerWebview' in (webview as WebviewOverlay)) {
-			const innerWebview = (webview as WebviewOverlay).getInnerWebview();
-			if (innerWebview instanceof ElectronWebviewBasedWebview) {
-				return innerWebview;
-			}
-		}
-
+function getActiveElectronBasedWebview(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
+	const webview = getFocusedWebviewEditor(accessor);
+	if (!webview) {
 		return undefined;
 	}
 
-	function withWebview(accessor: ServicesAccessor, f: (webviewe: ElectronWebviewBasedWebview) => void) {
+	if (webview instanceof ElectronWebviewBasedWebview) {
+		return webview;
+	} else if ('getInnerWebview' in (webview as WebviewOverlay)) {
+		const innerWebview = (webview as WebviewOverlay).getInnerWebview();
+		if (innerWebview instanceof ElectronWebviewBasedWebview) {
+			return innerWebview;
+		}
+	}
+
+	return undefined;
+}
+
+const PRIORITY = 100;
+
+function overrideCommandForWebview(command: MultiCommand | undefined, f: (webview: ElectronWebviewBasedWebview) => void) {
+	command?.addImplementation(PRIORITY, accessor => {
 		const webview = getActiveElectronBasedWebview(accessor);
 		if (webview) {
 			f(webview);
 			return true;
 		}
 		return false;
-	}
-
-	const PRIORITY = 100;
-
-	UndoCommand.addImplementation(PRIORITY, accessor => {
-		return withWebview(accessor, webview => webview.undo());
-	});
-
-	RedoCommand.addImplementation(PRIORITY, accessor => {
-		return withWebview(accessor, webview => webview.redo());
-	});
-
-	CopyAction?.addImplementation(PRIORITY, accessor => {
-		return withWebview(accessor, webview => webview.copy());
-	});
-
-	PasteAction?.addImplementation(PRIORITY, accessor => {
-		return withWebview(accessor, webview => webview.paste());
-	});
-
-	CutAction?.addImplementation(PRIORITY, accessor => {
-		return withWebview(accessor, webview => webview.cut());
 	});
 }
+
+overrideCommandForWebview(UndoCommand, webview => webview.undo());
+overrideCommandForWebview(RedoCommand, webview => webview.redo());
+overrideCommandForWebview(SelectAllCommand, webview => webview.selectAll());
+overrideCommandForWebview(CopyAction, webview => webview.copy());
+overrideCommandForWebview(PasteAction, webview => webview.paste());
+overrideCommandForWebview(CutAction, webview => webview.cut());

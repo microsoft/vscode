@@ -113,23 +113,21 @@ export class ToolBar extends Disposable {
 		this.actionBar.setAriaLabel(label);
 	}
 
-	setActions(primaryActions: ReadonlyArray<IAction>, secondaryActions?: ReadonlyArray<IAction>): () => void {
-		return () => {
-			let primaryActionsToSet = primaryActions ? primaryActions.slice(0) : [];
+	setActions(primaryActions: ReadonlyArray<IAction>, secondaryActions?: ReadonlyArray<IAction>): void {
+		let primaryActionsToSet = primaryActions ? primaryActions.slice(0) : [];
 
-			// Inject additional action to open secondary actions if present
-			this.hasSecondaryActions = !!(secondaryActions && secondaryActions.length > 0);
-			if (this.hasSecondaryActions && secondaryActions) {
-				this.toggleMenuAction.menuActions = secondaryActions.slice(0);
-				primaryActionsToSet.push(this.toggleMenuAction);
-			}
+		// Inject additional action to open secondary actions if present
+		this.hasSecondaryActions = !!(secondaryActions && secondaryActions.length > 0);
+		if (this.hasSecondaryActions && secondaryActions) {
+			this.toggleMenuAction.menuActions = secondaryActions.slice(0);
+			primaryActionsToSet.push(this.toggleMenuAction);
+		}
 
-			this.actionBar.clear();
+		this.actionBar.clear();
 
-			primaryActionsToSet.forEach(action => {
-				this.actionBar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) });
-			});
-		};
+		primaryActionsToSet.forEach(action => {
+			this.actionBar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) });
+		});
 	}
 
 	private getKeybindingLabel(action: IAction): string | undefined {

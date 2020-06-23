@@ -541,7 +541,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.toolbar.context = element;
 		const actions = this.disposableActionFactory(element.setting);
 		actions.forEach(a => template.elementDisposables?.add(a));
-		template.toolbar.setActions([], [...this.settingActions, ...actions])();
+		template.toolbar.setActions([], [...this.settingActions, ...actions]);
 		this.fixToolbarIcon(template.toolbar);
 
 		const setting = element.setting;

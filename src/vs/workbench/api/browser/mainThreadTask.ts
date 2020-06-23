@@ -328,10 +328,10 @@ namespace TaskDTO {
 			result.detail = task.configurationProperties.detail;
 		}
 		if (!ConfiguringTask.is(task) && task.command) {
-			if (task.command.runtime === RuntimeType.Process) {
-				result.execution = ProcessExecutionDTO.from(task.command);
-			} else if (task.command.runtime === RuntimeType.Shell) {
-				result.execution = ShellExecutionDTO.from(task.command);
+			switch (task.command.runtime) {
+				case RuntimeType.Process: result.execution = ProcessExecutionDTO.from(task.command); break;
+				case RuntimeType.Shell: result.execution = ShellExecutionDTO.from(task.command); break;
+				case RuntimeType.CustomExecution: result.execution = CustomExecutionDTO.from(task.command); break;
 			}
 		}
 		if (task.configurationProperties.problemMatchers) {

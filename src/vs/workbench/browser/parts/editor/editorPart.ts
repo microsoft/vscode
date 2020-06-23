@@ -81,7 +81,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 }
 
-export class EditorPart extends Part implements IEditorGroupsService, IEditorGroupsAccessor {
+export class EditorPart extends Part implements IEditorGroupsService, IEditorGroupsAccessor, IEditorDropService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -1141,5 +1141,16 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	//#endregion
 }
 
+class EditorDropService implements IEditorDropService {
+
+	declare readonly _serviceBrand: undefined;
+
+	constructor(@IEditorGroupsService private readonly editorPart: EditorPart) { }
+
+	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable {
+		return this.editorPart.createEditorDropTarget(container, delegate);
+	}
+}
+
 registerSingleton(IEditorGroupsService, EditorPart);
-registerSingleton(IEditorDropService, EditorPart);
+registerSingleton(IEditorDropService, EditorDropService);

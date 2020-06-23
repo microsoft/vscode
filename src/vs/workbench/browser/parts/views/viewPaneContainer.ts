@@ -450,7 +450,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private setActions(): void {
 		if (this.toolbar) {
-			this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
+			this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()));
 			this.toolbar.context = this.getActionsContext();
 		}
 	}
@@ -1040,14 +1040,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			}
 		}
 
-		const viewToggleActions = this.viewContainerModel.activeViewDescriptors.map(viewDescriptor => (<IAction>{
-			id: `${viewDescriptor.id}.toggleVisibility`,
-			label: viewDescriptor.name,
-			checked: this.viewContainerModel.isVisible(viewDescriptor.id),
-			enabled: viewDescriptor.canToggleVisibility && (!this.viewContainerModel.isVisible(viewDescriptor.id) || this.viewContainerModel.visibleViewDescriptors.length > 1),
-			run: () => this.toggleViewVisibility(viewDescriptor.id)
-		}));
-
+		const viewToggleActions = this.getViewsVisibilityActions();
 		if (result.length && viewToggleActions.length) {
 			result.push(new Separator());
 		}
@@ -1071,6 +1064,16 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 
 		return [];
+	}
+
+	getViewsVisibilityActions(): IAction[] {
+		return this.viewContainerModel.activeViewDescriptors.map(viewDescriptor => (<IAction>{
+			id: `${viewDescriptor.id}.toggleVisibility`,
+			label: viewDescriptor.name,
+			checked: this.viewContainerModel.isVisible(viewDescriptor.id),
+			enabled: viewDescriptor.canToggleVisibility && (!this.viewContainerModel.isVisible(viewDescriptor.id) || this.viewContainerModel.visibleViewDescriptors.length > 1),
+			run: () => this.toggleViewVisibility(viewDescriptor.id)
+		}));
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {

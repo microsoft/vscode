@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { MarkdownString } from 'vscode';
+
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -1155,6 +1157,11 @@ declare module 'vscode' {
 		label?: string | TreeItemLabel | /* for compilation */ any;
 
 		/**
+		 * Content to be shown when you hover over the tree item.
+		 */
+		tooltip?: string | MarkdownString | /* for compilation */ any;
+
+		/**
 		 * Accessibility information used when screen reader interacts with this tree item.
 		 * Generally, a TreeItem has no need to set the `role` of the accessibilityInformation;
 		 * however, there are cases where a TreeItem is not displayed in a tree-like way where setting the `role` may make sense.
@@ -1600,6 +1607,20 @@ declare module 'vscode' {
 		 */
 		render(document: NotebookDocument, request: NotebookRenderRequest): string;
 
+		/**
+		 * Call before HTML from the renderer is executed, and will be called for
+		 * every editor associated with notebook documents where the renderer
+		 * is or was used.
+		 *
+		 * The communication object will only send and receive messages to the
+		 * render API, retrieved via `acquireNotebookRendererApi`, acquired with
+		 * this specific renderer's ID.
+		 *
+		 * If you need to keep an association between the communication object
+		 * and the document for use in the `render()` method, you can use a WeakMap.
+		 */
+		resolveNotebook?(document: NotebookDocument, communication: NotebookCommunication): void;
+
 		readonly preloads?: Uri[];
 	}
 
@@ -1728,27 +1749,41 @@ declare module 'vscode' {
 		readonly backupId?: string;
 	}
 
+	/**
+	 * Communication object passed to the {@link NotebookContentProvider} and
+	 * {@link NotebookOutputRenderer} to communicate with the webview.
+	 */
+	export interface NotebookCommunication {
+		/**
+		 * ID of the editor this object communicates with. A single notebook
+		 * document can have multiple attached webviews and editors, when the
+		 * notebook is split for instance. The editor ID lets you differentiate
+		 * between them.
+		 */
+		readonly editorId: string;
+
+		/**
+		 * Fired when the output hosting webview posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+		/**
+		 * Post a message to the output hosting webview.
+		 *
+		 * Messages are only delivered if the editor is live.
+		 *
+		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		/**
+		 * Convert a uri for the local file system to one that can be used inside outputs webview.
+		 */
+		asWebviewUri(localResource: Uri): Uri;
+	}
+
 	export interface NotebookContentProvider {
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
-		resolveNotebook(document: NotebookDocument, webview: {
-			/**
-			 * Fired when the output hosting webview posts a message.
-			 */
-			readonly onDidReceiveMessage: Event<any>;
-			/**
-			 * Post a message to the output hosting webview.
-			 *
-			 * Messages are only delivered if the editor is live.
-			 *
-			 * @param message Body of the message. This must be a string or other json serilizable object.
-			 */
-			postMessage(message: any): Thenable<boolean>;
-
-			/**
-			 * Convert a uri for the local file system to one that can be used inside outputs webview.
-			 */
-			asWebviewUri(localResource: Uri): Uri;
-		}): Promise<void>;
+		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent>;
@@ -1997,26 +2032,6 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		*/
 		export function registerTimelineProvider(scheme: string | string[], provider: TimelineProvider): Disposable;
-	}
-
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/86788
-
-	export interface CodeActionProviderMetadata {
-		/**
-		 * Static documentation for a class of code actions.
-		 *
-		 * The documentation is shown in the code actions menu if either:
-		 *
-		 * - Code actions of `kind` are requested by VS Code. In this case, VS Code will show the documentation that
-		 *   most closely matches the requested code action kind. For example, if a provider has documentation for
-		 *   both `Refactor` and `RefactorExtract`, when the user requests code actions for `RefactorExtract`,
-		 *   VS Code will use the documentation for `RefactorExtract` intead of the documentation for `Refactor`.
-		 *
-		 * - Any code actions of `kind` are returned by the provider.
-		 */
-		readonly documentation?: ReadonlyArray<{ readonly kind: CodeActionKind, readonly command: Command; }>;
 	}
 
 	//#endregion

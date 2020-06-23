@@ -100,7 +100,7 @@ suite('Files - TextFileService', () => {
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
-	test('create', async function () {
+	test('create does not overwrite existing model', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 

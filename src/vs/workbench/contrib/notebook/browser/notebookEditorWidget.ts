@@ -27,7 +27,7 @@ import { contrastBorder, editorBackground, focusBorder, foreground, registerColo
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
-import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_BOTTOM_PADDING, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, SCROLLABLE_ELEMENT_PADDING_TOP, BOTTOM_CELL_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_BOTTOM_PADDING, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, SCROLLABLE_ELEMENT_PADDING_TOP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
@@ -301,21 +301,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				transformOptimization: false,
 				styleController: (_suffix: string) => { return this._list!; },
 				overrideStyles: {
-					listBackground: editorBackground,
-					listActiveSelectionBackground: editorBackground,
+					listBackground: Color.transparent,
+					listActiveSelectionBackground: Color.transparent,
 					listActiveSelectionForeground: foreground,
-					listFocusAndSelectionBackground: editorBackground,
+					listFocusAndSelectionBackground: Color.transparent,
 					listFocusAndSelectionForeground: foreground,
-					listFocusBackground: editorBackground,
+					listFocusBackground: Color.transparent,
 					listFocusForeground: foreground,
 					listHoverForeground: foreground,
-					listHoverBackground: editorBackground,
+					listHoverBackground: Color.transparent,
 					listHoverOutline: focusBorder,
 					listFocusOutline: focusBorder,
-					listInactiveSelectionBackground: editorBackground,
+					listInactiveSelectionBackground: Color.transparent,
 					listInactiveSelectionForeground: foreground,
-					listInactiveFocusBackground: editorBackground,
-					listInactiveFocusOutline: editorBackground,
+					listInactiveFocusBackground: Color.transparent,
+					listInactiveFocusOutline: Color.transparent,
 				},
 				accessibilityProvider: {
 					getAriaLabel() { return null; },
@@ -528,9 +528,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._onDidFocusEmitter.fire();
 		});
 
-		this._localStore.add(this._webview.onMessage(message => {
+		this._localStore.add(this._webview.onMessage(({ message, forRenderer }) => {
 			if (this.viewModel) {
-				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), message);
+				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), forRenderer, message);
 			}
 		}));
 	}
@@ -1213,9 +1213,26 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._outputRenderer;
 	}
 
-	postMessage(message: any) {
-		this._webview?.webview.postMessage(message);
+	postMessage(forRendererId: string | undefined, message: any) {
+		if (forRendererId === undefined) {
+			this._webview?.webview.postMessage(message);
+		} else {
+			this._webview?.postRendererMessage(forRendererId, message);
+		}
 	}
+
+	toggleClassName(className: string) {
+		DOM.toggleClass(this._overlayContainer, className);
+	}
+
+	addClassName(className: string) {
+		DOM.addClass(this._overlayContainer, className);
+	}
+
+	removeClassName(className: string) {
+		DOM.removeClass(this._overlayContainer, className);
+	}
+
 
 	//#endregion
 
@@ -1260,12 +1277,6 @@ export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	hc: PANEL_BORDER
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
-export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator', {
-	light: focusBorder,
-	dark: focusBorder,
-	hc: focusBorder
-}, nls.localize('notebook.focusedCellIndicator', "The color of the notebook cell indicator."));
-
 export const focusedEditorIndicator = registerColor('notebook.focusedEditorIndicator', {
 	light: focusBorder,
 	dark: focusBorder,
@@ -1301,13 +1312,32 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeperat
 	dark: Color.fromHex('#808080').transparent(0.35),
 	light: Color.fromHex('#808080').transparent(0.35),
 	hc: contrastBorder
-}, nls.localize('cellToolbarSeperator', "The color of seperator in Cell bottom toolbar"));
+}, nls.localize('cellToolbarSeperator', "The color of the seperator in the cell bottom toolbar"));
+
+export const cellFocusBackground = registerColor('notebook.cellFocusBackground', {
+	dark: transparent(PANEL_BORDER, .6),
+	light: transparent(PANEL_BORDER, .4),
+	hc: PANEL_BORDER
+}, nls.localize('cellFocusBackground', "The background color of focused or hovered cells"));
+
+export const focusedCellShadow = registerColor('notebook.focusedCellShadow', {
+	dark: Color.black.transparent(0.8),
+	light: Color.black.transparent(0.06),
+	hc: Color.transparent
+}, nls.localize('cellShadow', "The color of the shadow on the focused or hovered cell"));
 
 export const cellStatusBarItemHover = registerColor('notebook.cellStatusBarItemHoverBackground', {
 	light: new Color(new RGBA(0, 0, 0, 0.08)),
 	dark: new Color(new RGBA(255, 255, 255, 0.15)),
 	hc: new Color(new RGBA(255, 255, 255, 0.15)),
 }, nls.localize('notebook.cellStatusBarItemHoverBackground', "The background color of notebook cell status bar items."));
+
+export const cellInsertionIndicator = registerColor('notebook.cellInsertionIndicator', {
+	light: focusBorder,
+	dark: focusBorder,
+	hc: focusBorder
+}, nls.localize('notebook.cellInsertionIndicator', "The color of the notebook cell insertion indicator."));
+
 
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element {
@@ -1369,15 +1399,15 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container .separator { background-color: ${cellToolbarSeperator} }`);
 		collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container .action-item:first-child::after { background-color: ${cellToolbarSeperator} }`);
 		collector.addRule(`.notebookOverlay .monaco-list-row > .monaco-toolbar { border: solid 1px ${cellToolbarSeperator}; }`);
-		collector.addRule(`.notebookOverlay .monaco-list-row:hover .notebook-cell-focus-indicator,
-			.notebookOverlay .monaco-list-row.cell-output-hover .notebook-cell-focus-indicator { border-color: ${cellToolbarSeperator}; }`);
 	}
 
-	const focusedCellIndicatorColor = theme.getColor(focusedCellIndicator);
-	if (focusedCellIndicatorColor) {
-		collector.addRule(`.notebookOverlay .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
-		collector.addRule(`.notebookOverlay .monaco-list-row .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
-		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${focusedCellIndicatorColor}; }`);
+	const cellFocusBackgroundColor = theme.getColor(cellFocusBackground);
+	if (cellFocusBackgroundColor) {
+		collector.addRule(`.notebookOverlay .code-cell-row:hover .cell-focus-indicator,
+			.notebookOverlay .code-cell-row.focused .cell-focus-indicator,
+			.notebookOverlay .code-cell-row.cell-output-hover .cell-focus-indicator { background-color: ${cellFocusBackgroundColor} !important; }`);
+		collector.addRule(`.notebookOverlay .markdown-cell-row:hover,
+			.notebookOverlay .markdown-cell-row.focused { background-color: ${cellFocusBackgroundColor} !important; }`);
 	}
 
 	const focusedEditorIndicatorColor = theme.getColor(focusedEditorIndicator);
@@ -1415,23 +1445,38 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-language-picker:hover { background-color: ${cellStatusBarHoverBg}; }`);
 	}
 
-	// const widgetShadowColor = theme.getColor(widgetShadow);
-	// if (widgetShadowColor) {
-	// 	collector.addRule(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-toolbar {
-	// 		box-shadow:  0 0 8px 4px ${widgetShadowColor}
-	// 	}`)
-	// }
+	const cellShadowColor = theme.getColor(focusedCellShadow);
+	if (cellShadowColor) {
+		// Code cells
+		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-shadow { box-shadow: 0px 2px 8px 2px ${cellShadowColor} }`);
+
+		// Markdown cells
+		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row:hover,
+		.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused { box-shadow: 0px 2px 8px 2px ${cellShadowColor} }`);
+	}
+
+	const cellInsertionIndicatorColor = theme.getColor(cellInsertionIndicator);
+	if (cellInsertionIndicatorColor) {
+		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${cellInsertionIndicatorColor}; }`);
+	}
 
 	// Cell Margin
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell.code { margin-left: ${CODE_CELL_LEFT_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row { padding-top: ${EDITOR_TOP_MARGIN}px; }`);
-	collector.addRule(`.notebookOverlay .output { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
-	collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
+	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row { padding-bottom: ${CELL_BOTTOM_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row .cell-bottom-toolbar-container { margin-top: ${CELL_BOTTOM_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .output { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px; }`);
+	collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px; }`);
 
 	collector.addRule(`.notebookOverlay .markdown-cell-row .cell .cell-editor-part { margin-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell.markdown { padding-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.notebookOverlay .cell .run-button-container { width: ${CELL_RUN_GUTTER}px; }`);
-	collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { left: ${CELL_MARGIN + CELL_RUN_GUTTER}px; right: ${CELL_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .cell-drag-image .cell-editor-container > div { padding: ${EDITOR_TOP_PADDING}px 16px ${EDITOR_BOTTOM_PADDING}px 16px; }`);
-	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .notebook-cell-focus-indicator { left: ${CELL_MARGIN}px; bottom: ${BOTTOM_CELL_TOOLBAR_HEIGHT}px; }`);
+	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top { height: ${EDITOR_TOP_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side { bottom: ${BOTTOM_CELL_TOOLBAR_HEIGHT}px; }`);
+	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator { width: ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px; }`);
+	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator.cell-focus-indicator-right { width: ${CELL_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom { height: ${CELL_BOTTOM_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-shadow-container-bottom { top: ${CELL_BOTTOM_MARGIN}px; }`);
 });

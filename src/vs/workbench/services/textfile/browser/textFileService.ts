@@ -152,7 +152,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 	}
 
-	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+	async create(resource: URI, value?: string | ITextSnapshot | VSBuffer, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
 		// file operation participation
 		await this.workingCopyFileService.runFileOperationParticipants(resource, undefined, FileOperation.CREATE);
@@ -175,8 +175,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return stat;
 	}
 
-	protected doCreate(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
-		return this.fileService.createFile(resource, toBufferOrReadable(value), options);
+	protected doCreate(resource: URI, value?: string | ITextSnapshot | VSBuffer, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+		return this.fileService.createFile(resource, value instanceof VSBuffer ? value : toBufferOrReadable(value), options);
 	}
 
 	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
@@ -462,7 +462,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Try to place where last active file was if any
 		// Otherwise fallback to user home
-		return joinPath(this.fileDialogService.defaultFilePath() || (await this.pathService.userHome), suggestedFilename);
+		return joinPath(this.fileDialogService.defaultFilePath() || (await this.pathService.userHome()), suggestedFilename);
 	}
 
 	//#endregion

@@ -19,62 +19,6 @@ process.on('SIGPIPE', () => {
 
 //#endregion
 
-//#region Add support for redirecting the loading of node modules
-
-exports.injectNodeModuleLookupPath = function (injectPath) {
-	if (!injectPath) {
-		throw new Error('Missing injectPath');
-	}
-
-	const Module = require('module');
-	const path = require('path');
-
-	const nodeModulesPath = path.join(__dirname, '../node_modules');
-
-	// @ts-ignore
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
-
-	// @ts-ignore
-	Module._resolveLookupPaths = function (moduleName, parent) {
-		const paths = originalResolveLookupPaths(moduleName, parent);
-		if (Array.isArray(paths)) {
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === nodeModulesPath) {
-					paths.splice(i, 0, injectPath);
-					break;
-				}
-			}
-		}
-
-		return paths;
-	};
-};
-
-//#endregion
-
-//#region Remove global paths from the node lookup paths
-
-exports.removeGlobalNodeModuleLookupPaths = function () {
-	const Module = require('module');
-	// @ts-ignore
-	const globalPaths = Module.globalPaths;
-
-	// @ts-ignore
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
-
-	// @ts-ignore
-	Module._resolveLookupPaths = function (moduleName, parent) {
-		const paths = originalResolveLookupPaths(moduleName, parent);
-		let commonSuffixLength = 0;
-		while (commonSuffixLength < paths.length && paths[paths.length - 1 - commonSuffixLength] === globalPaths[globalPaths.length - 1 - commonSuffixLength]) {
-			commonSuffixLength++;
-		}
-		return paths.slice(0, paths.length - commonSuffixLength);
-	};
-};
-
-//#endregion
-
 //#region Add support for using node_modules.asar
 
 /**
@@ -139,57 +83,6 @@ exports.uriFromPath = function (_path) {
 
 //#endregion
 
-//#region FS helpers
-
-/**
- * @param {string} file
- * @returns {Promise<string>}
- */
-exports.readFile = function (file) {
-	const fs = require('fs');
-
-	return new Promise(function (resolve, reject) {
-		fs.readFile(file, 'utf8', function (err, data) {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve(data);
-		});
-	});
-};
-
-/**
- * @param {string} file
- * @param {string} content
- * @returns {Promise<void>}
- */
-exports.writeFile = function (file, content) {
-	const fs = require('fs');
-
-	return new Promise(function (resolve, reject) {
-		fs.writeFile(file, content, 'utf8', function (err) {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve();
-		});
-	});
-};
-
-/**
- * @param {string} dir
- * @returns {Promise<string>}
- */
-exports.mkdirp = function mkdirp(dir) {
-	const fs = require('fs');
-
-	return new Promise((c, e) => fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
-};
-
-//#endregion
-
 //#region NLS helpers
 
 /**
@@ -220,7 +113,7 @@ exports.setupNLS = function () {
 			}
 
 			const bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.json');
-			exports.readFile(bundleFile).then(function (content) {
+			readFile(bundleFile).then(function (content) {
 				const json = JSON.parse(content);
 				bundles[bundle] = json;
 
@@ -228,7 +121,7 @@ exports.setupNLS = function () {
 			}).catch((error) => {
 				try {
 					if (nlsConfig._corruptedFile) {
-						exports.writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+						writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
 					}
 				} finally {
 					cb(error, undefined);
@@ -239,6 +132,27 @@ exports.setupNLS = function () {
 
 	return nlsConfig;
 };
+
+/**
+ * @param {string} file
+ * @returns {Promise<string>}
+ */
+function readFile(file) {
+	const fs = require('fs');
+
+	return fs.promises.readFile(file, 'utf8');
+}
+
+/**
+ * @param {string} file
+ * @param {string} content
+ * @returns {Promise<void>}
+ */
+function writeFile(file, content) {
+	const fs = require('fs');
+
+	return fs.promises.writeFile(file, content, 'utf8');
+}
 
 //#endregion
 

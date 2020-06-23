@@ -47,6 +47,7 @@ const nodeModules = ['electron', 'original-fs']
 const vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
 	buildfile.base,
+	buildfile.workerExtensionHost,
 	buildfile.workbenchDesktop,
 	buildfile.code
 ]);
@@ -72,6 +73,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 	'out-build/vs/workbench/contrib/webview/electron-browser/pre/*.js',
+	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
 	'out-build/vs/platform/files/**/*.exe',

@@ -501,23 +501,23 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 	}
 
 	renderElement(element: ITreeNode<IDebugSession, FuzzyScore>, _: number, data: ISessionTemplateData): void {
-		this.doRenderElement(element.element, element.element.getLabel(), createMatches(element.filterData), data);
+		this.doRenderElement(element.element, element.element, createMatches(element.filterData), data);
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IDebugSession>, FuzzyScore>, index: number, templateData: ISessionTemplateData, height: number | undefined): void {
 		const lastElement = node.element.elements[node.element.elements.length - 1];
 		const matches = createMatches(node.filterData);
-		const label = node.element.elements[0].getLabel();
-		this.doRenderElement(lastElement, label, matches, templateData);
+		const first = node.element.elements[0];
+		this.doRenderElement(lastElement, first, matches, templateData);
 	}
 
-	private doRenderElement(session: IDebugSession, label: string, matches: IMatch[], data: ISessionTemplateData): void {
+	private doRenderElement(session: IDebugSession, first: IDebugSession, matches: IMatch[], data: ISessionTemplateData): void {
 		data.session.title = nls.localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
-		data.label.set(label, matches);
+		data.label.set(first.getLabel(), matches);
 		const thread = session.getAllThreads().find(t => t.stopped);
 
 		const setActionBar = () => {
-			const actions = getActions(this.instantiationService, session);
+			const actions = getActions(this.instantiationService, session, first);
 
 			const primary: IAction[] = actions;
 			const secondary: IAction[] = [];
@@ -940,7 +940,7 @@ class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallS
 	}
 }
 
-function getActions(instantiationService: IInstantiationService, element: IDebugSession | IThread): IAction[] {
+function getActions(instantiationService: IInstantiationService, element: IDebugSession | IThread, sessionForStopOrDisconnect?: IDebugSession): IAction[] {
 	const getThreadActions = (thread: IThread): IAction[] => {
 		return [
 			thread.stopped ? instantiationService.createInstance(ContinueAction, thread) : instantiationService.createInstance(PauseAction, thread),
@@ -955,7 +955,9 @@ function getActions(instantiationService: IInstantiationService, element: IDebug
 	}
 
 	const session = <IDebugSession>element;
-	const stopOrDisconectAction = isSessionAttach(session) ? instantiationService.createInstance(DisconnectAction, session) : instantiationService.createInstance(StopAction, session);
+	let sessionOrParent = sessionForStopOrDisconnect || session;
+	// Use the parent session for disconnect and stop so the compressed element stop would effect all elements #99736
+	const stopOrDisconectAction = isSessionAttach(sessionOrParent) ? instantiationService.createInstance(DisconnectAction, sessionOrParent) : instantiationService.createInstance(StopAction, sessionOrParent);
 	const restartAction = instantiationService.createInstance(RestartAction, session);
 	const threads = session.getAllThreads();
 	if (threads.length === 1) {
