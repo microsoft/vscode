@@ -290,6 +290,16 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		this.model.rerender(compressedNode);
 	}
 
+	updateElementHeight(element: T, height: number): void {
+		const compressedNode = this.getCompressedNode(element);
+
+		if (!compressedNode) {
+			return;
+		}
+
+		this.model.updateElementHeight(compressedNode, height);
+	}
+
 	refilter(): void {
 		this.model.refilter();
 	}
@@ -493,6 +503,10 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 
 	rerender(location: T | null): void {
 		return this.model.rerender(location);
+	}
+
+	updateElementHeight(element: T, height: number): void {
+		this.model.updateElementHeight(element, height);
 	}
 
 	refilter(): void {

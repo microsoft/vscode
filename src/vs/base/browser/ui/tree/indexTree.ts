@@ -40,6 +40,10 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 		this.model.rerender(location);
 	}
 
+	updateElementHeight(location: number[], height: number): void {
+		this.model.updateElementHeight(location, height);
+	}
+
 	protected createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
 		return new IndexTreeModel(user, view, this.rootElement, options);
 	}

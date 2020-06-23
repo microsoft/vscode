@@ -216,7 +216,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		}
 	}
 
-	updateElementHeight(location: number[], height: number) {
+	updateElementHeight(location: number[], height: number): void {
 		if (location.length === 0) {
 			throw new TreeError(this.user, 'Invalid tree location');
 		}

@@ -46,6 +46,10 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		this.model.rerender(element);
 	}
 
+	updateElementHeight(element: T, height: number): void {
+		this.model.updateElementHeight(element, height);
+	}
+
 	resort(element: T, recursive = true): void {
 		this.model.resort(element, recursive);
 	}

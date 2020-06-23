@@ -15,6 +15,7 @@ export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>
 export interface IObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> extends ITreeModel<T | null, TFilterData, T | null> {
 	setChildren(element: T | null, children: Iterable<ITreeElement<T>> | undefined): void;
 	resort(element?: T | null, recursive?: boolean): void;
+	updateElementHeight(element: T, height: number): void;
 }
 
 export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> {
@@ -166,6 +167,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	rerender(element: T | null): void {
 		const location = this.getElementLocation(element);
 		this.model.rerender(location);
+	}
+
+	updateElementHeight(element: T, height: number): void {
+		const location = this.getElementLocation(element);
+		this.model.updateElementHeight(location, height);
 	}
 
 	resort(element: T | null = null, recursive = true): void {
