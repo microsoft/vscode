@@ -846,7 +846,10 @@ class ViewModel {
 
 	private onDidSpliceRepositories({ start, deleteCount, toInsert }: ISplice<ISCMRepository>): void {
 		const itemsToInsert = toInsert.map(repository => {
-			const disposable = repository.provider.groups.onDidSplice(splice => this.onDidSpliceGroups(item, splice));
+			const disposable = combinedDisposable(
+				repository.provider.groups.onDidSplice(splice => this.onDidSpliceGroups(item, splice)),
+				repository.input.onDidChangeVisibility(() => this.refresh(item))
+			);
 			const groupItems = repository.provider.groups.elements.map(group => this.createGroupItem(group));
 			const item: IRepositoryItem = { element: repository, groupItems, disposable };
 
@@ -944,10 +947,13 @@ class ViewModel {
 
 	private render(item: IRepositoryItem | IGroupItem): ICompressedTreeElement<TreeElement> {
 		if (isRepositoryItem(item)) {
-			const children: ICompressedTreeElement<TreeElement>[] = [
-				{ element: item.element.input, incompressible: true, collapsible: false },
-				...item.groupItems.map(i => this.render(i))
-			];
+			const children: ICompressedTreeElement<TreeElement>[] = [];
+
+			if (item.element.input.visible) {
+				children.push({ element: item.element.input, incompressible: true, collapsible: false });
+			}
+
+			children.push(...item.groupItems.map(i => this.render(i)));
 
 			return { element: item.element, children, incompressible: true, collapsible: true };
 		} else {
@@ -1291,15 +1297,6 @@ class SCMInputWidget extends Disposable {
 		this.repositoryDisposables.add(input.repository.provider.onDidChangeCommitTemplate(updateTemplate, this));
 		updateTemplate();
 
-		// Update visibility
-		// TODO@Joao: input visibility should be a list splice
-		// const onDidChangeVisibility = () => {
-		// 	toggleClass(this.element, 'hidden', !input.visible);
-		// 	this._onDidChangeHeight.fire();
-		// };
-		// this.repositoryDisposables.add(input.onDidChangeVisibility(onDidChangeVisibility, this));
-		// onDidChangeVisibility();
-
 		// Save model
 		this.model = { input, textModel };
 	}
@@ -1518,7 +1515,7 @@ export class SCMViewPane extends ViewPane {
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
 		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
 
-		this._register(this.onDidChangeBodyVisibility(this._onDidChangeVisibility, this));
+		this._register(this.onDidChangeBodyVisibility(this.viewModel.setVisible, this.viewModel));
 
 		this.updateActions();
 	}
@@ -1548,25 +1545,8 @@ export class SCMViewPane extends ViewPane {
 		this.layoutCache.width = width;
 		this._onDidLayout.fire();
 
-		// if (this.repository.input.visible) {
-		// 	removeClass(this.inputContainer, 'hidden');
-
-		// 	const editorContentHeight = this.inputEditor.getContentHeight();
-		// 	const editorHeight = Math.min(editorContentHeight, 134);
-		// 	this.inputEditor.layout({ height: editorHeight, width: width! - 12 - 16 - 2 });
-
-		// 	this.validationContainer.style.top = `${editorHeight + 1}px`;
-
-		// 	const listHeight = height - (editorHeight + 5 + 2 + 5);
-		// 	this.listContainer.style.height = `${listHeight}px`;
-		// 	this.tree.layout(listHeight, width);
-		// } else {
-		// 	addClass(this.inputContainer, 'hidden');
-
-		// 	this.inputEditor.onHide();
 		this.listContainer.style.height = `${height}px`;
 		this.tree.layout(height, width);
-		// }
 	}
 
 	focus(): void {
@@ -1575,17 +1555,6 @@ export class SCMViewPane extends ViewPane {
 		if (this.isExpanded()) {
 			this.tree.domFocus();
 		}
-	}
-
-	private _onDidChangeVisibility(visible: boolean): void {
-		this.viewModel.setVisible(visible);
-
-		// TODO@joao
-		// if (this.repository.input.visible && visible) {
-		// 	this.inputEditor.onVisible();
-		// } else {
-		// 	this.inputEditor.onHide();
-		// }
 	}
 
 	getActions(): IAction[] {
@@ -1650,7 +1619,7 @@ export class SCMViewPane extends ViewPane {
 			context = element.provider;
 			actions = menus.getRepositoryContextActions();
 		} else if (isSCMInput(element)) {
-			// TODO@joao
+			// noop
 		} else if (isSCMResourceGroup(element)) {
 			const menus = this.menus.getRepositoryMenus(element.provider);
 			actions = menus.getResourceGroupContextActions(element);
