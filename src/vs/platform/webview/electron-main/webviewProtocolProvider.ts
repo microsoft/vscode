@@ -23,6 +23,10 @@ interface WebviewMetadata {
 
 export class WebviewProtocolProvider extends Disposable {
 
+	private static validWebviewFilePaths = new Map([
+		['/index.html', 'index.html'],
+	]);
+
 	private readonly webviewMetadata = new Map<string, WebviewMetadata>();
 
 	constructor(
@@ -87,8 +91,23 @@ export class WebviewProtocolProvider extends Disposable {
 
 			return callback({ data: null, statusCode: 404 });
 		});
-
 		this._register(toDisposable(() => sess.protocol.unregisterProtocol(Schemas.vscodeWebviewResource)));
+
+
+		sess.protocol.registerFileProtocol(Schemas.vscodeWebview, (request, callback: any) => {
+			try {
+				const uri = URI.parse(request.url);
+				const entry = WebviewProtocolProvider.validWebviewFilePaths.get(uri.path);
+				if (typeof entry === 'string') {
+					const url = require.toUrl(`vs/workbench/contrib/webview/electron-browser/pre/${entry}`);
+					return callback(url.replace('file://', ''));
+				}
+			} catch {
+				// noop
+			}
+			callback({ error: -10 /* ACCESS_DENIED - https://cs.chromium.org/chromium/src/net/base/net_error_list.h?l=32 */ });
+		});
+		this._register(toDisposable(() => sess.protocol.unregisterProtocol(Schemas.vscodeWebview)));
 	}
 
 	private streamToNodeReadable(stream: VSBufferReadableStream): Readable {
