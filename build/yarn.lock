@@ -2673,7 +2673,7 @@ vscode-ripgrep@^1.6.2:
     https-proxy-agent "^4.0.0"
     proxy-from-env "^1.1.0"
 
-vscode-telemetry-extractor@^1.6.0:
+vscode-telemetry-extractor@^1.5.4:
   version "1.6.0"
   resolved "https://registry.yarnpkg.com/vscode-telemetry-extractor/-/vscode-telemetry-extractor-1.6.0.tgz#e9d9c1d24863cce8d3d715f0287de3b31eb90c56"
   integrity sha512-zSxvkbyAMa1lTRGIHfGg7gW2e9Sey+2zGYD19uNWCsVEfoXAr2NB6uzb0sNHtbZ2SSqxSePmFXzBAavsudT5fw==
