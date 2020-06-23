@@ -1407,9 +1407,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private async doHandleExplorerDrop(sources: ExplorerItem[], target: ExplorerItem, isCopy: boolean): Promise<void> {
 		if (isCopy) {
-			this.doHandleExplorerDropOnCopy(sources, target);
+			return this.doHandleExplorerDropOnCopy(sources, target);
 		} else {
-			this.doHandleExplorerDropOnMove(sources, target);
+			return this.doHandleExplorerDropOnMove(sources, target);
 		}
 	}
 
