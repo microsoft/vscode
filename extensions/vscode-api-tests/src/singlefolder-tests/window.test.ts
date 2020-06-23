@@ -145,22 +145,22 @@ suite.only('vscode API - window', () => {
 		});
 	});
 
-	test('active editor not always correct... #49125', async function () {
-		const randomFile1 = await createRandomFile();
-		const randomFile2 = await createRandomFile();
+	// test('active editor not always correct... #49125', async function () {
+	// 	const randomFile1 = await createRandomFile();
+	// 	const randomFile2 = await createRandomFile();
 
-		const [docA, docB] = await Promise.all([
-			workspace.openTextDocument(randomFile1),
-			workspace.openTextDocument(randomFile2)
-		]);
-		for (let c = 0; c < 4; c++) {
-			let editorA = await window.showTextDocument(docA, ViewColumn.One);
-			assert.equal(window.activeTextEditor, editorA);
+	// 	const [docA, docB] = await Promise.all([
+	// 		workspace.openTextDocument(randomFile1),
+	// 		workspace.openTextDocument(randomFile2)
+	// 	]);
+	// 	for (let c = 0; c < 4; c++) {
+	// 		let editorA = await window.showTextDocument(docA, ViewColumn.One);
+	// 		assert.equal(window.activeTextEditor, editorA);
 
-			let editorB = await window.showTextDocument(docB, ViewColumn.Two);
-			assert.equal(window.activeTextEditor, editorB);
-		}
-	});
+	// 		let editorB = await window.showTextDocument(docB, ViewColumn.Two);
+	// 		assert.equal(window.activeTextEditor, editorB);
+	// 	}
+	// });
 
 	test('default column when opening a file', async () => {
 		const [docA, docB, docC] = await Promise.all([
