@@ -649,9 +649,15 @@ export interface IModeSupport {
 export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeSupport {
 
 	/**
-	 * Gets the resource this editor is about.
+	 * Gets the resource this file input is about.
 	 */
 	readonly resource: URI;
+
+	/**
+	 * Gets the label of the editor. In most cases this will
+	 * be identical to the resource.
+	 */
+	readonly label: URI;
 
 	/**
 	 * Sets the preferred label to use for this file input.
@@ -782,16 +788,12 @@ export class SideBySideEditorInput extends EditorInput {
 	}
 
 	matches(otherInput: unknown): boolean {
-		if (super.matches(otherInput) === true) {
+		if (otherInput === this) {
 			return true;
 		}
 
-		if (otherInput) {
-			if (!(otherInput instanceof SideBySideEditorInput)) {
-				return false;
-			}
-
-			return this.secondary.matches(otherInput.secondary) && this.primary.matches(otherInput.primary);
+		if (otherInput instanceof SideBySideEditorInput) {
+			return this.primary.matches(otherInput.primary) && this.secondary.matches(otherInput.secondary);
 		}
 
 		return false;

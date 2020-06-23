@@ -450,6 +450,8 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$stopSendingDataEvents(): void;
 	$startHandlingLinks(): void;
 	$stopHandlingLinks(): void;
+	$startLinkProvider(): void;
+	$stopLinkProvider(): void;
 	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined): void;
 
 	// Process
@@ -709,7 +711,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void>;
 	$updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata | undefined): Promise<void>;
 	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void>;
-	$postMessage(handle: number, value: any): Promise<boolean>;
+	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 
 	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
 	$onContentChange(resource: UriComponents, viewType: string): void;
@@ -1380,6 +1382,17 @@ export interface IShellAndArgsDto {
 	args: string[] | string | undefined;
 }
 
+export interface ITerminalLinkDto {
+	/** The ID of the link to enable activation and disposal. */
+	id: number;
+	/** The startIndex of the link in the line. */
+	startIndex: number;
+	/** The length of the link in the line. */
+	length: number;
+	/** The descriptive label for what the link does when activated. */
+	label?: string;
+}
+
 export interface ITerminalDimensionsDto {
 	columns: number;
 	rows: number;
@@ -1406,6 +1419,8 @@ export interface ExtHostTerminalServiceShape {
 	$getAvailableShells(): Promise<IShellDefinitionDto[]>;
 	$getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	$handleLink(id: number, link: string): Promise<boolean>;
+	$provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]>;
+	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 }
 
@@ -1510,7 +1525,6 @@ export interface ExtHostDebugServiceShape {
 
 export interface DecorationRequest {
 	readonly id: number;
-	readonly handle: number;
 	readonly uri: UriComponents;
 }
 
@@ -1518,7 +1532,7 @@ export type DecorationData = [number, boolean, string, string, ThemeColor];
 export type DecorationReply = { [id: number]: DecorationData; };
 
 export interface ExtHostDecorationsShape {
-	$provideDecorations(requests: DecorationRequest[], token: CancellationToken): Promise<DecorationReply>;
+	$provideDecorations(handle: number, requests: DecorationRequest[], token: CancellationToken): Promise<DecorationReply>;
 }
 
 export interface ExtHostWindowShape {
@@ -1595,7 +1609,7 @@ export interface ExtHostNotebookShape {
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void;
 	$renderOutputs(uriComponents: UriComponents, id: string, request: IOutputRenderRequest<UriComponents>): Promise<IOutputRenderResponse<UriComponents> | undefined>;
 	$renderOutputs2<T>(uriComponents: UriComponents, id: string, request: IOutputRenderRequest<T>): Promise<IOutputRenderResponse<T> | undefined>;
-	$onDidReceiveMessage(editorId: string, message: any): void;
+	$onDidReceiveMessage(editorId: string, rendererId: string | undefined, message: unknown): void;
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void;
 	$acceptEditorPropertiesChanged(uriComponents: UriComponents, data: INotebookEditorPropertiesChangeData): void;
 	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): Promise<void>;

@@ -53,7 +53,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
 import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer } from 'vs/workbench/common/views';
 import { UserDataSyncViewPaneContainer, UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncViews';
-import { IUserDataSyncWorkbenchService, CONTEXT_ENABLE_VIEWS, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, CONTEXT_ENABLE_VIEWS, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, SHOW_SYNCED_DATA_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -143,6 +143,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this._register(userDataSyncService.onDidChangeConflicts(() => this.onDidChangeConflicts(this.userDataSyncService.conflicts)));
 			this._register(userDataSyncService.onSyncErrors(errors => this.onSynchronizerErrors(errors)));
 			this._register(userDataAutoSyncService.onError(error => this.onAutoSyncError(error)));
+			this._register(userDataAutoSyncService.onTurnOnSync(() => this.turningOnSync = true));
+			this._register(userDataAutoSyncService.onDidTurnOnSync(() => this.turningOnSync = false));
 
 			this.registerActions();
 			this.registerViews();
@@ -402,7 +404,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async turnOn(): Promise<void> {
-		this.turningOnSync = true;
 		try {
 			if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
 				if (!await this.askForConfirmation()) {
@@ -438,8 +439,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				}
 			}
 			this.notificationService.error(localize('turn on failed', "Error while starting Sync: {0}", toErrorMessage(e)));
-		} finally {
-			this.turningOnSync = false;
 		}
 	}
 
@@ -887,6 +886,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						items.push({ type: 'separator' });
 					}
 					items.push({ id: configureSyncCommand.id, label: configureSyncCommand.title });
+					items.push({ id: showSyncSettingsCommand.id, label: showSyncSettingsCommand.title });
+					items.push({ id: SHOW_SYNCED_DATA_COMMAND_ID, label: localize('show synced data', "Preferences Sync: Show Synced Data") });
 					items.push({ type: 'separator' });
 					items.push({ id: syncNowCommand.id, label: syncNowCommand.title, description: syncNowCommand.description(that.userDataSyncService) });
 					if (that.userDataAutoSyncService.canToggleEnablement()) {

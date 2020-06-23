@@ -14,7 +14,7 @@ import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { ITerminalService, ITerminalInstance, ITerminalTab, TerminalShellType, WindowsShellType, TerminalLinkHandlerCallback, LINK_INTERCEPT_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService, ITerminalInstance, ITerminalTab, TerminalShellType, WindowsShellType, TerminalLinkHandlerCallback, LINK_INTERCEPT_THRESHOLD, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
@@ -54,6 +54,8 @@ export class TerminalService implements ITerminalService {
 	private _extHostsReady: { [authority: string]: IExtHostReadyEntry | undefined } = {};
 	private _activeTabIndex: number;
 	private _linkHandlers: { [key: string]: TerminalLinkHandlerCallback } = {};
+	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
+	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
@@ -72,6 +74,8 @@ export class TerminalService implements ITerminalService {
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
 	private readonly _onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
+	private readonly _onInstanceLinksReady = new Emitter<ITerminalInstance>();
+	public get onInstanceLinksReady(): Event<ITerminalInstance> { return this._onInstanceLinksReady.event; }
 	private readonly _onInstanceRequestSpawnExtHostProcess = new Emitter<ISpawnExtHostProcessRequest>();
 	public get onInstanceRequestSpawnExtHostProcess(): Event<ISpawnExtHostProcessRequest> { return this._onInstanceRequestSpawnExtHostProcess.event; }
 	private readonly _onInstanceRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
@@ -128,6 +132,7 @@ export class TerminalService implements ITerminalService {
 			const instance = this.getActiveInstance();
 			this._onActiveInstanceChanged.fire(instance ? instance : undefined);
 		});
+		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
 
 		this._handleContextKeys();
 	}
@@ -429,6 +434,7 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		instance.addDisposable(instance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
+		instance.addDisposable(instance.onLinksReady(this._onInstanceLinksReady.fire, this._onInstanceLinksReady));
 		instance.addDisposable(instance.onDimensionsChanged(() => this._onInstanceDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
@@ -476,6 +482,34 @@ export class TerminalService implements ITerminalService {
 				}
 			}
 		};
+	}
+
+	public registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable {
+		const disposables: IDisposable[] = [];
+		this._linkProviders.add(linkProvider);
+		for (const instance of this.terminalInstances) {
+			if (instance.areLinksReady) {
+				disposables.push(instance.registerLinkProvider(linkProvider));
+			}
+		}
+		this._linkProviderDisposables.set(linkProvider, disposables);
+		return {
+			dispose: () => {
+				const disposables = this._linkProviderDisposables.get(linkProvider) || [];
+				for (const disposable of disposables) {
+					disposable.dispose();
+				}
+				this._linkProviders.delete(linkProvider);
+			}
+		};
+	}
+
+	private _setInstanceLinkProviders(instance: ITerminalInstance): void {
+		for (const linkProvider of this._linkProviders) {
+			const disposables = this._linkProviderDisposables.get(linkProvider);
+			const provider = instance.registerLinkProvider(linkProvider);
+			disposables?.push(provider);
+		}
 	}
 
 	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined {

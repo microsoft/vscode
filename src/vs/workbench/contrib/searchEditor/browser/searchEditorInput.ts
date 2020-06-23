@@ -280,7 +280,7 @@ export class SearchEditorInput extends EditorInput {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? network.Schemas.vscodeRemote : network.Schemas.file;
 
-		return joinPath(this.fileDialogService.defaultFilePath(schemeFilter) || (await this.pathService.userHome), searchFileName);
+		return joinPath(this.fileDialogService.defaultFilePath(schemeFilter) || (await this.pathService.userHome()), searchFileName);
 	}
 }
 

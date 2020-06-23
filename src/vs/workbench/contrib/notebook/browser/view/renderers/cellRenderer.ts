@@ -38,9 +38,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { BOTTOM_CELL_TOOLBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { BOTTOM_CELL_TOOLBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, CELL_BOTTOM_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CancelCellAction, ChangeCellLanguageAction, ExecuteCellAction, INotebookCellActionContext, CELL_TITLE_GROUP_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { BaseCellRenderTemplate, CellEditState, CodeCellRenderTemplate, ICellViewModel, INotebookCellList, INotebookEditor, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CodeCellRenderTemplate, ICellViewModel, INotebookCellList, INotebookEditor, MarkdownCellRenderTemplate, isCodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
@@ -199,14 +199,13 @@ abstract class AbstractCellRenderer {
 		});
 
 		toolbar.getContainer().style.height = `${BOTTOM_CELL_TOOLBAR_HEIGHT}px`;
-
 		container.style.height = `${BOTTOM_CELL_TOOLBAR_HEIGHT}px`;
 
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
 		const menu = disposables.add(cellMenu.getCellInsertionMenu(contextKeyService));
 
 		const actions = this.getCellToolbarActions(menu);
-		toolbar.setActions(actions.primary, actions.secondary)();
+		toolbar.setActions(actions.primary, actions.secondary);
 
 		return toolbar;
 	}
@@ -223,9 +222,6 @@ abstract class AbstractCellRenderer {
 				const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
 				container.style.top = `${bottomToolbarOffset}px`;
 			}));
-		} else {
-			container.style.position = 'static';
-			container.style.height = `${BOTTOM_CELL_TOOLBAR_HEIGHT}`;
 		}
 	}
 
@@ -267,7 +263,7 @@ abstract class AbstractCellRenderer {
 			const actions = this.getCellToolbarActions(menu);
 
 			const hadFocus = DOM.isAncestor(document.activeElement, templateData.toolbar.getContainer());
-			templateData.toolbar.setActions(actions.primary, actions.secondary)();
+			templateData.toolbar.setActions(actions.primary, actions.secondary);
 			if (hadFocus) {
 				this.notebookEditor.focus();
 			}
@@ -276,9 +272,15 @@ abstract class AbstractCellRenderer {
 				if (actions.primary.length || actions.secondary.length) {
 					templateData.container.classList.add('cell-has-toolbar-actions');
 					templateData.focusIndicator.style.top = `${EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN}px`;
+					if (isCodeCellRenderTemplate(templateData)) {
+						templateData.focusIndicatorRight.style.top = `${EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN}px`;
+					}
 				} else {
 					templateData.container.classList.remove('cell-has-toolbar-actions');
 					templateData.focusIndicator.style.top = `${EDITOR_TOP_MARGIN}px`;
+					if (isCodeCellRenderTemplate(templateData)) {
+						templateData.focusIndicatorRight.style.top = `${EDITOR_TOP_MARGIN}px`;
+					}
 				}
 			}
 		};
@@ -336,7 +338,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
 		const toolbar = disposables.add(this.createToolbar(container));
-		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
+		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side'));
 		focusIndicator.setAttribute('draggable', 'true');
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
@@ -715,7 +717,8 @@ export class CellLanguageStatusBarItem extends Disposable {
 	}
 
 	private render(): void {
-		this.labelElement.textContent = this.modeService.getLanguageName(this.cell!.language!);
+		const modeId = this.modeService.getModeIdForLanguageName(this.cell!.language) || this.cell!.language;
+		this.labelElement.textContent = this.modeService.getLanguageName(modeId) || this.modeService.getLanguageName('plaintext');
 	}
 }
 
@@ -803,11 +806,6 @@ class CodeCellDragImageRenderer {
 			return null;
 		}
 
-		const focusIndicator = dragImageContainer.querySelector('.notebook-cell-focus-indicator') as HTMLElement;
-		if (focusIndicator) {
-			focusIndicator.style.height = '40px';
-		}
-
 		const richEditorText = new EditorTextRenderer().getRichText(editor, new Range(1, 1, 1, 1000));
 		if (!richEditorText) {
 			return null;
@@ -865,8 +863,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		container.classList.add('code-cell-row');
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
+
+		const focusIndicatorTop = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
+		DOM.append(
+			DOM.append(focusIndicatorTop, $('.cell-shadow-container.cell-shadow-container-top')),
+			$('.cell-shadow.cell-shadow-top'));
 		const toolbar = disposables.add(this.createToolbar(container));
-		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
+		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side'));
 		focusIndicator.setAttribute('draggable', 'true');
 
 		const cellContainer = DOM.append(container, $('.cell.code'));
@@ -901,12 +904,21 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const timer = new TimerRenderer(statusBar.durationContainer);
 
 		const outputContainer = DOM.append(container, $('.output'));
+
+		const focusIndicatorRight = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-right'));
+		focusIndicatorRight.setAttribute('draggable', 'true');
+
 		const focusSinkElement = DOM.append(container, $('.cell-editor-focus-sink'));
 		focusSinkElement.setAttribute('tabindex', '0');
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 		DOM.append(bottomCellContainer, $('.separator'));
 		const betweenCellToolbar = this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService);
 		DOM.append(bottomCellContainer, $('.separator'));
+
+		const focusIndicatorBottom = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom'));
+		DOM.append(
+			DOM.append(focusIndicatorBottom, $('.cell-shadow-container.cell-shadow-container-bottom')),
+			$('.cell-shadow.cell-shadow-bottom'));
 
 		const templateData: CodeCellRenderTemplate = {
 			contextKeyService,
@@ -918,6 +930,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			languageStatusBarItem: statusBar.languageStatusBarItem,
 			progressBar,
 			focusIndicator,
+			focusIndicatorRight,
+			focusIndicatorBottom,
 			toolbar,
 			betweenCellToolbar,
 			focusSinkElement,
@@ -956,13 +970,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 			templateData.runToolbar.setActions([
 				this.instantiationService.createInstance(CancelCellAction)
-			])();
+			]);
 		} else {
 			templateData.progressBar.hide();
 
 			templateData.runToolbar.setActions([
 				this.instantiationService.createInstance(ExecuteCellAction)
-			])();
+			]);
 		}
 	}
 
@@ -1024,6 +1038,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		DOM.toggleClass(templateData.container, 'cell-output-hover', element.outputIsHovered);
 	}
 
+	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
+		templateData.focusIndicator.style.height = `${element.layoutInfo.indicatorHeight}px`;
+		templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
+		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT - CELL_BOTTOM_MARGIN}px`;
+		templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
+	}
+
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
 		this.commonRenderElement(element, index, templateData);
 
@@ -1042,14 +1063,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor.viewModel?.notebookDocument!, element));
 
-		templateData.focusIndicator.style.height = `${element.layoutInfo.indicatorHeight}px`;
-		templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
+		this.updateForLayout(element, templateData);
 		elementDisposables.add(element.onDidChangeLayout(() => {
-			templateData.focusIndicator.style.height = `${element.layoutInfo.indicatorHeight}px`;
-			templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
+			this.updateForLayout(element, templateData);
 		}));
 
 		this.updateForMetadata(element, templateData);
+		this.updateForHover(element, templateData);
 		elementDisposables.add(element.onDidChangeState((e) => {
 			if (e.metadataChanged) {
 				this.updateForMetadata(element, templateData);
@@ -1086,7 +1106,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	disposeElement(element: ICellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
 		templateData.elementDisposables.clear();
 		this.renderedEditors.delete(element);
-		templateData.focusIndicator.style.height = 'initial';
 	}
 }
 

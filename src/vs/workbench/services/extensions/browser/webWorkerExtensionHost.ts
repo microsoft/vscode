@@ -25,6 +25,15 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
 
+export interface IWebWorkerExtensionHostInitData {
+	readonly autoStart: boolean;
+	readonly extensions: IExtensionDescription[];
+}
+
+export interface IWebWorkerExtensionHostDataProvider {
+	getInitData(): Promise<IWebWorkerExtensionHostInitData>;
+}
+
 export class WebWorkerExtensionHost implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.LocalWebWorker;
@@ -37,11 +46,11 @@ export class WebWorkerExtensionHost implements IExtensionHost {
 	private readonly _onDidExit = new Emitter<[number, string | null]>();
 	readonly onExit: Event<[number, string | null]> = this._onDidExit.event;
 
+	private readonly _extensionHostLogsLocation: URI;
 	private readonly _extensionHostLogFile: URI;
 
 	constructor(
-		private readonly _extensions: Promise<IExtensionDescription[]>,
-		private readonly _extensionHostLogsLocation: URI,
+		private readonly _initDataProvider: IWebWorkerExtensionHostDataProvider,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -49,6 +58,7 @@ export class WebWorkerExtensionHost implements IExtensionHost {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 	) {
+		this._extensionHostLogsLocation = URI.file(this._environmentService.logsPath).with({ scheme: this._environmentService.logFile.scheme });
 		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
 	}
 
@@ -129,7 +139,7 @@ export class WebWorkerExtensionHost implements IExtensionHost {
 	}
 
 	private async _createExtHostInitData(): Promise<IInitData> {
-		const [telemetryInfo, extensionDescriptions] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._extensions]);
+		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 		const workspace = this._contextService.getWorkspace();
 		return {
 			commit: this._productService.commit,
@@ -154,12 +164,12 @@ export class WebWorkerExtensionHost implements IExtensionHost {
 			},
 			resolvedExtensions: [],
 			hostExtensions: [],
-			extensions: extensionDescriptions,
+			extensions: initData.extensions,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
 			logsLocation: this._extensionHostLogsLocation,
 			logFile: this._extensionHostLogFile,
-			autoStart: true,
+			autoStart: initData.autoStart,
 			remote: {
 				authority: this._environmentService.configuration.remoteAuthority,
 				connectionData: null,

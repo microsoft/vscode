@@ -248,7 +248,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// Determine new resulting target resource
 				let targetResource: URI;
-				if (source.toString() === resource.toString()) {
+				if (extUri.isEqual(source, resource)) {
 					targetResource = target; // file got moved
 				} else {
 					const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);

@@ -286,6 +286,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
+	protected _checkEnabledAndProposedAPI(extensions: IExtensionDescription[]): IExtensionDescription[] {
+		// enable or disable proposed API per extension
+		this._checkEnableProposedApi(extensions);
+
+		// keep only enabled extensions
+		return extensions.filter(extension => this._isEnabled(extension));
+	}
+
 	private _isExtensionUnderDevelopment(extension: IExtensionDescription): boolean {
 		if (this._environmentService.isExtensionDevelopment) {
 			const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
@@ -302,21 +310,17 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected _isEnabled(extension: IExtensionDescription): boolean {
-		return !this._isDisabled(extension);
-	}
-
-	protected _isDisabled(extension: IExtensionDescription): boolean {
 		if (this._isExtensionUnderDevelopment(extension)) {
 			// Never disable extensions under development
-			return false;
+			return true;
 		}
 
 		if (ExtensionIdentifier.equals(extension.identifier, BetterMergeId)) {
 			// Check if this is the better merge extension which was migrated to a built-in extension
-			return true;
+			return false;
 		}
 
-		return !this._extensionEnablementService.isEnabled(toExtension(extension));
+		return this._extensionEnablementService.isEnabled(toExtension(extension));
 	}
 
 	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
