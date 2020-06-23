@@ -59,7 +59,7 @@
 	flex: 0 0 48px;
 	height: 48px;
 	align-self: baseline;
-	font-size: 48px;
+	font-size: 48px !important;
 }
 
 /** Dialog: Message Container */
