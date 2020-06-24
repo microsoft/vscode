@@ -5223,6 +5223,14 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Accessibility information which controls screen reader behavior.
+	 */
+	export interface AccessibilityInformation {
+		label: string;
+		role?: string;
+	}
+
+	/**
 	 * Represents the alignment of status bar items.
 	 */
 	export enum StatusBarAlignment {
@@ -5284,6 +5292,11 @@ declare module 'vscode' {
 		 * are used by VS Code.
 		 */
 		command: string | Command | undefined;
+
+		/**
+		 * Accessibility information used when screen reader interacts with this StatusBar item
+		 */
+		accessibilityInformation?: AccessibilityInformation;
 
 		/**
 		 * Shows the entry in the status bar.
@@ -8375,6 +8388,13 @@ declare module 'vscode' {
 		 * This will show action `extension.deleteFolder` only for items with `contextValue` is `folder`.
 		 */
 		contextValue?: string;
+
+		/**
+		 * Accessibility information used when screen reader interacts with this tree item.
+		 * Generally, a TreeItem has no need to set the `role` of the accessibilityInformation;
+		 * however, there are cases where a TreeItem is not displayed in a tree-like way where setting the `role` may make sense.
+		 */
+		accessibilityInformation?: AccessibilityInformation;
 
 		/**
 		 * @param label A human-readable string describing this item
