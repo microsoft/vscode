@@ -43,22 +43,31 @@ import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogService } from 'vs/platform/log/common/fileLogService';
 import { toLocalISOString } from 'vs/base/common/date';
-import { IndexedDBLogProvider } from 'vs/workbench/services/log/browser/indexedDBLogProvider';
-import { InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
 import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IndexedDBFileSystemProvider, openDatabase as openIndexedDB } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
+
+const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
+const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
 
 class BrowserMain extends Disposable {
+
+	private readonly indexedDB: Promise<IDBDatabase | null>;
 
 	constructor(
 		private readonly domElement: HTMLElement,
 		private readonly configuration: IWorkbenchConstructionOptions
 	) {
 		super();
+		this.indexedDB = openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_LOGS_OBJECT_STORE])
+			.then(null, error => {
+				console.error(error);
+				return null;
+			});
 	}
 
 	async open(): Promise<IWorkbench> {
@@ -209,20 +218,12 @@ class BrowserMain extends Disposable {
 
 		// Logger
 		(async () => {
-			if (browser.isEdge) {
-				fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
+			const indexedDB = await this.indexedDB;
+			if (indexedDB) {
+				const indexedDBLogProvider = new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, INDEXEDDB_LOGS_OBJECT_STORE);
+				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
 			} else {
-				try {
-					const indexedDBLogProvider = new IndexedDBLogProvider(logsPath.scheme);
-					await indexedDBLogProvider.database;
-
-					fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
-				} catch (error) {
-					logService.info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
-					logService.error(error);
-
-					fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
-				}
+				fileService.registerProvider(logsPath.scheme, new InMemoryFileSystemProvider());
 			}
 
 			logService.logger = new MultiplexLogService(coalesce([
