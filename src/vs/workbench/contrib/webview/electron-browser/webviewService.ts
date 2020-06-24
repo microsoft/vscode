@@ -32,12 +32,8 @@ export class ElectronWebviewService implements IWebviewService {
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewElement {
-		const useExternalEndpoint = this._configService.getValue<string>('webview.experimental.useExternalEndpoint');
-		if (useExternalEndpoint) {
-			return this._instantiationService.createInstance(ElectronIframeWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
-		} else {
-			return this._instantiationService.createInstance(ElectronWebviewBasedWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
-		}
+		const useIframes = this._configService.getValue<string>('webview.experimental.useIframes');
+		return this._instantiationService.createInstance(useIframes ? ElectronIframeWebview : ElectronWebviewBasedWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
 	}
 
 	createWebviewOverlay(

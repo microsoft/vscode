@@ -5,7 +5,7 @@
 // @ts-check
 (function () {
 	const id = document.location.search.match(/\bid=([\w-]+)/)[1];
-	const noServiceWorker = /noServiceWorker/.test(document.location.search);
+	const onElectron = /platform=electron/.test(document.location.search);
 
 	const hostMessaging = new class HostMessaging {
 		constructor() {
@@ -37,7 +37,7 @@
 	}();
 
 	const workerReady = new Promise(async (resolveWorkerReady) => {
-		if (noServiceWorker) {
+		if (onElectron) {
 			return resolveWorkerReady();
 		}
 
@@ -100,11 +100,15 @@
 		postMessage: hostMessaging.postMessage.bind(hostMessaging),
 		onMessage: hostMessaging.onMessage.bind(hostMessaging),
 		ready: workerReady,
-		fakeLoad: !noServiceWorker,
-		rewriteCSP: (csp, endpoint) => {
-			const endpointUrl = new URL(endpoint);
-			return csp.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin);
-		}
+		fakeLoad: !onElectron,
+		rewriteCSP: onElectron
+			? (csp) => {
+				return csp.replace(/vscode-resource:(?=(\s|;|$))/g, 'vscode-webview-resource:');
+			}
+			: (csp, endpoint) => {
+				const endpointUrl = new URL(endpoint);
+				return csp.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin);
+			}
 	};
 
 	(/** @type {any} */ (window)).createWebviewManager(host);

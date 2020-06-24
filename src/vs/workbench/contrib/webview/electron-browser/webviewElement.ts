@@ -26,7 +26,7 @@ import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/t
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
-import { WebviewResourceRequestManager } from './webviewResourceRequestManager';
+import { WebviewResourceRequestManager, rewriteVsCodeResourceUrls } from './resourceLoading';
 
 class WebviewKeyboardHandler {
 
@@ -250,21 +250,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	public set html(value: string) {
 		this._myLogService.debug(`Webview(${this.id}): will set html`);
 
-		super.html = this.preprocessHtml(value);
-	}
-
-	private preprocessHtml(value: string): string {
-		return value
-			.replace(/(["'])vscode-resource:(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (match, startQuote, _1, scheme, path, endQuote) => {
-				if (scheme) {
-					return `${startQuote}${Schemas.vscodeWebviewResource}://${this.id}/${scheme}${path}${endQuote}`;
-				}
-				if (!path.startsWith('//')) {
-					// Add an empty authority if we don't already have one
-					path = '//' + path;
-				}
-				return `${startQuote}${Schemas.vscodeWebviewResource}://${this.id}/file${path}${endQuote}`;
-			});
+		super.html = rewriteVsCodeResourceUrls(this.id, value);
 	}
 
 	public mountTo(parent: HTMLElement) {
