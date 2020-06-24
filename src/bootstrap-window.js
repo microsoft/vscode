@@ -85,16 +85,13 @@
 
 		window.document.documentElement.setAttribute('lang', locale);
 
-		// do not advertise AMD to avoid confusing UMD modules loaded with nodejs
-		window['define'] = undefined;
-
 		// replace the patched electron fs with the original node fs for all AMD code
-		require.define('fs', ['original-fs'], function (originalFS) { return originalFS; });
+		require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
 
 		window['MonacoEnvironment'] = {};
 
 		const loaderConfig = {
-			baseUrl: `${bootstrap.uriFromPath(configuration.appRoot)}/out`,
+			baseUrl: 'vscode-file://localhost/' + `${bootstrap.uriFromPath(configuration.appRoot)}/out`.substr(8),
 			'vs/nls': nlsConfig,
 			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 		};

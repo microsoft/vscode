@@ -569,7 +569,7 @@ var AMDLoader;
             if (!this._scriptLoader) {
                 this._scriptLoader = (this._env.isWebWorker
                     ? new WorkerScriptLoader()
-                    : this._env.isNode
+                    : (this._env.isNode && !this._env.isElectronRenderer)
                         ? new NodeScriptLoader(this._env)
                         : new BrowserScriptLoader());
             }
@@ -624,17 +624,33 @@ var AMDLoader;
             script.addEventListener('error', errorEventListener);
         };
         BrowserScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
-            var script = document.createElement('script');
-            script.setAttribute('async', 'async');
-            script.setAttribute('type', 'text/javascript');
-            this.attachListeners(script, callback, errorback);
-            script.setAttribute('src', scriptSrc);
-            // Propagate CSP nonce to dynamically created script tag.
-            var cspNonce = moduleManager.getConfig().getOptionsLiteral().cspNonce;
-            if (cspNonce) {
-                script.setAttribute('nonce', cspNonce);
+            if (/^node\|/.test(scriptSrc)) {
+                var opts = moduleManager.getConfig().getOptionsLiteral();
+                var nodeRequire = (opts.nodeRequire || AMDLoader.global.nodeRequire);
+                var pieces = scriptSrc.split('|');
+                var moduleExports_1 = null;
+                try {
+                    moduleExports_1 = nodeRequire(pieces[1]);
+                }
+                catch (err) {
+                    errorback(err);
+                    return;
+                }
+                moduleManager.enqueueDefineAnonymousModule([], function () { return moduleExports_1; });
+                callback();
+            } else {
+                var script = document.createElement('script');
+                script.setAttribute('async', 'async');
+                script.setAttribute('type', 'text/javascript');
+                this.attachListeners(script, callback, errorback);
+                script.setAttribute('src', scriptSrc);
+                // Propagate CSP nonce to dynamically created script tag.
+                var cspNonce = moduleManager.getConfig().getOptionsLiteral().cspNonce;
+                if (cspNonce) {
+                    script.setAttribute('nonce', cspNonce);
+                }
+                document.getElementsByTagName('head')[0].appendChild(script);
             }
-            document.getElementsByTagName('head')[0].appendChild(script);
         };
         return BrowserScriptLoader;
     }());
