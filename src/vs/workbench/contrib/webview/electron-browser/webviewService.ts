@@ -34,7 +34,7 @@ export class ElectronWebviewService implements IWebviewService {
 	): WebviewElement {
 		const useExternalEndpoint = this._configService.getValue<string>('webview.experimental.useExternalEndpoint');
 		if (useExternalEndpoint) {
-			return this._instantiationService.createInstance(IFrameWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider, false);
+			return this._instantiationService.createInstance(IFrameWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
 		} else {
 			return this._instantiationService.createInstance(ElectronWebviewBasedWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
 		}

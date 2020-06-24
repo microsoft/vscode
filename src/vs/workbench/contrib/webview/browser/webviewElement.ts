@@ -34,7 +34,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 		webviewThemeDataProvider: WebviewThemeDataProvider,
-		private readonly forceUsingExternalEndpoint: boolean,
 		@ITunnelService tunnelService: ITunnelService,
 		@IFileService private readonly fileService: IFileService,
 		@IRequestService private readonly requestService: IRequestService,
@@ -92,7 +91,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	private get useExternalEndpoint(): boolean {
-		return this.forceUsingExternalEndpoint || isWeb || this._configurationService.getValue<boolean>('webview.experimental.useExternalEndpoint');
+		return isWeb || this._configurationService.getValue<boolean>('webview.experimental.useExternalEndpoint');
 	}
 
 	public mountTo(parent: HTMLElement) {
