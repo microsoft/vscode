@@ -1075,14 +1075,16 @@ declare module 'vscode' {
 	}
 
 	export interface TerminalLinkProvider<T = TerminalLink> {
+		/**
+		 * Provide terminal links for the given context.
+		 * @param context Information about what links are being provided for.
+		 */
 		provideTerminalLinks(context: TerminalLinkContext): ProviderResult<T[]>
 
 		/**
 		 * Handle an activated terminal link.
-		 *
-		 * @returns Whether the link was handled, if not VS Code will attempt to open it.
 		 */
-		handleTerminalLink(link: T): ProviderResult<boolean>;
+		handleTerminalLink(link: T): void;
 	}
 
 	export interface TerminalLink {
@@ -1095,12 +1097,6 @@ declare module 'vscode' {
 		 * The length of the link on [TerminalLinkContext.line](#TerminalLinkContext.line]
 		 */
 		length: number;
-
-		/**
-		 * The uri this link points to. If set, and {@link TerminalLinkProvider.handlerTerminalLink}
-		 * is not implemented or returns false, then VS Code will try to open the Uri.
-		 */
-		target?: Uri;
 
 		/**
 		 * The tooltip text when you hover over this link.
