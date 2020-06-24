@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
@@ -13,13 +12,17 @@ import {
 	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands
 } from 'vscode';
 import {
-	LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams,
-	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange
+	LanguageClientOptions, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams,
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange, NotificationType, CommonLanguageClient
 } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
-import TelemetryReporter from 'vscode-extension-telemetry';
-import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
+import { RequestService } from './requests';
+import { getCustomDataSource } from './customData';
+
+namespace CustomDataChangedNotification {
+	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
+}
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -46,44 +49,33 @@ namespace SettingIds {
 
 }
 
-interface IPackageInfo {
-	name: string;
-	version: string;
-	aiKey: string;
-	main: string;
+export interface TelemetryReporter {
+	sendTelemetryEvent(eventName: string, properties?: {
+		[key: string]: string;
+	}, measurements?: {
+		[key: string]: number;
+	}): void;
 }
 
-let telemetryReporter: TelemetryReporter | null;
+export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
 
+export interface Runtime {
+	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string; } };
+	fs?: RequestService;
+	telemetry?: TelemetryReporter;
+}
 
-export function activate(context: ExtensionContext) {
+export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
+
 	let toDispose = context.subscriptions;
 
-	let clientPackageJSON = getPackageInfo(context);
-	telemetryReporter = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
-
-	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/htmlServerMain`;
-	const serverModule = context.asAbsolutePath(serverMain);
-
-	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--inspect=6045'] };
-
-	// If the extension is launch in debug mode the debug server options are use
-	// Otherwise the run options are used
-	let serverOptions: ServerOptions = {
-		run: { module: serverModule, transport: TransportKind.ipc },
-		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
-	};
 
 	let documentSelector = ['html', 'handlebars'];
 	let embeddedLanguages = { css: true, javascript: true };
 
 	let rangeFormatting: Disposable | undefined = undefined;
 
-	let dataPaths = [
-		...getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders),
-		...getCustomDataPathsFromAllExtensions()
-	];
+	const customDataSource = getCustomDataSource(context.subscriptions);
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -93,7 +85,7 @@ export function activate(context: ExtensionContext) {
 		},
 		initializationOptions: {
 			embeddedLanguages,
-			dataPaths,
+			handledSchemas: ['file'],
 			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `html.format.enable` setting.
 		},
 		middleware: {
@@ -123,12 +115,18 @@ export function activate(context: ExtensionContext) {
 	};
 
 	// Create the language client and start the client.
-	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions);
+	let client = newLanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), clientOptions);
 	client.registerProposedFeatures();
 
 	let disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
+
+		client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
+		customDataSource.onDidChange(() => {
+			client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
+		});
+
 		let tagRequestor = (document: TextDocument, position: Position) => {
 			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
 			return client.sendRequest(TagCloseRequest.type, param);
@@ -137,9 +135,7 @@ export function activate(context: ExtensionContext) {
 		toDispose.push(disposable);
 
 		disposable = client.onTelemetry(e => {
-			if (telemetryReporter) {
-				telemetryReporter.sendTelemetryEvent(e.key, e.data);
-			}
+			runtime.telemetry?.sendTelemetryEvent(e.key, e.data);
 		});
 		toDispose.push(disposable);
 
@@ -201,7 +197,7 @@ export function activate(context: ExtensionContext) {
 					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
 						client.protocol2CodeConverter.asTextEdits,
 						(error) => {
-							client.logFailedRequest(DocumentRangeFormattingRequest.type, error);
+							client.handleFailedRequest(DocumentRangeFormattingRequest.type, error, []);
 							return Promise.resolve([]);
 						}
 					);
@@ -318,18 +314,4 @@ export function activate(context: ExtensionContext) {
 	}
 
 	toDispose.push();
-}
-
-function getPackageInfo(context: ExtensionContext): IPackageInfo {
-	const location = context.asAbsolutePath('./package.json');
-	try {
-		return JSON.parse(fs.readFileSync(location).toString());
-	} catch (e) {
-		console.log(`Problems reading ${location}: ${e}`);
-		return { name: '', version: '', aiKey: '', main: '' };
-	}
-}
-
-export function deactivate(): Promise<any> {
-	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
 }
