@@ -123,6 +123,11 @@ export class NotebookEditor extends BaseEditor {
 		this._saveEditorViewState(this.input);
 		await super.setInput(input, options, token);
 
+		// Check for cancellation
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
 		this._widgetDisposableStore.clear();
 
 		// there currently is a widget which we still own so
@@ -138,6 +143,10 @@ export class NotebookEditor extends BaseEditor {
 		}
 
 		const model = await input.resolve(this._widget.value!.getId());
+		// Check for cancellation
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 
 		if (model === null) {
 			this._notificationService.prompt(
