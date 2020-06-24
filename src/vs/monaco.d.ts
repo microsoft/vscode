@@ -2328,7 +2328,7 @@ declare namespace monaco.editor {
 		 * @param handlerId The id of the handler or the id of a contribution.
 		 * @param payload Extra data to be sent to the handler.
 		 */
-		trigger(source: string, handlerId: string, payload: any): void;
+		trigger(source: string | null | undefined, handlerId: string, payload: any): void;
 		/**
 		 * Gets the current model attached to this editor.
 		 */
@@ -2629,10 +2629,10 @@ declare namespace monaco.editor {
 		*/
 		renderFinalNewline?: boolean;
 		/**
-		 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS), NEXT LINE (NEL).
-		 * Defaults to true.
+		 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
+		 * Defaults to 'prompt'.
 		 */
-		removeUnusualLineTerminators?: boolean;
+		unusualLineTerminators?: 'off' | 'prompt' | 'auto';
 		/**
 		 * Should the corresponding line be selected when clicking on the line number?
 		 * Defaults to true.
@@ -3129,6 +3129,10 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		definitionLinkOpensInPeek?: boolean;
+		/**
+		 * Controls strikethrough deprecated variables.
+		 */
+		showDeprecated?: boolean;
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {
@@ -3906,36 +3910,36 @@ declare namespace monaco.editor {
 		quickSuggestions = 70,
 		quickSuggestionsDelay = 71,
 		readOnly = 72,
-		removeUnusualLineTerminators = 73,
-		renameOnType = 74,
-		renderControlCharacters = 75,
-		renderIndentGuides = 76,
-		renderFinalNewline = 77,
-		renderLineHighlight = 78,
-		renderLineHighlightOnlyWhenFocus = 79,
-		renderValidationDecorations = 80,
-		renderWhitespace = 81,
-		revealHorizontalRightPadding = 82,
-		roundedSelection = 83,
-		rulers = 84,
-		scrollbar = 85,
-		scrollBeyondLastColumn = 86,
-		scrollBeyondLastLine = 87,
-		scrollPredominantAxis = 88,
-		selectionClipboard = 89,
-		selectionHighlight = 90,
-		selectOnLineNumbers = 91,
-		showFoldingControls = 92,
-		showUnused = 93,
-		snippetSuggestions = 94,
-		smoothScrolling = 95,
-		stopRenderingLineAfter = 96,
-		suggest = 97,
-		suggestFontSize = 98,
-		suggestLineHeight = 99,
-		suggestOnTriggerCharacters = 100,
-		suggestSelection = 101,
-		tabCompletion = 102,
+		renameOnType = 73,
+		renderControlCharacters = 74,
+		renderIndentGuides = 75,
+		renderFinalNewline = 76,
+		renderLineHighlight = 77,
+		renderLineHighlightOnlyWhenFocus = 78,
+		renderValidationDecorations = 79,
+		renderWhitespace = 80,
+		revealHorizontalRightPadding = 81,
+		roundedSelection = 82,
+		rulers = 83,
+		scrollbar = 84,
+		scrollBeyondLastColumn = 85,
+		scrollBeyondLastLine = 86,
+		scrollPredominantAxis = 87,
+		selectionClipboard = 88,
+		selectionHighlight = 89,
+		selectOnLineNumbers = 90,
+		showFoldingControls = 91,
+		showUnused = 92,
+		snippetSuggestions = 93,
+		smoothScrolling = 94,
+		stopRenderingLineAfter = 95,
+		suggest = 96,
+		suggestFontSize = 97,
+		suggestLineHeight = 98,
+		suggestOnTriggerCharacters = 99,
+		suggestSelection = 100,
+		tabCompletion = 101,
+		unusualLineTerminators = 102,
 		useTabStops = 103,
 		wordSeparators = 104,
 		wordWrap = 105,
@@ -3945,11 +3949,12 @@ declare namespace monaco.editor {
 		wordWrapMinified = 109,
 		wrappingIndent = 110,
 		wrappingStrategy = 111,
-		editorClassName = 112,
-		pixelRatio = 113,
-		tabFocusMode = 114,
-		layoutInfo = 115,
-		wrappingInfo = 116
+		showDeprecated = 112,
+		editorClassName = 113,
+		pixelRatio = 114,
+		tabFocusMode = 115,
+		layoutInfo = 116,
+		wrappingInfo = 117
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4025,7 +4030,6 @@ declare namespace monaco.editor {
 		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions>;
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;
-		removeUnusualLineTerminators: IEditorOption<EditorOption.removeUnusualLineTerminators, boolean>;
 		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
 		renderControlCharacters: IEditorOption<EditorOption.renderControlCharacters, boolean>;
 		renderIndentGuides: IEditorOption<EditorOption.renderIndentGuides, boolean>;
@@ -4046,6 +4050,7 @@ declare namespace monaco.editor {
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
+		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
@@ -4055,6 +4060,7 @@ declare namespace monaco.editor {
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;
 		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
+		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'off' | 'prompt' | 'auto'>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
@@ -4598,15 +4604,15 @@ declare namespace monaco.editor {
 		/**
 		 * Change the scrollLeft of the editor's viewport.
 		 */
-		setScrollLeft(newScrollLeft: number): void;
+		setScrollLeft(newScrollLeft: number, scrollType?: ScrollType): void;
 		/**
 		 * Change the scrollTop of the editor's viewport.
 		 */
-		setScrollTop(newScrollTop: number): void;
+		setScrollTop(newScrollTop: number, scrollType?: ScrollType): void;
 		/**
 		 * Change the scroll position of the editor's viewport.
 		 */
-		setScrollPosition(position: INewScrollPosition): void;
+		setScrollPosition(position: INewScrollPosition, scrollType?: ScrollType): void;
 		/**
 		 * Get an action that is a contribution to this editor.
 		 * @id Unique identifier of the contribution.
@@ -4619,7 +4625,7 @@ declare namespace monaco.editor {
 		 * @param source The source of the call.
 		 * @param command The command to execute
 		 */
-		executeCommand(source: string, command: ICommand): void;
+		executeCommand(source: string | null | undefined, command: ICommand): void;
 		/**
 		 * Push an "undo stop" in the undo-redo stack.
 		 */
@@ -4631,13 +4637,13 @@ declare namespace monaco.editor {
 		 * @param edits The edits to execute.
 		 * @param endCursorState Cursor state after the edits were applied.
 		 */
-		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
+		executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
 		/**
 		 * Execute multiple (concomitant) commands on the editor.
 		 * @param source The source of the call.
 		 * @param command The commands to execute
 		 */
-		executeCommands(source: string, commands: (ICommand | null)[]): void;
+		executeCommands(source: string | null | undefined, commands: (ICommand | null)[]): void;
 		/**
 		 * Get all the decorations on a line (filtering out decorations from other editors).
 		 */
@@ -6286,6 +6292,10 @@ declare namespace monaco.languages {
 		 * is the language case insensitive?
 		 */
 		ignoreCase?: boolean;
+		/**
+		 * is the language unicode-aware? (i.e., /\u{1D306}/)
+		 */
+		unicode?: boolean;
 		/**
 		 * if no match in the tokenizer assign this token class (default 'source')
 		 */

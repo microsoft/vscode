@@ -75,7 +75,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "yarn web -- --no-launch",
+			"command": "yarn web --no-launch",
 			"label": "Run web",
 			"isBackground": true,
 			"problemMatcher": {

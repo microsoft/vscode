@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as minimist from 'minimist';
-import * as os from 'os';
 import { localize } from 'vs/nls';
+import { isWindows } from 'vs/base/common/platform';
 
 export interface ParsedArgs {
 	_: string[];
@@ -72,6 +72,7 @@ export interface ParsedArgs {
 	remote?: string;
 	'disable-user-env-probe'?: boolean;
 	'force'?: boolean;
+	'do-not-sync'?: boolean;
 	'force-user-env'?: boolean;
 	'sync'?: 'on' | 'off';
 
@@ -187,6 +188,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'file-chmod': { type: 'boolean' },
 	'driver-verbose': { type: 'boolean' },
 	'force': { type: 'boolean' },
+	'do-not-sync': { type: 'boolean' },
 	'trace': { type: 'boolean' },
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
@@ -254,7 +256,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const remainingArgs: any = parsedArgs;
 
 	// https://github.com/microsoft/vscode/issues/58177
-	cleanedArgs._ = parsedArgs._.filter(arg => arg.length > 0);
+	cleanedArgs._ = parsedArgs._.filter(arg => String(arg).length > 0);
 
 	delete remainingArgs._;
 
@@ -362,7 +364,7 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}][${localize('paths', 'paths')}...]`);
 	help.push('');
 	if (isPipeSupported) {
-		if (os.platform() === 'win32') {
+		if (isWindows) {
 			help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
 		} else {
 			help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));

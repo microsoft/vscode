@@ -5,7 +5,7 @@
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { Stylesheet, LanguageService as CSSLanguageService } from 'vscode-css-languageservice';
-import { FoldingRange, LanguageMode, Workspace, Color, TextDocument, Position, Range, CompletionList } from './languageModes';
+import { FoldingRange, LanguageMode, Workspace, Color, TextDocument, Position, Range, CompletionList, DocumentContext } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 
 export function getCSSMode(cssLanguageService: CSSLanguageService, documentRegions: LanguageModelCache<HTMLDocumentRegions>, workspace: Workspace): LanguageMode {
@@ -20,10 +20,10 @@ export function getCSSMode(cssLanguageService: CSSLanguageService, documentRegio
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.doValidation(embedded, cssStylesheets.get(embedded), settings && settings.css);
 		},
-		doComplete(document: TextDocument, position: Position, _settings = workspace.settings) {
+		doComplete(document: TextDocument, position: Position, documentContext: DocumentContext, _settings = workspace.settings) {
 			let embedded = embeddedCSSDocuments.get(document);
 			const stylesheet = cssStylesheets.get(embedded);
-			return cssLanguageService.doComplete(embedded, position, stylesheet) || CompletionList.create();
+			return cssLanguageService.doComplete2(embedded, position, stylesheet, documentContext) || CompletionList.create();
 		},
 		doHover(document: TextDocument, position: Position) {
 			let embedded = embeddedCSSDocuments.get(document);

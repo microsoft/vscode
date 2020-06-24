@@ -94,10 +94,10 @@ export interface IEditorOptions {
 	*/
 	renderFinalNewline?: boolean;
 	/**
-	 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS), NEXT LINE (NEL).
-	 * Defaults to true.
+	 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
+	 * Defaults to 'prompt'.
 	 */
-	removeUnusualLineTerminators?: boolean;
+	unusualLineTerminators?: 'off' | 'prompt' | 'auto';
 	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
@@ -594,6 +594,10 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	definitionLinkOpensInPeek?: boolean;
+	/**
+	 * Controls strikethrough deprecated variables.
+	 */
+	showDeprecated?: boolean;
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -1213,22 +1217,28 @@ class EditorClassName extends ComputedEditorOption<EditorOption.editorClassName,
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: string): string {
-		let className = 'monaco-editor';
+		const classNames = ['monaco-editor'];
 		if (options.get(EditorOption.extraEditorClassName)) {
-			className += ' ' + options.get(EditorOption.extraEditorClassName);
+			classNames.push(options.get(EditorOption.extraEditorClassName));
 		}
 		if (env.extraEditorClassName) {
-			className += ' ' + env.extraEditorClassName;
+			classNames.push(env.extraEditorClassName);
 		}
 		if (options.get(EditorOption.mouseStyle) === 'default') {
-			className += ' mouse-default';
+			classNames.push('mouse-default');
 		} else if (options.get(EditorOption.mouseStyle) === 'copy') {
-			className += ' mouse-copy';
+			classNames.push('mouse-copy');
 		}
+
 		if (options.get(EditorOption.showUnused)) {
-			className += ' showUnused';
+			classNames.push('showUnused');
 		}
-		return className;
+
+		if (options.get(EditorOption.showDeprecated)) {
+			classNames.push('showDeprecated');
+		}
+
+		return classNames.join(' ');
 	}
 }
 
@@ -3552,7 +3562,6 @@ export const enum EditorOption {
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
-	removeUnusualLineTerminators,
 	renameOnType,
 	renderControlCharacters,
 	renderIndentGuides,
@@ -3582,6 +3591,7 @@ export const enum EditorOption {
 	suggestOnTriggerCharacters,
 	suggestSelection,
 	tabCompletion,
+	unusualLineTerminators,
 	useTabStops,
 	wordSeparators,
 	wordWrap,
@@ -3591,6 +3601,7 @@ export const enum EditorOption {
 	wordWrapMinified,
 	wrappingIndent,
 	wrappingStrategy,
+	showDeprecated,
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
@@ -3971,10 +3982,6 @@ export const EditorOptions = {
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
 	)),
-	removeUnusualLineTerminators: register(new EditorBooleanOption(
-		EditorOption.removeUnusualLineTerminators, 'removeUnusualLineTerminators', true,
-		{ description: nls.localize('removeUnusualLineTerminators', "Remove unusual line terminators that might cause problems.") }
-	)),
 	renameOnType: register(new EditorBooleanOption(
 		EditorOption.renameOnType, 'renameOnType', false,
 		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type.") }
@@ -4081,6 +4088,10 @@ export const EditorOptions = {
 		EditorOption.showUnused, 'showUnused', true,
 		{ description: nls.localize('showUnused', "Controls fading out of unused code.") }
 	)),
+	showDeprecated: register(new EditorBooleanOption(
+		EditorOption.showDeprecated, 'showDeprecated', true,
+		{ description: nls.localize('showDeprecated', "Controls strikethrough deprecated variables.") }
+	)),
 	snippetSuggestions: register(new EditorStringEnumOption(
 		EditorOption.snippetSuggestions, 'snippetSuggestions',
 		'inline' as 'top' | 'bottom' | 'inline' | 'none',
@@ -4142,6 +4153,19 @@ export const EditorOptions = {
 				nls.localize('tabCompletion.onlySnippets', "Tab complete snippets when their prefix match. Works best when 'quickSuggestions' aren't enabled."),
 			],
 			description: nls.localize('tabCompletion', "Enables tab completions.")
+		}
+	)),
+	unusualLineTerminators: register(new EditorStringEnumOption(
+		EditorOption.unusualLineTerminators, 'unusualLineTerminators',
+		'prompt' as 'off' | 'prompt' | 'auto',
+		['off', 'prompt', 'auto'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('unusualLineTerminators.off', "Unusual line terminators are ignored."),
+				nls.localize('unusualLineTerminators.prompt', "Unusual line terminators prompt to be removed."),
+				nls.localize('unusualLineTerminators.auto', "Unusual line terminators are automatically removed."),
+			],
+			description: nls.localize('unusualLineTerminators', "Remove unusual line terminators that might cause problems.")
 		}
 	)),
 	useTabStops: register(new EditorBooleanOption(

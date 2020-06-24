@@ -9,13 +9,13 @@
 const bootstrap = require('./bootstrap');
 
 // Remove global paths from the node module lookup
-bootstrap.removeGlobalNodeModuleLookupPaths();
+removeGlobalNodeModuleLookupPaths();
 
 // Enable ASAR in our forked processes
 bootstrap.enableASARSupport();
 
 if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
-	bootstrap.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+	injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
 }
 
 // Configure: pipe logging to parent process
@@ -41,6 +41,59 @@ require('./bootstrap-amd').load(process.env['AMD_ENTRYPOINT']);
 
 //#region Helpers
 
+/**
+ * Add support for redirecting the loading of node modules
+ *
+ * @param {string} injectPath
+ */
+function injectNodeModuleLookupPath(injectPath) {
+	if (!injectPath) {
+		throw new Error('Missing injectPath');
+	}
+
+	const Module = require('module');
+	const path = require('path');
+
+	const nodeModulesPath = path.join(__dirname, '../node_modules');
+
+	// @ts-ignore
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
+
+	// @ts-ignore
+	Module._resolveLookupPaths = function (moduleName, parent) {
+		const paths = originalResolveLookupPaths(moduleName, parent);
+		if (Array.isArray(paths)) {
+			for (let i = 0, len = paths.length; i < len; i++) {
+				if (paths[i] === nodeModulesPath) {
+					paths.splice(i, 0, injectPath);
+					break;
+				}
+			}
+		}
+
+		return paths;
+	};
+}
+
+function removeGlobalNodeModuleLookupPaths() {
+	const Module = require('module');
+	// @ts-ignore
+	const globalPaths = Module.globalPaths;
+
+	// @ts-ignore
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
+
+	// @ts-ignore
+	Module._resolveLookupPaths = function (moduleName, parent) {
+		const paths = originalResolveLookupPaths(moduleName, parent);
+		let commonSuffixLength = 0;
+		while (commonSuffixLength < paths.length && paths[paths.length - 1 - commonSuffixLength] === globalPaths[globalPaths.length - 1 - commonSuffixLength]) {
+			commonSuffixLength++;
+		}
+		return paths.slice(0, paths.length - commonSuffixLength);
+	};
+}
+
 function pipeLoggingToParent() {
 	const MAX_LENGTH = 100000;
 
@@ -48,8 +101,6 @@ function pipeLoggingToParent() {
 	function safeToArray(args) {
 		const seen = [];
 		const argsArray = [];
-
-		let res;
 
 		// Massage some arguments with special treatment
 		if (args.length) {
@@ -85,7 +136,7 @@ function pipeLoggingToParent() {
 		}
 
 		try {
-			res = JSON.stringify(argsArray, function (key, value) {
+			const res = JSON.stringify(argsArray, function (key, value) {
 
 				// Objects get special treatment to prevent circles
 				if (isObject(value) || Array.isArray(value)) {
@@ -98,17 +149,20 @@ function pipeLoggingToParent() {
 
 				return value;
 			});
+
+			if (res.length > MAX_LENGTH) {
+				return 'Output omitted for a large object that exceeds the limits';
+			}
+
+			return res;
 		} catch (error) {
-			return 'Output omitted for an object that cannot be inspected (' + error.toString() + ')';
+			return `Output omitted for an object that cannot be inspected ('${error.toString()}')`;
 		}
-
-		if (res && res.length > MAX_LENGTH) {
-			return 'Output omitted for a large object that exceeds the limits';
-		}
-
-		return res;
 	}
 
+	/**
+	 * @param {{ type: string; severity: string; arguments: string; }} arg
+	 */
 	function safeSend(arg) {
 		try {
 			process.send(arg);
@@ -117,6 +171,9 @@ function pipeLoggingToParent() {
 		}
 	}
 
+	/**
+	 * @param {unknown} obj
+	 */
 	function isObject(obj) {
 		return typeof obj === 'object'
 			&& obj !== null

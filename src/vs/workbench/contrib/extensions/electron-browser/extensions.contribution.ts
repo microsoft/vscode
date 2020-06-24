@@ -50,7 +50,7 @@ class RuntimeExtensionsInputFactory implements IEditorInputFactory {
 		return '';
 	}
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		return new RuntimeExtensionsInput();
+		return RuntimeExtensionsInput.instance;
 	}
 }
 

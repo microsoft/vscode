@@ -6,13 +6,41 @@
 //@ts-check
 'use strict';
 
-const perf = require('../../../base/common/performance');
-perf.mark('renderer/started');
+const perf = (function () {
+	let sharedObj;
+	if (typeof global === 'object') {
+		// nodejs
+		sharedObj = global;
+	} else if (typeof self === 'object') {
+		// browser
+		sharedObj = self;
+	} else {
+		sharedObj = {};
+	}
+	// @ts-ignore
+	sharedObj._performanceEntries = sharedObj._performanceEntries || [];
+	return {
+		/**
+		 * @param {string} name
+		 */
+		mark(name) {
+			sharedObj._performanceEntries.push(name, Date.now());
+		}
+	};
+})();
 
-const bootstrapWindow = require('../../../../bootstrap-window');
+perf.mark('renderer/started');
 
 // Setup shell environment
 process['lazyEnv'] = getLazyEnv();
+
+/**
+ * @type {{ load: (modules: string[], resultCallback: (result, configuration: object) => any, options: object) => unknown }}
+ */
+const bootstrapWindow = (() => {
+	// @ts-ignore (defined in bootstrap-window.js)
+	return window.MonacoBootstrapWindow;
+})();
 
 // Load workbench main JS, CSS and NLS all in parallel. This is an
 // optimization to prevent a waterfall of loading to happen, because
@@ -32,18 +60,20 @@ bootstrapWindow.load([
 			// @ts-ignore
 			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
 		});
-	}, {
-	removeDeveloperKeybindingsAfterLoad: true,
-	canModifyDOM: function (windowConfig) {
-		showPartsSplash(windowConfig);
 	},
-	beforeLoaderConfig: function (windowConfig, loaderConfig) {
-		loaderConfig.recordStats = true;
-	},
-	beforeRequire: function () {
-		perf.mark('willLoadWorkbenchMain');
+	{
+		removeDeveloperKeybindingsAfterLoad: true,
+		canModifyDOM: function (windowConfig) {
+			showPartsSplash(windowConfig);
+		},
+		beforeLoaderConfig: function (windowConfig, loaderConfig) {
+			loaderConfig.recordStats = true;
+		},
+		beforeRequire: function () {
+			perf.mark('willLoadWorkbenchMain');
+		}
 	}
-});
+);
 
 /**
  * @param {{
@@ -149,7 +179,7 @@ function showPartsSplash(configuration) {
  * @returns {Promise<void>}
  */
 function getLazyEnv() {
-	// @ts-ignore
+
 	const ipc = require('electron').ipcRenderer;
 
 	return new Promise(function (resolve) {
@@ -160,7 +190,7 @@ function getLazyEnv() {
 
 		ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
 			clearTimeout(handle);
-			bootstrapWindow.assign(process.env, shellEnv);
+			Object.assign(process.env, shellEnv);
 			// @ts-ignore
 			resolve(process.env);
 		});

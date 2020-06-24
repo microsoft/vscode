@@ -327,7 +327,19 @@ suite('NotebookCommon', () => {
 
 suite('CellUri', function () {
 
-	test('parse, generate', function () {
+	test('parse, generate (file-scheme)', function () {
+
+		const nb = URI.parse('foo:///bar/følder/file.nb');
+		const id = 17;
+
+		const data = CellUri.generate(nb, id);
+		const actual = CellUri.parse(data);
+		assert.ok(Boolean(actual));
+		assert.equal(actual?.handle, id);
+		assert.equal(actual?.notebook.toString(), nb.toString());
+	});
+
+	test('parse, generate (foo-scheme)', function () {
 
 		const nb = URI.parse('foo:///bar/følder/file.nb');
 		const id = 17;

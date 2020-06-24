@@ -22,7 +22,7 @@ export interface IExtHostTimeline extends ExtHostTimelineShape {
 export const IExtHostTimeline = createDecorator<IExtHostTimeline>('IExtHostTimeline');
 
 export class ExtHostTimeline implements IExtHostTimeline {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _proxy: MainThreadTimelineShape;
 
@@ -152,7 +152,8 @@ export class ExtHostTimeline implements IExtHostTimeline {
 					command: item.command ? commandConverter.toInternal(item.command, disposables) : undefined,
 					icon: icon,
 					iconDark: iconDark,
-					themeIcon: themeIcon
+					themeIcon: themeIcon,
+					accessibilityInformation: item.accessibilityInformation
 				};
 			};
 		};
@@ -188,4 +189,3 @@ export class ExtHostTimeline implements IExtHostTimeline {
 function getUriKey(uri: URI | undefined): string | undefined {
 	return uri?.toString();
 }
-

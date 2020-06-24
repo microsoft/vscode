@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRenderOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { registerOutputTransform } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
+import { IRenderOutput, CellOutputKind, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import * as DOM from 'vs/base/browser/dom';
 import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { isArray } from 'vs/base/common/types';
@@ -15,18 +15,21 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { URI } from 'vs/base/common/uri';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { handleANSIOutput } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 
 class RichRenderer implements IOutputTransformContribution {
 	private _mdRenderer: MarkdownRenderer;
-	private _richMimeTypeRenderers = new Map<string, (output: any, container: HTMLElement) => IRenderOutput>();
+	private _richMimeTypeRenderers = new Map<string, (output: ITransformedDisplayOutputDto, container: HTMLElement) => IRenderOutput>();
 
 	constructor(
 		public notebookEditor: INotebookEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService
+		@IModeService private readonly modeService: IModeService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
-		this._mdRenderer = instantiationService.createInstance(MarkdownRenderer);
+		this._mdRenderer = instantiationService.createInstance(MarkdownRenderer, undefined);
 		this._richMimeTypeRenderers.set('application/json', this.renderJSON.bind(this));
 		this._richMimeTypeRenderers.set('application/javascript', this.renderJavaScript.bind(this));
 		this._richMimeTypeRenderers.set('text/html', this.renderHTML.bind(this));
@@ -38,7 +41,7 @@ class RichRenderer implements IOutputTransformContribution {
 		this._richMimeTypeRenderers.set('text/x-javascript', this.renderCode.bind(this));
 	}
 
-	render(output: any, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput {
+	render(output: ITransformedDisplayOutputDto, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput {
 		if (!output.data) {
 			const contentNode = document.createElement('p');
 			contentNode.innerText = `No data could be found for output.`;
@@ -70,7 +73,7 @@ class RichRenderer implements IOutputTransformContribution {
 		return renderer!(output, container);
 	}
 
-	renderJSON(output: any, container: HTMLElement) {
+	renderJSON(output: ITransformedDisplayOutputDto, container: HTMLElement) {
 		let data = output.data['application/json'];
 		let str = JSON.stringify(data, null, '\t');
 
@@ -105,9 +108,9 @@ class RichRenderer implements IOutputTransformContribution {
 		};
 	}
 
-	renderCode(output: any, container: HTMLElement) {
+	renderCode(output: ITransformedDisplayOutputDto, container: HTMLElement) {
 		let data = output.data['text/x-javascript'];
-		let str = isArray(data) ? data.join('') : data;
+		let str = (isArray(data) ? data.join('') : data) as string;
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
 			...getOutputSimpleEditorOptions(),
@@ -140,7 +143,7 @@ class RichRenderer implements IOutputTransformContribution {
 		};
 	}
 
-	renderJavaScript(output: any, container: HTMLElement) {
+	renderJavaScript(output: ITransformedDisplayOutputDto, container: HTMLElement) {
 		let data = output.data['application/javascript'];
 		let str = isArray(data) ? data.join('') : data;
 		let scriptVal = `<script type="application/javascript">${str}</script>`;
@@ -150,9 +153,9 @@ class RichRenderer implements IOutputTransformContribution {
 		};
 	}
 
-	renderHTML(output: any, container: HTMLElement) {
+	renderHTML(output: ITransformedDisplayOutputDto, container: HTMLElement) {
 		let data = output.data['text/html'];
-		let str = isArray(data) ? data.join('') : data;
+		let str = (isArray(data) ? data.join('') : data) as string;
 		return {
 			shadowContent: str,
 			hasDynamicHeight: false
@@ -160,18 +163,18 @@ class RichRenderer implements IOutputTransformContribution {
 
 	}
 
-	renderSVG(output: any, container: HTMLElement) {
+	renderSVG(output: ITransformedDisplayOutputDto, container: HTMLElement) {
 		let data = output.data['image/svg+xml'];
-		let str = isArray(data) ? data.join('') : data;
+		let str = (isArray(data) ? data.join('') : data) as string;
 		return {
 			shadowContent: str,
 			hasDynamicHeight: false
 		};
 	}
 
-	renderMarkdown(output: any, container: HTMLElement) {
+	renderMarkdown(output: ITransformedDisplayOutputDto, container: HTMLElement) {
 		let data = output.data['text/markdown'];
-		const str = isArray(data) ? data.join('') : data;
+		const str = (isArray(data) ? data.join('') : data) as string;
 		const mdOutput = document.createElement('div');
 		mdOutput.appendChild(this._mdRenderer.render({ value: str, isTrusted: false, supportThemeIcons: true }).element);
 		container.appendChild(mdOutput);
@@ -181,7 +184,7 @@ class RichRenderer implements IOutputTransformContribution {
 		};
 	}
 
-	renderPNG(output: any, container: HTMLElement) {
+	renderPNG(output: ITransformedDisplayOutputDto, container: HTMLElement) {
 		const image = document.createElement('img');
 		image.src = `data:image/png;base64,${output.data['image/png']}`;
 		const display = document.createElement('div');
@@ -194,7 +197,7 @@ class RichRenderer implements IOutputTransformContribution {
 
 	}
 
-	renderJPEG(output: any, container: HTMLElement) {
+	renderJPEG(output: ITransformedDisplayOutputDto, container: HTMLElement) {
 		const image = document.createElement('img');
 		image.src = `data:image/jpeg;base64,${output.data['image/jpeg']}`;
 		const display = document.createElement('div');
@@ -206,11 +209,11 @@ class RichRenderer implements IOutputTransformContribution {
 		};
 	}
 
-	renderPlainText(output: any, container: HTMLElement) {
+	renderPlainText(output: ITransformedDisplayOutputDto, container: HTMLElement) {
 		let data = output.data['text/plain'];
-		let str = isArray(data) ? data.join('') : data;
-		const contentNode = document.createElement('p');
-		contentNode.innerText = str;
+		let str = (isArray(data) ? data.join('') : data) as string;
+		const contentNode = DOM.$('.output-plaintext');
+		contentNode.appendChild(handleANSIOutput(str, this.themeService));
 		container.appendChild(contentNode);
 
 		return {
@@ -222,7 +225,7 @@ class RichRenderer implements IOutputTransformContribution {
 	}
 }
 
-registerOutputTransform('notebook.output.rich', CellOutputKind.Rich, RichRenderer);
+NotebookRegistry.registerOutputTransform('notebook.output.rich', CellOutputKind.Rich, RichRenderer);
 
 
 export function getOutputSimpleEditorOptions(): IEditorOptions {

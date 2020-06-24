@@ -36,7 +36,7 @@ self.addEventLister = () => console.trace(`'addEventListener' has been blocked`)
 //#endregion ---
 
 const hostUtil = new class implements IHostUtils {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	exit(_code?: number | undefined): void {
 		nativeClose();
 	}

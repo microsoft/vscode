@@ -57,7 +57,7 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri;
 }
 
-export class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDebugServiceShape {
+export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDebugServiceShape {
 
 	readonly _serviceBrand: undefined;
 
@@ -295,7 +295,8 @@ export class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDeb
 	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, options: vscode.DebugSessionOptions): Promise<boolean> {
 		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig, {
 			parentSessionID: options.parentSession ? options.parentSession.id : undefined,
-			repl: options.consoleMode === DebugConsoleMode.MergeWithParent ? 'mergeWithParent' : 'separate'
+			repl: options.consoleMode === DebugConsoleMode.MergeWithParent ? 'mergeWithParent' : 'separate',
+			noDebug: options.noDebug
 		});
 	}
 
@@ -372,9 +373,7 @@ export class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDeb
 		return Promise.resolve(undefined);
 	}
 
-	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService);
-	}
+	protected abstract createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService;
 
 	public async $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): Promise<IConfig> {
 		if (!this._variableResolver) {
@@ -973,7 +972,7 @@ export class ExtHostDebugConsole implements vscode.DebugConsole {
 
 export class ExtHostVariableResolverService extends AbstractVariableResolverService {
 
-	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider, env?: IProcessEnvironment) {
+	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors | undefined, configurationService: ExtHostConfigProvider, env?: IProcessEnvironment) {
 		super({
 			getFolderUri: (folderName: string): URI | undefined => {
 				const found = folders.filter(f => f.name === folderName);
@@ -992,27 +991,33 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				return env ? env['VSCODE_EXEC_PATH'] : undefined;
 			},
 			getFilePath: (): string | undefined => {
-				const activeEditor = editorService.activeEditor();
-				if (activeEditor) {
-					return path.normalize(activeEditor.document.uri.fsPath);
+				if (editorService) {
+					const activeEditor = editorService.activeEditor();
+					if (activeEditor) {
+						return path.normalize(activeEditor.document.uri.fsPath);
+					}
 				}
 				return undefined;
 			},
 			getSelectedText: (): string | undefined => {
-				const activeEditor = editorService.activeEditor();
-				if (activeEditor && !activeEditor.selection.isEmpty) {
-					return activeEditor.document.getText(activeEditor.selection);
+				if (editorService) {
+					const activeEditor = editorService.activeEditor();
+					if (activeEditor && !activeEditor.selection.isEmpty) {
+						return activeEditor.document.getText(activeEditor.selection);
+					}
 				}
 				return undefined;
 			},
 			getLineNumber: (): string | undefined => {
-				const activeEditor = editorService.activeEditor();
-				if (activeEditor) {
-					return String(activeEditor.selection.end.line + 1);
+				if (editorService) {
+					const activeEditor = editorService.activeEditor();
+					if (activeEditor) {
+						return String(activeEditor.selection.end.line + 1);
+					}
 				}
 				return undefined;
 			}
-		}, env);
+		}, env, !editorService);
 	}
 }
 
@@ -1102,5 +1107,9 @@ export class WorkerExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostCommands commandService: IExtHostCommands
 	) {
 		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, commandService);
+	}
+
+	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
+		return new ExtHostVariableResolverService(folders, editorService, configurationService);
 	}
 }

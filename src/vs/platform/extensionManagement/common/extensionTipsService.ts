@@ -76,8 +76,13 @@ export class ExtensionTipsService implements IExtensionTipsService {
 						});
 					}
 				});
-				const remotes = getDomainsOfRemotes(content.value.toString(), keys(recommendationByRemote));
-				remotes.forEach(remote => result.push(recommendationByRemote.get(remote)!));
+				const domains = getDomainsOfRemotes(content.value.toString(), keys(recommendationByRemote));
+				for (const domain of domains) {
+					const remote = recommendationByRemote.get(domain);
+					if (remote) {
+						result.push(remote);
+					}
+				}
 			} catch (error) { /* Ignore */ }
 		}
 		return result;

@@ -6,17 +6,31 @@
 import { TableOfContentsProviderRegistry, ITableOfContentsProvider, ITableOfContentsEntry } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-
+import { Codicon } from 'vs/base/common/codicons';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 
 TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements ITableOfContentsProvider {
-	async provideTableOfContents(editor: NotebookEditor) {
+	async provideTableOfContents(editor: NotebookEditor, context: { disposables: DisposableStore }) {
 		if (!editor.viewModel) {
 			return undefined;
 		}
 		// return an entry per markdown header
-		const editorWidget = editor.getControl();
+		const notebookWidget = editor.getControl();
+		if (!notebookWidget) {
+			return undefined;
+		}
+
+		// restore initial view state when no item was picked
+		let didPickOne = false;
+		const viewState = notebookWidget.getEditorViewState();
+		context.disposables.add(toDisposable(() => {
+			if (!didPickOne) {
+				notebookWidget.restoreListViewState(viewState);
+			}
+		}));
+
 		const result: ITableOfContentsEntry[] = [];
-		for (let cell of editor.viewModel.viewCells) {
+		for (const cell of editor.viewModel.viewCells) {
 			const content = cell.getText();
 			const regexp = cell.cellKind === CellKind.Markdown
 				? /^[ \t]*(\#+)(.+)$/gm // md: header
@@ -26,11 +40,17 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 			if (matches && matches.length) {
 				for (let j = 0; j < matches.length; j++) {
 					result.push({
+						icon: cell.cellKind === CellKind.Markdown ? Codicon.markdown : Codicon.code,
 						label: matches[j].replace(/^[ \t]*(\#+)/, ''),
-						reveal: () => {
-							editorWidget.revealInCenterIfOutsideViewport(cell);
-							editorWidget.selectElement(cell);
-							// editor.focusNotebookCell(cell, 'container');
+						pick() {
+							didPickOne = true;
+							notebookWidget.revealInCenterIfOutsideViewport(cell);
+							notebookWidget.selectElement(cell);
+							notebookWidget.focusNotebookCell(cell, cell.cellKind === CellKind.Markdown ? 'container' : 'editor');
+						},
+						preview() {
+							notebookWidget.revealInCenterIfOutsideViewport(cell);
+							notebookWidget.selectElement(cell);
 						}
 					});
 				}
