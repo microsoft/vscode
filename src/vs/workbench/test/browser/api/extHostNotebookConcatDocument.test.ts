@@ -523,10 +523,19 @@ suite('NotebookConcatDocument', function () {
 			assert.equal(actual.character, expectedCh);
 		}
 
+
+		// "fixed"
 		assertPosition(doc.validatePosition(new Position(0, 1000)), 0, 5);
 		assertPosition(doc.validatePosition(new Position(2, 1000)), 2, 12);
 		assertPosition(doc.validatePosition(new Position(5, 1000)), 5, 11);
 		assertPosition(doc.validatePosition(new Position(5000, 1000)), 5, 11);
+
+		// "good"
+		assertPosition(doc.validatePosition(new Position(0, 1)), 0, 1);
+		assertPosition(doc.validatePosition(new Position(0, 5)), 0, 5);
+		assertPosition(doc.validatePosition(new Position(2, 8)), 2, 8);
+		assertPosition(doc.validatePosition(new Position(2, 12)), 2, 12);
+		assertPosition(doc.validatePosition(new Position(5, 11)), 5, 11);
 
 	});
 });
