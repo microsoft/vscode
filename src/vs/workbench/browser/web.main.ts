@@ -52,6 +52,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IndexedDBFileSystemProvider, openDatabase as openIndexedDB } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 
 const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
+const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
 const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
 
 class BrowserMain extends Disposable {
@@ -63,7 +64,7 @@ class BrowserMain extends Disposable {
 		private readonly configuration: IWorkbenchConstructionOptions
 	) {
 		super();
-		this.indexedDB = openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_LOGS_OBJECT_STORE])
+		this.indexedDB = openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE])
 			.then(null, error => {
 				console.error(error);
 				return null;
@@ -187,7 +188,7 @@ class BrowserMain extends Disposable {
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
-		this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
+		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
 
 		// Long running services (workspace, config, storage)
 		const services = await Promise.all([
@@ -214,7 +215,7 @@ class BrowserMain extends Disposable {
 		return { serviceCollection, logService, storageService: services[1] };
 	}
 
-	private registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): void {
+	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
 
 		// Logger
 		(async () => {
@@ -251,7 +252,8 @@ class BrowserMain extends Disposable {
 
 		// User data
 		if (!this.configuration.userDataProvider) {
-			this.configuration.userDataProvider = this._register(new InMemoryFileSystemProvider());
+			const indexedDB = await this.indexedDB;
+			this.configuration.userDataProvider = this._register(indexedDB ? new IndexedDBFileSystemProvider(Schemas.userData, indexedDB, INDEXEDDB_USERDATA_OBJECT_STORE) : new InMemoryFileSystemProvider());
 		}
 		fileService.registerProvider(Schemas.userData, this.configuration.userDataProvider);
 	}
