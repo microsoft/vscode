@@ -89,6 +89,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private _isVisible: boolean;
 	private selectBoxOptions: ISelectBoxOptions;
 	private selectElement: HTMLSelectElement;
+	private container?: HTMLElement;
 	private options: ISelectOptionItem[] = [];
 	private selected: number;
 	private readonly _onDidSelect: Emitter<ISelectData>;
@@ -307,6 +308,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	public render(container: HTMLElement): void {
+		this.container = container;
 		dom.addClass(container, 'select-container');
 		container.appendChild(this.selectElement);
 		this.applyStyles();
@@ -442,7 +444,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
 			},
 			anchorPosition: this._dropDownPosition
-		});
+		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
 
 		// Hide so we can relay out
 		this._isVisible = true;
@@ -457,11 +459,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
 			},
 			anchorPosition: this._dropDownPosition
-		});
+		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
 
 		// Track initial selection the case user escape, blur
 		this._currentSelection = this.selected;
 		this._isVisible = true;
+		this.selectElement.setAttribute('aria-expanded', 'true');
 	}
 
 	private hideSelectDropDown(focusSelect: boolean) {
@@ -470,6 +473,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		this._isVisible = false;
+		this.selectElement.setAttribute('aria-expanded', 'false');
 
 		if (focusSelect) {
 			this.selectElement.focus();

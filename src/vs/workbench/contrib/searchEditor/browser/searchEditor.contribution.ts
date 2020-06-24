@@ -5,7 +5,7 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as objects from 'vs/base/common/objects';
-import { endsWith } from 'vs/base/common/strings';
+import { extname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
@@ -30,7 +30,7 @@ import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
-import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
+import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEARCH_EDITOR_EXT } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -79,11 +79,11 @@ class SearchEditorContribution implements IWorkbenchContribution {
 				const resource = editor.resource;
 				if (!resource) { return undefined; }
 
-				if (!endsWith(resource.path, '.code-search')) {
+				if (extname(resource) !== SEARCH_EDITOR_EXT) {
 					return undefined;
 				}
 
-				if (group.isOpened(editor) && editor instanceof SearchEditorInput) {
+				if (editor instanceof SearchEditorInput && group.isOpened(editor)) {
 					return undefined;
 				}
 
@@ -93,7 +93,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 					override: (async () => {
 						const { config } = await instantiationService.invokeFunction(parseSavedSearchEditor, resource);
 						const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { backingUri: resource, config });
-						return editorService.openEditor(input, { ...options, ignoreOverrides: true }, group);
+						return editorService.openEditor(input, { ...options, override: false }, group);
 					})()
 				};
 			}
@@ -109,7 +109,9 @@ workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContrib
 type SerializedSearchEditor = { modelUri: string, dirty: boolean, config: SearchConfiguration, name: string, matchRanges: Range[], backingUri: string };
 class SearchEditorInputFactory implements IEditorInputFactory {
 
-	canSerialize() { return true; }
+	canSerialize(input: SearchEditorInput) {
+		return !input.isDisposed();
+	}
 
 	serialize(input: SearchEditorInput) {
 		let modelUri = undefined;
@@ -211,6 +213,7 @@ CommandsRegistry.registerCommand(
 //#region Actions
 const category = localize('search', "Search Editor");
 
+export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean, focusResults: boolean }>;
 const openArgDescription = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
 	args: [{
@@ -226,6 +229,8 @@ const openArgDescription = {
 				regexp: { type: 'boolean' },
 				useIgnores: { type: 'boolean' },
 				showIncludesExcludes: { type: 'boolean' },
+				triggerSearch: { type: 'boolean' },
+				focusResults: { type: 'boolean' },
 			}
 		}
 	}]
@@ -241,7 +246,7 @@ registerAction2(class extends Action2 {
 			description: openArgDescription
 		});
 	}
-	async run(accessor: ServicesAccessor, args: Partial<SearchConfiguration>) {
+	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
 		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, args);
 	}
 });
@@ -256,7 +261,7 @@ registerAction2(class extends Action2 {
 			description: openArgDescription
 		});
 	}
-	async run(accessor: ServicesAccessor, args: Partial<SearchConfiguration>) {
+	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
 		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, args, true);
 	}
 });
@@ -269,9 +274,12 @@ registerAction2(class extends Action2 {
 			category,
 			f1: true,
 			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				primary: KeyMod.Alt | KeyCode.Enter,
 				when: ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey),
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: KeybindingWeight.WorkbenchContrib,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.Enter
+				}
 			},
 		});
 	}

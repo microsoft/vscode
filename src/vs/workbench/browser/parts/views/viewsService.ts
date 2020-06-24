@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/views';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -34,7 +33,7 @@ import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export class ViewsService extends Disposable implements IViewsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
 	private readonly viewPaneContainers: Map<string, { viewPaneContainer: ViewPaneContainer, disposable: IDisposable }>;
@@ -445,6 +444,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			viewContainer.name,
 			undefined,
 			viewContainer.order,
+			viewContainer.requestedIndex,
 			viewContainer.focusCommand?.id,
 		));
 	}
@@ -480,6 +480,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			viewContainer.name,
 			isString(viewContainer.icon) ? viewContainer.icon : undefined,
 			viewContainer.order,
+			viewContainer.requestedIndex,
 			viewContainer.icon instanceof URI ? viewContainer.icon : undefined
 		));
 	}

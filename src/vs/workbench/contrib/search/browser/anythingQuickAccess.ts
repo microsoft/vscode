@@ -491,22 +491,34 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Use absolute path result as only results if present
 		let fileMatches: Array<URI>;
 		if (absolutePathResult) {
-			fileMatches = [absolutePathResult];
+			if (excludes.has(absolutePathResult)) {
+				return []; // excluded
+			}
+
+			// Create a single result pick and make sure to apply full
+			// highlights to ensure the pick is displayed. Since a
+			// ~ might have been used for searching, our fuzzy scorer
+			// may otherwise not properly respect the pick as a result
+			const absolutePathPick = this.createAnythingPick(absolutePathResult, this.configuration);
+			absolutePathPick.highlights = {
+				label: [{ start: 0, end: absolutePathPick.label.length }],
+				description: absolutePathPick.description ? [{ start: 0, end: absolutePathPick.description.length }] : undefined
+			};
+
+			return [absolutePathPick];
 		}
 
 		// Otherwise run the file search (with a delayer if cache is not ready yet)
-		else {
-			if (this.pickState.fileQueryCache?.isLoaded) {
-				fileMatches = await this.doFileSearch(query, token);
-			} else {
-				fileMatches = await this.fileQueryDelayer.trigger(async () => {
-					if (token.isCancellationRequested) {
-						return [];
-					}
+		if (this.pickState.fileQueryCache?.isLoaded) {
+			fileMatches = await this.doFileSearch(query, token);
+		} else {
+			fileMatches = await this.fileQueryDelayer.trigger(async () => {
+				if (token.isCancellationRequested) {
+					return [];
+				}
 
-					return this.doFileSearch(query, token);
-				});
-			}
+				return this.doFileSearch(query, token);
+			});
 		}
 
 		if (token.isCancellationRequested) {
@@ -631,7 +643,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return;
 		}
 
-		const userHome = await this.pathService.userHome;
+		const userHome = await this.pathService.userHome();
 		const detildifiedQuery = untildify(query.original, userHome.scheme === Schemas.file ? userHome.fsPath : userHome.path);
 		if (token.isCancellationRequested) {
 			return;

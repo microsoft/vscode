@@ -33,9 +33,6 @@ export const enum WindowMode {
 
 export interface ICodeWindow extends IDisposable {
 
-	readonly onClose: Event<void>;
-	readonly onDestroy: Event<void>;
-
 	readonly whenClosedOrLoaded: Promise<void>;
 
 	readonly id: number;
@@ -99,7 +96,7 @@ export interface IWindowsCountChangedEvent {
 
 export interface IWindowsMainService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly onWindowReady: Event<ICodeWindow>;
 	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;

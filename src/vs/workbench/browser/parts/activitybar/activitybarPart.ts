@@ -10,7 +10,7 @@ import { GLOBAL_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIIVTY_ID } from 'vs/workbenc
 import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActionViewItem, HomeAction, HomeActionViewItem, DeprecatedHomeAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction, ToggleMenuBarAction } from 'vs/workbench/browser/actions/layoutActions';
@@ -18,7 +18,7 @@ import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeServic
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
-import { Dimension, addClass, removeNode, createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
+import { Dimension, addClass, removeNode, createCSSRule, asCSSUrl, toggleClass } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -35,8 +35,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWeb } from 'vs/base/common/platform';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { Before2D } from 'vs/workbench/browser/dnd';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
@@ -69,11 +67,12 @@ interface ICachedViewContainer {
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly ACTION_HEIGHT = 48;
 	static readonly PINNED_VIEW_CONTAINERS = 'workbench.activity.pinnedViewlets2';
 	private static readonly PLACEHOLDER_VIEW_CONTAINERS = 'workbench.activity.placeholderViewlets';
+	private static readonly HOME_BAR_VISIBILITY_PREFERENCE = 'workbench.activity.showHomeIndicator';
 
 	//#region IView
 
@@ -116,12 +115,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
-		@IProductService private readonly productService: IProductService
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.PINNED_VIEW_CONTAINERS, version: 1 });
+		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.HOME_BAR_VISIBILITY_PREFERENCE, version: 1 });
 		this.migrateFromOldCachedViewContainersValue();
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
@@ -144,6 +143,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			getContextMenuActions: () => {
 				const menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService);
 				const actions = [];
+				if (this.homeBarContainer) {
+					actions.push(new Action('toggleHomeBarAction',
+						this.homeBarVisibilityPreference ? nls.localize('hideHomeBar', "Hide Home Button") : nls.localize('showHomeBar', "Show Home Button"),
+						undefined,
+						true,
+						async () => { this.homeBarVisibilityPreference = !this.homeBarVisibilityPreference; }));
+				}
 
 				if (menuBarVisibility === 'compact' || (menuBarVisibility === 'hidden' && isWeb)) {
 					actions.push(this.instantiationService.createInstance(ToggleMenuBarAction, ToggleMenuBarAction.ID, menuBarVisibility === 'compact' ? nls.localize('hideMenu', "Hide Menu") : nls.localize('showMenu', "Show Menu")));
@@ -152,7 +158,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
 				return actions;
 			},
-			getContextMenuActionsForComposite: () => [],
+			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
 			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)!.id,
 			hidePart: () => this.layoutService.setSideBarHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Sidebar,
@@ -171,6 +177,31 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	focusActivityBar(): void {
 		this.compositeBar.focus();
+	}
+
+	private getContextMenuActionsForComposite(compositeId: string): Action[] {
+		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId)!;
+
+		const actions = [];
+		const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer)!;
+		if (defaultLocation !== this.viewDescriptorService.getViewContainerLocation(viewContainer)) {
+			actions.push(new Action('resetLocationAction', nls.localize('resetLocation', "Reset Location"), undefined, true, async () => {
+				this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation);
+			}));
+		} else {
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+			if (viewContainerModel.allViewDescriptors.length === 1) {
+				const viewToReset = viewContainerModel.allViewDescriptors[0];
+				const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewToReset.id)!;
+				if (defaultContainer !== viewContainer) {
+					actions.push(new Action('resetLocationAction', nls.localize('resetLocation', "Reset Location"), undefined, true, async () => {
+						this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer);
+					}));
+				}
+			}
+		}
+
+		return actions;
 	}
 
 	private registerListeners(): void {
@@ -224,6 +255,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		} else {
 			// Deactivate view container action on close
 			this.compositeBar.deactivateComposite(id);
+		}
+	}
+
+	private onDidChangeHomeBarVisibility(): void {
+		if (this.homeBarContainer) {
+			this.homeBarContainer.style.display = this.homeBarVisibilityPreference ? '' : 'none';
 		}
 	}
 
@@ -364,6 +401,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				codicon = Codicon.code;
 			}
 			this.createHomeBar(homeIndicator.href, homeIndicator.command, homeIndicator.title, codicon);
+			this.onDidChangeHomeBarVisibility();
 		}
 
 		// Install menubar if compact
@@ -394,7 +432,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			orientation: ActionsOrientation.VERTICAL,
 			animated: false,
 			ariaLabel: nls.localize('home', "Home"),
-			actionViewItemProvider: command ? undefined : action => new HomeActionViewItem(action)
+			actionViewItemProvider: command ? undefined : action => new HomeActionViewItem(action),
+			allowContextMenu: true
 		}));
 
 		const homeBarIconBadge = document.createElement('div');
@@ -419,14 +458,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		container.style.backgroundColor = background;
 
 		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder) || '';
-		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : '';
-		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : '';
-		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : '';
-		container.style.borderRightColor = isPositionLeft ? borderColor : '';
-		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '';
-		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
-		container.style.borderLeftColor = !isPositionLeft ? borderColor : '';
+		toggleClass(container, 'bordered', !!borderColor);
+		container.style.borderColor = borderColor ? borderColor : '';
 	}
 
 	private getActivitybarItemColors(theme: IColorTheme): ICompositeBarColors {
@@ -466,15 +499,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			cssClass: Codicon.settingsGear.classNames
 		});
 
-		if (getUserDataSyncStore(this.productService, this.configurationService)) {
-			this.accountsActivityAction = new ActivityAction({
-				id: 'workbench.actions.accounts',
-				name: nls.localize('accounts', "Accounts"),
-				cssClass: Codicon.account.classNames
-			});
+		this.accountsActivityAction = new ActivityAction({
+			id: 'workbench.actions.accounts',
+			name: nls.localize('accounts', "Accounts"),
+			cssClass: Codicon.account.classNames
+		});
 
-			this.globalActivityActionBar.push(this.accountsActivityAction);
-		}
+		this.globalActivityActionBar.push(this.accountsActivityAction);
 
 		this.globalActivityActionBar.push(this.globalActivityAction);
 	}
@@ -704,6 +735,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 			this.compositeBar.setCompositeBarItems(newCompositeItems);
 		}
+
+		if (e.key === ActivitybarPart.HOME_BAR_VISIBILITY_PREFERENCE && e.scope === StorageScope.GLOBAL) {
+			this.onDidChangeHomeBarVisibility();
+		}
 	}
 
 	private saveCachedViewContainers(): void {
@@ -831,6 +866,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private setStoredPlaceholderViewContainersValue(value: string): void {
 		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, value, StorageScope.GLOBAL);
+	}
+
+	private get homeBarVisibilityPreference(): boolean {
+		return this.storageService.getBoolean(ActivitybarPart.HOME_BAR_VISIBILITY_PREFERENCE, StorageScope.GLOBAL, true);
+	}
+
+	private set homeBarVisibilityPreference(value: boolean) {
+		this.storageService.store(ActivitybarPart.HOME_BAR_VISIBILITY_PREFERENCE, value, StorageScope.GLOBAL);
 	}
 
 	private migrateFromOldCachedViewContainersValue(): void {

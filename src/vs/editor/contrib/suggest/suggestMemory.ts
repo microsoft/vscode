@@ -132,11 +132,7 @@ export class LRUMemory extends Memory {
 	}
 
 	toJSON(): object {
-		let data: [string, MemItem][] = [];
-		this._cache.forEach((value, key) => {
-			data.push([key, value]);
-		});
-		return data;
+		return this._cache.toJSON();
 	}
 
 	fromJSON(data: [string, MemItem][]): void {
@@ -308,7 +304,7 @@ export class SuggestMemoryService implements ISuggestMemoryService {
 export const ISuggestMemoryService = createDecorator<ISuggestMemoryService>('ISuggestMemories');
 
 export interface ISuggestMemoryService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void;
 	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number;
 }

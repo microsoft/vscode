@@ -62,12 +62,12 @@ export class BrowserEnvironmentConfiguration implements IEnvironmentConfiguratio
 	@memoize
 	get filesToDiff(): IPath[] | undefined {
 		if (this.payload) {
-			const fileToDiffDetail = this.payload.get('diffFileDetail');
-			const fileToDiffMaster = this.payload.get('diffFileMaster');
-			if (fileToDiffDetail && fileToDiffMaster) {
+			const fileToDiffPrimary = this.payload.get('diffFilePrimary');
+			const fileToDiffSecondary = this.payload.get('diffFileSecondary');
+			if (fileToDiffPrimary && fileToDiffSecondary) {
 				return [
-					{ fileUri: URI.parse(fileToDiffDetail) },
-					{ fileUri: URI.parse(fileToDiffMaster) }
+					{ fileUri: URI.parse(fileToDiffSecondary) },
+					{ fileUri: URI.parse(fileToDiffPrimary) }
 				];
 			}
 		}
@@ -99,7 +99,7 @@ interface IExtensionHostDebugEnvironment {
 
 export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _configuration: IEnvironmentConfiguration | undefined = undefined;
 	get configuration(): IEnvironmentConfiguration {
@@ -268,6 +268,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 					case 'inspect-brk-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
 						extensionHostDebugEnvironment.params.break = true;
+						break;
+					case 'inspect-extensions':
+						extensionHostDebugEnvironment.params.port = parseInt(value);
 						break;
 					case 'enableProposedApi':
 						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];

@@ -20,14 +20,14 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
-import { IAction, IActionViewItem, ActionRunner, Action } from 'vs/base/common/actions';
+import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup } from 'vs/base/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { SCMMenus } from './menus';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionViewItemProvider, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { WorkbenchCompressibleObjectTree, TreeResourceNavigator, IOpenEvent } from 'vs/platform/list/browser/listService';
+import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -39,7 +39,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
-import { compareFileNames } from 'vs/base/common/comparers';
+import { compareFileNames, comparePaths } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
 import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
@@ -60,7 +60,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import * as platform from 'vs/base/common/platform';
-import { format } from 'vs/base/common/strings';
+import { format, compare } from 'vs/base/common/strings';
 import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -74,6 +74,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { ContextSubMenu } from 'vs/base/browser/contextmenu';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -371,14 +374,38 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 	constructor(private viewModelProvider: () => ViewModel) { }
 
 	compare(one: TreeElement, other: TreeElement): number {
-		if (this.viewModel.mode === ViewModelMode.List) {
-			return 0;
-		}
-
 		if (isSCMResourceGroup(one) && isSCMResourceGroup(other)) {
 			return 0;
 		}
 
+		// List
+		if (this.viewModel.mode === ViewModelMode.List) {
+			// FileName
+			if (this.viewModel.sortKey === ViewModelSortKey.Name) {
+				const oneName = basename((one as ISCMResource).sourceUri);
+				const otherName = basename((other as ISCMResource).sourceUri);
+
+				return compareFileNames(oneName, otherName);
+			}
+
+			// Status
+			if (this.viewModel.sortKey === ViewModelSortKey.Status) {
+				const oneTooltip = (one as ISCMResource).decorations.tooltip ?? '';
+				const otherTooltip = (other as ISCMResource).decorations.tooltip ?? '';
+
+				if (oneTooltip !== otherTooltip) {
+					return compare(oneTooltip, otherTooltip);
+				}
+			}
+
+			// Path (default)
+			const onePath = (one as ISCMResource).sourceUri.fsPath;
+			const otherPath = (other as ISCMResource).sourceUri.fsPath;
+
+			return comparePaths(onePath, otherPath);
+		}
+
+		// Tree
 		const oneIsDirectory = ResourceTree.isResourceNode(one);
 		const otherIsDirectory = ResourceTree.isResourceNode(other);
 
@@ -496,6 +523,12 @@ const enum ViewModelMode {
 	Tree = 'tree'
 }
 
+const enum ViewModelSortKey {
+	Path,
+	Name,
+	Status
+}
+
 class ViewModel {
 
 	private readonly _onDidChangeMode = new Emitter<ViewModelMode>();
@@ -519,6 +552,14 @@ class ViewModel {
 		this._onDidChangeMode.fire(mode);
 	}
 
+	get sortKey(): ViewModelSortKey { return this._sortKey; }
+	set sortKey(sortKey: ViewModelSortKey) {
+		if (sortKey !== this._sortKey) {
+			this._sortKey = sortKey;
+			this.refresh();
+		}
+	}
+
 	private items: IGroupItem[] = [];
 	private visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
@@ -529,6 +570,7 @@ class ViewModel {
 		private groups: ISequence<ISCMResourceGroup>,
 		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
 		private _mode: ViewModelMode,
+		private _sortKey: ViewModelSortKey,
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 	) { }
@@ -625,7 +667,7 @@ class ViewModel {
 			return;
 		}
 
-		const uri = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+		const uri = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		if (!uri) {
 			return;
@@ -659,30 +701,112 @@ class ViewModel {
 	}
 }
 
-export class ToggleViewModeAction extends Action {
+class SCMViewSubMenuAction extends ContextSubMenu {
+	constructor(viewModel: ViewModel) {
+		super(localize('sortAction', "View & Sort"),
+			[
+				...new RadioGroup([
+					new SCMViewModeListAction(viewModel),
+					new SCMViewModeTreeAction(viewModel)
+				]).actions,
+				new Separator(),
+				...new RadioGroup([
+					new SCMSortByNameAction(viewModel),
+					new SCMSortByPathAction(viewModel),
+					new SCMSortByStatusAction(viewModel)
+				]).actions
+			]
+		);
+	}
+}
 
-	static readonly ID = 'workbench.scm.action.toggleViewMode';
-	static readonly LABEL = localize('toggleViewMode', "Toggle View Mode");
+abstract class SCMViewModeAction extends Action {
+	constructor(id: string, label: string, private viewModel: ViewModel, private viewMode: ViewModelMode) {
+		super(id, label);
 
-	constructor(private viewModel: ViewModel) {
-		super(ToggleViewModeAction.ID, ToggleViewModeAction.LABEL);
-
-		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
-		this.onDidChangeMode(this.viewModel.mode);
+		this.checked = this.viewModel.mode === this.viewMode;
 	}
 
 	async run(): Promise<void> {
-		this.viewModel.mode = this.viewModel.mode === ViewModelMode.List ? ViewModelMode.Tree : ViewModelMode.List;
+		if (this.viewMode !== this.viewModel.mode) {
+			this.checked = !this.checked;
+			this.viewModel.mode = this.viewMode;
+		}
+	}
+}
+
+class SCMViewModeListAction extends SCMViewModeAction {
+	static readonly ID = 'workbench.scm.action.viewModeList';
+	static readonly LABEL = localize('viewModeList', "View as List");
+
+	constructor(viewModel: ViewModel) {
+		super(SCMViewModeListAction.ID, SCMViewModeListAction.LABEL, viewModel, ViewModelMode.List);
+	}
+}
+
+class SCMViewModeTreeAction extends SCMViewModeAction {
+	static readonly ID = 'workbench.scm.action.viewModeTree';
+	static readonly LABEL = localize('viewModeTree', "View as Tree");
+
+	constructor(viewModel: ViewModel) {
+		super(SCMViewModeTreeAction.ID, SCMViewModeTreeAction.LABEL, viewModel, ViewModelMode.Tree);
+	}
+}
+
+abstract class SCMSortAction extends Action {
+
+	private readonly _listener: IDisposable;
+
+	constructor(id: string, label: string, private viewModel: ViewModel, private sortKey: ViewModelSortKey) {
+		super(id, label);
+
+		this.checked = this.sortKey === ViewModelSortKey.Path;
+		this.enabled = this.viewModel?.mode === ViewModelMode.List ?? false;
+		this._listener = viewModel?.onDidChangeMode(e => this.enabled = e === ViewModelMode.List);
 	}
 
-	private onDidChangeMode(mode: ViewModelMode): void {
-		const iconClass = mode === ViewModelMode.List ? 'codicon-list-tree' : 'codicon-list-flat';
-		this.class = `scm-action toggle-view-mode ${iconClass}`;
+	async run(): Promise<void> {
+		if (this.sortKey !== this.viewModel.sortKey) {
+			this.checked = !this.checked;
+			this.viewModel.sortKey = this.sortKey;
+		}
+	}
+
+	dispose(): void {
+		this._listener.dispose();
+		super.dispose();
+	}
+}
+
+class SCMSortByNameAction extends SCMSortAction {
+	static readonly ID = 'workbench.scm.action.sortByName';
+	static readonly LABEL = localize('sortByName', "Sort by Name");
+
+	constructor(viewModel: ViewModel) {
+		super(SCMSortByNameAction.ID, SCMSortByNameAction.LABEL, viewModel, ViewModelSortKey.Name);
+	}
+}
+
+class SCMSortByPathAction extends SCMSortAction {
+	static readonly ID = 'workbench.scm.action.sortByPath';
+	static readonly LABEL = localize('sortByPath', "Sort by Path");
+
+	constructor(viewModel: ViewModel) {
+		super(SCMSortByPathAction.ID, SCMSortByPathAction.LABEL, viewModel, ViewModelSortKey.Path);
+	}
+}
+
+class SCMSortByStatusAction extends SCMSortAction {
+	static readonly ID = 'workbench.scm.action.sortByStatus';
+	static readonly LABEL = localize('sortByStatus', "Sort by Status");
+
+	constructor(viewModel: ViewModel) {
+		super(SCMSortByStatusAction.ID, SCMSortByStatusAction.LABEL, viewModel, ViewModelSortKey.Status);
 	}
 }
 
 export class RepositoryPane extends ViewPane {
-	private readonly defaultInputFontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif';
+	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
@@ -695,7 +819,6 @@ export class RepositoryPane extends ViewPane {
 	private viewModel!: ViewModel;
 	private listLabels!: ResourceLabels;
 	private menus: SCMMenus;
-	private toggleViewModelModeAction: ToggleViewModeAction | undefined;
 	protected contextKeyService: IContextKeyService;
 	private commitTemplate = '';
 
@@ -863,6 +986,10 @@ export class RepositoryPane extends ViewPane {
 
 		this._register(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
 
+		const opts = this.modelService.getCreationOptions(this.inputModel.getLanguageIdentifier().language, this.inputModel.uri, this.inputModel.isForSimpleWidget);
+		const onEnter = Event.filter(this.inputEditor.onKeyDown, e => e.keyCode === KeyCode.Enter);
+		this._register(onEnter(() => this.inputModel.detectIndentation(opts.insertSpaces, opts.tabSize)));
+
 		// Keep model in sync with API
 		this.inputModel.setValue(this.repository.input.value);
 		this._register(this.repository.input.onDidChange(value => {
@@ -942,13 +1069,7 @@ export class RepositoryPane extends ViewPane {
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
 			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 
-		const navigator = this._register(new TreeResourceNavigator(this.tree, { openOnSelection: false }));
-		this._register(navigator.onDidOpenResource(this.open, this));
-
-		this._register(Event.chain(this.tree.onDidPin)
-			.map(e => e.elements[0])
-			.filter(e => !!e && !isSCMResourceGroup(e) && !ResourceTree.isResourceNode(e))
-			.on(this.pin, this));
+		this._register(this.tree.onDidOpen(this.open, this));
 
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
@@ -965,7 +1086,7 @@ export class RepositoryPane extends ViewPane {
 			}
 		}
 
-		this.viewModel = this.instantiationService.createInstance(ViewModel, this.repository.provider.groups, this.tree, viewMode);
+		this.viewModel = this.instantiationService.createInstance(ViewModel, this.repository.provider.groups, this.tree, viewMode, ViewModelSortKey.Path);
 		this._register(this.viewModel);
 
 		addClass(this.listContainer, 'file-icon-themable-tree');
@@ -975,9 +1096,6 @@ export class RepositoryPane extends ViewPane {
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
 		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
 
-		this.toggleViewModelModeAction = new ToggleViewModeAction(this.viewModel);
-		this._register(this.toggleViewModelModeAction);
-
 		this._register(this.onDidChangeBodyVisibility(this._onDidChangeVisibility, this));
 
 		this.updateActions();
@@ -986,7 +1104,7 @@ export class RepositoryPane extends ViewPane {
 	private updateIndentStyles(theme: IFileIconTheme): void {
 		toggleClass(this.listContainer, 'list-view-mode', this.viewModel.mode === ViewModelMode.List);
 		toggleClass(this.listContainer, 'tree-view-mode', this.viewModel.mode === ViewModelMode.Tree);
-		toggleClass(this.listContainer, 'align-icons-and-twisties', this.viewModel.mode === ViewModelMode.Tree && theme.hasFileIcons && !theme.hasFolderIcons);
+		toggleClass(this.listContainer, 'align-icons-and-twisties', (this.viewModel.mode === ViewModelMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
 		toggleClass(this.listContainer, 'hide-arrows', this.viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
 	}
 
@@ -1060,19 +1178,22 @@ export class RepositoryPane extends ViewPane {
 	}
 
 	getActions(): IAction[] {
-		if (this.toggleViewModelModeAction) {
-
-			return [
-				this.toggleViewModelModeAction,
-				...this.menus.getTitleActions()
-			];
-		} else {
-			return this.menus.getTitleActions();
-		}
+		return this.menus.getTitleActions();
 	}
 
 	getSecondaryActions(): IAction[] {
-		return this.menus.getTitleSecondaryActions();
+		if (!this.viewModel) {
+			return [];
+		}
+
+		const result: IAction[] = [new SCMViewSubMenuAction(this.viewModel)];
+		const secondaryActions = this.menus.getTitleSecondaryActions();
+
+		if (secondaryActions.length > 0) {
+			result.push(new Separator(), ...secondaryActions);
+		}
+
+		return result;
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -1087,19 +1208,19 @@ export class RepositoryPane extends ViewPane {
 		return this.repository.provider;
 	}
 
-	private open(e: IOpenEvent<TreeElement | null>): void {
+	private async open(e: IOpenEvent<TreeElement | null>): Promise<void> {
 		if (!e.element || isSCMResourceGroup(e.element) || ResourceTree.isResourceNode(e.element)) {
 			return;
 		}
 
-		e.element.open(!!e.editorOptions.preserveFocus);
-	}
+		await e.element.open(!!e.editorOptions.preserveFocus);
 
-	private pin(): void {
-		const activeEditorPane = this.editorService.activeEditorPane;
+		if (e.editorOptions.pinned) {
+			const activeEditorPane = this.editorService.activeEditorPane;
 
-		if (activeEditorPane) {
-			activeEditorPane.group.pinEditor(activeEditorPane.input);
+			if (activeEditorPane) {
+				activeEditorPane.group.pinEditor(activeEditorPane.input);
+			}
 		}
 	}
 
@@ -1163,10 +1284,10 @@ export class RepositoryPane extends ViewPane {
 	}
 
 	private getInputEditorFontFamily(): string {
-		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily');
+		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily').trim();
 
 		if (inputFontFamily.toLowerCase() === 'editor') {
-			return this.configurationService.getValue<string>('editor.fontFamily');
+			return this.configurationService.getValue<string>('editor.fontFamily').trim();
 		}
 
 		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {

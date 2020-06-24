@@ -57,14 +57,14 @@ export class MainThreadFileSystemEventService {
 
 		// BEFORE file operation
 		workingCopyFileService.addFileOperationParticipant({
-			participate: (target, source, operation, progress, timeout, token) => {
-				return proxy.$onWillRunFileOperation(operation, target, source, timeout, token);
+			participate: (files, operation, progress, timeout, token) => {
+				return proxy.$onWillRunFileOperation(operation, files, timeout, token);
 			}
 		});
 
 		// AFTER file operation
-		this._listener.add(textFileService.onDidCreateTextFile(e => proxy.$onDidRunFileOperation(FileOperation.CREATE, e.resource, undefined)));
-		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => proxy.$onDidRunFileOperation(e.operation, e.target, e.source)));
+		this._listener.add(textFileService.onDidCreateTextFile(e => proxy.$onDidRunFileOperation(FileOperation.CREATE, [{ target: e.resource }])));
+		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => proxy.$onDidRunFileOperation(e.operation, e.files)));
 	}
 
 	dispose(): void {

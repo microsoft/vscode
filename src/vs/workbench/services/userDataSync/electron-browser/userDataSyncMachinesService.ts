@@ -11,7 +11,7 @@ import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/
 
 class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMachinesService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly channel: IChannel;
 
@@ -26,8 +26,8 @@ class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMac
 		return this.channel.call<IUserDataSyncMachine[]>('getMachines');
 	}
 
-	addCurrentMachine(name: string): Promise<void> {
-		return this.channel.call('addCurrentMachine', [name]);
+	addCurrentMachine(): Promise<void> {
+		return this.channel.call('addCurrentMachine');
 	}
 
 	removeCurrentMachine(): Promise<void> {
@@ -38,8 +38,8 @@ class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMac
 		return this.channel.call('renameMachine', [machineId, name]);
 	}
 
-	disableMachine(machineId: string): Promise<void> {
-		return this.channel.call('disableMachine', [machineId]);
+	setEnablement(machineId: string, enabled: boolean): Promise<void> {
+		return this.channel.call('setEnablement', [machineId, enabled]);
 	}
 
 }

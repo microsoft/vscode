@@ -7,10 +7,9 @@ import { getLanguageModelCache } from '../languageModelCache';
 import {
 	LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions,
 	HTMLFormatConfiguration, SelectionRange,
-	TextDocument, Position, Range, CompletionItem, FoldingRange,
+	TextDocument, Position, Range, FoldingRange,
 	LanguageMode, Workspace
 } from './languageModes';
-import { getPathCompletionParticipant } from './pathCompletion';
 
 export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace: Workspace): LanguageMode {
 	let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => htmlLanguageService.parseHTMLDocument(document));
@@ -21,19 +20,15 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		getSelectionRange(document: TextDocument, position: Position): SelectionRange {
 			return htmlLanguageService.getSelectionRanges(document, [position])[0];
 		},
-		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {
+		doComplete(document: TextDocument, position: Position, documentContext: DocumentContext, settings = workspace.settings) {
 			let options = settings && settings.html && settings.html.suggest;
 			let doAutoComplete = settings && settings.html && settings.html.autoClosingTags;
 			if (doAutoComplete) {
 				options.hideAutoCompleteProposals = true;
 			}
-			let pathCompletionProposals: CompletionItem[] = [];
-			let participants = [getPathCompletionParticipant(document, workspace.folders, pathCompletionProposals)];
-			htmlLanguageService.setCompletionParticipants(participants);
 
 			const htmlDocument = htmlDocuments.get(document);
-			let completionList = htmlLanguageService.doComplete(document, position, htmlDocument, options);
-			completionList.items.push(...pathCompletionProposals);
+			let completionList = htmlLanguageService.doComplete2(document, position, htmlDocument, documentContext, options);
 			return completionList;
 		},
 		doHover(document: TextDocument, position: Position) {

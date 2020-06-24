@@ -8,7 +8,7 @@ import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
+import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellFindMatch, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
@@ -26,20 +26,26 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		return this._layoutInfo;
 	}
 
-	set totalHeight(newHeight: number) {
+	set renderedMarkdownHeight(newHeight: number) {
+		const newTotalHeight = newHeight + BOTTOM_CELL_TOOLBAR_HEIGHT;
+		this.totalHeight = newTotalHeight;
+	}
+
+	private set totalHeight(newHeight: number) {
 		if (newHeight !== this.layoutInfo.totalHeight) {
 			this.layoutChange({ totalHeight: newHeight });
 		}
 	}
 
-	get totalHeight() {
+	private get totalHeight() {
 		throw new Error('MarkdownCellViewModel.totalHeight is write only');
 	}
 
 	private _editorHeight = 0;
 	set editorHeight(newHeight: number) {
 		this._editorHeight = newHeight;
-		this.layoutChange({ editorHeight: true });
+
+		this.totalHeight = this._editorHeight + BOTTOM_CELL_TOOLBAR_HEIGHT + CELL_STATUSBAR_HEIGHT;
 	}
 
 	get editorHeight() {

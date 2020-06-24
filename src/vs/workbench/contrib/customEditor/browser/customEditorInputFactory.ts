@@ -57,11 +57,12 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 	}
 
 	public serialize(input: CustomEditorInput): string | undefined {
+		const dirty = input.isDirty();
 		const data: SerializedCustomEditor = {
 			...this.toJson(input),
 			editorResource: input.resource.toJSON(),
-			dirty: input.isDirty(),
-			backupId: input.backupId,
+			dirty,
+			backupId: dirty ? input.backupId : undefined,
 		};
 
 		try {
@@ -122,5 +123,15 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 			editor.updateGroup(0);
 			return editor;
 		});
+	}
+
+	public static canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
+		if (editorInput instanceof CustomEditorInput) {
+			if (editorInput.resource.path === backupResource.path && backupResource.authority === editorInput.viewType) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }

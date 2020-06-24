@@ -16,7 +16,6 @@
 		};
 	}());
 
-	// @ts-ignore
 	const ipcRenderer = require('electron').ipcRenderer;
 
 	let isInDevelopmentMode = false;

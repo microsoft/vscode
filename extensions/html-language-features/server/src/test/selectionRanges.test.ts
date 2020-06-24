@@ -7,6 +7,7 @@ import 'mocha';
 import * as assert from 'assert';
 import { getLanguageModes, ClientCapabilities, TextDocument, SelectionRange} from '../modes/languageModes';
 import { getSelectionRanges } from '../modes/selectionRanges';
+import { getNodeFSRequestService } from '../node/nodeFs';
 
 function assertRanges(content: string, expected: (number | string)[][]): void {
 	let message = `${content} gives selection range:\n`;
@@ -18,7 +19,7 @@ function assertRanges(content: string, expected: (number | string)[][]): void {
 		settings: {},
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
-	let languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
+	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
 
 	const document = TextDocument.create('test://foo.html', 'html', 1, content);
 	const actualRanges = getSelectionRanges(languageModes, document, [document.positionAt(offset)]);

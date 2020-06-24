@@ -21,6 +21,7 @@ import { COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comm
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { Codicon } from 'vs/base/common/codicons';
 
 
 export class MainThreadCommentThread implements modes.CommentThread {
@@ -458,6 +459,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 				storageId: COMMENTS_VIEW_TITLE,
 				hideIfEmpty: true,
+				icon: Codicon.commentDiscussion.classNames,
 				order: 10,
 			}, ViewContainerLocation.Panel);
 
@@ -467,6 +469,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				canToggleVisibility: false,
 				ctorDescriptor: new SyncDescriptor(CommentsPanel),
 				canMoveView: true,
+				containerIcon: Codicon.commentDiscussion.classNames,
 				focusCommand: {
 					id: 'workbench.action.focusCommentsPanel'
 				}

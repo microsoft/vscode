@@ -559,6 +559,27 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 // Show Search 'when' is redundant but if the two conflict with exactly the same keybinding and 'when' clause, then they can show up as "unbound" - #51780
 registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenSearchViewletAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }, Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	description: {
+		description: nls.localize('findInFiles.description', "Open the search viewlet"),
+		args: [
+			{
+				name: nls.localize('findInFiles.args', "A set of options for the search viewlet"),
+				schema: {
+					type: 'object',
+					properties: {
+						query: { 'type': 'string' },
+						replace: { 'type': 'string' },
+						triggerSearch: { 'type': 'boolean' },
+						filesToInclude: { 'type': 'string' },
+						filesToExclude: { 'type': 'string' },
+						isRegex: { 'type': 'boolean' },
+						isCaseSensitive: { 'type': 'boolean' },
+						matchWholeWord: { 'type': 'boolean' },
+					}
+				}
+			},
+		]
+	},
 	id: Constants.FindInFilesActionId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: null,
@@ -575,8 +596,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	order: 1
 });
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextSearchResultAction, { primary: KeyCode.F4 }, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor)), 'Focus Next Search Result', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousSearchResultAction, { primary: KeyMod.Shift | KeyCode.F4 }, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor)), 'Focus Previous Search Result', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextSearchResultAction, { primary: KeyCode.F4 }), 'Focus Next Search Result', category, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousSearchResultAction, { primary: KeyMod.Shift | KeyCode.F4 }), 'Focus Previous Search Result', category, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor));
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ReplaceInFilesAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H }), 'Replace in Files', category);
 MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
@@ -756,7 +777,7 @@ configurationRegistry.registerConfiguration({
 			enum: ['sidebar', 'panel'],
 			default: 'sidebar',
 			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
-			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. Please use the search view's context menu instead.")
+			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. Please use drag and drop instead by dragging the search icon.")
 		},
 		'search.collapseResults': {
 			type: 'string',
@@ -831,17 +852,22 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			markdownDescription: nls.localize('search.searchEditor.reusePriorSearchConfiguration', "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor")
 		},
+		'search.searchEditor.defaultNumberOfContextLines': {
+			type: ['number', 'null'],
+			default: 1,
+			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding context lines to use when creating new Search Editors. If using `#search.searchEditor.reusePriorSearchConfiguration#`, this can be set to `null` (empty) to use the prior Search Editor's configuration.")
+		},
 		'search.sortOrder': {
 			'type': 'string',
 			'enum': [SearchSortOrder.Default, SearchSortOrder.FileNames, SearchSortOrder.Type, SearchSortOrder.Modified, SearchSortOrder.CountDescending, SearchSortOrder.CountAscending],
 			'default': SearchSortOrder.Default,
 			'enumDescriptions': [
-				nls.localize('searchSortOrder.default', 'Results are sorted by folder and file names, in alphabetical order.'),
-				nls.localize('searchSortOrder.filesOnly', 'Results are sorted by file names ignoring folder order, in alphabetical order.'),
-				nls.localize('searchSortOrder.type', 'Results are sorted by file extensions, in alphabetical order.'),
-				nls.localize('searchSortOrder.modified', 'Results are sorted by file last modified date, in descending order.'),
-				nls.localize('searchSortOrder.countDescending', 'Results are sorted by count per file, in descending order.'),
-				nls.localize('searchSortOrder.countAscending', 'Results are sorted by count per file, in ascending order.')
+				nls.localize('searchSortOrder.default', "Results are sorted by folder and file names, in alphabetical order."),
+				nls.localize('searchSortOrder.filesOnly', "Results are sorted by file names ignoring folder order, in alphabetical order."),
+				nls.localize('searchSortOrder.type', "Results are sorted by file extensions, in alphabetical order."),
+				nls.localize('searchSortOrder.modified', "Results are sorted by file last modified date, in descending order."),
+				nls.localize('searchSortOrder.countDescending', "Results are sorted by count per file, in descending order."),
+				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
 		},
