@@ -85,7 +85,7 @@ export class ProxyAuthHandler extends Disposable {
 
 		win.setMenu(null);
 		win.webContents.on('did-finish-load', () => {
-			const data = Object.create({ title, message });
+			const data = { title, message };
 			win.webContents.send('vscode:openProxyAuthDialog', data);
 		});
 		win.webContents.on('ipc-message', (event, channel, credentials: Credentials) => {
