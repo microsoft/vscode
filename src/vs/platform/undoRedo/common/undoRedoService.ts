@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IUndoRedoService, IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoElement, IPastFutureElements, UriComparisonKeyComputer, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoElement, IPastFutureElements, ResourceEditStackSnapshot, UriComparisonKeyComputer } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -426,7 +426,7 @@ export class UndoRedoService implements IUndoRedoService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _editStacks: Map<string, ResourceEditStack>;
-	private readonly _uriComparisonKeyComputers: UriComparisonKeyComputer[];
+	private readonly _uriComparisonKeyComputers: [string, UriComparisonKeyComputer][];
 
 	constructor(
 		@IDialogService private readonly _dialogService: IDialogService,
@@ -436,12 +436,12 @@ export class UndoRedoService implements IUndoRedoService {
 		this._uriComparisonKeyComputers = [];
 	}
 
-	public registerUriComparisonKeyComputer(uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable {
-		this._uriComparisonKeyComputers.push(uriComparisonKeyComputer);
+	public registerUriComparisonKeyComputer(scheme: string, uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable {
+		this._uriComparisonKeyComputers.push([scheme, uriComparisonKeyComputer]);
 		return {
 			dispose: () => {
 				for (let i = 0, len = this._uriComparisonKeyComputers.length; i < len; i++) {
-					if (this._uriComparisonKeyComputers[i] === uriComparisonKeyComputer) {
+					if (this._uriComparisonKeyComputers[i][1] === uriComparisonKeyComputer) {
 						this._uriComparisonKeyComputers.splice(i, 1);
 						return;
 					}
@@ -452,9 +452,8 @@ export class UndoRedoService implements IUndoRedoService {
 
 	public getUriComparisonKey(resource: URI): string {
 		for (const uriComparisonKeyComputer of this._uriComparisonKeyComputers) {
-			const result = uriComparisonKeyComputer.getComparisonKey(resource);
-			if (result !== null) {
-				return result;
+			if (uriComparisonKeyComputer[0] === resource.scheme) {
+				return uriComparisonKeyComputer[1].getComparisonKey(resource);
 			}
 		}
 		return resource.toString();

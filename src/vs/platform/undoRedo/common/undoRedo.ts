@@ -46,10 +46,7 @@ export interface IPastFutureElements {
 }
 
 export interface UriComparisonKeyComputer {
-	/**
-	 * Return `null` if you don't own this URI.
-	 */
-	getComparisonKey(uri: URI): string | null;
+	getComparisonKey(uri: URI): string;
 }
 
 export class ResourceEditStackSnapshot {
@@ -66,7 +63,7 @@ export interface IUndoRedoService {
 	 * Register an URI -> string hasher.
 	 * This is useful for making multiple URIs share the same undo-redo stack.
 	 */
-	registerUriComparisonKeyComputer(uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable;
+	registerUriComparisonKeyComputer(scheme: string, uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable;
 
 	/**
 	 * Get the hash used internally for a certain URI.

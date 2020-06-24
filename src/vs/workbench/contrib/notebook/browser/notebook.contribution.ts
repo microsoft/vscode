@@ -148,15 +148,11 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	) {
 		super();
 
-		this._register(undoRedoService.registerUriComparisonKeyComputer({
-			getComparisonKey: (uri: URI): string | null => {
-				if (uri.scheme !== CellUri.scheme) {
-					return null;
-				}
-
+		this._register(undoRedoService.registerUriComparisonKeyComputer(CellUri.scheme, {
+			getComparisonKey: (uri: URI): string => {
 				const data = CellUri.parse(uri);
 				if (!data) {
-					return null;
+					return uri.toString();
 				}
 
 				return data.notebook.toString();
