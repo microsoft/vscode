@@ -111,6 +111,41 @@ suite('NotebookConcatDocument', function () {
 		assert.deepStrictEqual(actual, lines);
 	}
 
+	test('contains', function () {
+
+		const cellUri1 = CellUri.generate(notebook.uri, 1);
+		const cellUri2 = CellUri.generate(notebook.uri, 2);
+
+		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			kind: NotebookCellsChangeType.ModelChange,
+			versionId: notebook.versionId + 1,
+			changes: [[0, 0, [{
+				handle: 1,
+				uri: cellUri1,
+				source: ['Hello', 'World', 'Hello World!'],
+				language: 'test',
+				cellKind: CellKind.Code,
+				outputs: [],
+			}, {
+				handle: 2,
+				uri: cellUri2,
+				source: ['Hallo', 'Welt', 'Hallo Welt!'],
+				language: 'test',
+				cellKind: CellKind.Code,
+				outputs: [],
+			}]]]
+		});
+
+
+		assert.equal(notebook.cells.length, 1 + 2); // markdown and code
+
+		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook, undefined);
+
+		assert.equal(doc.contains(cellUri1), true);
+		assert.equal(doc.contains(cellUri2), true);
+		assert.equal(doc.contains(URI.parse('some://miss/path')), false);
+	});
+
 	test('location, position mapping', function () {
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {

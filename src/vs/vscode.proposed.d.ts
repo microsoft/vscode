@@ -1530,6 +1530,7 @@ declare module 'vscode' {
 		positionAt(offset: number): Position;
 		locationAt(positionOrRange: Position | Range): Location;
 		positionAt(location: Location): Position;
+		contains(uri: Uri): boolean
 	}
 
 	export interface NotebookEditorCellEdit {
