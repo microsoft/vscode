@@ -1,0 +1,14 @@
+{
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"removeComments": false,
+		"preserveConstEnums": true,
+		"sourceMap": false,
+		"outDir": "./lib",
+		"target": "es6",
+		"lib": [
+			"dom",
+			"esnext",
+		]
+	}
+}

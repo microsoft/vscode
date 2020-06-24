@@ -1,9 +1,0 @@
-[2017-12-21 12:47:29.584] [renderer1] [trace] CommandService#executeCommand workbench.view.explorer
-[2017-12-21 12:47:29.614] [renderer1] [trace] CommandService#executeCommand setContext
-[2017-12-21 12:47:29.632] [renderer1] [trace] SCMService#registerSCMProvider
-[2017-12-21 12:47:29.636] [renderer1] [trace] CommandService#executeCommand setContext
-[2017-12-21 12:47:32.164] [renderer1] [trace] CommandService#executeCommand workbench.action.showCommands
-[2017-12-21 12:47:33.122] [renderer1] [trace] CommandService#executeCommand workbench.action.openLogFile
-[2017-12-21 12:47:34.249] [renderer1] [trace] CommandService#executeCommand workbench.action.openLogViewer
-[2017-12-21 12:47:48.078] [renderer1] [trace] CommandService#executeCommand workbench.action.showCommands
-[2017-12-21 12:47:49.294] [renderer1] [trace] CommandService#executeCommand workbench.action.reloadWindow

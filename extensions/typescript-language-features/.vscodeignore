@@ -1,8 +1,0 @@
-build/**
-src/**
-test/**
-out/**
-tsconfig.json
-extension.webpack.config.js
-cgmanifest.json
-yarn.lock

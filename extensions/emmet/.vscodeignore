@@ -1,9 +1,0 @@
-test/**
-src/**
-out/**
-tsconfig.json
-extension.webpack.config.js
-CONTRIBUTING.md
-cgmanifest.json
-yarn.lock
-.vscode
