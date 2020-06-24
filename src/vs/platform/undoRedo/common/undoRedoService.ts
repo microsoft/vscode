@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IUndoRedoService, IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoElement, IPastFutureElements, UriComparisonKeyComputer } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoElement, IPastFutureElements, UriComparisonKeyComputer, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -20,7 +20,10 @@ function getResourceLabel(resource: URI): string {
 	return resource.scheme === Schemas.file ? resource.fsPath : resource.path;
 }
 
+let stackElementCounter = 0;
+
 class ResourceStackElement {
+	public readonly id = (++stackElementCounter);
 	public readonly type = UndoRedoElementType.Resource;
 	public readonly actual: IUndoRedoElement;
 	public readonly label: string;
@@ -46,7 +49,7 @@ class ResourceStackElement {
 	}
 
 	public toString(): string {
-		return `[VALID] ${this.actual}`;
+		return `[${this.id}] [${this.isValid ? 'VALID' : 'INVALID'}] ${this.actual}`;
 	}
 }
 
@@ -105,6 +108,7 @@ class RemovedResources {
 }
 
 class WorkspaceStackElement {
+	public readonly id = (++stackElementCounter);
 	public readonly type = UndoRedoElementType.Workspace;
 	public readonly actual: IWorkspaceUndoRedoElement;
 	public readonly label: string;
@@ -151,7 +155,7 @@ class WorkspaceStackElement {
 	}
 
 	public toString(): string {
-		return `[VALID] ${this.actual}`;
+		return `[${this.id}] [${this.invalidatedResources ? 'INVALID' : 'VALID'}] ${this.actual}`;
 	}
 }
 
@@ -260,6 +264,54 @@ class ResourceEditStack {
 			}
 		}
 		this._past.push(element);
+		this.versionId++;
+	}
+
+	public createSnapshot(resource: URI): ResourceEditStackSnapshot {
+		const elements: number[] = [];
+
+		for (let i = 0, len = this._past.length; i < len; i++) {
+			elements.push(this._past[i].id);
+		}
+		for (let i = this._future.length - 1; i >= 0; i--) {
+			elements.push(this._future[i].id);
+		}
+
+		return new ResourceEditStackSnapshot(resource, elements);
+	}
+
+	public restoreSnapshot(snapshot: ResourceEditStackSnapshot): void {
+		const snapshotLength = snapshot.elements.length;
+		let isOK = true;
+		let snapshotIndex = 0;
+		let removePastAfter = -1;
+		for (let i = 0, len = this._past.length; i < len; i++, snapshotIndex++) {
+			const element = this._past[i];
+			if (isOK && (snapshotIndex >= snapshotLength || element.id !== snapshot.elements[snapshotIndex])) {
+				isOK = false;
+				removePastAfter = 0;
+			}
+			if (!isOK && element.type === UndoRedoElementType.Workspace) {
+				element.removeResource(this.resourceLabel, this.strResource, RemovedResourceReason.ExternalRemoval);
+			}
+		}
+		let removeFutureBefore = -1;
+		for (let i = this._future.length - 1; i >= 0; i--, snapshotIndex++) {
+			const element = this._future[i];
+			if (isOK && (snapshotIndex >= snapshotLength || element.id !== snapshot.elements[snapshotIndex])) {
+				isOK = false;
+				removeFutureBefore = i;
+			}
+			if (!isOK && element.type === UndoRedoElementType.Workspace) {
+				element.removeResource(this.resourceLabel, this.strResource, RemovedResourceReason.ExternalRemoval);
+			}
+		}
+		if (removePastAfter !== -1) {
+			this._past = this._past.slice(0, removePastAfter);
+		}
+		if (removeFutureBefore !== -1) {
+			this._future = this._future.slice(removeFutureBefore + 1);
+		}
 		this.versionId++;
 	}
 
@@ -548,6 +600,32 @@ export class UndoRedoService implements IUndoRedoService {
 			return (editStack.hasPastElements() || editStack.hasFutureElements());
 		}
 		return false;
+	}
+
+	public createSnapshot(resource: URI): ResourceEditStackSnapshot {
+		const strResource = this.getUriComparisonKey(resource);
+		if (this._editStacks.has(strResource)) {
+			const editStack = this._editStacks.get(strResource)!;
+			return editStack.createSnapshot(resource);
+		}
+		return new ResourceEditStackSnapshot(resource, []);
+	}
+
+	public restoreSnapshot(snapshot: ResourceEditStackSnapshot): void {
+		const strResource = this.getUriComparisonKey(snapshot.resource);
+		if (this._editStacks.has(strResource)) {
+			const editStack = this._editStacks.get(strResource)!;
+			editStack.restoreSnapshot(snapshot);
+
+			if (!editStack.hasPastElements() && !editStack.hasFutureElements()) {
+				// the edit stack is now empty, just remove it entirely
+				editStack.dispose();
+				this._editStacks.delete(strResource);
+			}
+		}
+		if (DEBUG) {
+			this._print('restoreSnapshot');
+		}
 	}
 
 	public getElements(resource: URI): IPastFutureElements {

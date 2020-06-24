@@ -52,6 +52,13 @@ export interface UriComparisonKeyComputer {
 	getComparisonKey(uri: URI): string | null;
 }
 
+export class ResourceEditStackSnapshot {
+	constructor(
+		public readonly resource: URI,
+		public readonly elements: number[]
+	) { }
+}
+
 export interface IUndoRedoService {
 	readonly _serviceBrand: undefined;
 
@@ -80,6 +87,9 @@ export interface IUndoRedoService {
 	 * Remove elements that target `resource`.
 	 */
 	removeElements(resource: URI): void;
+
+	createSnapshot(resource: URI): ResourceEditStackSnapshot;
+	restoreSnapshot(snapshot: ResourceEditStackSnapshot): void;
 
 	canUndo(resource: URI): boolean;
 	undo(resource: URI): Promise<void> | void;
