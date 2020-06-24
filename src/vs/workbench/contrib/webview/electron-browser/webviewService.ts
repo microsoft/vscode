@@ -6,10 +6,10 @@
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DynamicWebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/dynamicWebviewEditorOverlay';
-import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
-import { WebviewIconManager } from 'vs/workbench/contrib/webview/browser/webviewIconManager';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
+import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewIconManager } from 'vs/workbench/contrib/webview/browser/webviewIconManager';
+import { ElectronIframeWebview } from 'vs/workbench/contrib/webview/electron-browser/iframeWebviewElement';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
 export class ElectronWebviewService implements IWebviewService {
@@ -34,7 +34,7 @@ export class ElectronWebviewService implements IWebviewService {
 	): WebviewElement {
 		const useExternalEndpoint = this._configService.getValue<string>('webview.experimental.useExternalEndpoint');
 		if (useExternalEndpoint) {
-			return this._instantiationService.createInstance(IFrameWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
+			return this._instantiationService.createInstance(ElectronIframeWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
 		} else {
 			return this._instantiationService.createInstance(ElectronWebviewBasedWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
 		}

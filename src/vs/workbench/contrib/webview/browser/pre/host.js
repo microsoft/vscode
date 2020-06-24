@@ -5,6 +5,7 @@
 // @ts-check
 (function () {
 	const id = document.location.search.match(/\bid=([\w-]+)/)[1];
+	const noServiceWorker = /noServiceWorker/.test(document.location.search);
 
 	const hostMessaging = new class HostMessaging {
 		constructor() {
@@ -36,6 +37,10 @@
 	}();
 
 	const workerReady = new Promise(async (resolveWorkerReady) => {
+		if (noServiceWorker) {
+			return resolveWorkerReady();
+		}
+
 		if (!areServiceWorkersEnabled()) {
 			console.log('Service Workers are not enabled. Webviews will not work properly');
 			return resolveWorkerReady();
@@ -95,7 +100,7 @@
 		postMessage: hostMessaging.postMessage.bind(hostMessaging),
 		onMessage: hostMessaging.onMessage.bind(hostMessaging),
 		ready: workerReady,
-		fakeLoad: true,
+		fakeLoad: !noServiceWorker,
 		rewriteCSP: (csp, endpoint) => {
 			const endpointUrl = new URL(endpoint);
 			return csp.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin);

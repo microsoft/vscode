@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { session } from 'electron';
+import { session, protocol } from 'electron';
 import { Readable } from 'stream';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -23,6 +23,12 @@ interface WebviewMetadata {
 
 export class WebviewProtocolProvider extends Disposable {
 
+	private static validWebviewFilePaths = new Map([
+		['/index.html', 'index.html'],
+		['/main.js', 'main.js'],
+		['/host.js', 'host.js'],
+	]);
+
 	private readonly webviewMetadata = new Map<string, WebviewMetadata>();
 
 	constructor(
@@ -33,62 +39,32 @@ export class WebviewProtocolProvider extends Disposable {
 
 		const sess = session.fromPartition(webviewPartitionId);
 
-		sess.protocol.registerStreamProtocol(Schemas.vscodeWebviewResource, async (request, callback): Promise<void> => {
+		// Register the protocol loading webview resources both inside the webview and at the top level
+		const webviewResourceHandler = this.handleWebviewResourceRequest.bind(this);
+		protocol.registerStreamProtocol(Schemas.vscodeWebviewResource, webviewResourceHandler);
+		sess.protocol.registerStreamProtocol(Schemas.vscodeWebviewResource, webviewResourceHandler);
+
+		this._register(toDisposable(() => {
+			protocol.unregisterProtocol(Schemas.vscodeWebviewResource);
+			sess.protocol.unregisterProtocol(Schemas.vscodeWebviewResource);
+		}));
+
+
+		// Register the protocol for loading the webview html itself on the main protocol
+		protocol.registerFileProtocol(Schemas.vscodeWebview, (request, callback: any) => {
 			try {
 				const uri = URI.parse(request.url);
-
-				const id = uri.authority;
-				const metadata = this.webviewMetadata.get(id);
-				if (metadata) {
-
-					// Try to further rewrite remote uris so that they go to the resolved server on the main thread
-					let rewriteUri: undefined | ((uri: URI) => URI);
-					if (metadata.remoteConnectionData) {
-						rewriteUri = (uri) => {
-							if (metadata.remoteConnectionData) {
-								if (uri.scheme === Schemas.vscodeRemote || (metadata.extensionLocation?.scheme === REMOTE_HOST_SCHEME)) {
-									const scheme = metadata.remoteConnectionData.host === 'localhost' || metadata.remoteConnectionData.host === '127.0.0.1' ? 'http' : 'https';
-									return URI.parse(`${scheme}://${metadata.remoteConnectionData.host}:${metadata.remoteConnectionData.port}`).with({
-										path: '/vscode-remote-resource',
-										query: `tkn=${metadata.remoteConnectionData.connectionToken}&path=${encodeURIComponent(uri.path)}`,
-									});
-								}
-							}
-							return uri;
-						};
-					}
-
-					const result = await loadLocalResource(uri, {
-						extensionLocation: metadata.extensionLocation,
-						roots: metadata.localResourceRoots,
-						remoteConnectionData: metadata.remoteConnectionData,
-						rewriteUri,
-					}, this.fileService, this.requestService);
-
-					if (result.type === WebviewResourceResponse.Type.Success) {
-						return callback({
-							statusCode: 200,
-							data: this.streamToNodeReadable(result.stream),
-							headers: {
-								'Content-Type': result.mimeType,
-								'Access-Control-Allow-Origin': '*',
-							}
-						});
-					}
-
-					if (result.type === WebviewResourceResponse.Type.AccessDenied) {
-						console.error('Webview: Cannot load resource outside of protocol root');
-						return callback({ data: null, statusCode: 401 });
-					}
+				const entry = WebviewProtocolProvider.validWebviewFilePaths.get(uri.path);
+				if (typeof entry === 'string') {
+					const url = require.toUrl(`vs/workbench/contrib/webview/browser/pre/${entry}`);
+					return callback(url.replace('file://', ''));
 				}
 			} catch {
 				// noop
 			}
-
-			return callback({ data: null, statusCode: 404 });
+			callback({ error: -10 /* ACCESS_DENIED - https://cs.chromium.org/chromium/src/net/base/net_error_list.h?l=32 */ });
 		});
-
-		this._register(toDisposable(() => sess.protocol.unregisterProtocol(Schemas.vscodeWebviewResource)));
+		this._register(toDisposable(() => protocol.unregisterProtocol(Schemas.vscodeWebview)));
 	}
 
 	private streamToNodeReadable(stream: VSBufferReadableStream): Readable {
@@ -151,5 +127,63 @@ export class WebviewProtocolProvider extends Disposable {
 				...metadataDelta,
 			});
 		}
+	}
+
+	private async handleWebviewResourceRequest(
+		request: Electron.Request,
+		callback: (stream?: NodeJS.ReadableStream | Electron.StreamProtocolResponse | undefined) => void
+	) {
+		try {
+			const uri = URI.parse(request.url);
+
+			const id = uri.authority;
+			const metadata = this.webviewMetadata.get(id);
+			if (metadata) {
+
+				// Try to further rewrite remote uris so that they go to the resolved server on the main thread
+				let rewriteUri: undefined | ((uri: URI) => URI);
+				if (metadata.remoteConnectionData) {
+					rewriteUri = (uri) => {
+						if (metadata.remoteConnectionData) {
+							if (uri.scheme === Schemas.vscodeRemote || (metadata.extensionLocation?.scheme === REMOTE_HOST_SCHEME)) {
+								const scheme = metadata.remoteConnectionData.host === 'localhost' || metadata.remoteConnectionData.host === '127.0.0.1' ? 'http' : 'https';
+								return URI.parse(`${scheme}://${metadata.remoteConnectionData.host}:${metadata.remoteConnectionData.port}`).with({
+									path: '/vscode-remote-resource',
+									query: `tkn=${metadata.remoteConnectionData.connectionToken}&path=${encodeURIComponent(uri.path)}`,
+								});
+							}
+						}
+						return uri;
+					};
+				}
+
+				const result = await loadLocalResource(uri, {
+					extensionLocation: metadata.extensionLocation,
+					roots: metadata.localResourceRoots,
+					remoteConnectionData: metadata.remoteConnectionData,
+					rewriteUri,
+				}, this.fileService, this.requestService);
+
+				if (result.type === WebviewResourceResponse.Type.Success) {
+					return callback({
+						statusCode: 200,
+						data: this.streamToNodeReadable(result.stream),
+						headers: {
+							'Content-Type': result.mimeType,
+							'Access-Control-Allow-Origin': '*',
+						}
+					});
+				}
+
+				if (result.type === WebviewResourceResponse.Type.AccessDenied) {
+					console.error('Webview: Cannot load resource outside of protocol root');
+					return callback({ data: null, statusCode: 401 });
+				}
+			}
+		} catch {
+			// noop
+		}
+
+		return callback({ data: null, statusCode: 404 });
 	}
 }
