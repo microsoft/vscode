@@ -302,7 +302,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 
 		this._cellListeners.set(cell.handle, dirtyStateListener);
-		this.setDirty(true);
+		this.setDirty(false);
 		this._onDidChangeContent.fire();
 
 		this._onDidModelChangeProxy.fire({

@@ -22,6 +22,7 @@ import { BaseCellRenderTemplate, CellEditState, ICellViewModel, INotebookEditor,
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -165,7 +166,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		return runCell(context);
+		return runCell(accessor, context);
 	}
 });
 
@@ -241,7 +242,7 @@ registerAction2(class extends NotebookAction {
 
 		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
 
-		const executionP = runCell(context);
+		const executionP = runCell(accessor, context);
 
 		// Try to select below, fall back on inserting
 		const nextCell = context.notebookEditor.viewModel?.viewCells[idx + 1];
@@ -274,7 +275,7 @@ registerAction2(class extends NotebookAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
 
-		const executionP = runCell(context);
+		const executionP = runCell(accessor, context);
 		const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, newFocusMode);
@@ -307,6 +308,16 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		renderAllMarkdownCells(context);
+
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const group = editorGroupService.activeGroup;
+
+		if (group) {
+			if (group.activeEditor) {
+				group.pinEditor(group.activeEditor);
+			}
+		}
+
 		return context.notebookEditor.executeNotebook();
 	}
 });
@@ -397,9 +408,18 @@ export function getActiveNotebookEditor(editorService: IEditorService): INoteboo
 	return activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
 }
 
-async function runCell(context: INotebookCellActionContext): Promise<void> {
+async function runCell(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 	if (context.cell.metadata?.runState === NotebookCellRunState.Running) {
 		return;
+	}
+
+	const editorGroupService = accessor.get(IEditorGroupsService);
+	const group = editorGroupService.activeGroup;
+
+	if (group) {
+		if (group.activeEditor) {
+			group.pinEditor(group.activeEditor);
+		}
 	}
 
 	return context.notebookEditor.executeNotebookCell(context.cell);

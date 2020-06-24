@@ -6,6 +6,7 @@
 import 'vs/css!./media/panel';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
+import { basename } from 'vs/base/common/resources';
 import { IAction, Action } from 'vs/base/common/actions';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -151,9 +152,29 @@ export class CommentsPanel extends ViewPane {
 		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer, {
 			overrideStyles: { listBackground: this.getBackgroundColor() },
 			openOnFocus: true,
-			accessibilityProvider: { // TODO@rebornix implement a proper accessibility provider
-				getAriaLabel(element: any): string | null { return null; },
-				getWidgetAriaLabel(): string { return 'Comments'; }
+			accessibilityProvider: {
+				getAriaLabel(element: any): string {
+					if (element instanceof CommentsModel) {
+						return nls.localize('rootCommentsLabel', "Comments for current workspace");
+					}
+					if (element instanceof ResourceWithCommentThreads) {
+						return nls.localize('resourceWithCommentThreadsLabel', "Comments in {0}, full path {1}", basename(element.resource), element.resource.fsPath);
+					}
+					if (element instanceof CommentNode) {
+						return nls.localize('resourceWithCommentLabel',
+							"Comment from ${0} at line {1} column {2} in {3}, source: {4}",
+							element.comment.userName,
+							element.range.startLineNumber,
+							element.range.startColumn,
+							basename(element.resource),
+							element.comment.body.value
+						);
+					}
+					return '';
+				},
+				getWidgetAriaLabel(): string {
+					return COMMENTS_VIEW_TITLE;
+				}
 			}
 		}));
 

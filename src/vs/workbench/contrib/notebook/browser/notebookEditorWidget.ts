@@ -896,10 +896,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		const newLanguages = this._notebookViewModel!.languages;
-		const language = (type === CellKind.Code && newLanguages && newLanguages.length) ? newLanguages[0] : 'markdown';
 		const index = cell ? this._notebookViewModel!.getCellIndex(cell) : 0;
 		const nextIndex = ui ? this._notebookViewModel!.getNextVisibleCellIndex(index) : index + 1;
+		const newLanguages = this._notebookViewModel!.languages;
+		const language = (cell?.cellKind === CellKind.Code && type === CellKind.Code)
+			? cell.language
+			: ((type === CellKind.Code && newLanguages && newLanguages.length) ? newLanguages[0] : 'markdown');
 		const insertIndex = cell ?
 			(direction === 'above' ? index : nextIndex) :
 			index;

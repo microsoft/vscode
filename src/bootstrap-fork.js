@@ -7,15 +7,16 @@
 'use strict';
 
 const bootstrap = require('./bootstrap');
+const bootstrapNode = require('./bootstrap-node');
 
 // Remove global paths from the node module lookup
-removeGlobalNodeModuleLookupPaths();
+bootstrapNode.removeGlobalNodeModuleLookupPaths();
 
 // Enable ASAR in our forked processes
 bootstrap.enableASARSupport();
 
 if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
-	injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+	bootstrapNode.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
 }
 
 // Configure: pipe logging to parent process
@@ -39,60 +40,8 @@ configureCrashReporter();
 // Load AMD entry point
 require('./bootstrap-amd').load(process.env['AMD_ENTRYPOINT']);
 
+
 //#region Helpers
-
-/**
- * Add support for redirecting the loading of node modules
- *
- * @param {string} injectPath
- */
-function injectNodeModuleLookupPath(injectPath) {
-	if (!injectPath) {
-		throw new Error('Missing injectPath');
-	}
-
-	const Module = require('module');
-	const path = require('path');
-
-	const nodeModulesPath = path.join(__dirname, '../node_modules');
-
-	// @ts-ignore
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
-
-	// @ts-ignore
-	Module._resolveLookupPaths = function (moduleName, parent) {
-		const paths = originalResolveLookupPaths(moduleName, parent);
-		if (Array.isArray(paths)) {
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === nodeModulesPath) {
-					paths.splice(i, 0, injectPath);
-					break;
-				}
-			}
-		}
-
-		return paths;
-	};
-}
-
-function removeGlobalNodeModuleLookupPaths() {
-	const Module = require('module');
-	// @ts-ignore
-	const globalPaths = Module.globalPaths;
-
-	// @ts-ignore
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
-
-	// @ts-ignore
-	Module._resolveLookupPaths = function (moduleName, parent) {
-		const paths = originalResolveLookupPaths(moduleName, parent);
-		let commonSuffixLength = 0;
-		while (commonSuffixLength < paths.length && paths[paths.length - 1 - commonSuffixLength] === globalPaths[globalPaths.length - 1 - commonSuffixLength]) {
-			commonSuffixLength++;
-		}
-		return paths.slice(0, paths.length - commonSuffixLength);
-	};
-}
 
 function pipeLoggingToParent() {
 	const MAX_LENGTH = 100000;
