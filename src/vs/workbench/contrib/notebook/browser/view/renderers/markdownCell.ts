@@ -253,7 +253,7 @@ export class StatefullMarkdownCell extends Disposable {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
-	updateEditorOptions(newValue: IEditorOptions): any {
+	updateEditorOptions(newValue: IEditorOptions): void {
 		this.editorOptions = newValue;
 		if (this.editor) {
 			this.editor.updateOptions(this.editorOptions);

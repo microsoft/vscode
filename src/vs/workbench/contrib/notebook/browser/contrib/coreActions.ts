@@ -123,8 +123,8 @@ abstract class NotebookAction extends Action2 {
 
 	abstract async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
 
-	private isCellActionContext(context: any): context is INotebookCellActionContext {
-		return context && !!context.cell && !!context.notebookEditor;
+	private isCellActionContext(context?: INotebookCellActionContext): context is INotebookCellActionContext {
+		return !!context && !!context.cell && !!context.notebookEditor;
 	}
 
 	private getActiveCellContext(accessor: ServicesAccessor): INotebookCellActionContext | undefined {
@@ -393,8 +393,8 @@ registerAction2(class extends NotebookAction {
 
 export function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor | undefined {
 	// TODO can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
-	const activeEditorPane = editorService.activeEditorPane as any | undefined;
-	return activeEditorPane?.isNotebookEditor ? activeEditorPane.getControl() : undefined;
+	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
+	return activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
 }
 
 async function runCell(context: INotebookCellActionContext): Promise<void> {

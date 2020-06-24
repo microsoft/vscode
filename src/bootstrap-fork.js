@@ -102,8 +102,6 @@ function pipeLoggingToParent() {
 		const seen = [];
 		const argsArray = [];
 
-		let res;
-
 		// Massage some arguments with special treatment
 		if (args.length) {
 			for (let i = 0; i < args.length; i++) {
@@ -138,7 +136,7 @@ function pipeLoggingToParent() {
 		}
 
 		try {
-			res = JSON.stringify(argsArray, function (key, value) {
+			const res = JSON.stringify(argsArray, function (key, value) {
 
 				// Objects get special treatment to prevent circles
 				if (isObject(value) || Array.isArray(value)) {
@@ -151,15 +149,15 @@ function pipeLoggingToParent() {
 
 				return value;
 			});
+
+			if (res.length > MAX_LENGTH) {
+				return 'Output omitted for a large object that exceeds the limits';
+			}
+
+			return res;
 		} catch (error) {
-			return 'Output omitted for an object that cannot be inspected (' + error.toString() + ')';
+			return `Output omitted for an object that cannot be inspected ('${error.toString()}')`;
 		}
-
-		if (res && res.length > MAX_LENGTH) {
-			return 'Output omitted for a large object that exceeds the limits';
-		}
-
-		return res;
 	}
 
 	/**
