@@ -1730,6 +1730,14 @@ declare module 'vscode' {
 		 * ```
 		 */
 		filters?: { [name: string]: string[] };
+
+		/**
+		 * Dialog title.
+		 *
+		 * Depending on the underlying operating system this parameter might be ignored, since some
+		 * systems do not present title on open dialogs.
+		 */
+		title?: string;
 	}
 
 	/**
