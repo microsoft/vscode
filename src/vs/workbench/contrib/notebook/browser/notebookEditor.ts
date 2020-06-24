@@ -177,6 +177,7 @@ export class NotebookEditor extends BaseEditor {
 
 	clearInput(): void {
 		if (this._widget.value) {
+			this._saveEditorViewState(this.input);
 			this._widget.value.onWillHide();
 		}
 		super.clearInput();
