@@ -714,28 +714,27 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 	}
 }
 
-const getFileOverwriteConfirm = (name: string) => {
-	return <IConfirmation>{
+function getFileOverwriteConfirm(name: string): IConfirmation {
+	return {
 		message: localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", name),
 		detail: localize('irreversible', "This action is irreversible!"),
 		primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
 		type: 'warning'
 	};
-};
+}
 
-const getMultipleFilesOverwriteConfirm = (files: URI[]) => {
+function getMultipleFilesOverwriteConfirm(files: URI[]): IConfirmation {
 	if (files.length > 1) {
-		return <IConfirmation>{
+		return {
 			message: localize('confirmManyOverwrites', "The following {0} files and/or folders already exist in the destination folder. Do you want to replace them?", files.length),
 			detail: getFileNamesMessage(files) + '\n' + localize('irreversible', "This action is irreversible!"),
 			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
 			type: 'warning'
 		};
-	} else {
-		return getFileOverwriteConfirm(basename(files[0]));
 	}
 
-};
+	return getFileOverwriteConfirm(basename(files[0]));
+}
 
 interface IWebkitDataTransfer {
 	items: IWebkitDataTransferItem[];
@@ -1323,8 +1322,14 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 		}
 
-		const rootDropPromise = this.doHandleRootDrop(items.filter(s => s.isRoot), target);
-		await Promise.all([this.doHandleExplorerDrop(items.filter(s => !s.isRoot), target, isCopy), rootDropPromise]);
+		await this.doHandleRootDrop(items.filter(s => s.isRoot), target);
+
+		const sources = items.filter(s => !s.isRoot);
+		if (isCopy) {
+			await this.doHandleExplorerDropOnCopy(sources, target);
+		} else {
+			return this.doHandleExplorerDropOnMove(sources, target);
+		}
 	}
 
 	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem): Promise<void> {
@@ -1364,7 +1369,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action when user copies
 		const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 		const sourceTargetPairs = sources.map(({ resource, isDirectory }) => ({ source: resource, target: findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, incrementalNaming) }));
-		const editors = (await this.workingCopyFileService.copy(sourceTargetPairs)).filter(stat => !stat.isDirectory).map(({ resource }) => ({ resource, options: { pinned: true } }));
+		const stats = await this.workingCopyFileService.copy(sourceTargetPairs);
+		const editors = stats.filter(stat => !stat.isDirectory).map(({ resource }) => ({ resource, options: { pinned: true } }));
+
 		await this.editorService.openEditors(editors);
 	}
 
@@ -1387,7 +1394,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				}
 
 				const confirm = getMultipleFilesOverwriteConfirm(overwrites);
-
 				// Move with overwrite if the user confirms
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {
@@ -1402,14 +1408,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			else {
 				this.notificationService.error(error);
 			}
-		}
-	}
-
-	private async doHandleExplorerDrop(sources: ExplorerItem[], target: ExplorerItem, isCopy: boolean): Promise<void> {
-		if (isCopy) {
-			return this.doHandleExplorerDropOnCopy(sources, target);
-		} else {
-			return this.doHandleExplorerDropOnMove(sources, target);
 		}
 	}
 
