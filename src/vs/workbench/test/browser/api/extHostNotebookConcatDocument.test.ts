@@ -489,4 +489,44 @@ suite('NotebookConcatDocument', function () {
 		assert.equal(doc.getText(new Range(0, 0, 1, 0)), 'Hello\n');
 		assert.equal(doc.getText(new Range(2, 0, 4, 0)), 'Hello World!\nHallo\n');
 	});
+
+	test('validateRange/Position', function () {
+
+		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			kind: NotebookCellsChangeType.ModelChange,
+			versionId: notebook.versionId + 1,
+			changes: [[0, 0, [{
+				handle: 1,
+				uri: CellUri.generate(notebook.uri, 1),
+				source: ['Hello', 'World', 'Hello World!'],
+				language: 'test',
+				cellKind: CellKind.Code,
+				outputs: [],
+			}, {
+				handle: 2,
+				uri: CellUri.generate(notebook.uri, 2),
+				source: ['Hallo', 'Welt', 'Hallo Welt!'],
+				language: 'test',
+				cellKind: CellKind.Code,
+				outputs: [],
+			}]]]
+		});
+
+		assert.equal(notebook.cells.length, 1 + 2); // markdown and code
+
+		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook, undefined);
+		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
+
+
+		function assertPosition(actual: vscode.Position, expectedLine: number, expectedCh: number) {
+			assert.equal(actual.line, expectedLine);
+			assert.equal(actual.character, expectedCh);
+		}
+
+		assertPosition(doc.validatePosition(new Position(0, 1000)), 0, 5);
+		assertPosition(doc.validatePosition(new Position(2, 1000)), 2, 12);
+		assertPosition(doc.validatePosition(new Position(5, 1000)), 5, 11);
+		assertPosition(doc.validatePosition(new Position(5000, 1000)), 5, 11);
+
+	});
 });

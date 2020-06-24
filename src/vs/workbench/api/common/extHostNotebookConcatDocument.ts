@@ -165,4 +165,20 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 	contains(uri: vscode.Uri): boolean {
 		return this._cellUris.has(uri);
 	}
+
+	validateRange(range: vscode.Range): vscode.Range {
+		const start = this.validatePosition(range.start);
+		const end = this.validatePosition(range.end);
+		return range.with(start, end);
+	}
+
+	validatePosition(position: vscode.Position): vscode.Position {
+		const startIdx = this._cellLines.getIndexOf(position.line);
+
+		const cellPosition = new types.Position(startIdx.remainder, position.character);
+		const validCellPosition = this._cells[startIdx.index].document.validatePosition(cellPosition);
+
+		const line = this._cellLines.getAccumulatedValue(startIdx.index - 1);
+		return new types.Position(line + validCellPosition.line, validCellPosition.character);
+	}
 }
