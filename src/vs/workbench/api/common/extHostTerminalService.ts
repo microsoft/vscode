@@ -625,10 +625,11 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		for (const provideResult of provideResults) {
 			if (provideResult && provideResult.links.length > 0) {
 				result.push(...provideResult.links.map(providerLink => {
+					const endIndex = Math.max(providerLink.endIndex, providerLink.startIndex + 1);
 					const link = {
 						id: nextLinkId++,
 						startIndex: providerLink.startIndex,
-						length: providerLink.length,
+						length: endIndex - providerLink.startIndex,
 						label: providerLink.tooltip
 					};
 					cacheLinkMap.set(link.id, {

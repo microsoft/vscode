@@ -1089,14 +1089,14 @@ declare module 'vscode' {
 
 	export interface TerminalLink {
 		/**
-		 * The start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
+		 * The 0-based start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
 		 */
 		startIndex: number;
 
 		/**
-		 * The length of the link on [TerminalLinkContext.line](#TerminalLinkContext.line]
+		 * The 0-based end index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
 		 */
-		length: number;
+		endIndex: number;
 
 		/**
 		 * The tooltip text when you hover over this link.
