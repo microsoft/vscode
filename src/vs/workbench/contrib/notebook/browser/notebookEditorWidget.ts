@@ -394,6 +394,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (this._notebookViewModel === undefined || !this._notebookViewModel.equal(textModel)) {
 			this._detachModel();
 			await this._attachModel(textModel, viewState);
+		} else {
+			this._restoreListViewState(viewState);
 		}
 
 		// clear state
