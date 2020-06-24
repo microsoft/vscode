@@ -15,6 +15,7 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 	private readonly entries: Map<number, { accessor: IStatusbarEntryAccessor, alignment: MainThreadStatusBarAlignment, priority: number }> = new Map();
+	static readonly CODICON_REGEXP = /\$\((.*?)\)/g;
 
 	constructor(
 		_extHostContext: IExtHostContext,
@@ -32,7 +33,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		if (accessibilityInformation) {
 			ariaLabel = accessibilityInformation.label;
 		} else {
-			ariaLabel = text && text.indexOf('$(') === -1 ? text : tooltip || text;
+			ariaLabel = text ? text.replace(MainThreadStatusBar.CODICON_REGEXP, (_match, codiconName) => codiconName) : '';
 		}
 		const entry: IStatusbarEntry = { text, tooltip, command, color, ariaLabel };
 
