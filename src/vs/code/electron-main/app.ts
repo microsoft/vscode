@@ -874,8 +874,8 @@ class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHost
 				}
 			};
 
-			const onMessage = (_event: Event, method: string, params: unknown) =>
-				writeMessage(({ method, params }));
+			const onMessage = (_event: Event, method: string, params: unknown, sessionId?: string) =>
+				writeMessage(({ method, params, sessionId }));
 
 			codeWindow.win.on('close', () => {
 				debug.removeListener('message', onMessage);
@@ -889,12 +889,25 @@ class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHost
 			listener.on('data', data => {
 				buf = Buffer.concat([buf, data]);
 				for (let delimiter = buf.indexOf(0); delimiter !== -1; delimiter = buf.indexOf(0)) {
-					const data = JSON.parse(buf.slice(0, delimiter).toString('utf8'));
-					buf = buf.slice(delimiter + 1);
-					debug.sendCommand(data.method, data.params)
-						.then(result => writeMessage({ id: data.id, result }))
-						.catch(error => writeMessage({ id: data.id, error: { code: 0, message: error.message } }));
+					let data: { id: number; sessionId: string; params: {} };
+					try {
+						const contents = buf.slice(0, delimiter).toString('utf8');
+						buf = buf.slice(delimiter + 1);
+						data = JSON.parse(contents);
+					} catch (e) {
+						console.error('error reading cdp line', e);
+					}
+
+					// depends on a new API for which electron.d.ts has not been updated:
+					// @ts-ignore
+					debug.sendCommand(data.method, data.params, data.sessionId)
+						.then(result => writeMessage({ id: data.id, sessionId: data.sessionId, result }))
+						.catch(error => writeMessage({ id: data.id, sessionId: data.sessionId, error: { code: 0, message: error.message } }));
 				}
+			});
+
+			listener.on('error', err => {
+				console.error('error on cdp pipe:', err);
 			});
 
 			listener.on('close', () => {
