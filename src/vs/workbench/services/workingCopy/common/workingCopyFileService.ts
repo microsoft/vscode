@@ -243,59 +243,39 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		// file operation participant
 		await this.runFileOperationParticipants(files, move ? FileOperation.MOVE : FileOperation.COPY);
 
-		// Before doing the heavy operations, check first if source and target
-		// are either identical or are considered to be identical for the file
-		// system. In that case we want the model to stay as is and only do the
-		// raw file operation.
-		const remainingFiles: SourceTargetPair[] = [];
-		for (const { source, target } of files) {
-			if (this.uriIdentityService.extUri.isEqual(source, target)) {
+		// before event
+		const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, files };
+		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+
+		try {
+			for (const { source, target } of files) {
+
+				// If source and target are not equal, handle dirty working copies
+				// depending on the operation:
+				// - move: revert both source and target (if any)
+				// - copy: revert target (if any)
+				if (!this.uriIdentityService.extUri.isEqual(source, target)) {
+					const dirtyWorkingCopies = (move ? [...this.getDirty(source!), ...this.getDirty(target)] : this.getDirty(target));
+					await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
+				}
+
+				// now we can rename the source to target via file operation
 				if (move) {
 					stats.push(await this.fileService.move(source!, target, overwrite));
 				} else {
 					stats.push(await this.fileService.copy(source!, target, overwrite));
 				}
-			} else {
-				remainingFiles.push({ source, target });
 			}
+		} catch (error) {
+
+			// error event
+			await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+
+			throw error;
 		}
 
-		// Now handle all the file operations that are not identical files
-		if (remainingFiles.length > 0) {
-
-			// before event
-			const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, files: remainingFiles };
-			await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
-
-
-			// handle dirty working copies depending on the operation:
-			// - move: revert both source and target (if any)
-			// - copy: revert target (if any)
-			for (const { source, target } of remainingFiles) {
-				const dirtyWorkingCopies = (move ? [...this.getDirty(source!), ...this.getDirty(target)] : this.getDirty(target));
-				await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
-			}
-
-			// now we can rename the source to target via file operation
-			try {
-				for (const { source, target } of remainingFiles) {
-					if (move) {
-						stats.push(await this.fileService.move(source!, target, overwrite));
-					} else {
-						stats.push(await this.fileService.copy(source!, target, overwrite));
-					}
-				}
-			} catch (error) {
-
-				// error event
-				await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
-
-				throw error;
-			}
-
-			// after event
-			await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
-		}
+		// after event
+		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 
 		return stats;
 	}

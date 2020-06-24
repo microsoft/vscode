@@ -50,7 +50,7 @@ suite('WorkingCopyFileService', () => {
 		const eventCounter = await testEventsMoveOrCopy([{ source: sourceModel.resource, target: sourceModel.resource }], true);
 
 		sourceModel.dispose();
-		assert.equal(eventCounter, 1);
+		assert.equal(eventCounter, 3);
 	});
 
 	test('move - one source == target and another source != target', async function () {
@@ -94,7 +94,7 @@ suite('WorkingCopyFileService', () => {
 		const eventCounter = await testEventsMoveOrCopy([{ source: sourceModel.resource, target: sourceModel.resource }]);
 
 		sourceModel.dispose();
-		assert.equal(eventCounter, 1);
+		assert.equal(eventCounter, 3);
 	});
 
 	test('copy - one source == target and another source != target', async function () {
@@ -370,5 +370,4 @@ suite('WorkingCopyFileService', () => {
 		listener1.dispose();
 		listener2.dispose();
 	}
-
 });

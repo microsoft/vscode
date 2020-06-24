@@ -136,11 +136,13 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		// Move / Copy: remember models to restore after the operation
 		if (e.operation === FileOperation.COPY || e.operation === FileOperation.MOVE) {
-
 			const modelsToRestore: { source: URI, target: URI, snapshot?: ITextSnapshot; mode?: string; encoding?: string; }[] = [];
 
 			for (const { source, target } of e.files) {
 				if (source) {
+					if (this.uriIdentityService.extUri.isEqual(source, target)) {
+						continue; // ignore if resources are considered equal
+					}
 
 					// find all models that related to either source or target (can be many if resource is a folder)
 					const sourceModels: TextFileEditorModel[] = [];
@@ -200,7 +202,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 				this.mapCorrelationIdToModelsToRestore.delete(e.correlationId);
 
 				modelsToRestore.forEach(model => {
-
 					// snapshot presence means this model used to be dirty and so we restore that
 					// flag. we do NOT have to restore the content because the model was only soft
 					// reverted and did not loose its original dirty contents.
