@@ -1146,6 +1146,11 @@ declare module 'vscode' {
 
 	}
 
+	// https://github.com/microsoft/vscode/issues/100741
+	export interface TreeDataProvider<T> {
+		resolveTreeItem?(element: T, item: TreeItem2): TreeItem2 | Thenable<TreeItem2>;
+	}
+
 	export class TreeItem2 extends TreeItem {
 		/**
 		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).

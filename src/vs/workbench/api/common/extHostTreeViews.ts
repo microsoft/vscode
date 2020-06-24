@@ -119,6 +119,22 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return treeView.getChildren(treeItemHandle);
 	}
 
+	async $hasResolve(treeViewId: string): Promise<boolean> {
+		const treeView = this.treeViews.get(treeViewId);
+		if (!treeView) {
+			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+		}
+		return treeView.hasResolve;
+	}
+
+	$resolve(treeViewId: string, treeItemHandle: string): Promise<ITreeItem | undefined> {
+		const treeView = this.treeViews.get(treeViewId);
+		if (!treeView) {
+			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+		}
+		return treeView.resolveTreeItem(treeItemHandle);
+	}
+
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
@@ -160,6 +176,7 @@ type TreeData<T> = { message: boolean, element: T | Root | false };
 
 interface TreeNode extends IDisposable {
 	item: ITreeItem;
+	extensionItem: vscode.TreeItem2;
 	parent: TreeNode | Root;
 	children?: TreeNode[];
 }
@@ -327,6 +344,27 @@ class ExtHostTreeView<T> extends Disposable {
 			this._visible = visible;
 			this._onDidChangeVisibility.fire(Object.freeze({ visible: this._visible }));
 		}
+	}
+
+	get hasResolve(): boolean {
+		return !!this.dataProvider.resolveTreeItem;
+	}
+
+	async resolveTreeItem(treeItemHandle: string): Promise<ITreeItem | undefined> {
+		if (!this.dataProvider.resolveTreeItem) {
+			return;
+		}
+		const element = this.elements.get(treeItemHandle);
+		if (element) {
+			const node = this.nodes.get(element);
+			if (node) {
+				const resolve = await this.dataProvider.resolveTreeItem(element, node.extensionItem);
+				// Resolvable elements. Currently only tooltip.
+				node.item.tooltip = resolve.tooltip;
+				return node.item;
+			}
+		}
+		return;
 	}
 
 	private resolveUnknownParentChain(element: T): Promise<TreeNode[]> {
@@ -521,6 +559,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 		return {
 			item,
+			extensionItem: extensionTreeItem,
 			parent,
 			children: undefined,
 			dispose(): void { disposable.dispose(); }
