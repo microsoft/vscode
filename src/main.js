@@ -20,6 +20,10 @@ const paths = require('./paths');
 const product = require('../product.json');
 const { app, protocol } = require('electron');
 
+// Disable render process reuse, we still have
+// non-context aware native modules in the renderer.
+app.allowRendererProcessReuse = false;
+
 // Enable portable support
 const portable = bootstrap.configurePortable(product);
 

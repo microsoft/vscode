@@ -6,6 +6,10 @@ resources:
   - container: snapcraft
     image: snapcore/snapcraft:stable
 
+variables:
+  VSCODE_QUALITY: exploration
+  VSCODE_RELEASE: true
+
 jobs:
 - job: Compile
   pool:
@@ -156,8 +160,8 @@ trigger: none
 pr: none
 
 schedules:
-- cron: "0 5 * * Mon-Fri"
-  displayName: Mon-Fri at 7:00
+- cron: "0 6 * * Mon-Fri"
+  displayName: Mon-Fri at 8:00 CET
   branches:
     include:
-    - master
+    - electron-x.y.z
