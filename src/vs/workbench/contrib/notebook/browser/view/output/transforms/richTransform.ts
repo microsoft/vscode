@@ -36,7 +36,7 @@ class RichRenderer implements IOutputTransformContribution {
 		this._richMimeTypeRenderers.set('image/svg+xml', this.renderSVG.bind(this));
 		this._richMimeTypeRenderers.set('text/markdown', this.renderMarkdown.bind(this));
 		this._richMimeTypeRenderers.set('image/png', this.renderPNG.bind(this));
-		this._richMimeTypeRenderers.set('image/jpeg', this.renderJavaScript.bind(this));
+		this._richMimeTypeRenderers.set('image/jpeg', this.renderJPEG.bind(this));
 		this._richMimeTypeRenderers.set('text/plain', this.renderPlainText.bind(this));
 		this._richMimeTypeRenderers.set('text/x-javascript', this.renderCode.bind(this));
 	}
