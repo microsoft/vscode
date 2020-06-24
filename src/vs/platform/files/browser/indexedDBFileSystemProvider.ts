@@ -6,7 +6,7 @@
 import { KeyValueFileSystemProvider } from 'vs/platform/files/common/keyValueFileSystemProvider';
 import * as browser from 'vs/base/browser/browser';
 
-export function openDatabase(name: string, version: number, stores: string[]): Promise<IDBDatabase | null> {
+export function openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase | null> {
 	if (browser.isEdge) {
 		return Promise.resolve(null);
 	}

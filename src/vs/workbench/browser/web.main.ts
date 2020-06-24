@@ -49,7 +49,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IndexedDBFileSystemProvider, openDatabase as openIndexedDB } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
+import { IndexedDBFileSystemProvider, openIndexedDB } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 
 const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
 const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
