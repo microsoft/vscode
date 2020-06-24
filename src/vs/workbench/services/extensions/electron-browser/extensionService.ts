@@ -88,15 +88,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		this._enableLocalWebWorker = this._configurationService.getValue<boolean>(webWorkerExtHostConfig);
 
-		if (this._extensionEnablementService.allUserExtensionsDisabled) {
-			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
-				label: nls.localize('Reload', "Reload"),
-				run: () => {
-					this._hostService.reload();
-				}
-			}]);
-		}
-
 		this._remoteInitData = new Map<string, IRemoteExtensionHostInitData>();
 		this._runningLocation = new Map<string, ExtensionRunningLocation>();
 
@@ -146,6 +137,18 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				this._initialize();
 			}, 50 /*max delay*/);
 		});
+
+		// delay notification for extensions disabled until workbench restored
+		if (this._extensionEnablementService.allUserExtensionsDisabled) {
+			this._lifecycleService.when(LifecyclePhase.Restored).then(() => {
+				this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
+					label: nls.localize('Reload', "Reload"),
+					run: () => {
+						this._hostService.reload();
+					}
+				}]);
+			});
+		}
 	}
 
 	private _getExtensionHostManager(kind: ExtensionHostKind): ExtensionHostManager | null {

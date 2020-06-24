@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellOutputKind, IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -243,10 +243,10 @@ export class BackLayerWebView extends Disposable {
 
 		this.element = document.createElement('div');
 
-		this.element.style.width = `calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px)`;
+		this.element.style.width = `calc(100% - ${CODE_CELL_LEFT_MARGIN + CELL_MARGIN + CELL_RUN_GUTTER}px)`;
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
-		this.element.style.margin = `0px 0 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px`;
+		this.element.style.margin = `0px 0 0px ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px`;
 	}
 	generateContent(outputNodePadding: number, coreDependencies: string, baseUrl: string) {
 		return html`

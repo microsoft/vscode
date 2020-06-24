@@ -1068,10 +1068,15 @@ export interface FileSystemEvents {
 	deleted: UriComponents[];
 }
 
+export interface SourceTargetPair {
+	source?: UriComponents;
+	target: UriComponents;
+}
+
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
-	$onWillRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined, timeout: number, token: CancellationToken): Promise<any>;
-	$onDidRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined): void;
+	$onWillRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<any>;
+	$onDidRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[]): void;
 }
 
 export interface ObjectIdentifier {

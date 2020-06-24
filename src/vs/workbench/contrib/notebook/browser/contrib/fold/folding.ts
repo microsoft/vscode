@@ -56,7 +56,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 		}));
 	}
 
-	saveViewState(): any {
+	saveViewState(): ICellRange[] {
 		return this._foldingModel?.getMemento() || [];
 	}
 

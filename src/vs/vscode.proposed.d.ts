@@ -1519,17 +1519,22 @@ declare module 'vscode' {
 		metadata: NotebookDocumentMetadata;
 	}
 
-	export interface NotebookConcatTextDocument extends TextDocument {
+	export interface NotebookConcatTextDocument {
 		isClosed: boolean;
 		dispose(): void;
 		onDidChange: Event<void>;
 		version: number;
 		getText(): string;
 		getText(range: Range): string;
+
 		offsetAt(position: Position): number;
 		positionAt(offset: number): Position;
+		validateRange(range: Range): Range;
+		validatePosition(position: Position): Position;
+
 		locationAt(positionOrRange: Position | Range): Location;
 		positionAt(location: Location): Position;
+		contains(uri: Uri): boolean
 	}
 
 	export interface NotebookEditorCellEdit {
