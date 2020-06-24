@@ -46,7 +46,7 @@ class RenameOperation implements IFileOperation {
 		if (this.options.overwrite === undefined && this.options.ignoreIfExists && await this._fileService.exists(this.newUri)) {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
-		await this._workingCopyFileService.move(this.oldUri, this.newUri, this.options.overwrite);
+		await this._workingCopyFileService.move([{ source: this.oldUri, target: this.newUri }], this.options.overwrite);
 		return new RenameOperation(this.oldUri, this.newUri, this.options, this._workingCopyFileService, this._fileService);
 	}
 }
@@ -109,7 +109,7 @@ class DeleteOperation implements IFileOperation {
 		}
 
 		const useTrash = this._fileService.hasCapability(this.oldUri, FileSystemProviderCapabilities.Trash) && this._configurationService.getValue<boolean>('files.enableTrash');
-		await this._workingCopyFileService.delete(this.oldUri, { useTrash, recursive: this.options.recursive });
+		await this._workingCopyFileService.delete([this.oldUri], { useTrash, recursive: this.options.recursive });
 		return this._instaService.createInstance(CreateOperation, this.oldUri, this.options, contents);
 	}
 }

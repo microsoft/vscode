@@ -38,7 +38,7 @@ export class NotebookEditor extends BaseEditor {
 
 	// todo@rebornix is there a reason that `super.fireOnDidFocus` isn't used?
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
-	get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
+	get onDidFocus(): Event<void> { return this._onDidFocusWidget.event; }
 
 	private readonly _onDidChangeModel = this._register(new Emitter<void>());
 	readonly onDidChangeModel: Event<void> = this._onDidChangeModel.event;
@@ -123,6 +123,11 @@ export class NotebookEditor extends BaseEditor {
 		this._saveEditorViewState(this.input);
 		await super.setInput(input, options, token);
 
+		// Check for cancellation
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
 		this._widgetDisposableStore.clear();
 
 		// there currently is a widget which we still own so
@@ -138,6 +143,10 @@ export class NotebookEditor extends BaseEditor {
 		}
 
 		const model = await input.resolve(this._widget.value!.getId());
+		// Check for cancellation
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 
 		if (model === null) {
 			this._notificationService.prompt(
@@ -232,7 +241,7 @@ export class NotebookEditor extends BaseEditor {
 		super.dispose();
 	}
 
-	toJSON(): any {
+	toJSON(): object {
 		return {
 			notebookHandle: this.viewModel?.handle
 		};

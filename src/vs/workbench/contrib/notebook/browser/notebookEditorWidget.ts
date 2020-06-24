@@ -69,7 +69,7 @@ export class NotebookEditorOptions extends EditorOptions {
 
 export class NotebookEditorWidget extends Disposable implements INotebookEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
-	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
+	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<unknown>>();
 	private _overlayContainer!: HTMLElement;
 	private _body!: HTMLElement;
 	private _webview: BackLayerWebView | null = null;
@@ -203,7 +203,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			NotebookEditorWidget.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
-		return editorMemento;
+		return editorMemento as IEditorMemento<T>;
 	}
 
 	protected getMemento(scope: StorageScope): MementoObject {
@@ -394,6 +394,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (this._notebookViewModel === undefined || !this._notebookViewModel.equal(textModel)) {
 			this._detachModel();
 			await this._attachModel(textModel, viewState);
+		} else {
+			this.restoreListViewState(viewState);
 		}
 
 		// clear state
@@ -411,10 +413,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			const focused = this._list!.getFocusedElements()[0];
 			if (focused) {
 				if (!this._cellContextKeyManager) {
-					this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as any));
+					this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as CellViewModel));
 				}
 
-				this._cellContextKeyManager.updateForElement(focused as any);
+				this._cellContextKeyManager.updateForElement(focused as CellViewModel);
 			}
 		}));
 	}
@@ -630,10 +632,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._dndController?.clearGlobalDragState();
 
 		// restore list state at last, it must be after list layout
-		this._restoreListViewState(viewState);
+		this.restoreListViewState(viewState);
 	}
 
-	private _restoreListViewState(viewState: INotebookEditorViewState | undefined): void {
+	restoreListViewState(viewState: INotebookEditorViewState | undefined): void {
 		if (viewState?.scrollPosition !== undefined) {
 			this._list!.scrollTop = viewState!.scrollPosition.top;
 			this._list!.scrollLeft = viewState!.scrollPosition.left;
@@ -697,7 +699,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		// Save contribution view states
-		const contributionsState: { [key: string]: any } = {};
+		const contributionsState: { [key: string]: unknown } = {};
 
 		const keys = Object.keys(this._contributions);
 		for (const id of keys) {
@@ -815,8 +817,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._list?.setCellSelection(cell, range);
 	}
 
-	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
-		return this._notebookViewModel?.changeDecorations(callback);
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
+		return this._notebookViewModel?.changeDecorations<T>(callback) || null;
 	}
 
 	setHiddenAreas(_ranges: ICellRange[]): boolean {
@@ -1264,7 +1266,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		super.dispose();
 	}
 
-	toJSON(): any {
+	toJSON(): object {
 		return {
 			notebookHandle: this.viewModel?.handle
 		};

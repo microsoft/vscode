@@ -21,7 +21,7 @@ const product = require('../product.json');
 const { app, protocol } = require('electron');
 
 // Enable portable support
-const portable = bootstrap.configurePortable();
+const portable = bootstrap.configurePortable(product);
 
 // Enable ASAR support
 bootstrap.enableASARSupport();
@@ -86,10 +86,11 @@ setCurrentWorkingDirectory();
 // Register custom schemes with privileges
 protocol.registerSchemesAsPrivileged([
 	{
-		scheme: 'vscode-webview',
+		scheme: 'vscode-resource',
 		privileges: {
-			standard: true,
 			secure: true,
+			supportFetchAPI: true,
+			corsEnabled: true,
 		}
 	}, {
 		scheme: 'vscode-webview-resource',

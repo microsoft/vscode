@@ -179,11 +179,7 @@ export class ElectronMainService implements IElectronMainService {
 
 		const window = this.windowById(windowId);
 		if (window) {
-			if (isMacintosh) {
-				window.win.show();
-			} else {
-				window.win.focus();
-			}
+			window.focus();
 		}
 	}
 

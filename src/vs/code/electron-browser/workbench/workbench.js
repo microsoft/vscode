@@ -31,10 +31,16 @@ const perf = (function () {
 
 perf.mark('renderer/started');
 
-const bootstrapWindow = require('../../../../bootstrap-window');
-
 // Setup shell environment
 process['lazyEnv'] = getLazyEnv();
+
+/**
+ * @type {{ load: (modules: string[], resultCallback: (result, configuration: object) => any, options: object) => unknown }}
+ */
+const bootstrapWindow = (() => {
+	// @ts-ignore (defined in bootstrap-window.js)
+	return window.MonacoBootstrapWindow;
+})();
 
 // Load workbench main JS, CSS and NLS all in parallel. This is an
 // optimization to prevent a waterfall of loading to happen, because
@@ -54,18 +60,20 @@ bootstrapWindow.load([
 			// @ts-ignore
 			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
 		});
-	}, {
-	removeDeveloperKeybindingsAfterLoad: true,
-	canModifyDOM: function (windowConfig) {
-		showPartsSplash(windowConfig);
 	},
-	beforeLoaderConfig: function (windowConfig, loaderConfig) {
-		loaderConfig.recordStats = true;
-	},
-	beforeRequire: function () {
-		perf.mark('willLoadWorkbenchMain');
+	{
+		removeDeveloperKeybindingsAfterLoad: true,
+		canModifyDOM: function (windowConfig) {
+			showPartsSplash(windowConfig);
+		},
+		beforeLoaderConfig: function (windowConfig, loaderConfig) {
+			loaderConfig.recordStats = true;
+		},
+		beforeRequire: function () {
+			perf.mark('willLoadWorkbenchMain');
+		}
 	}
-});
+);
 
 /**
  * @param {{
