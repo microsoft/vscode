@@ -72,7 +72,7 @@ export class WebviewPortMappingManager implements IDisposable {
 		if (existing) {
 			return existing;
 		}
-		const tunnel = this.tunnelService.openTunnel(remoteAuthority, undefined, remotePort);
+		const tunnel = this.tunnelService.openTunnel({ getAddress: async () => remoteAuthority }, undefined, remotePort);
 		if (tunnel) {
 			this._tunnels.set(remotePort, tunnel);
 		}
