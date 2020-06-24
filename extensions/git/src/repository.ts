@@ -758,6 +758,7 @@ export class Repository implements Disposable {
 		onConfigListenerForInputBoxVisibility(updateInputBoxVisibility, this, this.disposables);
 		updateInputBoxVisibility();
 
+		this.workingTreeGroup.hideWhenEmpty = true;
 		this.mergeGroup.hideWhenEmpty = true;
 		this.untrackedGroup.hideWhenEmpty = true;
 

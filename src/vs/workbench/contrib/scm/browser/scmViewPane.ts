@@ -221,7 +221,6 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 			templateData.statusActionBar.push(actions);
 
 			const count = repository.provider.count || 0;
-			toggleClass(templateData.countContainer, 'hidden', count === 0);
 			templateData.count.setCount(count);
 		};
 		disposables.add(repository.provider.onDidChange(update, null));
@@ -912,7 +911,8 @@ class ViewModel {
 			}
 		}
 
-		this.refresh(item);
+		// TODO@joao: this is here because we hide the input box when there are no changes
+		this.refresh();
 	}
 
 	setVisible(visible: boolean): void {
@@ -949,7 +949,7 @@ class ViewModel {
 		if (isRepositoryItem(item)) {
 			const children: ICompressedTreeElement<TreeElement>[] = [];
 
-			if (item.element.input.visible) {
+			if (item.element.input.visible && item.groupItems.some(item => item.element.elements.length > 0)) {
 				children.push({ element: item.element.input, incompressible: true, collapsible: false });
 			}
 
