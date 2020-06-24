@@ -1519,7 +1519,7 @@ declare module 'vscode' {
 		metadata: NotebookDocumentMetadata;
 	}
 
-	export interface NotebookConcatTextDocument extends TextDocument {
+	export interface NotebookConcatTextDocument {
 		isClosed: boolean;
 		dispose(): void;
 		onDidChange: Event<void>;
