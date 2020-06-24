@@ -1074,7 +1074,7 @@ declare module 'vscode' {
 		terminal: Terminal;
 	}
 
-	export interface TerminalLinkProvider<T = TerminalLink> {
+	export interface TerminalLinkProvider<T extends TerminalLink = TerminalLink> {
 		/**
 		 * Provide terminal links for the given context.
 		 * @param context Information about what links are being provided for.
