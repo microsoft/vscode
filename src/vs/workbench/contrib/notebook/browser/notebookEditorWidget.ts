@@ -395,7 +395,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._detachModel();
 			await this._attachModel(textModel, viewState);
 		} else {
-			this._restoreListViewState(viewState);
+			this.restoreListViewState(viewState);
 		}
 
 		// clear state
@@ -632,10 +632,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._dndController?.clearGlobalDragState();
 
 		// restore list state at last, it must be after list layout
-		this._restoreListViewState(viewState);
+		this.restoreListViewState(viewState);
 	}
 
-	private _restoreListViewState(viewState: INotebookEditorViewState | undefined): void {
+	restoreListViewState(viewState: INotebookEditorViewState | undefined): void {
 		if (viewState?.scrollPosition !== undefined) {
 			this._list!.scrollTop = viewState!.scrollPosition.top;
 			this._list!.scrollLeft = viewState!.scrollPosition.left;
