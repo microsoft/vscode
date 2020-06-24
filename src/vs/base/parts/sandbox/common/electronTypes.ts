@@ -209,37 +209,6 @@ export interface SaveDialogReturnValue {
 	bookmark?: string;
 }
 
-export interface CrashReporterStartOptions {
-	companyName: string;
-	/**
-	 * URL that crash reports will be sent to as POST.
-	 */
-	submitURL: string;
-	/**
-	 * Defaults to `app.name`.
-	 */
-	productName?: string;
-	/**
-	 * Whether crash reports should be sent to the server. Default is `true`.
-	 */
-	uploadToServer?: boolean;
-	/**
-	 * Default is `false`.
-	 */
-	ignoreSystemCrashHandler?: boolean;
-	/**
-	 * An object you can define that will be sent along with the report. Only string
-	 * properties are sent correctly. Nested objects are not supported. When using
-	 * Windows, the property names and values must be fewer than 64 characters.
-	 */
-	extra?: Record<string, string>;
-	/**
-	 * Directory to store the crash reports temporarily (only used when the crash
-	 * reporter is started via `process.crashReporter.start`).
-	 */
-	crashesDirectory?: string;
-}
-
 export interface FileFilter {
 
 	// Docs: http://electronjs.org/docs/api/structures/file-filter

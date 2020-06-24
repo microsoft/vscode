@@ -66,11 +66,6 @@ export interface IProductConfiguration {
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
 	readonly keymapExtensionTips?: readonly string[];
 
-	readonly crashReporter?: {
-		readonly companyName: string;
-		readonly productName: string;
-	};
-
 	readonly enableTelemetry?: boolean;
 	readonly aiConfig?: {
 		readonly asimovKey: string;

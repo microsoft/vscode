@@ -7,7 +7,7 @@
 (function () {
 	'use strict';
 
-	const { ipcRenderer, webFrame, crashReporter, contextBridge } = require('electron');
+	const { ipcRenderer, webFrame, contextBridge } = require('electron');
 
 	const globals = {
 
@@ -70,19 +70,6 @@
 				if (typeof level === 'number') {
 					webFrame.setZoomLevel(level);
 				}
-			}
-		},
-
-		/**
-		 *  Support for subset of methods of Electron's `crashReporter` type.
-		 */
-		crashReporter: {
-
-			/**
-			 * @param {Electron.CrashReporterStartOptions} options
-			 */
-			start(options) {
-				crashReporter.start(options);
 			}
 		},
 

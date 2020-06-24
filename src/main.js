@@ -18,7 +18,7 @@ const bootstrap = require('./bootstrap');
 const paths = require('./paths');
 /** @type {any} */
 const product = require('../product.json');
-const { app, protocol } = require('electron');
+const { app, protocol, crashReporter } = require('electron');
 
 // Disable render process reuse, we still have
 // non-context aware native modules in the renderer.
@@ -59,22 +59,30 @@ if (crashReporterDirectory) {
 		}
 	}
 
-	// Crashes are stored in the temp directory by default, so we
+	// Crashes are stored in the crashDumps directory by default, so we
 	// need to change that directory to the provided one
 	console.log(`Found --crash-reporter-directory argument. Setting temp directory to be '${crashReporterDirectory}'`);
-	app.setPath('temp', crashReporterDirectory);
-
-	// Start crash reporter
-	const { crashReporter } = require('electron');
-	const productName = (product.crashReporter && product.crashReporter.productName) || product.nameShort;
-	const companyName = (product.crashReporter && product.crashReporter.companyName) || 'Microsoft';
-	crashReporter.start({
-		companyName: companyName,
-		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
-		submitURL: '',
-		uploadToServer: false
-	});
+	app.setPath('crashDumps', crashReporterDirectory);
 }
+
+// Start crash reporter for all processes
+const productName = (product.crashReporter && product.crashReporter.productName) || product.nameShort;
+const companyName = (product.crashReporter && product.crashReporter.companyName) || 'Microsoft';
+const appCenter = product.appCenter;
+let submitURL = '';
+if (appCenter) {
+	const isWindows = (process.platform === 'win32');
+	const isMacintosh = (process.platform === 'darwin');
+	const isLinux = (process.platform === 'linux');
+	submitURL = isWindows ? appCenter[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? appCenter[`linux-x64`] : appCenter.darwin;
+	//submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', info.sessionId);
+}
+crashReporter.start({
+	companyName: companyName,
+	productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
+	submitURL: submitURL,
+	uploadToServer: !crashReporterDirectory
+});
 
 // Set logs path before app 'ready' event if running portable
 // to ensure that no 'logs' folder is created on disk at a

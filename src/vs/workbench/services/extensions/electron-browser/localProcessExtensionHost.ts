@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { ChildProcess, fork } from 'child_process';
 import { Server, Socket, createServer } from 'net';
-import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -180,20 +179,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					];
 				} else {
 					opts.execArgv = ['--inspect-port=0'];
-				}
-
-				// Enable the crash reporter depending on environment for local reporting
-				const crashesDirectory = this._environmentService.crashReporterDirectory;
-				if (crashesDirectory) {
-					const crashReporterOptions: CrashReporterStartOptions = {
-						companyName: this._productService.crashReporter?.companyName || 'Microsoft',
-						productName: this._productService.crashReporter?.productName || this._productService.nameShort,
-						submitURL: '',
-						uploadToServer: false,
-						crashesDirectory
-					};
-
-					opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterOptions);
 				}
 
 				// Run Extension Host as fork of current process

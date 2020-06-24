@@ -34,9 +34,6 @@ if (process.env['VSCODE_PARENT_PID']) {
 	terminateWhenParentTerminates();
 }
 
-// Configure Crash Reporter
-configureCrashReporter();
-
 // Load AMD entry point
 require('./bootstrap-amd').load(process.env['AMD_ENTRYPOINT']);
 
@@ -169,20 +166,6 @@ function terminateWhenParentTerminates() {
 				process.exit();
 			}
 		}, 5000);
-	}
-}
-
-function configureCrashReporter() {
-	const crashReporterOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
-	if (typeof crashReporterOptionsRaw === 'string') {
-		try {
-			const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
-			if (crashReporterOptions) {
-				process['crashReporter'].start(crashReporterOptions);
-			}
-		} catch (error) {
-			console.error(error);
-		}
 	}
 }
 
