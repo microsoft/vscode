@@ -15,6 +15,7 @@ const serverConfig = withDefaults({
 	context: __dirname,
 	entry: {
 		extension: './src/browser/htmlServerMain.ts',
+
 	},
 	output: {
 		filename: 'htmlServerMain.js',
