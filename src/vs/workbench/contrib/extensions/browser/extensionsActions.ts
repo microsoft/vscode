@@ -1827,6 +1827,40 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 	}
 }
 
+export class ShowRecommendedExtensionAction extends Action {
+
+	static readonly ID = 'workbench.extensions.action.showRecommendedExtension';
+	static readonly LABEL = localize('showRecommendedExtension', "Show Recommended Extension");
+
+	private extensionId: string;
+
+	constructor(
+		extensionId: string,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
+	) {
+		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, undefined, false);
+		this.extensionId = extensionId;
+	}
+
+	run(): Promise<any> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
+			.then(viewlet => {
+				viewlet.search(`@id:${this.extensionId}`);
+				viewlet.focus();
+				return this.extensionWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation', pageSize: 1 }, CancellationToken.None)
+					.then(pager => {
+						if (pager && pager.firstPage && pager.firstPage.length) {
+							const extension = pager.firstPage[0];
+							return this.extensionWorkbenchService.open(extension);
+						}
+						return null;
+					});
+			});
+	}
+}
+
 export class InstallRecommendedExtensionAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.installRecommendedExtension';
@@ -1855,6 +1889,7 @@ export class InstallRecommendedExtensionAction extends Action {
 						if (pager && pager.firstPage && pager.firstPage.length) {
 							const extension = pager.firstPage[0];
 							return this.extensionWorkbenchService.install(extension)
+								.then(() => this.extensionWorkbenchService.open(extension))
 								.then(() => null, err => {
 									console.error(err);
 									return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService);
