@@ -206,14 +206,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		}
 
 		this.element!.preload = require.toUrl('./pre/electron-index.js');
-		this.element!.src = encodeURIComponent(`<!DOCTYPE html>
-<html lang="en" style="width: 100%; height: 100%">
-<head>
-<title>Virtual Document</title>
-</head>
-<body style="margin: 0; overflow: hidden; width: 100%; height: 100%" role="document">
-</body>
-</html>`);
+		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html`;
 	}
 
 	protected createElement(options: WebviewOptions) {

@@ -176,7 +176,7 @@ export class CodeApplication extends Disposable {
 
 					const uri = URI.parse(source);
 					if (uri.scheme === Schemas.vscodeWebview) {
-						return uri.path === '/index.html';
+						return uri.path === '/index.html' || uri.path === '/electron-browser/index.html';
 					}
 
 					const srcUri = uri.fsPath.toLowerCase();

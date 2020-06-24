@@ -25,6 +25,7 @@ export class WebviewProtocolProvider extends Disposable {
 
 	private static validWebviewFilePaths = new Map([
 		['/index.html', 'index.html'],
+		['/electron-browser/index.html', 'index.html'],
 		['/main.js', 'main.js'],
 		['/host.js', 'host.js'],
 	]);
@@ -39,6 +40,11 @@ export class WebviewProtocolProvider extends Disposable {
 
 		const sess = session.fromPartition(webviewPartitionId);
 
+		// Register the protocol loading webview html
+		const webviewHandler = this.handleWebviewRequest.bind(this);
+		protocol.registerFileProtocol(Schemas.vscodeWebview, webviewHandler);
+		sess.protocol.registerFileProtocol(Schemas.vscodeWebview, webviewHandler);
+
 		// Register the protocol loading webview resources both inside the webview and at the top level
 		const webviewResourceHandler = this.handleWebviewResourceRequest.bind(this);
 		protocol.registerStreamProtocol(Schemas.vscodeWebviewResource, webviewResourceHandler);
@@ -47,24 +53,9 @@ export class WebviewProtocolProvider extends Disposable {
 		this._register(toDisposable(() => {
 			protocol.unregisterProtocol(Schemas.vscodeWebviewResource);
 			sess.protocol.unregisterProtocol(Schemas.vscodeWebviewResource);
+			protocol.unregisterProtocol(Schemas.vscodeWebview);
+			sess.protocol.unregisterProtocol(Schemas.vscodeWebview);
 		}));
-
-
-		// Register the protocol for loading the webview html itself on the main protocol
-		protocol.registerFileProtocol(Schemas.vscodeWebview, (request, callback: any) => {
-			try {
-				const uri = URI.parse(request.url);
-				const entry = WebviewProtocolProvider.validWebviewFilePaths.get(uri.path);
-				if (typeof entry === 'string') {
-					const url = require.toUrl(`vs/workbench/contrib/webview/browser/pre/${entry}`);
-					return callback(url.replace('file://', ''));
-				}
-			} catch {
-				// noop
-			}
-			callback({ error: -10 /* ACCESS_DENIED - https://cs.chromium.org/chromium/src/net/base/net_error_list.h?l=32 */ });
-		});
-		this._register(toDisposable(() => protocol.unregisterProtocol(Schemas.vscodeWebview)));
 	}
 
 	private streamToNodeReadable(stream: VSBufferReadableStream): Readable {
@@ -127,6 +118,25 @@ export class WebviewProtocolProvider extends Disposable {
 				...metadataDelta,
 			});
 		}
+	}
+
+	private async handleWebviewRequest(request: Electron.Request, callback: any) {
+		try {
+			const uri = URI.parse(request.url);
+			const entry = WebviewProtocolProvider.validWebviewFilePaths.get(uri.path);
+			if (typeof entry === 'string') {
+				let url: string;
+				if (uri.path.startsWith('/electron-browser')) {
+					url = require.toUrl(`vs/workbench/contrib/webview/electron-browser/pre/${entry}`);
+				} else {
+					url = require.toUrl(`vs/workbench/contrib/webview/browser/pre/${entry}`);
+				}
+				return callback(url.replace('file://', ''));
+			}
+		} catch {
+			// noop
+		}
+		callback({ error: -10 /* ACCESS_DENIED - https://cs.chromium.org/chromium/src/net/base/net_error_list.h?l=32 */ });
 	}
 
 	private async handleWebviewResourceRequest(
