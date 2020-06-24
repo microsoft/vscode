@@ -28,7 +28,11 @@ export interface IWorkspaceUndoRedoElement {
 	readonly label: string;
 	undo(): Promise<void> | void;
 	redo(): Promise<void> | void;
-	split(): IResourceUndoRedoElement[];
+
+	/**
+	 * If implemented, indicates that this undo/redo element can be split into multiple per resource elements.
+	 */
+	split?(): IResourceUndoRedoElement[];
 
 	/**
 	 * If implemented, will be invoked before calling `undo()` or `redo()`.

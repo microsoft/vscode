@@ -143,10 +143,6 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 			this.operations[i] = undo;
 		}
 	}
-
-	split(): IResourceUndoRedoElement[] {
-		return [];
-	}
 }
 
 export class BulkFileEdits {
