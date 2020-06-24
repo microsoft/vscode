@@ -105,6 +105,9 @@ export class LaunchMainService implements ILaunchMainService {
 
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 
+		// Force focus the app before requesting window focus
+		app.focus({ steal: true });
+
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
 			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv, waitMarkerFileURI });
@@ -156,8 +159,6 @@ export class LaunchMainService implements ILaunchMainService {
 			else {
 				const lastActive = this.windowsMainService.getLastActiveWindow();
 				if (lastActive) {
-					// Force focus the app before requesting window focus
-					app.focus({ steal: true });
 					lastActive.focus();
 
 					usedWindows = [lastActive];
