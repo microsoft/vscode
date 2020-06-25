@@ -18,7 +18,7 @@ import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
 import { getDocumentContext } from './utils/documentContext';
 import { URI } from 'vscode-uri';
-import { formatError, runSafe, runSafeAsync } from './utils/runner';
+import { formatError, runSafe } from './utils/runner';
 
 import { getFoldingRanges } from './modes/htmlFolding';
 import { fetchHTMLDataProviders } from './customData';
@@ -261,11 +261,11 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				const settings = await getDocumentSettings(textDocument, () => modes.some(m => !!m.doValidation));
 				const latestTextDocument = documents.get(textDocument.uri);
 				if (latestTextDocument && latestTextDocument.version === version) { // check no new version has come in after in after the async op
-					modes.forEach(mode => {
+					for (const mode of modes) {
 						if (mode.doValidation && isValidationEnabled(mode.getId(), settings)) {
-							pushAll(diagnostics, mode.doValidation(latestTextDocument, settings));
+							pushAll(diagnostics, await mode.doValidation(latestTextDocument, settings));
 						}
-					});
+					}
 					connection.sendDiagnostics({ uri: latestTextDocument.uri, diagnostics });
 				}
 			}
@@ -275,7 +275,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	}
 
 	connection.onCompletion(async (textDocumentPosition, token) => {
-		return runSafeAsync(async () => {
+		return runSafe(async () => {
 			const document = documents.get(textDocumentPosition.textDocument.uri);
 			if (!document) {
 				return null;
@@ -303,7 +303,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onCompletionResolve((item, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const data = item.data;
 			if (data && data.languageId && data.uri) {
 				const mode = languageModes.getMode(data.languageId);
@@ -317,7 +317,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onHover((textDocumentPosition, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(textDocumentPosition.textDocument.uri);
 			if (document) {
 				const mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
@@ -330,7 +330,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onDocumentHighlight((documentHighlightParams, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(documentHighlightParams.textDocument.uri);
 			if (document) {
 				const mode = languageModes.getModeAtPosition(document, documentHighlightParams.position);
@@ -343,7 +343,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onDefinition((definitionParams, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(definitionParams.textDocument.uri);
 			if (document) {
 				const mode = languageModes.getModeAtPosition(document, definitionParams.position);
@@ -356,7 +356,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onReferences((referenceParams, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(referenceParams.textDocument.uri);
 			if (document) {
 				const mode = languageModes.getModeAtPosition(document, referenceParams.position);
@@ -369,7 +369,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onSignatureHelp((signatureHelpParms, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(signatureHelpParms.textDocument.uri);
 			if (document) {
 				const mode = languageModes.getModeAtPosition(document, signatureHelpParms.position);
@@ -382,7 +382,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onDocumentRangeFormatting(async (formatParams, token) => {
-		return runSafeAsync(async () => {
+		return runSafe(async () => {
 			const document = documents.get(formatParams.textDocument.uri);
 			if (document) {
 				let settings = await getDocumentSettings(document, () => true);
@@ -399,53 +399,53 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onDocumentLinks((documentLinkParam, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(documentLinkParam.textDocument.uri);
 			const links: DocumentLink[] = [];
 			if (document) {
 				const documentContext = getDocumentContext(document.uri, workspaceFolders);
-				languageModes.getAllModesInDocument(document).forEach(m => {
+				for (const m of languageModes.getAllModesInDocument(document)) {
 					if (m.findDocumentLinks) {
-						pushAll(links, m.findDocumentLinks(document, documentContext));
+						pushAll(links, await m.findDocumentLinks(document, documentContext));
 					}
-				});
+				}
 			}
 			return links;
 		}, [], `Error while document links for ${documentLinkParam.textDocument.uri}`, token);
 	});
 
 	connection.onDocumentSymbol((documentSymbolParms, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(documentSymbolParms.textDocument.uri);
 			const symbols: SymbolInformation[] = [];
 			if (document) {
-				languageModes.getAllModesInDocument(document).forEach(m => {
+				for (const m of languageModes.getAllModesInDocument(document)) {
 					if (m.findDocumentSymbols) {
-						pushAll(symbols, m.findDocumentSymbols(document));
+						pushAll(symbols, await m.findDocumentSymbols(document));
 					}
-				});
+				}
 			}
 			return symbols;
 		}, [], `Error while computing document symbols for ${documentSymbolParms.textDocument.uri}`, token);
 	});
 
 	connection.onRequest(DocumentColorRequest.type, (params, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const infos: ColorInformation[] = [];
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
-				languageModes.getAllModesInDocument(document).forEach(m => {
+				for (const m of languageModes.getAllModesInDocument(document)) {
 					if (m.findDocumentColors) {
-						pushAll(infos, m.findDocumentColors(document));
+						pushAll(infos, await m.findDocumentColors(document));
 					}
-				});
+				}
 			}
 			return infos;
 		}, [], `Error while computing document colors for ${params.textDocument.uri}`, token);
 	});
 
 	connection.onRequest(ColorPresentationRequest.type, (params, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				const mode = languageModes.getModeAtPosition(document, params.range.start);
@@ -458,7 +458,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onRequest(TagCloseRequest.type, (params, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				const pos = params.position;
@@ -474,7 +474,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onFoldingRanges((params, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				return getFoldingRanges(languageModes, document, foldingRangeLimit, token);
@@ -484,7 +484,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onSelectionRanges((params, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				return getSelectionRanges(languageModes, document, params.positions);
@@ -494,7 +494,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onRenameRequest((params, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(params.textDocument.uri);
 			const position: Position = params.position;
 
@@ -509,7 +509,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onRequest(OnTypeRenameRequest.type, (params, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				const pos = params.position;
@@ -533,7 +533,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	}
 
 	connection.onRequest(SemanticTokenRequest.type, (params, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				return getSemanticTokenProvider().getSemanticTokens(document, params.ranges);
@@ -543,7 +543,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.onRequest(SemanticTokenLegendRequest.type, (_params, token) => {
-		return runSafe(() => {
+		return runSafe(async () => {
 			return getSemanticTokenProvider().legend;
 		}, null, `Error while computing semantic tokens legend`, token);
 	});
