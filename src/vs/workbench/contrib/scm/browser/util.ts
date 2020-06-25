@@ -10,7 +10,6 @@ import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/ba
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { equals } from 'vs/base/common/arrays';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
