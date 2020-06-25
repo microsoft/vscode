@@ -20,7 +20,7 @@ interface PortMappingData {
 export class WebviewPortMappingProvider extends Disposable {
 
 	private readonly _webviewData = new Map<string, {
-		readonly webContentsId: number;
+		readonly webContentsId: number | undefined;
 		readonly manager: WebviewPortMappingManager;
 		metadata: PortMappingData;
 	}>();
@@ -56,14 +56,16 @@ export class WebviewPortMappingProvider extends Disposable {
 		});
 	}
 
-	public async registerWebview(id: string, webContentsId: number, metadata: PortMappingData): Promise<void> {
+	public async registerWebview(id: string, webContentsId: number | undefined, metadata: PortMappingData): Promise<void> {
 		const manager = new WebviewPortMappingManager(
 			() => this._webviewData.get(id)?.metadata.extensionLocation,
 			() => this._webviewData.get(id)?.metadata.mappings || [],
 			this._tunnelService);
 
 		this._webviewData.set(id, { webContentsId, metadata, manager });
-		this._webContentsIdsToWebviewIds.set(webContentsId, id);
+		if (typeof webContentsId === 'number') {
+			this._webContentsIdsToWebviewIds.set(webContentsId, id);
+		}
 	}
 
 	public unregisterWebview(id: string): void {
@@ -71,7 +73,9 @@ export class WebviewPortMappingProvider extends Disposable {
 		if (existing) {
 			existing.manager.dispose();
 			this._webviewData.delete(id);
-			this._webContentsIdsToWebviewIds.delete(existing.webContentsId);
+			if (typeof existing.webContentsId === 'number') {
+				this._webContentsIdsToWebviewIds.delete(existing.webContentsId);
+			}
 		}
 	}
 
