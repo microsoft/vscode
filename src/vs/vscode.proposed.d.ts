@@ -827,6 +827,14 @@ declare module 'vscode' {
 		 * When this property is not specified, the value from the parent session (if there is one) is used.
 		 */
 		noDebug?: boolean;
+
+		/**
+		 * Controls if the debug session created will be compacted with the parent in the CALL STACK view.
+		 * Compact with the parent is only done if the session is the only child of it's parent session.
+		 * Default is to compact.
+		 *
+		 */
+		noCompact?: boolean;
 	}
 
 	// deprecated debug API
