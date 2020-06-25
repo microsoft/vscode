@@ -130,7 +130,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		this._myLogService.debug(`Webview(${this.id}): init`);
 
 		const webviewId = new Promise<number | undefined>((resolve, reject) => {
-			const sub = this._register(addDisposableListener(this.element!, 'did-start-loading', once(() => {
+			const sub = this._register(addDisposableListener(this.element!, 'dom-ready', once(() => {
 				if (!this.element) {
 					reject();
 					throw new Error('No element');
@@ -141,7 +141,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		});
 		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.content.options, webviewId));
 
-		this._register(addDisposableListener(this.element!, 'did-start-loading', once(() => {
+		this._register(addDisposableListener(this.element!, 'dom-ready', once(() => {
 			this._register(ElectronWebviewBasedWebview.getWebviewKeyboardHandler(configurationService, mainProcessService).add(this.element!));
 		})));
 
