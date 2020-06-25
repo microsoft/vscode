@@ -25,6 +25,11 @@ const serverConfig = withDefaults({
 	performance: {
 		hints: false
 	},
+	optimization: {
+		splitChunks: {
+			chunks: "async"
+		}
+	},
 	resolve: {
 		alias: {
 			'vscode-nls': path.resolve(__dirname, '../../../build/polyfills/vscode-nls.js')
