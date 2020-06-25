@@ -30,37 +30,7 @@ export function isSCMResource(element: any): element is ISCMResource {
 
 const compareActions = (a: IAction, b: IAction) => a.id === b.id;
 
-export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: ActionBar): IDisposable {
-	let cachedDisposable: IDisposable = Disposable.None;
-	let cachedPrimary: IAction[] = [];
-
-	const updateActions = () => {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-
-		const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, g => /^inline/.test(g));
-
-		if (equals(cachedPrimary, primary, compareActions)) {
-			disposable.dispose();
-			return;
-		}
-
-		cachedDisposable = disposable;
-		cachedPrimary = primary;
-
-		actionBar.clear();
-		actionBar.push(primary, { icon: true, label: false });
-	};
-
-	updateActions();
-
-	return combinedDisposable(
-		menu.onDidChange(updateActions),
-		toDisposable(() => cachedDisposable.dispose())
-	);
-}
-
-export function connectPrimaryMenuToInlineToolbarBar(menu: IMenu, toolBar: ToolBar): IDisposable {
+export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, isPrimaryGroup?: (group: string) => boolean): IDisposable {
 	let cachedDisposable: IDisposable = Disposable.None;
 	let cachedPrimary: IAction[] = [];
 	let cachedSecondary: IAction[] = [];
@@ -69,7 +39,7 @@ export function connectPrimaryMenuToInlineToolbarBar(menu: IMenu, toolBar: ToolB
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 
-		const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary });
+		const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, isPrimaryGroup);
 
 		if (equals(cachedPrimary, primary, compareActions) && equals(cachedSecondary, secondary, compareActions)) {
 			disposable.dispose();
@@ -80,7 +50,7 @@ export function connectPrimaryMenuToInlineToolbarBar(menu: IMenu, toolBar: ToolB
 		cachedPrimary = primary;
 		cachedSecondary = secondary;
 
-		toolBar.setActions(primary, secondary);
+		callback(primary, secondary);
 	};
 
 	updateActions();
@@ -89,4 +59,11 @@ export function connectPrimaryMenuToInlineToolbarBar(menu: IMenu, toolBar: ToolB
 		menu.onDidChange(updateActions),
 		toDisposable(() => cachedDisposable.dispose())
 	);
+}
+
+export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: ActionBar): IDisposable {
+	return connectPrimaryMenu(menu, (primary) => {
+		actionBar.clear();
+		actionBar.push(primary, { icon: true, label: false });
+	}, g => /^inline/.test(g));
 }

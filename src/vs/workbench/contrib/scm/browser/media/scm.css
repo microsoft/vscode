@@ -44,14 +44,14 @@
 	overflow: hidden;
 }
 
-.scm-viewlet .scm-provider > .status {
+.scm-viewlet .scm-provider > .actions {
 	flex: 1;
-	display: flex;
-	padding: 0 10px;
+	padding-left: 10px;
 	overflow: hidden;
+	justify-content: flex-end;
 }
 
-.scm-viewlet .scm-provider > .status > .monaco-action-bar .action-item {
+.scm-viewlet .scm-provider > .actions .monaco-action-bar .action-item {
 	margin-left: 4px;
 	text-overflow: ellipsis;
 	display: flex;
@@ -59,24 +59,20 @@
 	min-width: 14px;
 }
 
-.scm-viewlet .scm-provider > .status > .monaco-action-bar .action-label {
+.scm-viewlet .scm-provider > .actions .monaco-action-bar .action-label {
 	text-overflow: ellipsis;
 	overflow: hidden;
-	min-width: 14px; /* minimum size of icons */
+	min-width: 14px; /* for flex */
+	height: 100%;
 }
 
-.scm-viewlet .scm-provider > .status > .monaco-action-bar .action-label .codicon {
-	font-size: 14px;
+.scm-viewlet .scm-provider > .actions .monaco-action-bar .action-label .codicon {
 	vertical-align: sub;
 	display: inline-flex;
 }
 
-.scm-viewlet .scm-provider > .status > .monaco-action-bar .action-item:last-of-type {
+.scm-viewlet .scm-provider > .actions .monaco-action-bar .action-item:last-of-type {
 	padding-right: 0;
-}
-
-.scm-viewlet .scm-provider > .actions {
-	display: none;
 }
 
 .scm-viewlet .scm-provider > .body {
@@ -139,10 +135,6 @@
 	max-width: fit-content;
 }
 
-.scm-viewlet .monaco-list .monaco-list-row:hover .scm-provider > .actions,
-.scm-viewlet .monaco-list .monaco-list-row .scm-provider.active > .actions,
-.scm-viewlet .monaco-list .monaco-list-row.selected .scm-provider > .actions,
-.scm-viewlet .monaco-list .monaco-list-row.focused .scm-provider > .actions,
 .scm-viewlet .monaco-list .monaco-list-row:hover .resource-group > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.selected .resource-group > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.focused .resource-group > .actions,

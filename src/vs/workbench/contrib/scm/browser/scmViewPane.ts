@@ -25,7 +25,7 @@ import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser
 import { SCMMenus } from './menus';
 import { ActionBar, IActionViewItemProvider, Separator, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, connectPrimaryMenuToInlineToolbarBar } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, connectPrimaryMenu } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -152,7 +152,6 @@ interface RepositoryTemplate {
 	readonly name: HTMLElement;
 	readonly countContainer: HTMLElement;
 	readonly count: CountBadge;
-	readonly statusActionBar: ActionBar;
 	readonly toolBar: ToolBar;
 	disposable: IDisposable;
 	readonly templateDisposable: IDisposable;
@@ -178,8 +177,6 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const provider = append(container, $('.scm-provider'));
 		const label = append(provider, $('.label'));
 		const name = append(label, $('span.name'));
-		const status = append(provider, $('.status'));
-		const statusActionBar = new ActionBar(status, { actionViewItemProvider: a => new StatusBarActionViewItem(a as StatusBarAction) });
 		const actions = append(provider, $('.actions'));
 		const toolBar = new ToolBar(actions, this.contextMenuService, { actionViewItemProvider: this.actionViewItemProvider });
 		const countContainer = append(provider, $('.count'));
@@ -188,9 +185,9 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => toggleClass(provider, 'active', e));
 
 		const disposable = Disposable.None;
-		const templateDisposable = combinedDisposable(statusActionBar, visibilityDisposable, toolBar, badgeStyler);
+		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar, badgeStyler);
 
-		return { name, countContainer, count, statusActionBar, toolBar, disposable, templateDisposable };
+		return { name, countContainer, count, toolBar, disposable, templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
@@ -205,26 +202,30 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 			templateData.name.textContent = repository.provider.label;
 		}
 
-		const actions: IAction[] = [];
-		const disposeActions = () => dispose(actions);
-		disposables.add({ dispose: disposeActions });
+		let statusPrimaryActions: IAction[] = [];
+		let menuPrimaryActions: IAction[] = [];
+		let menuSecondaryActions: IAction[] = [];
+		const updateToolbar = () => {
+			templateData.toolBar.setActions([...statusPrimaryActions, ...menuPrimaryActions], menuSecondaryActions);
+		};
 
-		const update = () => {
-			disposeActions();
-
+		const onDidChangeProvider = () => {
 			const commands = repository.provider.statusBarCommands || [];
-			actions.splice(0, actions.length, ...commands.map(c => new StatusBarAction(c, this.commandService)));
-			templateData.statusActionBar.clear();
-			templateData.statusActionBar.push(actions);
+			statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
+			updateToolbar();
 
 			const count = repository.provider.count || 0;
 			templateData.count.setCount(count);
 		};
-		disposables.add(repository.provider.onDidChange(update, null));
-		update();
+		disposables.add(repository.provider.onDidChange(onDidChangeProvider, null));
+		onDidChangeProvider();
 
 		const menus = this.menus.getRepositoryMenus(repository.provider);
-		disposables.add(connectPrimaryMenuToInlineToolbarBar(menus.titleMenu, templateData.toolBar));
+		disposables.add(connectPrimaryMenu(menus.titleMenu, (primary, secondary) => {
+			menuPrimaryActions = primary;
+			menuSecondaryActions = secondary;
+			updateToolbar();
+		}));
 		templateData.toolBar.context = repository.provider;
 
 		templateData.disposable = disposables;
@@ -1579,6 +1580,10 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
+		if (action instanceof StatusBarAction) {
+			return new StatusBarActionViewItem(action);
+		}
+
 		if (!(action instanceof MenuItemAction)) {
 			return undefined;
 		}
