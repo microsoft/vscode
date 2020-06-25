@@ -1089,7 +1089,7 @@ class ContinueAction extends Action {
 class CallStackCompressionDelegate implements ITreeCompressionDelegate<CallStackItem> {
 	isIncompressible(stat: CallStackItem): boolean {
 		if (isDebugSession(stat)) {
-			return false;
+			return stat.noCompact;
 		}
 
 		return true;

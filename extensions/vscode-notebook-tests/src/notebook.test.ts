@@ -494,7 +494,7 @@ suite('notebook workflow', () => {
 });
 
 suite('notebook dirty state', () => {
-	test.skip('notebook open', async function () {
+	test('notebook open', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
@@ -528,7 +528,7 @@ suite('notebook dirty state', () => {
 });
 
 suite('notebook undo redo', () => {
-	test.skip('notebook open', async function () {
+	test('notebook open', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
@@ -676,7 +676,7 @@ suite('notebook working copy', () => {
 	// 	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	// });
 
-	test.skip('multiple tabs: dirty + clean', async function () {
+	test('multiple tabs: dirty + clean', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
@@ -700,7 +700,7 @@ suite('notebook working copy', () => {
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 
-	test.skip('multiple tabs: two dirty tabs and switching', async function () {
+	test('multiple tabs: two dirty tabs and switching', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
@@ -734,7 +734,7 @@ suite('notebook working copy', () => {
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
-	test.skip('multiple tabs: different editors with same document', async function () {
+	test('multiple tabs: different editors with same document', async function () {
 
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -758,7 +758,7 @@ suite('notebook working copy', () => {
 	});
 });
 
-suite.skip('metadata', () => {
+suite('metadata', () => {
 	test('custom metadata should be supported', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');

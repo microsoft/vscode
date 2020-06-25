@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/// <reference path="typings/require.d.ts" />
+
 //@ts-check
 'use strict';
 
@@ -19,10 +21,10 @@
 		globalThis.MonacoBootstrapWindow = factory();
 	}
 }(this, function () {
-	const path = require('path');
-	const webFrame = require('electron').webFrame;
-	const ipc = require('electron').ipcRenderer;
-	const bootstrap = globalThis.MonacoBootstrap || require('./bootstrap');
+	const path = require.__$__nodeRequire('path');
+	const webFrame = require.__$__nodeRequire('electron').webFrame;
+	const ipc = require.__$__nodeRequire('electron').ipcRenderer;
+	const bootstrap = globalThis.MonacoBootstrap;
 
 	/**
 	 * @param {string[]} modulePaths
@@ -83,17 +85,11 @@
 
 		window.document.documentElement.setAttribute('lang', locale);
 
-		// Load the loader
-		const amdLoader = require(`${configuration.appRoot}/out/vs/loader.js`);
-		const amdRequire = amdLoader.require;
-		const amdDefine = amdLoader.require.define;
-		const nodeRequire = amdLoader.require.nodeRequire;
-
-		window['nodeRequire'] = nodeRequire;
-		window['require'] = amdRequire;
+		// do not advertise AMD to avoid confusing UMD modules loaded with nodejs
+		window['define'] = undefined;
 
 		// replace the patched electron fs with the original node fs for all AMD code
-		amdDefine('fs', ['original-fs'], function (originalFS) { return originalFS; });
+		require.define('fs', ['original-fs'], function (originalFS) { return originalFS; });
 
 		window['MonacoEnvironment'] = {};
 
@@ -115,10 +111,10 @@
 			options.beforeLoaderConfig(configuration, loaderConfig);
 		}
 
-		amdRequire.config(loaderConfig);
+		require.config(loaderConfig);
 
 		if (nlsConfig.pseudo) {
-			amdRequire(['vs/nls'], function (nlsPlugin) {
+			require(['vs/nls'], function (nlsPlugin) {
 				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 			});
 		}
@@ -127,7 +123,7 @@
 			options.beforeRequire();
 		}
 
-		amdRequire(modulePaths, result => {
+		require(modulePaths, result => {
 			try {
 				const callbackResult = resultCallback(result, configuration);
 				if (callbackResult && typeof callbackResult.then === 'function') {
@@ -199,7 +195,7 @@
 
 	/**
 	 * @param {string | Error} error
-	 * @param {boolean} enableDeveloperTools
+	 * @param {boolean} [enableDeveloperTools]
 	 */
 	function onUnexpectedError(error, enableDeveloperTools) {
 		if (enableDeveloperTools) {

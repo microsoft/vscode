@@ -386,6 +386,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	focus() {
 		this._isVisible = true;
 		this._editorFocus?.set(true);
+
+		const focus = this._list?.getFocus()[0];
+		if (typeof focus === 'number') {
+			const element = this._notebookViewModel!.viewCells[focus];
+
+			if (element.focusMode === CellFocusMode.Editor) {
+				element.editState = CellEditState.Editing;
+				element.focusMode = CellFocusMode.Editor;
+				this._onDidFocusEditorWidget.fire();
+				return;
+			}
+
+		}
 		this._list?.domFocus();
 		this._onDidFocusEditorWidget.fire();
 	}
@@ -883,10 +896,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		const newLanguages = this._notebookViewModel!.languages;
-		const language = (type === CellKind.Code && newLanguages && newLanguages.length) ? newLanguages[0] : 'markdown';
 		const index = cell ? this._notebookViewModel!.getCellIndex(cell) : 0;
 		const nextIndex = ui ? this._notebookViewModel!.getNextVisibleCellIndex(index) : index + 1;
+		const newLanguages = this._notebookViewModel!.languages;
+		const language = (cell?.cellKind === CellKind.Code && type === CellKind.Code)
+			? cell.language
+			: ((type === CellKind.Code && newLanguages && newLanguages.length) ? newLanguages[0] : 'markdown');
 		const insertIndex = cell ?
 			(direction === 'above' ? index : nextIndex) :
 			index;

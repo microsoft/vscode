@@ -858,6 +858,7 @@ export interface IStartDebuggingOptions {
 	parentSessionID?: DebugSessionUUID;
 	repl?: IDebugSessionReplMode;
 	noDebug?: boolean;
+	noCompact?: boolean;
 }
 
 export interface MainThreadDebugServiceShape extends IDisposable {
@@ -987,6 +988,8 @@ export interface ExtHostTreeViewsShape {
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
 	$setVisible(treeViewId: string, visible: boolean): void;
+	$hasResolve(treeViewId: string): Promise<boolean>;
+	$resolve(treeViewId: string, treeItemHandle: string): Promise<ITreeItem | undefined>;
 }
 
 export interface ExtHostWorkspaceShape {

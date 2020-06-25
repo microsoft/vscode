@@ -20,17 +20,7 @@ declare module 'vscode' {
 
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
-	export interface AuthenticationSession {
-		id: string;
-		getAccessToken(): Thenable<string>;
-		account: {
-			displayName: string;
-			id: string;
-		};
-		scopes: string[];
-	}
-
-	export class AuthenticationSession2 {
+	export class AuthenticationSession {
 		/**
 		 * The identifier of the authentication session.
 		 */
@@ -148,12 +138,12 @@ declare module 'vscode' {
 		/**
 		 * Returns an array of current sessions.
 		 */
-		getSessions(): Thenable<ReadonlyArray<AuthenticationSession2>>;
+		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
-		login(scopes: string[]): Thenable<AuthenticationSession2>;
+		login(scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
@@ -211,7 +201,7 @@ declare module 'vscode' {
 		 * @param options The [getSessionOptions](#GetSessionOptions) to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession2>;
+		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -223,29 +213,7 @@ declare module 'vscode' {
 		 * @param options The [getSessionOptions](#GetSessionOptions) to use
 		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
 		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession2 | undefined>;
-
-		/**
-		 * @deprecated
-		 * Get existing authentication sessions. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension.
-		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
-		 * provider
-		 */
-		export function getSessions(providerId: string, scopes: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
-
-		/**
-		 * @deprecated
-		* Prompt a user to login to create a new authenticaiton session. Rejects if a provider with
-		* providerId is not registered, or if the user does not consent to sharing authentication
-		* information with the extension.
-		* @param providerId The id of the provider to use
-		* @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
-		* provider
-		*/
-		export function login(providerId: string, scopes: string[]): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 
 		/**
 		 * @deprecated
@@ -859,6 +827,14 @@ declare module 'vscode' {
 		 * When this property is not specified, the value from the parent session (if there is one) is used.
 		 */
 		noDebug?: boolean;
+
+		/**
+		 * Controls if the debug session created will be compacted with the parent in the CALL STACK view.
+		 * Compact with the parent is only done if the session is the only child of it's parent session.
+		 * Default is to compact.
+		 *
+		 */
+		noCompact?: boolean;
 	}
 
 	// deprecated debug API
@@ -1074,33 +1050,29 @@ declare module 'vscode' {
 		terminal: Terminal;
 	}
 
-	export interface TerminalLinkProvider<T = TerminalLink> {
+	export interface TerminalLinkProvider<T extends TerminalLink = TerminalLink> {
+		/**
+		 * Provide terminal links for the given context.
+		 * @param context Information about what links are being provided for.
+		 */
 		provideTerminalLinks(context: TerminalLinkContext): ProviderResult<T[]>
 
 		/**
 		 * Handle an activated terminal link.
-		 *
-		 * @returns Whether the link was handled, if not VS Code will attempt to open it.
 		 */
-		handleTerminalLink(link: T): ProviderResult<boolean>;
+		handleTerminalLink(link: T): void;
 	}
 
 	export interface TerminalLink {
 		/**
-		 * The start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
+		 * The 0-based start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
 		 */
 		startIndex: number;
 
 		/**
-		 * The length of the link on [TerminalLinkContext.line](#TerminalLinkContext.line]
+		 * The 0-based end index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
 		 */
-		length: number;
-
-		/**
-		 * The uri this link points to. If set, and {@link TerminalLinkProvider.handlerTerminalLink}
-		 * is not implemented or returns false, then VS Code will try to open the Uri.
-		 */
-		target?: Uri;
+		endIndex: number;
 
 		/**
 		 * The tooltip text when you hover over this link.
@@ -1150,6 +1122,11 @@ declare module 'vscode' {
 
 	}
 
+	// https://github.com/microsoft/vscode/issues/100741
+	export interface TreeDataProvider<T> {
+		resolveTreeItem?(element: T, item: TreeItem2): TreeItem2 | Thenable<TreeItem2>;
+	}
+
 	export class TreeItem2 extends TreeItem {
 		/**
 		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
@@ -1160,13 +1137,6 @@ declare module 'vscode' {
 		 * Content to be shown when you hover over the tree item.
 		 */
 		tooltip?: string | MarkdownString | /* for compilation */ any;
-
-		/**
-		 * Accessibility information used when screen reader interacts with this tree item.
-		 * Generally, a TreeItem has no need to set the `role` of the accessibilityInformation;
-		 * however, there are cases where a TreeItem is not displayed in a tree-like way where setting the `role` may make sense.
-		 */
-		accessibilityInformation?: AccessibilityInformation;
 
 		/**
 		 * @param label Label describing this item
@@ -2041,26 +2011,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Dialog title: https://github.com/microsoft/vscode/issues/82871
-
-	/**
-	 * Options to configure the behaviour of a file open dialog.
-	 *
-	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
-	 * which enforces to open either files or folder, but *not both*.
-	 * * Note 2: Explicitly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
-	 * and the editor then silently adjusts the options to select files.
-	 */
-	export interface OpenDialogOptions {
-		/**
-		 * Dialog title.
-		 *
-		 * Depending on the underlying operating system this parameter might be ignored, since some
-		 * systems do not present title on open dialogs.
-		 */
-		title?: string;
-	}
-
 	/**
 	 * Options to configure the behaviour of a file save dialog.
 	 */
@@ -2072,25 +2022,6 @@ declare module 'vscode' {
 		 * systems do not present title on save dialogs.
 		 */
 		title?: string;
-	}
-
-	//#endregion
-
-	//#region Accessibility information: https://github.com/microsoft/vscode/issues/95360
-
-	/**
-	 * Accessibility information which controls screen reader behavior.
-	 */
-	export interface AccessibilityInformation {
-		label: string;
-		role?: string;
-	}
-
-	export interface StatusBarItem {
-		/**
-		 * Accessibility information used when screen reader interacts with this StatusBar item
-		 */
-		accessibilityInformation?: AccessibilityInformation;
 	}
 
 	//#endregion

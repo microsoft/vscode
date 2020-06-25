@@ -13,9 +13,7 @@ import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/commo
 import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-
 import { ILogService } from 'vs/platform/log/common/log';
-import { VSBuffer } from 'vs/base/common/buffer';
 
 interface IFileOperation {
 	uris: URI[];
@@ -56,7 +54,7 @@ class CreateOperation implements IFileOperation {
 	constructor(
 		readonly newUri: URI,
 		readonly options: WorkspaceFileEditOptions,
-		readonly contents: VSBuffer | undefined,
+		readonly contents: string | undefined,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -83,9 +81,10 @@ class DeleteOperation implements IFileOperation {
 		readonly options: WorkspaceFileEditOptions,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService,
+		@ILogService private readonly _logService: ILogService
 	) { }
 
 	get uris() {
@@ -101,9 +100,9 @@ class DeleteOperation implements IFileOperation {
 			return new Noop();
 		}
 
-		let contents: VSBuffer | undefined;
+		let contents: string | undefined;
 		try {
-			contents = (await this._fileService.readFile(this.oldUri)).value;
+			contents = (await this._textFileService.read(this.oldUri)).value;
 		} catch (err) {
 			this._logService.critical(err);
 		}
@@ -118,14 +117,13 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 
 	readonly type = UndoRedoElementType.Workspace;
 
-	readonly resources: readonly URI[] = [];
+	readonly resources: readonly URI[];
 
 	constructor(
 		readonly label: string,
 		readonly operations: IFileOperation[]
 	) {
-		// enable undo/redo here 👇
-		// this.resources = (<URI[]>[]).concat(...operations.map(op => op.uris));
+		this.resources = (<URI[]>[]).concat(...operations.map(op => op.uris));
 	}
 
 	async undo(): Promise<void> {

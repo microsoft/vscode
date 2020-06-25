@@ -27,7 +27,6 @@ import { isWindows } from 'vs/base/common/platform';
 import { readFileSync, statSync } from 'fs';
 import { detectEncodingByBOM } from 'vs/workbench/services/textfile/test/node/encoding/encoding.test';
 import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { VSBuffer } from 'vs/base/common/buffer';
 
 suite('Files - TextFileService i/o', function () {
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
@@ -96,15 +95,6 @@ suite('Files - TextFileService i/o', function () {
 		const resource = URI.file(join(testDir, 'small_new.txt'));
 
 		await service.create(resource, stringToSnapshot('Hello World'));
-
-		assert.equal(await exists(resource.fsPath), true);
-		assert.equal((await readFile(resource.fsPath)).toString(), 'Hello World');
-	});
-
-	test('create - no encoding - content provided (VSBuffer)', async () => {
-		const resource = URI.file(join(testDir, 'small_new.txt'));
-
-		await service.create(resource, VSBuffer.fromString('Hello World'));
 
 		assert.equal(await exists(resource.fsPath), true);
 		assert.equal((await readFile(resource.fsPath)).toString(), 'Hello World');
