@@ -2011,21 +2011,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	/**
-	 * Options to configure the behaviour of a file save dialog.
-	 */
-	export interface SaveDialogOptions {
-		/**
-		 * Dialog title.
-		 *
-		 * Depending on the underlying operating system this parameter might be ignored, since some
-		 * systems do not present title on save dialogs.
-		 */
-		title?: string;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/91555
 
 	export enum StandardTokenType {
