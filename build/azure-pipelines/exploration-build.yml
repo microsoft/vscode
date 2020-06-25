@@ -34,7 +34,4 @@ steps:
     git checkout origin/electron-x.y.z
     git merge origin/master
 
-    # Push master branch into exploration branch
-    git push origin HEAD:electron-x.y.z
-
   displayName: Sync & Merge Exploration
