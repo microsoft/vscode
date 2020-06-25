@@ -3,34 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .viewlet.scm-viewlet .collapsible.header .actions {
-	width: initial;
-	flex: 1;
-}
-
-.scm-viewlet .scm-status {
+.scm-view {
 	height: 100%;
 	position: relative;
 }
 
-.scm-viewlet .monaco-tl-contents > div {
+.scm-view .monaco-tl-contents > div {
 	margin-right: 12px;
 	overflow: hidden;
 }
 
-.scm-viewlet .count {
+.scm-view .count {
 	display: flex;
 }
 
-.scm-viewlet .count {
+.scm-view .count {
 	margin-left: 6px;
 }
 
-.scm-viewlet .count.hidden {
+.scm-view .count.hidden {
 	display: none;
 }
 
-.scm-viewlet .scm-provider {
+.scm-view .scm-provider {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
@@ -38,20 +33,20 @@
 	flex-flow: nowrap;
 }
 
-.scm-viewlet .scm-provider > .label {
+.scm-view .scm-provider > .label {
 	display: flex;
 	flex-shrink: 1;
 	overflow: hidden;
 }
 
-.scm-viewlet .scm-provider > .actions {
+.scm-view .scm-provider > .actions {
 	flex: 1;
 	padding-left: 10px;
 	overflow: hidden;
 	justify-content: flex-end;
 }
 
-.scm-viewlet .scm-provider > .actions .monaco-action-bar .action-item {
+.scm-view .scm-provider > .actions .monaco-action-bar .action-item {
 	margin-left: 4px;
 	text-overflow: ellipsis;
 	display: flex;
@@ -59,65 +54,65 @@
 	min-width: 14px;
 }
 
-.scm-viewlet .scm-provider > .actions .monaco-action-bar .action-label {
+.scm-view .scm-provider > .actions .monaco-action-bar .action-label {
 	text-overflow: ellipsis;
 	overflow: hidden;
 	min-width: 14px; /* for flex */
 	height: 100%;
 }
 
-.scm-viewlet .scm-provider > .actions .monaco-action-bar .action-label .codicon {
+.scm-view .scm-provider > .actions .monaco-action-bar .action-label .codicon {
 	vertical-align: sub;
 	display: inline-flex;
 }
 
-.scm-viewlet .scm-provider > .actions .monaco-action-bar .action-item:last-of-type {
+.scm-view .scm-provider > .actions .monaco-action-bar .action-item:last-of-type {
 	padding-right: 0;
 }
 
-.scm-viewlet .scm-provider > .body {
+.scm-view .scm-provider > .body {
 	flex-grow: 1;
 }
 
-.scm-viewlet .monaco-list-row {
+.scm-view .monaco-list-row {
 	line-height: 22px;
 }
 
-.scm-viewlet .monaco-list-row .resource-group {
+.scm-view .monaco-list-row .resource-group {
 	display: flex;
 	height: 100%;
 	align-items: center;
 }
 
-.scm-viewlet .monaco-list-row .resource-group > .name {
+.scm-view .monaco-list-row .resource-group > .name {
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.scm-viewlet .monaco-list-row .resource {
+.scm-view .monaco-list-row .resource {
 	display: flex;
 	height: 100%;
 }
 
-.scm-viewlet .monaco-list-row .resource.faded {
+.scm-view .monaco-list-row .resource.faded {
 	opacity: 0.7;
 }
 
-.scm-viewlet .monaco-list-row .resource > .name {
+.scm-view .monaco-list-row .resource > .name {
 	flex: 1;
 	overflow: hidden;
 }
 
-.scm-viewlet .monaco-list-row .resource > .name > .monaco-icon-label::after {
+.scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {
 	padding-right: 3px;
 }
 
-.scm-viewlet .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
+.scm-view .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
 	text-decoration: line-through;
 }
 
-.scm-viewlet .monaco-list-row .resource > .decoration-icon {
+.scm-view .monaco-list-row .resource > .decoration-icon {
 	width: 16px;
 	height: 100%;
 	background-repeat: no-repeat;
@@ -125,50 +120,50 @@
 	margin-right: 8px;
 }
 
-.scm-viewlet .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
+.scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	flex-grow: 100;
 }
 
-.scm-viewlet .monaco-list .monaco-list-row .resource-group > .actions,
-.scm-viewlet .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
+.scm-view .monaco-list .monaco-list-row .resource-group > .actions,
+.scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: none;
 	max-width: fit-content;
 }
 
-.scm-viewlet .monaco-list .monaco-list-row:hover .resource-group > .actions,
-.scm-viewlet .monaco-list .monaco-list-row.selected .resource-group > .actions,
-.scm-viewlet .monaco-list .monaco-list-row.focused .resource-group > .actions,
-.scm-viewlet .monaco-list .monaco-list-row:hover .resource > .name > .monaco-icon-label > .actions,
-.scm-viewlet .monaco-list .monaco-list-row.selected .resource > .name > .monaco-icon-label > .actions,
-.scm-viewlet .monaco-list .monaco-list-row.focused .resource > .name > .monaco-icon-label > .actions,
-.scm-viewlet .monaco-list:not(.selection-multiple) .monaco-list-row .resource:hover > .actions {
+.scm-view .monaco-list .monaco-list-row:hover .resource-group > .actions,
+.scm-view .monaco-list .monaco-list-row.selected .resource-group > .actions,
+.scm-view .monaco-list .monaco-list-row.focused .resource-group > .actions,
+.scm-view .monaco-list .monaco-list-row:hover .resource > .name > .monaco-icon-label > .actions,
+.scm-view .monaco-list .monaco-list-row.selected .resource > .name > .monaco-icon-label > .actions,
+.scm-view .monaco-list .monaco-list-row.focused .resource > .name > .monaco-icon-label > .actions,
+.scm-view .monaco-list:not(.selection-multiple) .monaco-list-row .resource:hover > .actions {
 	display: block;
 }
 
-.scm-viewlet .scm-status.show-actions .scm-provider > .actions,
-.scm-viewlet .scm-status.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
-.scm-viewlet .scm-status.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
+.scm-view .scm-status.show-actions .scm-provider > .actions,
+.scm-view .scm-status.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
+.scm-view .scm-status.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: block;
 }
 
-.scm-viewlet .monaco-list-row .resource > .name > .monaco-icon-label > .actions .action-label,
-.scm-viewlet .monaco-list-row .resource-group > .actions .action-label {
+.scm-view .monaco-list-row .resource > .name > .monaco-icon-label > .actions .action-label,
+.scm-view .monaco-list-row .resource-group > .actions .action-label {
 	width: 16px;
 	height: 100%;
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
 }
 
-.scm-viewlet .monaco-list-row .resource > .name > .monaco-icon-label > .actions .action-label.codicon {
+.scm-view .monaco-list-row .resource > .name > .monaco-icon-label > .actions .action-label.codicon {
 	line-height: 22px;
 }
 
-.scm-viewlet .scm-input {
+.scm-view .scm-input {
 	height: 100%;
 	margin-left: 9px;
 }
 
-.scm-viewlet .scm-editor {
+.scm-view .scm-editor {
 	box-sizing: border-box;
 	width: 100%;
 	height: 100%;
@@ -177,18 +172,18 @@
 	justify-content: center;
 }
 
-.scm-viewlet .scm-editor.hidden {
+.scm-view .scm-editor.hidden {
 	display: none;
 }
 
-.scm-viewlet .scm-editor-container {
+.scm-view .scm-editor-container {
 	position: relative;
 	box-sizing: border-box;
 	padding: 1px;
 	outline-offset: -1px;
 }
 
-.scm-viewlet .scm-editor-container > .scm-editor-validation {
+.scm-view .scm-editor-container > .scm-editor-validation {
 	position: absolute;
 	width: 100%;
 	z-index: 10;
@@ -200,11 +195,11 @@
 	top: calc(100%);
 }
 
-.scm-viewlet .scm-editor-container.synthetic-focus > .scm-editor-validation {
+.scm-view .scm-editor-container.synthetic-focus > .scm-editor-validation {
 	display: block;
 }
 
-.scm-viewlet .scm-editor-placeholder {
+.scm-view .scm-editor-placeholder {
 	position: absolute;
 	pointer-events: none;
 	z-index: 1;
@@ -216,12 +211,12 @@
 	text-overflow: ellipsis;
 }
 
-.scm-viewlet .scm-editor-placeholder.hidden {
+.scm-view .scm-editor-placeholder.hidden {
 	display: none;
 }
 
-.scm-viewlet .scm-editor-container .monaco-editor-background,
-.scm-viewlet .scm-editor-container .monaco-editor,
-.scm-viewlet .scm-editor-container .mtk1 {
+.scm-view .scm-editor-container .monaco-editor-background,
+.scm-view .scm-editor-container .monaco-editor,
+.scm-view .scm-editor-container .mtk1 {
 	color: inherit;
 }
