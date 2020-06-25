@@ -135,50 +135,58 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
 
 		// Move / Copy: remember models to restore after the operation
-		const source = e.source;
-		if (source && (e.operation === FileOperation.COPY || e.operation === FileOperation.MOVE)) {
-
-			// find all models that related to either source or target (can be many if resource is a folder)
-			const sourceModels: TextFileEditorModel[] = [];
-			const targetModels: TextFileEditorModel[] = [];
-			for (const model of this.models) {
-				const resource = model.resource;
-
-				if (extUri.isEqualOrParent(resource, e.target)) {
-					// EXPLICITLY do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384
-					targetModels.push(model);
-				}
-
-				if (this.uriIdentityService.extUri.isEqualOrParent(resource, source)) {
-					sourceModels.push(model);
-				}
-			}
-
-			// remember each source model to load again after move is done
-			// with optional content to restore if it was dirty
+		if (e.operation === FileOperation.COPY || e.operation === FileOperation.MOVE) {
 			const modelsToRestore: { source: URI, target: URI, snapshot?: ITextSnapshot; mode?: string; encoding?: string; }[] = [];
-			for (const sourceModel of sourceModels) {
-				const sourceModelResource = sourceModel.resource;
 
-				// If the source is the actual model, just use target as new resource
-				let targetModelResource: URI;
-				if (this.uriIdentityService.extUri.isEqual(sourceModelResource, e.source)) {
-					targetModelResource = e.target;
+			for (const { source, target } of e.files) {
+				if (source) {
+					if (this.uriIdentityService.extUri.isEqual(source, target)) {
+						continue; // ignore if resources are considered equal
+					}
+
+					// find all models that related to either source or target (can be many if resource is a folder)
+					const sourceModels: TextFileEditorModel[] = [];
+					const targetModels: TextFileEditorModel[] = [];
+					for (const model of this.models) {
+						const resource = model.resource;
+
+						if (extUri.isEqualOrParent(resource, target)) {
+							// EXPLICITLY do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384
+							targetModels.push(model);
+						}
+
+						if (this.uriIdentityService.extUri.isEqualOrParent(resource, source)) {
+							sourceModels.push(model);
+						}
+					}
+
+					// remember each source model to load again after move is done
+					// with optional content to restore if it was dirty
+					for (const sourceModel of sourceModels) {
+						const sourceModelResource = sourceModel.resource;
+
+						// If the source is the actual model, just use target as new resource
+						let targetModelResource: URI;
+						if (this.uriIdentityService.extUri.isEqual(sourceModelResource, source)) {
+							targetModelResource = target;
+						}
+
+						// Otherwise a parent folder of the source is being moved, so we need
+						// to compute the target resource based on that
+						else {
+							targetModelResource = joinPath(target, sourceModelResource.path.substr(source.path.length + 1));
+						}
+
+						modelsToRestore.push({
+							source: sourceModelResource,
+							target: targetModelResource,
+							mode: sourceModel.getMode(),
+							encoding: sourceModel.getEncoding(),
+							snapshot: sourceModel.isDirty() ? sourceModel.createSnapshot() : undefined
+						});
+					}
+
 				}
-
-				// Otherwise a parent folder of the source is being moved, so we need
-				// to compute the target resource based on that
-				else {
-					targetModelResource = joinPath(e.target, sourceModelResource.path.substr(source.path.length + 1));
-				}
-
-				modelsToRestore.push({
-					source: sourceModelResource,
-					target: targetModelResource,
-					mode: sourceModel.getMode(),
-					encoding: sourceModel.getEncoding(),
-					snapshot: sourceModel.isDirty() ? sourceModel.createSnapshot() : undefined
-				});
 			}
 
 			this.mapCorrelationIdToModelsToRestore.set(e.correlationId, modelsToRestore);
@@ -194,7 +202,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 				this.mapCorrelationIdToModelsToRestore.delete(e.correlationId);
 
 				modelsToRestore.forEach(model => {
-
 					// snapshot presence means this model used to be dirty and so we restore that
 					// flag. we do NOT have to restore the content because the model was only soft
 					// reverted and did not loose its original dirty contents.

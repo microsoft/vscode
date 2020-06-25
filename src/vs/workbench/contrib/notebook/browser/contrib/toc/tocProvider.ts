@@ -7,14 +7,28 @@ import { TableOfContentsProviderRegistry, ITableOfContentsProvider, ITableOfCont
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Codicon } from 'vs/base/common/codicons';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 
 TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements ITableOfContentsProvider {
-	async provideTableOfContents(editor: NotebookEditor) {
+	async provideTableOfContents(editor: NotebookEditor, context: { disposables: DisposableStore }) {
 		if (!editor.viewModel) {
 			return undefined;
 		}
 		// return an entry per markdown header
 		const notebookWidget = editor.getControl();
+		if (!notebookWidget) {
+			return undefined;
+		}
+
+		// restore initial view state when no item was picked
+		let didPickOne = false;
+		const viewState = notebookWidget.getEditorViewState();
+		context.disposables.add(toDisposable(() => {
+			if (!didPickOne) {
+				notebookWidget.restoreListViewState(viewState);
+			}
+		}));
+
 		const result: ITableOfContentsEntry[] = [];
 		for (const cell of editor.viewModel.viewCells) {
 			const content = cell.getText();
@@ -29,13 +43,14 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 						icon: cell.cellKind === CellKind.Markdown ? Codicon.markdown : Codicon.code,
 						label: matches[j].replace(/^[ \t]*(\#+)/, ''),
 						pick() {
-							notebookWidget?.revealInCenterIfOutsideViewport(cell);
-							notebookWidget?.selectElement(cell);
-							notebookWidget?.focusNotebookCell(cell, cell.cellKind === CellKind.Markdown ? 'container' : 'editor');
+							didPickOne = true;
+							notebookWidget.revealInCenterIfOutsideViewport(cell);
+							notebookWidget.selectElement(cell);
+							notebookWidget.focusNotebookCell(cell, cell.cellKind === CellKind.Markdown ? 'container' : 'editor');
 						},
 						preview() {
-							notebookWidget?.revealInCenterIfOutsideViewport(cell);
-							notebookWidget?.selectElement(cell);
+							notebookWidget.revealInCenterIfOutsideViewport(cell);
+							notebookWidget.selectElement(cell);
 						}
 					});
 				}

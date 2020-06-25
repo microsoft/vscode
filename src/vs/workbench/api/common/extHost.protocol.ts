@@ -858,6 +858,7 @@ export interface IStartDebuggingOptions {
 	parentSessionID?: DebugSessionUUID;
 	repl?: IDebugSessionReplMode;
 	noDebug?: boolean;
+	noCompact?: boolean;
 }
 
 export interface MainThreadDebugServiceShape extends IDisposable {
@@ -987,6 +988,8 @@ export interface ExtHostTreeViewsShape {
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
 	$setVisible(treeViewId: string, visible: boolean): void;
+	$hasResolve(treeViewId: string): Promise<boolean>;
+	$resolve(treeViewId: string, treeItemHandle: string): Promise<ITreeItem | undefined>;
 }
 
 export interface ExtHostWorkspaceShape {
@@ -1068,10 +1071,15 @@ export interface FileSystemEvents {
 	deleted: UriComponents[];
 }
 
+export interface SourceTargetPair {
+	source?: UriComponents;
+	target: UriComponents;
+}
+
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
-	$onWillRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined, timeout: number, token: CancellationToken): Promise<any>;
-	$onDidRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined): void;
+	$onWillRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<any>;
+	$onDidRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[]): void;
 }
 
 export interface ObjectIdentifier {

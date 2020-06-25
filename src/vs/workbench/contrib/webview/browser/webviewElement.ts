@@ -67,7 +67,8 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 			this.localLocalhost(entry.origin);
 		}));
 
-		this.element!.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
+		// The extensionId and purpose in the URL are used for filtering in js-debug:
+		this.element!.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}&extensionId=${extension?.id.value ?? ''}&purpose=${options.purpose}`);
 	}
 
 	protected createElement(options: WebviewOptions, _contentOptions: WebviewContentOptions) {

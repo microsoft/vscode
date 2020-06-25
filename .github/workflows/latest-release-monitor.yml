@@ -2,6 +2,8 @@ name: Latest Release Monitor
 on:
   schedule:
     - cron: 0/5 * * * *
+  repository_dispatch:
+    types: [trigger-latest-release-monitor]
 
 jobs:
   main:

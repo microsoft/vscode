@@ -152,10 +152,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 	}
 
-	async create(resource: URI, value?: string | ITextSnapshot | VSBuffer, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
 		// file operation participation
-		await this.workingCopyFileService.runFileOperationParticipants(resource, undefined, FileOperation.CREATE);
+		await this.workingCopyFileService.runFileOperationParticipants([{ target: resource, source: undefined }], FileOperation.CREATE);
 
 		// create file on disk
 		const stat = await this.doCreate(resource, value, options);
@@ -175,8 +175,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return stat;
 	}
 
-	protected doCreate(resource: URI, value?: string | ITextSnapshot | VSBuffer, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
-		return this.fileService.createFile(resource, value instanceof VSBuffer ? value : toBufferOrReadable(value), options);
+	protected doCreate(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+		return this.fileService.createFile(resource, toBufferOrReadable(value), options);
 	}
 
 	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
@@ -246,7 +246,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// However, this will only work if the source exists
 		// and is not orphaned, so we need to check that too.
 		if (this.fileService.canHandleResource(source) && this.uriIdentityService.extUri.isEqual(source, target) && (await this.fileService.exists(source))) {
-			await this.workingCopyFileService.move(source, target);
+			await this.workingCopyFileService.move([{ source, target }]);
 
 			return this.save(target, options);
 		}

@@ -114,7 +114,6 @@
 .monaco-workbench .notebookOverlay .output {
 	position: absolute;
 	height: 0px;
-	width: 100%;
 	user-select: text;
 	transform: translate3d(0px, 0px, 0px);
 	cursor: auto;
@@ -216,7 +215,7 @@
 	display: inline-block;
 	position: absolute;
 	height: 26px;
-	right: 32px;
+	right: 44px;
 	top: -12px;
 	/* this lines up the bottom toolbar border with the current line when on line 01 */
 	z-index: 30;

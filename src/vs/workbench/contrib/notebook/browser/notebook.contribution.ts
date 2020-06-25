@@ -148,15 +148,11 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	) {
 		super();
 
-		this._register(undoRedoService.registerUriComparisonKeyComputer({
-			getComparisonKey: (uri: URI): string | null => {
-				if (uri.scheme !== CellUri.scheme) {
-					return null;
-				}
-
+		this._register(undoRedoService.registerUriComparisonKeyComputer(CellUri.scheme, {
+			getComparisonKey: (uri: URI): string => {
 				const data = CellUri.parse(uri);
 				if (!data) {
-					return null;
+					return uri.toString();
 				}
 
 				return data.notebook.toString();
@@ -189,7 +185,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 		this._register(this.editorService.onDidVisibleEditorsChange(() => {
 			const visibleNotebookEditors = editorService.visibleEditorPanes
-				.filter(pane => (pane as any).isNotebookEditor)
+				.filter(pane => (pane as unknown as { isNotebookEditor?: boolean }).isNotebookEditor)
 				.map(pane => pane.getControl() as INotebookEditor)
 				.filter(control => !!control)
 				.map(editor => editor.getId());
@@ -198,8 +194,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}));
 
 		this._register(this.editorService.onDidActiveEditorChange(() => {
-			const activeEditorPane = editorService.activeEditorPane as any | undefined;
-			const notebookEditor = activeEditorPane?.isNotebookEditor ? activeEditorPane.getControl() : undefined;
+			const activeEditorPane = editorService.activeEditorPane as { isNotebookEditor?: boolean } | undefined;
+			const notebookEditor = activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
 			if (notebookEditor) {
 				this.notebookService.updateActiveNotebookEditor(notebookEditor);
 			} else {

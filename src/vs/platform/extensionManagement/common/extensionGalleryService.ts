@@ -295,6 +295,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		installCount: getStatistic(galleryExtension.statistics, 'install'),
 		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
 		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
+		assetUri: URI.parse(version.assetUri),
+		assetTypes: version.files.map(({ assetType }) => assetType),
 		assets,
 		properties: {
 			dependencies: getExtensions(version, PropertyType.Dependency),

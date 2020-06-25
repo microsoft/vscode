@@ -235,7 +235,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
 		throw new Error('Method not implemented.');
 	}
 

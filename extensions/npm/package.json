@@ -28,7 +28,7 @@
     "@types/node": "^12.11.7"
   },
   "main": "./out/npmMain",
-  "browser": "./dist/npmBrowserMain",
+  "browser": "./dist/browser/npmBrowserMain",
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask",
     "onCommand:npm.runScriptFromFolder",

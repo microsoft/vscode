@@ -79,7 +79,7 @@
 		"i18n": {"assign": []},
 		"icon-brand": {"assign": []},
 		"icons-product": {"assign": ["misolori"]},
-		"install-update": {"assign": ["joaomoreno"]},
+		"install-update": {"assign": []},
 		"integrated-terminal": {"assign": ["Tyriar"]},
 		"integrated-terminal-conpty": {"assign": ["Tyriar"]},
 		"integrated-terminal-links": {"assign": ["Tyriar"]},

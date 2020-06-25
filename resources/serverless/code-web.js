@@ -12,10 +12,10 @@ const url = require('url');
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
-const glob = require('glob');
 const opn = require('opn');
 const minimist = require('minimist');
-const webpack = require('webpack');
+const fancyLog = require('fancy-log');
+const ansiColors = require('ansi-colors');
 
 const APP_ROOT = path.join(__dirname, '..', '..');
 const EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
@@ -59,11 +59,11 @@ const AUTHORITY = process.env.VSCODE_AUTHORITY || `${HOST}:${PORT}`;
 
 const exists = (path) => util.promisify(fs.exists)(path);
 const readFile = (path) => util.promisify(fs.readFile)(path);
-const CharCode_PC = '%'.charCodeAt(0);
+
+let unbuiltExensions = [];
 
 async function initialize() {
 	const builtinExtensions = [];
-	const webpackConfigs = [];
 
 	const children = await util.promisify(fs.readdir)(EXTENSIONS_ROOT, { withFileTypes: true });
 	const folders = children.filter(c => !c.isFile());
@@ -95,24 +95,14 @@ async function initialize() {
 				if (packageJSON.browser) {
 					packageJSON.main = packageJSON.browser;
 
-					const webpackConfigLocations = await util.promisify(glob)(
-						path.join(EXTENSIONS_ROOT, folderName, '**', 'extension-browser.webpack.config.js'),
-						{ ignore: ['**/node_modules'] }
-					);
-
-					for (const webpackConfigPath of webpackConfigLocations) {
-						const configOrFnOrArray = require(webpackConfigPath);
-						function addConfig(configOrFn) {
-							if (typeof configOrFn === 'function') {
-								webpackConfigs.push(configOrFn({}, {}));
-							} else {
-								webpackConfigs.push(configOrFn);
-							}
-						}
-						addConfig(configOrFnOrArray);
+					let mainFilePath = path.join(EXTENSIONS_ROOT, folderName, packageJSON.browser);
+					if (path.extname(mainFilePath) !== '.js') {
+						mainFilePath += '.js';
+					}
+					if (!await exists(mainFilePath)) {
+						unbuiltExensions.push(path.relative(EXTENSIONS_ROOT, mainFilePath));
 					}
 				}
-
 				packageJSON.extensionKind = ['web']; // enable for Web
 
 				const packageNLSPath = path.join(folderName, 'package.nls.json');
@@ -129,30 +119,10 @@ async function initialize() {
 			}
 		}
 	}));
-
-	return new Promise((resolve, reject) => {
-		if (args.watch) {
-			webpack(webpackConfigs).watch({}, (err, stats) => {
-				if (err) {
-					console.log(err);
-					reject();
-				} else {
-					console.log(stats.toString());
-					resolve(builtinExtensions);
-				}
-			});
-		} else {
-			webpack(webpackConfigs).run((err, stats) => {
-				if (err) {
-					console.log(err);
-					reject();
-				} else {
-					console.log(stats.toString());
-					resolve(builtinExtensions);
-				}
-			});
-		}
-	});
+	if (unbuiltExensions.length) {
+		fancyLog(`${ansiColors.yellow('Warning')}: Make sure to run ${ansiColors.cyan('yarn gulp watch-web')}\nCould not find the following browser main files: \n${unbuiltExensions.join('\n')}`);
+	}
+	return builtinExtensions;
 }
 
 const builtinExtensionsPromise = initialize();
@@ -251,22 +221,34 @@ function handleStaticExtension(req, res, parsedUrl) {
  * @param {import('http').ServerResponse} res
  */
 async function handleRoot(req, res) {
+	let folderUri = { scheme: 'memfs', path: `/sample-folder` };
+
 	const match = req.url && req.url.match(/\?([^#]+)/);
-	let ghPath;
 	if (match) {
 		const qs = new URLSearchParams(match[1]);
-		ghPath = qs.get('gh');
-		if (ghPath && !ghPath.startsWith('/')) {
-			ghPath = '/' + ghPath;
+
+		let ghPath = qs.get('gh');
+		if (ghPath) {
+			if (!ghPath.startsWith('/')) {
+				ghPath = '/' + ghPath;
+			}
+			folderUri = { scheme: 'github', authority: 'HEAD', path: ghPath };
+		} else {
+
+			let csPath = qs.get('cs');
+			if (csPath) {
+				if (!csPath.startsWith('/')) {
+					csPath = '/' + csPath;
+				}
+				folderUri = { scheme: 'codespace', authority: 'HEAD', path: csPath };
+			}
 		}
 	}
 
 	const builtinExtensions = await builtinExtensionsPromise;
 
 	const webConfigJSON = escapeAttribute(JSON.stringify({
-		folderUri: ghPath
-			? { scheme: 'github', authority: 'HEAD', path: ghPath }
-			: { scheme: 'memfs', path: `/sample-folder` },
+		folderUri: folderUri,
 		builtinExtensionsServiceUrl: `${SCHEME}://${AUTHORITY}/static-extension`
 	}));
 

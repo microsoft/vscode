@@ -176,7 +176,6 @@ import 'vs/workbench/contrib/sash/browser/sash.contribution';
 
 // SCM
 import 'vs/workbench/contrib/scm/browser/scm.contribution';
-import 'vs/workbench/contrib/scm/browser/scmViewlet';
 
 // Debug
 import 'vs/workbench/contrib/debug/browser/debug.contribution';
@@ -209,6 +208,7 @@ import 'vs/workbench/contrib/output/browser/outputView';
 
 // Terminal
 import 'vs/workbench/contrib/terminal/common/environmentVariable.contribution';
+import 'vs/workbench/contrib/terminal/common/terminalExtensionPoints.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalView';
 

@@ -50,8 +50,8 @@ class DecorationRequestsQueue {
 			const requests = this._requests;
 			const resolver = this._resolver;
 			this._proxy.$provideDecorations(this._handle, [...requests.values()], CancellationToken.None).then(data => {
-				for (const id in resolver) {
-					resolver.get(Number(id))!(data[Number(id)]);
+				for (let [id, resolve] of resolver) {
+					resolve(data[id]);
 				}
 			});
 

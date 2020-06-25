@@ -206,12 +206,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			getSession(providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions) {
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
-			getSessions(providerId: string, scopes: string[]): Thenable<readonly vscode.AuthenticationSession[]> {
-				return extHostAuthentication.getSessions(extension, providerId, scopes);
-			},
-			login(providerId: string, scopes: string[]): Thenable<vscode.AuthenticationSession> {
-				return extHostAuthentication.login(extension, providerId, scopes);
-			},
 			logout(providerId: string, sessionId: string): Thenable<void> {
 				return extHostAuthentication.logout(providerId, sessionId);
 			},
@@ -1102,7 +1096,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CellKind: extHostTypes.CellKind,
 			CellOutputKind: extHostTypes.CellOutputKind,
 			NotebookCellRunState: extHostTypes.NotebookCellRunState,
-			AuthenticationSession2: extHostTypes.AuthenticationSession
+			AuthenticationSession: extHostTypes.AuthenticationSession
 		};
 	};
 }

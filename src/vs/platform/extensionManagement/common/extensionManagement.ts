@@ -78,6 +78,8 @@ export interface IGalleryExtension {
 	installCount: number;
 	rating: number;
 	ratingCount: number;
+	assetUri: URI;
+	assetTypes: string[];
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
 	telemetryData: any;

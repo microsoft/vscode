@@ -33,21 +33,38 @@ function MODEL_ID(resource: URI): string {
 	return resource.toString();
 }
 
-export class NotebookProviderInfoStore implements IDisposable {
+export class NotebookProviderInfoStore extends Disposable {
 	private static readonly CUSTOM_EDITORS_STORAGE_ID = 'notebookEditors';
 	private static readonly CUSTOM_EDITORS_ENTRY_ID = 'editors';
 
 	private readonly _memento: Memento;
-	constructor(storageService: IStorageService) {
+	private _handled: boolean = false;
+	constructor(
+		storageService: IStorageService,
+		extensionService: IExtensionService
+
+	) {
+		super();
 		this._memento = new Memento(NotebookProviderInfoStore.CUSTOM_EDITORS_STORAGE_ID, storageService);
 
 		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL);
 		for (const info of (mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] || []) as NotebookEditorDescriptor[]) {
 			this.add(new NotebookProviderInfo(info));
 		}
+
+		this._register(extensionService.onDidRegisterExtensions(() => {
+			if (!this._handled) {
+				// there is no extension point registered for notebook content provider
+				// clear the memento and cache
+				this.clear();
+				mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = [];
+				this._memento.saveMemento();
+			}
+		}));
 	}
 
-	update(extensions: readonly IExtensionPointUser<INotebookEditorContribution[]>[]) {
+	setupHandler(extensions: readonly IExtensionPointUser<INotebookEditorContribution[]>[]) {
+		this._handled = true;
 		this.clear();
 
 		for (const extension of extensions) {
@@ -79,9 +96,6 @@ export class NotebookProviderInfoStore implements IDisposable {
 
 		return NotebookEditorPriority.option;
 
-	}
-
-	dispose(): void {
 	}
 
 	private readonly _contributedEditors = new Map<string, NotebookProviderInfo>();
@@ -188,13 +202,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	) {
 		super();
 
-		this.notebookProviderInfoStore = new NotebookProviderInfoStore(this._storageService);
+		this.notebookProviderInfoStore = new NotebookProviderInfoStore(this._storageService, this._extensionService);
 		this._register(this.notebookProviderInfoStore);
 
 		notebookProviderExtensionPoint.setHandler((extensions) => {
-			this.notebookProviderInfoStore.update(extensions);
-
-			// console.log(this._notebookProviderInfoStore);
+			this.notebookProviderInfoStore.setupHandler(extensions);
 		});
 
 		notebookRendererExtensionPoint.setHandler((renderers) => {
@@ -693,7 +705,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	listVisibleNotebookEditors(): INotebookEditor[] {
 		return this._editorService.visibleEditorPanes
-			.filter(pane => (pane as any).isNotebookEditor)
+			.filter(pane => (pane as unknown as { isNotebookEditor?: boolean }).isNotebookEditor)
 			.map(pane => pane.getControl() as INotebookEditor)
 			.filter(editor => !!editor)
 			.filter(editor => this._notebookEditors.has(editor.getId()));

@@ -70,6 +70,8 @@ class SCMInput implements ISCMInput {
 
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
+
+	constructor(readonly repository: ISCMRepository) { }
 }
 
 class SCMRepository implements ISCMRepository {
@@ -85,7 +87,7 @@ class SCMRepository implements ISCMRepository {
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
 
-	readonly input: ISCMInput = new SCMInput();
+	readonly input: ISCMInput = new SCMInput(this);
 
 	constructor(
 		public readonly provider: ISCMProvider,

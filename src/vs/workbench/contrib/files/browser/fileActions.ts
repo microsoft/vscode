@@ -15,7 +15,7 @@ import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
@@ -222,7 +222,7 @@ async function deleteFiles(workingCopyFileService: IWorkingCopyFileService, dial
 
 	// Call function
 	try {
-		await Promise.all(distinctElements.map(e => workingCopyFileService.delete(e.resource, { useTrash: useTrash, recursive: true })));
+		await workingCopyFileService.delete(distinctElements.map(e => e.resource), { useTrash, recursive: true });
 	} catch (error) {
 
 		// Handle error to delete file(s) from a modal confirmation dialog
@@ -947,7 +947,7 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 				const targetResource = resources.joinPath(parentResource, value);
 				if (stat.resource.toString() !== targetResource.toString()) {
 					try {
-						await workingCopyFileService.move(stat.resource, targetResource);
+						await workingCopyFileService.move([{ source: stat.resource, target: targetResource }]);
 						await refreshIfSeparator(value, explorerService);
 					} catch (e) {
 						notificationService.error(e);
@@ -1033,7 +1033,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 				defaultUri
 			});
 			if (destination) {
-				await workingCopyFileService.copy(s.resource, destination, true);
+				await workingCopyFileService.copy([{ source: s.resource, target: destination }], true);
 			} else {
 				// User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
 				canceled = true;
@@ -1060,14 +1060,13 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const toPaste = resources.distinctParents(await clipboardService.readResources(), r => r);
 	const element = context.length ? context[0] : explorerService.roots[0];
 
-	// Check if target is ancestor of pasted folder
-	const stats = await Promise.all(toPaste.map(async fileToPaste => {
+	try {
+		// Check if target is ancestor of pasted folder
+		const sourceTargetPairs = await Promise.all(toPaste.map(async fileToPaste => {
 
-		if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
-			throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
-		}
-
-		try {
+			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
+				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
+			}
 			const fileToPasteStat = await fileService.resolve(fileToPaste);
 
 			// Find target
@@ -1081,30 +1080,33 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
 
-			// Move/Copy File
-			if (pasteShouldMove) {
-				return await workingCopyFileService.move(fileToPaste, targetFile);
-			} else {
-				return await workingCopyFileService.copy(fileToPaste, targetFile);
-			}
-		} catch (e) {
-			onError(notificationService, new Error(nls.localize('fileDeleted', "The file to paste has been deleted or moved since you copied it. {0}", getErrorMessage(e))));
-			return undefined;
-		}
-	}));
+			return { source: fileToPaste, target: targetFile };
+		}));
 
-	if (pasteShouldMove) {
-		// Cut is done. Make sure to clear cut state.
-		await explorerService.setToCopy([], false);
-		pasteShouldMove = false;
-	}
-	if (stats.length >= 1) {
-		const stat = stats[0];
-		if (stat && !stat.isDirectory && stats.length === 1) {
-			await editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
+		// Move/Copy File
+		let stats: IFileStatWithMetadata[] = [];
+		if (pasteShouldMove) {
+			stats = await workingCopyFileService.move(sourceTargetPairs);
+		} else {
+			stats = await workingCopyFileService.copy(sourceTargetPairs);
 		}
-		if (stat) {
-			await explorerService.select(stat.resource);
+
+		if (stats.length >= 1) {
+			const stat = stats[0];
+			if (stat && !stat.isDirectory && stats.length === 1) {
+				await editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
+			}
+			if (stat) {
+				await explorerService.select(stat.resource);
+			}
+		}
+	} catch (e) {
+		onError(notificationService, new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))));
+	} finally {
+		if (pasteShouldMove) {
+			// Cut is done. Make sure to clear cut state.
+			await explorerService.setToCopy([], false);
+			pasteShouldMove = false;
 		}
 	}
 };
