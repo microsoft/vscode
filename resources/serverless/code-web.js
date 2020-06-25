@@ -100,7 +100,7 @@ async function initialize() {
 						mainFilePath += '.js';
 					}
 					if (!await exists(mainFilePath)) {
-						unbuiltExensions.push(path.relative(EXTENSIONS_ROOT, mainFilePath))
+						unbuiltExensions.push(path.relative(EXTENSIONS_ROOT, mainFilePath));
 					}
 				}
 				packageJSON.extensionKind = ['web']; // enable for Web
@@ -221,22 +221,34 @@ function handleStaticExtension(req, res, parsedUrl) {
  * @param {import('http').ServerResponse} res
  */
 async function handleRoot(req, res) {
+	let folderUri = { scheme: 'memfs', path: `/sample-folder` };
+
 	const match = req.url && req.url.match(/\?([^#]+)/);
-	let ghPath;
 	if (match) {
 		const qs = new URLSearchParams(match[1]);
-		ghPath = qs.get('gh');
-		if (ghPath && !ghPath.startsWith('/')) {
-			ghPath = '/' + ghPath;
+
+		let ghPath = qs.get('gh');
+		if (ghPath) {
+			if (!ghPath.startsWith('/')) {
+				ghPath = '/' + ghPath;
+			}
+			folderUri = { scheme: 'github', authority: 'HEAD', path: ghPath };
+		} else {
+
+			let csPath = qs.get('cs');
+			if (csPath) {
+				if (!csPath.startsWith('/')) {
+					csPath = '/' + csPath;
+				}
+				folderUri = { scheme: 'codespace', authority: 'HEAD', path: csPath };
+			}
 		}
 	}
 
 	const builtinExtensions = await builtinExtensionsPromise;
 
 	const webConfigJSON = escapeAttribute(JSON.stringify({
-		folderUri: ghPath
-			? { scheme: 'github', authority: 'HEAD', path: ghPath }
-			: { scheme: 'memfs', path: `/sample-folder` },
+		folderUri: folderUri,
 		builtinExtensionsServiceUrl: `${SCHEME}://${AUTHORITY}/static-extension`
 	}));
 
