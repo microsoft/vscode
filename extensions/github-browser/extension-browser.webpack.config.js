@@ -8,6 +8,7 @@
 'use strict';
 const path = require('path');
 const withDefaults = require('../shared.webpack.config');
+const webpack = require('webpack');
 
 module.exports = withDefaults({
 	context: __dirname,
@@ -20,5 +21,10 @@ module.exports = withDefaults({
 		alias: {
 			'node-fetch': path.resolve(__dirname, 'node_modules/node-fetch/browser.js'),
 		},
-	}
+	},
+	plugins: [
+		new webpack.DefinePlugin({
+			WEBWORKER: JSON.stringify(true)
+		})
+	]
 });
