@@ -13,7 +13,7 @@
     "onLanguage:jsonc"
   ],
   "main": "./out/configurationEditingMain",
-  "browser": "./dist/configurationEditingMain",
+  "browser": "./dist/browser/configurationEditingMain",
   "scripts": {
     "compile": "gulp compile-extension:configuration-editing",
     "watch": "gulp watch-extension:configuration-editing"
