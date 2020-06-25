@@ -22,11 +22,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "githubBrowser.openRepository",
-        "title": "Open GitHub Repository...",
-        "category": "GitHub Browser"
-      },
-      {
         "command": "githubBrowser.commit",
         "title": "Commit",
         "icon": "$(check)",
@@ -55,7 +50,7 @@
       "commandPalette": [
         {
           "command": "githubBrowser.commit",
-          "when": "github.hasChanges"
+          "when": "false"
         },
         {
           "command": "githubBrowser.discardChanges",
