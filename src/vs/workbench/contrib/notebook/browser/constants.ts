@@ -8,7 +8,7 @@
 export const SCROLLABLE_ELEMENT_PADDING_TOP = 20;
 
 // Cell sizing related
-export const CELL_MARGIN = 32;
+export const CELL_MARGIN = 24;
 export const CELL_RUN_GUTTER = 32;
 export const CODE_CELL_LEFT_MARGIN = 45;
 

@@ -1289,8 +1289,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 }
 
 export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
-	dark: transparent(PANEL_BORDER, .6),
-	light: transparent(PANEL_BORDER, .4),
+	dark: transparent(PANEL_BORDER, .4),
+	light: transparent(PANEL_BORDER, .3),
 	hc: PANEL_BORDER
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
@@ -1332,14 +1332,14 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeperat
 }, nls.localize('cellToolbarSeperator', "The color of the seperator in the cell bottom toolbar"));
 
 export const cellFocusBackground = registerColor('notebook.cellFocusBackground', {
-	dark: transparent(PANEL_BORDER, .6),
-	light: transparent(PANEL_BORDER, .4),
+	dark: transparent(PANEL_BORDER, .4),
+	light: transparent(PANEL_BORDER, .3),
 	hc: PANEL_BORDER
 }, nls.localize('cellFocusBackground', "The background color of focused or hovered cells"));
 
 export const focusedCellShadow = registerColor('notebook.focusedCellShadow', {
-	dark: Color.black.transparent(0.8),
-	light: Color.black.transparent(0.06),
+	dark: Color.black.transparent(0.6),
+	light: Color.black.transparent(0.04),
 	hc: Color.transparent
 }, nls.localize('cellShadow', "The color of the shadow on the focused or hovered cell"));
 
@@ -1465,10 +1465,10 @@ registerThemingParticipant((theme, collector) => {
 	const cellShadowColor = theme.getColor(focusedCellShadow);
 	if (cellShadowColor) {
 		// Code cells
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-shadow { box-shadow: 0px 2px 8px 2px ${cellShadowColor} }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-shadow { box-shadow: 0px 1px 4px 2px ${cellShadowColor} }`);
 
 		// Markdown cells
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused { box-shadow: 0px 2px 8px 2px ${cellShadowColor} }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused { box-shadow: 0px 1px 4px 2px ${cellShadowColor} }`);
 	}
 
 	const cellInsertionIndicatorColor = theme.getColor(cellInsertionIndicator);
