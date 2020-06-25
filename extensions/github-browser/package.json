@@ -13,11 +13,93 @@
     "Other"
   ],
   "activationEvents": [
-    "onFileSystem:github"
+    "onFileSystem:codespace",
+    "onFileSystem:github",
+    "onCommand:githubBrowser.openRepository"
   ],
   "browser": "./dist/extension.js",
   "main": "./out/extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "githubBrowser.commit",
+        "title": "Commit",
+        "icon": "$(check)",
+        "category": "GitHub Browser"
+      },
+      {
+        "command": "githubBrowser.discardChanges",
+        "title": "Discard Changes",
+        "icon": "$(discard)",
+        "category": "GitHub Browser"
+      },
+      {
+        "command": "githubBrowser.openChanges",
+        "title": "Open Changes",
+        "icon": "$(git-compare)",
+        "category": "GitHub Browser"
+      },
+      {
+        "command": "githubBrowser.openFile",
+        "title": "Open File",
+        "icon": "$(go-to-file)",
+        "category": "GitHub Browser"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "githubBrowser.commit",
+          "when": "false"
+        },
+        {
+          "command": "githubBrowser.discardChanges",
+          "when": "false"
+        },
+        {
+          "command": "githubBrowser.openChanges",
+          "when": "false"
+        },
+        {
+          "command": "githubBrowser.openFile",
+          "when": "false"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "githubBrowser.commit",
+          "group": "navigation",
+          "when": "scmProvider == github"
+        }
+      ],
+      "scm/resourceState/context": [
+        {
+          "command": "githubBrowser.openFile",
+          "when": "scmProvider == github && scmResourceGroup == github.changes",
+          "group": "inline@0"
+        },
+        {
+          "command": "githubBrowser.discardChanges",
+          "when": "scmProvider == github && scmResourceGroup == github.changes",
+          "group": "inline@1"
+        },
+        {
+          "command": "githubBrowser.openChanges",
+          "when": "scmProvider == github && scmResourceGroup == github.changes",
+          "group": "navigation@0"
+        },
+        {
+          "command": "githubBrowser.openFile",
+          "when": "scmProvider == github && scmResourceGroup == github.changes",
+          "group": "navigation@1"
+        },
+        {
+          "command": "githubBrowser.discardChanges",
+          "when": "scmProvider == github && scmResourceGroup == github.changes",
+          "group": "1_modification@0"
+        }
+      ]
+    },
     "resourceLabelFormatters": [
       {
         "scheme": "github",
@@ -30,6 +112,24 @@
       },
       {
         "scheme": "github",
+        "authority": "*",
+        "formatting": {
+          "label": "github.com${path} (${authority})",
+          "separator": "/",
+          "workspaceSuffix": "GitHub"
+        }
+      },
+      {
+        "scheme": "codespace",
+        "authority": "HEAD",
+        "formatting": {
+          "label": "github.com${path}",
+          "separator": "/",
+          "workspaceSuffix": "GitHub"
+        }
+      },
+      {
+        "scheme": "codespace",
         "authority": "*",
         "formatting": {
           "label": "github.com${path} (${authority})",

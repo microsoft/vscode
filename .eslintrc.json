@@ -520,7 +520,8 @@
                     "**/vs/workbench/api/**/common/**",
                     "vscode-textmate",
                     "vscode-oniguruma",
-                    "iconv-lite-umd"
+                    "iconv-lite-umd",
+                    "semver-umd"
                 ]
             },
             {

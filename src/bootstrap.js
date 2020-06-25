@@ -46,6 +46,11 @@
 		let NODE_MODULES_PATH = nodeModulesPath;
 		if (!NODE_MODULES_PATH) {
 			NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
+		} else {
+			// use the drive letter casing of __dirname
+			if (process.platform === 'win32') {
+				NODE_MODULES_PATH = __dirname.substr(0, 1) + NODE_MODULES_PATH.substr(1);
+			}
 		}
 
 		const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;

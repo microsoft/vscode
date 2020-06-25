@@ -1,11 +1,12 @@
 {
 	"extends": "../shared.tsconfig.json",
 	"compilerOptions": {
-		"outDir": "./out",
-		// "experimentalDecorators": true,
-		// "typeRoots": [
-		// 	"./node_modules/@types"
-		// ]
+		"experimentalDecorators": true,
+		"lib": [
+			"es2018",
+			"dom"
+		],
+		"outDir": "./out"
 	},
 	"include": [
 		"src/**/*"

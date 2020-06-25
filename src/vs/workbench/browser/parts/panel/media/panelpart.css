@@ -173,19 +173,6 @@
 	box-sizing: border-box;
 	}
 
-/** Actions */
-
-.monaco-workbench .panel .monaco-action-bar .action-item.select-container {
-	cursor: default;
-}
-
-.monaco-workbench .panel .monaco-action-bar .action-item .monaco-select-box {
-	cursor: pointer;
-	min-width: 110px;
-	min-height: 18px;
-	padding: 2px 23px 2px 8px;
-}
-
 /* Rotate icons when panel is on right */
 .monaco-workbench .part.panel.right .title-actions .codicon-split-horizontal,
 .monaco-workbench .part.panel.right .title-actions .codicon-panel-maximize,

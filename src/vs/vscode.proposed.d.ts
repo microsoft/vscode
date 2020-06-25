@@ -20,17 +20,7 @@ declare module 'vscode' {
 
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
-	export interface AuthenticationSession {
-		id: string;
-		getAccessToken(): Thenable<string>;
-		account: {
-			displayName: string;
-			id: string;
-		};
-		scopes: string[];
-	}
-
-	export class AuthenticationSession2 {
+	export class AuthenticationSession {
 		/**
 		 * The identifier of the authentication session.
 		 */
@@ -148,12 +138,12 @@ declare module 'vscode' {
 		/**
 		 * Returns an array of current sessions.
 		 */
-		getSessions(): Thenable<ReadonlyArray<AuthenticationSession2>>;
+		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
-		login(scopes: string[]): Thenable<AuthenticationSession2>;
+		login(scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
@@ -186,13 +176,14 @@ declare module 'vscode' {
 		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
 
 		/**
+		 * @deprecated
 		 * An array of the ids of authentication providers that are currently registered.
 		 */
 		export const providerIds: string[];
 
 		/**
 		 * Returns whether a provider has any sessions matching the requested scopes. This request
-		 * is transparent to the user, not UI is shown. Rejects if a provider with providerId is not
+		 * is transparent to the user, no UI is shown. Rejects if a provider with providerId is not
 		 * registered.
 		 * @param providerId The id of the provider
 		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
@@ -211,7 +202,7 @@ declare module 'vscode' {
 		 * @param options The [getSessionOptions](#GetSessionOptions) to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession2>;
+		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -223,29 +214,7 @@ declare module 'vscode' {
 		 * @param options The [getSessionOptions](#GetSessionOptions) to use
 		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
 		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession2 | undefined>;
-
-		/**
-		 * @deprecated
-		 * Get existing authentication sessions. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension.
-		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
-		 * provider
-		 */
-		export function getSessions(providerId: string, scopes: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
-
-		/**
-		 * @deprecated
-		* Prompt a user to login to create a new authenticaiton session. Rejects if a provider with
-		* providerId is not registered, or if the user does not consent to sharing authentication
-		* information with the extension.
-		* @param providerId The id of the provider to use
-		* @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
-		* provider
-		*/
-		export function login(providerId: string, scopes: string[]): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 
 		/**
 		 * @deprecated
@@ -859,6 +828,14 @@ declare module 'vscode' {
 		 * When this property is not specified, the value from the parent session (if there is one) is used.
 		 */
 		noDebug?: boolean;
+
+		/**
+		 * Controls if the debug session created will be compacted with the parent in the CALL STACK view.
+		 * Compact with the parent is only done if the session is the only child of it's parent session.
+		 * Default is to compact.
+		 *
+		 */
+		noCompact?: boolean;
 	}
 
 	// deprecated debug API
@@ -2031,21 +2008,6 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		*/
 		export function registerTimelineProvider(scheme: string | string[], provider: TimelineProvider): Disposable;
-	}
-
-	//#endregion
-
-	/**
-	 * Options to configure the behaviour of a file save dialog.
-	 */
-	export interface SaveDialogOptions {
-		/**
-		 * Dialog title.
-		 *
-		 * Depending on the underlying operating system this parameter might be ignored, since some
-		 * systems do not present title on save dialogs.
-		 */
-		title?: string;
 	}
 
 	//#endregion

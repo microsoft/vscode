@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBuiltinExtensionsScannerService, IScannedExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IBuiltinExtensionsScannerService, IScannedExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 interface IScannedBuiltinExtension {
 	extensionPath: string,
-	packageJSON: any,
+	packageJSON: IExtensionManifest,
 	packageNLSPath?: string,
 	readmePath?: string,
 	changelogPath?: string,
@@ -48,14 +49,15 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 				}
 			}
 
-			this.builtinExtensions = scannedBuiltinExtensions.map(e => <IScannedExtension>{
+			this.builtinExtensions = scannedBuiltinExtensions.map(e => ({
+				identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
 				location: uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.extensionPath),
 				type: ExtensionType.System,
 				packageJSON: e.packageJSON,
 				packageNLSUrl: e.packageNLSPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.packageNLSPath) : undefined,
 				readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.readmePath) : undefined,
 				changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.changelogPath) : undefined,
-			});
+			}));
 		}
 	}
 

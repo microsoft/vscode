@@ -75,12 +75,8 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._focusMode;
 	}
 	set focusMode(newMode: CellFocusMode) {
-		const changed = this._focusMode !== newMode;
 		this._focusMode = newMode;
-
-		if (changed) {
-			this._onDidChangeState.fire({ focusModeChanged: true });
-		}
+		this._onDidChangeState.fire({ focusModeChanged: true });
 	}
 
 	protected _textEditor?: ICodeEditor;

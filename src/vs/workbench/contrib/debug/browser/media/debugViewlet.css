@@ -51,6 +51,7 @@
 	margin-top: 0px;
 	cursor: pointer;
 	line-height: inherit;
+	padding: 0;
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-select-box {

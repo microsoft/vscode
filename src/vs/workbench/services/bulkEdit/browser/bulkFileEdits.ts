@@ -14,7 +14,6 @@ import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService } from
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { VSBuffer } from 'vs/base/common/buffer';
 
 interface IFileOperation {
 	uris: URI[];
@@ -55,7 +54,7 @@ class CreateOperation implements IFileOperation {
 	constructor(
 		readonly newUri: URI,
 		readonly options: WorkspaceFileEditOptions,
-		readonly contents: VSBuffer | undefined,
+		readonly contents: string | undefined,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -82,9 +81,10 @@ class DeleteOperation implements IFileOperation {
 		readonly options: WorkspaceFileEditOptions,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService,
+		@ILogService private readonly _logService: ILogService
 	) { }
 
 	get uris() {
@@ -100,9 +100,9 @@ class DeleteOperation implements IFileOperation {
 			return new Noop();
 		}
 
-		let contents: VSBuffer | undefined;
+		let contents: string | undefined;
 		try {
-			contents = (await this._fileService.readFile(this.oldUri)).value;
+			contents = (await this._textFileService.read(this.oldUri)).value;
 		} catch (err) {
 			this._logService.critical(err);
 		}

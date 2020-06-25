@@ -18,7 +18,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellOutputKind, IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewElement, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { dirname, joinPath } from 'vs/base/common/resources';
@@ -471,6 +471,7 @@ ${loaderJs}
 		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), ...workspaceFolders, rootPath];
 
 		const webview = webviewService.createWebviewElement(this.id, {
+			purpose: WebviewContentPurpose.NotebookRenderer,
 			enableFindWidget: false,
 		}, {
 			allowMultipleAPIAcquire: true,
