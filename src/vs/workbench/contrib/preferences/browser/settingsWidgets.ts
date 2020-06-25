@@ -20,7 +20,7 @@ import { foreground, inputBackground, inputBorder, inputForeground, listActiveSe
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { disposableTimeout } from 'vs/base/common/async';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, isDefined } from 'vs/base/common/types';
 import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isIOS } from 'vs/base/common/platform';
@@ -335,9 +335,13 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 	}
 
 	private renderDataOrEditItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
-		return item.editing ?
+		const rowElement = item.editing ?
 			this.renderEditItem(item, idx) :
 			this.renderDataItem(item, idx, listFocused);
+
+		rowElement.setAttribute('role', 'listitem');
+
+		return rowElement;
 	}
 
 	private renderDataItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
@@ -353,12 +357,8 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		actionBar.push(this.getActionsForItem(item, idx), { icon: true, label: true });
 		rowElement.title = this.getLocalizedRowTitle(item);
 
-		if (item.selected) {
-			if (listFocused) {
-				setTimeout(() => {
-					rowElement.focus();
-				}, 10);
-			}
+		if (item.selected && listFocused) {
+			this.listDisposables.add(disposableTimeout(() => rowElement.focus()));
 		}
 
 		return rowElement;
@@ -508,7 +508,6 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 
 	protected renderItem(item: IListDataItem): HTMLElement {
 		const rowElement = $('.setting-list-row');
-
 		const valueElement = DOM.append(rowElement, $('.setting-list-value'));
 		const siblingElement = DOM.append(rowElement, $('.setting-list-sibling'));
 
@@ -713,7 +712,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 
 	protected renderHeader() {
 		if (this.model.items.length > 0) {
-			const header = $('.setting-list-row-header');
+			const header = $('.setting-list-row-header', { 'aria-hidden': true });
 			const keyHeader = DOM.append(header, $('.setting-list-object-key'));
 			const valueHeader = DOM.append(header, $('.setting-list-object-value'));
 			const { keyHeaderText, valueHeaderText } = this.getLocalizedStrings();
@@ -750,6 +749,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 			keyWidget = this.renderEditWidget(item.key, rowElement, true);
 		} else {
 			const keyElement = DOM.append(rowElement, $('.setting-list-object-key'));
+			keyElement.setAttribute('aria-readonly', 'true');
 			keyElement.textContent = item.key.data;
 		}
 
@@ -831,7 +831,9 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 			? item.key.options.find(({ value }) => item.key.data === value)?.description
 			: undefined;
 
-		return enumDescription ?? localize('objectPairHintLabel', "The key `{0}` maps to `{1}`", item.key.data, item.value.data);
+		return isDefined(enumDescription)
+			? `${enumDescription} Currently set to ${item.value.data}.`
+			: localize('objectPairHintLabel', "The property `{0}` is set to `{1}`", item.key.data, item.value.data);
 	}
 
 	protected getLocalizedStrings() {

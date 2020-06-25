@@ -690,6 +690,11 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 				itemElement.setAttribute('role', 'combobox');
 				label += modifiedText;
 			}
+		} else if (templateId === SETTINGS_OBJECT_TEMPLATE_ID) {
+			if (itemElement = (<ISettingObjectItemTemplate>template).objectWidget.domNode) {
+				itemElement.setAttribute('role', 'list');
+				label += modifiedText;
+			}
 		} else {
 			// Don't change attributes if we don't know what we areFunctions
 			return '';
@@ -1024,6 +1029,7 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: string) => void): void {
 		const items = getObjectDisplayValue(dataElement);
 
+
 		template.objectWidget.setValue(items, {
 			showAddButton: (
 				isDefined(dataElement.setting.objectAdditionalProperties) ||
@@ -1031,6 +1037,9 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 				!areAllPropertiesDefined(Object.keys(dataElement.setting.objectProperties ?? {}), items)
 			),
 		});
+
+		this.setElementAriaLabels(dataElement, this.templateId, template);
+
 		template.context = dataElement;
 	}
 }
