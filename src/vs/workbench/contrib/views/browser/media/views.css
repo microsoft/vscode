@@ -7,7 +7,8 @@
 
 .file-icon-themable-tree.align-icons-and-twisties .monaco-tl-twistie:not(.force-twistie):not(.collapsible),
 .file-icon-themable-tree .align-icon-with-twisty .monaco-tl-twistie:not(.force-twistie):not(.collapsible),
-.file-icon-themable-tree.hide-arrows .monaco-tl-twistie:not(.force-twistie) {
+.file-icon-themable-tree.hide-arrows .monaco-tl-twistie:not(.force-twistie),
+.file-icon-themable-tree .monaco-tl-twistie.force-no-twistie {
 	background-image: none !important;
 	width: 0 !important;
 	padding-right: 0 !important;

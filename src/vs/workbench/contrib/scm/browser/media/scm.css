@@ -38,18 +38,10 @@
 	flex-flow: nowrap;
 }
 
-.scm-viewlet .scm-provider > .icon {
-	margin-right: 4px;
-}
-
 .scm-viewlet .scm-provider > .label {
 	display: flex;
 	flex-shrink: 1;
 	overflow: hidden;
-}
-
-.scm-viewlet .scm-provider > .label > .name {
-	text-decoration: underline;
 }
 
 .scm-viewlet .scm-provider > .status {
@@ -105,7 +97,6 @@
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	text-decoration: underline;
 }
 
 .scm-viewlet .monaco-list-row .resource {
@@ -149,10 +140,13 @@
 }
 
 .scm-viewlet .monaco-list .monaco-list-row:hover .scm-provider > .actions,
+.scm-viewlet .monaco-list .monaco-list-row .scm-provider.active > .actions,
+.scm-viewlet .monaco-list .monaco-list-row.selected .scm-provider > .actions,
+.scm-viewlet .monaco-list .monaco-list-row.focused .scm-provider > .actions,
 .scm-viewlet .monaco-list .monaco-list-row:hover .resource-group > .actions,
-.scm-viewlet .monaco-list .monaco-list-row:hover .resource > .name > .monaco-icon-label > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.selected .resource-group > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.focused .resource-group > .actions,
+.scm-viewlet .monaco-list .monaco-list-row:hover .resource > .name > .monaco-icon-label > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.selected .resource > .name > .monaco-icon-label > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.focused .resource > .name > .monaco-icon-label > .actions,
 .scm-viewlet .monaco-list:not(.selection-multiple) .monaco-list-row .resource:hover > .actions {
@@ -179,7 +173,7 @@
 
 .scm-viewlet .scm-input {
 	height: 100%;
-	margin-left: 6px;
+	margin-left: 9px;
 }
 
 .scm-viewlet .scm-editor {

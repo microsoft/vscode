@@ -176,7 +176,6 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-twistie');
 
 		const provider = append(container, $('.scm-provider'));
-		append(provider, $('span.icon.codicon.codicon-repo'));
 		const label = append(provider, $('.label'));
 		const name = append(label, $('span.name'));
 		const status = append(provider, $('.status'));
@@ -186,8 +185,10 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const countContainer = append(provider, $('.count'));
 		const count = new CountBadge(countContainer);
 		const badgeStyler = attachBadgeStyler(count, this.themeService);
+		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => toggleClass(provider, 'active', e));
+
 		const disposable = Disposable.None;
-		const templateDisposable = combinedDisposable(statusActionBar, toolBar, badgeStyler);
+		const templateDisposable = combinedDisposable(statusActionBar, visibilityDisposable, toolBar, badgeStyler);
 
 		return { name, countContainer, count, statusActionBar, toolBar, disposable, templateDisposable };
 	}
@@ -265,6 +266,9 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	) { }
 
 	renderTemplate(container: HTMLElement): InputTemplate {
+		// hack
+		addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-no-twistie');
+
 		const inputElement = append(container, $('.scm-input'));
 		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement);
 
