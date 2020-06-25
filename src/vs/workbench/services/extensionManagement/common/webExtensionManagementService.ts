@@ -47,8 +47,8 @@ export class WebExtensionManagementService implements IExtensionManagementServic
 			} catch (error) { /* ignore */ }
 		}
 		return <ILocalExtension>{
-			type: ExtensionType.System,
-			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
+			type: scannedExtension.type,
+			identifier: scannedExtension.identifier,
 			manifest,
 			location: scannedExtension.location,
 			isMachineScoped: false,

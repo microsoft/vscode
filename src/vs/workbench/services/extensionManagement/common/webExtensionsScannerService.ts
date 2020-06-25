@@ -14,7 +14,7 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 	declare readonly _serviceBrand: undefined;
 
 	private readonly systemExtensionsPromise: Promise<IScannedExtension[]>;
-	private readonly userExtensions: IScannedExtension[];
+	private readonly staticExtensions: IScannedExtension[];
 
 	constructor(
 		@IBuiltinExtensionsScannerService private readonly builtinExtensionsScannerService: IBuiltinExtensionsScannerService,
@@ -22,7 +22,7 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 	) {
 		this.systemExtensionsPromise = isWeb ? this.builtinExtensionsScannerService.scanBuiltinExtensions() : Promise.resolve([]);
 		const staticExtensions = environmentService.options && Array.isArray(environmentService.options.staticExtensions) ? environmentService.options.staticExtensions : [];
-		this.userExtensions = staticExtensions.map(data => <IScannedExtension>{
+		this.staticExtensions = staticExtensions.map(data => <IScannedExtension>{
 			location: data.extensionLocation,
 			type: ExtensionType.User,
 			packageJSON: data.packageJSON,
@@ -36,7 +36,7 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 			extensions.push(...systemExtensions);
 		}
 		if (type === undefined || type === ExtensionType.User) {
-			extensions.push(...this.userExtensions);
+			extensions.push(...this.staticExtensions);
 		}
 		return extensions;
 	}
