@@ -10,7 +10,7 @@ import { GitHubApiContext, GitHubApi } from './github/api';
 import { GitHubFS } from './github/fs';
 import { VirtualSCM } from './scm';
 
-const repositoryRegex = /^(?:(?:https:\/\/)?github.com\/)?([^\W\/]+)\/([^\W\/]+?)(?:\/|.git|$)/i;
+const repositoryRegex = /^(?:(?:https:\/\/)?github.com\/)?([^\/]+)\/([^\/]+?)(?:\/|.git|$)/i;
 
 export function activate(context: ExtensionContext) {
 	const contextStore = new ContextStore<GitHubApiContext>(context.workspaceState, GitHubFS.scheme);
