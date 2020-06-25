@@ -10,7 +10,6 @@ import { URI } from 'vs/base/common/uri';
 import { IRequestService, isSuccess, asText } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 export class WebExtensionManagementService implements IExtensionManagementService {
