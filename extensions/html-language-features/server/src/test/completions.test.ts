@@ -86,6 +86,11 @@ suite('HTML Completion', () => {
 				{ label: 'getJSON', resultText: '<html><script>$.getJSON</script></html>' },
 			]
 		});
+		await testCompletionFor('<html><script>const x = { a: 1 };</script><script>x.|</script></html>', {
+			items: [
+				{ label: 'a', resultText: '<html><script>const x = { a: 1 };</script><script>x.a</script></html>' },
+			]
+		}, 'test://test/test2.html');
 	});
 });
 
