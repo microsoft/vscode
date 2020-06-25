@@ -643,6 +643,10 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Close on mouse middle click
+		let lastMiddleMouseDownItem: EventTarget | null;
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			if (e.button === 1) { lastMiddleMouseDownItem = e.target; }
+		}));
 		disposables.add(addDisposableListener(tab, EventType.MOUSE_UP, (e: MouseEvent) => {
 			EventHelper.stop(e);
 
@@ -652,7 +656,9 @@ export class TabsTitleControl extends TitleControl {
 				e.stopPropagation(); // for https://github.com/Microsoft/vscode/issues/56715
 
 				this.blockRevealActiveTabOnce();
-				this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index });
+				if (lastMiddleMouseDownItem && lastMiddleMouseDownItem === e.target) {
+					this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index });
+				}
 			}
 		}));
 
