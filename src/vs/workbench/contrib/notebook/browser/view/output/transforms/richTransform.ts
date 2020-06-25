@@ -181,7 +181,7 @@ class RichRenderer implements IOutputTransformContribution {
 		let data = output.data['text/markdown'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		const mdOutput = document.createElement('div');
-		mdOutput.appendChild(this._mdRenderer.render({ value: str, isTrusted: false, supportThemeIcons: true }).element);
+		mdOutput.appendChild(this._mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }).element);
 		container.appendChild(mdOutput);
 
 		return {
