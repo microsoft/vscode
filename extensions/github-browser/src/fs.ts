@@ -75,9 +75,6 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 					case 'deleted':
 						this._onDidChangeFile.fire([{ type: FileChangeType.Deleted, uri: e.uri }]);
 						break;
-					case 'renamed':
-						this._onDidChangeFile.fire([{ type: FileChangeType.Deleted, uri: e.originalUri }, { type: FileChangeType.Created, uri: e.uri }]);
-						break;
 				}
 			}),
 		);
@@ -98,21 +95,16 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 	}
 
 	async stat(uri: Uri): Promise<FileStat> {
-		const content = this.changeStore.getContent(uri);
-		if (content !== undefined) {
-			return {
-				type: FileType.File,
-				size: textEncoder.encode(content).byteLength,
-				ctime: 0,
-				mtime: 0,
-			};
+		let stat = this.changeStore.getStat(uri);
+		if (stat !== undefined) {
+			return stat;
 		}
 
 		if (uri.path === '' || uri.path.lastIndexOf('/') === 0) {
 			return { type: FileType.Directory, size: 0, ctime: 0, mtime: 0 };
 		}
 
-		const stat = await this.fs.stat(this.getOriginalResource(uri));
+		stat = await this.fs.stat(this.getOriginalResource(uri));
 		return stat;
 	}
 

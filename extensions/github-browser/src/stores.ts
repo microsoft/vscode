@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
-import { commands, Event, EventEmitter, Memento, TextDocumentShowOptions, Uri, ViewColumn } from 'vscode';
-import { sha1 } from './sha1';
+import { commands, Event, EventEmitter, FileStat, FileType, Memento, TextDocumentShowOptions, Uri, ViewColumn } from 'vscode';
 import { getRootUri } from './extension';
+import { sha1 } from './sha1';
 
 const textDecoder = new TextDecoder();
 
 interface CreateRecord<T extends string | Uri = string> {
 	type: 'created';
+	size: number;
 	timestamp: number;
 	uri: T;
 	hash: string;
@@ -20,6 +21,7 @@ interface CreateRecord<T extends string | Uri = string> {
 
 interface ChangeRecord<T extends string | Uri = string> {
 	type: 'changed';
+	size: number;
 	timestamp: number;
 	uri: T;
 	hash: string;
@@ -28,23 +30,15 @@ interface ChangeRecord<T extends string | Uri = string> {
 
 interface DeleteRecord<T extends string | Uri = string> {
 	type: 'deleted';
+	size: number;
 	timestamp: number;
 	uri: T;
 	hash: undefined;
 	originalHash: string;
 }
 
-interface RenameRecord<T extends string | Uri = string> {
-	type: 'renamed';
-	timestamp: number;
-	uri: T;
-	hash: string;
-	originalHash: string;
-	originalUri: Uri;
-}
-
-export type Record = CreateRecord<Uri> | ChangeRecord<Uri> | DeleteRecord<Uri> | RenameRecord<Uri>;
-type StoredRecord = CreateRecord | ChangeRecord | DeleteRecord | RenameRecord;
+export type Record = CreateRecord<Uri> | ChangeRecord<Uri> | DeleteRecord<Uri>;
+type StoredRecord = CreateRecord | ChangeRecord | DeleteRecord;
 
 const workingChangesKeyPrefix = 'github.working.changes|';
 const workingFileKeyPrefix = 'github.working|';
@@ -56,6 +50,7 @@ function fromSerialized(change: StoredRecord): Record {
 interface CreatedFileChangeStoreEvent {
 	type: 'created';
 	rootUri: Uri;
+	size: number;
 	timestamp: number;
 	uri: Uri;
 	hash: string;
@@ -65,6 +60,7 @@ interface CreatedFileChangeStoreEvent {
 interface ChangedFileChangeStoreEvent {
 	type: 'changed';
 	rootUri: Uri;
+	size: number;
 	timestamp: number;
 	uri: Uri;
 	hash: string;
@@ -74,6 +70,7 @@ interface ChangedFileChangeStoreEvent {
 interface DeletedFileChangeStoreEvent {
 	type: 'deleted';
 	rootUri: Uri;
+	size: number;
 	timestamp: number;
 	uri: Uri;
 
@@ -81,17 +78,7 @@ interface DeletedFileChangeStoreEvent {
 	originalHash: string;
 }
 
-interface RenamedFileChangeStoreEvent {
-	type: 'renamed';
-	rootUri: Uri;
-	timestamp: number;
-	uri: Uri;
-	hash: string;
-	originalHash: string;
-	originalUri: Uri;
-}
-
-type ChangeStoreEvent = CreatedFileChangeStoreEvent | ChangedFileChangeStoreEvent | DeletedFileChangeStoreEvent | RenamedFileChangeStoreEvent;
+type ChangeStoreEvent = CreatedFileChangeStoreEvent | ChangedFileChangeStoreEvent | DeletedFileChangeStoreEvent;
 
 function toChangeEvent(change: Record | StoredRecord, rootUri: Uri, uri?: Uri): ChangeStoreEvent {
 	return {
@@ -112,6 +99,7 @@ export interface IChangeStore {
 
 	getChanges(rootUri: Uri): Record[];
 	getContent(uri: Uri): string | undefined;
+	getStat(uri: Uri): FileStat | undefined;
 
 	hasChanges(rootUri: Uri): boolean;
 
@@ -180,6 +168,21 @@ export class ChangeStore implements IChangeStore {
 		return this.memento.get(`${workingFileKeyPrefix}${uri.toString()}`);
 	}
 
+	getStat(uri: Uri): FileStat | undefined {
+		const key = uri.toString();
+		const change = this.getChanges(getRootUri(uri)!).find(c => c.uri.toString() === key);
+		if (change === undefined) {
+			return undefined;
+		}
+
+		return {
+			type: FileType.File,
+			size: change.size,
+			ctime: 0,
+			mtime: change.timestamp
+		};
+	}
+
 	hasChanges(rootUri: Uri): boolean {
 		return this.getWorkingChanges(rootUri).length !== 0;
 	}
@@ -223,7 +226,14 @@ export class ChangeStore implements IChangeStore {
 				return;
 			}
 
-			change = { type: 'changed', timestamp: Date.now(), uri: key, hash: hash!, originalHash: originalHash } as ChangeRecord;
+			change = {
+				type: 'changed',
+				size: content.byteLength,
+				timestamp: Date.now(),
+				uri: key,
+				hash: hash!,
+				originalHash: originalHash
+			} as ChangeRecord;
 			changes.push(change);
 
 			await this.saveWorkingChanges(rootUri, changes);
