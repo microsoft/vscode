@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scmViewlet';
+import 'vs/css!./media/scm';
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/resources';

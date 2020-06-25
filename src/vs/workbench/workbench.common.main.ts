@@ -176,7 +176,6 @@ import 'vs/workbench/contrib/sash/browser/sash.contribution';
 
 // SCM
 import 'vs/workbench/contrib/scm/browser/scm.contribution';
-import 'vs/workbench/contrib/scm/browser/scmViewlet';
 
 // Debug
 import 'vs/workbench/contrib/debug/browser/debug.contribution';

@@ -225,8 +225,20 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 	}
 }
 
-function isInputElement(e: HTMLElement): boolean {
+export function isInputElement(e: HTMLElement): boolean {
 	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
+}
+
+export function isMonacoEditor(e: HTMLElement): boolean {
+	if (DOM.hasClass(e, 'monaco-editor')) {
+		return true;
+	}
+
+	if (!e.parentElement) {
+		return false;
+	}
+
+	return isMonacoEditor(e.parentElement);
 }
 
 class KeyboardController<T> implements IDisposable {
@@ -572,12 +584,20 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
+		if (isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
 		if (document.activeElement !== e.browserEvent.target) {
 			this.list.domFocus();
 		}
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<T>): void {
+		if (isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
 		const focus = typeof e.index === 'undefined' ? [] : [e.index];
 		this.list.setFocus(focus, e.browserEvent);
 	}
@@ -587,7 +607,7 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
-		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 
@@ -621,7 +641,7 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	protected onDoubleClick(e: IListMouseEvent<T>): void {
-		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 

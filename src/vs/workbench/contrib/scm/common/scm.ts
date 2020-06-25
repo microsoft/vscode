@@ -11,6 +11,7 @@ import { Command } from 'vs/editor/common/modes';
 import { ISequence } from 'vs/base/common/sequence';
 
 export const VIEWLET_ID = 'workbench.view.scm';
+export const VIEW_PANE_ID = 'workbench.scm';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -79,6 +80,8 @@ export interface IInputValidator {
 }
 
 export interface ISCMInput {
+	readonly repository: ISCMRepository;
+
 	value: string;
 	readonly onDidChange: Event<string>;
 

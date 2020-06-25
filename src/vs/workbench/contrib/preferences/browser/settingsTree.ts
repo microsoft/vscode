@@ -28,7 +28,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
-import { ISpliceable } from 'vs/base/common/sequence';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
 import { isArray, isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
@@ -54,6 +53,7 @@ import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/pr
 import { Codicon } from 'vs/base/common/codicons';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 
 const $ = DOM.$;
 
@@ -1849,7 +1849,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 		}));
 	}
 
-	protected createModel(user: string, view: ISpliceable<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
+	protected createModel(user: string, view: IList<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
 		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, view, options);
 	}
 }
