@@ -56,7 +56,8 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 	storageId: 'workbench.scm.views.state',
 	icon: Codicon.sourceControl.classNames,
 	alwaysUseContainerInfo: true,
-	order: 2
+	order: 2,
+	hideIfEmpty: true
 }, ViewContainerLocation.Sidebar);
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
