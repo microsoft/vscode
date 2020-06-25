@@ -121,7 +121,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	constructor(
 		private readonly workspaceState: vscode.Memento,
-		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
 		public readonly pluginManager: PluginManager,
 		private readonly logDirectoryProvider: LogDirectoryProvider,
 		allModeIds: readonly string[]
@@ -239,7 +238,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.serverState = this.startService(true);
 	}
 
-	private readonly _onTsServerStarted = this._register(new vscode.EventEmitter<API>());
+	private readonly _onTsServerStarted = this._register(new vscode.EventEmitter<{ version: TypeScriptVersion, usedApiVersion: API }>());
 	public readonly onTsServerStarted = this._onTsServerStarted.event;
 
 	private readonly _onDiagnosticsReceived = this._register(new vscode.EventEmitter<TsDiagnostics>());
@@ -339,7 +338,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			onFatalError: (command, err) => this.fatalError(command, err),
 		});
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
-		this.onDidChangeTypeScriptVersion(version);
 		this.lastStart = Date.now();
 
 		/* __GDPR__
@@ -416,14 +414,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		handle.onReaderError(error => this.error('ReaderError', error));
 		handle.onEvent(event => this.dispatchEvent(event));
 
-		this._onReady!.resolve();
-		this._onTsServerStarted.fire(apiVersion);
-
 		if (apiVersion.gte(API.v300)) {
 			this.loadingIndicator.startedLoadingProject(undefined /* projectName */);
 		}
 
 		this.serviceStarted(resendModels);
+
+		this._onReady!.resolve();
+		this._onTsServerStarted.fire({ version: version, usedApiVersion: apiVersion });
 
 		return this.serverState;
 	}

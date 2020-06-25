@@ -50,7 +50,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	private readonly languagePerId = new Map<string, LanguageProvider>();
 
 	private readonly typingsStatus: TypingsStatus;
-	private readonly versionStatus: VersionStatus;
 
 	private readonly fileConfigurationManager: FileConfigurationManager;
 
@@ -69,7 +68,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		const allModeIds = this.getAllModeIds(descriptions, pluginManager);
 		this.client = this._register(new TypeScriptServiceClient(
 			workspaceState,
-			version => this.versionStatus.onDidChangeTypeScriptVersion(version),
 			pluginManager,
 			logDirectoryProvider,
 			allModeIds));
@@ -81,8 +79,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this._disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this._disposables);
 
-		this.versionStatus = this._register(new VersionStatus(this.client, commandManager));
-
+		this._register(new VersionStatus(this.client, commandManager));
 		this._register(new AtaProgressReporter(this.client));
 		this.typingsStatus = this._register(new TypingsStatus(this.client));
 		this.fileConfigurationManager = this._register(new FileConfigurationManager(this.client));
