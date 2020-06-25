@@ -674,7 +674,7 @@ async function moveCell(context: INotebookCellActionContext, direction: 'up' | '
 
 	if (result) {
 		// move cell command only works when the cell container has focus
-		await context.notebookEditor.focusNotebookCell(context.cell, 'container');
+		await context.notebookEditor.focusNotebookCell(result, 'container');
 	}
 }
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as DOM from 'vs/base/browser/dom';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext, INotebookDocumentsAndEditorsDelta, INotebookModelAddedData } from '../common/extHost.protocol';
 import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
@@ -40,7 +41,7 @@ export class MainThreadNotebookDocument extends Disposable {
 	) {
 		super();
 
-		this._textModel = new NotebookTextModel(handle, viewType, supportBackup, uri);
+		this._textModel = new NotebookTextModel(handle, viewType, supportBackup, uri, undoRedoService);
 		this._register(this._textModel.onDidModelChangeProxy(e => {
 			this._proxy.$acceptModelChanged(this.uri, e);
 			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: { selections: this._textModel.selections }, metadata: null });
@@ -51,9 +52,18 @@ export class MainThreadNotebookDocument extends Disposable {
 		}));
 	}
 
-	async applyEdit(modelVersionId: number, edits: ICellEditOperation[], emitToExtHost: boolean): Promise<boolean> {
+	async applyEdit(modelVersionId: number, edits: ICellEditOperation[], emitToExtHost: boolean, synchronous: boolean): Promise<boolean> {
 		await this.notebookService.transformEditsOutputs(this.textModel, edits);
-		return this._textModel.$applyEdit(modelVersionId, edits);
+		if (synchronous) {
+			return this._textModel.$applyEdit(modelVersionId, edits, emitToExtHost, synchronous);
+		} else {
+			return new Promise(resolve => {
+				this._register(DOM.scheduleAtNextAnimationFrame(() => {
+					const ret = this._textModel.$applyEdit(modelVersionId, edits, emitToExtHost, true);
+					resolve(ret);
+				}));
+			});
+		}
 	}
 
 	async spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]) {
@@ -528,7 +538,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 				await mainthreadNotebook.applyEdit(mainthreadNotebook.textModel.versionId, [
 					{ editType: CellEditType.Delete, count: mainthreadNotebook.textModel.cells.length, index: 0 },
 					{ editType: CellEditType.Insert, index: 0, cells: data.cells }
-				], true);
+				], true, false);
 			}
 			return mainthreadNotebook.textModel;
 		}
@@ -548,7 +558,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 					index: 0,
 					cells: backup.cells || []
 				}
-			], false);
+			], false, true);
 
 			// create document in ext host with cells data
 			await this._mainThreadNotebook.addNotebookDocument({
@@ -625,7 +635,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		let mainthreadNotebook = this._mapping.get(URI.from(resource).toString());
 
 		if (mainthreadNotebook) {
-			return await mainthreadNotebook.applyEdit(modelVersionId, edits, true);
+			return await mainthreadNotebook.applyEdit(modelVersionId, edits, true, true);
 		}
 
 		return false;

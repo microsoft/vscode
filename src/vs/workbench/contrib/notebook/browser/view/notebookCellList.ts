@@ -45,6 +45,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private _hiddenRangeIds: string[] = [];
 	private hiddenRangesPrefixSum: PrefixSumComputer | null = null;
 
+	private _isDisposed = false;
+
+	get isDisposed() {
+		return this._isDisposed;
+	}
+
 	constructor(
 		private listUser: string,
 		container: HTMLElement,
@@ -162,6 +168,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	attachViewModel(model: NotebookViewModel) {
 		this._viewModel = model;
 		this._viewModelStore.add(model.onDidChangeViewCells((e) => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			const currentRanges = this._hiddenRangeIds.map(id => this._viewModel!.getTrackedRange(id)).filter(range => range !== null) as ICellRange[];
 			const newVisibleViewCells: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], currentRanges);
 
@@ -197,7 +207,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 					deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
 				});
 			} else {
-				DOM.scheduleAtNextAnimationFrame(() => {
+				this._viewModelStore.add(DOM.scheduleAtNextAnimationFrame(() => {
+					if (this._isDisposed) {
+						return;
+					}
+
 					viewDiffs.reverse().forEach((diff) => {
 						const hideOutputs: IProcessedOutput[] = [];
 						const deletedOutputs: IProcessedOutput[] = [];
@@ -216,7 +230,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 						hideOutputs.forEach(output => this._onDidHideOutput.fire(output));
 						deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
 					});
-				});
+				}));
 			}
 		}));
 
@@ -490,7 +504,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	domElementOfElement(element: ICellViewModel): HTMLElement | null {
 		const index = this._getViewIndexUpperBound(element);
-		if (index !== undefined) {
+		if (index !== undefined && index >= 0) {
 			return this.view.domElement(index);
 		}
 
@@ -518,7 +532,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	updateElementHeight2(element: ICellViewModel, size: number): void {
 		const index = this._getViewIndexUpperBound(element);
-		if (index === undefined) {
+		if (index === undefined || index < 0 || index >= this.length) {
 			return;
 		}
 
@@ -874,6 +888,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	dispose() {
+		this._isDisposed = true;
 		this._viewModelStore.dispose();
 		this._localDisposableStore.dispose();
 		super.dispose();

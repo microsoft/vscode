@@ -90,14 +90,17 @@ export abstract class BaseCellViewModel extends Disposable {
 		options: model.IModelDeltaDecoration;
 	}>();
 	private _lastDecorationId: number = 0;
-	protected _textModel?: model.ITextModel;
 
 	get textModel(): model.ITextModel | undefined {
-		return this._textModel;
+		return this.model.textModel;
+	}
+
+	set textModel(m: model.ITextModel | undefined) {
+		this.model.textModel = m;
 	}
 
 	hasModel(): this is IEditableCellViewModel {
-		return !!this._textModel;
+		return !!this.model.textModel;
 	}
 
 	private _dragging: boolean = false;
@@ -127,7 +130,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	abstract onDeselect(): void;
 
 	assertTextModelAttached(): boolean {
-		if (this._textModel && this._textEditor && this._textEditor.getModel() === this._textModel) {
+		if (this.textModel && this._textEditor && this._textEditor.getModel() === this.textModel) {
 			return true;
 		}
 
@@ -148,7 +151,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		this._textEditor = editor;
-		this._textModel = this._textEditor.getModel() || undefined;
+		this.textModel = this._textEditor.getModel() || undefined;
 
 		if (this._editorViewStates) {
 			this._restoreViewState(this._editorViewStates);
@@ -183,7 +186,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._textEditor = undefined;
-		this._textModel = undefined;
+		this.textModel = undefined;
 		this._cursorChangeListener?.dispose();
 		this._cursorChangeListener = null;
 		this._onDidChangeEditorAttachState.fire();
@@ -315,7 +318,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		const firstViewLineTop = this._textEditor.getTopForPosition(1, 1);
-		const lastViewLineTop = this._textEditor.getTopForPosition(this._textModel!.getLineCount(), this._textModel!.getLineLength(this._textModel!.getLineCount()));
+		const lastViewLineTop = this._textEditor.getTopForPosition(this.textModel!.getLineCount(), this.textModel!.getLineLength(this.textModel!.getLineCount()));
 		const selectionTop = this._textEditor.getTopForPosition(selection.startLineNumber, selection.startColumn);
 
 		if (selectionTop === lastViewLineTop) {
@@ -343,7 +346,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		let cellMatches: model.FindMatch[] = [];
 
 		if (this.assertTextModelAttached()) {
-			cellMatches = this._textModel!.findMatches(value, false, false, false, null, false);
+			cellMatches = this.textModel!.findMatches(value, false, false, false, null, false);
 		} else {
 			const lineCount = this.textBuffer.getLineCount();
 			const fullRange = new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);

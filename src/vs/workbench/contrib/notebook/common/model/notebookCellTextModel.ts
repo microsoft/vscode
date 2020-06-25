@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, IProcessedOutput, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, IProcessedOutput, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { URI } from 'vs/base/common/uri';
 import * as model from 'vs/editor/common/model';
@@ -69,6 +69,16 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		return this._textBuffer;
 	}
 
+	private _textModel?: model.ITextModel;
+
+	get textModel(): model.ITextModel | undefined {
+		return this._textModel;
+	}
+
+	set textModel(m: model.ITextModel | undefined) {
+		this._textModel = m;
+	}
+
 	constructor(
 		readonly uri: URI,
 		public handle: number,
@@ -108,5 +118,25 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		});
 
 		this._onDidChangeOutputs.fire(splices);
+	}
+
+	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata): NotebookCellMetadata {
+		const editable = this.metadata?.editable ??
+			documentMetadata.cellEditable;
+
+		const runnable = this.metadata?.runnable ??
+			documentMetadata.cellRunnable;
+
+		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
+			documentMetadata.cellHasExecutionOrder;
+
+		return {
+			...(this.metadata || {}),
+			...{
+				editable,
+				runnable,
+				hasExecutionOrder
+			}
+		};
 	}
 }

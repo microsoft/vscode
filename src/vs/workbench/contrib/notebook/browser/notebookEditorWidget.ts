@@ -105,10 +105,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._isDisposed;
 	}
 
-	private readonly _onDidChangeModel = new Emitter<NotebookTextModel | undefined>();
+	private readonly _onDidChangeModel = this._register(new Emitter<NotebookTextModel | undefined>());
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
 
-	private readonly _onDidFocusEditorWidget = new Emitter<void>();
+	private readonly _onDidFocusEditorWidget = this._register(new Emitter<void>());
 	readonly onDidFocusEditorWidget = this._onDidFocusEditorWidget.event;
 
 	set viewModel(newModel: NotebookViewModel | undefined) {
@@ -129,7 +129,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private _activeKernel: INotebookKernelInfo | undefined = undefined;
-	private readonly _onDidChangeKernel = new Emitter<void>();
+	private readonly _onDidChangeKernel = this._register(new Emitter<void>());
 	readonly onDidChangeKernel: Event<void> = this._onDidChangeKernel.event;
 
 	get activeKernel() {
@@ -217,7 +217,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	updateEditorFocus() {
 		// Note - focus going to the webview will fire 'blur', but the webview element will be
 		// a descendent of the notebook editor root.
-		this._editorFocus?.set(DOM.isAncestor(document.activeElement, this._overlayContainer));
+		const focused = DOM.isAncestor(document.activeElement, this._overlayContainer);
+		this._editorFocus?.set(focused);
+		this._notebookViewModel?.setFocus(focused);
 	}
 
 	hasFocus() {
@@ -700,14 +702,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			const focus = this._list.getFocus()[0];
 			if (typeof focus === 'number') {
 				const element = this._notebookViewModel!.viewCells[focus];
-				const itemDOM = this._list?.domElementOfElement(element!);
-				let editorFocused = false;
-				if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
-					editorFocused = true;
-				}
+				if (element) {
+					const itemDOM = this._list?.domElementOfElement(element);
+					let editorFocused = !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
 
-				state.editorFocused = editorFocused;
-				state.focus = focus;
+					state.editorFocused = editorFocused;
+					state.focus = focus;
+				}
 			}
 		}
 
@@ -906,7 +907,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			(direction === 'above' ? index : nextIndex) :
 			index;
 		const newCell = this._notebookViewModel!.createCell(insertIndex, initialText.split(/\r?\n/g), language, type, cell?.metadata, true);
-		return newCell;
+		return newCell as CellViewModel;
 	}
 
 	async splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null> {
@@ -946,41 +947,41 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return true;
 	}
 
-	async moveCellDown(cell: ICellViewModel): Promise<boolean> {
+	async moveCellDown(cell: ICellViewModel): Promise<ICellViewModel | null> {
 		if (!this._notebookViewModel!.metadata.editable) {
-			return false;
+			return null;
 		}
 
 		const index = this._notebookViewModel!.getCellIndex(cell);
 		if (index === this._notebookViewModel!.length - 1) {
-			return false;
+			return null;
 		}
 
 		const newIdx = index + 1;
 		return this._moveCellToIndex(index, newIdx);
 	}
 
-	async moveCellUp(cell: ICellViewModel): Promise<boolean> {
+	async moveCellUp(cell: ICellViewModel): Promise<ICellViewModel | null> {
 		if (!this._notebookViewModel!.metadata.editable) {
-			return false;
+			return null;
 		}
 
 		const index = this._notebookViewModel!.getCellIndex(cell);
 		if (index === 0) {
-			return false;
+			return null;
 		}
 
 		const newIdx = index - 1;
 		return this._moveCellToIndex(index, newIdx);
 	}
 
-	async moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<boolean> {
+	async moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<ICellViewModel | null> {
 		if (!this._notebookViewModel!.metadata.editable) {
-			return false;
+			return null;
 		}
 
 		if (cell === relativeToCell) {
-			return false;
+			return null;
 		}
 
 		const originalIdx = this._notebookViewModel!.getCellIndex(cell);
@@ -994,23 +995,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._moveCellToIndex(originalIdx, newIdx);
 	}
 
-	private async _moveCellToIndex(index: number, newIdx: number): Promise<boolean> {
+	private async _moveCellToIndex(index: number, newIdx: number): Promise<ICellViewModel | null> {
 		if (index === newIdx) {
-			return false;
+			return null;
 		}
 
 		if (!this._notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
 			throw new Error('Notebook Editor move cell, index out of range');
 		}
 
-		let r: (val: boolean) => void;
+		let r: (val: ICellViewModel | null) => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
 			if (this._isDisposed) {
-				r(false);
+				r(null);
 			}
 
-			this._list?.revealElementInView(this._notebookViewModel!.viewCells[newIdx]);
-			r(true);
+			const viewCell = this._notebookViewModel!.viewCells[newIdx];
+			this._list?.revealElementInView(viewCell);
+			r(viewCell);
 		});
 
 		return new Promise(resolve => { r = resolve; });
@@ -1262,6 +1264,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	dispose() {
 		this._isDisposed = true;
+		// dispose webview first
+		this._webview?.dispose();
+
 		this.notebookService.removeNotebookEditor(this);
 		const keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
@@ -1271,7 +1276,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._localStore.clear();
 		this._list?.dispose();
-		this._webview?.dispose();
 
 		this._overlayContainer.remove();
 		this.viewModel?.dispose();

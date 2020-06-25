@@ -269,7 +269,7 @@ export interface INotebookTextModel {
 	languages: string[];
 	cells: ICell[];
 	renderers: Set<string>;
-	onDidChangeCells?: Event<NotebookCellTextModelSplice[]>;
+	onDidChangeCells?: Event<{ synchronous: boolean, splices: NotebookCellTextModelSplice[] }>;
 	onDidChangeContent: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }

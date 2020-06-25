@@ -340,11 +340,19 @@ ${loaderJs}
 	}
 
 	async initialize(content: string) {
+		if (!document.body.contains(this.element)) {
+			throw new Error('Element is already detached from the DOM tree');
+		}
+
 		this.webview = this._createInset(this.webviewService, content);
 		this.webview.mountTo(this.element);
 		this._register(this.webview);
 
 		this._register(this.webview.onDidClickLink(link => {
+			if (this._disposed) {
+				return;
+			}
+
 			if (!link) {
 				return;
 			}
@@ -356,6 +364,10 @@ ${loaderJs}
 		}));
 
 		this._register(this.webview.onDidReload(() => {
+			if (this._disposed) {
+				return;
+			}
+
 			this.preloadsCache.clear();
 			for (const [output, inset] of this.insetMapping.entries()) {
 				this.updateRendererPreloads(inset.preloads);
@@ -364,6 +376,10 @@ ${loaderJs}
 		}));
 
 		this._register(this.webview.onMessage((data: FromWebviewMessage) => {
+			if (this._disposed) {
+				return;
+			}
+
 			if (data.__vscode_notebook_message) {
 				if (data.type === 'dimension') {
 					let height = data.data.height;
@@ -739,6 +755,10 @@ ${loaderJs}
 	}
 
 	private _sendMessageToWebview(message: ToWebviewMessage) {
+		if (this._disposed) {
+			return;
+		}
+
 		this.webview.postMessage(message);
 	}
 
@@ -748,6 +768,7 @@ ${loaderJs}
 
 	dispose() {
 		this._disposed = true;
+		this.webview.dispose();
 		super.dispose();
 	}
 }
