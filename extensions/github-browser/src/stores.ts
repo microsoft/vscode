@@ -12,6 +12,7 @@ const textDecoder = new TextDecoder();
 
 interface CreateRecord<T extends string | Uri = string> {
 	type: 'created';
+	timestamp: number;
 	uri: T;
 	hash: string;
 	originalHash: undefined;
@@ -19,6 +20,7 @@ interface CreateRecord<T extends string | Uri = string> {
 
 interface ChangeRecord<T extends string | Uri = string> {
 	type: 'changed';
+	timestamp: number;
 	uri: T;
 	hash: string;
 	originalHash: string;
@@ -26,14 +28,15 @@ interface ChangeRecord<T extends string | Uri = string> {
 
 interface DeleteRecord<T extends string | Uri = string> {
 	type: 'deleted';
+	timestamp: number;
 	uri: T;
-
 	hash: undefined;
 	originalHash: string;
 }
 
 interface RenameRecord<T extends string | Uri = string> {
 	type: 'renamed';
+	timestamp: number;
 	uri: T;
 	hash: string;
 	originalHash: string;
@@ -53,6 +56,7 @@ function fromSerialized(change: StoredRecord): Record {
 interface CreatedFileChangeStoreEvent {
 	type: 'created';
 	rootUri: Uri;
+	timestamp: number;
 	uri: Uri;
 	hash: string;
 	originalHash: undefined;
@@ -61,6 +65,7 @@ interface CreatedFileChangeStoreEvent {
 interface ChangedFileChangeStoreEvent {
 	type: 'changed';
 	rootUri: Uri;
+	timestamp: number;
 	uri: Uri;
 	hash: string;
 	originalHash: string;
@@ -69,6 +74,7 @@ interface ChangedFileChangeStoreEvent {
 interface DeletedFileChangeStoreEvent {
 	type: 'deleted';
 	rootUri: Uri;
+	timestamp: number;
 	uri: Uri;
 
 	hash: undefined;
@@ -78,6 +84,7 @@ interface DeletedFileChangeStoreEvent {
 interface RenamedFileChangeStoreEvent {
 	type: 'renamed';
 	rootUri: Uri;
+	timestamp: number;
 	uri: Uri;
 	hash: string;
 	originalHash: string;
@@ -216,7 +223,7 @@ export class ChangeStore implements IChangeStore {
 				return;
 			}
 
-			change = { type: 'changed', uri: key, hash: hash!, originalHash: originalHash } as ChangeRecord;
+			change = { type: 'changed', timestamp: Date.now(), uri: key, hash: hash!, originalHash: originalHash } as ChangeRecord;
 			changes.push(change);
 
 			await this.saveWorkingChanges(rootUri, changes);
@@ -228,6 +235,7 @@ export class ChangeStore implements IChangeStore {
 			await this.discardWorkingContent(uri);
 		} else if (change.hash !== hash) {
 			change.hash = hash!;
+			change.timestamp = Date.now();
 
 			await this.saveWorkingChanges(rootUri, changes);
 			await this.saveWorkingContent(uri, textDecoder.decode(content));
