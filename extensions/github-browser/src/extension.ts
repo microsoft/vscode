@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, ExtensionContext, Uri, workspace, window } from 'vscode';
+import { ExtensionContext, Uri, workspace } from 'vscode';
 import { ChangeStore, ContextStore } from './stores';
 import { VirtualFS } from './fs';
 import { GitHubApiContext, GitHubApi } from './github/api';
