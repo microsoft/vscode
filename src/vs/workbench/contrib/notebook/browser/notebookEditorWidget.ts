@@ -1360,6 +1360,26 @@ export const cellInsertionIndicator = registerColor('notebook.cellInsertionIndic
 }, nls.localize('notebook.cellInsertionIndicator', "The color of the notebook cell insertion indicator."));
 
 
+export const listScrollbarSliderBackground = registerColor('notebookScrollbarSlider.background', {
+	dark: Color.fromHex('#797979').transparent(0.4),
+	light: Color.fromHex('#646464').transparent(0.4),
+	hc: transparent(contrastBorder, 0.6)
+}, nls.localize('notebookScrollbarSliderBackground', "Notebook scrollbar slider background color."));
+
+export const listScrollbarSliderHoverBackground = registerColor('notebookScrollbarSlider.hoverBackground', {
+	dark: Color.fromHex('#646464').transparent(0.7),
+	light: Color.fromHex('#646464').transparent(0.7),
+	hc: transparent(contrastBorder, 0.8)
+}, nls.localize('notebookScrollbarSliderHoverBackground', "Notebook scrollbar slider background color when hovering."));
+
+export const listScrollbarSliderActiveBackground = registerColor('notebookScrollbarSlider.activeBackground', {
+	dark: Color.fromHex('#BFBFBF').transparent(0.4),
+	light: Color.fromHex('#000000').transparent(0.6),
+	hc: contrastBorder
+}, nls.localize('notebookScrollbarSliderActiveBackground', "Notebook scrollbar slider background color when clicked on."));
+
+
+
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element {
 		padding-top: ${SCROLLABLE_ELEMENT_PADDING_TOP}px;
@@ -1478,6 +1498,21 @@ registerThemingParticipant((theme, collector) => {
 	const cellInsertionIndicatorColor = theme.getColor(cellInsertionIndicator);
 	if (cellInsertionIndicatorColor) {
 		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${cellInsertionIndicatorColor}; }`);
+	}
+
+	const scrollbarSliderBackgroundColor = theme.getColor(listScrollbarSliderBackground);
+	if (scrollbarSliderBackgroundColor) {
+		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider { background: ${scrollbarSliderBackgroundColor}; } `);
+	}
+
+	const scrollbarSliderHoverBackgroundColor = theme.getColor(listScrollbarSliderHoverBackground);
+	if (scrollbarSliderHoverBackgroundColor) {
+		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:hover { background: ${scrollbarSliderHoverBackgroundColor}; } `);
+	}
+
+	const scrollbarSliderActiveBackgroundColor = theme.getColor(listScrollbarSliderActiveBackground);
+	if (scrollbarSliderActiveBackgroundColor) {
+		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider.active { background: ${scrollbarSliderActiveBackgroundColor}; } `);
 	}
 
 	// Cell Margin
