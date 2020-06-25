@@ -158,7 +158,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				constructor() {
 					super({
 						id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-						title: { original: `Focus on ${viewDescriptor.name} View`, value: localize('focus view', "Focus on {0} View", viewDescriptor.name) },
+						title: { original: `Focus on ${viewDescriptor.name} View`, value: localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name) },
 						category: composite ? composite.name : localize('view category', "View"),
 						menu: [{
 							id: MenuId.CommandPalette,
