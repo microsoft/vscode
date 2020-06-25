@@ -876,7 +876,7 @@ class ViewModel {
 			item.disposable.dispose();
 		}
 
-		this.refresh(item);
+		this.refresh();
 	}
 
 	private createGroupItem(group: ISCMResourceGroup): IGroupItem {
@@ -899,7 +899,9 @@ class ViewModel {
 	}
 
 	private onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
+		const before = item.resources.length;
 		const deleted = item.resources.splice(start, deleteCount, ...toInsert);
+		const after = item.resources.length;
 
 		if (this._mode === ViewModelMode.Tree) {
 			for (const resource of deleted) {
@@ -911,8 +913,11 @@ class ViewModel {
 			}
 		}
 
-		// TODO@joao: this is here because we hide the input box when there are no changes
-		this.refresh();
+		if (before !== after && (before === 0 || after === 0)) {
+			this.refresh();
+		} else {
+			this.refresh(item);
+		}
 	}
 
 	setVisible(visible: boolean): void {
@@ -948,12 +953,15 @@ class ViewModel {
 	private render(item: IRepositoryItem | IGroupItem): ICompressedTreeElement<TreeElement> {
 		if (isRepositoryItem(item)) {
 			const children: ICompressedTreeElement<TreeElement>[] = [];
+			const hasSomeChanges = item.groupItems.some(item => item.element.elements.length > 0);
 
-			if (item.element.input.visible && item.groupItems.some(item => item.element.elements.length > 0)) {
-				children.push({ element: item.element.input, incompressible: true, collapsible: false });
+			if (this.items.length === 1 || hasSomeChanges) {
+				if (item.element.input.visible) {
+					children.push({ element: item.element.input, incompressible: true, collapsible: false });
+				}
+
+				children.push(...item.groupItems.map(i => this.render(i)));
 			}
-
-			children.push(...item.groupItems.map(i => this.render(i)));
 
 			return { element: item.element, children, incompressible: true, collapsible: true };
 		} else {
@@ -1372,12 +1380,9 @@ class SCMInputWidget extends Disposable {
 		const dimension: Dimension = {
 			width: this.element.clientWidth - 2,
 			height: editorHeight,
-			// height: editorHeight - 2
 		};
 
-		// templateData.input.layout(/* { height: editorHeight, width: this.layoutCache.width! - 12 - 2 - 2 } */);
 		this.inputEditor.layout(dimension);
-		// this.validationContainer.style.top = `${dimension.height + 1}px`;
 	}
 
 	private getInputEditorFontFamily(): string {
