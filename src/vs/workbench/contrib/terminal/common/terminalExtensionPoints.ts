@@ -7,6 +7,7 @@ import * as extensionsRegistry from 'vs/workbench/services/extensions/common/ext
 import { ITerminalTypeContribution, ITerminalContributions, terminalContributionsDescriptor } from 'vs/workbench/contrib/terminal/common/terminal';
 import { flatten } from 'vs/base/common/arrays';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 // terminal extension point
 export const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
@@ -30,7 +31,7 @@ export class TerminalContributionService implements ITerminalContributionService
 
 	constructor() {
 		terminalsExtPoint.setHandler(contributions => {
-			this._terminalTypes = flatten(contributions.map(c => c.value?.types ?? []));
+			this._terminalTypes = flatten(contributions.filter(c => c.description.enableProposedApi).map(c => c.value?.types ?? []));
 		});
 	}
 }
