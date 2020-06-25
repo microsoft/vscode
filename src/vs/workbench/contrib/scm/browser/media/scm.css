@@ -52,12 +52,6 @@
 	text-decoration: underline;
 }
 
-.scm-viewlet .scm-provider > .label > .description {
-	opacity: 0.7;
-	margin-left: 0.5em;
-	font-size: 0.9em;
-}
-
 .scm-viewlet .scm-provider > .status {
 	flex: 1;
 	display: flex;
