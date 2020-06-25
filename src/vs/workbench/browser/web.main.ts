@@ -43,22 +43,32 @@ import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogService } from 'vs/platform/log/common/fileLogService';
 import { toLocalISOString } from 'vs/base/common/date';
-import { IndexedDBLogProvider } from 'vs/workbench/services/log/browser/indexedDBLogProvider';
-import { InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
 import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IndexedDBFileSystemProvider, openIndexedDB } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
+
+const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
+const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
+const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
 
 class BrowserMain extends Disposable {
+
+	private readonly indexedDB: Promise<IDBDatabase | null>;
 
 	constructor(
 		private readonly domElement: HTMLElement,
 		private readonly configuration: IWorkbenchConstructionOptions
 	) {
 		super();
+		this.indexedDB = openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE])
+			.then(null, error => {
+				console.error(error);
+				return null;
+			});
 	}
 
 	async open(): Promise<IWorkbench> {
@@ -178,7 +188,7 @@ class BrowserMain extends Disposable {
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
-		this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
+		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
 
 		// Long running services (workspace, config, storage)
 		const services = await Promise.all([
@@ -205,24 +215,16 @@ class BrowserMain extends Disposable {
 		return { serviceCollection, logService, storageService: services[1] };
 	}
 
-	private registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): void {
+	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
 
 		// Logger
 		(async () => {
-			if (browser.isEdge) {
-				fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
+			const indexedDB = await this.indexedDB;
+			if (indexedDB) {
+				const indexedDBLogProvider = new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, INDEXEDDB_LOGS_OBJECT_STORE);
+				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
 			} else {
-				try {
-					const indexedDBLogProvider = new IndexedDBLogProvider(logsPath.scheme);
-					await indexedDBLogProvider.database;
-
-					fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
-				} catch (error) {
-					logService.info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
-					logService.error(error);
-
-					fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
-				}
+				fileService.registerProvider(logsPath.scheme, new InMemoryFileSystemProvider());
 			}
 
 			logService.logger = new MultiplexLogService(coalesce([
@@ -250,7 +252,8 @@ class BrowserMain extends Disposable {
 
 		// User data
 		if (!this.configuration.userDataProvider) {
-			this.configuration.userDataProvider = this._register(new InMemoryFileSystemProvider());
+			const indexedDB = await this.indexedDB;
+			this.configuration.userDataProvider = this._register(indexedDB ? new IndexedDBFileSystemProvider(Schemas.userData, indexedDB, INDEXEDDB_USERDATA_OBJECT_STORE) : new InMemoryFileSystemProvider());
 		}
 		fileService.registerProvider(Schemas.userData, this.configuration.userDataProvider);
 	}

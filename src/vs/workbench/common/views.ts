@@ -648,6 +648,56 @@ export interface ITreeItem {
 	accessibilityInformation?: IAccessibilityInformation;
 }
 
+export class ResolvableTreeItem implements ITreeItem {
+	handle: string;
+	parentHandle?: string;
+	collapsibleState: TreeItemCollapsibleState;
+	label?: ITreeItemLabel;
+	description?: string | boolean;
+	icon?: UriComponents;
+	iconDark?: UriComponents;
+	themeIcon?: ThemeIcon;
+	resourceUri?: UriComponents;
+	tooltip?: string | IMarkdownString;
+	contextValue?: string;
+	command?: Command;
+	children?: ITreeItem[];
+	accessibilityInformation?: IAccessibilityInformation;
+	resolve: () => Promise<void>;
+	private resolved: boolean = false;
+	private _hasResolve: boolean = false;
+	constructor(treeItem: ITreeItem, resolve?: (() => Promise<ITreeItem | undefined>)) {
+		this.handle = treeItem.handle;
+		this.parentHandle = treeItem.parentHandle;
+		this.collapsibleState = treeItem.collapsibleState;
+		this.label = treeItem.label;
+		this.description = treeItem.description;
+		this.icon = treeItem.icon;
+		this.iconDark = treeItem.iconDark;
+		this.themeIcon = treeItem.themeIcon;
+		this.resourceUri = treeItem.resourceUri;
+		this.tooltip = treeItem.tooltip;
+		this.contextValue = treeItem.contextValue;
+		this.command = treeItem.command;
+		this.children = treeItem.children;
+		this.accessibilityInformation = treeItem.accessibilityInformation;
+		this._hasResolve = !!resolve;
+		this.resolve = async () => {
+			if (resolve && !this.resolved) {
+				const resolvedItem = await resolve();
+				if (resolvedItem) {
+					// Resolvable elements. Currently only tooltip.
+					this.tooltip = resolvedItem.tooltip;
+				}
+			}
+			this.resolved = true;
+		};
+	}
+	get hasResolve(): boolean {
+		return this._hasResolve;
+	}
+}
+
 export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	onDidChangeEmpty?: Event<void>;

@@ -432,8 +432,8 @@
       },
       {
         "command": "git.unstageSelectedRanges",
-        "key": "ctrl+k ctrl+u",
-        "mac": "cmd+k cmd+u",
+        "key": "ctrl+k ctrl+n",
+        "mac": "cmd+k cmd+n",
         "when": "isInDiffEditor"
       },
       {

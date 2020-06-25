@@ -6,7 +6,7 @@
 'use strict';
 import {
 	authentication,
-	AuthenticationSession2,
+	AuthenticationSession,
 	CancellationToken,
 	Disposable,
 	Event,
@@ -336,7 +336,7 @@ interface SearchQueryResults {
 }
 
 class GitHubApi {
-	constructor(private readonly session: AuthenticationSession2) { }
+	constructor(private readonly session: AuthenticationSession) { }
 
 	private _graphql: typeof graphql | undefined;
 	private get graphql() {

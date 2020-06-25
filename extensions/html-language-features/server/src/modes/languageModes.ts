@@ -16,6 +16,7 @@ import { getCSSMode } from './cssMode';
 import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
 import { getHTMLMode } from './htmlMode';
 import { getJavaScriptMode } from './javascriptMode';
+import { RequestService } from '../requests';
 
 export * from 'vscode-html-languageservice';
 export { WorkspaceFolder } from 'vscode-languageserver';
@@ -42,7 +43,7 @@ export interface LanguageMode {
 	getId(): string;
 	getSelectionRange?: (document: TextDocument, position: Position) => SelectionRange;
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
-	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList;
+	doComplete?: (document: TextDocument, position: Position, documentContext: DocumentContext, settings?: Settings) => Promise<CompletionList>;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
 	doHover?: (document: TextDocument, position: Position) => Hover | null;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp | null;
@@ -66,6 +67,7 @@ export interface LanguageMode {
 }
 
 export interface LanguageModes {
+	updateDataProviders(dataProviders: IHTMLDataProvider[]): void;
 	getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined;
 	getModesInRange(document: TextDocument, range: Range): LanguageModeRange[];
 	getAllModes(): LanguageMode[];
@@ -80,9 +82,9 @@ export interface LanguageModeRange extends Range {
 	attributeValue?: boolean;
 }
 
-export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, clientCapabilities: ClientCapabilities, customDataProviders?: IHTMLDataProvider[]): LanguageModes {
-	const htmlLanguageService = getHTMLLanguageService({ customDataProviders, clientCapabilities });
-	const cssLanguageService = getCSSLanguageService({ clientCapabilities });
+export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, clientCapabilities: ClientCapabilities, requestService: RequestService): LanguageModes {
+	const htmlLanguageService = getHTMLLanguageService({ clientCapabilities, fileSystemProvider: requestService });
+	const cssLanguageService = getCSSLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 
 	let documentRegions = getLanguageModelCache<HTMLDocumentRegions>(10, 60, document => getDocumentRegions(htmlLanguageService, document));
 
@@ -99,6 +101,9 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 		modes['typescript'] = getJavaScriptMode(documentRegions, 'typescript', workspace);
 	}
 	return {
+		async updateDataProviders(dataProviders: IHTMLDataProvider[]): Promise<void> {
+			htmlLanguageService.setDataProviders(true, dataProviders);
+		},
 		getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined {
 			let languageId = documentRegions.get(document).getLanguageAtPosition(position);
 			if (languageId) {

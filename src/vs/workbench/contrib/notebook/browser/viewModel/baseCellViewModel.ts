@@ -388,7 +388,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		super.dispose();
 	}
 
-	toJSON(): any {
+	toJSON(): object {
 		return {
 			handle: this.handle
 		};

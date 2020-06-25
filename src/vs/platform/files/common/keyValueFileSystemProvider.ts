@@ -8,11 +8,11 @@ import { IFileSystemProviderWithFileReadWriteCapability, FileSystemProviderCapab
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { joinPath, extUri } from 'vs/base/common/resources';
+import { joinPath, extUri, dirname } from 'vs/base/common/resources';
 import { values } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
 
-export abstract class KeyValueLogProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
+export abstract class KeyValueFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
 	readonly capabilities: FileSystemProviderCapabilities =
 		FileSystemProviderCapabilities.FileReadWrite
@@ -23,6 +23,7 @@ export abstract class KeyValueLogProvider extends Disposable implements IFileSys
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
 	private readonly versions: Map<string, number> = new Map<string, number>();
+	private readonly dirs: Set<string> = new Set<string>();
 
 	constructor(private readonly scheme: string) {
 		super();
@@ -33,6 +34,18 @@ export abstract class KeyValueLogProvider extends Disposable implements IFileSys
 	}
 
 	async mkdir(resource: URI): Promise<void> {
+		const parentDir = dirname(resource).path;
+		if (parentDir !== '/' && !this.dirs.has(parentDir)) {
+			throw createFileSystemProviderError(localize('fileNotFound', "File not found"), FileSystemProviderErrorCode.FileNotFound);
+		}
+		const hasKey = await this.hasKey(resource.path);
+		if (hasKey) {
+			throw createFileSystemProviderError(localize('fileNotDirectory', "File is not a directory"), FileSystemProviderErrorCode.FileNotADirectory);
+		}
+		if (this.dirs.has(resource.path)) {
+			throw createFileSystemProviderError(localize('flieExists', "File exists"), FileSystemProviderErrorCode.FileExists);
+		}
+		this.dirs.add(resource.path);
 	}
 
 	async stat(resource: URI): Promise<IStat> {
@@ -48,6 +61,14 @@ export abstract class KeyValueLogProvider extends Disposable implements IFileSys
 		}
 		const files = await this.readdir(resource);
 		if (files.length) {
+			return {
+				type: FileType.Directory,
+				ctime: 0,
+				mtime: 0,
+				size: 0
+			};
+		}
+		if (this.dirs.has(resource.path)) {
 			return {
 				type: FileType.Directory,
 				ctime: 0,

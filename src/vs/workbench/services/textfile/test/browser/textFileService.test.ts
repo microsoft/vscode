@@ -111,8 +111,8 @@ suite('Files - TextFileService', () => {
 		let eventCounter = 0;
 
 		const disposable1 = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async target => {
-				assert.equal(target.toString(), model.resource.toString());
+			participate: async files => {
+				assert.equal(files[0].target, model.resource.toString());
 				eventCounter++;
 			}
 		});

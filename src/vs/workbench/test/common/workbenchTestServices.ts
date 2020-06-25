@@ -134,17 +134,17 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
 	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable { return Disposable.None; }
 
-	async runFileOperationParticipants(target: URI, source: URI | undefined, operation: FileOperation): Promise<void> { }
+	async runFileOperationParticipants(files: { source?: URI, target: URI }[], operation: FileOperation): Promise<void> { }
 
-	async delete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<void> { }
+	async delete(resources: URI[], options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<void> { }
 
 	registerWorkingCopyProvider(provider: (resourceOrFolder: URI) => IWorkingCopy[]): IDisposable { return Disposable.None; }
 
 	getDirty(resource: URI): IWorkingCopy[] { return []; }
 
-	move(source: URI, target: URI, overwrite?: boolean | undefined): Promise<IFileStatWithMetadata> { throw new Error('Method not implemented.'); }
+	move(files: { source: URI; target: URI; }[], overwrite?: boolean | undefined): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
 
-	copy(source: URI, target: URI, overwrite?: boolean | undefined): Promise<IFileStatWithMetadata> { throw new Error('Method not implemented.'); }
+	copy(files: { source: URI; target: URI; }[], overwrite?: boolean | undefined): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
 }
 
 export function mock<T>(): Ctor<T> {
