@@ -61,7 +61,12 @@ class RichRenderer implements IOutputTransformContribution {
 
 			let mimeTypesMessage = mimeTypes.join(', ');
 
-			contentNode.innerText = `No renderer could be found for output. It has the following MIME types: ${mimeTypesMessage}`;
+			if (preferredMimeType) {
+				contentNode.innerText = `No renderer could be found for MIME type: ${preferredMimeType}`;
+			} else {
+				contentNode.innerText = `No renderer could be found for output. It has the following MIME types: ${mimeTypesMessage}`;
+			}
+
 			container.appendChild(contentNode);
 
 			return {
