@@ -58,7 +58,7 @@
       },
       {
         "fileMatch": "tsconfig.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+        "url": "https://json.schemastore.org/tsconfig"
       },
       {
         "fileMatch": "tsconfig.json",
@@ -66,7 +66,7 @@
       },
       {
         "fileMatch": "tsconfig.*.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+        "url": "https://json.schemastore.org/tsconfig"
       },
       {
         "fileMatch": "tsconfig-*.json",
@@ -74,7 +74,7 @@
       },
       {
         "fileMatch": "tsconfig-*.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+        "url": "https://json.schemastore.org/tsconfig"
       },
       {
         "fileMatch": "tsconfig.*.json",
@@ -82,27 +82,27 @@
       },
       {
         "fileMatch": "typings.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/typings.json"
+        "url": "https://json.schemastore.org/typings"
       },
       {
         "fileMatch": ".bowerrc",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/bowerrc.json"
+        "url": "https://json.schemastore.org/bowerrc"
       },
       {
         "fileMatch": ".babelrc",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+        "url": "https://json.schemastore.org/babelrc"
       },
       {
         "fileMatch": ".babelrc.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+        "url": "https://json.schemastore.org/babelrc"
       },
       {
         "fileMatch": "babel.config.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+        "url": "https://json.schemastore.org/babelrc"
       },
       {
         "fileMatch": "jsconfig.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
+        "url": "https://json.schemastore.org/jsconfig"
       },
       {
         "fileMatch": "jsconfig.json",
@@ -110,7 +110,7 @@
       },
       {
         "fileMatch": "jsconfig.*.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
+        "url": "https://json.schemastore.org/jsconfig"
       },
       {
         "fileMatch": "jsconfig.*.json",
