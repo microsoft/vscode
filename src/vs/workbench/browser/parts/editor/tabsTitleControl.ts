@@ -652,13 +652,11 @@ export class TabsTitleControl extends TitleControl {
 
 			tab.blur();
 
-			if (e.button === 1 /* Middle Button*/) {
+			if (e.button === 1 /* Middle Button*/ && lastMiddleMouseDownItem && lastMiddleMouseDownItem === e.target) {
 				e.stopPropagation(); // for https://github.com/Microsoft/vscode/issues/56715
 
 				this.blockRevealActiveTabOnce();
-				if (lastMiddleMouseDownItem && lastMiddleMouseDownItem === e.target) {
-					this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index });
-				}
+				this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index });
 			}
 		}));
 
