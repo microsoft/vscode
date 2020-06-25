@@ -1427,7 +1427,7 @@ export class SCMViewPane extends ViewPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService protected editorService: IEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IViewDescriptorService private viewDescriptorService: IViewDescriptorService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService,
