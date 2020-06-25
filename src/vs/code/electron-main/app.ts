@@ -900,8 +900,8 @@ class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHost
 					// depends on a new API for which electron.d.ts has not been updated:
 					// @ts-ignore
 					debug.sendCommand(data.method, data.params, data.sessionId)
-						.then(result => writeMessage({ id: data.id, sessionId: data.sessionId, result }))
-						.catch(error => writeMessage({ id: data.id, sessionId: data.sessionId, error: { code: 0, message: error.message } }));
+						.then((result: object) => writeMessage({ id: data.id, sessionId: data.sessionId, result }))
+						.catch((error: Error) => writeMessage({ id: data.id, sessionId: data.sessionId, error: { code: 0, message: error.message } }));
 				}
 			});
 
