@@ -7,12 +7,11 @@
 
 'use strict';
 const path = require('path');
-const withDefaults = require('../shared.webpack.config');
+const withBrowserDefaults = require('../shared.webpack.config').browser;
 const webpack = require('webpack');
 
-module.exports = withDefaults({
+const config = withBrowserDefaults({
 	context: __dirname,
-	target: 'webworker',
 	node: false,
 	entry: {
 		extension: './src/extension.ts',
@@ -21,10 +20,8 @@ module.exports = withDefaults({
 		alias: {
 			'node-fetch': path.resolve(__dirname, 'node_modules/node-fetch/browser.js'),
 		},
-	},
-	plugins: [
-		new webpack.DefinePlugin({
-			WEBWORKER: JSON.stringify(true)
-		})
-	]
+	}
 });
+config.plugins.push(new webpack.DefinePlugin({ WEBWORKER: JSON.stringify(true) }))
+
+module.exports = config;
