@@ -18,12 +18,17 @@ export const IActivityService = createDecorator<IActivityService>('activityServi
 
 export interface IActivityService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Show activity for the given view container
 	 */
 	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable;
+
+	/**
+	 * Show accounts activity
+	 */
+	showAccountsActivity(activity: IActivity): IDisposable;
 
 	/**
 	 * Show global activity

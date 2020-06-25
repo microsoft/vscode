@@ -9,7 +9,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as resources from 'vs/base/common/resources';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ViewContainer, IViewsRegistry, ITreeViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IViewDescriptor, ViewContainerLocation } from 'vs/workbench/common/views';
-import { TreeViewPane, CustomTreeView } from 'vs/workbench/browser/parts/views/treeView';
+import { TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, } from 'vs/base/common/arrays';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -31,6 +31,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
+import { CustomTreeView } from 'vs/workbench/contrib/views/browser/treeView';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -80,6 +81,9 @@ interface IUserFriendlyViewDescriptor {
 	name: string;
 	when?: string;
 
+	icon?: string;
+	contextualTitle?: string;
+
 	// From 'remoteViewDescriptor' type
 	group?: string;
 	remoteName?: string | string[];
@@ -98,6 +102,14 @@ const viewDescriptor: IJSONSchema = {
 		},
 		when: {
 			description: localize('vscode.extension.contributes.view.when', 'Condition which must be true to show this view'),
+			type: 'string'
+		},
+		icon: {
+			description: localize('vscode.extension.contributes.view.icon', "Path to the view icon. View icons are displayed when the name of the view cannot be shown. It is recommended that icons be in SVG, though any image file type is accepted."),
+			type: 'string'
+		},
+		contextualTitle: {
+			description: localize('vscode.extension.contributes.view.contextualTitle', "Human-readable context for when the view is moved out of its original location. By default, the view's container name will be used. Will be shown"),
 			type: 'string'
 		},
 	}
@@ -406,12 +418,14 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 							? container.viewOrderDelegate.getOrder(item.group)
 							: undefined;
 
+					const icon = item.icon ? resources.joinPath(extension.description.extensionLocation, item.icon) : undefined;
 					const viewDescriptor = <ICustomViewDescriptor>{
 						id: item.id,
 						name: item.name,
 						ctorDescriptor: new SyncDescriptor(TreeViewPane),
 						when: ContextKeyExpr.deserialize(item.when),
-						containerIcon: viewContainer?.icon,
+						containerIcon: icon || viewContainer?.icon,
+						containerTitle: item.contextualTitle || viewContainer?.name,
 						canToggleVisibility: true,
 						canMoveView: true,
 						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name),
@@ -466,6 +480,14 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			}
 			if (descriptor.when && typeof descriptor.when !== 'string') {
 				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
+				return false;
+			}
+			if (descriptor.icon && typeof descriptor.icon !== 'string') {
+				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'icon'));
+				return false;
+			}
+			if (descriptor.contextualTitle && typeof descriptor.contextualTitle !== 'string') {
+				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'contextualTitle'));
 				return false;
 			}
 		}

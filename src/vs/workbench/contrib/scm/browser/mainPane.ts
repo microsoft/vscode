@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scmViewlet';
+import 'vs/css!./media/scm';
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/resources';
@@ -192,6 +192,7 @@ export class MainPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
@@ -286,6 +287,12 @@ export class MainPane extends ViewPane {
 
 		menu.dispose();
 		contextKeyService.dispose();
+
+		if (repository.provider.rootUri) {
+			secondary.push(new Action('_openInTerminal', localize('open in terminal', "Open In Terminal"), undefined, true, async () => {
+				await this.commandService.executeCommand('openInTerminal', repository.provider.rootUri);
+			}));
+		}
 
 		if (secondary.length === 0) {
 			return;

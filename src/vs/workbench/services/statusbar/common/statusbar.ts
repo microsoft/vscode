@@ -61,7 +61,7 @@ export interface IStatusbarEntry {
 
 export interface IStatusbarService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor

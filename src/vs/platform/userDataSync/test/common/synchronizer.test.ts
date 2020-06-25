@@ -4,17 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncEnablementService, ISyncPreviewResult } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncResourceEnablementService, IRemoteUserData, ISyncData, ISyncPreview } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { AbstractSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
+
+interface ITestSyncPreview extends ISyncPreview {
+	ref?: string;
+}
 
 class TestSynchroniser extends AbstractSynchroniser {
 
 	syncBarrier: Barrier = new Barrier();
-	syncResult: { status?: SyncStatus, error?: boolean } = {};
+	syncResult: { hasConflicts: boolean, hasError: boolean } = { hasConflicts: false, hasError: false };
 	onDoSyncCall: Emitter<void> = this._register(new Emitter<void>());
 
 	readonly resource: SyncResource = SyncResource.Settings;
@@ -22,7 +28,7 @@ class TestSynchroniser extends AbstractSynchroniser {
 
 	private cancelled: boolean = false;
 
-	protected async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus> {
+	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus> {
 		this.cancelled = false;
 		this.onDoSyncCall.fire();
 		await this.syncBarrier.wait();
@@ -31,26 +37,57 @@ class TestSynchroniser extends AbstractSynchroniser {
 			return SyncStatus.Idle;
 		}
 
-		if (this.syncResult.error) {
+		return super.doSync(remoteUserData, lastSyncUserData);
+	}
+
+	protected async generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestSyncPreview> {
+		return { hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData };
+	}
+
+	protected async generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestSyncPreview> {
+		return { hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData };
+	}
+
+	protected async generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ITestSyncPreview> {
+		return { hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData };
+	}
+
+	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestSyncPreview> {
+		if (this.syncResult.hasError) {
 			throw new Error('failed');
 		}
+		return { ref: remoteUserData.ref, hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData };
+	}
 
-		await this.apply(remoteUserData.ref);
-		return this.syncResult.status || SyncStatus.Idle;
+	protected async updatePreviewWithConflict(preview: ISyncPreview, conflictResource: URI, conflictContent: string): Promise<ISyncPreview> {
+		return preview;
+	}
+
+	protected async applyPreview({ ref }: ITestSyncPreview, forcePush: boolean): Promise<void> {
+		if (ref) {
+			await this.apply(ref);
+		}
 	}
 
 	async apply(ref: string): Promise<void> {
-		ref = await this.userDataSyncStoreService.write(this.resource, '', ref);
-		await this.updateLastSyncUserData({ ref, syncData: { content: '', version: this.version } });
+		const remoteUserData = await this.updateRemoteUserData('', ref);
+		await this.updateLastSyncUserData(remoteUserData);
 	}
 
 	async stop(): Promise<void> {
 		this.cancelled = true;
 		this.syncBarrier.open();
+		super.stop();
 	}
 
-	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult> {
-		return { hasLocalChanged: false, hasRemoteChanged: false };
+	async triggerLocalChange(): Promise<void> {
+		super.triggerLocalChange();
+	}
+
+	onDidTriggerLocalChangeCall: Emitter<void> = this._register(new Emitter<void>());
+	protected async doTriggerLocalChange(): Promise<void> {
+		await super.doTriggerLocalChange();
+		this.onDidTriggerLocalChangeCall.fire();
 	}
 
 }
@@ -79,7 +116,7 @@ suite('TestSynchronizer', () => {
 
 		const promise = Event.toPromise(testObject.onDoSyncCall.event);
 
-		testObject.sync();
+		testObject.sync(await client.manifest());
 		await promise;
 
 		assert.deepEqual(actual, [SyncStatus.Syncing]);
@@ -94,7 +131,7 @@ suite('TestSynchronizer', () => {
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		assert.deepEqual(actual, [SyncStatus.Syncing, SyncStatus.Idle]);
 		assert.deepEqual(testObject.status, SyncStatus.Idle);
@@ -102,12 +139,12 @@ suite('TestSynchronizer', () => {
 
 	test('status is set correctly when sync has conflicts', async () => {
 		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
-		testObject.syncResult = { status: SyncStatus.HasConflicts };
+		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		assert.deepEqual(actual, [SyncStatus.Syncing, SyncStatus.HasConflicts]);
 		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
@@ -115,14 +152,14 @@ suite('TestSynchronizer', () => {
 
 	test('status is set correctly when sync has errors', async () => {
 		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
-		testObject.syncResult = { error: true };
+		testObject.syncResult = { hasError: true, hasConflicts: false };
 		testObject.syncBarrier.open();
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
 
 		try {
-			await testObject.sync();
+			await testObject.sync(await client.manifest());
 			assert.fail('Should fail');
 		} catch (e) {
 			assert.deepEqual(actual, [SyncStatus.Syncing, SyncStatus.Idle]);
@@ -134,12 +171,12 @@ suite('TestSynchronizer', () => {
 		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
 		const promise = Event.toPromise(testObject.onDoSyncCall.event);
 
-		testObject.sync();
+		testObject.sync(await client.manifest());
 		await promise;
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		assert.deepEqual(actual, []);
 		assert.deepEqual(testObject.status, SyncStatus.Syncing);
@@ -149,12 +186,12 @@ suite('TestSynchronizer', () => {
 
 	test('sync should not run if disabled', async () => {
 		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
-		client.instantiationService.get(IUserDataSyncEnablementService).setResourceEnablement(testObject.resource, false);
+		client.instantiationService.get(IUserDataSyncResourceEnablementService).setResourceEnablement(testObject.resource, false);
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		assert.deepEqual(actual, []);
 		assert.deepEqual(testObject.status, SyncStatus.Idle);
@@ -162,13 +199,13 @@ suite('TestSynchronizer', () => {
 
 	test('sync should not run if there are conflicts', async () => {
 		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
-		testObject.syncResult = { status: SyncStatus.HasConflicts };
+		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		assert.deepEqual(actual, []);
 		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
@@ -178,7 +215,7 @@ suite('TestSynchronizer', () => {
 		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
 		// Sync once
 		testObject.syncBarrier.open();
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 		testObject.syncBarrier = new Barrier();
 
 		// update remote data before syncing so that 412 is thrown by server
@@ -190,14 +227,28 @@ suite('TestSynchronizer', () => {
 		});
 
 		// Start sycing
-		const { ref } = await userDataSyncStoreService.read(testObject.resource, null);
-		await testObject.sync(ref);
+		const manifest = await client.manifest();
+		const ref = manifest!.latest![testObject.resource];
+		await testObject.sync(await client.manifest());
 
 		assert.deepEqual(server.requests, [
 			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': ref } },
 			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
 			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': `${parseInt(ref) + 1}` } },
 		]);
+	});
+
+	test('no requests are made to server when local change is triggered', async () => {
+		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		testObject.syncBarrier.open();
+		await testObject.sync(await client.manifest());
+
+		server.reset();
+		const promise = Event.toPromise(testObject.onDidTriggerLocalChangeCall.event);
+		await testObject.triggerLocalChange();
+
+		await promise;
+		assert.deepEqual(server.requests, []);
 	});
 
 

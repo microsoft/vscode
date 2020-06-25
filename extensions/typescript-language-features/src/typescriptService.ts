@@ -32,7 +32,7 @@ interface StandardTsServerRequests {
 	'completions': [Proto.CompletionsRequestArgs, Proto.CompletionsResponse];
 	'configure': [Proto.ConfigureRequestArguments, Proto.ConfigureResponse];
 	'definition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
-	'definitionAndBoundSpan': [Proto.FileLocationRequestArgs, Proto.DefinitionInfoAndBoundSpanReponse];
+	'definitionAndBoundSpan': [Proto.FileLocationRequestArgs, Proto.DefinitionInfoAndBoundSpanResponse];
 	'docCommentTemplate': [Proto.FileLocationRequestArgs, Proto.DocCommandTemplateResponse];
 	'documentHighlights': [Proto.DocumentHighlightsRequestArgs, Proto.DocumentHighlightsResponse];
 	'format': [Proto.FormatRequestArgs, Proto.FormatResponse];

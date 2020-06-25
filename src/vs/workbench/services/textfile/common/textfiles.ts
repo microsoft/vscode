@@ -27,7 +27,7 @@ export interface TextFileCreateEvent extends IWaitUntil {
 
 export interface ITextFileService extends IDisposable {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Access to the manager of text file editor models providing further
@@ -171,7 +171,7 @@ export class TextFileOperationError extends FileOperationError {
 }
 
 export interface IResourceEncodings {
-	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding;
+	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): Promise<IResourceEncoding>;
 }
 
 export interface IResourceEncoding {
@@ -327,8 +327,14 @@ export interface ITextFileEditorModelManager {
 	readonly onDidSave: Event<ITextFileSaveEvent>;
 	readonly onDidRevert: Event<ITextFileEditorModel>;
 
+	/**
+	 * Access to all text file editor models in memory.
+	 */
 	readonly models: ITextFileEditorModel[];
 
+	/**
+	 * Allows to configure the error handler that is called on save errors.
+	 */
 	saveErrorHandler: ISaveErrorHandler;
 
 	/**
@@ -352,7 +358,12 @@ export interface ITextFileEditorModelManager {
 	 */
 	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
 
-	disposeModel(model: ITextFileEditorModel): void;
+	/**
+	 * Waits for the model to be ready to be disposed. There may be conditions
+	 * under which the model cannot be disposed, e.g. when it is dirty. Once the
+	 * promise is settled, it is safe to dispose the model.
+	 */
+	canDispose(model: ITextFileEditorModel): true | Promise<true>;
 }
 
 export interface ITextFileSaveOptions extends ISaveOptions {

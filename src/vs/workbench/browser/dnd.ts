@@ -5,7 +5,7 @@
 
 import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IRecentFile, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { normalize } from 'vs/base/common/path';
-import { basename } from 'vs/base/common/resources';
+import { basename, extUri } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
@@ -47,11 +47,7 @@ export class DraggedEditorIdentifier {
 
 export class DraggedEditorGroupIdentifier {
 
-	constructor(private _identifier: GroupIdentifier) { }
-
-	get identifier(): GroupIdentifier {
-		return this._identifier;
-	}
+	constructor(public readonly identifier: GroupIdentifier) { }
 }
 
 export interface IDraggedEditor extends IDraggedResource {
@@ -361,7 +357,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 					for (const textEditorControl of textEditorControls) {
 						if (isCodeEditor(textEditorControl)) {
 							const model = textEditorControl.getModel();
-							if (model?.uri?.toString() === file.resource.toString()) {
+							if (extUri.isEqual(model?.uri, file.resource)) {
 								return withNullAsUndefined(textEditorControl.saveViewState());
 							}
 						}
@@ -675,6 +671,11 @@ export class CompositeDragAndDropObserver extends Disposable {
 		disposableStore.add(addDisposableListener(element, EventType.DRAG_START, e => {
 			const { id, type } = draggedItemProvider();
 			this.writeDragData(id, type);
+
+			if (e.dataTransfer) {
+				e.dataTransfer.setDragImage(element, 0, 0);
+			}
+
 			this._onDragStart.fire({ eventData: e, dragAndDropData: this.readDragData(type)! });
 		}));
 		disposableStore.add(new DragAndDropObserver(element, {
@@ -747,4 +748,12 @@ export class CompositeDragAndDropObserver extends Disposable {
 		}
 		return this._register(disposableStore);
 	}
+}
+
+export function toggleDropEffect(dataTransfer: DataTransfer | null, dropEffect: string, shouldHaveIt: boolean) {
+	if (!dataTransfer) {
+		return;
+	}
+
+	dataTransfer.dropEffect = shouldHaveIt ? dropEffect : 'none';
 }

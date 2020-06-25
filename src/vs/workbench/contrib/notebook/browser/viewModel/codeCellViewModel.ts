@@ -9,7 +9,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -67,13 +67,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	constructor(
 		readonly viewType: string,
-		readonly notebookHandle: number,
 		readonly model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		readonly eventDispatcher: NotebookEventDispatcher,
 		@ITextModelService private readonly _modelService: ITextModelService,
 	) {
-		super(viewType, notebookHandle, model, UUID.generateUuid());
+		super(viewType, model, UUID.generateUuid());
 		this._register(this.model.onDidChangeOutputs((splices) => {
 			this._outputCollection = new Array(this.model.outputs.length);
 			this._outputsTop = null;
@@ -95,14 +94,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	private computeEditorWidth(outerWidth: number): number {
-		return outerWidth - (CELL_MARGIN * 2 + CELL_RUN_GUTTER);
+		return outerWidth - (CODE_CELL_LEFT_MARGIN + CELL_MARGIN + CELL_RUN_GUTTER);
 	}
 
 	layoutChange(state: CodeCellLayoutChangeEvent) {
 		// recompute
 		this._ensureOutputsTop();
 		const outputTotalHeight = this._outputsTop!.getTotalValue();
-		const totalHeight = EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_MARGIN + outputTotalHeight + BOTTOM_CELL_TOOLBAR_HEIGHT + CELL_STATUSBAR_HEIGHT;
+		const totalHeight = EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_MARGIN + outputTotalHeight + BOTTOM_CELL_TOOLBAR_HEIGHT + CELL_STATUSBAR_HEIGHT + CELL_BOTTOM_MARGIN;
 		const indicatorHeight = this.editorHeight + CELL_STATUSBAR_HEIGHT + outputTotalHeight;
 		const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN + this.editorHeight + CELL_STATUSBAR_HEIGHT;
 		const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT;
@@ -174,17 +173,17 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	 * Text model is used for editing.
 	 */
 	async resolveTextModel(): Promise<model.ITextModel> {
-		if (!this._textModel) {
+		if (!this.textModel) {
 			const ref = await this._modelService.createModelReference(this.model.uri);
-			this._textModel = ref.object.textEditorModel;
+			this.textModel = ref.object.textEditorModel;
 			this._register(ref);
-			this._register(this._textModel.onDidChangeContent(() => {
+			this._register(this.textModel.onDidChangeContent(() => {
 				this.editState = CellEditState.Editing;
 				this._onDidChangeState.fire({ contentChanged: true });
 			}));
 		}
 
-		return this._textModel;
+		return this.textModel;
 	}
 
 	onDeselect() {
@@ -202,15 +201,18 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this.layoutChange({ outputHeight: true });
 	}
 
-	getOutputOffset(index: number): number {
+	getOutputOffsetInContainer(index: number) {
 		this._ensureOutputsTop();
 
 		if (index >= this._outputCollection.length) {
 			throw new Error('Output index out of range!');
 		}
 
-		const offset = this._outputsTop!.getAccumulatedValue(index - 1);
-		return this.layoutInfo.outputContainerOffset + offset;
+		return this._outputsTop!.getAccumulatedValue(index - 1);
+	}
+
+	getOutputOffset(index: number): number {
+		return this.layoutInfo.outputContainerOffset + this.getOutputOffsetInContainer(index);
 	}
 
 	spliceOutputHeights(start: number, deleteCnt: number, heights: number[]) {

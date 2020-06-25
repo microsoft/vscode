@@ -50,6 +50,10 @@
 	outline-offset: -2px;
 }
 
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.clicked:focus .action-label {
+	border-bottom-color: transparent !important; /* hides border on clicked state */
+}
+
 /** Panel Switcher */
 
 .monaco-workbench .part.panel > .composite.title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.codicon-more {
@@ -63,12 +67,9 @@
 }
 
 .monaco-workbench .part.panel .empty-panel-message-area {
-	position: absolute;
 	display: none;
-	top: 0px;
 	height: 100%;
 	width: 100%;
-	z-index: 10;
 }
 
 .monaco-workbench .part.panel .empty-panel-message-area.visible {
@@ -137,7 +138,8 @@
 
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before,
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after,
-.monaco-workbench .part.panel > .composite.title.dragged-over > .panel-switcher-container > .monaco-action-bar .action-item:last-of-type::after {
+.monaco-workbench .part.panel > .composite.title.dragged-over-head > .panel-switcher-container > .monaco-action-bar .action-item:first-of-type::before,
+.monaco-workbench .part.panel > .composite.title.dragged-over-tail > .panel-switcher-container > .monaco-action-bar .action-item:last-of-type::after {
 	opacity: 1;
 }
 
@@ -170,19 +172,6 @@
 	display: inline-block;
 	box-sizing: border-box;
 	}
-
-/** Actions */
-
-.monaco-workbench .panel .monaco-action-bar .action-item.select-container {
-	cursor: default;
-}
-
-.monaco-workbench .panel .monaco-action-bar .action-item .monaco-select-box {
-	cursor: pointer;
-	min-width: 110px;
-	min-height: 18px;
-	padding: 2px 23px 2px 8px;
-}
 
 /* Rotate icons when panel is on right */
 .monaco-workbench .part.panel.right .title-actions .codicon-split-horizontal,

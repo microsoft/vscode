@@ -3,16 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/// <reference path="../../../../typings/require.d.ts" />
+
 //@ts-check
 'use strict';
 
-const perf = require('../../../base/common/performance');
-perf.mark('renderer/started');
+const perf = (function () {
+	let sharedObj;
+	if (typeof global === 'object') {
+		// nodejs
+		sharedObj = global;
+	} else if (typeof self === 'object') {
+		// browser
+		sharedObj = self;
+	} else {
+		sharedObj = {};
+	}
+	// @ts-ignore
+	sharedObj._performanceEntries = sharedObj._performanceEntries || [];
+	return {
+		/**
+		 * @param {string} name
+		 */
+		mark(name) {
+			sharedObj._performanceEntries.push(name, Date.now());
+		}
+	};
+})();
 
-const bootstrapWindow = require('../../../../bootstrap-window');
+perf.mark('renderer/started');
 
 // Setup shell environment
 process['lazyEnv'] = getLazyEnv();
+
+/**
+ * @type {{ load: (modules: string[], resultCallback: (result, configuration: object) => any, options: object) => unknown }}
+ */
+const bootstrapWindow = (() => {
+	// @ts-ignore (defined in bootstrap-window.js)
+	return window.MonacoBootstrapWindow;
+})();
 
 // Load workbench main JS, CSS and NLS all in parallel. This is an
 // optimization to prevent a waterfall of loading to happen, because
@@ -32,23 +62,26 @@ bootstrapWindow.load([
 			// @ts-ignore
 			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
 		});
-	}, {
-	removeDeveloperKeybindingsAfterLoad: true,
-	canModifyDOM: function (windowConfig) {
-		showPartsSplash(windowConfig);
 	},
-	beforeLoaderConfig: function (windowConfig, loaderConfig) {
-		loaderConfig.recordStats = true;
-	},
-	beforeRequire: function () {
-		perf.mark('willLoadWorkbenchMain');
+	{
+		removeDeveloperKeybindingsAfterLoad: true,
+		canModifyDOM: function (windowConfig) {
+			showPartsSplash(windowConfig);
+		},
+		beforeLoaderConfig: function (windowConfig, loaderConfig) {
+			loaderConfig.recordStats = true;
+		},
+		beforeRequire: function () {
+			perf.mark('willLoadWorkbenchMain');
+		}
 	}
-});
+);
 
 /**
  * @param {{
  *	partsSplashPath?: string,
  *	highContrast?: boolean,
+ *	defaultThemeType?: string,
  *	extensionDevelopmentPath?: string[],
  *	folderUri?: object,
  *	workspace?: object
@@ -60,7 +93,7 @@ function showPartsSplash(configuration) {
 	let data;
 	if (typeof configuration.partsSplashPath === 'string') {
 		try {
-			data = JSON.parse(require('fs').readFileSync(configuration.partsSplashPath, 'utf8'));
+			data = JSON.parse(require.__$__nodeRequire('fs').readFileSync(configuration.partsSplashPath, 'utf8'));
 		} catch (e) {
 			// ignore
 		}
@@ -77,13 +110,27 @@ function showPartsSplash(configuration) {
 	}
 
 	// minimal color configuration (works with or without persisted data)
-	const baseTheme = data ? data.baseTheme : configuration.highContrast ? 'hc-black' : 'vs-dark';
-	const shellBackground = data ? data.colorInfo.editorBackground : configuration.highContrast ? '#000000' : '#1E1E1E';
-	const shellForeground = data ? data.colorInfo.foreground : configuration.highContrast ? '#FFFFFF' : '#CCCCCC';
+	let baseTheme, shellBackground, shellForeground;
+	if (data) {
+		baseTheme = data.baseTheme;
+		shellBackground = data.colorInfo.editorBackground;
+		shellForeground = data.colorInfo.foreground;
+	} else if (configuration.highContrast || configuration.defaultThemeType === 'hc') {
+		baseTheme = 'hc-black';
+		shellBackground = '#000000';
+		shellForeground = '#FFFFFF';
+	} else if (configuration.defaultThemeType === 'vs') {
+		baseTheme = 'vs';
+		shellBackground = '#FFFFFF';
+		shellForeground = '#000000';
+	} else {
+		baseTheme = 'vs-dark';
+		shellBackground = '#1E1E1E';
+		shellForeground = '#CCCCCC';
+	}
 	const style = document.createElement('style');
 	style.className = 'initialShellColors';
 	document.head.appendChild(style);
-	document.body.className = baseTheme;
 	style.innerHTML = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
 
 	if (data && data.layoutInfo) {
@@ -91,6 +138,7 @@ function showPartsSplash(configuration) {
 		const { id, layoutInfo, colorInfo } = data;
 		const splash = document.createElement('div');
 		splash.id = id;
+		splash.className = baseTheme;
 
 		if (layoutInfo.windowBorder) {
 			splash.style.position = 'relative';
@@ -133,8 +181,8 @@ function showPartsSplash(configuration) {
  * @returns {Promise<void>}
  */
 function getLazyEnv() {
-	// @ts-ignore
-	const ipc = require('electron').ipcRenderer;
+
+	const ipc = require.__$__nodeRequire('electron').ipcRenderer;
 
 	return new Promise(function (resolve) {
 		const handle = setTimeout(function () {
@@ -144,7 +192,7 @@ function getLazyEnv() {
 
 		ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
 			clearTimeout(handle);
-			bootstrapWindow.assign(process.env, shellEnv);
+			Object.assign(process.env, shellEnv);
 			// @ts-ignore
 			resolve(process.env);
 		});

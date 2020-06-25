@@ -206,7 +206,7 @@ export class UriIterator implements IKeyIterator<URI> {
 
 	cmp(a: string): number {
 		if (this._states[this._stateIdx] === UriIteratorState.Scheme) {
-			return compareSubstringIgnoreCase(a, this._value.scheme);
+			return compare(a, this._value.scheme);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Authority) {
 			return compareSubstringIgnoreCase(a, this._value.authority);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Path) {
@@ -481,16 +481,40 @@ export class TernarySearchTree<K, V> {
 	}
 }
 
+interface ResourceMapKeyFn {
+	(resource: URI): string;
+}
+
 export class ResourceMap<T> implements Map<URI, T> {
+
+	private static readonly defaultToKey = (resource: URI) => resource.toString();
 
 	readonly [Symbol.toStringTag] = 'ResourceMap';
 
-	protected readonly map: Map<string, T>;
-	protected readonly ignoreCase?: boolean;
+	private readonly map: Map<string, T>;
+	private readonly toKey: ResourceMapKeyFn;
 
-	constructor() {
-		this.map = new Map<string, T>();
-		this.ignoreCase = false; // in the future this should be an uri-comparator
+	/**
+	 *
+	 * @param toKey Custom uri identity function, e.g use an existing `IExtUri#getComparison`-util
+	 */
+	constructor(toKey?: ResourceMapKeyFn);
+
+	/**
+	 *
+	 * @param other Another resource which this maps is created from
+	 * @param toKey Custom uri identity function, e.g use an existing `IExtUri#getComparison`-util
+	 */
+	constructor(other?: ResourceMap<T>, toKey?: ResourceMapKeyFn);
+
+	constructor(mapOrKeyFn?: ResourceMap<T> | ResourceMapKeyFn, toKey?: ResourceMapKeyFn) {
+		if (mapOrKeyFn instanceof ResourceMap) {
+			this.map = new Map(mapOrKeyFn.map);
+			this.toKey = toKey ?? ResourceMap.defaultToKey;
+		} else {
+			this.map = new Map();
+			this.toKey = mapOrKeyFn ?? ResourceMap.defaultToKey;
+		}
 	}
 
 	set(resource: URI, value: T): this {
@@ -548,23 +572,6 @@ export class ResourceMap<T> implements Map<URI, T> {
 			yield [URI.parse(item[0]), item[1]];
 		}
 	}
-
-	private toKey(resource: URI): string {
-		let key = resource.toString();
-		if (this.ignoreCase) {
-			key = key.toLowerCase();
-		}
-
-		return key;
-	}
-
-	clone(): ResourceMap<T> {
-		const resourceMap = new ResourceMap<T>();
-
-		this.map.forEach((value, key) => resourceMap.map.set(key, value));
-
-		return resourceMap;
-	}
 }
 
 interface Item<K, V> {
@@ -580,7 +587,9 @@ export const enum Touch {
 	AsNew = 2
 }
 
-export class LinkedMap<K, V> {
+export class LinkedMap<K, V> implements Map<K, V> {
+
+	readonly [Symbol.toStringTag] = 'LinkedMap';
 
 	private _map: Map<K, Item<K, V>>;
 	private _head: Item<K, V> | undefined;
@@ -636,7 +645,7 @@ export class LinkedMap<K, V> {
 		return item.value;
 	}
 
-	set(key: K, value: V, touch: Touch = Touch.None): void {
+	set(key: K, value: V, touch: Touch = Touch.None): this {
 		let item = this._map.get(key);
 		if (item) {
 			item.value = value;
@@ -662,6 +671,7 @@ export class LinkedMap<K, V> {
 			this._map.set(key, item);
 			this._size++;
 		}
+		return this;
 	}
 
 	delete(key: K): boolean {
@@ -694,12 +704,16 @@ export class LinkedMap<K, V> {
 	}
 
 	forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
+		const state = this._state;
 		let current = this._head;
 		while (current) {
 			if (thisArg) {
 				callbackfn.bind(thisArg)(current.value, current.key, this);
 			} else {
 				callbackfn(current.value, current.key, this);
+			}
+			if (this._state !== state) {
+				throw new Error(`LinkedMap got modified during iteration.`);
 			}
 			current = current.next;
 		}
@@ -987,9 +1001,10 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		return super.get(key, Touch.None);
 	}
 
-	set(key: K, value: V): void {
+	set(key: K, value: V): this {
 		super.set(key, value, Touch.AsNew);
 		this.checkTrim();
+		return this;
 	}
 
 	private checkTrim() {

@@ -26,7 +26,7 @@ import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IFileService, IFileContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -233,7 +233,7 @@ export class InstallAction extends ExtensionAction {
 
 		const extension = await this.install(this.extension);
 
-		alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
+		alert(localize('installExtensionComplete', "Installing extension {0} is completed.", this.extension.displayName));
 
 		if (extension && extension.local) {
 			const runningExtension = await this.getRunningExtension(extension.local);
@@ -808,7 +808,7 @@ export class MenuItemExtensionAction extends ExtensionAction {
 
 	constructor(
 		private readonly action: IAction,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(action.id, action.label);
 	}
@@ -818,7 +818,7 @@ export class MenuItemExtensionAction extends ExtensionAction {
 			return;
 		}
 		if (this.action.id === TOGGLE_IGNORE_EXTENSION_ACTION_ID) {
-			this.checked = !this.configurationService.getValue<string[]>('sync.ignoredExtensions').some(id => areSameExtensions({ id }, this.extension!.identifier));
+			this.checked = !this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension);
 		}
 	}
 
@@ -928,7 +928,7 @@ export class EnableGloballyAction extends ExtensionAction {
 		this.enabled = false;
 		if (this.extension && this.extension.local) {
 			this.enabled = this.extension.state === ExtensionState.Installed
-				&& this.extension.enablementState === EnablementState.DisabledGlobally
+				&& this.extensionEnablementService.isDisabledGlobally(this.extension.local)
 				&& this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
@@ -1261,7 +1261,7 @@ export class ReloadAction extends ExtensionAction {
 
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
 		const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier))[0];
-		const isSameExtensionRunning = runningExtension && this.extension.server === this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation);
+		const isSameExtensionRunning = runningExtension && this.extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension));
 
 		if (isUninstalled) {
 			if (isSameExtensionRunning && !this.extensionService.canRemoveExtension(runningExtension)) {
@@ -1282,7 +1282,7 @@ export class ReloadAction extends ExtensionAction {
 					if (this.extensionService.canAddExtension(toExtensionDescription(this.extension.local))) {
 						return;
 					}
-					const runningExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation);
+					const runningExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension));
 
 					if (isSameExtensionRunning) {
 						// Different version of same extension is running. Requires reload to run the current version
@@ -1359,7 +1359,7 @@ export class ReloadAction extends ExtensionAction {
 						this.enabled = true;
 						this.label = localize('reloadRequired', "Reload Required");
 						this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
-						alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
+						alert(localize('installExtensionCompletedAndReloadRequired', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
 						return;
 					}
 				}
@@ -1827,6 +1827,40 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 	}
 }
 
+export class ShowRecommendedExtensionAction extends Action {
+
+	static readonly ID = 'workbench.extensions.action.showRecommendedExtension';
+	static readonly LABEL = localize('showRecommendedExtension', "Show Recommended Extension");
+
+	private extensionId: string;
+
+	constructor(
+		extensionId: string,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
+	) {
+		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, undefined, false);
+		this.extensionId = extensionId;
+	}
+
+	run(): Promise<any> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
+			.then(viewlet => {
+				viewlet.search(`@id:${this.extensionId}`);
+				viewlet.focus();
+				return this.extensionWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation', pageSize: 1 }, CancellationToken.None)
+					.then(pager => {
+						if (pager && pager.firstPage && pager.firstPage.length) {
+							const extension = pager.firstPage[0];
+							return this.extensionWorkbenchService.open(extension);
+						}
+						return null;
+					});
+			});
+	}
+}
+
 export class InstallRecommendedExtensionAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.installRecommendedExtension';
@@ -1855,6 +1889,7 @@ export class InstallRecommendedExtensionAction extends Action {
 						if (pager && pager.firstPage && pager.firstPage.length) {
 							const extension = pager.firstPage[0];
 							return this.extensionWorkbenchService.install(extension)
+								.then(() => this.extensionWorkbenchService.open(extension))
 								.then(() => null, err => {
 									console.error(err);
 									return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService);
@@ -2195,7 +2230,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 
 				return this.jsonEditingService.write(workspaceConfigurationFile,
 					[{
-						key: 'extensions',
+						path: ['extensions'],
 						value: {
 							recommendations: shouldRecommend ? insertInto : removeFrom,
 							unwantedRecommendations: shouldRecommend ? removeFrom : insertInto
@@ -2224,7 +2259,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 					removeFrom = removeFrom.filter(x => x.toLowerCase() !== extensionIdLowerCase);
 					removeFromPromise = this.jsonEditingService.write(extensionsFileResource,
 						[{
-							key: shouldRecommend ? 'unwantedRecommendations' : 'recommendations',
+							path: shouldRecommend ? ['unwantedRecommendations'] : ['recommendations'],
 							value: removeFrom
 						}],
 						true);
@@ -2233,7 +2268,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				return removeFromPromise.then(() =>
 					this.jsonEditingService.write(extensionsFileResource,
 						[{
-							key: shouldRecommend ? 'recommendations' : 'unwantedRecommendations',
+							path: shouldRecommend ? ['recommendations'] : ['unwantedRecommendations'],
 							value: insertInto
 						}],
 						true)
@@ -2260,7 +2295,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			.then(content => {
 				const workspaceRecommendations = <IExtensionsConfigContent>json.parse(content.value.toString())['extensions'];
 				if (!workspaceRecommendations || !workspaceRecommendations.recommendations) {
-					return this.jsonEditingService.write(workspaceConfigurationFile, [{ key: 'extensions', value: { recommendations: [] } }], true)
+					return this.jsonEditingService.write(workspaceConfigurationFile, [{ path: ['extensions'], value: { recommendations: [] } }], true)
 						.then(() => this.fileService.readFile(workspaceConfigurationFile));
 				}
 				return content;
@@ -2591,7 +2626,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 		};
 		const canRemoveExtension = () => {
 			if (this.extension!.local) {
-				if (runningExtensions.every(e => !(areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier) && this.extension!.server === this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation)))) {
+				if (runningExtensions.every(e => !(areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier) && this.extension!.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(e))))) {
 					return true;
 				}
 				return this.extensionService.canRemoveExtension(toExtensionDescription(this.extension!.local));
@@ -2660,7 +2695,8 @@ export class SyncIgnoredIconAction extends ExtensionAction {
 	private static readonly DISABLE_CLASS = `${SyncIgnoredIconAction.ENABLE_CLASS} hide`;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super('extensions.syncignore', '', SyncIgnoredIconAction.DISABLE_CLASS, false);
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('sync.ignoredExtensions'))(() => this.update()));
@@ -2670,11 +2706,8 @@ export class SyncIgnoredIconAction extends ExtensionAction {
 
 	update(): void {
 		this.class = SyncIgnoredIconAction.DISABLE_CLASS;
-		if (this.extension) {
-			const ignoredExtensions = this.configurationService.getValue<string[]>('sync.ignoredExtensions') || [];
-			if (ignoredExtensions.some(id => areSameExtensions({ id }, this.extension!.identifier))) {
-				this.class = SyncIgnoredIconAction.ENABLE_CLASS;
-			}
+		if (this.extension && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)) {
+			this.class = SyncIgnoredIconAction.ENABLE_CLASS;
 		}
 	}
 
@@ -2825,7 +2858,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		}
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier))[0];
-			const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation) : null;
+			const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)) : null;
 			if (this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
 				if (prefersExecuteOnWorkspace(this.extension.local!.manifest, this.productService, this.configurationService)) {
 					this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;

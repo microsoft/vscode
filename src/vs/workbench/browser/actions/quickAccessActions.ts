@@ -138,7 +138,7 @@ CommandsRegistry.registerCommand({
 	handler: async function (accessor: ServicesAccessor, prefix: unknown) {
 		const quickInputService = accessor.get(IQuickInputService);
 
-		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined);
+		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
 	},
 	description: {
 		description: `Quick access`,
@@ -151,7 +151,7 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-CommandsRegistry.registerCommand('workbench.action.quickOpenPreviousEditor', async function (accessor: ServicesAccessor, prefix: string | null = null) {
+CommandsRegistry.registerCommand('workbench.action.quickOpenPreviousEditor', async accessor => {
 	const quickInputService = accessor.get(IQuickInputService);
 
 	quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });

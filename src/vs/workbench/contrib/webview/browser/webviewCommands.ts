@@ -32,7 +32,7 @@ export class ShowWebViewEditorFindWidgetAction extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewEditor(accessor)?.showFind();
+		getFocusedWebviewEditor(accessor)?.showFind();
 	}
 }
 
@@ -53,7 +53,7 @@ export class HideWebViewEditorFindCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewEditor(accessor)?.hideFind();
+		getFocusedWebviewEditor(accessor)?.hideFind();
 	}
 }
 
@@ -74,7 +74,7 @@ export class WebViewEditorFindNextCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewEditor(accessor)?.runFindAction(false);
+		getFocusedWebviewEditor(accessor)?.runFindAction(false);
 	}
 }
 
@@ -95,7 +95,7 @@ export class WebViewEditorFindPreviousCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewEditor(accessor)?.runFindAction(true);
+		getFocusedWebviewEditor(accessor)?.runFindAction(true);
 	}
 }
 
@@ -117,7 +117,7 @@ export class SelectAllWebviewEditorCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebviewEditor(accessor)?.selectAll();
+		getFocusedWebviewEditor(accessor)?.selectAll();
 	}
 }
 
@@ -142,7 +142,7 @@ export class ReloadWebviewAction extends Action {
 	}
 }
 
-export function getActiveWebviewEditor(accessor: ServicesAccessor): Webview | undefined {
+export function getFocusedWebviewEditor(accessor: ServicesAccessor): Webview | undefined {
 	const editorService = accessor.get(IEditorService);
 	const activeEditor = editorService.activeEditor;
 	return activeEditor instanceof WebviewInput ? activeEditor.webview : undefined;

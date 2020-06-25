@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewContainer, IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, IViewContainerModel, IAddedViewDescriptorRef, IViewDescriptorRef } from 'vs/workbench/common/views';
+import { ViewContainer, IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, IViewContainerModel, IAddedViewDescriptorRef, IViewDescriptorRef, IAddedViewDescriptorState } from 'vs/workbench/common/views';
 import { IContextKeyService, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -342,7 +342,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	private updateContainerInfo(): void {
 		/* Use default container info if one of the visible view descriptors belongs to the current container by default */
 		const useDefaultContainerInfo = this.container.alwaysUseContainerInfo || this.visibleViewDescriptors.length === 0 || this.visibleViewDescriptors.some(v => Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViewContainer(v.id) === this.container);
-		const title = useDefaultContainerInfo ? this.container.name : this.visibleViewDescriptors[0]?.name || '';
+		const title = useDefaultContainerInfo ? this.container.name : this.visibleViewDescriptors[0]?.containerTitle || this.visibleViewDescriptors[0]?.name || '';
 		let titleChanged: boolean = false;
 		if (this._title !== title) {
 			this._title = title;
@@ -461,12 +461,13 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		});
 	}
 
-	add(viewDescriptors: IViewDescriptor[]): void {
+	add(addedViewDescriptorStates: IAddedViewDescriptorState[]): void {
 		const addedItems: IViewDescriptorItem[] = [];
 		const addedActiveDescriptors: IViewDescriptor[] = [];
 		const addedVisibleItems: { index: number, viewDescriptor: IViewDescriptor, size?: number, collapsed: boolean; }[] = [];
 
-		for (const viewDescriptor of viewDescriptors) {
+		for (const addedViewDescriptorState of addedViewDescriptorStates) {
+			const viewDescriptor = addedViewDescriptorState.viewDescriptor;
 
 			if (viewDescriptor.when) {
 				for (const key of viewDescriptor.when.keys()) {
@@ -482,13 +483,13 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 				} else {
 					state.visibleGlobal = isUndefinedOrNull(state.visibleGlobal) ? !viewDescriptor.hideByDefault : state.visibleGlobal;
 				}
-				state.collapsed = isUndefinedOrNull(state.collapsed) ? !!viewDescriptor.collapsed : state.collapsed;
+				state.collapsed = isUndefinedOrNull(addedViewDescriptorState.collapsed) ? (isUndefinedOrNull(state.collapsed) ? !!viewDescriptor.collapsed : state.collapsed) : addedViewDescriptorState.collapsed;
 			} else {
 				state = {
 					active: false,
 					visibleGlobal: !viewDescriptor.hideByDefault,
 					visibleWorkspace: !viewDescriptor.hideByDefault,
-					collapsed: !!viewDescriptor.collapsed,
+					collapsed: isUndefinedOrNull(addedViewDescriptorState.collapsed) ? !!viewDescriptor.collapsed : addedViewDescriptorState.collapsed,
 				};
 			}
 			this.viewDescriptorsState.set(viewDescriptor.id, state);

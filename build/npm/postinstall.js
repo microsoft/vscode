@@ -33,9 +33,10 @@ function yarnInstall(location, opts) {
 
 yarnInstall('extensions'); // node modules shared by all extensions
 
-yarnInstall('remote'); // node modules used by vscode server
-
-yarnInstall('remote/web'); // node modules used by vscode web
+if (!(process.platform === 'win32' && process.env['npm_config_arch'] === 'arm64')) {
+	yarnInstall('remote'); // node modules used by vscode server
+	yarnInstall('remote/web'); // node modules used by vscode web
+}
 
 const allExtensionFolders = fs.readdirSync('extensions');
 const extensions = allExtensionFolders.filter(e => {
