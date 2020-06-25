@@ -7,7 +7,6 @@ import * as extensionsRegistry from 'vs/workbench/services/extensions/common/ext
 import { ITerminalTypeContribution, ITerminalContributions, terminalContributionsDescriptor } from 'vs/workbench/contrib/terminal/common/terminal';
 import { flatten } from 'vs/base/common/arrays';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 // terminal extension point
 export const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
