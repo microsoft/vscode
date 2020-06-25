@@ -53,7 +53,14 @@ export interface IWebviewService {
 	setIcons(id: string, value: WebviewIcons | undefined): void;
 }
 
+export const enum WebviewContentPurpose {
+	NotebookRenderer = 'notebookRenderer',
+	CustomEditor = 'customEditor',
+}
+
 export interface WebviewOptions {
+	// The purpose of the webview; this is (currently) only used for filtering in js-debug
+	readonly purpose?: WebviewContentPurpose;
 	readonly customClasses?: string;
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;

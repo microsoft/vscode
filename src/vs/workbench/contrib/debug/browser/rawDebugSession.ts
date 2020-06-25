@@ -12,7 +12,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
+import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { env as processEnv } from 'vs/base/common/process';
@@ -33,6 +33,7 @@ interface ILaunchVSCodeArgument {
 
 interface ILaunchVSCodeArguments {
 	args: ILaunchVSCodeArgument[];
+	debugRenderer?: boolean;
 	env?: { [key: string]: string | null; };
 }
 
@@ -550,8 +551,9 @@ export class RawDebugSession implements IDisposable {
 
 		switch (request.command) {
 			case 'launchVSCode':
-				this.launchVsCode(<ILaunchVSCodeArguments>request.arguments).then(_ => {
+				this.launchVsCode(<ILaunchVSCodeArguments>request.arguments).then(result => {
 					response.body = {
+						rendererDebugPort: result.rendererDebugPort,
 						//processId: pid
 					};
 					safeSendResponse(response);
@@ -584,7 +586,7 @@ export class RawDebugSession implements IDisposable {
 		}
 	}
 
-	private launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<void> {
+	private launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<IOpenExtensionWindowResult> {
 
 		const args: string[] = [];
 
@@ -612,7 +614,7 @@ export class RawDebugSession implements IDisposable {
 			Object.keys(env).filter(k => env[k] === null).forEach(key => delete env[key]);
 		}
 
-		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, env);
+		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, env, !!vscodeArgs.debugRenderer);
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R> {
