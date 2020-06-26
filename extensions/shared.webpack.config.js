@@ -13,6 +13,7 @@ const fs = require('fs');
 const merge = require('merge-options');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const { NLSBundlePlugin } = require('vscode-nls-dev/lib/webpack-bundler');
+const { DefinePlugin } = require('webpack');
 
 function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 	// Need to find the top-most `package.json` file
@@ -129,6 +130,7 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig) {
 			new CopyWebpackPlugin([
 				{ from: 'src', to: '.', ignore: ['**/test/**', '*.ts'] }
 			]),
+			new DefinePlugin({ WEBWORKER: JSON.stringify(true) })
 		]
 	};
 

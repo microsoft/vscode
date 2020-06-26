@@ -17,7 +17,7 @@
     "onFileSystem:github",
     "onCommand:githubBrowser.openRepository"
   ],
-  "browser": "./dist/extension.js",
+  "browser": "./dist/browser/extension.js",
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
