@@ -93,10 +93,12 @@ export class TypeScriptServerSpawner {
 				return CompositeServerType.Single;
 
 			case SeparateSyntaxServerConfiguration.Enabled:
-				return version.apiVersion?.gte(API.v340) ? CompositeServerType.SeparateSyntax : CompositeServerType.Single;
-
-			case SeparateSyntaxServerConfiguration.Dynamic:
-				return version.apiVersion?.gte(API.v400) ? CompositeServerType.DynamicSeparateSyntax : CompositeServerType.Single;
+				if (version.apiVersion?.gte(API.v340)) {
+					return version.apiVersion?.gte(API.v400)
+						? CompositeServerType.DynamicSeparateSyntax
+						: CompositeServerType.SeparateSyntax;
+				}
+				return CompositeServerType.Single;
 		}
 	}
 

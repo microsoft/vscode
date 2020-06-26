@@ -49,7 +49,6 @@ export namespace TsServerLogLevel {
 export const enum SeparateSyntaxServerConfiguration {
 	Disabled,
 	Enabled,
-	Dynamic,
 }
 
 export class TypeScriptServiceConfiguration {
@@ -167,9 +166,6 @@ export class TypeScriptServiceConfiguration {
 		const value = configuration.get('typescript.tsserver.useSeparateSyntaxServer', true);
 		if (value === true) {
 			return SeparateSyntaxServerConfiguration.Enabled;
-		}
-		if (value === 'dynamic') {
-			return SeparateSyntaxServerConfiguration.Dynamic;
 		}
 		return SeparateSyntaxServerConfiguration.Disabled;
 	}
