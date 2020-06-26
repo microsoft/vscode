@@ -98,6 +98,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
 	private _isVisible = false;
 	private readonly _uuid = generateUuid();
+	private _webiewFocused: boolean = false;
 
 	private _isDisposed: boolean = false;
 
@@ -389,19 +390,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._isVisible = true;
 		this._editorFocus?.set(true);
 
-		const focus = this._list?.getFocus()[0];
-		if (typeof focus === 'number') {
-			const element = this._notebookViewModel!.viewCells[focus];
+		if (this._webiewFocused) {
+			this._webview?.focusWebview();
+		} else {
+			const focus = this._list?.getFocus()[0];
+			if (typeof focus === 'number') {
+				const element = this._notebookViewModel!.viewCells[focus];
 
-			if (element.focusMode === CellFocusMode.Editor) {
-				element.editState = CellEditState.Editing;
-				element.focusMode = CellFocusMode.Editor;
-				this._onDidFocusEditorWidget.fire();
-				return;
+				if (element.focusMode === CellFocusMode.Editor) {
+					element.editState = CellEditState.Editing;
+					element.focusMode = CellFocusMode.Editor;
+					this._onDidFocusEditorWidget.fire();
+					return;
+				}
+
 			}
-
+			this._list?.domFocus();
 		}
-		this._list?.domFocus();
+
 		this._onDidFocusEditorWidget.fire();
 	}
 
@@ -530,19 +536,27 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		DOM.toggleClass(this.getDomNode(), 'notebook-editor-editable', !!this.viewModel!.metadata?.editable);
 	}
 
-	private async _createWebview(id: string, document: URI): Promise<void> {
-		this._webview = this.instantiationService.createInstance(BackLayerWebView, this, id, document);
+	private async _createWebview(id: string, resource: URI): Promise<void> {
+		this._webview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource);
 		// attach the webview container to the DOM tree first
 		this._list?.rowsContainer.insertAdjacentElement('afterbegin', this._webview.element);
 		await this._webview.createWebview();
 		this._webview.webview.onDidBlur(() => {
 			this._outputFocus?.set(false);
 			this.updateEditorFocus();
+
+			if (this._overlayContainer.contains(document.activeElement)) {
+				this._webiewFocused = false;
+			}
 		});
 		this._webview.webview.onDidFocus(() => {
 			this._outputFocus?.set(true);
 			this.updateEditorFocus();
 			this._onDidFocusEmitter.fire();
+
+			if (this._overlayContainer.contains(document.activeElement)) {
+				this._webiewFocused = true;
+			}
 		});
 
 		this._localStore.add(this._webview.onMessage(({ message, forRenderer }) => {
