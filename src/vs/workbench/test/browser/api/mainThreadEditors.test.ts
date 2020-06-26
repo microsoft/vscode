@@ -95,10 +95,6 @@ suite('MainThreadEditors', () => {
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
 		services.set(ITextFileService, new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
-			create(resource: URI) {
-				createdResources.add(resource);
-				return Promise.resolve(Object.create(null));
-			}
 			files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
@@ -107,6 +103,10 @@ suite('MainThreadEditors', () => {
 		});
 		services.set(IWorkingCopyFileService, new class extends mock<IWorkingCopyFileService>() {
 			onDidRunWorkingCopyFileOperation = Event.None;
+			create(resource: URI) {
+				createdResources.add(resource);
+				return Promise.resolve(Object.create(null));
+			}
 			move(files: { source: URI, target: URI }[]) {
 				const { source, target } = files[0];
 				movedResources.set(source, target);
