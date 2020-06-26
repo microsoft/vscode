@@ -560,13 +560,15 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 
 		const okButton = this._register(new Button(rowElement));
 		okButton.label = localize('okButton', "OK");
-		okButton.element.classList.add('setting-list-okButton');
+		okButton.element.classList.add('setting-list-ok-button');
+
 		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
 		this.listDisposables.add(okButton.onDidClick(() => onSubmit(updatedItem())));
 
 		const cancelButton = this._register(new Button(rowElement));
 		cancelButton.label = localize('cancelButton', "Cancel");
-		cancelButton.element.classList.add('setting-list-okButton');
+		cancelButton.element.classList.add('setting-list-cancel-button');
+
 		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
 		this.listDisposables.add(cancelButton.onDidClick(onCancel));
 
@@ -639,11 +641,17 @@ interface IObjectEnumData {
 	options: IObjectEnumOption[];
 }
 
-type ObjectKeyOrValue = IObjectStringData | IObjectEnumData;
+interface IObjectBoolData {
+	type: 'boolean';
+	data: boolean;
+}
+
+type ObjectKey = IObjectStringData | IObjectEnumData;
+export type ObjectValue = IObjectStringData | IObjectEnumData | IObjectBoolData;
 
 export interface IObjectDataItem {
-	key: ObjectKeyOrValue;
-	value: ObjectKeyOrValue;
+	key: ObjectKey;
+	value: ObjectValue;
 	removable: boolean;
 }
 
@@ -735,7 +743,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
 
 		keyElement.textContent = item.key.data;
-		valueElement.textContent = item.value.data;
+		valueElement.textContent = item.value.data.toString();
 
 		return rowElement;
 	}
@@ -794,20 +802,27 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		} else if (valueWidget instanceof SelectBox) {
 			this.listDisposables.add(
 				valueWidget.onDidSelect(({ selected }) => {
-					onSubmit({ ...item, value: { ...item.value, data: selected } });
+					onSubmit({
+						...item,
+						value: item.value.type === 'boolean'
+							? { ...item.value, data: selected === 'true' ? true : false }
+							: { ...item.value, data: selected },
+					});
 				})
 			);
 		}
 
 		const okButton = this._register(new Button(rowElement));
 		okButton.label = localize('okButton', "OK");
-		okButton.element.classList.add('setting-list-okButton');
+		okButton.element.classList.add('setting-list-ok-button');
+
 		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
 		this.listDisposables.add(okButton.onDidClick(() => onSubmit(updatedItem())));
 
 		const cancelButton = this._register(new Button(rowElement));
 		cancelButton.label = localize('cancelButton', "Cancel");
-		cancelButton.element.classList.add('setting-list-okButton');
+		cancelButton.element.classList.add('setting-list-cancel-button');
+
 		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
 		this.listDisposables.add(cancelButton.onDidClick(onCancel));
 
@@ -847,22 +862,32 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		};
 	}
 
-	private renderEditWidget(keyOrValue: ObjectKeyOrValue, rowElement: HTMLElement, isKey: boolean) {
+	private renderEditWidget(keyOrValue: ObjectKey | ObjectValue, rowElement: HTMLElement, isKey: boolean) {
 		switch (keyOrValue.type) {
 			case 'string':
 				return this.renderStringEditWidget(keyOrValue, rowElement, isKey);
 			case 'enum':
 				return this.renderEnumEditWidget(keyOrValue, rowElement, isKey);
+			case 'boolean':
+				return this.renderEnumEditWidget(
+					{
+						type: 'enum',
+						data: keyOrValue.data.toString(),
+						options: [{ value: 'true' }, { value: 'false' }],
+					},
+					rowElement,
+					isKey
+				);
 		}
 	}
 
 	private renderStringEditWidget(keyOrValue: IObjectStringData, rowElement: HTMLElement, isKey: boolean) {
 		const inputBox = new InputBox(rowElement, this.contextViewService);
 
-		inputBox.element.classList.add('setting-list-object-input');
-		if (isKey) {
-			inputBox.element.classList.add('setting-list-object-input-key');
-		}
+		inputBox.element.classList.add(
+			'setting-list-object-input',
+			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
+		);
 
 		this.listDisposables.add(attachInputBoxStyler(inputBox, this.themeService, {
 			inputBackground: settingsTextInputBackground,
@@ -877,8 +902,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 
 	private renderEnumEditWidget(keyOrValue: IObjectEnumData, rowElement: HTMLElement, isKey: boolean) {
 		const selectBoxOptions = keyOrValue.options.map(({ value, description }) => ({ text: value, description }));
-		const dataIndex = keyOrValue.options.findIndex(option => keyOrValue.data === option.value);
-		const selected = dataIndex >= 0 ? dataIndex : 0;
+		const selected = keyOrValue.options.findIndex(option => keyOrValue.data === option.value);
 
 		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, undefined, {
 			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
@@ -892,9 +916,9 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		}));
 
 		const wrapper = $('.setting-list-object-input');
-		if (isKey) {
-			wrapper.classList.add('setting-list-object-input-key');
-		}
+		wrapper.classList.add(
+			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
+		);
 
 		selectBox.render(wrapper);
 		rowElement.append(wrapper);
