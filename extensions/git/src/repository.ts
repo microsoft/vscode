@@ -864,8 +864,9 @@ export class Repository implements Disposable {
 		return toGitUri(uri, '', { replaceFileExtension: true });
 	}
 
-	async getInputTemplate(): Promise<string> {
-		const commitMessage = await Promise.race([this.repository.getMergeMessage(), this.repository.getSquashMessage()]);
+	async getInputTemplate(): Promise<string | undefined> {
+		const commitMessage = (await Promise.all([this.repository.getMergeMessage(), this.repository.getSquashMessage()])).find(msg => msg !== undefined);
+
 		if (commitMessage) {
 			return commitMessage;
 		}
