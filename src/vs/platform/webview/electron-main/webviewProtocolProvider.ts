@@ -131,7 +131,7 @@ export class WebviewProtocolProvider extends Disposable {
 				} else {
 					url = require.toUrl(`vs/workbench/contrib/webview/browser/pre/${entry}`);
 				}
-				return callback(url.replace('file://', ''));
+				return callback(decodeURIComponent(url.replace('file://', '')));
 			}
 		} catch {
 			// noop

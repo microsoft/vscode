@@ -44,7 +44,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -94,6 +94,16 @@ function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
 	});
 }
 
+function getObjectValueType(schema: IJSONSchema): ObjectValue['type'] {
+	if (schema.type === 'boolean') {
+		return 'boolean';
+	} else if (schema.type === 'string' && isDefined(schema.enum) && schema.enum.length > 0) {
+		return 'enum';
+	} else {
+		return 'string';
+	}
+}
+
 function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectDataItem[] {
 	const data = element.isConfigured ?
 		{ ...element.defaultValue, ...element.scopeValue } :
@@ -129,7 +139,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					options: wellDefinedKeyEnumOptions,
 				},
 				value: {
-					type: valueEnumOptions.length > 0 ? 'enum' : 'string',
+					type: getObjectValueType(objectProperties[key]),
 					data: data[key],
 					options: valueEnumOptions,
 				},
@@ -144,7 +154,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			return {
 				key: { type: 'string', data: key },
 				value: {
-					type: valueEnumOptions.length > 0 ? 'enum' : 'string',
+					type: getObjectValueType(schema),
 					data: data[key],
 					options: valueEnumOptions,
 				},
@@ -155,7 +165,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		return {
 			key: { type: 'string', data: key },
 			value: {
-				type: additionalValueEnums.length > 0 ? 'enum' : 'string',
+				type: typeof objectAdditionalProperties === 'object' ? getObjectValueType(objectAdditionalProperties) : 'string',
 				data: data[key],
 				options: additionalValueEnums,
 			},
