@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { RunOnceScheduler, ignoreErrors, sequence } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugModel } from 'vs/workbench/contrib/debug/common/debug';
@@ -103,6 +103,13 @@ export function getSpecificSourceName(stackFrame: IStackFrame): string {
 	return (from > 0 ? '...' : '') + stackFrame.source.uri.path.substr(from);
 }
 
+async function expandTo(session: IDebugSession, tree: WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>): Promise<void> {
+	if (session.parentSession) {
+		await expandTo(session.parentSession, tree);
+	}
+	await tree.expand(session);
+}
+
 export class CallStackView extends ViewPane {
 	private pauseMessage!: HTMLSpanElement;
 	private pauseMessageLabel!: HTMLSpanElement;
@@ -114,7 +121,7 @@ export class CallStackView extends ViewPane {
 	private dataSource!: CallStackDataSource;
 	private tree!: WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>;
 	private menu: IMenu;
-	private parentSessionToExpand = new Set<IDebugSession>();
+	private autoExpandedSessions = new Set<IDebugSession>();
 	private selectionNeedsUpdate = false;
 
 	constructor(
@@ -139,10 +146,14 @@ export class CallStackView extends ViewPane {
 		this._register(this.menu);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
-		this.onCallStackChangeScheduler = new RunOnceScheduler(() => {
+		this.onCallStackChangeScheduler = new RunOnceScheduler(async () => {
 			// Only show the global pause message if we do not display threads.
 			// Otherwise there will be a pause message per thread and there is no need for a global one.
 			const sessions = this.debugService.getModel().getSessions();
+			if (sessions.length === 0) {
+				this.autoExpandedSessions.clear();
+			}
+
 			const thread = sessions.length === 1 && sessions[0].getAllThreads().length === 1 ? sessions[0].getAllThreads()[0] : undefined;
 			if (thread && thread.stoppedDetails) {
 				this.pauseMessageLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
@@ -158,18 +169,26 @@ export class CallStackView extends ViewPane {
 
 			this.needsRefresh = false;
 			this.dataSource.deemphasizedStackFramesToShow = [];
-			this.tree.updateChildren().then(() => {
-				try {
-					this.parentSessionToExpand.forEach(s => this.tree.expand(s));
-				} catch (e) {
-					// Ignore tree expand errors if element no longer present
+			await this.tree.updateChildren();
+			try {
+				const toExpand = new Set<IDebugSession>();
+				sessions.forEach(s => {
+					// Automatically expand sessions that have children, but only do this once.
+					if (s.parentSession && !this.autoExpandedSessions.has(s.parentSession)) {
+						toExpand.add(s.parentSession);
+					}
+				});
+				for (let session of toExpand) {
+					await expandTo(session, this.tree);
+					this.autoExpandedSessions.add(session);
 				}
-				this.parentSessionToExpand.clear();
-				if (this.selectionNeedsUpdate) {
-					this.selectionNeedsUpdate = false;
-					this.updateTreeSelection();
-				}
-			});
+			} catch (e) {
+				// Ignore tree expand errors if element no longer present
+			}
+			if (this.selectionNeedsUpdate) {
+				this.selectionNeedsUpdate = false;
+				await this.updateTreeSelection();
+			}
 		}, 50);
 	}
 
@@ -303,7 +322,7 @@ export class CallStackView extends ViewPane {
 			}
 		}));
 		const onFocusChange = Event.any<any>(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getViewModel().onDidFocusSession);
-		this._register(onFocusChange(() => {
+		this._register(onFocusChange(async () => {
 			if (this.ignoreFocusStackFrameEvent) {
 				return;
 			}
@@ -316,7 +335,7 @@ export class CallStackView extends ViewPane {
 				return;
 			}
 
-			this.updateTreeSelection();
+			await this.updateTreeSelection();
 		}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
@@ -333,10 +352,6 @@ export class CallStackView extends ViewPane {
 
 		this._register(this.debugService.onDidNewSession(s => {
 			this._register(s.onDidChangeName(() => this.tree.rerender(s)));
-			if (s.parentSession) {
-				// Auto expand sessions that have sub sessions
-				this.parentSessionToExpand.add(s.parentSession);
-			}
 		}));
 	}
 
@@ -349,7 +364,7 @@ export class CallStackView extends ViewPane {
 		this.tree.domFocus();
 	}
 
-	private updateTreeSelection(): void {
+	private async updateTreeSelection(): Promise<void> {
 		if (!this.tree || !this.tree.getInput()) {
 			// Tree not initialized yet
 			return;
@@ -382,20 +397,12 @@ export class CallStackView extends ViewPane {
 				updateSelectionAndReveal(session);
 			}
 		} else {
-			const expandPromises = [() => ignoreErrors(this.tree.expand(thread))];
-			let s: IDebugSession | undefined = thread.session;
-			while (s) {
-				const sessionToExpand = s;
-				expandPromises.push(() => ignoreErrors(this.tree.expand(sessionToExpand)));
-				s = s.parentSession;
+			await expandTo(thread.session, this.tree);
+			await this.tree.expand(thread);
+			const toReveal = stackFrame || session;
+			if (toReveal) {
+				updateSelectionAndReveal(toReveal);
 			}
-
-			sequence(expandPromises.reverse()).then(() => {
-				const toReveal = stackFrame || session;
-				if (toReveal) {
-					updateSelectionAndReveal(toReveal);
-				}
-			});
 		}
 	}
 
