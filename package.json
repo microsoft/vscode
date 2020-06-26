@@ -33,6 +33,8 @@
     "strict-function-types-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictFunctionTypes",
     "update-distro": "node build/npm/update-distro.js",
     "web": "node resources/serverless/code-web.js",
+    "compile-web": "gulp compile-web --max_old_space_size=4095",
+    "watch-web": "gulp watch-web --max_old_space_size=4095",
     "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions"
   },
   "dependencies": {
