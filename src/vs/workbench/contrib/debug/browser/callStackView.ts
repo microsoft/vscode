@@ -227,6 +227,7 @@ export class CallStackView extends ViewPane {
 		], this.dataSource, {
 			accessibilityProvider: new CallStackAccessibilityProvider(),
 			compressionEnabled: true,
+			autoExpandSingleChildren: true,
 			identityProvider: {
 				getId: (element: CallStackItem) => {
 					if (typeof element === 'string') {
@@ -351,7 +352,9 @@ export class CallStackView extends ViewPane {
 		}));
 
 		this._register(this.debugService.onDidNewSession(s => {
-			this._register(s.onDidChangeName(() => this.tree.rerender(s)));
+			const sessionListeners: IDisposable[] = [];
+			sessionListeners.push(s.onDidChangeName(() => this.tree.rerender(s)));
+			sessionListeners.push(s.onDidEndAdapter(() => dispose(sessionListeners)));
 		}));
 	}
 
@@ -397,8 +400,14 @@ export class CallStackView extends ViewPane {
 				updateSelectionAndReveal(session);
 			}
 		} else {
-			await expandTo(thread.session, this.tree);
-			await this.tree.expand(thread);
+			// Ignore errors from this expansions because we are not aware if we rendered the threads and sessions or we hide them to declutter the view
+			try {
+				await expandTo(thread.session, this.tree);
+			} catch (e) { }
+			try {
+				await this.tree.expand(thread);
+			} catch (e) { }
+
 			const toReveal = stackFrame || session;
 			if (toReveal) {
 				updateSelectionAndReveal(toReveal);
