@@ -148,7 +148,11 @@ export class ReleaseNotesManager {
 
 					return Promise.resolve(text);
 				})
-				.then(text => patchKeybindings(text)));
+				.then(text => patchKeybindings(text))
+				.catch(err => {
+					this._releaseNotesCache.delete(version);
+					throw err;
+				}));
 		}
 
 		return this._releaseNotesCache.get(version)!;
