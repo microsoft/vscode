@@ -135,7 +135,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
 
 		// Move / Copy: remember models to restore after the operation
-		if (e.operation === FileOperation.COPY || e.operation === FileOperation.MOVE) {
+		if (e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY) {
 			const modelsToRestore: { source: URI, target: URI, snapshot?: ITextSnapshot; mode?: string; encoding?: string; }[] = [];
 
 			for (const { source, target } of e.files) {
@@ -196,7 +196,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private onDidFailWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
 
 		// Move / Copy: restore dirty flag on models to restore that were dirty
-		if ((e.operation === FileOperation.COPY || e.operation === FileOperation.MOVE)) {
+		if ((e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY)) {
 			const modelsToRestore = this.mapCorrelationIdToModelsToRestore.get(e.correlationId);
 			if (modelsToRestore) {
 				this.mapCorrelationIdToModelsToRestore.delete(e.correlationId);
@@ -214,40 +214,55 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	}
 
 	private onDidRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
+		switch (e.operation) {
 
-		// Move / Copy: restore models that were loaded before the operation took place
-		if ((e.operation === FileOperation.COPY || e.operation === FileOperation.MOVE)) {
-			e.waitUntil((async () => {
-				const modelsToRestore = this.mapCorrelationIdToModelsToRestore.get(e.correlationId);
-				if (modelsToRestore) {
-					this.mapCorrelationIdToModelsToRestore.delete(e.correlationId);
-
-					await Promise.all(modelsToRestore.map(async modelToRestore => {
-
-						// restore the model, forcing a reload. this is important because
-						// we know the file has changed on disk after the move and the
-						// model might have still existed with the previous state. this
-						// ensures we are not tracking a stale state.
-						const restoredModel = await this.resolve(modelToRestore.target, { reload: { async: false }, encoding: modelToRestore.encoding });
-
-						// restore previous dirty content if any and ensure to mark the model as dirty
-						let textBufferFactory: ITextBufferFactory | undefined = undefined;
-						if (modelToRestore.snapshot) {
-							textBufferFactory = createTextBufferFactoryFromSnapshot(modelToRestore.snapshot);
+			// Create: Revert existing models
+			case FileOperation.CREATE:
+				e.waitUntil((async () => {
+					for (const { target } of e.files) {
+						const model = this.get(target);
+						if (model && !model.isDisposed()) {
+							await model.revert();
 						}
+					}
+				})());
+				break;
 
-						// restore previous mode only if the mode is now unspecified
-						let preferredMode: string | undefined = undefined;
-						if (restoredModel.getMode() === PLAINTEXT_MODE_ID && modelToRestore.mode !== PLAINTEXT_MODE_ID) {
-							preferredMode = modelToRestore.mode;
-						}
+			// Move/Copy: restore models that were loaded before the operation took place
+			case FileOperation.MOVE:
+			case FileOperation.COPY:
+				e.waitUntil((async () => {
+					const modelsToRestore = this.mapCorrelationIdToModelsToRestore.get(e.correlationId);
+					if (modelsToRestore) {
+						this.mapCorrelationIdToModelsToRestore.delete(e.correlationId);
 
-						if (textBufferFactory || preferredMode) {
-							restoredModel.updateTextEditorModel(textBufferFactory, preferredMode);
-						}
-					}));
-				}
-			})());
+						await Promise.all(modelsToRestore.map(async modelToRestore => {
+
+							// restore the model, forcing a reload. this is important because
+							// we know the file has changed on disk after the move and the
+							// model might have still existed with the previous state. this
+							// ensures we are not tracking a stale state.
+							const restoredModel = await this.resolve(modelToRestore.target, { reload: { async: false }, encoding: modelToRestore.encoding });
+
+							// restore previous dirty content if any and ensure to mark the model as dirty
+							let textBufferFactory: ITextBufferFactory | undefined = undefined;
+							if (modelToRestore.snapshot) {
+								textBufferFactory = createTextBufferFactoryFromSnapshot(modelToRestore.snapshot);
+							}
+
+							// restore previous mode only if the mode is now unspecified
+							let preferredMode: string | undefined = undefined;
+							if (restoredModel.getMode() === PLAINTEXT_MODE_ID && modelToRestore.mode !== PLAINTEXT_MODE_ID) {
+								preferredMode = modelToRestore.mode;
+							}
+
+							if (textBufferFactory || preferredMode) {
+								restoredModel.updateTextEditorModel(textBufferFactory, preferredMode);
+							}
+						}));
+					}
+				})());
+				break;
 		}
 	}
 

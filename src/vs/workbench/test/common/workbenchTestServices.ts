@@ -19,6 +19,7 @@ import { NullExtensionService } from 'vs/workbench/services/extensions/common/ex
 import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { FileOperation, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
@@ -142,9 +143,11 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
 	getDirty(resource: URI): IWorkingCopy[] { return []; }
 
-	move(files: { source: URI; target: URI; }[], overwrite?: boolean | undefined): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
+	create(resource: URI, contents?: VSBuffer, options?: { overwrite?: boolean | undefined; } | undefined): Promise<void> { throw new Error('Method not implemented.'); }
 
-	copy(files: { source: URI; target: URI; }[], overwrite?: boolean | undefined): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
+	move(files: { source: URI; target: URI; }[], options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
+
+	copy(files: { source: URI; target: URI; }[], options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
 }
 
 export function mock<T>(): Ctor<T> {

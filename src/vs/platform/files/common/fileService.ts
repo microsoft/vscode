@@ -287,12 +287,28 @@ export class FileService extends Disposable implements IFileService {
 
 	//#region File Reading/Writing
 
-	async createFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream = VSBuffer.fromString(''), options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+	async canCreateFile(resource: URI, options?: ICreateFileOptions): Promise<Error | true> {
+		try {
+			await this.doValidateCreateFile(resource, options);
+		} catch (error) {
+			return error;
+		}
+
+		return true;
+	}
+
+	private async doValidateCreateFile(resource: URI, options?: ICreateFileOptions): Promise<void> {
 
 		// validate overwrite
 		if (!options?.overwrite && await this.exists(resource)) {
 			throw new FileOperationError(localize('fileExists', "Unable to create file '{0}' that already exists when overwrite flag is not set", this.resourceForError(resource)), FileOperationResult.FILE_MODIFIED_SINCE, options);
 		}
+	}
+
+	async createFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream = VSBuffer.fromString(''), options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+
+		// validate
+		await this.doValidateCreateFile(resource, options);
 
 		// do write into file (this will create it too)
 		const fileStat = await this.writeFile(resource, bufferOrReadableOrStream);
