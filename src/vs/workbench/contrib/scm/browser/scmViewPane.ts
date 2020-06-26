@@ -328,6 +328,10 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		templateData.disposable.dispose();
 		templateData.templateDisposable.dispose();
 	}
+
+	getHeight(input: ISCMInput): number {
+		return (this.contentHeights.get(input) ?? InputRenderer.DEFAULT_HEIGHT) + 10;
+	}
 }
 
 interface ResourceGroupTemplate {
@@ -564,9 +568,11 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 class ProviderListDelegate implements IListVirtualDelegate<TreeElement> {
 
+	constructor(private readonly inputRenderer: InputRenderer) { }
+
 	getHeight(element: TreeElement) {
 		if (isSCMInput(element)) {
-			return InputRenderer.DEFAULT_HEIGHT + 10;
+			return this.inputRenderer.getHeight(element);
 		} else {
 			return 22;
 		}
@@ -1457,7 +1463,8 @@ export class SCMViewPane extends ViewPane {
 
 		this._register(repositories.onDidSplice(() => this.updateActions()));
 
-		const delegate = new ProviderListDelegate();
+		const inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height));
+		const delegate = new ProviderListDelegate(inputRenderer);
 
 		const actionViewItemProvider = (action: IAction) => this.getActionViewItem(action);
 
@@ -1470,7 +1477,7 @@ export class SCMViewPane extends ViewPane {
 
 		const renderers = [
 			this.instantiationService.createInstance(RepositoryRenderer, actionViewItemProvider, this.menus),
-			this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height)),
+			inputRenderer,
 			this.instantiationService.createInstance(ResourceGroupRenderer, actionViewItemProvider, this.menus),
 			this.instantiationService.createInstance(ResourceRenderer, () => this.viewModel, this.listLabels, actionViewItemProvider, actionRunner, this.menus)
 		];
