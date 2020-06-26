@@ -140,6 +140,9 @@ export class ReleaseNotesManager {
 
 		if (!this._releaseNotesCache.has(version)) {
 			this._releaseNotesCache.set(version, this._requestService.request({ url }, CancellationToken.None)
+				.catch(err => {
+					throw new Error('Failed to fetch release notes');
+				})
 				.then(asText)
 				.then(text => {
 					if (!text || !/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
