@@ -252,7 +252,9 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		}));
 
 		this._register(this.debugService.onDidNewSession(session => {
-			this._register(session.onDidChangeName(() => this.update()));
+			const sessionListeners: IDisposable[] = [];
+			sessionListeners.push(session.onDidChangeName(() => this.update()));
+			sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
 			this.update();
 		}));
 		this.getSessions().forEach(session => {

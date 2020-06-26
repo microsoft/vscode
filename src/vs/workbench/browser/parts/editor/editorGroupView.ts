@@ -275,9 +275,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}));
 
 		// Close empty editor group via middle mouse click
-		this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
+		this._register(addDisposableListener(this.element, EventType.AUXCLICK, e => {
 			if (this.isEmpty && e.button === 1 /* Middle Button */) {
-				EventHelper.stop(e);
+				EventHelper.stop(e, true);
 
 				this.accessor.removeGroup(this);
 			}

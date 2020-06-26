@@ -1276,7 +1276,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					const sourceFile = resource;
 					const targetFile = joinPath(target.resource, basename(sourceFile));
 
-					const stat = (await this.workingCopyFileService.copy([{ source: sourceFile, target: targetFile }], true))[0];
+					const stat = (await this.workingCopyFileService.copy([{ source: sourceFile, target: targetFile }], { overwrite: true }))[0];
 					// if we only add one file, just open it directly
 					if (resources.length === 1 && !stat.isDirectory) {
 						this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
@@ -1398,7 +1398,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {
 					try {
-						await this.workingCopyFileService.move(sourceTargetPairs, true /* overwrite */);
+						await this.workingCopyFileService.move(sourceTargetPairs, { overwrite: true });
 					} catch (error) {
 						this.notificationService.error(error);
 					}

@@ -1064,9 +1064,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const eol = model.getEOL();
 			const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
 			let stringified = applyEdits(JSON.stringify(task), edits);
-			const regex = new RegExp(eol + '\\t', 'g');
-			stringified = stringified.replace(regex, eol + '\t\t\t');
-			const twoTabs = '\t\t';
+			const regex = new RegExp(eol + (insertSpaces ? strings.repeat(' ', tabSize) : '\\t'), 'g');
+			stringified = stringified.replace(regex, eol + (insertSpaces ? strings.repeat(' ', tabSize * 3) : '\t\t\t'));
+			const twoTabs = insertSpaces ? strings.repeat(' ', tabSize * 2) : '\t\t';
 			stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
 		} finally {
 			if (reference) {
@@ -1089,7 +1089,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const contentValue = content.toString();
 				let stringValue: string | undefined;
 				if (configIndex !== -1) {
-					const json: TaskConfig.ExternalTaskRunnerConfiguration = JSON.parse(contentValue);
+					const json: TaskConfig.ExternalTaskRunnerConfiguration = this.configurationService.getValue<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource });
 					if (json.tasks && (json.tasks.length > configIndex)) {
 						stringValue = await this.formatTaskForJson(resource, json.tasks[configIndex]);
 					}

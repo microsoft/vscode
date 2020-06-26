@@ -22,11 +22,11 @@ const serverConfig = withBrowserDefaults({
 	},
 	optimization: {
 		splitChunks: {
-			chunks: "async"
+			chunks: 'async'
 		}
 	}
 });
-serverConfig.module.noParse =  /typescript\/lib\/typescript\.js/;
+serverConfig.module.noParse =  /typescript[\/\\]lib[\/\\]typescript\.js/;
 serverConfig.module.rules.push({
 	test: /javascriptLibs.ts$/,
 	use: [

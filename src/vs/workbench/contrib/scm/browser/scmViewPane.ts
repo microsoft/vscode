@@ -1493,6 +1493,7 @@ export class SCMViewPane extends ViewPane {
 				filter,
 				sorter,
 				keyboardNavigationLabelProvider,
+				transformOptimization: false,
 				overrideStyles: {
 					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
 				},

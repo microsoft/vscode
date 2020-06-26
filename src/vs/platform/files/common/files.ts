@@ -141,6 +141,12 @@ export interface IFileService {
 	canCopy(source: URI, target: URI, overwrite?: boolean): Promise<Error | true>;
 
 	/**
+	 * Find out if a file create operation is possible given the arguments. No changes on disk will
+	 * be performed. Returns an Error if the operation cannot be done.
+	 */
+	canCreateFile(resource: URI, options?: ICreateFileOptions): Promise<Error | true>;
+
+	/**
 	 * Creates a new file with the given path and optional contents. The returned promise
 	 * will have the stat model object as a result.
 	 *
