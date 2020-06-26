@@ -1203,6 +1203,9 @@ export function asDomUri(uri: URI): URI {
 	if (Schemas.vscodeRemote === uri.scheme) {
 		return RemoteAuthorities.rewrite(uri);
 	}
+	if (platform.isNative && Schemas.file === uri.scheme) {
+		return uri.with({ scheme: 'vscode-file' });
+	}
 	return uri;
 }
 
