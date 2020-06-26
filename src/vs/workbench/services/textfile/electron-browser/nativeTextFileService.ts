@@ -8,7 +8,7 @@ import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/
 import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, IWriteTextFileOptions, stringToSnapshot, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IFileStatWithMetadata, ICreateFileOptions, FileOperationError, FileOperationResult, IFileStreamContent, IFileService } from 'vs/platform/files/common/files';
+import { IFileStatWithMetadata, FileOperationError, FileOperationResult, IFileStreamContent, IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { stat, chmod, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
@@ -16,7 +16,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { UTF8, UTF8_with_bom, toDecodeStream, toEncodeReadable, IDecodeStreamResult } from 'vs/workbench/services/textfile/common/encoding';
-import { bufferToStream, VSBufferReadable } from 'vs/base/common/buffer';
+import { bufferToStream, VSBufferReadable, VSBuffer } from 'vs/base/common/buffer';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { consumeStream } from 'vs/base/common/stream';
@@ -145,19 +145,20 @@ export class NativeTextFileService extends AbstractTextFileService {
 		return ensuredOptions;
 	}
 
-	protected async doCreate(resource: URI, value?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+	protected async doEncodeText(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined> {
 
 		// check for encoding
 		const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource);
 
 		// return to parent when encoding is standard
 		if (encoding === UTF8 && !addBOM) {
-			return super.doCreate(resource, value, options);
+			return super.doEncodeText(resource, value);
 		}
 
 		// otherwise create with encoding
 		const encodedReadable = await this.getEncodedReadable(value || '', encoding, addBOM);
-		return this.fileService.createFile(resource, encodedReadable, options);
+
+		return encodedReadable;
 	}
 
 	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {

@@ -12,6 +12,7 @@ import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorM
 import { URI } from 'vs/base/common/uri';
 import { FileOperation } from 'vs/platform/files/common/files';
 import { TestWorkingCopy } from 'vs/workbench/services/workingCopy/test/common/workingCopyService.test';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 suite('WorkingCopyFileService', () => {
 
@@ -28,7 +29,7 @@ suite('WorkingCopyFileService', () => {
 	});
 
 	test('create - dirty file', async function () {
-		await testCreate(toResource.call(this, '/path/file.txt'));
+		await testCreate(toResource.call(this, '/path/file.txt'), VSBuffer.fromString('Hello World'));
 	});
 
 	test('delete - dirty file', async function () {
@@ -375,7 +376,7 @@ suite('WorkingCopyFileService', () => {
 		listener2.dispose();
 	}
 
-	async function testCreate(resource: URI) {
+	async function testCreate(resource: URI, contents: VSBuffer) {
 		const model = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
@@ -414,7 +415,7 @@ suite('WorkingCopyFileService', () => {
 			eventCounter++;
 		});
 
-		await accessor.workingCopyFileService.create(resource);
+		await accessor.workingCopyFileService.create(resource, contents);
 		assert.ok(!accessor.workingCopyService.isDirty(model.resource));
 		model.dispose();
 

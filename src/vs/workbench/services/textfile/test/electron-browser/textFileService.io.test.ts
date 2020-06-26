@@ -27,6 +27,9 @@ import { isWindows } from 'vs/base/common/platform';
 import { readFileSync, statSync } from 'fs';
 import { detectEncodingByBOM } from 'vs/workbench/services/textfile/test/node/encoding/encoding.test';
 import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { WorkingCopyFileService, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
+import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 
 suite('Files - TextFileService i/o', function () {
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
@@ -56,6 +59,8 @@ suite('Files - TextFileService i/o', function () {
 
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);
+
+		collection.set(IWorkingCopyFileService, new WorkingCopyFileService(fileService, new TestWorkingCopyService(), instantiationService, new UriIdentityService(fileService)));
 
 		service = instantiationService.createChild(collection).createInstance(TestNativeTextFileServiceWithEncodingOverrides);
 

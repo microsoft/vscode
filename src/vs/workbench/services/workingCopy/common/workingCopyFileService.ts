@@ -15,7 +15,7 @@ import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/working
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { WorkingCopyFileOperationParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileOperationParticipant';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
 export const IWorkingCopyFileService = createDecorator<IWorkingCopyFileService>('workingCopyFileService');
 
@@ -119,11 +119,6 @@ export interface IWorkingCopyFileService {
 	 */
 	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable;
 
-	/**
-	 * Execute all known file operation participants.
-	 */
-	runFileOperationParticipants(files: SourceTargetPair[], operation: FileOperation): Promise<void>
-
 	//#endregion
 
 
@@ -135,7 +130,7 @@ export interface IWorkingCopyFileService {
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	create(resource: URI, contents?: VSBuffer, options?: { overwrite?: boolean }): Promise<void>;
+	create(resource: URI, contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Will move working copies matching the provided resources and corresponding children
@@ -231,7 +226,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	//#region File operations
 
-	async create(resource: URI, contents?: VSBuffer, options?: { overwrite?: boolean }): Promise<void> {
+	async create(resource: URI, contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata> {
 
 		// validate create operation before starting
 		const validateCreate = await this.fileService.canCreateFile(resource, options);
@@ -247,8 +242,9 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
 
 		// now actually create on disk
+		let stat: IFileStatWithMetadata;
 		try {
-			await this.fileService.createFile(resource, contents, { overwrite: options?.overwrite });
+			stat = await this.fileService.createFile(resource, contents, { overwrite: options?.overwrite });
 		} catch (error) {
 
 			// error event
@@ -259,6 +255,8 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 		// after event
 		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+
+		return stat;
 	}
 
 	async move(files: Required<SourceTargetPair>[], options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata[]> {
@@ -375,7 +373,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return this.fileOperationParticipants.addFileOperationParticipant(participant);
 	}
 
-	runFileOperationParticipants(files: SourceTargetPair[], operation: FileOperation): Promise<void> {
+	private runFileOperationParticipants(files: SourceTargetPair[], operation: FileOperation): Promise<void> {
 		return this.fileOperationParticipants.participate(files, operation);
 	}
 
