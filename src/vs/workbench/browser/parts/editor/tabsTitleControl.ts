@@ -601,8 +601,6 @@ export class TabsTitleControl extends TitleControl {
 		const disposables = new DisposableStore();
 
 		const handleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
-			tab.blur();
-
 			if (e instanceof MouseEvent && e.button !== 0) {
 				if (e.button === 1) {
 					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
@@ -643,13 +641,9 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Close on mouse middle click
-		disposables.add(addDisposableListener(tab, EventType.MOUSE_UP, (e: MouseEvent) => {
-			EventHelper.stop(e);
-
-			tab.blur();
-
+		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, (e: MouseEvent) => {
 			if (e.button === 1 /* Middle Button*/) {
-				e.stopPropagation(); // for https://github.com/Microsoft/vscode/issues/56715
+				EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
 
 				this.blockRevealActiveTabOnce();
 				this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index });
