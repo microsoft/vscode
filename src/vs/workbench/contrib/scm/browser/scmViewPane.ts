@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, addClass, toggleClass, removeClass, Dimension } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMService, ISCMRepository, ISCMInput } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMService, ISCMRepository, ISCMInput, IInputValidation } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -78,6 +78,7 @@ import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { Command } from 'vs/editor/common/modes';
 import { renderCodicons } from 'vs/base/common/codicons';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -1179,12 +1180,14 @@ class SCMInputWidget extends Disposable {
 	private element: HTMLElement;
 	private editorContainer: HTMLElement;
 	private placeholderTextContainer: HTMLElement;
-	private validationContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
 
 	private model: { readonly input: ISCMInput; readonly textModel: ITextModel; } | undefined;
 	private repositoryContextKey: IContextKey<ISCMRepository | undefined>;
 	private repositoryDisposables = new DisposableStore();
+
+	private validation: IInputValidation | undefined;
+	private validationDisposable: IDisposable = Disposable.None;
 
 	readonly onDidChangeContentHeight: Event<void>;
 
@@ -1193,6 +1196,8 @@ class SCMInputWidget extends Disposable {
 	}
 
 	set input(input: ISCMInput | undefined) {
+		this.validationDisposable.dispose();
+
 		this.repositoryDisposables.dispose();
 		this.repositoryDisposables = new DisposableStore();
 		this.repositoryContextKey.set(input?.repository);
@@ -1229,25 +1234,8 @@ class SCMInputWidget extends Disposable {
 			const offset = position && textModel.getOffsetAt(position);
 			const value = textModel.getValue();
 
-			const result = await input.validateInput(value, offset || 0);
-
-			if (!result) {
-				removeClass(this.editorContainer, 'validation-info');
-				removeClass(this.editorContainer, 'validation-warning');
-				removeClass(this.editorContainer, 'validation-error');
-				removeClass(this.validationContainer, 'validation-info');
-				removeClass(this.validationContainer, 'validation-warning');
-				removeClass(this.validationContainer, 'validation-error');
-				this.validationContainer.textContent = null;
-			} else {
-				toggleClass(this.editorContainer, 'validation-info', result.type === InputValidationType.Information);
-				toggleClass(this.editorContainer, 'validation-warning', result.type === InputValidationType.Warning);
-				toggleClass(this.editorContainer, 'validation-error', result.type === InputValidationType.Error);
-				toggleClass(this.validationContainer, 'validation-info', result.type === InputValidationType.Information);
-				toggleClass(this.validationContainer, 'validation-warning', result.type === InputValidationType.Warning);
-				toggleClass(this.validationContainer, 'validation-error', result.type === InputValidationType.Error);
-				this.validationContainer.textContent = result.message;
-			}
+			this.validation = await input.validateInput(value, offset || 0);
+			this.renderValidation();
 		};
 
 		const triggerValidation = () => validationDelayer.trigger(validate);
@@ -1324,13 +1312,13 @@ class SCMInputWidget extends Disposable {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
 		super();
 
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
 		this.placeholderTextContainer = append(this.editorContainer, $('.scm-editor-placeholder'));
-		this.validationContainer = append(this.editorContainer, $('.scm-editor-validation'));
 
 		const contextKeyService2 = contextKeyService.createScoped(this.element);
 		this.repositoryContextKey = contextKeyService2.createKey('scmRepository', undefined);
@@ -1368,8 +1356,14 @@ class SCMInputWidget extends Disposable {
 		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, this.editorContainer, editorOptions, codeEditorWidgetOptions);
 		this._register(this.inputEditor);
 
-		this._register(this.inputEditor.onDidFocusEditorText(() => addClass(this.editorContainer, 'synthetic-focus')));
-		this._register(this.inputEditor.onDidBlurEditorText(() => removeClass(this.editorContainer, 'synthetic-focus')));
+		this._register(this.inputEditor.onDidFocusEditorText(() => {
+			addClass(this.editorContainer, 'synthetic-focus');
+			this.renderValidation();
+		}));
+		this._register(this.inputEditor.onDidBlurEditorText(() => {
+			removeClass(this.editorContainer, 'synthetic-focus');
+			this.validationDisposable.dispose();
+		}));
 
 		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
 		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
@@ -1390,6 +1384,33 @@ class SCMInputWidget extends Disposable {
 		};
 
 		this.inputEditor.layout(dimension);
+		this.renderValidation();
+	}
+
+	private renderValidation(): void {
+		this.validationDisposable.dispose();
+
+		toggleClass(this.editorContainer, 'validation-info', this.validation?.type === InputValidationType.Information);
+		toggleClass(this.editorContainer, 'validation-warning', this.validation?.type === InputValidationType.Warning);
+		toggleClass(this.editorContainer, 'validation-error', this.validation?.type === InputValidationType.Error);
+
+		if (!this.validation || !this.inputEditor.hasTextFocus()) {
+			return;
+		}
+
+		this.validationDisposable = this.contextViewService.showContextView({
+			getAnchor: () => this.editorContainer,
+			render: container => {
+				const element = append(container, $('.scm-editor-validation'));
+				toggleClass(element, 'validation-info', this.validation!.type === InputValidationType.Information);
+				toggleClass(element, 'validation-warning', this.validation!.type === InputValidationType.Warning);
+				toggleClass(element, 'validation-error', this.validation!.type === InputValidationType.Error);
+				element.style.width = `${this.editorContainer.clientWidth}px`;
+				element.textContent = this.validation!.message;
+				return Disposable.None;
+			},
+			anchorAlignment: AnchorAlignment.LEFT
+		});
 	}
 
 	private getInputEditorFontFamily(): string {
@@ -1404,6 +1425,12 @@ class SCMInputWidget extends Disposable {
 		}
 
 		return this.defaultInputFontFamily;
+	}
+
+	dispose(): void {
+		this.repositoryDisposables.dispose();
+		this.validationDisposable.dispose();
+		super.dispose();
 	}
 }
 
@@ -1678,82 +1705,82 @@ export class SCMViewPane extends ViewPane {
 registerThemingParticipant((theme, collector) => {
 	const inputBackgroundColor = theme.getColor(inputBackground);
 	if (inputBackgroundColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-container .monaco-editor-background,
-		.scm-viewlet .scm-editor-container .monaco-editor,
-		.scm-viewlet .scm-editor-container .monaco-editor .margin
+		collector.addRule(`.scm-view .scm-editor-container .monaco-editor-background,
+		.scm-view .scm-editor-container .monaco-editor,
+		.scm-view .scm-editor-container .monaco-editor .margin
 		{ background-color: ${inputBackgroundColor}; }`);
 	}
 
 	const inputForegroundColor = theme.getColor(inputForeground);
 	if (inputForegroundColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-container .mtk1 { color: ${inputForegroundColor}; }`);
+		collector.addRule(`.scm-view .scm-editor-container .mtk1 { color: ${inputForegroundColor}; }`);
 	}
 
 	const inputBorderColor = theme.getColor(inputBorder);
 	if (inputBorderColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-container { outline: 1px solid ${inputBorderColor}; }`);
+		collector.addRule(`.scm-view .scm-editor-container { outline: 1px solid ${inputBorderColor}; }`);
 	}
 
 	const focusBorderColor = theme.getColor(focusBorder);
 	if (focusBorderColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-container.synthetic-focus { outline: 1px solid ${focusBorderColor}; }`);
+		collector.addRule(`.scm-view .scm-editor-container.synthetic-focus { outline: 1px solid ${focusBorderColor}; }`);
 	}
 
 	const inputPlaceholderForegroundColor = theme.getColor(inputPlaceholderForeground);
 	if (inputPlaceholderForegroundColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-placeholder { color: ${inputPlaceholderForegroundColor}; }`);
+		collector.addRule(`.scm-view .scm-editor-placeholder { color: ${inputPlaceholderForegroundColor}; }`);
 	}
 
 	const inputValidationInfoBorderColor = theme.getColor(inputValidationInfoBorder);
 	if (inputValidationInfoBorderColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-container.validation-info { outline: 1px solid ${inputValidationInfoBorderColor}; }`);
-		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-info { border: 1px solid ${inputValidationInfoBorderColor}; }`);
+		collector.addRule(`.scm-view .scm-editor-container.validation-info { outline: 1px solid ${inputValidationInfoBorderColor}; }`);
+		collector.addRule(`.scm-editor-validation.validation-info { border-color: ${inputValidationInfoBorderColor}; }`);
 	}
 
 	const inputValidationInfoBackgroundColor = theme.getColor(inputValidationInfoBackground);
 	if (inputValidationInfoBackgroundColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-info { background-color: ${inputValidationInfoBackgroundColor}; }`);
+		collector.addRule(`.scm-editor-validation.validation-info { background-color: ${inputValidationInfoBackgroundColor}; }`);
 	}
 
 	const inputValidationInfoForegroundColor = theme.getColor(inputValidationInfoForeground);
 	if (inputValidationInfoForegroundColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-info { color: ${inputValidationInfoForegroundColor}; }`);
+		collector.addRule(`.scm-editor-validation.validation-info { color: ${inputValidationInfoForegroundColor}; }`);
 	}
 
 	const inputValidationWarningBorderColor = theme.getColor(inputValidationWarningBorder);
 	if (inputValidationWarningBorderColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-container.validation-warning { outline: 1px solid ${inputValidationWarningBorderColor}; }`);
-		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-warning { border: 1px solid ${inputValidationWarningBorderColor}; }`);
+		collector.addRule(`.scm-view .scm-editor-container.validation-warning { outline: 1px solid ${inputValidationWarningBorderColor}; }`);
+		collector.addRule(`.scm-editor-validation.validation-warning { border-color: ${inputValidationWarningBorderColor}; }`);
 	}
 
 	const inputValidationWarningBackgroundColor = theme.getColor(inputValidationWarningBackground);
 	if (inputValidationWarningBackgroundColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-warning { background-color: ${inputValidationWarningBackgroundColor}; }`);
+		collector.addRule(`.scm-editor-validation.validation-warning { background-color: ${inputValidationWarningBackgroundColor}; }`);
 	}
 
 	const inputValidationWarningForegroundColor = theme.getColor(inputValidationWarningForeground);
 	if (inputValidationWarningForegroundColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-warning { color: ${inputValidationWarningForegroundColor}; }`);
+		collector.addRule(`.scm-editor-validation.validation-warning { color: ${inputValidationWarningForegroundColor}; }`);
 	}
 
 	const inputValidationErrorBorderColor = theme.getColor(inputValidationErrorBorder);
 	if (inputValidationErrorBorderColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-container.validation-error { outline: 1px solid ${inputValidationErrorBorderColor}; }`);
-		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-error { border: 1px solid ${inputValidationErrorBorderColor}; }`);
+		collector.addRule(`.scm-view .scm-editor-container.validation-error { outline: 1px solid ${inputValidationErrorBorderColor}; }`);
+		collector.addRule(`.scm-editor-validation.validation-error { border-color: ${inputValidationErrorBorderColor}; }`);
 	}
 
 	const inputValidationErrorBackgroundColor = theme.getColor(inputValidationErrorBackground);
 	if (inputValidationErrorBackgroundColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-error { background-color: ${inputValidationErrorBackgroundColor}; }`);
+		collector.addRule(`.scm-editor-validation.validation-error { background-color: ${inputValidationErrorBackgroundColor}; }`);
 	}
 
 	const inputValidationErrorForegroundColor = theme.getColor(inputValidationErrorForeground);
 	if (inputValidationErrorForegroundColor) {
-		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-error { color: ${inputValidationErrorForegroundColor}; }`);
+		collector.addRule(`.scm-editor-validation.validation-error { color: ${inputValidationErrorForegroundColor}; }`);
 	}
 
 	const repositoryStatusActionsBorderColor = theme.getColor(SIDE_BAR_BORDER);
 	if (repositoryStatusActionsBorderColor) {
-		collector.addRule(`.scm-viewlet .scm-provider > .status > .monaco-action-bar > .actions-container { border-color: ${repositoryStatusActionsBorderColor}; }`);
+		collector.addRule(`.scm-view .scm-provider > .status > .monaco-action-bar > .actions-container { border-color: ${repositoryStatusActionsBorderColor}; }`);
 	}
 });

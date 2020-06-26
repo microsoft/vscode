@@ -183,20 +183,14 @@
 	outline-offset: -1px;
 }
 
-.scm-view .scm-editor-container > .scm-editor-validation {
-	position: absolute;
-	width: 100%;
-	z-index: 10;
-	left: 0px;
+.scm-editor-validation {
 	box-sizing: border-box;
 	font-size: 0.9em;
 	padding: 1px 3px;
-	display: none;
-	top: calc(100%);
-}
-
-.scm-view .scm-editor-container.synthetic-focus > .scm-editor-validation {
 	display: block;
+	border-width: 1px;
+	border-style: solid;
+	border-top: none;
 }
 
 .scm-view .scm-editor-placeholder {
