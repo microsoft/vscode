@@ -712,7 +712,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 
 	protected renderHeader() {
 		if (this.model.items.length > 0) {
-			const header = $('.setting-list-row-header', { 'aria-hidden': true });
+			const header = $('.setting-list-row-header');
 			const keyHeader = DOM.append(header, $('.setting-list-object-key'));
 			const valueHeader = DOM.append(header, $('.setting-list-object-value'));
 			const { keyHeaderText, valueHeaderText } = this.getLocalizedStrings();
@@ -827,13 +827,18 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 	}
 
 	protected getLocalizedRowTitle(item: IObjectDataItem): string {
-		const enumDescription = item.key.type === 'enum'
+		let enumDescription = item.key.type === 'enum'
 			? item.key.options.find(({ value }) => item.key.data === value)?.description
 			: undefined;
 
+		// avoid rendering double '.'
+		if (isDefined(enumDescription) && enumDescription.endsWith('.')) {
+			enumDescription = enumDescription.slice(0, enumDescription.length - 1);
+		}
+
 		return isDefined(enumDescription)
-			? `${enumDescription} Currently set to ${item.value.data}.`
-			: localize('objectPairHintLabel', "The property `{0}` is set to `{1}`", item.key.data, item.value.data);
+			? `${enumDescription}. Currently set to ${item.value.data}.`
+			: localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
 	}
 
 	protected getLocalizedStrings() {
