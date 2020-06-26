@@ -49,10 +49,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IndexedDB } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
-
-const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
-const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
+import { IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 
 class BrowserMain extends Disposable {
 
@@ -209,11 +206,7 @@ class BrowserMain extends Disposable {
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
 
-		const indexedDB = new IndexedDB(2, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE]);
-		// .then(null, error => {
-		// 	console.error(error);
-		// 	return null;
-		// });
+		const indexedDB = new IndexedDB();
 
 		// Logger
 		(async () => {

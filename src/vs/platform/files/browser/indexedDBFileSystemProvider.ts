@@ -8,13 +8,15 @@ import * as browser from 'vs/base/browser/browser';
 import { IFileSystemProvider } from 'vs/platform/files/common/files';
 
 const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
+export const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
+export const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
 
 export class IndexedDB {
 
 	private indexedDBPromise: Promise<IDBDatabase | null>;
 
-	constructor(version: number, stores: string[]) {
-		this.indexedDBPromise = this.openIndexedDB(INDEXEDDB_VSCODE_DB, version, stores);
+	constructor() {
+		this.indexedDBPromise = this.openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE]);
 	}
 
 	async createFileSystemProvider(scheme: string, store: string): Promise<IFileSystemProvider | null> {
@@ -24,7 +26,7 @@ export class IndexedDB {
 			if (indexedDB.objectStoreNames.contains(store)) {
 				fsp = new IndexedDBFileSystemProvider(scheme, indexedDB, store);
 			} else {
-				console.error(`Error while indexedDB filesystem provider. Could not find ${store} object store`);
+				console.error(`Error while creating indexedDB filesystem provider. Could not find ${store} object store`);
 			}
 		}
 		return fsp;
