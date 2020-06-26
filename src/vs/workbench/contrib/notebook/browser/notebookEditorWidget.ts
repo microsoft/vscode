@@ -463,7 +463,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					}
 				}
 			}
-		} else if (this._notebookViewModel!.viewCells.length === 1 && this._notebookViewModel!.viewCells[0].cellKind === CellKind.Code) {
+		} else if (this._notebookViewModel && this._notebookViewModel.viewCells.length === 1 && this._notebookViewModel.viewCells[0].cellKind === CellKind.Code) {
 			// there is only one code cell in the document
 			const cell = this._notebookViewModel!.viewCells[0];
 			if (cell.getTextLength() === 0) {
