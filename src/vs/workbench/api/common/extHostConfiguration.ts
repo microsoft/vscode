@@ -21,7 +21,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 
-function lookUp(tree: any, key: string) {
+function lookUp(tree: any, key: string | undefined) {
 	if (key) {
 		const parts = key.split('.');
 		let node = tree;
@@ -30,6 +30,7 @@ function lookUp(tree: any, key: string) {
 		}
 		return node;
 	}
+	return tree;
 }
 
 type ConfigurationInspect<T> = {
@@ -156,9 +157,7 @@ export class ExtHostConfigProvider {
 
 	getConfiguration(section?: string, scope?: vscode.ConfigurationScope | null, extensionDescription?: IExtensionDescription): vscode.WorkspaceConfiguration {
 		const overrides = scopeToOverrides(scope) || {};
-		const config = this._toReadonlyValue(section
-			? lookUp(this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace), section)
-			: this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace));
+		const config = this._toReadonlyValue(lookUp(this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace), section));
 
 		if (section) {
 			this._validateConfigurationAccess(section, overrides, extensionDescription?.identifier);
@@ -179,18 +178,28 @@ export class ExtHostConfigProvider {
 			}
 		}
 
+		function qualifiedKey(key?: string): string {
+			if (!key) {
+				return section || '';
+			} else if (section) {
+				return `${section}.${key}`;
+			} else {
+				return key;
+			}
+		}
+
 		const result: vscode.WorkspaceConfiguration = {
-			has(key: string): boolean {
+			has(key?: string): boolean {
 				return typeof lookUp(config, key) !== 'undefined';
 			},
-			get: <T>(key: string, defaultValue?: T) => {
-				this._validateConfigurationAccess(section ? `${section}.${key}` : key, overrides, extensionDescription?.identifier);
+			get: <T>(key?: string, defaultValue?: T) => {
+				this._validateConfigurationAccess(qualifiedKey(key), overrides, extensionDescription?.identifier);
 				let result = lookUp(config, key);
 				if (typeof result === 'undefined') {
 					result = defaultValue;
 				} else {
 					let clonedConfig: any | undefined = undefined;
-					const cloneOnWriteProxy = (target: any, accessor: string): any => {
+					const cloneOnWriteProxy = (target: any, accessor?: string): any => {
 						let clonedTarget: any | undefined = undefined;
 						const cloneTarget = () => {
 							clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
@@ -209,7 +218,7 @@ export class ExtHostConfigProvider {
 									}
 									const result = target[property];
 									if (typeof property === 'string') {
-										return cloneOnWriteProxy(result, `${accessor}.${property}`);
+										return cloneOnWriteProxy(result, accessor ? `${accessor}.${property}` : property);
 									}
 									return result;
 								},
@@ -240,8 +249,8 @@ export class ExtHostConfigProvider {
 				}
 				return result;
 			},
-			update: (key: string, value: any, extHostConfigurationTarget: ExtHostConfigurationTarget | boolean, scopeToLanguage?: boolean) => {
-				key = section ? `${section}.${key}` : key;
+			update: (key: string | undefined, value: any, extHostConfigurationTarget: ExtHostConfigurationTarget | boolean, scopeToLanguage?: boolean) => {
+				key = qualifiedKey(key);
 				const target = parseConfigurationTarget(extHostConfigurationTarget);
 				if (value !== undefined) {
 					return this._proxy.$updateConfigurationOption(target, key, value, overrides, scopeToLanguage);
@@ -249,8 +258,8 @@ export class ExtHostConfigProvider {
 					return this._proxy.$removeConfigurationOption(target, key, overrides, scopeToLanguage);
 				}
 			},
-			inspect: <T>(key: string): ConfigurationInspect<T> | undefined => {
-				key = section ? `${section}.${key}` : key;
+			inspect: <T>(key?: string): ConfigurationInspect<T> | undefined => {
+				key = qualifiedKey(key);
 				const config = deepClone(this._configuration.inspect<T>(key, overrides, this._extHostWorkspace.workspace));
 				if (config) {
 					return {

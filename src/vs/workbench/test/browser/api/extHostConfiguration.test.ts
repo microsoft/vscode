@@ -556,30 +556,17 @@ suite('ExtHostConfiguration', function () {
 		});
 
 		let config = all.getConfiguration('farboo.config0');
-		assert.equal(config.get(''), undefined);
-		assert.equal(config.has(''), false);
+		assert.equal(config.get(''), true);
+		assert.equal(config.get(), true);
+		assert.equal(config.has(''), true);
+		assert.equal(config.has(), true);
+		assert.equal(config.inspect('')?.globalValue, true);
+		assert.equal(config.inspect()?.globalValue, true);
 
 		config = all.getConfiguration('farboo');
 		assert.equal(config.get('config0'), true);
 		assert.equal(config.has('config0'), true);
-	});
-
-	test('getConfiguration vs get', function () {
-
-		const all = createExtHostConfiguration({
-			'farboo': {
-				'config0': true,
-				'config4': 38
-			}
-		});
-
-		let config = all.getConfiguration('farboo.config0');
-		assert.equal(config.get(''), undefined);
-		assert.equal(config.has(''), false);
-
-		config = all.getConfiguration('farboo');
-		assert.equal(config.get('config0'), true);
-		assert.equal(config.has('config0'), true);
+		assert.equal(config.inspect('config0')?.globalValue, true);
 	});
 
 	test('name vs property', function () {
@@ -634,6 +621,11 @@ suite('ExtHostConfiguration', function () {
 
 		config.update('foo.bar', 42, true);
 		assert.equal(shape.lastArgs[1], 'foo.bar');
+
+		config = allConfig.getConfiguration('foo.bar');
+		config.update('', 42, true);
+		assert.equal(shape.lastArgs[1], 'foo.bar');
+		assert.equal(shape.lastArgs[2], 42);
 	});
 
 	test('update, what is #15834', function () {

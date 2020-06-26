@@ -4737,29 +4737,29 @@ declare module 'vscode' {
 	export interface WorkspaceConfiguration {
 
 		/**
-		 * Return a value from this configuration.
+		 * Return a value from this configuration. If no section or an empty section is provided, the current configuration is returned.
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @return The value `section` denotes or `undefined`.
 		 */
-		get<T>(section: string): T | undefined;
+		get<T>(section?: string): T | undefined;
 
 		/**
-		 * Return a value from this configuration.
+		 * Return a value from this configuration. If no section or an empty section is provided, the current configuration is returned.
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @param defaultValue A value should be returned when no value could be found, is `undefined`.
 		 * @return The value `section` denotes or the default.
 		 */
-		get<T>(section: string, defaultValue: T): T;
+		get<T>(section: string | undefined, defaultValue: T): T;
 
 		/**
-		 * Check if this configuration has a certain value.
+		 * Check if this configuration has a certain value.  If no section or an empty section is provided, the current configuration is tested.
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @return `true` if the section doesn't resolve to `undefined`.
 		 */
-		has(section: string): boolean;
+		has(section?: string): boolean;
 
 		/**
 		 * Retrieve all information about a configuration setting. A configuration value
@@ -4770,12 +4770,13 @@ declare module 'vscode' {
 		 * Also provides all language ids under which the given configuration setting is defined.
 		 *
 		 * *Note:* The configuration name must denote a leaf in the configuration tree
-		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
+		 * (`editor.fontSize` vs `editor`) otherwise no result is returned. If no section or an empty section is provided,
+		 * the current configuration is inspected.
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @return Information about a configuration setting or `undefined`.
 		 */
-		inspect<T>(section: string): {
+		inspect<T>(section?: string): {
 			key: string;
 
 			defaultValue?: T;
@@ -4804,7 +4805,8 @@ declare module 'vscode' {
 		 *
 		 * *Note:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
 		 *
-		 * @param section Configuration name, supports _dotted_ names.
+		 * @param section Configuration name, supports _dotted_ names. If no section or an empty section is provided,
+		 * the current configuration is updated.
 		 * @param value The new value.
 		 * @param configurationTarget The [configuration target](#ConfigurationTarget) or a boolean value.
 		 *	- If `true` updates [Global settings](#ConfigurationTarget.Global).
@@ -4821,7 +4823,7 @@ declare module 'vscode' {
 		 *	- configuration to workspace folder when there is no workspace folder settings.
 		 *	- configuration to workspace folder when [WorkspaceConfiguration](#WorkspaceConfiguration) is not scoped to a resource.
 		 */
-		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean, overrideInLanguage?: boolean): Thenable<void>;
+		update(section: string | undefined, value: any, configurationTarget?: ConfigurationTarget | boolean, overrideInLanguage?: boolean): Thenable<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.
