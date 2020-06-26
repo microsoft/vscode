@@ -19,7 +19,7 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteA
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, IFileSystemProvider } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -49,26 +49,18 @@ import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IndexedDBFileSystemProvider, openIndexedDB } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
+import { IndexedDB } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 
-const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
 const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
 const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
 
 class BrowserMain extends Disposable {
-
-	private readonly indexedDB: Promise<IDBDatabase | null>;
 
 	constructor(
 		private readonly domElement: HTMLElement,
 		private readonly configuration: IWorkbenchConstructionOptions
 	) {
 		super();
-		this.indexedDB = openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE])
-			.then(null, error => {
-				console.error(error);
-				return null;
-			});
 	}
 
 	async open(): Promise<IWorkbench> {
@@ -217,11 +209,21 @@ class BrowserMain extends Disposable {
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
 
+		const indexedDB = new IndexedDB(2, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE]);
+		// .then(null, error => {
+		// 	console.error(error);
+		// 	return null;
+		// });
+
 		// Logger
 		(async () => {
-			const indexedDB = await this.indexedDB;
-			if (indexedDB) {
-				const indexedDBLogProvider = new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, INDEXEDDB_LOGS_OBJECT_STORE);
+			let indexedDBLogProvider: IFileSystemProvider | null = null;
+			try {
+				indexedDBLogProvider = await indexedDB.createFileSystemProvider(logsPath.scheme, INDEXEDDB_LOGS_OBJECT_STORE);
+			} catch (error) {
+				console.error(error);
+			}
+			if (indexedDBLogProvider) {
 				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
 			} else {
 				fileService.registerProvider(logsPath.scheme, new InMemoryFileSystemProvider());
@@ -252,9 +254,19 @@ class BrowserMain extends Disposable {
 
 		// User data
 		if (!this.configuration.userDataProvider) {
-			const indexedDB = await this.indexedDB;
-			this.configuration.userDataProvider = this._register(indexedDB ? new IndexedDBFileSystemProvider(Schemas.userData, indexedDB, INDEXEDDB_USERDATA_OBJECT_STORE) : new InMemoryFileSystemProvider());
+			let indexedDBUserDataProvider: IFileSystemProvider | null = null;
+			try {
+				indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE);
+			} catch (error) {
+				console.error(error);
+			}
+			if (indexedDBUserDataProvider) {
+				this.configuration.userDataProvider = indexedDBUserDataProvider;
+			} else {
+				this.configuration.userDataProvider = new InMemoryFileSystemProvider();
+			}
 		}
+
 		fileService.registerProvider(Schemas.userData, this.configuration.userDataProvider);
 	}
 

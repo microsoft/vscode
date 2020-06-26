@@ -5,37 +5,65 @@
 
 import { KeyValueFileSystemProvider } from 'vs/platform/files/common/keyValueFileSystemProvider';
 import * as browser from 'vs/base/browser/browser';
+import { IFileSystemProvider } from 'vs/platform/files/common/files';
 
-export function openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase | null> {
-	if (browser.isEdge) {
-		return Promise.resolve(null);
+const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
+
+export class IndexedDB {
+
+	private indexedDBPromise: Promise<IDBDatabase | null>;
+
+	constructor(version: number, stores: string[]) {
+		this.indexedDBPromise = this.openIndexedDB(INDEXEDDB_VSCODE_DB, version, stores);
 	}
-	return new Promise((c, e) => {
-		const request = window.indexedDB.open(name, version);
-		request.onerror = (err) => e(request.error);
-		request.onsuccess = () => {
-			const db = request.result;
-			for (const store of stores) {
-				if (!db.objectStoreNames.contains(store)) {
-					console.error(`Error while creating indexedDB. Could not create ${store} object store`);
-					c(null);
-					return;
-				}
+
+	async createFileSystemProvider(scheme: string, store: string): Promise<IFileSystemProvider | null> {
+		let fsp: IFileSystemProvider | null = null;
+		const indexedDB = await this.indexedDBPromise;
+		if (indexedDB) {
+			if (indexedDB.objectStoreNames.contains(store)) {
+				fsp = new IndexedDBFileSystemProvider(scheme, indexedDB, store);
+			} else {
+				console.error(`Error while indexedDB filesystem provider. Could not find ${store} object store`);
 			}
-			c(db);
-		};
-		request.onupgradeneeded = () => {
-			const db = request.result;
-			for (const store of stores) {
-				if (!db.objectStoreNames.contains(store)) {
-					db.createObjectStore(store);
+		}
+		return fsp;
+	}
+
+	private openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase | null> {
+		if (browser.isEdge) {
+			return Promise.resolve(null);
+		}
+		return new Promise((c, e) => {
+			const request = window.indexedDB.open(name, version);
+			request.onerror = (err) => e(request.error);
+			request.onsuccess = () => {
+				const db = request.result;
+				for (const store of stores) {
+					if (!db.objectStoreNames.contains(store)) {
+						console.error(`Error while creating indexedDB. Could not create ${store} object store`);
+						c(null);
+						return;
+					}
 				}
-			}
-		};
-	});
+				c(db);
+			};
+			request.onupgradeneeded = () => {
+				const db = request.result;
+				for (const store of stores) {
+					if (!db.objectStoreNames.contains(store)) {
+						db.createObjectStore(store);
+					}
+				}
+			};
+		});
+	}
+
 }
 
-export class IndexedDBFileSystemProvider extends KeyValueFileSystemProvider {
+
+
+class IndexedDBFileSystemProvider extends KeyValueFileSystemProvider {
 
 	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
 		super(scheme);
