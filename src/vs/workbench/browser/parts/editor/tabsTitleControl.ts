@@ -601,6 +601,8 @@ export class TabsTitleControl extends TitleControl {
 		const disposables = new DisposableStore();
 
 		const handleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
+			tab.blur(); // prevent flicker of focus outline on tab until editor got focus
+
 			if (e instanceof MouseEvent && e.button !== 0) {
 				if (e.button === 1) {
 					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
@@ -638,6 +640,13 @@ export class TabsTitleControl extends TitleControl {
 		// Touch Scroll Support
 		disposables.add(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
 			tabsScrollbar.setScrollPosition({ scrollLeft: tabsScrollbar.getScrollPosition().scrollLeft - e.translationX });
+		}));
+
+		// Prevent flicker of focus outline on tab until editor got focus
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_UP, (e: MouseEvent) => {
+			EventHelper.stop(e);
+
+			tab.blur();
 		}));
 
 		// Close on mouse middle click
