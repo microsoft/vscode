@@ -884,10 +884,10 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 	private renderStringEditWidget(keyOrValue: IObjectStringData, rowElement: HTMLElement, isKey: boolean) {
 		const inputBox = new InputBox(rowElement, this.contextViewService);
 
-		inputBox.element.classList.add('setting-list-object-input');
-		if (isKey) {
-			inputBox.element.classList.add('setting-list-object-input-key');
-		}
+		inputBox.element.classList.add(
+			'setting-list-object-input',
+			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
+		);
 
 		this.listDisposables.add(attachInputBoxStyler(inputBox, this.themeService, {
 			inputBackground: settingsTextInputBackground,
@@ -916,9 +916,9 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		}));
 
 		const wrapper = $('.setting-list-object-input');
-		if (isKey) {
-			wrapper.classList.add('setting-list-object-input-key');
-		}
+		wrapper.classList.add(
+			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
+		);
 
 		selectBox.render(wrapper);
 		rowElement.append(wrapper);

@@ -28,9 +28,17 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
 	max-width: 10%;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
 	margin-left: 4px;
 	min-width: 40%;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
+	margin-left: 0;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-value,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
+	width: 100%;
 }
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row:hover .setting-list-object-value,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row:focus .setting-list-object-value,
@@ -138,12 +146,7 @@
 	margin-right: 4px;
 }
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input {
-	max-width: initial;
-	width: 100%;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
-	min-width: 40%;
+	max-width: unset;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-ok-button {
