@@ -226,6 +226,7 @@ interface IEditHandlers<TDataItem extends object> {
 
 abstract class AbstractListSettingWidget<TDataItem extends object> extends Disposable {
 	private listElement: HTMLElement;
+	private rowElements: HTMLElement[] = [];
 
 	protected readonly _onDidChangeList = this._register(new Emitter<ISettingListChangeEvent<TDataItem>>());
 	protected readonly model = new ListSettingListModel<TDataItem>(this.getEmptyItem());
@@ -257,24 +258,17 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.CLICK, e => this.onListClick(e)));
 		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.DBLCLICK, e => this.onListDoubleClick(e)));
 
-		this._register(DOM.addStandardDisposableListener(this.listElement, 'keydown', (e: KeyboardEvent) => {
-			if (e.keyCode === KeyCode.UpArrow) {
-				const selectedIndex = this.model.getSelected();
-				this.model.selectPrevious();
-				if (this.model.getSelected() !== selectedIndex) {
-					this.renderList();
-				}
-				e.preventDefault();
-				e.stopPropagation();
-			} else if (e.keyCode === KeyCode.DownArrow) {
-				const selectedIndex = this.model.getSelected();
-				this.model.selectNext();
-				if (this.model.getSelected() !== selectedIndex) {
-					this.renderList();
-				}
-				e.preventDefault();
-				e.stopPropagation();
+		this._register(DOM.addStandardDisposableListener(this.listElement, 'keydown', (e: StandardKeyboardEvent) => {
+			if (e.equals(KeyCode.UpArrow)) {
+				this.selectPreviousRow();
+			} else if (e.equals(KeyCode.DownArrow)) {
+				this.selectNextRow();
+			} else {
+				return;
 			}
+
+			e.preventDefault();
+			e.stopPropagation();
 		}));
 	}
 
@@ -322,9 +316,8 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 			this.listElement.appendChild(header);
 		}
 
-		this.model.items
-			.map((item, i) => this.renderDataOrEditItem(item, i, focused))
-			.forEach(itemElement => this.listElement.appendChild(itemElement));
+		this.rowElements = this.model.items.map((item, i) => this.renderDataOrEditItem(item, i, focused));
+		this.rowElements.forEach(rowElement => this.listElement.appendChild(rowElement));
 
 		this.listElement.style.height = listHeight + 'px';
 	}
@@ -427,8 +420,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 			return;
 		}
 
-		this.model.select(targetIdx);
-		this.renderList();
+		this.selectRow(targetIdx);
 		e.preventDefault();
 		e.stopPropagation();
 	}
@@ -470,6 +462,26 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 
 		const targetIdx = parseInt(targetIdxStr);
 		return targetIdx;
+	}
+
+	private selectRow(idx: number): void {
+		this.model.select(idx);
+		this.rowElements.forEach(row => row.classList.remove('selected'));
+
+		const selectedRow = this.rowElements[this.model.getSelected()!];
+
+		selectedRow.classList.add('selected');
+		selectedRow.focus();
+	}
+
+	private selectNextRow(): void {
+		this.model.selectNext();
+		this.selectRow(this.model.getSelected()!);
+	}
+
+	private selectPreviousRow(): void {
+		this.model.selectPrevious();
+		this.selectRow(this.model.getSelected()!);
 	}
 }
 
