@@ -15,7 +15,6 @@
     "postinstall": "node build/npm/postinstall.js",
     "compile": "gulp compile --max_old_space_size=4095",
     "watch": "gulp watch --max_old_space_size=4095",
-    "watch-web": "gulp watch-web --max_old_space_size=4095",
     "watchd": "deemon yarn watch",
     "kill-watchd": "deemon --kill yarn watch",
     "restart-watchd": "deemon --restart yarn watch",
