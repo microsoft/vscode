@@ -354,7 +354,22 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
-		}
+		},
+		'files.copyPathSeparator': {
+			'type': 'string',
+			'enum': [
+				'/',
+				'\\',
+				'auto'
+			],
+			'enumDescriptions': [
+				nls.localize('copyPathSeparator.forwardSlash', "Use a forward slash / (posix)."),
+				nls.localize('copyPathSeparator.backslash', "Use a backslash \\ (win32)."),
+				nls.localize('copyPathSeparator.auto', "Uses operating system specific path separation character.")
+			],
+			'default': 'auto',
+			'description': nls.localize('copyPathSeparator', "The default path separation character used for copying a path."),
+		},
 	}
 });
 
