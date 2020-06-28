@@ -20,7 +20,7 @@ import { foreground, inputBackground, inputBorder, inputForeground, listActiveSe
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { disposableTimeout } from 'vs/base/common/async';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, isDefined } from 'vs/base/common/types';
 import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isIOS } from 'vs/base/common/platform';
@@ -226,6 +226,7 @@ interface IEditHandlers<TDataItem extends object> {
 
 abstract class AbstractListSettingWidget<TDataItem extends object> extends Disposable {
 	private listElement: HTMLElement;
+	private rowElements: HTMLElement[] = [];
 
 	protected readonly _onDidChangeList = this._register(new Emitter<ISettingListChangeEvent<TDataItem>>());
 	protected readonly model = new ListSettingListModel<TDataItem>(this.getEmptyItem());
@@ -257,24 +258,17 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.CLICK, e => this.onListClick(e)));
 		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.DBLCLICK, e => this.onListDoubleClick(e)));
 
-		this._register(DOM.addStandardDisposableListener(this.listElement, 'keydown', (e: KeyboardEvent) => {
-			if (e.keyCode === KeyCode.UpArrow) {
-				const selectedIndex = this.model.getSelected();
-				this.model.selectPrevious();
-				if (this.model.getSelected() !== selectedIndex) {
-					this.renderList();
-				}
-				e.preventDefault();
-				e.stopPropagation();
-			} else if (e.keyCode === KeyCode.DownArrow) {
-				const selectedIndex = this.model.getSelected();
-				this.model.selectNext();
-				if (this.model.getSelected() !== selectedIndex) {
-					this.renderList();
-				}
-				e.preventDefault();
-				e.stopPropagation();
+		this._register(DOM.addStandardDisposableListener(this.listElement, 'keydown', (e: StandardKeyboardEvent) => {
+			if (e.equals(KeyCode.UpArrow)) {
+				this.selectPreviousRow();
+			} else if (e.equals(KeyCode.DownArrow)) {
+				this.selectNextRow();
+			} else {
+				return;
 			}
+
+			e.preventDefault();
+			e.stopPropagation();
 		}));
 	}
 
@@ -322,9 +316,8 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 			this.listElement.appendChild(header);
 		}
 
-		this.model.items
-			.map((item, i) => this.renderDataOrEditItem(item, i, focused))
-			.forEach(itemElement => this.listElement.appendChild(itemElement));
+		this.rowElements = this.model.items.map((item, i) => this.renderDataOrEditItem(item, i, focused));
+		this.rowElements.forEach(rowElement => this.listElement.appendChild(rowElement));
 
 		this.listElement.style.height = listHeight + 'px';
 	}
@@ -335,9 +328,13 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 	}
 
 	private renderDataOrEditItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
-		return item.editing ?
+		const rowElement = item.editing ?
 			this.renderEditItem(item, idx) :
 			this.renderDataItem(item, idx, listFocused);
+
+		rowElement.setAttribute('role', 'listitem');
+
+		return rowElement;
 	}
 
 	private renderDataItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
@@ -353,12 +350,8 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		actionBar.push(this.getActionsForItem(item, idx), { icon: true, label: true });
 		rowElement.title = this.getLocalizedRowTitle(item);
 
-		if (item.selected) {
-			if (listFocused) {
-				setTimeout(() => {
-					rowElement.focus();
-				}, 10);
-			}
+		if (item.selected && listFocused) {
+			this.listDisposables.add(disposableTimeout(() => rowElement.focus()));
 		}
 
 		return rowElement;
@@ -427,8 +420,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 			return;
 		}
 
-		this.model.select(targetIdx);
-		this.renderList();
+		this.selectRow(targetIdx);
 		e.preventDefault();
 		e.stopPropagation();
 	}
@@ -471,6 +463,26 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		const targetIdx = parseInt(targetIdxStr);
 		return targetIdx;
 	}
+
+	private selectRow(idx: number): void {
+		this.model.select(idx);
+		this.rowElements.forEach(row => row.classList.remove('selected'));
+
+		const selectedRow = this.rowElements[this.model.getSelected()!];
+
+		selectedRow.classList.add('selected');
+		selectedRow.focus();
+	}
+
+	private selectNextRow(): void {
+		this.model.selectNext();
+		this.selectRow(this.model.getSelected()!);
+	}
+
+	private selectPreviousRow(): void {
+		this.model.selectPrevious();
+		this.selectRow(this.model.getSelected()!);
+	}
 }
 
 export interface IListDataItem {
@@ -508,7 +520,6 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 
 	protected renderItem(item: IListDataItem): HTMLElement {
 		const rowElement = $('.setting-list-row');
-
 		const valueElement = DOM.append(rowElement, $('.setting-list-value'));
 		const siblingElement = DOM.append(rowElement, $('.setting-list-sibling'));
 
@@ -758,6 +769,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 			keyWidget = this.renderEditWidget(item.key, rowElement, true);
 		} else {
 			const keyElement = DOM.append(rowElement, $('.setting-list-object-key'));
+			keyElement.setAttribute('aria-readonly', 'true');
 			keyElement.textContent = item.key.data;
 		}
 
@@ -842,11 +854,18 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 	}
 
 	protected getLocalizedRowTitle(item: IObjectDataItem): string {
-		const enumDescription = item.key.type === 'enum'
+		let enumDescription = item.key.type === 'enum'
 			? item.key.options.find(({ value }) => item.key.data === value)?.description
 			: undefined;
 
-		return enumDescription ?? localize('objectPairHintLabel', "The key `{0}` maps to `{1}`", item.key.data, item.value.data);
+		// avoid rendering double '.'
+		if (isDefined(enumDescription) && enumDescription.endsWith('.')) {
+			enumDescription = enumDescription.slice(0, enumDescription.length - 1);
+		}
+
+		return isDefined(enumDescription)
+			? `${enumDescription}. Currently set to ${item.value.data}.`
+			: localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
 	}
 
 	protected getLocalizedStrings() {
