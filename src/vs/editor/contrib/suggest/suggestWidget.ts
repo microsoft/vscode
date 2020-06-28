@@ -159,7 +159,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		data.detailsLabel = append(data.right, $('span.details-label'));
 
 		data.readMore = append(data.right, $('span.readMore' + suggestMoreInfoIcon.cssSelector));
-		data.readMore.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
+		data.readMore.title = nls.localize('readMore', "Read More ({0})", this.triggerKeybindingLabel);
 
 		const configureFont = () => {
 			const options = this.editor.getOptions();
@@ -321,7 +321,7 @@ class SuggestionDetails {
 
 		this.header = append(this.body, $('.header'));
 		this.close = append(this.header, $('span' + Codicon.close.cssSelector));
-		this.close.title = nls.localize('readLess', "Read less...{0}", this.kbToggleDetails);
+		this.close.title = nls.localize('readLess', "Read Less ({0})", this.kbToggleDetails);
 		this.type = append(this.header, $('p.type'));
 
 		this.docs = append(this.body, $('p.docs'));
@@ -605,7 +605,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		this.list = new List('SuggestWidget', this.listElement, this, [renderer], {
 			useShadows: false,
-			openController: { shouldOpen: () => false },
 			mouseSupport: false,
 			accessibilityProvider: {
 				getRole: () => 'option',

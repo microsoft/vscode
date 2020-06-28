@@ -47,6 +47,9 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { TunnelService } from 'vs/platform/remote/node/tunnelService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -162,6 +165,8 @@ class CodeMain {
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 		services.set(ISignService, new SyncDescriptor(SignService));
 		services.set(IStorageKeysSyncRegistryService, new SyncDescriptor(StorageKeysSyncRegistryService));
+		services.set(IProductService, { _serviceBrand: undefined, ...product });
+		services.set(ITunnelService, new SyncDescriptor(TunnelService));
 
 		return [new InstantiationService(services, true), instanceEnvironment, environmentService];
 	}

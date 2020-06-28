@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { ITextFileService, snapshotToString, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, snapshotToString, TextFileOperationResult, TextFileOperationError, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { Schemas } from 'vs/base/common/network';
@@ -20,13 +20,16 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
+import { UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { isWindows } from 'vs/base/common/platform';
 import { readFileSync, statSync } from 'fs';
-import { detectEncodingByBOM } from 'vs/base/test/node/encoding/encoding.test';
+import { detectEncodingByBOM } from 'vs/workbench/services/textfile/test/node/encoding/encoding.test';
 import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { WorkingCopyFileService, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
+import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 
 suite('Files - TextFileService i/o', function () {
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
@@ -57,6 +60,8 @@ suite('Files - TextFileService i/o', function () {
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);
 
+		collection.set(IWorkingCopyFileService, new WorkingCopyFileService(fileService, new TestWorkingCopyService(), instantiationService, new UriIdentityService(fileService)));
+
 		service = instantiationService.createChild(collection).createInstance(TestNativeTextFileServiceWithEncodingOverrides);
 
 		const id = generateUuid();
@@ -82,10 +87,19 @@ suite('Files - TextFileService i/o', function () {
 		assert.equal(await exists(resource.fsPath), true);
 	});
 
-	test('create - no encoding - content provided', async () => {
+	test('create - no encoding - content provided (string)', async () => {
 		const resource = URI.file(join(testDir, 'small_new.txt'));
 
 		await service.create(resource, 'Hello World');
+
+		assert.equal(await exists(resource.fsPath), true);
+		assert.equal((await readFile(resource.fsPath)).toString(), 'Hello World');
+	});
+
+	test('create - no encoding - content provided (snapshot)', async () => {
+		const resource = URI.file(join(testDir, 'small_new.txt'));
+
+		await service.create(resource, stringToSnapshot('Hello World'));
 
 		assert.equal(await exists(resource.fsPath), true);
 		assert.equal((await readFile(resource.fsPath)).toString(), 'Hello World');

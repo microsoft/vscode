@@ -20,7 +20,7 @@ import { foreground, inputBackground, inputBorder, inputForeground, listActiveSe
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { disposableTimeout } from 'vs/base/common/async';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, isDefined } from 'vs/base/common/types';
 import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isIOS } from 'vs/base/common/platform';
@@ -226,8 +226,9 @@ interface IEditHandlers<TDataItem extends object> {
 
 abstract class AbstractListSettingWidget<TDataItem extends object> extends Disposable {
 	private listElement: HTMLElement;
-	private readonly _onDidChangeList = this._register(new Emitter<ISettingListChangeEvent<TDataItem>>());
+	private rowElements: HTMLElement[] = [];
 
+	protected readonly _onDidChangeList = this._register(new Emitter<ISettingListChangeEvent<TDataItem>>());
 	protected readonly model = new ListSettingListModel<TDataItem>(this.getEmptyItem());
 	protected readonly listDisposables = this._register(new DisposableStore());
 
@@ -235,6 +236,10 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 
 	get domNode(): HTMLElement {
 		return this.listElement;
+	}
+
+	get items(): TDataItem[] {
+		return this.model.items;
 	}
 
 	constructor(
@@ -253,24 +258,17 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.CLICK, e => this.onListClick(e)));
 		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.DBLCLICK, e => this.onListDoubleClick(e)));
 
-		this._register(DOM.addStandardDisposableListener(this.listElement, 'keydown', (e: KeyboardEvent) => {
-			if (e.keyCode === KeyCode.UpArrow) {
-				const selectedIndex = this.model.getSelected();
-				this.model.selectPrevious();
-				if (this.model.getSelected() !== selectedIndex) {
-					this.renderList();
-				}
-				e.preventDefault();
-				e.stopPropagation();
-			} else if (e.keyCode === KeyCode.DownArrow) {
-				const selectedIndex = this.model.getSelected();
-				this.model.selectNext();
-				if (this.model.getSelected() !== selectedIndex) {
-					this.renderList();
-				}
-				e.preventDefault();
-				e.stopPropagation();
+		this._register(DOM.addStandardDisposableListener(this.listElement, 'keydown', (e: StandardKeyboardEvent) => {
+			if (e.equals(KeyCode.UpArrow)) {
+				this.selectPreviousRow();
+			} else if (e.equals(KeyCode.DownArrow)) {
+				this.selectNextRow();
+			} else {
+				return;
 			}
+
+			e.preventDefault();
+			e.stopPropagation();
 		}));
 	}
 
@@ -281,6 +279,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 
 	protected abstract getEmptyItem(): TDataItem;
 	protected abstract getContainerClasses(): string[];
+	protected abstract getActionsForItem(item: TDataItem, idx: number): IAction[];
 	protected abstract renderItem(item: TDataItem): HTMLElement;
 	protected abstract renderEdit(item: TDataItem, handlers: IEditHandlers<TDataItem>): HTMLElement;
 	protected abstract isItemNew(item: TDataItem): boolean;
@@ -288,9 +287,16 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 	protected abstract getLocalizedStrings(): {
 		deleteActionTooltip: string
 		editActionTooltip: string
-		complexEditActionTooltip: string
 		addButtonLabel: string
 	};
+
+	protected renderHeader(): HTMLElement | undefined {
+		return;
+	}
+
+	protected isAddButtonVisible(): boolean {
+		return true;
+	}
 
 	protected renderList(): void {
 		const focused = DOM.isAncestor(document.activeElement, this.listElement);
@@ -299,20 +305,36 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		this.listDisposables.clear();
 
 		const newMode = this.model.items.some(item => !!(item.editing && this.isItemNew(item)));
-		DOM.toggleClass(this.container, 'setting-list-new-mode', newMode);
+		DOM.toggleClass(this.container, 'setting-list-hide-add-button', !this.isAddButtonVisible() || newMode);
 
-		this.model.items
-			.map((item, i) => this.renderDataOrEditItem(item, i, focused))
-			.forEach(itemElement => this.listElement.appendChild(itemElement));
+		const header = this.renderHeader();
+		const ITEM_HEIGHT = 24;
+		let listHeight = ITEM_HEIGHT * this.model.items.length;
 
-		const listHeight = 24 * this.model.items.length;
+		if (header) {
+			listHeight += ITEM_HEIGHT;
+			this.listElement.appendChild(header);
+		}
+
+		this.rowElements = this.model.items.map((item, i) => this.renderDataOrEditItem(item, i, focused));
+		this.rowElements.forEach(rowElement => this.listElement.appendChild(rowElement));
+
 		this.listElement.style.height = listHeight + 'px';
 	}
 
+	protected editSetting(idx: number): void {
+		this.model.setEditKey(idx);
+		this.renderList();
+	}
+
 	private renderDataOrEditItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
-		return item.editing ?
+		const rowElement = item.editing ?
 			this.renderEditItem(item, idx) :
 			this.renderDataItem(item, idx, listFocused);
+
+		rowElement.setAttribute('role', 'listitem');
+
+		return rowElement;
 	}
 
 	private renderDataItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
@@ -325,19 +347,11 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		const actionBar = new ActionBar(rowElement);
 		this.listDisposables.add(actionBar);
 
-		actionBar.push([
-			this.createEditAction(idx),
-			this.createDeleteAction(item, idx)
-		], { icon: true, label: false });
-
+		actionBar.push(this.getActionsForItem(item, idx), { icon: true, label: true });
 		rowElement.title = this.getLocalizedRowTitle(item);
 
-		if (item.selected) {
-			if (listFocused) {
-				setTimeout(() => {
-					rowElement.focus();
-				}, 10);
-			}
+		if (item.selected && listFocused) {
+			this.listDisposables.add(disposableTimeout(() => rowElement.focus()));
 		}
 
 		return rowElement;
@@ -380,28 +394,6 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		return rowElement;
 	}
 
-	private createDeleteAction(item: TDataItem, idx: number): IAction {
-		return <IAction>{
-			class: 'codicon-close',
-			enabled: true,
-			id: 'workbench.action.removeListItem',
-			tooltip: this.getLocalizedStrings().deleteActionTooltip,
-			run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
-		};
-	}
-
-	private createEditAction(idx: number): IAction {
-		return <IAction>{
-			class: preferencesEditIcon.classNames,
-			enabled: true,
-			id: 'workbench.action.editListItem',
-			tooltip: this.getLocalizedStrings().editActionTooltip,
-			run: () => {
-				this.editSetting(idx);
-			}
-		};
-	}
-
 	private renderAddButton(): HTMLElement {
 		const rowElement = $('.setting-list-new-row');
 
@@ -428,8 +420,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 			return;
 		}
 
-		this.model.select(targetIdx);
-		this.renderList();
+		this.selectRow(targetIdx);
 		e.preventDefault();
 		e.stopPropagation();
 	}
@@ -473,9 +464,24 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		return targetIdx;
 	}
 
-	private editSetting(idx: number): void {
-		this.model.setEditKey(idx);
-		this.renderList();
+	private selectRow(idx: number): void {
+		this.model.select(idx);
+		this.rowElements.forEach(row => row.classList.remove('selected'));
+
+		const selectedRow = this.rowElements[this.model.getSelected()!];
+
+		selectedRow.classList.add('selected');
+		selectedRow.focus();
+	}
+
+	private selectNextRow(): void {
+		this.model.selectNext();
+		this.selectRow(this.model.getSelected()!);
+	}
+
+	private selectPreviousRow(): void {
+		this.model.selectPrevious();
+		this.selectRow(this.model.getSelected()!);
 	}
 }
 
@@ -493,9 +499,27 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		return ['setting-list-widget'];
 	}
 
+	protected getActionsForItem(item: IListDataItem, idx: number): IAction[] {
+		return [
+			{
+				class: preferencesEditIcon.classNames,
+				enabled: true,
+				id: 'workbench.action.editListItem',
+				tooltip: this.getLocalizedStrings().editActionTooltip,
+				run: () => this.editSetting(idx)
+			},
+			{
+				class: 'codicon-close',
+				enabled: true,
+				id: 'workbench.action.removeListItem',
+				tooltip: this.getLocalizedStrings().deleteActionTooltip,
+				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
+			}
+		] as IAction[];
+	}
+
 	protected renderItem(item: IListDataItem): HTMLElement {
 		const rowElement = $('.setting-list-row');
-
 		const valueElement = DOM.append(rowElement, $('.setting-list-value'));
 		const siblingElement = DOM.append(rowElement, $('.setting-list-sibling'));
 
@@ -547,13 +571,15 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 
 		const okButton = this._register(new Button(rowElement));
 		okButton.label = localize('okButton', "OK");
-		okButton.element.classList.add('setting-list-okButton');
+		okButton.element.classList.add('setting-list-ok-button');
+
 		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
 		this.listDisposables.add(okButton.onDidClick(() => onSubmit(updatedItem())));
 
 		const cancelButton = this._register(new Button(rowElement));
 		cancelButton.label = localize('cancelButton', "Cancel");
-		cancelButton.element.classList.add('setting-list-okButton');
+		cancelButton.element.classList.add('setting-list-cancel-button');
+
 		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
 		this.listDisposables.add(cancelButton.onDidClick(onCancel));
 
@@ -581,7 +607,6 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		return {
 			deleteActionTooltip: localize('removeItem', "Remove Item"),
 			editActionTooltip: localize('editItem', "Edit Item"),
-			complexEditActionTooltip: localize('editItemInSettingsJson', "Edit Item in settings.json"),
 			addButtonLabel: localize('addItem', "Add Item"),
 			inputPlaceholder: localize('itemInputPlaceholder', "String Item..."),
 			siblingInputPlaceholder: localize('listSiblingInputPlaceholder', "Sibling..."),
@@ -604,7 +629,6 @@ export class ExcludeSettingWidget extends ListSettingWidget {
 		return {
 			deleteActionTooltip: localize('removeExcludeItem', "Remove Exclude Item"),
 			editActionTooltip: localize('editExcludeItem', "Edit Exclude Item"),
-			complexEditActionTooltip: localize('editExcludeItemInSettingsJson', "Edit Exclude Item in settings.json"),
 			addButtonLabel: localize('addPattern', "Add Pattern"),
 			inputPlaceholder: localize('excludePatternInputPlaceholder', "Exclude Pattern..."),
 			siblingInputPlaceholder: localize('excludeSiblingInputPlaceholder', "When Pattern Is Present..."),
@@ -613,33 +637,60 @@ export class ExcludeSettingWidget extends ListSettingWidget {
 }
 
 interface IObjectStringData {
-	type: 'string'
-	data: string
+	type: 'string';
+	data: string;
 }
 
 export interface IObjectEnumOption {
-	value: string
+	value: string;
 	description?: string
 }
 
 interface IObjectEnumData {
-	type: 'enum'
-	data: string
-	options: IObjectEnumOption[]
+	type: 'enum';
+	data: string;
+	options: IObjectEnumOption[];
 }
 
-type ObjectKeyOrValue = IObjectStringData | IObjectEnumData;
+interface IObjectBoolData {
+	type: 'boolean';
+	data: boolean;
+}
+
+type ObjectKey = IObjectStringData | IObjectEnumData;
+export type ObjectValue = IObjectStringData | IObjectEnumData | IObjectBoolData;
 
 export interface IObjectDataItem {
-	key: ObjectKeyOrValue;
-	value: ObjectKeyOrValue;
+	key: ObjectKey;
+	value: ObjectValue;
+	removable: boolean;
+}
+
+interface IObjectSetValueOptions {
+	showAddButton?: boolean;
 }
 
 export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataItem> {
+	private showAddButton: boolean = true;
+
+	setValue(listData: IObjectDataItem[], options?: IObjectSetValueOptions): void {
+		this.showAddButton = options?.showAddButton ?? this.showAddButton;
+		super.setValue(listData);
+	}
+
+	isItemNew(item: IObjectDataItem): boolean {
+		return item.key.data === '' && item.value.data === '';
+	}
+
+	protected isAddButtonVisible(): boolean {
+		return this.showAddButton;
+	}
+
 	protected getEmptyItem(): IObjectDataItem {
 		return {
 			key: { type: 'string', data: '' },
 			value: { type: 'string', data: '' },
+			removable: true,
 		};
 	}
 
@@ -647,25 +698,82 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		return ['setting-list-object-widget'];
 	}
 
+	protected getActionsForItem(item: IObjectDataItem, idx: number): IAction[] {
+		const actions = [
+			{
+				class: preferencesEditIcon.classNames,
+				enabled: true,
+				id: 'workbench.action.editListItem',
+				tooltip: this.getLocalizedStrings().editActionTooltip,
+				run: () => this.editSetting(idx)
+			},
+		] as IAction[];
+
+		if (item.removable) {
+			actions.push({
+				class: 'codicon-close',
+				enabled: true,
+				id: 'workbench.action.removeListItem',
+				tooltip: this.getLocalizedStrings().deleteActionTooltip,
+				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
+			} as IAction);
+		} else {
+			actions.push({
+				class: 'codicon-discard',
+				enabled: true,
+				id: 'workbench.action.resetListItem',
+				tooltip: this.getLocalizedStrings().resetActionTooltip,
+				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
+			} as IAction);
+		}
+
+		return actions;
+	}
+
+	protected renderHeader() {
+		if (this.model.items.length > 0) {
+			const header = $('.setting-list-row-header');
+			const keyHeader = DOM.append(header, $('.setting-list-object-key'));
+			const valueHeader = DOM.append(header, $('.setting-list-object-value'));
+			const { keyHeaderText, valueHeaderText } = this.getLocalizedStrings();
+
+			keyHeader.textContent = keyHeaderText;
+			valueHeader.textContent = valueHeaderText;
+
+			return header;
+		}
+
+		return;
+	}
+
 	protected renderItem(item: IObjectDataItem): HTMLElement {
 		const rowElement = $('.setting-list-row');
+		rowElement.classList.add('setting-list-object-row');
 
 		const keyElement = DOM.append(rowElement, $('.setting-list-object-key'));
-		const connector = DOM.append(rowElement, $('.setting-list-object-connector'));
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
 
 		keyElement.textContent = item.key.data;
-		connector.textContent = this.getLocalizedStrings().connector;
-		valueElement.textContent = item.value.data;
+		valueElement.textContent = item.value.data.toString();
 
 		return rowElement;
 	}
 
 	protected renderEdit(item: IObjectDataItem, { onSubmit, onKeydown, onCancel }: IEditHandlers<IObjectDataItem>): HTMLElement {
 		const rowElement = $('.setting-list-edit-row');
+		rowElement.classList.add('setting-list-object-row');
 
-		const keyWidget = this.renderEditWidget(item.key, rowElement);
-		const valueWidget = this.renderEditWidget(item.value, rowElement);
+		let keyWidget: InputBox | SelectBox | undefined;
+
+		if (this.showAddButton) {
+			keyWidget = this.renderEditWidget(item.key, rowElement, true);
+		} else {
+			const keyElement = DOM.append(rowElement, $('.setting-list-object-key'));
+			keyElement.setAttribute('aria-readonly', 'true');
+			keyElement.textContent = item.key.data;
+		}
+
+		const valueWidget = this.renderEditWidget(item.value, rowElement, false);
 
 		const updatedItem = () => {
 			const newItem = { ...item };
@@ -706,29 +814,38 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		} else if (valueWidget instanceof SelectBox) {
 			this.listDisposables.add(
 				valueWidget.onDidSelect(({ selected }) => {
-					onSubmit({ ...item, value: { ...item.value, data: selected } });
+					onSubmit({
+						...item,
+						value: item.value.type === 'boolean'
+							? { ...item.value, data: selected === 'true' ? true : false }
+							: { ...item.value, data: selected },
+					});
 				})
 			);
 		}
 
 		const okButton = this._register(new Button(rowElement));
 		okButton.label = localize('okButton', "OK");
-		okButton.element.classList.add('setting-list-okButton');
+		okButton.element.classList.add('setting-list-ok-button');
+
 		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
 		this.listDisposables.add(okButton.onDidClick(() => onSubmit(updatedItem())));
 
 		const cancelButton = this._register(new Button(rowElement));
 		cancelButton.label = localize('cancelButton', "Cancel");
-		cancelButton.element.classList.add('setting-list-okButton');
+		cancelButton.element.classList.add('setting-list-cancel-button');
+
 		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
 		this.listDisposables.add(cancelButton.onDidClick(onCancel));
 
 		this.listDisposables.add(
 			disposableTimeout(() => {
-				keyWidget.focus();
+				const widget = keyWidget ?? valueWidget;
 
-				if (keyWidget instanceof InputBox) {
-					keyWidget.select();
+				widget.focus();
+
+				if (widget instanceof InputBox) {
+					widget.select();
 				}
 			})
 		);
@@ -736,43 +853,61 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		return rowElement;
 	}
 
-	protected isItemNew(item: IObjectDataItem): boolean {
-		return item.key.data === '' && item.value.data === '';
-	}
-
 	protected getLocalizedRowTitle(item: IObjectDataItem): string {
-		const enumDescription = item.key.type === 'enum'
+		let enumDescription = item.key.type === 'enum'
 			? item.key.options.find(({ value }) => item.key.data === value)?.description
 			: undefined;
 
-		return enumDescription ?? localize('objectPairHintLabel', "The key `{0}` maps to `{1}`", item.key.data, item.value.data);
+		// avoid rendering double '.'
+		if (isDefined(enumDescription) && enumDescription.endsWith('.')) {
+			enumDescription = enumDescription.slice(0, enumDescription.length - 1);
+		}
+
+		return isDefined(enumDescription)
+			? `${enumDescription}. Currently set to ${item.value.data}.`
+			: localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
 	}
 
 	protected getLocalizedStrings() {
 		return {
 			deleteActionTooltip: localize('removeItem', "Remove Item"),
+			resetActionTooltip: localize('resetItem', "Reset Item"),
 			editActionTooltip: localize('editItem', "Edit Item"),
-			complexEditActionTooltip: localize('editItemInSettingsJson', "Edit Item in settings.json"),
 			addButtonLabel: localize('addItem', "Add Item"),
+			keyHeaderText: localize('objectKeyHeader', "Item"),
+			valueHeaderText: localize('objectValueHeader', "Value"),
 			keyInputPlaceholder: localize('objectKeyInputPlaceholder', "Key"),
 			valueInputPlaceholder: localize('objectValueInputPlaceholder', "Value"),
-			connector: ' → ',
 		};
 	}
 
-	private renderEditWidget(keyOrValue: ObjectKeyOrValue, rowElement: HTMLElement) {
+	private renderEditWidget(keyOrValue: ObjectKey | ObjectValue, rowElement: HTMLElement, isKey: boolean) {
 		switch (keyOrValue.type) {
 			case 'string':
-				return this.renderStringEditWidget(keyOrValue, rowElement);
+				return this.renderStringEditWidget(keyOrValue, rowElement, isKey);
 			case 'enum':
-				return this.renderEnumEditWidget(keyOrValue, rowElement);
+				return this.renderEnumEditWidget(keyOrValue, rowElement, isKey);
+			case 'boolean':
+				return this.renderEnumEditWidget(
+					{
+						type: 'enum',
+						data: keyOrValue.data.toString(),
+						options: [{ value: 'true' }, { value: 'false' }],
+					},
+					rowElement,
+					isKey
+				);
 		}
 	}
 
-	private renderStringEditWidget(keyOrValue: IObjectStringData, rowElement: HTMLElement) {
+	private renderStringEditWidget(keyOrValue: IObjectStringData, rowElement: HTMLElement, isKey: boolean) {
 		const inputBox = new InputBox(rowElement, this.contextViewService);
 
-		inputBox.element.classList.add('setting-list-object-input');
+		inputBox.element.classList.add(
+			'setting-list-object-input',
+			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
+		);
+
 		this.listDisposables.add(attachInputBoxStyler(inputBox, this.themeService, {
 			inputBackground: settingsTextInputBackground,
 			inputForeground: settingsTextInputForeground,
@@ -784,10 +919,9 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		return inputBox;
 	}
 
-	private renderEnumEditWidget(keyOrValue: IObjectEnumData, rowElement: HTMLElement) {
+	private renderEnumEditWidget(keyOrValue: IObjectEnumData, rowElement: HTMLElement, isKey: boolean) {
 		const selectBoxOptions = keyOrValue.options.map(({ value, description }) => ({ text: value, description }));
-		const dataIndex = keyOrValue.options.findIndex(option => keyOrValue.data === option.value);
-		const selected = dataIndex >= 0 ? dataIndex : 0;
+		const selected = keyOrValue.options.findIndex(option => keyOrValue.data === option.value);
 
 		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, undefined, {
 			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
@@ -801,6 +935,9 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		}));
 
 		const wrapper = $('.setting-list-object-input');
+		wrapper.classList.add(
+			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
+		);
 
 		selectBox.render(wrapper);
 		rowElement.append(wrapper);

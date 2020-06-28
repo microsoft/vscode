@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, SyncResource, IUserDataSyncService, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, SyncResource, IUserDataSyncService, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle, ISyncTask } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -37,6 +37,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	private _onSyncErrors: Emitter<[SyncResource, UserDataSyncError][]> = this._register(new Emitter<[SyncResource, UserDataSyncError][]>());
 	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]> = this._onSyncErrors.event;
+
+	get onSynchronizeResource(): Event<SyncResource> { return this.channel.listen<SyncResource>('onSynchronizeResource'); }
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService
@@ -73,6 +75,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('sync');
 	}
 
+	createSyncTask(): Promise<ISyncTask> {
+		throw new Error('not supported');
+	}
+
 	stop(): Promise<void> {
 		return this.channel.call('stop');
 	}
@@ -87,6 +93,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	resetLocal(): Promise<void> {
 		return this.channel.call('resetLocal');
+	}
+
+	hasPreviouslySynced(): Promise<boolean> {
+		return this.channel.call('hasPreviouslySynced');
 	}
 
 	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean> {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IRange } from 'vs/editor/common/core/range';
-import { SymbolKind, ProviderResult } from 'vs/editor/common/modes';
+import { SymbolKind, ProviderResult, SymbolTag } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
@@ -32,6 +32,7 @@ export interface CallHierarchyItem {
 	uri: URI;
 	range: IRange;
 	selectionRange: IRange;
+	tags?: SymbolTag[]
 }
 
 export interface IncomingCall {

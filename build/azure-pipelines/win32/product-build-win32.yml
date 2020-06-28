@@ -218,7 +218,7 @@ steps:
     restoreSolution: 'build\azure-pipelines\win32\ESRPClient\packages.config'
     feedsToUse: config
     nugetConfigPath: 'build\azure-pipelines\win32\ESRPClient\NuGet.config'
-    externalFeedCredentials: 3fc0b7f7-da09-4ae7-a9c8-d69824b1819b
+    externalFeedCredentials: 'ESRP Nuget'
     restoreDirectory: packages
 
 - task: ESRPImportCertTask@1

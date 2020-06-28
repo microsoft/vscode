@@ -512,12 +512,10 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 
 	public async $onDidStartTaskProcess(value: tasks.TaskProcessStartedDTO): Promise<void> {
 		const execution = await this.getTaskExecution(value.id);
-		if (execution) {
-			this._onDidTaskProcessStarted.fire({
-				execution: execution,
-				processId: value.processId
-			});
-		}
+		this._onDidTaskProcessStarted.fire({
+			execution: execution,
+			processId: value.processId
+		});
 	}
 
 	public get onDidEndTaskProcess(): Event<vscode.TaskProcessEndEvent> {
@@ -526,12 +524,10 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 
 	public async $onDidEndTaskProcess(value: tasks.TaskProcessEndedDTO): Promise<void> {
 		const execution = await this.getTaskExecution(value.id);
-		if (execution) {
-			this._onDidTaskProcessEnded.fire({
-				execution: execution,
-				exitCode: value.exitCode
-			});
-		}
+		this._onDidTaskProcessEnded.fire({
+			execution: execution,
+			exitCode: value.exitCode
+		});
 	}
 
 	protected abstract provideTasksInternal(validTypes: { [key: string]: boolean; }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.TaskDTO[], extension: IExtensionDescription };
@@ -622,7 +618,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 
 	protected async getTaskExecution(execution: tasks.TaskExecutionDTO | string, task?: vscode.Task): Promise<TaskExecutionImpl> {
 		if (typeof execution === 'string') {
-			const taskExecution = this._taskExecutions.get(execution);
+			const taskExecution = this._taskExecutionPromises.get(execution);
 			if (!taskExecution) {
 				throw new Error('Unexpected: The specified task is missing an execution');
 			}
@@ -643,9 +639,11 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		});
 
 		this._taskExecutionPromises.set(execution.id, createdResult);
-		return createdResult.then(result => {
-			this._taskExecutions.set(execution.id, result);
-			return result;
+		return createdResult.then(executionCreatedResult => {
+			this._taskExecutions.set(execution.id, executionCreatedResult);
+			return executionCreatedResult;
+		}, rejected => {
+			return Promise.reject(rejected);
 		});
 	}
 
@@ -708,7 +706,7 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
 		const dto = TaskDTO.from(task, extension);
 		if (dto === undefined) {
-			return Promise.reject(new Error('Task is not valid'));
+			throw new Error('Task is not valid');
 		}
 
 		// If this task is a custom execution, then we need to save it away
@@ -720,7 +718,10 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 			throw new Error('Not implemented');
 		}
 
-		return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, task));
+		// Always get the task execution first to prevent timing issues when retrieving it later
+		const execution = await this.getTaskExecution(await this._proxy.$getTaskExecution(dto), task);
+		this._proxy.$executeTask(dto).catch(error => { throw new Error(error); });
+		return execution;
 	}
 
 	protected provideTasksInternal(validTypes: { [key: string]: boolean; }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.TaskDTO[], extension: IExtensionDescription } {

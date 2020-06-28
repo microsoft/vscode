@@ -57,7 +57,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 		this._register(getResizesObserver(this.markdownContainer, undefined, () => {
 			if (viewCell.editState === CellEditState.Preview) {
-				this.viewCell.totalHeight = templateData.container.clientHeight;
+				this.viewCell.renderedMarkdownHeight = templateData.container.clientHeight;
 			}
 		})).startObserving();
 
@@ -202,15 +202,13 @@ export class StatefullMarkdownCell extends Disposable {
 
 		if (this.editor) {
 			// switch from editing mode
-			const clientHeight = this.templateData.container.clientHeight;
-			this.viewCell.totalHeight = clientHeight;
-			this.notebookEditor.layoutNotebookCell(this.viewCell, clientHeight);
+			this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
+			this.relayoutCell();
 		} else {
 			// first time, readonly mode
 			this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
-				const clientHeight = this.templateData.container.clientHeight;
-				this.viewCell.totalHeight = clientHeight;
-				this.notebookEditor.layoutNotebookCell(this.viewCell, clientHeight);
+				this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
+				this.relayoutCell();
 			}));
 
 			this.localDisposables.add(this.viewCell.textBuffer.onDidChangeContent(() => {
@@ -222,9 +220,8 @@ export class StatefullMarkdownCell extends Disposable {
 				}
 			}));
 
-			const clientHeight = this.templateData.container.clientHeight;
-			this.viewCell.totalHeight = clientHeight;
-			this.notebookEditor.layoutNotebookCell(this.viewCell, clientHeight);
+			this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
+			this.relayoutCell();
 		}
 	}
 
@@ -256,7 +253,7 @@ export class StatefullMarkdownCell extends Disposable {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
-	updateEditorOptions(newValue: IEditorOptions): any {
+	updateEditorOptions(newValue: IEditorOptions): void {
 		this.editorOptions = newValue;
 		if (this.editor) {
 			this.editor.updateOptions(this.editorOptions);

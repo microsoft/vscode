@@ -23,7 +23,7 @@ suite('NotebookViewModel', () => {
 	instantiationService.spy(IUndoRedoService, 'pushElement');
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel(0, 'notebook', false, URI.parse('test'));
+		const notebook = new NotebookTextModel(0, 'notebook', false, URI.parse('test'), undoRedoService);
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
 		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
@@ -232,14 +232,14 @@ suite('NotebookViewModel', () => {
 	});
 });
 
-function getVisibleCells(cells: any[], hiddenRanges: ICellRange[]) {
+function getVisibleCells<T>(cells: T[], hiddenRanges: ICellRange[]) {
 	if (!hiddenRanges.length) {
 		return cells;
 	}
 
 	let start = 0;
 	let hiddenRangeIndex = 0;
-	let result: any[] = [];
+	let result: T[] = [];
 
 	while (start < cells.length && hiddenRangeIndex < hiddenRanges.length) {
 		if (start < hiddenRanges[hiddenRangeIndex].start) {
@@ -380,10 +380,10 @@ suite('NotebookViewModel Decorations', () => {
 	});
 
 	test('diff hidden ranges', function () {
-		assert.deepEqual(getVisibleCells([1, 2, 3, 4, 5], []), [1, 2, 3, 4, 5]);
+		assert.deepEqual(getVisibleCells<number>([1, 2, 3, 4, 5], []), [1, 2, 3, 4, 5]);
 
 		assert.deepEqual(
-			getVisibleCells(
+			getVisibleCells<number>(
 				[1, 2, 3, 4, 5],
 				[{ start: 1, end: 2 }]
 			),
@@ -391,7 +391,7 @@ suite('NotebookViewModel Decorations', () => {
 		);
 
 		assert.deepEqual(
-			getVisibleCells(
+			getVisibleCells<number>(
 				[1, 2, 3, 4, 5, 6, 7, 8, 9],
 				[
 					{ start: 1, end: 2 },
@@ -401,7 +401,7 @@ suite('NotebookViewModel Decorations', () => {
 			[1, 4, 7, 8, 9]
 		);
 
-		const original = getVisibleCells(
+		const original = getVisibleCells<number>(
 			[1, 2, 3, 4, 5, 6, 7, 8, 9],
 			[
 				{ start: 1, end: 2 },
@@ -409,7 +409,7 @@ suite('NotebookViewModel Decorations', () => {
 			]
 		);
 
-		const modified = getVisibleCells(
+		const modified = getVisibleCells<number>(
 			[1, 2, 3, 4, 5, 6, 7, 8, 9],
 			[
 				{ start: 2, end: 4 }

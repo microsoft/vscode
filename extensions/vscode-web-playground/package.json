@@ -11,7 +11,7 @@
     "onFileSystem:github",
     "onDebug"
   ],
-  "browser": "./dist/extension",
+  "browser": "./dist/browser/extension",
   "main": "./out/extension",
   "engines": {
     "vscode": "^1.25.0"

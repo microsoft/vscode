@@ -22,6 +22,7 @@ import { BaseCellRenderTemplate, CellEditState, ICellViewModel, INotebookEditor,
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -123,8 +124,8 @@ abstract class NotebookAction extends Action2 {
 
 	abstract async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
 
-	private isCellActionContext(context: any): context is INotebookCellActionContext {
-		return context && !!context.cell && !!context.notebookEditor;
+	private isCellActionContext(context?: INotebookCellActionContext): context is INotebookCellActionContext {
+		return !!context && !!context.cell && !!context.notebookEditor;
 	}
 
 	private getActiveCellContext(accessor: ServicesAccessor): INotebookCellActionContext | undefined {
@@ -165,7 +166,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		return runCell(context);
+		return runCell(accessor, context);
 	}
 });
 
@@ -241,7 +242,7 @@ registerAction2(class extends NotebookAction {
 
 		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
 
-		const executionP = runCell(context);
+		const executionP = runCell(accessor, context);
 
 		// Try to select below, fall back on inserting
 		const nextCell = context.notebookEditor.viewModel?.viewCells[idx + 1];
@@ -274,7 +275,7 @@ registerAction2(class extends NotebookAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
 
-		const executionP = runCell(context);
+		const executionP = runCell(accessor, context);
 		const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, newFocusMode);
@@ -307,6 +308,16 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		renderAllMarkdownCells(context);
+
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const group = editorGroupService.activeGroup;
+
+		if (group) {
+			if (group.activeEditor) {
+				group.pinEditor(group.activeEditor);
+			}
+		}
+
 		return context.notebookEditor.executeNotebook();
 	}
 });
@@ -393,13 +404,22 @@ registerAction2(class extends NotebookAction {
 
 export function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor | undefined {
 	// TODO can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
-	const activeEditorPane = editorService.activeEditorPane as any | undefined;
-	return activeEditorPane?.isNotebookEditor ? activeEditorPane.getControl() : undefined;
+	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
+	return activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
 }
 
-async function runCell(context: INotebookCellActionContext): Promise<void> {
+async function runCell(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 	if (context.cell.metadata?.runState === NotebookCellRunState.Running) {
 		return;
+	}
+
+	const editorGroupService = accessor.get(IEditorGroupsService);
+	const group = editorGroupService.activeGroup;
+
+	if (group) {
+		if (group.activeEditor) {
+			group.pinEditor(group.activeEditor);
+		}
 	}
 
 	return context.notebookEditor.executeNotebookCell(context.cell);
@@ -654,7 +674,7 @@ async function moveCell(context: INotebookCellActionContext, direction: 'up' | '
 
 	if (result) {
 		// move cell command only works when the cell container has focus
-		await context.notebookEditor.focusNotebookCell(context.cell, 'container');
+		await context.notebookEditor.focusNotebookCell(result, 'container');
 	}
 }
 
@@ -1005,13 +1025,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const viewModel = context.notebookEditor.viewModel;
-
-		if (!viewModel) {
-			return;
-		}
-
-		viewModel.undo();
+		await context.notebookEditor.viewModel?.undo();
 	}
 });
 
@@ -1029,7 +1043,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel?.redo();
+		await context.notebookEditor.viewModel?.redo();
 	}
 });
 

@@ -7,7 +7,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { EditorInput, IEditorInputFactory, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, TextCompareEditorActiveContext, EditorPinnedContext, EditorGroupEditorsCountContext, EditorStickyContext } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorInputFactory, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, TextCompareEditorActiveContext, EditorPinnedContext, EditorGroupEditorsCountContext, EditorStickyContext, ActiveEditorAvailableEditorIdsContext } from 'vs/workbench/common/editor';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -34,7 +34,7 @@ import {
 	JoinAllGroupsAction, FocusLeftGroup, FocusAboveGroup, FocusRightGroup, FocusBelowGroup, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, EditorLayoutThreeColumnsAction, EditorLayoutTwoByTwoGridAction,
 	EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoRowsRightAction, NewEditorGroupLeftAction, NewEditorGroupRightAction,
 	NewEditorGroupAboveAction, NewEditorGroupBelowAction, SplitEditorOrthogonalAction, CloseEditorInAllGroupsAction, NavigateToLastEditLocationAction, ToggleGroupSizesAction, ShowAllEditorsByMostRecentlyUsedAction,
-	QuickAccessPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, OpenNextRecentlyUsedEditorInGroupAction, QuickAccessLeastRecentlyUsedEditorAction, QuickAccessLeastRecentlyUsedEditorInGroupAction
+	QuickAccessPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, OpenNextRecentlyUsedEditorInGroupAction, QuickAccessLeastRecentlyUsedEditorAction, QuickAccessLeastRecentlyUsedEditorInGroupAction, ReopenResourcesAction, ToggleEditorTypeAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -173,28 +173,28 @@ interface ISerializedSideBySideEditorInput {
 	name: string;
 	description: string | undefined;
 
-	detailsSerialized: string;
-	masterSerialized: string;
+	primarySerialized: string;
+	secondarySerialized: string;
 
-	detailsTypeId: string;
-	masterTypeId: string;
+	primaryTypeId: string;
+	secondaryTypeId: string;
 }
 
 export abstract class AbstractSideBySideEditorInputFactory implements IEditorInputFactory {
 
-	private getInputFactories(detailsId: string, masterId: string): [IEditorInputFactory | undefined, IEditorInputFactory | undefined] {
+	private getInputFactories(secondaryId: string, primaryId: string): [IEditorInputFactory | undefined, IEditorInputFactory | undefined] {
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
 
-		return [registry.getEditorInputFactory(detailsId), registry.getEditorInputFactory(masterId)];
+		return [registry.getEditorInputFactory(secondaryId), registry.getEditorInputFactory(primaryId)];
 	}
 
 	canSerialize(editorInput: EditorInput): boolean {
 		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
 
-		if (input.details && input.master) {
-			const [detailsInputFactory, masterInputFactory] = this.getInputFactories(input.details.getTypeId(), input.master.getTypeId());
+		if (input.primary && input.secondary) {
+			const [secondaryInputFactory, primaryInputFactory] = this.getInputFactories(input.secondary.getTypeId(), input.primary.getTypeId());
 
-			return !!(detailsInputFactory?.canSerialize(input.details) && masterInputFactory?.canSerialize(input.master));
+			return !!(secondaryInputFactory?.canSerialize(input.secondary) && primaryInputFactory?.canSerialize(input.primary));
 		}
 
 		return false;
@@ -203,20 +203,20 @@ export abstract class AbstractSideBySideEditorInputFactory implements IEditorInp
 	serialize(editorInput: EditorInput): string | undefined {
 		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
 
-		if (input.details && input.master) {
-			const [detailsInputFactory, masterInputFactory] = this.getInputFactories(input.details.getTypeId(), input.master.getTypeId());
-			if (detailsInputFactory && masterInputFactory) {
-				const detailsSerialized = detailsInputFactory.serialize(input.details);
-				const masterSerialized = masterInputFactory.serialize(input.master);
+		if (input.primary && input.secondary) {
+			const [secondaryInputFactory, primaryInputFactory] = this.getInputFactories(input.secondary.getTypeId(), input.primary.getTypeId());
+			if (primaryInputFactory && secondaryInputFactory) {
+				const primarySerialized = primaryInputFactory.serialize(input.primary);
+				const secondarySerialized = secondaryInputFactory.serialize(input.secondary);
 
-				if (detailsSerialized && masterSerialized) {
+				if (primarySerialized && secondarySerialized) {
 					const serializedEditorInput: ISerializedSideBySideEditorInput = {
 						name: input.getName(),
 						description: input.getDescription(),
-						detailsSerialized,
-						masterSerialized,
-						detailsTypeId: input.details.getTypeId(),
-						masterTypeId: input.master.getTypeId()
+						primarySerialized: primarySerialized,
+						secondarySerialized: secondarySerialized,
+						primaryTypeId: input.primary.getTypeId(),
+						secondaryTypeId: input.secondary.getTypeId()
 					};
 
 					return JSON.stringify(serializedEditorInput);
@@ -230,33 +230,33 @@ export abstract class AbstractSideBySideEditorInputFactory implements IEditorInp
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const deserialized: ISerializedSideBySideEditorInput = JSON.parse(serializedEditorInput);
 
-		const [detailsInputFactory, masterInputFactory] = this.getInputFactories(deserialized.detailsTypeId, deserialized.masterTypeId);
-		if (detailsInputFactory && masterInputFactory) {
-			const detailsInput = detailsInputFactory.deserialize(instantiationService, deserialized.detailsSerialized);
-			const masterInput = masterInputFactory.deserialize(instantiationService, deserialized.masterSerialized);
+		const [secondaryInputFactory, primaryInputFactory] = this.getInputFactories(deserialized.secondaryTypeId, deserialized.primaryTypeId);
+		if (primaryInputFactory && secondaryInputFactory) {
+			const primaryInput = primaryInputFactory.deserialize(instantiationService, deserialized.primarySerialized);
+			const secondaryInput = secondaryInputFactory.deserialize(instantiationService, deserialized.secondarySerialized);
 
-			if (detailsInput && masterInput) {
-				return this.createEditorInput(deserialized.name, deserialized.description, detailsInput, masterInput);
+			if (primaryInput && secondaryInput) {
+				return this.createEditorInput(deserialized.name, deserialized.description, secondaryInput, primaryInput);
 			}
 		}
 
 		return undefined;
 	}
 
-	protected abstract createEditorInput(name: string, description: string | undefined, detailsInput: EditorInput, masterInput: EditorInput): EditorInput;
+	protected abstract createEditorInput(name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput;
 }
 
 class SideBySideEditorInputFactory extends AbstractSideBySideEditorInputFactory {
 
-	protected createEditorInput(name: string, description: string | undefined, detailsInput: EditorInput, masterInput: EditorInput): EditorInput {
-		return new SideBySideEditorInput(name, description, detailsInput, masterInput);
+	protected createEditorInput(name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
+		return new SideBySideEditorInput(name, description, secondaryInput, primaryInput);
 	}
 }
 
 class DiffEditorInputFactory extends AbstractSideBySideEditorInputFactory {
 
-	protected createEditorInput(name: string, description: string | undefined, detailsInput: EditorInput, masterInput: EditorInput): EditorInput {
-		return new DiffEditorInput(name, description, detailsInput, masterInput);
+	protected createEditorInput(name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
+		return new DiffEditorInput(name, description, secondaryInput, primaryInput);
 	}
 }
 
@@ -386,6 +386,8 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutThreeRows
 registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoByTwoGridAction), 'View: Grid Editor Layout (2x2)', category);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoRowsRightAction), 'View: Two Rows Right Editor Layout', category);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoColumnsBottomAction), 'View: Two Columns Bottom Editor Layout', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ReopenResourcesAction), 'View: Reopen Editor With...', category, ActiveEditorAvailableEditorIdsContext);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleEditorTypeAction), 'View: Toggle Editor Type', category, ActiveEditorAvailableEditorIdsContext);
 
 // Register Quick Editor Actions including built in quick navigate support for some
 
@@ -458,9 +460,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCo
 
 // Editor Title Menu
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.TOGGLE_DIFF_SIDE_BY_SIDE, title: nls.localize('toggleInlineView', "Toggle Inline View") }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.SHOW_EDITORS_IN_GROUP, title: nls.localize('showOpenedEditors', "Show Opened Editors") }, group: '3_open', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.SHOW_EDITORS_IN_GROUP, title: nls.localize('showOpenedEditors', "Show Opened Editors") }, group: '3_open', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: ReopenResourcesAction.ID, title: ReopenResourcesAction.LABEL }, group: '6_reopen', order: 20, when: ActiveEditorAvailableEditorIdsContext });
 
 interface IEditorToolItem { id: string; title: string; icon?: { dark?: URI; light?: URI; } | ThemeIcon; }
 

@@ -104,4 +104,4 @@ class StartDebugTextMate extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(StartDebugTextMate), 'Start Text Mate Syntax Grammar Logging', nls.localize('developer', "Developer"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(StartDebugTextMate), 'Start Text Mate Syntax Grammar Logging', nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"));

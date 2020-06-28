@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as minimist from 'minimist';
-import * as os from 'os';
 import { localize } from 'vs/nls';
+import { isWindows } from 'vs/base/common/platform';
 
 export interface ParsedArgs {
 	_: string[];
@@ -364,7 +364,7 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}][${localize('paths', 'paths')}...]`);
 	help.push('');
 	if (isPipeSupported) {
-		if (os.platform() === 'win32') {
+		if (isWindows) {
 			help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
 		} else {
 			help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
