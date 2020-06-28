@@ -94,6 +94,7 @@ export interface ICommonElectronService {
 	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
 	toggleDevTools(): Promise<void>;
 	startCrashReporter(options: CrashReporterStartOptions): Promise<void>;
+	sendInputEvent(event: { type: 'mouseDown' | 'mouseUp'; x: number; y: number; clickCount: number; }): Promise<void>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
