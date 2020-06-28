@@ -1878,7 +1878,7 @@
   "dependencies": {
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
-    "iconv-lite-umd": "0.6.3",
+    "iconv-lite-umd": "0.6.4",
     "jschardet": "2.1.1",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0",
