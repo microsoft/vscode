@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ThrottledDelayer } from 'vs/base/common/async';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -27,6 +28,9 @@ export class ElectronIframeWebview extends IFrameWebview {
 	private readonly _resourceRequestManager: WebviewResourceRequestManager;
 	private _messagePromise = Promise.resolve();
 
+	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
+	private _elementFocusImpl!: (options?: FocusOptions | undefined) => void;
+
 	constructor(
 		id: string,
 		options: WebviewOptions,
@@ -47,6 +51,15 @@ export class ElectronIframeWebview extends IFrameWebview {
 			tunnelService, fileService, requestService, telemetryService, environmentService, _workbenchEnvironmentService, _remoteAuthorityResolverService, logService);
 
 		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.content.options, Promise.resolve(undefined)));
+	}
+
+	protected createElement(options: WebviewOptions, contentOptions: WebviewContentOptions) {
+		const element = super.createElement(options, contentOptions);
+		this._elementFocusImpl = element.focus.bind(element);
+		element.focus = () => {
+			this.doFocus();
+		};
+		return element;
 	}
 
 	protected initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
@@ -81,5 +94,45 @@ export class ElectronIframeWebview extends IFrameWebview {
 
 	protected preprocessHtml(value: string): string {
 		return rewriteVsCodeResourceUrls(this.id, value);
+	}
+
+	public focus(): void {
+		this.doFocus();
+
+		// Handle focus change programmatically (do not rely on event from <webview>)
+		this.handleFocusChange(true);
+	}
+
+	private doFocus() {
+		if (!this.element) {
+			return;
+		}
+
+		// Workaround for https://github.com/microsoft/vscode/issues/75209
+		// .focus is async for imframes so for a sequence of actions such as:
+		//
+		// 1. Open webview
+		// 1. Show quick pick from command palette
+		//
+		// We end up focusing the webview after showing the quick pick, which causes
+		// the quick pick to instantly dismiss.
+		//
+		// Workaround this by debouncing the focus and making sure we are not focused on an input
+		// when we try to re-focus.
+		this._focusDelayer.trigger(async () => {
+			if (!this.focused || !this.element) {
+				return;
+			}
+
+			if (document.activeElement?.tagName === 'INPUT') {
+				return;
+			}
+			try {
+				this._elementFocusImpl();
+			} catch {
+				// noop
+			}
+			this._send('focus');
+		});
 	}
 }
