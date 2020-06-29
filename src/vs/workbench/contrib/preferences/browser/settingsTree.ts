@@ -1080,7 +1080,7 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 
 		template.objectWidget.setValue(items, {
 			showAddButton: (
-				isDefined(dataElement.setting.objectAdditionalProperties) ||
+				typeof dataElement.setting.objectAdditionalProperties === 'object' ||
 				isDefined(dataElement.setting.objectPatternProperties) ||
 				!areAllPropertiesDefined(Object.keys(dataElement.setting.objectProperties ?? {}), items)
 			),
