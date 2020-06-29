@@ -23,7 +23,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { contrastBorder, editorBackground, focusBorder, foreground, registerColor, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, errorForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorBackground, focusBorder, foreground, registerColor, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, errorForeground, transparent, widgetShadow, listFocusBackground, listInactiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
@@ -1308,7 +1308,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	dark: transparent(PANEL_BORDER, .4),
-	light: transparent(PANEL_BORDER, .3),
+	light: transparent(listInactiveSelectionBackground, 1),
 	hc: PANEL_BORDER
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
@@ -1338,7 +1338,7 @@ export const cellStatusIconRunning = registerColor('notebookStatusRunningIcon.fo
 
 export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
 	dark: notebookCellBorder,
-	light: notebookCellBorder,
+	light: transparent(listFocusBackground, .4),
 	hc: null
 }, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
 
@@ -1351,13 +1351,13 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeperat
 
 export const cellFocusBackground = registerColor('notebook.cellFocusBackground', {
 	dark: transparent(PANEL_BORDER, .4),
-	light: transparent(PANEL_BORDER, .3),
+	light: transparent(listFocusBackground, .4),
 	hc: PANEL_BORDER
 }, nls.localize('cellFocusBackground', "The background color of focused or hovered cells"));
 
 export const focusedCellShadow = registerColor('notebook.focusedCellShadow', {
-	dark: Color.black.transparent(0.6),
-	light: Color.black.transparent(0.04),
+	dark: transparent(widgetShadow, 0.6),
+	light: transparent(widgetShadow, 0.4),
 	hc: Color.transparent
 }, nls.localize('cellShadow', "The color of the shadow on the focused or hovered cell"));
 
@@ -1503,10 +1503,10 @@ registerThemingParticipant((theme, collector) => {
 	const cellShadowColor = theme.getColor(focusedCellShadow);
 	if (cellShadowColor) {
 		// Code cells
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-shadow { box-shadow: 0px 1px 4px 2px ${cellShadowColor} }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-shadow { box-shadow: 0px 0px 4px 2px ${cellShadowColor} }`);
 
 		// Markdown cells
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused { box-shadow: 0px 1px 4px 2px ${cellShadowColor} }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused { box-shadow: 0px 0px 4px 2px ${cellShadowColor} }`);
 	}
 
 	const cellInsertionIndicatorColor = theme.getColor(cellInsertionIndicator);
