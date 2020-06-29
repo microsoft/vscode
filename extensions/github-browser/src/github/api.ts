@@ -152,19 +152,21 @@ export class GitHubApi implements Disposable {
 							updatedTree.push({ path: operation.path, mode: '100644', type: 'blob', content: operation.content });
 							break;
 
-						case 'changed':
-							const item = updatedTree.find(item => item.path === operation.path);
-							if (item !== undefined) {
-								updatedTree.push({ ...item, content: operation.content });
+						case 'changed': {
+							const index = updatedTree.findIndex(item => item.path === operation.path);
+							if (index !== -1) {
+								const { path, mode, type } = updatedTree[index];
+								updatedTree.splice(index, 1, { path: path, mode: mode, type: type, content: operation.content });
 							}
 							break;
-
-						case 'deleted':
+						}
+						case 'deleted': {
 							const index = updatedTree.findIndex(item => item.path === operation.path);
 							if (index !== -1) {
 								updatedTree.splice(index, 1);
 							}
 							break;
+						}
 					}
 				}
 			} else {
@@ -179,7 +181,8 @@ export class GitHubApi implements Disposable {
 						case 'changed':
 							const item = treeResp.data.tree.find(item => item.path === operation.path) as GitCreateTreeParamsTree;
 							if (item !== undefined) {
-								updatedTree.push({ ...item, content: operation.content });
+								const { path, mode, type } = item;
+								updatedTree.push({ path: path, mode: mode, type: type, content: operation.content });
 							}
 							break;
 					}
