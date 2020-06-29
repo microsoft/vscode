@@ -5,21 +5,21 @@
 
 'use strict';
 import { commands, Event, EventEmitter, FileStat, FileType, Memento, TextDocumentShowOptions, Uri, ViewColumn } from 'vscode';
-import { getRootUri } from './extension';
+import { getRootUri, getRelativePath } from './extension';
 import { sha1 } from './sha1';
 
 const textDecoder = new TextDecoder();
 
-interface CreateRecord<T extends string | Uri = string> {
+interface CreateOperation<T extends string | Uri = string> {
 	type: 'created';
 	size: number;
 	timestamp: number;
 	uri: T;
 	hash: string;
-	originalHash: undefined;
+	originalHash: string;
 }
 
-interface ChangeRecord<T extends string | Uri = string> {
+interface ChangeOperation<T extends string | Uri = string> {
 	type: 'changed';
 	size: number;
 	timestamp: number;
@@ -28,88 +28,82 @@ interface ChangeRecord<T extends string | Uri = string> {
 	originalHash: string;
 }
 
-interface DeleteRecord<T extends string | Uri = string> {
+interface DeleteOperation<T extends string | Uri = string> {
 	type: 'deleted';
-	size: number;
+	size: undefined;
 	timestamp: number;
 	uri: T;
 	hash: undefined;
-	originalHash: string;
+	originalHash: undefined;
 }
 
-export type Record = CreateRecord<Uri> | ChangeRecord<Uri> | DeleteRecord<Uri>;
-type StoredRecord = CreateRecord | ChangeRecord | DeleteRecord;
+export type Operation = CreateOperation<Uri> | ChangeOperation<Uri> | DeleteOperation<Uri>;
+type StoredOperation = CreateOperation | ChangeOperation | DeleteOperation;
 
-const workingChangesKeyPrefix = 'github.working.changes|';
+const workingOperationsKeyPrefix = 'github.working.changes|';
 const workingFileKeyPrefix = 'github.working|';
 
-function fromSerialized(change: StoredRecord): Record {
-	return { ...change, uri: Uri.parse(change.uri) };
+function fromSerialized(operations: StoredOperation): Operation {
+	return { ...operations, uri: Uri.parse(operations.uri) };
 }
 
 interface CreatedFileChangeStoreEvent {
 	type: 'created';
 	rootUri: Uri;
-	size: number;
-	timestamp: number;
 	uri: Uri;
-	hash: string;
-	originalHash: undefined;
 }
 
 interface ChangedFileChangeStoreEvent {
 	type: 'changed';
 	rootUri: Uri;
-	size: number;
-	timestamp: number;
 	uri: Uri;
-	hash: string;
-	originalHash: string;
 }
 
 interface DeletedFileChangeStoreEvent {
 	type: 'deleted';
 	rootUri: Uri;
-	size: number;
-	timestamp: number;
 	uri: Uri;
-
-	hash: undefined;
-	originalHash: string;
 }
 
 type ChangeStoreEvent = CreatedFileChangeStoreEvent | ChangedFileChangeStoreEvent | DeletedFileChangeStoreEvent;
 
-function toChangeEvent(change: Record | StoredRecord, rootUri: Uri, uri?: Uri): ChangeStoreEvent {
+function toChangeStoreEvent(operation: Operation | StoredOperation, rootUri: Uri, uri?: Uri): ChangeStoreEvent {
 	return {
-		...change,
+		type: operation.type,
 		rootUri: rootUri,
-		uri: uri ?? (typeof change.uri === 'string' ? Uri.parse(change.uri) : change.uri)
+		uri: uri ?? (typeof operation.uri === 'string' ? Uri.parse(operation.uri) : operation.uri)
 	};
 }
-
 
 export interface IChangeStore {
 	onDidChange: Event<ChangeStoreEvent>;
 
 	acceptAll(rootUri: Uri): Promise<void>;
-
+	discard(uri: Uri): Promise<void>;
 	discardAll(rootUri: Uri): Promise<void>;
-	discardChanges(uri: Uri): Promise<void>;
 
-	getChanges(rootUri: Uri): Record[];
+	getChanges(rootUri: Uri): Operation[];
 	getContent(uri: Uri): string | undefined;
-	getStat(uri: Uri): FileStat | undefined;
-
-	hasChanges(rootUri: Uri): boolean;
 
 	openChanges(uri: Uri, original: Uri): void;
 	openFile(uri: Uri): void;
-
-	recordFileChange(uri: Uri, content: Uint8Array, originalContent: () => Uint8Array | Thenable<Uint8Array>): Promise<void>;
 }
 
-export class ChangeStore implements IChangeStore {
+export interface IWritableChangeStore {
+	onDidChange: Event<ChangeStoreEvent>;
+
+	hasChanges(rootUri: Uri): boolean;
+
+	getContent(uri: Uri): string | undefined;
+	getStat(uri: Uri): FileStat | undefined;
+	updateDirectoryEntries(uri: Uri, entries: [string, FileType][]): [string, FileType][];
+
+	onFileChanged(uri: Uri, content: Uint8Array, originalContent: () => Uint8Array | Thenable<Uint8Array>): Promise<void>;
+	onFileCreated(uri: Uri, content: Uint8Array): Promise<void>;
+	onFileDeleted(uri: Uri): Promise<void>;
+}
+
+export class ChangeStore implements IChangeStore, IWritableChangeStore {
 	private _onDidChange = new EventEmitter<ChangeStoreEvent>();
 	get onDidChange(): Event<ChangeStoreEvent> {
 		return this._onDidChange.event;
@@ -118,28 +112,17 @@ export class ChangeStore implements IChangeStore {
 	constructor(private readonly memento: Memento) { }
 
 	async acceptAll(rootUri: Uri): Promise<void> {
-		const changes = this.getChanges(rootUri);
+		const operations = this.getChanges(rootUri);
 
-		await this.saveWorkingChanges(rootUri, undefined);
+		await this.saveWorkingOperations(rootUri, undefined);
 
-		for (const change of changes) {
-			await this.discardWorkingContent(change.uri);
-			this._onDidChange.fire(toChangeEvent(change, rootUri));
+		for (const operation of operations) {
+			await this.discardWorkingContent(operation.uri);
+			this._onDidChange.fire(toChangeStoreEvent(operation, rootUri));
 		}
 	}
 
-	async discardAll(rootUri: Uri): Promise<void> {
-		const changes = this.getChanges(rootUri);
-
-		await this.saveWorkingChanges(rootUri, undefined);
-
-		for (const change of changes) {
-			await this.discardWorkingContent(change.uri);
-			this._onDidChange.fire(toChangeEvent(change, rootUri));
-		}
-	}
-
-	async discardChanges(uri: Uri): Promise<void> {
+	async discard(uri: Uri): Promise<void> {
 		const rootUri = getRootUri(uri);
 		if (rootUri === undefined) {
 			return;
@@ -147,21 +130,36 @@ export class ChangeStore implements IChangeStore {
 
 		const key = uri.toString();
 
-		const changes = this.getWorkingChanges(rootUri);
-		const index = changes.findIndex(c => c.uri === key);
+		const operations = this.getWorkingOperations(rootUri);
+		const index = operations.findIndex(c => c.uri === key);
 		if (index === -1) {
 			return;
 		}
 
-		const [change] = changes.splice(index, 1);
-		await this.saveWorkingChanges(rootUri, changes);
+		const [operation] = operations.splice(index, 1);
+		await this.saveWorkingOperations(rootUri, operations);
 		await this.discardWorkingContent(uri);
 
-		this._onDidChange.fire(toChangeEvent(change, rootUri, uri));
+		this._onDidChange.fire({
+			type: operation.type === 'created' ? 'deleted' : operation.type === 'deleted' ? 'created' : 'changed',
+			rootUri: rootUri,
+			uri: uri
+		});
+	}
+
+	async discardAll(rootUri: Uri): Promise<void> {
+		const operations = this.getChanges(rootUri);
+
+		await this.saveWorkingOperations(rootUri, undefined);
+
+		for (const operation of operations) {
+			await this.discardWorkingContent(operation.uri);
+			this._onDidChange.fire(toChangeStoreEvent(operation, rootUri));
+		}
 	}
 
 	getChanges(rootUri: Uri) {
-		return this.getWorkingChanges(rootUri).map(c => fromSerialized(c));
+		return this.getWorkingOperations(rootUri).map(c => fromSerialized(c));
 	}
 
 	getContent(uri: Uri): string | undefined {
@@ -170,21 +168,170 @@ export class ChangeStore implements IChangeStore {
 
 	getStat(uri: Uri): FileStat | undefined {
 		const key = uri.toString();
-		const change = this.getChanges(getRootUri(uri)!).find(c => c.uri.toString() === key);
-		if (change === undefined) {
+		const operation = this.getChanges(getRootUri(uri)!).find(c => c.uri.toString() === key);
+		if (operation === undefined) {
 			return undefined;
 		}
 
 		return {
 			type: FileType.File,
-			size: change.size,
+			size: operation.size ?? 0,
 			ctime: 0,
-			mtime: change.timestamp
+			mtime: operation.timestamp
 		};
 	}
 
 	hasChanges(rootUri: Uri): boolean {
-		return this.getWorkingChanges(rootUri).length !== 0;
+		return this.getWorkingOperations(rootUri).length !== 0;
+	}
+
+	updateDirectoryEntries(uri: Uri, entries: [string, FileType][]): [string, FileType][] {
+		const rootUri = getRootUri(uri);
+		if (rootUri === undefined) {
+			return entries;
+		}
+
+		const operations = this.getChanges(rootUri);
+		for (const operation of operations) {
+			switch (operation.type) {
+				case 'changed':
+					continue;
+				case 'created': {
+					const file = getRelativePath(rootUri, operation.uri);
+					entries.push([file, FileType.File]);
+					break;
+				}
+				case 'deleted': {
+					const file = getRelativePath(rootUri, operation.uri);
+					const index = entries.findIndex(([path]) => path === file);
+					if (index !== -1) {
+						entries.splice(index, 1);
+					}
+					break;
+				}
+			}
+		}
+
+		return entries;
+	}
+
+	async onFileChanged(uri: Uri, content: Uint8Array, originalContent: () => Uint8Array | Thenable<Uint8Array>): Promise<void> {
+		const rootUri = getRootUri(uri);
+		if (rootUri === undefined) {
+			return;
+		}
+
+		const key = uri.toString();
+
+		const operations = this.getWorkingOperations(rootUri);
+
+		const hash = await sha1(content);
+
+		let operation = operations.find(c => c.uri === key);
+		if (operation === undefined) {
+			const originalHash = await sha1(await originalContent!());
+			if (hash === originalHash) {
+				return;
+			}
+
+			operation = {
+				type: 'changed',
+				size: content.byteLength,
+				timestamp: Date.now(),
+				uri: key,
+				hash: hash!,
+				originalHash: originalHash
+			} as ChangeOperation;
+			operations.push(operation);
+
+			await this.saveWorkingOperations(rootUri, operations);
+			await this.saveWorkingContent(uri, textDecoder.decode(content));
+		} else if (hash! === operation.originalHash) {
+			operations.splice(operations.indexOf(operation), 1);
+
+			await this.saveWorkingOperations(rootUri, operations);
+			await this.discardWorkingContent(uri);
+		} else if (operation.hash !== hash) {
+			operation.hash = hash!;
+			operation.timestamp = Date.now();
+
+			await this.saveWorkingOperations(rootUri, operations);
+			await this.saveWorkingContent(uri, textDecoder.decode(content));
+		}
+
+		this._onDidChange.fire(toChangeStoreEvent(operation, rootUri, uri));
+	}
+
+	async onFileCreated(uri: Uri, content: Uint8Array): Promise<void> {
+		const rootUri = getRootUri(uri);
+		if (rootUri === undefined) {
+			return;
+		}
+
+		const key = uri.toString();
+
+		const operations = this.getWorkingOperations(rootUri);
+
+		const hash = await sha1(content);
+
+		let operation = operations.find(c => c.uri === key);
+		if (operation === undefined) {
+			operation = {
+				type: 'created',
+				size: content.byteLength,
+				timestamp: Date.now(),
+				uri: key,
+				hash: hash!,
+				originalHash: hash!
+			} as CreateOperation;
+			operations.push(operation);
+
+			await this.saveWorkingOperations(rootUri, operations);
+			await this.saveWorkingContent(uri, textDecoder.decode(content));
+		} else {
+			// Shouldn't happen, but if it does just update the contents
+			operation.hash = hash!;
+			operation.timestamp = Date.now();
+
+			await this.saveWorkingOperations(rootUri, operations);
+			await this.saveWorkingContent(uri, textDecoder.decode(content));
+		}
+
+		this._onDidChange.fire(toChangeStoreEvent(operation, rootUri, uri));
+	}
+
+	async onFileDeleted(uri: Uri): Promise<void> {
+		const rootUri = getRootUri(uri);
+		if (rootUri === undefined) {
+			return;
+		}
+
+		const key = uri.toString();
+
+		const operations = this.getWorkingOperations(rootUri);
+
+		let operation = operations.find(c => c.uri === key);
+		if (operation !== undefined) {
+			operations.splice(operations.indexOf(operation), 1);
+		}
+
+		const wasCreated = operation?.type === 'created';
+
+		operation = {
+			type: 'deleted',
+			timestamp: Date.now(),
+			uri: key,
+		} as DeleteOperation;
+
+		// Only track the delete, if we weren't tracking the create
+		if (!wasCreated) {
+			operations.push(operation);
+		}
+
+		await this.saveWorkingOperations(rootUri, operations);
+		await this.discardWorkingContent(uri);
+
+		this._onDidChange.fire(toChangeStoreEvent(operation, rootUri, uri));
 	}
 
 	async openChanges(uri: Uri, original: Uri) {
@@ -207,59 +354,12 @@ export class ChangeStore implements IChangeStore {
 		await commands.executeCommand('vscode.open', uri, opts);
 	}
 
-	async recordFileChange(uri: Uri, content: Uint8Array, originalContent: () => Uint8Array | Thenable<Uint8Array>): Promise<void> {
-		const rootUri = getRootUri(uri);
-		if (rootUri === undefined) {
-			return;
-		}
-
-		const key = uri.toString();
-
-		const changes = this.getWorkingChanges(rootUri);
-
-		const hash = await sha1(content);
-
-		let change = changes.find(c => c.uri === key);
-		if (change === undefined) {
-			const originalHash = await sha1(await originalContent!());
-			if (hash === originalHash) {
-				return;
-			}
-
-			change = {
-				type: 'changed',
-				size: content.byteLength,
-				timestamp: Date.now(),
-				uri: key,
-				hash: hash!,
-				originalHash: originalHash
-			} as ChangeRecord;
-			changes.push(change);
-
-			await this.saveWorkingChanges(rootUri, changes);
-			await this.saveWorkingContent(uri, textDecoder.decode(content));
-		} else if (hash! === change.originalHash) {
-			changes.splice(changes.indexOf(change), 1);
-
-			await this.saveWorkingChanges(rootUri, changes);
-			await this.discardWorkingContent(uri);
-		} else if (change.hash !== hash) {
-			change.hash = hash!;
-			change.timestamp = Date.now();
-
-			await this.saveWorkingChanges(rootUri, changes);
-			await this.saveWorkingContent(uri, textDecoder.decode(content));
-		}
-
-		this._onDidChange.fire(toChangeEvent(change, rootUri, uri));
+	private getWorkingOperations(rootUri: Uri): StoredOperation[] {
+		return this.memento.get(`${workingOperationsKeyPrefix}${rootUri.toString()}`, []);
 	}
 
-	private getWorkingChanges(rootUri: Uri): StoredRecord[] {
-		return this.memento.get(`${workingChangesKeyPrefix}${rootUri.toString()}`, []);
-	}
-
-	private async saveWorkingChanges(rootUri: Uri, changes: StoredRecord[] | undefined): Promise<void> {
-		await this.memento.update(`${workingChangesKeyPrefix}${rootUri.toString()}`, changes);
+	private async saveWorkingOperations(rootUri: Uri, operations: StoredOperation[] | undefined): Promise<void> {
+		await this.memento.update(`${workingOperationsKeyPrefix}${rootUri.toString()}`, operations);
 	}
 
 	private async saveWorkingContent(uri: Uri, content: string): Promise<void> {

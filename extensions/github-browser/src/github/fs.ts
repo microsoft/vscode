@@ -89,9 +89,8 @@ export class GitHubFS implements FileSystemProvider, FileSearchProvider, TextSea
 	}
 
 	async stat(uri: Uri): Promise<FileStat> {
-		const context = await this.github.getContext(uri);
-
 		if (uri.path === '' || uri.path.lastIndexOf('/') === 0) {
+			const context = await this.github.getContext(uri);
 			return { type: FileType.Directory, size: 0, ctime: 0, mtime: context?.timestamp };
 		}
 
@@ -107,9 +106,15 @@ export class GitHubFS implements FileSystemProvider, FileSearchProvider, TextSea
 			this.getCache(uri),
 		);
 
+		if (data === undefined) {
+			throw FileSystemError.FileNotFound();
+		}
+
+		const context = await this.github.getContext(uri);
+
 		return {
-			type: typenameToFileType(data?.__typename),
-			size: data?.byteSize ?? 0,
+			type: typenameToFileType(data.__typename),
+			size: data.byteSize ?? 0,
 			ctime: 0,
 			mtime: context?.timestamp,
 		};
@@ -136,7 +141,7 @@ export class GitHubFS implements FileSystemProvider, FileSearchProvider, TextSea
 	}
 
 	createDirectory(_uri: Uri): void | Thenable<void> {
-		throw FileSystemError.NoPermissions;
+		throw FileSystemError.NoPermissions();
 	}
 
 	async readFile(uri: Uri): Promise<Uint8Array> {
@@ -169,19 +174,19 @@ export class GitHubFS implements FileSystemProvider, FileSearchProvider, TextSea
 	}
 
 	async writeFile(_uri: Uri, _content: Uint8Array, _options: { create: boolean, overwrite: boolean }): Promise<void> {
-		throw FileSystemError.NoPermissions;
+		throw FileSystemError.NoPermissions();
 	}
 
 	delete(_uri: Uri, _options: { recursive: boolean }): void | Thenable<void> {
-		throw FileSystemError.NoPermissions;
+		throw FileSystemError.NoPermissions();
 	}
 
 	rename(_oldUri: Uri, _newUri: Uri, _options: { overwrite: boolean }): void | Thenable<void> {
-		throw FileSystemError.NoPermissions;
+		throw FileSystemError.NoPermissions();
 	}
 
 	copy(_source: Uri, _destination: Uri, _options: { overwrite: boolean }): void | Thenable<void> {
-		throw FileSystemError.NoPermissions;
+		throw FileSystemError.NoPermissions();
 	}
 
 	//#endregion

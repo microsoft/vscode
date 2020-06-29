@@ -17,7 +17,30 @@ export interface GitHubApiContext {
 	timestamp: number;
 }
 
-function getRootUri(uri: Uri) {
+interface CreateCommitOperation {
+	type: 'created';
+	path: string;
+	content: string
+}
+
+interface ChangeCommitOperation {
+	type: 'changed';
+	path: string;
+	content: string
+}
+
+interface DeleteCommitOperation {
+	type: 'deleted';
+	path: string;
+	content: undefined
+}
+
+export type CommitOperation = CreateCommitOperation | ChangeCommitOperation | DeleteCommitOperation;
+
+type ArrayElement<T extends Array<unknown>> = T extends (infer U)[] ? U : never;
+type GitCreateTreeParamsTree = ArrayElement<NonNullable<Parameters<Octokit['git']['createTree']>[0]>['tree']>;
+
+function getGitHubRootUri(uri: Uri) {
 	const rootIndex = uri.path.indexOf('/', uri.path.indexOf('/', 1) + 1);
 	return uri.with({
 		path: uri.path.substring(0, rootIndex === -1 ? undefined : rootIndex),
@@ -86,7 +109,7 @@ export class GitHubApi implements Disposable {
 		return new this._octokit(options);
 	}
 
-	async commit(rootUri: Uri, message: string, files: { path: string; content: string }[]): Promise<string | undefined> {
+	async commit(rootUri: Uri, message: string, operations: CommitOperation[]): Promise<string | undefined> {
 		let { owner, repo, ref } = fromGitHubUri(rootUri);
 
 		try {
@@ -102,25 +125,63 @@ export class GitHubApi implements Disposable {
 				throw new Error('Cannot commit — invalid context');
 			}
 
+			const hasDeletes = operations.some(op => op.type === 'deleted');
+
 			const github = await this.octokit();
 			const treeResp = await github.git.getTree({
 				owner: owner,
 				repo: repo,
-				tree_sha: context.sha
+				tree_sha: context.sha,
+				recursive: hasDeletes ? 'true' : undefined,
 			});
 
-			const updatedTreeItems: {
-				path: string;
-				mode?: '100644' | '100755' | '040000' | '160000' | '120000',
-				type?: 'blob' | 'tree' | 'commit',
-				sha?: string | undefined;
-				content: string;
-			}[] = [];
+			// 0100000000000000 (040000): Directory
+			// 1000000110100100 (100644): Regular non-executable file
+			// 1000000110110100 (100664): Regular non-executable group-writeable file
+			// 1000000111101101 (100755): Regular executable file
+			// 1010000000000000 (120000): Symbolic link
+			// 1110000000000000 (160000): Gitlink
+			let updatedTree: GitCreateTreeParamsTree[];
 
-			for (const file of files) {
-				for (const { path, mode, type } of treeResp.data.tree) {
-					if (path === file.path) {
-						updatedTreeItems.push({ path: path, mode: mode as any, type: type as any, content: file.content });
+			if (hasDeletes) {
+				updatedTree = treeResp.data.tree as GitCreateTreeParamsTree[];
+
+				for (const operation of operations) {
+					switch (operation.type) {
+						case 'created':
+							updatedTree.push({ path: operation.path, mode: '100644', type: 'blob', content: operation.content });
+							break;
+
+						case 'changed':
+							const item = updatedTree.find(item => item.path === operation.path);
+							if (item !== undefined) {
+								updatedTree.push({ ...item, content: operation.content });
+							}
+							break;
+
+						case 'deleted':
+							const index = updatedTree.findIndex(item => item.path === operation.path);
+							if (index !== -1) {
+								updatedTree.splice(index, 1);
+							}
+							break;
+					}
+				}
+			} else {
+				updatedTree = [];
+
+				for (const operation of operations) {
+					switch (operation.type) {
+						case 'created':
+							updatedTree.push({ path: operation.path, mode: '100644', type: 'blob', content: operation.content });
+							break;
+
+						case 'changed':
+							const item = treeResp.data.tree.find(item => item.path === operation.path) as GitCreateTreeParamsTree;
+							if (item !== undefined) {
+								updatedTree.push({ ...item, content: operation.content });
+							}
+							break;
 					}
 				}
 			}
@@ -128,8 +189,8 @@ export class GitHubApi implements Disposable {
 			const updatedTreeResp = await github.git.createTree({
 				owner: owner,
 				repo: repo,
-				base_tree: treeResp.data.sha,
-				tree: updatedTreeItems
+				base_tree: hasDeletes ? undefined : treeResp.data.sha,
+				tree: updatedTree
 			});
 
 			const resp = await github.git.createCommit({
@@ -354,7 +415,7 @@ export class GitHubApi implements Disposable {
 
 	private readonly pendingContextRequests = new Map<string, Promise<GitHubApiContext>>();
 	async getContext(uri: Uri): Promise<GitHubApiContext> {
-		const rootUri = getRootUri(uri);
+		const rootUri = getGitHubRootUri(uri);
 
 		let pending = this.pendingContextRequests.get(rootUri.toString());
 		if (pending === undefined) {

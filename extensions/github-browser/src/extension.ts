@@ -46,6 +46,10 @@ export function activate(context: ExtensionContext) {
 	// });
 }
 
+export function getRelativePath(rootUri: Uri, uri: Uri) {
+	return uri.fsPath.substr(rootUri.fsPath.length + 1);
+}
+
 export function getRootUri(uri: Uri) {
 	return workspace.getWorkspaceFolder(uri)?.uri;
 }

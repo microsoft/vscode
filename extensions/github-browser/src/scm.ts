@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
-import { CancellationToken, commands, Disposable, scm, SourceControl, SourceControlResourceGroup, SourceControlResourceState, Uri, workspace } from 'vscode';
+import { CancellationToken, commands, Disposable, scm, SourceControl, SourceControlResourceGroup, SourceControlResourceState, Uri, window, workspace } from 'vscode';
+import * as nls from 'vscode-nls';
 import { IChangeStore } from './stores';
-import { GitHubApi } from './github/api';
+import { GitHubApi, CommitOperation } from './github/api';
+import { getRelativePath } from './extension';
+
+const localize = nls.loadMessageBundle();
 
 interface ScmProvider {
 	sourceControl: SourceControl,
@@ -35,8 +39,8 @@ export class VirtualSCM implements Disposable {
 		);
 
 		for (const { uri } of workspace.workspaceFolders ?? []) {
-			for (const change of changeStore.getChanges(uri)) {
-				this.update(uri, change.uri);
+			for (const operation of changeStore.getChanges(uri)) {
+				this.update(uri, operation.uri);
 			}
 		}
 	}
@@ -62,18 +66,28 @@ export class VirtualSCM implements Disposable {
 	}
 
 	async commitChanges(sourceControl: SourceControl): Promise<void> {
-		const rootPath = sourceControl.rootUri!.fsPath;
-		const files = this.changeStore
+		const operations = this.changeStore
 			.getChanges(sourceControl.rootUri!)
-			.map<{ path: string; content: string }>(c => ({ path: c.uri.fsPath.substr(rootPath.length + 1), content: this.changeStore.getContent(c.uri)! }));
-		if (!files.length) {
-			// TODO@eamodio show message
+			.map<CommitOperation>(operation => {
+				const path = getRelativePath(sourceControl.rootUri!, operation.uri);
+				switch (operation.type) {
+					case 'created':
+						return { type: operation.type, path: path, content: this.changeStore.getContent(operation.uri)! };
+					case 'changed':
+						return { type: operation.type, path: path, content: this.changeStore.getContent(operation.uri)! };
+					case 'deleted':
+						return { type: operation.type, path: path };
+				}
+			});
+		if (!operations.length) {
+			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
+
 			return;
 		}
 
 		const message = sourceControl.inputBox.value;
 		if (message) {
-			const sha = await this.github.commit(this.getOriginalResource(sourceControl.rootUri!), message, files);
+			const sha = await this.github.commit(this.getOriginalResource(sourceControl.rootUri!), message, operations);
 			if (sha !== undefined) {
 				this.changeStore.acceptAll(sourceControl.rootUri!);
 				sourceControl.inputBox.value = '';
@@ -82,7 +96,7 @@ export class VirtualSCM implements Disposable {
 	}
 
 	discardChanges(uri: Uri): Promise<void> {
-		return this.changeStore.discardChanges(uri);
+		return this.changeStore.discard(uri);
 	}
 
 	openChanges(uri: Uri) {
@@ -101,9 +115,12 @@ export class VirtualSCM implements Disposable {
 
 		const provider = this.createScmProvider(rootUri, folder.name);
 		const group = this.createChangesGroup(provider);
-		group.resourceStates = this.changeStore.getChanges(rootUri).map<SourceControlResourceState>(c => {
+		group.resourceStates = this.changeStore.getChanges(rootUri).map<SourceControlResourceState>(op => {
 			const rs: SourceControlResourceState = {
-				resourceUri: c.uri,
+				decorations: {
+					strikeThrough: op.type === 'deleted'
+				},
+				resourceUri: op.uri,
 				command: {
 					command: 'githubBrowser.openChanges',
 					title: 'Open Changes',

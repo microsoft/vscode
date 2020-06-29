@@ -26,7 +26,7 @@ import {
 	Uri,
 	workspace,
 } from 'vscode';
-import { IChangeStore, ContextStore } from './stores';
+import { ContextStore, IWritableChangeStore } from './stores';
 import { GitHubApiContext } from './github/api';
 
 const emptyDisposable = { dispose: () => { /* noop */ } };
@@ -44,7 +44,7 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 		readonly scheme: string,
 		private readonly originalScheme: string,
 		contextStore: ContextStore<GitHubApiContext>,
-		private readonly changeStore: IChangeStore,
+		private readonly changeStore: IWritableChangeStore,
 		private readonly fs: FileSystemProvider & FileSearchProvider & TextSearchProvider
 	) {
 		// TODO@eamodio listen for workspace folder changes
@@ -100,21 +100,19 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 			return stat;
 		}
 
-		if (uri.path === '' || uri.path.lastIndexOf('/') === 0) {
-			return { type: FileType.Directory, size: 0, ctime: 0, mtime: 0 };
-		}
-
 		stat = await this.fs.stat(this.getOriginalResource(uri));
 		return stat;
 	}
 
 	async readDirectory(uri: Uri): Promise<[string, FileType][]> {
-		const entries = await this.fs.readDirectory(this.getOriginalResource(uri));
+		let entries = await this.fs.readDirectory(this.getOriginalResource(uri));
+		entries = this.changeStore.updateDirectoryEntries(uri, entries);
 		return entries;
 	}
 
 	createDirectory(_uri: Uri): void | Thenable<void> {
-		throw FileSystemError.NoPermissions;
+		// TODO@eamodio only support files for now
+		throw FileSystemError.NoPermissions();
 	}
 
 	async readFile(uri: Uri): Promise<Uint8Array> {
@@ -127,20 +125,60 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 		return data;
 	}
 
-	async writeFile(uri: Uri, content: Uint8Array, _options: { create: boolean, overwrite: boolean }): Promise<void> {
-		await this.changeStore.recordFileChange(uri, content, () => this.fs.readFile(this.getOriginalResource(uri)));
+	async writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): Promise<void> {
+		let stat;
+		try {
+			stat = await this.stat(uri);
+			if (!options.overwrite) {
+				throw FileSystemError.FileExists();
+			}
+		} catch (ex) {
+			if (ex instanceof FileSystemError && ex.code === 'FileNotFound') {
+				if (!options.create) {
+					throw FileSystemError.FileNotFound();
+				}
+			} else {
+				throw ex;
+			}
+		}
+
+		if (stat === undefined) {
+			await this.changeStore.onFileCreated(uri, content);
+		} else {
+			await this.changeStore.onFileChanged(uri, content, () => this.fs.readFile(this.getOriginalResource(uri)));
+		}
 	}
 
-	delete(_uri: Uri, _options: { recursive: boolean }): void | Thenable<void> {
-		throw FileSystemError.NoPermissions;
+	async delete(uri: Uri, _options: { recursive: boolean }): Promise<void> {
+		const stat = await this.stat(uri);
+		if (stat.type !== FileType.File) {
+			throw FileSystemError.NoPermissions();
+		}
+
+		await this.changeStore.onFileDeleted(uri);
 	}
 
-	rename(_oldUri: Uri, _newUri: Uri, _options: { overwrite: boolean }): void | Thenable<void> {
-		throw FileSystemError.NoPermissions;
+	async rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): Promise<void> {
+		const stat = await this.stat(oldUri);
+		// TODO@eamodio only support files for now
+		if (stat.type !== FileType.File) {
+			throw FileSystemError.NoPermissions();
+		}
+
+		const content = await this.readFile(oldUri);
+		await this.writeFile(newUri, content, { create: true, overwrite: options.overwrite });
+		await this.delete(oldUri, { recursive: false });
 	}
 
-	copy(_source: Uri, _destination: Uri, _options: { overwrite: boolean }): void | Thenable<void> {
-		throw FileSystemError.NoPermissions;
+	async copy(source: Uri, destination: Uri, options: { overwrite: boolean }): Promise<void> {
+		const stat = await this.stat(source);
+		// TODO@eamodio only support files for now
+		if (stat.type !== FileType.File) {
+			throw FileSystemError.NoPermissions();
+		}
+
+		const content = await this.readFile(source);
+		await this.writeFile(destination, content, { create: true, overwrite: options.overwrite });
 	}
 
 	//#endregion
