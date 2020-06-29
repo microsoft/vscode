@@ -299,10 +299,10 @@
 	position: relative;
 	height: 22px;
 	flex-shrink: 0;
+	top: 9px;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell .run-button-container .monaco-toolbar {
-	margin-top: 4px;
 	visibility: hidden;
 }
 
