@@ -16,7 +16,7 @@ import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { Position, Parts, IWorkbenchLayoutService, positionFromString, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope, WillSaveStateReason, WorkspaceStorageSettings } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -569,7 +569,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// The `firstRun` flag check is a safety-net hack for Codespaces, until we can verify the first open fix
-		const firstOpen = (storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE) || (defaultLayout as { firstRun: boolean })?.firstRun);
+		const firstOpen = (storageService.isNew(StorageScope.WORKSPACE) || (defaultLayout as { firstRun: boolean })?.firstRun);
 		if (!firstOpen) {
 			return;
 		}
@@ -791,8 +791,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[] } | undefined {
 		const defaultLayout = this.environmentService.options?.defaultLayout;
+
 		// The `firstRun` flag check is a safety-net hack for Codespaces, until we can verify the first open fix
-		if (defaultLayout?.editors?.length && (this.storageService.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE) || (defaultLayout as { firstRun: boolean })?.firstRun)) {
+		if (defaultLayout?.editors?.length && (this.storageService.isNew(StorageScope.WORKSPACE) || (defaultLayout as { firstRun: boolean })?.firstRun)) {
 			this._openedDefaultEditors = true;
 
 			return {
