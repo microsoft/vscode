@@ -1939,6 +1939,17 @@ export class Repository {
 		return message.replace(/^\s*#.*$\n?/gm, '').trim();
 	}
 
+	async getSquashMessage(): Promise<string | undefined> {
+		const squashMsgPath = path.join(this.repositoryRoot, '.git', 'SQUASH_MSG');
+
+		try {
+			const raw = await fs.readFile(squashMsgPath, 'utf8');
+			return this.stripCommitMessageComments(raw);
+		} catch {
+			return undefined;
+		}
+	}
+
 	async getMergeMessage(): Promise<string | undefined> {
 		const mergeMsgPath = path.join(this.repositoryRoot, '.git', 'MERGE_MSG');
 

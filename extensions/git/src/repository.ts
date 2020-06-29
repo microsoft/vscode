@@ -865,10 +865,10 @@ export class Repository implements Disposable {
 	}
 
 	async getInputTemplate(): Promise<string> {
-		const mergeMessage = await this.repository.getMergeMessage();
+		const commitMessage = (await Promise.all([this.repository.getMergeMessage(), this.repository.getSquashMessage()])).find(msg => msg !== undefined);
 
-		if (mergeMessage) {
-			return mergeMessage;
+		if (commitMessage) {
+			return commitMessage;
 		}
 
 		return await this.repository.getCommitTemplate();
