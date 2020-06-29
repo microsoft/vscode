@@ -176,10 +176,10 @@ https-proxy-agent@^2.2.3:
     agent-base "^4.3.0"
     debug "^3.1.0"
 
-iconv-lite-umd@0.6.4:
-  version "0.6.4"
-  resolved "https://registry.yarnpkg.com/iconv-lite-umd/-/iconv-lite-umd-0.6.4.tgz#7d83f3139dd4aac01bc43a794016f1c8a1e82ac4"
-  integrity sha512-r/vgZCG6paSLvbR5uy9U5pridXHjtIP3cGe5mu3+0jjZMBxHusiRKwNpNfEZGsL1iqrgS+kyU/m+iih3Y5JiuQ==
+iconv-lite-umd@0.6.5:
+  version "0.6.5"
+  resolved "https://registry.yarnpkg.com/iconv-lite-umd/-/iconv-lite-umd-0.6.5.tgz#6a1f621a3b4d125f72feff813a9839e1ebd6c722"
+  integrity sha512-WDegH4al+e3n3jTOStRvm+jzDA3JMUQGgzdAsMxAgcgB0Oi72HjfdsoX08ieKsy3rKexXVjWZr41aOIUaCZnMg==
 
 ip@^1.1.5:
   version "1.1.5"
