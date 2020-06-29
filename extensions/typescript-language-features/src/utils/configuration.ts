@@ -46,10 +46,9 @@ export namespace TsServerLogLevel {
 	}
 }
 
-export const enum SeparateSyntaxServerConfigration {
+export const enum SeparateSyntaxServerConfiguration {
 	Disabled,
 	Enabled,
-	Dynamic,
 }
 
 export class TypeScriptServiceConfiguration {
@@ -62,7 +61,7 @@ export class TypeScriptServiceConfiguration {
 	public readonly checkJs: boolean;
 	public readonly experimentalDecorators: boolean;
 	public readonly disableAutomaticTypeAcquisition: boolean;
-	public readonly separateSyntaxServer: SeparateSyntaxServerConfigration;
+	public readonly separateSyntaxServer: SeparateSyntaxServerConfiguration;
 	public readonly enableProjectDiagnostics: boolean;
 	public readonly maxTsServerMemory: number;
 	public readonly enablePromptUseWorkspaceTsdk: boolean;
@@ -163,15 +162,12 @@ export class TypeScriptServiceConfiguration {
 		return configuration.get<string | null>('typescript.locale', null);
 	}
 
-	private static readUseSeparateSyntaxServer(configuration: vscode.WorkspaceConfiguration): SeparateSyntaxServerConfigration {
+	private static readUseSeparateSyntaxServer(configuration: vscode.WorkspaceConfiguration): SeparateSyntaxServerConfiguration {
 		const value = configuration.get('typescript.tsserver.useSeparateSyntaxServer', true);
 		if (value === true) {
-			return SeparateSyntaxServerConfigration.Enabled;
+			return SeparateSyntaxServerConfiguration.Enabled;
 		}
-		if (value === 'dynamic') {
-			return SeparateSyntaxServerConfigration.Dynamic;
-		}
-		return SeparateSyntaxServerConfigration.Disabled;
+		return SeparateSyntaxServerConfiguration.Disabled;
 	}
 
 	private static readEnableProjectDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {

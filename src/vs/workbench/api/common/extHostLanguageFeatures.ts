@@ -73,7 +73,7 @@ class DocumentSymbolAdapter {
 			const element: modes.DocumentSymbol = {
 				name: info.name || '!!MISSING: name!!',
 				kind: typeConvert.SymbolKind.from(info.kind),
-				tags: info.tags ? info.tags.map(typeConvert.SymbolTag.from) : [],
+				tags: info.tags?.map(typeConvert.SymbolTag.from) || [],
 				detail: '',
 				containerName: info.containerName,
 				range: typeConvert.Range.from(info.location.range),
@@ -1287,6 +1287,7 @@ class CallHierarchyAdapter {
 			uri: item.uri,
 			range: typeConvert.Range.from(item.range),
 			selectionRange: typeConvert.Range.from(item.selectionRange),
+			tags: item.tags?.map(typeConvert.SymbolTag.from)
 		};
 		map.set(dto._itemId, item);
 		return dto;

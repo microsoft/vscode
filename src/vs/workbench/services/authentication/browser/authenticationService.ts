@@ -37,6 +37,9 @@ export interface IAuthenticationService {
 	supportsMultipleAccounts(providerId: string): boolean;
 	login(providerId: string, scopes: string[]): Promise<AuthenticationSession>;
 	logout(providerId: string, sessionId: string): Promise<void>;
+
+	manageTrustedExtensionsForAccount(providerId: string, accountName: string): Promise<void>;
+	signOutOfAccount(providerId: string, accountName: string): Promise<void>;
 }
 
 export interface AllowedExtension {
@@ -234,7 +237,13 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				group: '2_signInRequests',
 				command: {
 					id: `${extensionId}signIn`,
-					title: nls.localize('signInRequest', "Sign in to use {0} (1)", extensionName)
+					title: nls.localize(
+						{
+							key: 'signInRequest',
+							comment: ['The placeholder {0} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count.']
+						},
+						"Sign in to use {0} (1)",
+						extensionName)
 				}
 			});
 
@@ -326,6 +335,24 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
 			return authProvider.logout(sessionId);
+		} else {
+			throw new Error(`No authentication provider '${id}' is currently registered.`);
+		}
+	}
+
+	async manageTrustedExtensionsForAccount(id: string, accountName: string): Promise<void> {
+		const authProvider = this._authenticationProviders.get(id);
+		if (authProvider) {
+			return authProvider.manageTrustedExtensions(accountName);
+		} else {
+			throw new Error(`No authentication provider '${id}' is currently registered.`);
+		}
+	}
+
+	async signOutOfAccount(id: string, accountName: string): Promise<void> {
+		const authProvider = this._authenticationProviders.get(id);
+		if (authProvider) {
+			return authProvider.signOut(accountName);
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}

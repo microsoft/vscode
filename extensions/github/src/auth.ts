@@ -27,21 +27,15 @@ function getAgent(url: string | undefined = process.env.HTTPS_PROXY): Agent {
 const scopes = ['repo', 'workflow'];
 
 export async function getSession(): Promise<AuthenticationSession> {
-	const authenticationSessions = await authentication.getSessions('github', scopes);
-
-	if (authenticationSessions.length) {
-		return await authenticationSessions[0];
-	} else {
-		return await authentication.login('github', scopes);
-	}
+	return await authentication.getSession('github', scopes, { createIfNone: true });
 }
 
 let _octokit: Promise<Octokit> | undefined;
 
 export function getOctokit(): Promise<Octokit> {
 	if (!_octokit) {
-		_octokit = getSession().then(async session => {
-			const token = await session.getAccessToken();
+		_octokit = getSession().then(session => {
+			const token = session.accessToken;
 			const agent = getAgent();
 
 			return new Octokit({

@@ -231,8 +231,8 @@ export class SimpleFileDialog {
 		return this.remoteAgentEnvironment;
 	}
 
-	protected async getUserHome(): Promise<URI> {
-		return (await this.pathService.userHome) ?? URI.from({ scheme: this.scheme, authority: this.remoteAuthority, path: '/' });
+	protected getUserHome(): Promise<URI> {
+		return this.pathService.userHome({ preferLocal: this.scheme === Schemas.file });
 	}
 
 	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {
@@ -868,7 +868,7 @@ export class SimpleFileDialog {
 	private createBackItem(currFolder: URI): FileQuickPickItem | null {
 		const fileRepresentationCurr = this.currentFolder.with({ scheme: Schemas.file });
 		const fileRepresentationParent = resources.dirname(fileRepresentationCurr);
-		if (!resources.extUriIgnorePathCase.isEqual(fileRepresentationCurr, fileRepresentationParent)) {
+		if (!resources.isEqual(fileRepresentationCurr, fileRepresentationParent)) {
 			const parentFolder = resources.dirname(currFolder);
 			return { label: '..', uri: resources.addTrailingPathSeparator(parentFolder, this.separator), isFolder: true };
 		}

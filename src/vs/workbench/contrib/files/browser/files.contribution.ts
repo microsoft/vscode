@@ -238,6 +238,9 @@ configurationRegistry.registerConfiguration({
 		[FILES_ASSOCIATIONS_CONFIG]: {
 			'type': 'object',
 			'markdownDescription': nls.localize('associations', "Configure file associations to languages (e.g. `\"*.extension\": \"html\"`). These have precedence over the default associations of the languages installed."),
+			'additionalProperties': {
+				'type': 'string'
+			}
 		},
 		'files.encoding': {
 			'type': 'string',

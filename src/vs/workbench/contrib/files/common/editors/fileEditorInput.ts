@@ -86,12 +86,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 		// Once the text file model is created, we keep it inside
 		// the input to be able to implement some methods properly
-		// TODO@ben once we are certain that models will only be
-		// created with canonical URIs, this should use the URI
-		// identity service. But as long as there is a chance
-		// that a model is created with same path but different
-		// case, we can only accept that model here if the URIs
-		// are 100% identical.
 		if (extUri.isEqual(model.resource, this.resource)) {
 			this.model = model;
 
@@ -242,9 +236,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	private async doResolveAsText(): Promise<ITextFileEditorModel | BinaryEditorModel> {
-
-		// Resolve as text
 		try {
+
+			// Resolve resource via text file service and only allow
+			// to open binary files if we are instructed so
 			await this.textFileService.files.resolve(this.resource, {
 				mode: this.preferredMode,
 				encoding: this.preferredEncoding,
@@ -261,7 +256,16 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 				this.cachedTextFileModelReference = await this.textModelResolverService.createModelReference(this.resource) as IReference<ITextFileEditorModel>;
 			}
 
-			return this.cachedTextFileModelReference.object;
+			const model = this.cachedTextFileModelReference.object;
+
+			// It is possible that this input was disposed before the model
+			// finished resolving. As such, we need to make sure to dispose
+			// the model reference to not leak it.
+			if (this.isDisposed()) {
+				this.disposeModelReference();
+			}
+
+			return model;
 		} catch (error) {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
@@ -285,7 +289,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return !!this.model;
 	}
 
-	move(group: GroupIdentifier, target: URI): IMoveResult {
+	rename(group: GroupIdentifier, target: URI): IMoveResult {
 		return {
 			editor: {
 				resource: target,
@@ -310,12 +314,12 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	matches(otherInput: unknown): boolean {
-		if (super.matches(otherInput) === true) {
+		if (otherInput === this) {
 			return true;
 		}
 
-		if (otherInput) {
-			return otherInput instanceof FileEditorInput && otherInput.resource.toString() === this.resource.toString();
+		if (otherInput instanceof FileEditorInput) {
+			return extUri.isEqual(otherInput.resource, this.resource);
 		}
 
 		return false;
@@ -327,9 +331,13 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		this.model = undefined;
 
 		// Model reference
-		dispose(this.cachedTextFileModelReference);
-		this.cachedTextFileModelReference = undefined;
+		this.disposeModelReference();
 
 		super.dispose();
+	}
+
+	private disposeModelReference(): void {
+		dispose(this.cachedTextFileModelReference);
+		this.cachedTextFileModelReference = undefined;
 	}
 }

@@ -21,7 +21,7 @@ const product = require('../product.json');
 const { app, protocol } = require('electron');
 
 // Enable portable support
-const portable = bootstrap.configurePortable();
+const portable = bootstrap.configurePortable(product);
 
 // Enable ASAR support
 bootstrap.enableASARSupport();
@@ -86,8 +86,9 @@ setCurrentWorkingDirectory();
 // Register custom schemes with privileges
 protocol.registerSchemesAsPrivileged([
 	{
-		scheme: 'vscode-resource',
+		scheme: 'vscode-webview',
 		privileges: {
+			standard: true,
 			secure: true,
 			supportFetchAPI: true,
 			corsEnabled: true,
@@ -201,30 +202,45 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
 	}
 
+	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
+
+		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
+		'enable-proposed-api'
+	];
+
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
 
-	// Append each flag to Electron
 	Object.keys(argvConfig).forEach(argvKey => {
-		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) === -1) {
-			return; // unsupported argv key
-		}
-
 		const argvValue = argvConfig[argvKey];
 
-		// Color profile
-		if (argvKey === 'force-color-profile') {
-			if (argvValue) {
-				app.commandLine.appendSwitch(argvKey, argvValue);
+		// Append Electron flags to Electron
+		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) !== -1) {
+			// Color profile
+			if (argvKey === 'force-color-profile') {
+				if (argvValue) {
+					app.commandLine.appendSwitch(argvKey, argvValue);
+				}
+			}
+
+			// Others
+			else if (argvValue === true || argvValue === 'true') {
+				if (argvKey === 'disable-hardware-acceleration') {
+					app.disableHardwareAcceleration(); // needs to be called explicitly
+				} else {
+					app.commandLine.appendSwitch(argvKey);
+				}
 			}
 		}
 
-		// Others
-		else if (argvValue === true || argvValue === 'true') {
-			if (argvKey === 'disable-hardware-acceleration') {
-				app.disableHardwareAcceleration(); // needs to be called explicitly
-			} else {
-				app.commandLine.appendSwitch(argvKey);
+		// Append main process flags to process.argv
+		else if (SUPPORTED_MAIN_PROCESS_SWITCHES.indexOf(argvKey) !== -1) {
+			if (argvKey === 'enable-proposed-api') {
+				if (Array.isArray(argvValue)) {
+					argvValue.forEach(id => id && typeof id === 'string' && process.argv.push('--enable-proposed-api', id));
+				} else {
+					console.error(`Unexpected value for \`enable-proposed-api\` in argv.json. Expected array of extension ids.`);
+				}
 			}
 		}
 	});
@@ -451,7 +467,7 @@ function getNodeCachedDir() {
 
 		async ensureExists() {
 			try {
-				await bootstrap.mkdirp(this.value);
+				await mkdirp(this.value);
 
 				return this.value;
 			} catch (error) {
@@ -478,6 +494,18 @@ function getNodeCachedDir() {
 			return path.join(userDataPath, 'CachedData', commit);
 		}
 	};
+}
+
+/**
+ * @param {string} dir
+ * @returns {Promise<string>}
+ */
+function mkdirp(dir) {
+	const fs = require('fs');
+
+	return new Promise((resolve, reject) => {
+		fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? reject(err) : resolve(dir));
+	});
 }
 
 //#region NLS Support

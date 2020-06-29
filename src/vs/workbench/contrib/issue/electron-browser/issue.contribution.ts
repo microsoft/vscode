@@ -42,7 +42,7 @@ if (!!product.reportIssueUrl) {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command });
 }
 
-const developerCategory = nls.localize('developer', "Developer");
+const developerCategory = nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer");
 workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenProcessExplorer), 'Developer: Open Process Explorer', developerCategory);
 
 registerSingleton(IWorkbenchIssueService, WorkbenchIssueService, true);

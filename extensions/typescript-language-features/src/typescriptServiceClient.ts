@@ -66,7 +66,7 @@ namespace ServerState {
 			 * Version reported by currently-running tsserver.
 			 */
 			public tsserverVersion: string | undefined,
-			public langaugeServiceEnabled: boolean,
+			public languageServiceEnabled: boolean,
 		) { }
 
 		public readonly toCancelOnResourceChange = new Set<ToCancelOnResourceChanged>();
@@ -75,8 +75,8 @@ namespace ServerState {
 			this.tsserverVersion = tsserverVersion;
 		}
 
-		updateLangaugeServiceEnabled(enabled: boolean) {
-			this.langaugeServiceEnabled = enabled;
+		updateLanguageServiceEnabled(enabled: boolean) {
+			this.languageServiceEnabled = enabled;
 		}
 	}
 
@@ -84,6 +84,7 @@ namespace ServerState {
 		readonly type = Type.Errored;
 		constructor(
 			public readonly error: Error,
+			public readonly tsServerLogFile: string | undefined,
 		) { }
 	}
 
@@ -121,7 +122,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	constructor(
 		private readonly workspaceState: vscode.Memento,
-		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
 		public readonly pluginManager: PluginManager,
 		private readonly logDirectoryProvider: LogDirectoryProvider,
 		allModeIds: readonly string[]
@@ -239,7 +239,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.serverState = this.startService(true);
 	}
 
-	private readonly _onTsServerStarted = this._register(new vscode.EventEmitter<API>());
+	private readonly _onTsServerStarted = this._register(new vscode.EventEmitter<{ version: TypeScriptVersion, usedApiVersion: API }>());
 	public readonly onTsServerStarted = this._onTsServerStarted.event;
 
 	private readonly _onDiagnosticsReceived = this._register(new vscode.EventEmitter<TsDiagnostics>());
@@ -339,7 +339,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			onFatalError: (command, err) => this.fatalError(command, err),
 		});
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
-		this.onDidChangeTypeScriptVersion(version);
 		this.lastStart = Date.now();
 
 		/* __GDPR__
@@ -366,7 +365,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				vscode.window.showErrorMessage(localize('serverExitedWithError', 'TypeScript language server exited with error. Error message is: {0}', err.message || err.name));
 			}
 
-			this.serverState = new ServerState.Errored(err);
+			this.serverState = new ServerState.Errored(err, handle.tsServerLogFile);
 			this.error('TSServer errored with error.', err);
 			if (handle.tsServerLogFile) {
 				this.error(`TSServer log file: ${handle.tsServerLogFile}`);
@@ -416,14 +415,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		handle.onReaderError(error => this.error('ReaderError', error));
 		handle.onEvent(event => this.dispatchEvent(event));
 
-		this._onReady!.resolve();
-		this._onTsServerStarted.fire(apiVersion);
-
 		if (apiVersion.gte(API.v300)) {
 			this.loadingIndicator.startedLoadingProject(undefined /* projectName */);
 		}
 
 		this.serviceStarted(resendModels);
+
+		this._onReady!.resolve();
+		this._onTsServerStarted.fire({ version: version, usedApiVersion: apiVersion });
 
 		return this.serverState;
 	}
@@ -582,7 +581,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 				if (item === reportIssueItem) {
 					const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError
-						? getReportIssueArgsForError(previousState.error)
+						? getReportIssueArgsForError(previousState.error, previousState.tsServerLogFile)
 						: undefined;
 					vscode.commands.executeCommand('workbench.action.openIssueReporter', args);
 				}
@@ -752,9 +751,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		if (this.serverState.type === ServerState.Type.Running) {
 			this.info('Killing TS Server');
+			const logfile = this.serverState.server.tsServerLogFile;
 			this.serverState.server.kill();
 			if (error instanceof TypeScriptServerError) {
-				this.serverState = new ServerState.Errored(error);
+				this.serverState = new ServerState.Errored(error, logfile);
 			}
 		}
 	}
@@ -791,7 +791,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				{
 					const body = (event as Proto.ProjectLanguageServiceStateEvent).body!;
 					if (this.serverState.type === ServerState.Type.Running) {
-						this.serverState.updateLangaugeServiceEnabled(body.languageServiceEnabled);
+						this.serverState.updateLanguageServiceEnabled(body.languageServiceEnabled);
 					}
 					this._onProjectLanguageServiceStateChanged.fire(body);
 					break;
@@ -885,30 +885,60 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 }
 
-function getReportIssueArgsForError(error: TypeScriptServerError): { extensionId: string, issueTitle: string, issueBody: string } | undefined {
+function getReportIssueArgsForError(
+	error: TypeScriptServerError,
+	logPath: string | undefined,
+): { extensionId: string, issueTitle: string, issueBody: string } | undefined {
 	if (!error.serverStack || !error.serverMessage) {
 		return undefined;
 	}
 
 	// Note these strings are intentionally not localized
 	// as we want users to file issues in english
+
+	const sections = [
+		`❗️❗️❗️ Please fill in the sections below to help us diagnose the issue ❗️❗️❗️`,
+		`**TypeScript Version:** ${error.version.apiVersion?.fullVersionString}`,
+		`**Steps to reproduce crash**
+
+1.
+2.
+3.`,
+	];
+
+	if (logPath) {
+		sections.push(`**TS Server Log**
+
+❗️ Please review and upload this log file to help us diagnose this crash:
+
+\`${logPath}\`
+
+The log file may contain personal data, including full paths and source code from your workspace. You can scrub the log file to remove paths or other personal information.
+`);
+	} else {
+
+		sections.push(`**TS Server Log**
+
+Server logging disabled. To help us fix crashes like this, please enable logging by setting:
+
+\`\`\`json
+"typescript.tsserver.log": "verbose"
+\`\`\`
+
+After enabling this setting, future crash reports will include the server log.`);
+	}
+
+	sections.push(`**TS Server Error Stack**
+
+\`\`\`
+${error.serverStack}
+\`\`\``);
+
 	return {
 		extensionId: 'vscode.typescript-language-features',
 		issueTitle: `TS Server fatal error:  ${error.serverMessage}`,
 
-		issueBody: `**TypeScript Version:** ${error.version.apiVersion?.fullVersionString}
-
-**Steps to reproduce crash**
-
-1.
-2.
-3.
-
-**TS Server Error Stack**
-
-\`\`\`
-${error.serverStack}
-\`\`\``,
+		issueBody: sections.join('\n\n')
 	};
 }
 

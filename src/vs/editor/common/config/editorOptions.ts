@@ -594,6 +594,10 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	definitionLinkOpensInPeek?: boolean;
+	/**
+	 * Controls strikethrough deprecated variables.
+	 */
+	showDeprecated?: boolean;
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -1213,22 +1217,28 @@ class EditorClassName extends ComputedEditorOption<EditorOption.editorClassName,
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: string): string {
-		let className = 'monaco-editor';
+		const classNames = ['monaco-editor'];
 		if (options.get(EditorOption.extraEditorClassName)) {
-			className += ' ' + options.get(EditorOption.extraEditorClassName);
+			classNames.push(options.get(EditorOption.extraEditorClassName));
 		}
 		if (env.extraEditorClassName) {
-			className += ' ' + env.extraEditorClassName;
+			classNames.push(env.extraEditorClassName);
 		}
 		if (options.get(EditorOption.mouseStyle) === 'default') {
-			className += ' mouse-default';
+			classNames.push('mouse-default');
 		} else if (options.get(EditorOption.mouseStyle) === 'copy') {
-			className += ' mouse-copy';
+			classNames.push('mouse-copy');
 		}
+
 		if (options.get(EditorOption.showUnused)) {
-			className += ' showUnused';
+			classNames.push('showUnused');
 		}
-		return className;
+
+		if (options.get(EditorOption.showDeprecated)) {
+			classNames.push('showDeprecated');
+		}
+
+		return classNames.join(' ');
 	}
 }
 
@@ -3591,6 +3601,7 @@ export const enum EditorOption {
 	wordWrapMinified,
 	wrappingIndent,
 	wrappingStrategy,
+	showDeprecated,
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
@@ -4076,6 +4087,10 @@ export const EditorOptions = {
 	showUnused: register(new EditorBooleanOption(
 		EditorOption.showUnused, 'showUnused', true,
 		{ description: nls.localize('showUnused', "Controls fading out of unused code.") }
+	)),
+	showDeprecated: register(new EditorBooleanOption(
+		EditorOption.showDeprecated, 'showDeprecated', true,
+		{ description: nls.localize('showDeprecated', "Controls strikethrough deprecated variables.") }
 	)),
 	snippetSuggestions: register(new EditorStringEnumOption(
 		EditorOption.snippetSuggestions, 'snippetSuggestions',

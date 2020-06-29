@@ -1,7 +1,8 @@
+#define RootLicenseFileName FileExists(RepoDir + '\LICENSE.rtf') ? 'LICENSE.rtf' : 'LICENSE.txt'
 #define LocalizedLanguageFile(Language = "") \
     DirExists(RepoDir + "\licenses") && Language != "" \
       ? ('; LicenseFile: "' + RepoDir + '\licenses\LICENSE-' + Language + '.rtf"') \
-      : '; LicenseFile: "' + RepoDir + '\LICENSE.rtf"'
+      : '; LicenseFile: "' + RepoDir + '\' + RootLicenseFileName + '"'
 
 [Setup]
 AppId={#AppId}
@@ -1131,7 +1132,7 @@ begin
   end;
 end;
 
-// http://stackoverflow.com/a/23838239/261019
+// https://stackoverflow.com/a/23838239/261019
 procedure Explode(var Dest: TArrayOfString; Text: String; Separator: String);
 var
   i, p: Integer;

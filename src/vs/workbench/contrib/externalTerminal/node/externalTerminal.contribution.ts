@@ -40,7 +40,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				terminalService.openTerminal(paths.dirname(activeFile.fsPath));
 			} else {
 				const pathService = accessor.get(IPathService);
-				const userHome = await pathService.userHome;
+				const userHome = await pathService.userHome();
 				terminalService.openTerminal(userHome.fsPath);
 			}
 		}

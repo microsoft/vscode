@@ -537,7 +537,7 @@ class DotGitWatcher implements IFileWatcher {
 			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
 		} catch (err) {
 			if (Log.logLevel <= LogLevel.Error) {
-				this.outputChannel.appendLine(`Failed to watch ref '${upstreamPath}', is most likely packed.\n${err.stack || err}`);
+				this.outputChannel.appendLine(`Warning: Failed to watch ref '${upstreamPath}', is most likely packed.`);
 			}
 		}
 	}
@@ -729,10 +729,10 @@ export class Repository implements Disposable {
 		this.updateInputBoxPlaceholder();
 		this.disposables.push(this.onDidRunGitStatus(() => this.updateInputBoxPlaceholder()));
 
-		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "MERGE CHANGES"));
-		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "STAGED CHANGES"));
-		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "CHANGES"));
-		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', localize('untracked changes', "UNTRACKED CHANGES"));
+		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "Merge Changes"));
+		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "Staged Changes"));
+		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "Changes"));
+		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', localize('untracked changes', "Untracked Changes"));
 
 		const updateIndexGroupVisibility = () => {
 			const config = workspace.getConfiguration('git', root);

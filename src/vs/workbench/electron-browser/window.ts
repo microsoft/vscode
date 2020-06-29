@@ -34,7 +34,7 @@ import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/
 import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isRootUser, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import product from 'vs/platform/product/common/product';
+import { IProductService, IAppCenterConfiguration } from 'vs/platform/product/common/productService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -64,6 +64,8 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 import { Event } from 'vs/base/common/event';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
 
 export class NativeWindow extends Disposable {
 
@@ -107,6 +109,8 @@ export class NativeWindow extends Disposable {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IProductService private readonly productService: IProductService,
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
 		super();
 
@@ -135,7 +139,7 @@ export class NativeWindow extends Disposable {
 			if (request.from === 'touchbar') {
 				const activeEditor = this.editorService.activeEditor;
 				if (activeEditor) {
-					const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+					const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 					if (resource) {
 						args.push(resource);
 					}
@@ -247,7 +251,7 @@ export class NativeWindow extends Disposable {
 		// macOS OS integration
 		if (isMacintosh) {
 			this._register(this.editorService.onDidActiveEditorChange(() => {
-				const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.file });
+				const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
 
 				// Represented Filename
 				this.updateRepresentedFilename(file?.fsPath);
@@ -396,8 +400,8 @@ export class NativeWindow extends Disposable {
 		// Handle open calls
 		this.setupOpenHandlers();
 
-		// Emit event when vscode is ready
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipcRenderer.send('vscode:workbenchReady', this.electronService.windowId));
+		// Notify main side when window ready
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.electronService.notifyReady());
 
 		// Integrity warning
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
@@ -416,7 +420,7 @@ export class NativeWindow extends Disposable {
 
 			// Show warning message (unix only)
 			if (isAdmin && !isWindows) {
-				this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
+				this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
 			}
 		});
 
@@ -425,8 +429,8 @@ export class NativeWindow extends Disposable {
 
 		// Crash reporter (if enabled)
 		if (!this.environmentService.disableCrashReporter && this.configurationService.getValue('telemetry.enableCrashReporter')) {
-			const companyName = product.crashReporter?.companyName || 'Microsoft';
-			const productName = product.crashReporter?.productName || product.nameShort;
+			const companyName = this.productService.crashReporter?.companyName || 'Microsoft';
+			const productName = this.productService.crashReporter?.productName || this.productService.nameShort;
 
 			// With a provided crash reporter directory, crashes
 			// will be stored only locally in that folder
@@ -435,8 +439,8 @@ export class NativeWindow extends Disposable {
 			}
 
 			// With appCenter enabled, crashes will be uploaded
-			else if (product.appCenter) {
-				this.setupCrashReporter(companyName, productName, product.appCenter, undefined);
+			else if (this.productService.appCenter) {
+				this.setupCrashReporter(companyName, productName, this.productService.appCenter, undefined);
 			}
 		}
 	}
@@ -470,7 +474,13 @@ export class NativeWindow extends Disposable {
 				if (options?.allowTunneling) {
 					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
 					if (portMappingRequest) {
-						const tunnel = await this.tunnelService.openTunnel(undefined, portMappingRequest.port);
+						const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+						const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
+							getAddress: async (): Promise<IAddress> => {
+								return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
+							}
+						} : undefined;
+						const tunnel = await this.tunnelService.openTunnel(addressProvider, undefined, portMappingRequest.port);
 						if (tunnel) {
 							return {
 								resolved: uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` }),
@@ -550,9 +560,9 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private async setupCrashReporter(companyName: string, productName: string, appCenter: typeof product.appCenter, crashesDirectory: undefined): Promise<void>;
+	private async setupCrashReporter(companyName: string, productName: string, appCenter: IAppCenterConfiguration, crashesDirectory: undefined): Promise<void>;
 	private async setupCrashReporter(companyName: string, productName: string, appCenter: undefined, crashesDirectory: string): Promise<void>;
-	private async setupCrashReporter(companyName: string, productName: string, appCenter: typeof product.appCenter | undefined, crashesDirectory: string | undefined): Promise<void> {
+	private async setupCrashReporter(companyName: string, productName: string, appCenter: IAppCenterConfiguration | undefined, crashesDirectory: string | undefined): Promise<void> {
 		let submitURL: string | undefined = undefined;
 		if (appCenter) {
 			submitURL = isWindows ? appCenter[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? appCenter[`linux-x64`] : appCenter.darwin;
@@ -567,8 +577,8 @@ export class NativeWindow extends Disposable {
 			productName,
 			submitURL: (submitURL?.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', info.sessionId)) || '',
 			extra: {
-				vscode_version: product.version,
-				vscode_commit: product.commit || ''
+				vscode_version: this.productService.version,
+				vscode_commit: this.productService.commit || ''
 			},
 
 			// If `crashesDirectory` is specified, we do not upload

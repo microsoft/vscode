@@ -198,7 +198,7 @@ class EditorState {
 	dispose(): void {
 		this._disposables.dispose();
 		this._onDidChange.dispose();
-		this._listener.forEach(dispose);
+		dispose(this._listener.values());
 	}
 
 	private _onDidAddEditor(editor: ICodeEditor): void {

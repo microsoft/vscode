@@ -372,7 +372,11 @@ export class DebugService implements IDebugService {
 			// a no-folder workspace has no launch.config
 			config = Object.create(null);
 		}
-		config!.noDebug = !!(options && options.noDebug);
+		if (options && options.noDebug) {
+			config!.noDebug = true;
+		} else if (options && typeof options.noDebug === 'undefined' && options.parentSession && options.parentSession.configuration.noDebug) {
+			config!.noDebug = true;
+		}
 		const unresolvedConfig = deepClone(config);
 
 		if (!type) {

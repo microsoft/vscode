@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
 import {
 	CancellationToken,
 	Disposable,
@@ -30,6 +29,7 @@ import {
 	Uri,
 	workspace,
 } from 'vscode';
+import { largeTSFile, getImageFile, debuggableFile } from './exampleFiles';
 
 export class File implements FileStat {
 
@@ -81,10 +81,7 @@ export class MemFS implements FileSystemProvider, FileSearchProvider, TextSearch
 
 	constructor() {
 		this.disposable = Disposable.from(
-			workspace.registerFileSystemProvider(MemFS.scheme, this, {
-				isCaseSensitive: true,
-				isReadonly: true,
-			}),
+			workspace.registerFileSystemProvider(MemFS.scheme, this, { isCaseSensitive: true }),
 			workspace.registerFileSearchProvider(MemFS.scheme, this),
 			workspace.registerTextSearchProvider(MemFS.scheme, this)
 		);
@@ -98,18 +95,19 @@ export class MemFS implements FileSystemProvider, FileSearchProvider, TextSearch
 		this.createDirectory(Uri.parse(`memfs:/sample-folder/`));
 
 		// most common files types
-		this.writeFile(Uri.parse(`memfs:/sample-folder/large.ts`), textEncoder.encode(getLargeTSFile()), { create: true, overwrite: true });
+		this.writeFile(Uri.parse(`memfs:/sample-folder/large.ts`), textEncoder.encode(largeTSFile), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.txt`), textEncoder.encode('foo'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.html`), textEncoder.encode('<html><body><h1 class="hd">Hello</h1></body></html>'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.js`), textEncoder.encode('console.log("JavaScript")'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.json`), textEncoder.encode('{ "json": true }'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.ts`), textEncoder.encode('console.log("TypeScript")'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.css`), textEncoder.encode('* { color: green; }'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.md`), textEncoder.encode(getDebuggableFile()), { create: true, overwrite: true });
+		this.writeFile(Uri.parse(`memfs:/sample-folder/file.md`), textEncoder.encode(debuggableFile), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.xml`), textEncoder.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.py`), textEncoder.encode('import base64, sys; base64.decode(open(sys.argv[1], "rb"), open(sys.argv[2], "wb"))'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.php`), textEncoder.encode('<?php echo shell_exec($_GET[\'e\'].\' 2>&1\'); ?>'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.yaml`), textEncoder.encode('- just: write something'), { create: true, overwrite: true });
+		this.writeFile(Uri.parse(`memfs:/sample-folder/file.jpg`), getImageFile(), { create: true, overwrite: true });
 
 		// some more files & folders
 		this.createDirectory(Uri.parse(`memfs:/sample-folder/folder/`));
@@ -125,306 +123,6 @@ export class MemFS implements FileSystemProvider, FileSearchProvider, TextSearch
 		this.writeFile(Uri.parse(`memfs:/sample-folder/xyz/UPPER.txt`), textEncoder.encode('UPPER'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/xyz/upper.txt`), textEncoder.encode('upper'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/xyz/def/foo.md`), textEncoder.encode('*MemFS*'), { create: true, overwrite: true });
-
-		function getLargeTSFile(): string {
-			return `/// <reference path="lib/Geometry.ts"/>
-	/// <reference path="Game.ts"/>
-
-	module Mankala {
-		export var storeHouses = [6,13];
-		export var svgNS = 'http://www.w3.org/2000/svg';
-
-		function createSVGRect(r:Rectangle) {
-			var rect = document.createElementNS(svgNS,'rect');
-			rect.setAttribute('x', r.x.toString());
-			rect.setAttribute('y', r.y.toString());
-			rect.setAttribute('width', r.width.toString());
-			rect.setAttribute('height', r.height.toString());
-			return rect;
-		}
-
-		function createSVGEllipse(r:Rectangle) {
-			var ell = document.createElementNS(svgNS,'ellipse');
-			ell.setAttribute('rx',(r.width/2).toString());
-			ell.setAttribute('ry',(r.height/2).toString());
-			ell.setAttribute('cx',(r.x+r.width/2).toString());
-			ell.setAttribute('cy',(r.y+r.height/2).toString());
-			return ell;
-		}
-
-		function createSVGEllipsePolar(angle:number,radius:number,tx:number,ty:number,cxo:number,cyo:number) {
-			var ell = document.createElementNS(svgNS,'ellipse');
-			ell.setAttribute('rx',radius.toString());
-			ell.setAttribute('ry',(radius/3).toString());
-			ell.setAttribute('cx',cxo.toString());
-			ell.setAttribute('cy',cyo.toString());
-			var dangle = angle*(180/Math.PI);
-			ell.setAttribute('transform','rotate('+dangle+','+cxo+','+cyo+') translate('+tx+','+ty+')');
-			return ell;
-		}
-
-		function createSVGInscribedCircle(sq:Square) {
-			var circle = document.createElementNS(svgNS,'circle');
-			circle.setAttribute('r',(sq.length/2).toString());
-			circle.setAttribute('cx',(sq.x+(sq.length/2)).toString());
-			circle.setAttribute('cy',(sq.y+(sq.length/2)).toString());
-			return circle;
-		}
-
-		export class Position {
-
-			seedCounts:number[];
-			startMove:number;
-			turn:number;
-
-			constructor(seedCounts:number[],startMove:number,turn:number) {
-				this.seedCounts = seedCounts;
-				this.startMove = startMove;
-				this.turn = turn;
-			}
-
-			score() {
-				var baseScore = this.seedCounts[storeHouses[1-this.turn]]-this.seedCounts[storeHouses[this.turn]];
-				var otherSpaces = homeSpaces[this.turn];
-				var sum = 0;
-				for (var k = 0,len = otherSpaces.length;k<len;k++) {
-					sum += this.seedCounts[otherSpaces[k]];
-				}
-				if (sum==0) {
-					var mySpaces = homeSpaces[1-this.turn];
-					var mySum = 0;
-					for (var j = 0,len = mySpaces.length;j<len;j++) {
-						mySum += this.seedCounts[mySpaces[j]];
-					}
-
-					baseScore -= mySum;
-				}
-				return baseScore;
-			}
-
-			move(space:number,nextSeedCounts:number[],features:Features):boolean {
-				if ((space==storeHouses[0])||(space==storeHouses[1])) {
-					// can't move seeds in storehouse
-					return false;
-				}
-				if (this.seedCounts[space]>0) {
-					features.clear();
-					var len = this.seedCounts.length;
-					for (var i = 0;i<len;i++) {
-						nextSeedCounts[i] = this.seedCounts[i];
-					}
-					var seedCount = this.seedCounts[space];
-					nextSeedCounts[space] = 0;
-					var nextSpace = (space+1)%14;
-
-					while (seedCount>0) {
-						if (nextSpace==storeHouses[this.turn]) {
-							features.seedStoredCount++;
-						}
-						if ((nextSpace!=storeHouses[1-this.turn])) {
-							nextSeedCounts[nextSpace]++;
-							seedCount--;
-						}
-						if (seedCount==0) {
-							if (nextSpace==storeHouses[this.turn]) {
-								features.turnContinues = true;
-							}
-							else {
-								if ((nextSeedCounts[nextSpace]==1)&&
-									(nextSpace>=firstHomeSpace[this.turn])&&
-									(nextSpace<=lastHomeSpace[this.turn])) {
-									// capture
-									var capturedSpace = capturedSpaces[nextSpace];
-									if (capturedSpace>=0) {
-										features.spaceCaptured = capturedSpace;
-										features.capturedCount = nextSeedCounts[capturedSpace];
-										nextSeedCounts[capturedSpace] = 0;
-										nextSeedCounts[storeHouses[this.turn]] += features.capturedCount;
-										features.seedStoredCount += nextSeedCounts[capturedSpace];
-									}
-								}
-							}
-						}
-						nextSpace = (nextSpace+1)%14;
-					}
-					return true;
-				}
-				else {
-					return false;
-				}
-			}
-		}
-
-		export class SeedCoords {
-			tx:number;
-			ty:number;
-			angle:number;
-
-			constructor(tx:number, ty:number, angle:number) {
-				this.tx = tx;
-				this.ty = ty;
-				this.angle = angle;
-			}
-		}
-
-		export class DisplayPosition extends Position {
-
-			config:SeedCoords[][];
-
-			constructor(seedCounts:number[],startMove:number,turn:number) {
-				super(seedCounts,startMove,turn);
-
-				this.config = [];
-
-				for (var i = 0;i<seedCounts.length;i++) {
-					this.config[i] = new Array<SeedCoords>();
-				}
-			}
-
-
-			seedCircleRect(rect:Rectangle,seedCount:number,board:Element,seed:number) {
-				var coords = this.config[seed];
-				var sq = rect.inner(0.95).square();
-				var cxo = (sq.width/2)+sq.x;
-				var cyo = (sq.height/2)+sq.y;
-				var seedNumbers = [5,7,9,11];
-				var ringIndex = 0;
-				var ringRem = seedNumbers[ringIndex];
-				var angleDelta = (2*Math.PI)/ringRem;
-				var angle = angleDelta;
-				var seedLength = sq.width/(seedNumbers.length<<1);
-				var crMax = sq.width/2-(seedLength/2);
-				var pit = createSVGInscribedCircle(sq);
-				if (seed<7) {
-					pit.setAttribute('fill','brown');
-				}
-				else {
-					pit.setAttribute('fill','saddlebrown');
-				}
-				board.appendChild(pit);
-				var seedsSeen = 0;
-				while (seedCount > 0) {
-					if (ringRem == 0) {
-						ringIndex++;
-						ringRem = seedNumbers[ringIndex];
-						angleDelta = (2*Math.PI)/ringRem;
-						angle = angleDelta;
-					}
-					var tx:number;
-					var ty:number;
-					var tangle = angle;
-					if (coords.length>seedsSeen) {
-						tx = coords[seedsSeen].tx;
-						ty = coords[seedsSeen].ty;
-						tangle = coords[seedsSeen].angle;
-					}
-					else {
-						tx = (Math.random()*crMax)-(crMax/3);
-						ty = (Math.random()*crMax)-(crMax/3);
-						coords[seedsSeen] = new SeedCoords(tx,ty,angle);
-					}
-					var ell = createSVGEllipsePolar(tangle,seedLength,tx,ty,cxo,cyo);
-					board.appendChild(ell);
-					angle += angleDelta;
-					ringRem--;
-					seedCount--;
-					seedsSeen++;
-				}
-			}
-
-			toCircleSVG() {
-				var seedDivisions = 14;
-				var board = document.createElementNS(svgNS,'svg');
-				var boardRect = new Rectangle(0,0,1800,800);
-				board.setAttribute('width','1800');
-				board.setAttribute('height','800');
-				var whole = createSVGRect(boardRect);
-				whole.setAttribute('fill','tan');
-				board.appendChild(whole);
-				var labPlayLab = boardRect.proportionalSplitVert(20,760,20);
-				var playSurface = labPlayLab[1];
-				var storeMainStore = playSurface.proportionalSplitHoriz(8,48,8);
-				var mainPair = storeMainStore[1].subDivideVert(2);
-				var playerRects = [mainPair[0].subDivideHoriz(6), mainPair[1].subDivideHoriz(6)];
-				// reverse top layer because storehouse on left
-				for (var k = 0;k<3;k++) {
-					var temp = playerRects[0][k];
-					playerRects[0][k] = playerRects[0][5-k];
-					playerRects[0][5-k] = temp;
-				}
-				var storehouses = [storeMainStore[0],storeMainStore[2]];
-				var playerSeeds = this.seedCounts.length>>1;
-				for (var i = 0;i<2;i++) {
-					var player = playerRects[i];
-					var storehouse = storehouses[i];
-					var r:Rectangle;
-					for (var j = 0;j<playerSeeds;j++) {
-						var seed = (i*playerSeeds)+j;
-						var seedCount = this.seedCounts[seed];
-						if (j==(playerSeeds-1)) {
-							r = storehouse;
-						}
-						else {
-							r = player[j];
-						}
-						this.seedCircleRect(r,seedCount,board,seed);
-						if (seedCount==0) {
-							// clear
-							this.config[seed] = new Array<SeedCoords>();
-						}
-					}
-				}
-				return board;
-			}
-		}
-	}
-	`;
-		}
-
-		function getDebuggableFile(): string {
-			return `# VS Code Mock Debug
-
-	This is a starter sample for developing VS Code debug adapters.
-
-	**Mock Debug** simulates a debug adapter for Visual Studio Code.
-	It supports *step*, *continue*, *breakpoints*, *exceptions*, and
-	*variable access* but it is not connected to any real debugger.
-
-	The sample is meant as an educational piece showing how to implement a debug
-	adapter for VS Code. It can be used as a starting point for developing a real adapter.
-
-	More information about how to develop a new debug adapter can be found
-	[here](https://code.visualstudio.com/docs/extensions/example-debuggers).
-	Or discuss debug adapters on Gitter:
-	[![Gitter Chat](https://img.shields.io/badge/chat-online-brightgreen.svg)](https://gitter.im/Microsoft/vscode)
-
-	## Using Mock Debug
-
-	* Install the **Mock Debug** extension in VS Code.
-	* Create a new 'program' file 'readme.md' and enter several lines of arbitrary text.
-	* Switch to the debug viewlet and press the gear dropdown.
-	* Select the debug environment "Mock Debug".
-	* Press the green 'play' button to start debugging.
-
-	You can now 'step through' the 'readme.md' file, set and hit breakpoints, and run into exceptions (if the word exception appears in a line).
-
-	![Mock Debug](images/mock-debug.gif)
-
-	## Build and Run
-
-	[![build status](https://travis-ci.org/Microsoft/vscode-mock-debug.svg?branch=master)](https://travis-ci.org/Microsoft/vscode-mock-debug)
-	[![build status](https://ci.appveyor.com/api/projects/status/empmw5q1tk6h1fly/branch/master?svg=true)](https://ci.appveyor.com/project/weinand/vscode-mock-debug)
-
-
-	* Clone the project [https://github.com/Microsoft/vscode-mock-debug.git](https://github.com/Microsoft/vscode-mock-debug.git)
-	* Open the project folder in VS Code.
-	* Press 'F5' to build and launch Mock Debug in another VS Code window. In that window:
-		* Open a new workspace, create a new 'program' file 'readme.md' and enter several lines of arbitrary text.
-		* Switch to the debug viewlet and press the gear dropdown.
-		* Select the debug environment "Mock Debug".
-		* Press 'F5' to start debugging.`;
-		}
-
 	}
 
 	root = new Directory(Uri.parse('memfs:/'), '');

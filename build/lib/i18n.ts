@@ -15,7 +15,7 @@ import * as https from 'https';
 import * as gulp from 'gulp';
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
-import * as iconv from 'iconv-lite';
+import * as iconv from 'iconv-lite-umd';
 
 const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 
@@ -1339,10 +1339,11 @@ function createIslFile(originalFilePath: string, messages: Map<string>, language
 
 	const basename = path.basename(originalFilePath);
 	const filePath = `${basename}.${language.id}.isl`;
+	const encoded = iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage);
 
 	return new File({
 		path: filePath,
-		contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage)
+		contents: Buffer.from(encoded),
 	});
 }
 

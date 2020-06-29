@@ -43,7 +43,7 @@ export type SearchConfiguration = {
 	showIncludesExcludes: boolean,
 };
 
-const SEARCH_EDITOR_EXT = '.code-search';
+export const SEARCH_EDITOR_EXT = '.code-search';
 
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
@@ -180,10 +180,6 @@ export class SearchEditorInput extends EditorInput {
 		return localize('searchTitle', "Search");
 	}
 
-	async resolve() {
-		return null;
-	}
-
 	setDirty(dirty: boolean) {
 		this.dirty = dirty;
 		this._onDidChangeDirty.fire();
@@ -217,7 +213,7 @@ export class SearchEditorInput extends EditorInput {
 		return !this.backingUri;
 	}
 
-	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		if (this._cachedModel && extname(target) === SEARCH_EDITOR_EXT) {
 			return {
 				editor: this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: this.config, text: this._cachedModel.getValue(), backingUri: target })
@@ -284,7 +280,7 @@ export class SearchEditorInput extends EditorInput {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? network.Schemas.vscodeRemote : network.Schemas.file;
 
-		return joinPath(this.fileDialogService.defaultFilePath(schemeFilter) || (await this.pathService.userHome), searchFileName);
+		return joinPath(this.fileDialogService.defaultFilePath(schemeFilter) || (await this.pathService.userHome()), searchFileName);
 	}
 }
 

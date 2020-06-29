@@ -28,6 +28,7 @@ import type { ServicesAccessor } from 'vs/platform/instantiation/common/instanti
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
+import { Codicon } from 'vs/base/common/codicons';
 
 async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	const view = await viewsService.openView(BulkEditPane.ID, true);
@@ -354,6 +355,7 @@ const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.V
 		ViewPaneContainer,
 		[BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
 	),
+	icon: Codicon.lightbulb.classNames,
 	storageId: BulkEditPane.ID
 }, ViewContainerLocation.Panel);
 
@@ -362,5 +364,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	name: localize('panel', "Refactor Preview"),
 	when: BulkEditPreviewContribution.ctxEnabled,
 	ctorDescriptor: new SyncDescriptor(BulkEditPane),
+	containerIcon: Codicon.lightbulb.classNames,
+	canMoveView: true
 }], container);
 

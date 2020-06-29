@@ -319,22 +319,7 @@ interface ISerializedRecentlyOpened {
 	fileLabels?: Array<string | null>; // added in 1.33
 }
 
-interface ILegacySerializedRecentlyOpened {
-	workspaces2: Array<ILegacySerializedWorkspace | string>; // legacy, configPath as file path
-	workspaces: Array<ILegacySerializedWorkspace | string | UriComponents>; // legacy (UriComponents was also supported for a few insider builds)
-	files: string[]; // files as paths
-}
-
 interface ISerializedWorkspace { id: string; configURIPath: string; }
-interface ILegacySerializedWorkspace { id: string; configPath: string; }
-
-function isLegacySerializedWorkspace(curr: any): curr is ILegacySerializedWorkspace {
-	return typeof curr === 'object' && typeof curr['id'] === 'string' && typeof curr['configPath'] === 'string';
-}
-
-function isUriComponents(curr: any): curr is UriComponents {
-	return curr && typeof curr['path'] === 'string' && typeof curr['scheme'] === 'string';
-}
 
 export type RecentlyOpenedStorageData = object;
 
@@ -351,7 +336,7 @@ export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefine
 			}
 		};
 
-		const storedRecents = data as ISerializedRecentlyOpened & ILegacySerializedRecentlyOpened;
+		const storedRecents = data as ISerializedRecentlyOpened;
 		if (Array.isArray(storedRecents.workspaces3)) {
 			restoreGracefully(storedRecents.workspaces3, (workspace, i) => {
 				const label: string | undefined = (Array.isArray(storedRecents.workspaceLabels) && storedRecents.workspaceLabels[i]) || undefined;
@@ -361,39 +346,12 @@ export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefine
 					result.workspaces.push({ label, folderUri: URI.parse(workspace) });
 				}
 			});
-		} else if (Array.isArray(storedRecents.workspaces2)) {
-			restoreGracefully(storedRecents.workspaces2, workspace => {
-				if (typeof workspace === 'object' && typeof workspace.id === 'string' && typeof workspace.configPath === 'string') {
-					result.workspaces.push({ workspace: { id: workspace.id, configPath: URI.file(workspace.configPath) } });
-				} else if (typeof workspace === 'string') {
-					result.workspaces.push({ folderUri: URI.parse(workspace) });
-				}
-			});
-		} else if (Array.isArray(storedRecents.workspaces)) {
-			// TODO@martin legacy support can be removed at some point (6 month?)
-			// format of 1.25 and before
-			restoreGracefully(storedRecents.workspaces, workspace => {
-				if (typeof workspace === 'string') {
-					result.workspaces.push({ folderUri: URI.file(workspace) });
-				} else if (isLegacySerializedWorkspace(workspace)) {
-					result.workspaces.push({ workspace: { id: workspace.id, configPath: URI.file(workspace.configPath) } });
-				} else if (isUriComponents(workspace)) {
-					// added by 1.26-insiders
-					result.workspaces.push({ folderUri: URI.revive(<UriComponents>workspace) });
-				}
-			});
 		}
 		if (Array.isArray(storedRecents.files2)) {
 			restoreGracefully(storedRecents.files2, (file, i) => {
 				const label: string | undefined = (Array.isArray(storedRecents.fileLabels) && storedRecents.fileLabels[i]) || undefined;
 				if (typeof file === 'string') {
 					result.files.push({ label, fileUri: URI.parse(file) });
-				}
-			});
-		} else if (Array.isArray(storedRecents.files)) {
-			restoreGracefully(storedRecents.files, file => {
-				if (typeof file === 'string') {
-					result.files.push({ fileUri: URI.file(file) });
 				}
 			});
 		}

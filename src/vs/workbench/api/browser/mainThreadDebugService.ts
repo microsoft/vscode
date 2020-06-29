@@ -229,9 +229,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		const folderUri = folder ? uri.revive(folder) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
 		const debugOptions: IDebugSessionOptions = {
-			noDebug: false,
+			noDebug: options.noDebug,
 			parentSession: this.getSession(options.parentSessionID),
-			repl: options.repl
+			repl: options.repl,
+			noCompact: options.noCompact
 		};
 		return this.debugService.startDebugging(launch, nameOrConfig, debugOptions).then(success => {
 			return success;

@@ -60,12 +60,19 @@ suite('vscode API - workspace', () => {
 		}
 	});
 
-	test('openTextDocument', () => {
-		let len = vscode.workspace.textDocuments.length;
-		return vscode.workspace.openTextDocument(join(vscode.workspace.rootPath || '', './simple.txt')).then(doc => {
-			assert.ok(doc);
-			assert.equal(vscode.workspace.textDocuments.length, len + 1);
-		});
+	test('openTextDocument', async () => {
+		const uri = await createRandomFile();
+
+		// not yet there
+		const existing1 = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
+		assert.equal(existing1, undefined);
+
+		// open and assert its there
+		const doc = await vscode.workspace.openTextDocument(uri);
+		assert.ok(doc);
+		assert.equal(doc.uri.toString(), uri.toString());
+		const existing2 = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
+		assert.equal(existing2 === doc, true);
 	});
 
 	test('openTextDocument, illegal path', () => {

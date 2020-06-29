@@ -835,6 +835,7 @@ export class TestFileService implements IFileService {
 	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
 	dispose(): void { }
 
+	async canCreateFile(source: URI, options?: ICreateFileOptions): Promise<Error | true> { return true; }
 	async canMove(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
 	async canCopy(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
 	async canDelete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<Error | true> { return true; }
@@ -1056,6 +1057,9 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 }
 
 export class TestFileEditorInput extends EditorInput implements IFileEditorInput {
+
+	readonly label = this.resource;
+
 	gotDisposed = false;
 	gotSaved = false;
 	gotSavedAs = false;
@@ -1111,7 +1115,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		this.gotDisposed = true;
 	}
 	movedEditor: IMoveResult | undefined = undefined;
-	move(): IMoveResult | undefined { return this.movedEditor; }
+	rename(): IMoveResult | undefined { return this.movedEditor; }
 }
 
 export class TestEditorPart extends EditorPart {
@@ -1151,7 +1155,7 @@ export class TestPathService implements IPathService {
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
 
-	get userHome() { return Promise.resolve(this.fallbackUserHome); }
+	async userHome() { return this.fallbackUserHome; }
 	get resolvedUserHome() { return this.fallbackUserHome; }
 
 	async fileURI(path: string): Promise<URI> {

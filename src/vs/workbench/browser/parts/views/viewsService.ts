@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/views';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -159,7 +158,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				constructor() {
 					super({
 						id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-						title: { original: `Focus on ${viewDescriptor.name} View`, value: localize('focus view', "Focus on {0} View", viewDescriptor.name) },
+						title: { original: `Focus on ${viewDescriptor.name} View`, value: localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name) },
 						category: composite ? composite.name : localize('view category', "View"),
 						menu: [{
 							id: MenuId.CommandPalette,
