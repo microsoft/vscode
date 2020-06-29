@@ -17,6 +17,8 @@ const minimist = require('minimist');
 const fancyLog = require('fancy-log');
 const ansiColors = require('ansi-colors');
 
+const extensions = require('../../build/lib/extensions');
+
 const APP_ROOT = path.join(__dirname, '..', '..');
 const EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
@@ -87,7 +89,7 @@ async function initialize() {
 		const packageJSONPath = path.join(EXTENSIONS_ROOT, folderName, 'package.json');
 		if (await exists(packageJSONPath)) {
 			try {
-				const packageJSON = JSON.parse((await readFile(packageJSONPath)).toString());
+				let packageJSON = JSON.parse((await readFile(packageJSONPath)).toString());
 				if (packageJSON.main && !packageJSON.browser) {
 					return; // unsupported
 				}
@@ -107,6 +109,9 @@ async function initialize() {
 
 				const packageNLSPath = path.join(folderName, 'package.nls.json');
 				const packageNLSExists = await exists(path.join(EXTENSIONS_ROOT, packageNLSPath));
+				if (packageNLSExists) {
+					packageJSON = extensions.translatePackageJSON(packageJSON, path.join(EXTENSIONS_ROOT, packageNLSPath)); // temporary, until fixed in core
+				}
 				builtinExtensions.push({
 					extensionPath: folderName,
 					packageJSON,
