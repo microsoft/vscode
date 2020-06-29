@@ -89,6 +89,10 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 		return uri.with({ scheme: this.originalScheme });
 	}
 
+	private getVirtualResource(uri: Uri): Uri {
+		return uri.with({ scheme: this.scheme });
+	}
+
 	//#region FileSystemProvider
 
 	watch(): Disposable {
@@ -204,7 +208,12 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 		progress: Progress<TextSearchResult>,
 		token: CancellationToken,
 	) {
-		return this.fs.provideTextSearchResults(query, { ...options, folder: this.getOriginalResource(options.folder) }, progress, token);
+		return this.fs.provideTextSearchResults(
+			query,
+			{ ...options, folder: this.getOriginalResource(options.folder) },
+			{ report: (result: TextSearchResult) => progress.report({ ...result, uri: this.getVirtualResource(result.uri) }) },
+			token
+		);
 	}
 
 	//#endregion
