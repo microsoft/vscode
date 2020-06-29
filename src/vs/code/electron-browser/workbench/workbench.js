@@ -55,6 +55,7 @@ bootstrapWindow.load([
 ],
 	function (workbench, configuration) {
 		perf.mark('didLoadWorkbenchMain');
+		performance.mark('workbench-start');
 
 		return process['lazyEnv'].then(function () {
 			perf.mark('main/startup');
