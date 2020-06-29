@@ -1644,7 +1644,7 @@ export class ShowDisabledExtensionsAction extends Action {
 export class ClearExtensionsInputAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.clearExtensionsInput';
-	static readonly LABEL = localize('clearExtensionsInput', "Clear Extensions Input");
+	static readonly LABEL = localize('clearExtensionsInput', "Clear Extensions Search Results");
 
 	constructor(
 		id: string,
