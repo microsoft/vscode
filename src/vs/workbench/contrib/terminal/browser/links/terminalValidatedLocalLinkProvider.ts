@@ -23,7 +23,7 @@ const unixPathSeparatorClause = '\\/';
 const unixExcludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;\\\\]';
 const unixPathPartClause = '(' + unixExcludedPathCharactersClause + ')+';
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar, foo */
-export const unixLocalLinkClause = '(((' + unixPathPrefix + ')?' + unixPathSeparatorClause + ')?' + unixPathPartClause + '(' + unixPathSeparatorClause + unixPathPartClause + ')*)';
+export const unixLocalLinkClause = '(((' + unixPathPrefix + ')?' + unixPathSeparatorClause + ')?' + unixPathPartClause + '(' + unixPathSeparatorClause + unixPathPartClause + ')*(' + unixPathSeparatorClause + ')?)';
 
 export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
 const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
@@ -31,7 +31,7 @@ const winPathSeparatorClause = '(\\\\|\\/)';
 const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]';
 const winPathPartClause = '(' + winExcludedPathCharactersClause + ')+';
 /** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar, foo */
-export const winLocalLinkClause = '(((' + winPathPrefix + ')?' + winPathSeparatorClause + ')?' + winPathPartClause + '(' + winPathSeparatorClause + winPathPartClause + ')*)';
+export const winLocalLinkClause = '(((' + winPathPrefix + ')?' + winPathSeparatorClause + ')?' + winPathPartClause + '(' + winPathSeparatorClause + winPathPartClause + ')*(' + winPathSeparatorClause + ')?)';
 
 /** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
 replacing space with nonBreakingSpace or space ASCII code - 32. */
