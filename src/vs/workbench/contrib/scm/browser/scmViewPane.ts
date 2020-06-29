@@ -1220,6 +1220,7 @@ class SCMInputWidget extends Disposable {
 
 	set input(input: ISCMInput | undefined) {
 		this.validationDisposable.dispose();
+		removeClass(this.editorContainer, 'synthetic-focus');
 
 		this.repositoryDisposables.dispose();
 		this.repositoryDisposables = new DisposableStore();
@@ -1412,6 +1413,7 @@ class SCMInputWidget extends Disposable {
 
 	focus(): void {
 		this.inputEditor.focus();
+		addClass(this.editorContainer, 'synthetic-focus');
 	}
 
 	private renderValidation(): void {
