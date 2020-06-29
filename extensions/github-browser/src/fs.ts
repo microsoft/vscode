@@ -26,7 +26,8 @@ import {
 	Uri,
 	workspace,
 } from 'vscode';
-import { ContextStore, IWritableChangeStore } from './stores';
+import { IWritableChangeStore } from './changeStore';
+import { ContextStore } from './contextStore';
 import { GitHubApiContext } from './github/api';
 
 const emptyDisposable = { dispose: () => { /* noop */ } };

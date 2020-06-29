@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionContext, Uri, workspace } from 'vscode';
-import { ChangeStore, ContextStore } from './stores';
+import { ChangeStore } from './changeStore';
+import { ContextStore } from './contextStore';
 import { VirtualFS } from './fs';
 import { GitHubApiContext, GitHubApi } from './github/api';
 import { GitHubFS } from './github/fs';

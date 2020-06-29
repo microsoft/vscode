@@ -6,7 +6,7 @@
 'use strict';
 import { CancellationToken, commands, Disposable, scm, SourceControl, SourceControlResourceGroup, SourceControlResourceState, Uri, window, workspace } from 'vscode';
 import * as nls from 'vscode-nls';
-import { IChangeStore } from './stores';
+import { IChangeStore } from './changeStore';
 import { GitHubApi, CommitOperation } from './github/api';
 import { getRelativePath } from './extension';
 

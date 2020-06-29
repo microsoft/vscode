@@ -7,8 +7,8 @@ import { authentication, AuthenticationSession, Disposable, Event, EventEmitter,
 import { graphql } from '@octokit/graphql';
 import { Octokit } from '@octokit/rest';
 import { fromGitHubUri } from './fs';
+import { ContextStore } from '../contextStore';
 import { Iterables } from '../iterables';
-import { ContextStore } from '../stores';
 
 export const shaRegex = /^[0-9a-f]{40}$/;
 
