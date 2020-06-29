@@ -309,6 +309,10 @@ export abstract class BaseCellViewModel extends Disposable {
 			return CursorAtBoundary.None;
 		}
 
+		if (!this.textModel) {
+			return CursorAtBoundary.None;
+		}
+
 		// only validate primary cursor
 		const selection = this._textEditor.getSelection();
 
