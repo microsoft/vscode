@@ -134,11 +134,6 @@ export class CodeApplication extends Disposable {
 		//
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
-		app.on('remote-get-guest-web-contents', event => {
-			this.logService.trace('App#on(remote-get-guest-web-contents): prevented');
-
-			event.preventDefault();
-		});
 		app.on('remote-require', (event, sender, module) => {
 			this.logService.trace('App#on(remote-require): prevented');
 
