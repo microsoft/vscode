@@ -12,18 +12,6 @@ jschardet/index.js
 jschardet/src/**
 jschardet/dist/jschardet.js
 
-vscode-oniguruma/LICENSE.txt
-vscode-oniguruma/main.d.ts
-vscode-oniguruma/NOTICES.txt
-vscode-oniguruma/package.json
-vscode-oniguruma/README.md
-
-vscode-textmate/release/*.ts
-vscode-textmate/release/*.js.map
-vscode-textmate/typings/**
-vscode-textmate/LICENSE.md
-vscode-textmate/package.json
-vscode-textmate/README.md
 vscode-textmate/webpack.config.js
 
 xterm/src/**
