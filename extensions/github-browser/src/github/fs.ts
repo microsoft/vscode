@@ -89,8 +89,10 @@ export class GitHubFS implements FileSystemProvider, FileSearchProvider, TextSea
 	}
 
 	async stat(uri: Uri): Promise<FileStat> {
+		const context = await this.github.getContext(uri);
+
 		if (uri.path === '' || uri.path.lastIndexOf('/') === 0) {
-			return { type: FileType.Directory, size: 0, ctime: 0, mtime: 0 };
+			return { type: FileType.Directory, size: 0, ctime: 0, mtime: context?.timestamp };
 		}
 
 		const data = await this.fsQuery<{
@@ -109,7 +111,7 @@ export class GitHubFS implements FileSystemProvider, FileSearchProvider, TextSea
 			type: typenameToFileType(data?.__typename),
 			size: data?.byteSize ?? 0,
 			ctime: 0,
-			mtime: 0,
+			mtime: context?.timestamp,
 		};
 	}
 

@@ -353,7 +353,7 @@ export class GitHubApi implements Disposable {
 	}
 
 	private readonly pendingContextRequests = new Map<string, Promise<GitHubApiContext>>();
-	private async getContext(uri: Uri): Promise<GitHubApiContext> {
+	async getContext(uri: Uri): Promise<GitHubApiContext> {
 		const rootUri = getRootUri(uri);
 
 		let pending = this.pendingContextRequests.get(rootUri.toString());
