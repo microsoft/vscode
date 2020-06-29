@@ -60,7 +60,7 @@
     "vscode-proxy-agent": "^0.5.2",
     "vscode-ripgrep": "^1.5.8",
     "vscode-sqlite3": "4.0.10",
-    "vscode-textmate": "5.1.2",
+    "vscode-textmate": "5.2.0",
     "xterm": "4.7.0-beta.3",
     "xterm-addon-search": "0.7.0",
     "xterm-addon-unicode11": "0.2.0",

@@ -9750,10 +9750,10 @@ vscode-sqlite3@4.0.10:
   dependencies:
     nan "^2.14.0"
 
-vscode-textmate@5.1.2:
-  version "5.1.2"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.1.2.tgz#289cdeb181d3baa411c6910ee509120fef7731d1"
-  integrity sha512-N/xYFVCaFxheV9ic8dUVoijYpF4Mpdmc6WYJlgD+geKfmCaAKN0Vwf0+o2fULEomtXL4dfxhUrITt+6j09MKEw==
+vscode-textmate@5.2.0:
+  version "5.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.2.0.tgz#01f01760a391e8222fe4f33fbccbd1ad71aed74e"
+  integrity sha512-Uw5ooOQxRASHgu6C7GVvUxisKXfSgW4oFlO+aa+PAkgmH89O3CXxEEzNRNtHSqtXFTl0nAC1uYj0GMSH27uwtQ==
 
 vscode-windows-ca-certs@0.2.0:
   version "0.2.0"
