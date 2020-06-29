@@ -142,6 +142,7 @@
 .monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext {
 	font-family: var(--monaco-monospace-font);
 	white-space: pre-wrap;
+	word-wrap: break-word;
 }
 
 .monaco-workbench .notebookOverlay .cell-drag-image .output .multi-mimetype-output {
