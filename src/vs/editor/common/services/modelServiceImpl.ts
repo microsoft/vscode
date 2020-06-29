@@ -31,7 +31,7 @@ import { Schemas } from 'vs/base/common/network';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 
 export interface IEditorSemanticHighlightingOptions {
-	enabled?: boolean;
+	enabled: true | false | 'configuredByTheme';
 }
 
 function MODEL_ID(resource: URI): string {
@@ -633,11 +633,11 @@ export interface ILineSequence {
 export const SEMANTIC_HIGHLIGHTING_SETTING_ID = 'editor.semanticHighlighting';
 
 export function isSemanticColoringEnabled(model: ITextModel, themeService: IThemeService, configurationService: IConfigurationService): boolean {
-	if (!themeService.getColorTheme().semanticHighlighting) {
-		return false;
+	const setting = configurationService.getValue<IEditorSemanticHighlightingOptions>(SEMANTIC_HIGHLIGHTING_SETTING_ID, { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri }).enabled;
+	if (typeof setting === 'boolean') {
+		return setting;
 	}
-	const options = configurationService.getValue<IEditorSemanticHighlightingOptions>(SEMANTIC_HIGHLIGHTING_SETTING_ID, { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri });
-	return Boolean(options && options.enabled);
+	return themeService.getColorTheme().semanticHighlighting;
 }
 
 class SemanticColoringFeature extends Disposable {

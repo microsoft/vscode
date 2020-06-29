@@ -503,8 +503,13 @@ const editorConfiguration: IConfigurationNode = {
 			description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
 		'editor.semanticHighlighting.enabled': {
-			type: 'boolean',
-			default: true,
+			enum: [true, false, 'configuredByTheme'],
+			enumDescriptions: [
+				nls.localize('semanticHighlighting.true', 'Semantic highlighting enabled for all color themes.'),
+				nls.localize('semanticHighlighting.false', 'Semantic highlighting disabled for all color themes.'),
+				nls.localize('semanticHighlighting.configuredByTheme', 'Semantic highlighting is configured by the current color theme\'s `semanticHighlighting` setting.')
+			],
+			default: 'configuredByTheme',
 			description: nls.localize('semanticHighlighting.enabled', "Controls whether the semanticHighlighting is shown for the languages that support it.")
 		},
 		'editor.stablePeek': {
