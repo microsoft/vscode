@@ -1477,6 +1477,7 @@ export class SCMViewPane extends ViewPane {
 	private viewModel!: ViewModel;
 	private listLabels!: ResourceLabels;
 	private menus!: SCMMenus;
+	private inputRenderer!: InputRenderer;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1519,8 +1520,8 @@ export class SCMViewPane extends ViewPane {
 
 		this._register(repositories.onDidSplice(() => this.updateActions()));
 
-		const inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height));
-		const delegate = new ProviderListDelegate(inputRenderer);
+		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height));
+		const delegate = new ProviderListDelegate(this.inputRenderer);
 
 		const actionViewItemProvider = (action: IAction) => this.getActionViewItem(action);
 
@@ -1533,7 +1534,7 @@ export class SCMViewPane extends ViewPane {
 
 		const renderers = [
 			this.instantiationService.createInstance(RepositoryRenderer, actionViewItemProvider, this.menus),
-			inputRenderer,
+			this.inputRenderer,
 			this.instantiationService.createInstance(ResourceGroupRenderer, actionViewItemProvider, this.menus),
 			this.instantiationService.createInstance(ResourceRenderer, () => this.viewModel, this.listLabels, actionViewItemProvider, actionRunner, this.menus)
 		];
@@ -1575,7 +1576,7 @@ export class SCMViewPane extends ViewPane {
 			viewMode = storageMode;
 		}
 
-		this.viewModel = this.instantiationService.createInstance(ViewModel, repositories, this.tree, this.menus, inputRenderer, viewMode, ViewModelSortKey.Path);
+		this.viewModel = this.instantiationService.createInstance(ViewModel, repositories, this.tree, this.menus, this.inputRenderer, viewMode, ViewModelSortKey.Path);
 		this._register(this.viewModel);
 
 		addClass(this.listContainer, 'file-icon-themable-tree');
@@ -1664,7 +1665,23 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private async open(e: IOpenEvent<TreeElement | null>): Promise<void> {
-		if (!e.element || isSCMRepository(e.element) || isSCMInput(e.element) || isSCMResourceGroup(e.element) || ResourceTree.isResourceNode(e.element)) {
+		if (!e.element || isSCMRepository(e.element) || isSCMResourceGroup(e.element) || ResourceTree.isResourceNode(e.element)) {
+			return;
+		}
+
+		if (isSCMInput(e.element)) {
+			const widget = this.inputRenderer.getRenderedInputWidget(e.element);
+
+			if (widget) {
+				widget.focus();
+
+				const selection = this.tree.getSelection();
+
+				if (selection.length === 1 && selection[0] === e.element) {
+					setTimeout(() => this.tree.setSelection([]));
+				}
+			}
+
 			return;
 		}
 
