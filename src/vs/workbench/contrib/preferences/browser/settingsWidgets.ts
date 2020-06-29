@@ -939,8 +939,6 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 			)
 		);
 
-		// TODO @9at8: should I implement 'Enter to save' on SelectBox?
-
 		const wrapper = $('.setting-list-object-input');
 		wrapper.classList.add(
 			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
