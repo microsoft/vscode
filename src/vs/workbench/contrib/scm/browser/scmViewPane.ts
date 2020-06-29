@@ -1381,6 +1381,7 @@ class SCMInputWidget extends Disposable {
 		this._register(this.inputEditor);
 
 		this._register(this.inputEditor.onDidFocusEditorText(() => {
+			this.input?.repository.setSelected(true); // TODO@joao: remove
 			addClass(this.editorContainer, 'synthetic-focus');
 			this.renderValidation();
 		}));
@@ -1665,11 +1666,24 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private async open(e: IOpenEvent<TreeElement | null>): Promise<void> {
-		if (!e.element || isSCMRepository(e.element) || isSCMResourceGroup(e.element) || ResourceTree.isResourceNode(e.element)) {
+		if (!e.element) {
 			return;
-		}
+		} else if (isSCMRepository(e.element)) { // TODO@joao: remove
+			e.element.setSelected(true);
+			return;
+		} else if (isSCMResourceGroup(e.element)) { // TODO@joao: remove
+			const provider = e.element.provider;
+			const repository = this.scmService.repositories.find(r => r.provider === provider);
+			repository?.setSelected(true);
+			return;
+		} else if (ResourceTree.isResourceNode(e.element)) { // TODO@joao: remove
+			const provider = e.element.context.provider;
+			const repository = this.scmService.repositories.find(r => r.provider === provider);
+			repository?.setSelected(true);
+			return;
+		} else if (isSCMInput(e.element)) {
+			e.element.repository.setSelected(true); // TODO@joao: remove
 
-		if (isSCMInput(e.element)) {
 			const widget = this.inputRenderer.getRenderedInputWidget(e.element);
 
 			if (widget) {
@@ -1685,6 +1699,7 @@ export class SCMViewPane extends ViewPane {
 			return;
 		}
 
+		// ISCMResource
 		await e.element.open(!!e.editorOptions.preserveFocus);
 
 		if (e.editorOptions.pinned) {
@@ -1694,6 +1709,11 @@ export class SCMViewPane extends ViewPane {
 				activeEditorPane.group.pinEditor(activeEditorPane.input);
 			}
 		}
+
+		// TODO@joao: remove
+		const provider = e.element.resourceGroup.provider;
+		const repository = this.scmService.repositories.find(r => r.provider === provider);
+		repository?.setSelected(true);
 	}
 
 	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
