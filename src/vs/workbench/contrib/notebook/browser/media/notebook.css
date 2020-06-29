@@ -660,7 +660,7 @@
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator {
 	position: absolute;
-	top: 4px;
+	top: 11px;
 	left: 0px;
 	right: 0;
 }
