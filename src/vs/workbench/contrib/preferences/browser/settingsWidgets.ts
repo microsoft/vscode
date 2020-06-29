@@ -25,6 +25,7 @@ import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/pr
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isIOS } from 'vs/base/common/platform';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { debounce } from 'vs/base/common/decorators';
 
 const $ = DOM.$;
 export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hc: '#ffffff' }, localize('headerForeground', "The foreground color for a section header or active title."));
@@ -654,8 +655,13 @@ export interface IObjectDataItem {
 	removable: boolean;
 }
 
+export interface IObjectValueSuggester {
+	(key: string): ObjectValue | undefined;
+}
+
 interface IObjectSetValueOptions {
-	showAddButton?: boolean;
+	showAddButton: boolean;
+	valueSuggester: IObjectValueSuggester;
 }
 
 interface IObjectRenderEditWidgetOptions {
@@ -663,14 +669,16 @@ interface IObjectRenderEditWidgetOptions {
 	idx: number;
 	readonly originalItem: IObjectDataItem;
 	readonly changedItem: IObjectDataItem;
-	update(keyOrValue: ObjectKey | ObjectValue): IObjectDataItem;
+	update(keyOrValue: ObjectKey | ObjectValue): void;
 }
 
 export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataItem> {
 	private showAddButton: boolean = true;
+	private valueSuggester: IObjectValueSuggester = () => undefined;;
 
 	setValue(listData: IObjectDataItem[], options?: IObjectSetValueOptions): void {
 		this.showAddButton = options?.showAddButton ?? this.showAddButton;
+		this.valueSuggester = options?.valueSuggester ?? this.valueSuggester;
 		super.setValue(listData);
 	}
 
@@ -756,42 +764,61 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 	}
 
 	protected renderEdit(item: IObjectDataItem, idx: number): HTMLElement {
-		const rowElement = $('.setting-list-edit-row');
-		rowElement.classList.add('setting-list-object-row');
+		const rowElement = $('.setting-list-edit-row.setting-list-object-row');
 
 		const changedItem = { ...item };
 		const onKeyChange = (key: ObjectKey) => {
 			changedItem.key = key;
-			return changedItem;
+			this.updateValueUsingSuggestion(key.data, item.value, newValue => {
+				if (this.shouldUseSuggestion(item.value, changedItem.value, newValue)) {
+					onValueChange(newValue);
+					renderLatestValue();
+				}
+			});
 		};
 		const onValueChange = (value: ObjectValue) => {
 			changedItem.value = value;
-			return changedItem;
 		};
 
 		let keyWidget: InputBox | SelectBox | undefined;
+		let keyElement: HTMLElement;
 
 		if (this.showAddButton) {
-			keyWidget = this.renderEditWidget(item.key, rowElement, {
+			const { widget, element } = this.renderEditWidget(item.key, {
 				idx,
 				isKey: true,
 				originalItem: item,
 				changedItem,
 				update: onKeyChange,
 			});
+			keyWidget = widget;
+			keyElement = element;
 		} else {
-			const keyElement = DOM.append(rowElement, $('.setting-list-object-key'));
-			keyElement.setAttribute('aria-readonly', 'true');
+			keyElement = $('.setting-list-object-key');
 			keyElement.textContent = item.key.data;
 		}
 
-		const valueWidget = this.renderEditWidget(item.value, rowElement, {
-			idx,
-			isKey: false,
-			originalItem: item,
-			changedItem,
-			update: onValueChange,
-		});
+		let valueWidget: InputBox | SelectBox;
+		const valueContainer = $('.setting-list-object-value-container');
+
+		const renderLatestValue = () => {
+			const { widget, element } = this.renderEditWidget(changedItem.value, {
+				idx,
+				isKey: false,
+				originalItem: item,
+				changedItem,
+				update: onValueChange,
+			});
+
+			valueWidget = widget;
+
+			DOM.clearNode(valueContainer);
+			valueContainer.append(element);
+		};
+
+		renderLatestValue();
+
+		rowElement.append(keyElement, valueContainer);
 
 		const okButton = this._register(new Button(rowElement));
 		okButton.label = localize('okButton', "OK");
@@ -824,14 +851,13 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 
 	private renderEditWidget(
 		keyOrValue: ObjectKey | ObjectValue,
-		rowElement: HTMLElement,
 		options: IObjectRenderEditWidgetOptions,
 	) {
 		switch (keyOrValue.type) {
 			case 'string':
-				return this.renderStringEditWidget(keyOrValue, rowElement, options);
+				return this.renderStringEditWidget(keyOrValue, options);
 			case 'enum':
-				return this.renderEnumEditWidget(keyOrValue, rowElement, options);
+				return this.renderEnumEditWidget(keyOrValue, options);
 			case 'boolean':
 				return this.renderEnumEditWidget(
 					{
@@ -839,7 +865,6 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 						data: keyOrValue.data.toString(),
 						options: [{ value: 'true' }, { value: 'false' }],
 					},
-					rowElement,
 					options,
 				);
 		}
@@ -847,19 +872,16 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 
 	private renderStringEditWidget(
 		keyOrValue: IObjectStringData,
-		rowElement: HTMLElement,
 		{ idx, isKey, originalItem, changedItem, update }: IObjectRenderEditWidgetOptions,
 	) {
-		const inputBox = new InputBox(rowElement, this.contextViewService, {
+		const wrapper = $(isKey ? '.setting-list-object-input-key' : '.setting-list-object-input-value');
+		const inputBox = new InputBox(wrapper, this.contextViewService, {
 			placeholder: isKey
 				? localize('objectKeyInputPlaceholder', "Key")
 				: localize('objectValueInputPlaceholder', "Value"),
 		});
 
-		inputBox.element.classList.add(
-			'setting-list-object-input',
-			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
-		);
+		inputBox.element.classList.add('setting-list-object-input');
 
 		this.listDisposables.add(attachInputBoxStyler(inputBox, this.themeService, {
 			inputBackground: settingsTextInputBackground,
@@ -884,12 +906,11 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, onKeyDown)
 		);
 
-		return inputBox;
+		return { widget: inputBox, element: wrapper };
 	}
 
 	private renderEnumEditWidget(
 		keyOrValue: IObjectEnumData,
-		rowElement: HTMLElement,
 		{ isKey, originalItem, update }: IObjectRenderEditWidgetOptions,
 	) {
 		const selectBoxOptions = keyOrValue.options.map(({ value, description }) => ({ text: value, description }));
@@ -906,11 +927,6 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 			selectListBorder: settingsSelectListBorder
 		}));
 
-		const wrapper = $('.setting-list-object-input');
-		wrapper.classList.add(
-			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
-		);
-
 		const originalKeyOrValue = isKey ? originalItem.key : originalItem.value;
 
 		this.listDisposables.add(
@@ -923,12 +939,50 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 			)
 		);
 
-		// TODO @9at8: hit Enter on SelectBox to save?
+		// TODO @9at8: should I implement 'Enter to save' on SelectBox?
+
+		const wrapper = $('.setting-list-object-input');
+		wrapper.classList.add(
+			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
+		);
 
 		selectBox.render(wrapper);
-		rowElement.append(wrapper);
 
-		return selectBox;
+		return { widget: selectBox, element: wrapper };
+	}
+
+	@debounce(300)
+	private updateValueUsingSuggestion(key: string, defaultValue: ObjectValue, onUpdate: (value: ObjectValue) => void) {
+		const suggestion = this.valueSuggester(key);
+		onUpdate(suggestion ?? defaultValue);
+	}
+
+	private shouldUseSuggestion(originalValue: ObjectValue, previousValue: ObjectValue, newValue: ObjectValue): boolean {
+		if (previousValue === newValue) {
+			return false;
+		}
+
+		// item is new, use suggestion
+		if (originalValue.data === '') {
+			return true;
+		}
+
+		if (previousValue.type === newValue.type && newValue.type !== 'enum') {
+			return false;
+		}
+
+		// check if all enum options are the same
+		if (previousValue.type === 'enum' && newValue.type === 'enum') {
+			const previousEnums = new Set(previousValue.options.map(({ value }) => value));
+			newValue.options.forEach(({ value }) => previousEnums.delete(value));
+
+			// all options are the same
+			if (previousEnums.size === 0) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	protected getLocalizedRowTitle(item: IObjectDataItem): string {
