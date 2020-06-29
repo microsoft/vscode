@@ -140,9 +140,9 @@
 	display: block;
 }
 
-.scm-view .scm-status.show-actions .scm-provider > .actions,
-.scm-view .scm-status.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
-.scm-view .scm-status.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
+.scm-view.show-actions .scm-provider > .actions,
+.scm-view.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
+.scm-view.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: block;
 }
 
