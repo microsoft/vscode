@@ -659,8 +659,13 @@ export interface IObjectValueSuggester {
 	(key: string): ObjectValue | undefined;
 }
 
+export interface IObjectKeySuggester {
+	(existingKeys: string[]): IObjectEnumData | undefined;
+}
+
 interface IObjectSetValueOptions {
 	showAddButton: boolean;
+	keySuggester: IObjectKeySuggester;
 	valueSuggester: IObjectValueSuggester;
 }
 
@@ -674,10 +679,12 @@ interface IObjectRenderEditWidgetOptions {
 
 export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataItem> {
 	private showAddButton: boolean = true;
-	private valueSuggester: IObjectValueSuggester = () => undefined;;
+	private keySuggester: IObjectKeySuggester = () => undefined;
+	private valueSuggester: IObjectValueSuggester = () => undefined;
 
 	setValue(listData: IObjectDataItem[], options?: IObjectSetValueOptions): void {
 		this.showAddButton = options?.showAddButton ?? this.showAddButton;
+		this.keySuggester = options?.keySuggester ?? this.keySuggester;
 		this.valueSuggester = options?.valueSuggester ?? this.valueSuggester;
 		super.setValue(listData);
 	}
@@ -784,7 +791,17 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		let keyElement: HTMLElement;
 
 		if (this.showAddButton) {
-			const { widget, element } = this.renderEditWidget(item.key, {
+			if (this.isItemNew(item)) {
+				const suggestedKey = this.keySuggester(this.model.items.map(({ key: { data } }) => data));
+
+				if (isDefined(suggestedKey)) {
+					changedItem.key = suggestedKey;
+					const suggestedValue = this.valueSuggester(changedItem.key.data);
+					onValueChange(suggestedValue ?? changedItem.value);
+				}
+			}
+
+			const { widget, element } = this.renderEditWidget(changedItem.key, {
 				idx,
 				isKey: true,
 				originalItem: item,

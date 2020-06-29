@@ -44,7 +44,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -174,6 +174,26 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 	});
 }
 
+function createObjectKeySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
+	const { objectProperties } = element.setting;
+	const allStaticKeys = Object.keys(objectProperties ?? {});
+
+	return keys => {
+		const existingKeys = new Set(keys);
+		const enumOptions: IObjectEnumOption[] = [];
+
+		allStaticKeys.forEach(staticKey => {
+			if (!existingKeys.has(staticKey)) {
+				enumOptions.push({ value: staticKey, description: objectProperties![staticKey].description });
+			}
+		});
+
+		return enumOptions.length > 0
+			? { type: 'enum', data: enumOptions[0].value, options: enumOptions }
+			: undefined;
+	};
+}
+
 function createObjectValueSuggester(element: SettingsTreeSettingElement): IObjectValueSuggester {
 	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
 
@@ -204,8 +224,11 @@ function createObjectValueSuggester(element: SettingsTreeSettingElement): IObjec
 
 			if (type === 'boolean') {
 				return { type, data: suggestedSchema.default ?? true };
+			} else if (type === 'enum') {
+				const options = getEnumOptionsFromSchema(suggestedSchema);
+				return { type, data: suggestedSchema.default ?? options[0].value, options };
 			} else {
-				return { type, data: suggestedSchema.default ?? '', options: getEnumOptionsFromSchema(suggestedSchema) };
+				return { type, data: suggestedSchema.default ?? '' };
 			}
 		}
 
@@ -1084,6 +1107,7 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 				isDefined(dataElement.setting.objectPatternProperties) ||
 				!areAllPropertiesDefined(Object.keys(dataElement.setting.objectProperties ?? {}), items)
 			),
+			keySuggester: createObjectKeySuggester(dataElement),
 			valueSuggester: createObjectValueSuggester(dataElement),
 		});
 
