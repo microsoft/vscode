@@ -16,20 +16,20 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
 
-const pathPrefix = '(\\.\\.?|\\~)';
-const pathSeparatorClause = '\\/';
+const unixPathPrefix = '(\\.\\.?|\\~|\\/)';
+const unixPathSeparatorClause = '\\/';
 // '":; are allowed in paths but they are often separators so ignore them
 // Also disallow \\ to prevent a catastropic backtracking case #24798
-const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;\\\\]';
+const unixExcludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;\\\\]';
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
-export const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + ')+)+)';
+export const unixLocalLinkClause = '((' + unixPathPrefix + ')?(' + unixExcludedPathCharactersClause + ')+(' + unixPathSeparatorClause + '(' + unixExcludedPathCharactersClause + ')+)*)';
 
 export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
 const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
 const winPathSeparatorClause = '(\\\\|\\/)';
 const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]';
 /** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
-export const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
+export const winLocalLinkClause = '((' + winPathPrefix + ')?(' + winExcludedPathCharactersClause + ')+(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)*)';
 
 /** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
 replacing space with nonBreakningSpace or space ASCII code - 32. */
