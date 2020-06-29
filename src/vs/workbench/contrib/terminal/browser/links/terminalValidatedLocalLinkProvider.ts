@@ -16,20 +16,22 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
 
-const unixPathPrefix = '(\\.\\.?|\\~|\\/)';
+const unixPathPrefix = '(\\.\\.?|\\~|)';
 const unixPathSeparatorClause = '\\/';
 // '":; are allowed in paths but they are often separators so ignore them
 // Also disallow \\ to prevent a catastropic backtracking case #24798
 const unixExcludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;\\\\]';
-/** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
-export const unixLocalLinkClause = '((' + unixPathPrefix + ')?(' + unixExcludedPathCharactersClause + ')+(' + unixPathSeparatorClause + '(' + unixExcludedPathCharactersClause + ')+)*)';
+const unixPathPartClause = '(' + unixExcludedPathCharactersClause + ')+';
+/** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar, foo */
+export const unixLocalLinkClause = '(((' + unixPathPrefix + ')?' + unixPathSeparatorClause + ')?' + unixPathPartClause + '(' + unixPathSeparatorClause + unixPathPartClause + ')*)';
 
 export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
 const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
 const winPathSeparatorClause = '(\\\\|\\/)';
 const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]';
-/** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
-export const winLocalLinkClause = '((' + winPathPrefix + ')?(' + winExcludedPathCharactersClause + ')+(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)*)';
+const winPathPartClause = '(' + winExcludedPathCharactersClause + ')+';
+/** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar, foo */
+export const winLocalLinkClause = '(((' + winPathPrefix + ')?' + winPathSeparatorClause + ')?' + winPathPartClause + '(' + winPathSeparatorClause + winPathPartClause + ')*)';
 
 /** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
 replacing space with nonBreakningSpace or space ASCII code - 32. */
