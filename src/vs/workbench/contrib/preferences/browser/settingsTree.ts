@@ -44,7 +44,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -172,6 +172,45 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			removable: true,
 		};
 	});
+}
+
+function createObjectValueSuggester(element: SettingsTreeSettingElement): IObjectValueSuggester {
+	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
+
+	const patternsAndSchemas = Object
+		.entries(objectPatternProperties ?? {})
+		.map(([pattern, schema]) => ({
+			pattern: new RegExp(pattern),
+			schema
+		}));
+
+	return (key: string) => {
+		let suggestedSchema: IJSONSchema | undefined;
+
+		if (isDefined(objectProperties) && key in objectProperties) {
+			suggestedSchema = objectProperties[key];
+		}
+
+		const patternSchema = suggestedSchema ?? patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
+
+		if (isDefined(patternSchema)) {
+			suggestedSchema = patternSchema;
+		} else if (isDefined(objectAdditionalProperties) && typeof objectAdditionalProperties === 'object') {
+			suggestedSchema = objectAdditionalProperties;
+		}
+
+		if (isDefined(suggestedSchema)) {
+			const type = getObjectValueType(suggestedSchema);
+
+			if (type === 'boolean') {
+				return { type, data: suggestedSchema.default ?? true };
+			} else {
+				return { type, data: suggestedSchema.default ?? '', options: getEnumOptionsFromSchema(suggestedSchema) };
+			}
+		}
+
+		return;
+	};
 }
 
 function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
@@ -1039,13 +1078,13 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: string) => void): void {
 		const items = getObjectDisplayValue(dataElement);
 
-
 		template.objectWidget.setValue(items, {
 			showAddButton: (
 				isDefined(dataElement.setting.objectAdditionalProperties) ||
 				isDefined(dataElement.setting.objectPatternProperties) ||
 				!areAllPropertiesDefined(Object.keys(dataElement.setting.objectProperties ?? {}), items)
 			),
+			valueSuggester: createObjectValueSuggester(dataElement),
 		});
 
 		this.setElementAriaLabels(dataElement, this.templateId, template);

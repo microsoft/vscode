@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -25,6 +25,7 @@ import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/pr
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isIOS } from 'vs/base/common/platform';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { debounce } from 'vs/base/common/decorators';
 
 const $ = DOM.$;
 export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hc: '#ffffff' }, localize('headerForeground', "The foreground color for a section header or active title."));
@@ -218,12 +219,6 @@ export interface ISettingListChangeEvent<TDataItem extends object> {
 	targetIndex?: number;
 }
 
-interface IEditHandlers<TDataItem extends object> {
-	onKeydown(event: IKeyboardEvent, updatedItem: TDataItem): void
-	onSubmit(updatedItem: TDataItem): void
-	onCancel(): void
-}
-
 abstract class AbstractListSettingWidget<TDataItem extends object> extends Disposable {
 	private listElement: HTMLElement;
 	private rowElements: HTMLElement[] = [];
@@ -281,7 +276,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 	protected abstract getContainerClasses(): string[];
 	protected abstract getActionsForItem(item: TDataItem, idx: number): IAction[];
 	protected abstract renderItem(item: TDataItem): HTMLElement;
-	protected abstract renderEdit(item: TDataItem, handlers: IEditHandlers<TDataItem>): HTMLElement;
+	protected abstract renderEdit(item: TDataItem, idx: number): HTMLElement;
 	protected abstract isItemNew(item: TDataItem): boolean;
 	protected abstract getLocalizedRowTitle(item: TDataItem): string;
 	protected abstract getLocalizedStrings(): {
@@ -327,9 +322,26 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		this.renderList();
 	}
 
+	protected cancelEdit(): void {
+		this.model.setEditKey('none');
+		this.renderList();
+	}
+
+	protected handleItemChange(originalItem: TDataItem, changedItem: TDataItem, idx: number) {
+		this.model.setEditKey('none');
+
+		this._onDidChangeList.fire({
+			originalItem,
+			item: changedItem,
+			targetIndex: idx,
+		});
+
+		this.renderList();
+	}
+
 	private renderDataOrEditItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
 		const rowElement = item.editing ?
-			this.renderEditItem(item, idx) :
+			this.renderEdit(item, idx) :
 			this.renderDataItem(item, idx, listFocused);
 
 		rowElement.setAttribute('role', 'listitem');
@@ -353,43 +365,6 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		if (item.selected && listFocused) {
 			this.listDisposables.add(disposableTimeout(() => rowElement.focus()));
 		}
-
-		return rowElement;
-	}
-
-	private renderEditItem(item: IListViewItem<TDataItem>, idx: number): HTMLElement {
-		let rowElement: HTMLElement | undefined;
-
-		const onCancel = () => {
-			this.model.setEditKey('none');
-			this.renderList();
-		};
-
-		const onSubmit = (updatedItem: TDataItem) => {
-			this.model.setEditKey('none');
-
-			if (!isUndefinedOrNull(updatedItem)) {
-				this._onDidChangeList.fire({
-					originalItem: item,
-					item: updatedItem,
-					targetIndex: idx,
-				});
-			}
-
-			this.renderList();
-		};
-
-		const onKeydown = (e: StandardKeyboardEvent, updatedItem: TDataItem) => {
-			if (e.equals(KeyCode.Enter)) {
-				onSubmit(updatedItem);
-			} else if (e.equals(KeyCode.Escape)) {
-				onCancel();
-				e.preventDefault();
-			}
-			rowElement?.focus();
-		};
-
-		rowElement = this.renderEdit(item, { onSubmit, onKeydown, onCancel });
 
 		return rowElement;
 	}
@@ -529,13 +504,23 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		return rowElement;
 	}
 
-	protected renderEdit(item: IListDataItem, { onKeydown, onSubmit, onCancel }: IEditHandlers<IListDataItem>): HTMLElement {
+	protected renderEdit(item: IListDataItem, idx: number): HTMLElement {
 		const rowElement = $('.setting-list-edit-row');
 
 		const updatedItem = () => ({
 			value: valueInput.value,
 			sibling: siblingInput?.value
 		});
+
+		const onKeyDown = (e: StandardKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter)) {
+				this.handleItemChange(item, updatedItem(), idx);
+			} else if (e.equals(KeyCode.Escape)) {
+				this.cancelEdit();
+				e.preventDefault();
+			}
+			rowElement?.focus();
+		};
 
 		const valueInput = new InputBox(rowElement, this.contextViewService, {
 			placeholder: this.getLocalizedStrings().inputPlaceholder
@@ -550,7 +535,9 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		this.listDisposables.add(valueInput);
 		valueInput.value = item.value;
 
-		this.listDisposables.add(DOM.addStandardDisposableListener(valueInput.inputElement, DOM.EventType.KEY_DOWN, e => onKeydown(e, updatedItem())));
+		this.listDisposables.add(
+			DOM.addStandardDisposableListener(valueInput.inputElement, DOM.EventType.KEY_DOWN, onKeyDown)
+		);
 
 		let siblingInput: InputBox | undefined;
 		if (!isUndefinedOrNull(item.sibling)) {
@@ -566,7 +553,9 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			}));
 			siblingInput.value = item.sibling;
 
-			this.listDisposables.add(DOM.addStandardDisposableListener(siblingInput.inputElement, DOM.EventType.KEY_DOWN, e => onKeydown(e, updatedItem())));
+			this.listDisposables.add(
+				DOM.addStandardDisposableListener(siblingInput.inputElement, DOM.EventType.KEY_DOWN, onKeyDown)
+			);
 		}
 
 		const okButton = this._register(new Button(rowElement));
@@ -574,14 +563,14 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		okButton.element.classList.add('setting-list-ok-button');
 
 		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
-		this.listDisposables.add(okButton.onDidClick(() => onSubmit(updatedItem())));
+		this.listDisposables.add(okButton.onDidClick(() => this.handleItemChange(item, updatedItem(), idx)));
 
 		const cancelButton = this._register(new Button(rowElement));
 		cancelButton.label = localize('cancelButton', "Cancel");
 		cancelButton.element.classList.add('setting-list-cancel-button');
 
 		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
-		this.listDisposables.add(cancelButton.onDidClick(onCancel));
+		this.listDisposables.add(cancelButton.onDidClick(() => this.cancelEdit()));
 
 		this.listDisposables.add(
 			disposableTimeout(() => {
@@ -666,15 +655,30 @@ export interface IObjectDataItem {
 	removable: boolean;
 }
 
+export interface IObjectValueSuggester {
+	(key: string): ObjectValue | undefined;
+}
+
 interface IObjectSetValueOptions {
-	showAddButton?: boolean;
+	showAddButton: boolean;
+	valueSuggester: IObjectValueSuggester;
+}
+
+interface IObjectRenderEditWidgetOptions {
+	isKey: boolean;
+	idx: number;
+	readonly originalItem: IObjectDataItem;
+	readonly changedItem: IObjectDataItem;
+	update(keyOrValue: ObjectKey | ObjectValue): void;
 }
 
 export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataItem> {
 	private showAddButton: boolean = true;
+	private valueSuggester: IObjectValueSuggester = () => undefined;;
 
 	setValue(listData: IObjectDataItem[], options?: IObjectSetValueOptions): void {
 		this.showAddButton = options?.showAddButton ?? this.showAddButton;
+		this.valueSuggester = options?.valueSuggester ?? this.valueSuggester;
 		super.setValue(listData);
 	}
 
@@ -759,84 +763,76 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		return rowElement;
 	}
 
-	protected renderEdit(item: IObjectDataItem, { onSubmit, onKeydown, onCancel }: IEditHandlers<IObjectDataItem>): HTMLElement {
-		const rowElement = $('.setting-list-edit-row');
-		rowElement.classList.add('setting-list-object-row');
+	protected renderEdit(item: IObjectDataItem, idx: number): HTMLElement {
+		const rowElement = $('.setting-list-edit-row.setting-list-object-row');
+
+		const changedItem = { ...item };
+		const onKeyChange = (key: ObjectKey) => {
+			changedItem.key = key;
+			this.updateValueUsingSuggestion(key.data, item.value, newValue => {
+				if (this.shouldUseSuggestion(item.value, changedItem.value, newValue)) {
+					onValueChange(newValue);
+					renderLatestValue();
+				}
+			});
+		};
+		const onValueChange = (value: ObjectValue) => {
+			changedItem.value = value;
+		};
 
 		let keyWidget: InputBox | SelectBox | undefined;
+		let keyElement: HTMLElement;
 
 		if (this.showAddButton) {
-			keyWidget = this.renderEditWidget(item.key, rowElement, true);
+			const { widget, element } = this.renderEditWidget(item.key, {
+				idx,
+				isKey: true,
+				originalItem: item,
+				changedItem,
+				update: onKeyChange,
+			});
+			keyWidget = widget;
+			keyElement = element;
 		} else {
-			const keyElement = DOM.append(rowElement, $('.setting-list-object-key'));
-			keyElement.setAttribute('aria-readonly', 'true');
+			keyElement = $('.setting-list-object-key');
 			keyElement.textContent = item.key.data;
 		}
 
-		const valueWidget = this.renderEditWidget(item.value, rowElement, false);
+		let valueWidget: InputBox | SelectBox;
+		const valueContainer = $('.setting-list-object-value-container');
 
-		const updatedItem = () => {
-			const newItem = { ...item };
+		const renderLatestValue = () => {
+			const { widget, element } = this.renderEditWidget(changedItem.value, {
+				idx,
+				isKey: false,
+				originalItem: item,
+				changedItem,
+				update: onValueChange,
+			});
 
-			if (keyWidget instanceof InputBox) {
-				newItem.key = { type: 'string', data: keyWidget.value };
-			}
+			valueWidget = widget;
 
-			if (valueWidget instanceof InputBox) {
-				newItem.value = { type: 'string', data: valueWidget.value };
-			}
-
-			return newItem;
+			DOM.clearNode(valueContainer);
+			valueContainer.append(element);
 		};
 
-		if (keyWidget instanceof InputBox) {
-			keyWidget.setPlaceHolder(this.getLocalizedStrings().keyInputPlaceholder);
-			this.listDisposables.add(DOM.addStandardDisposableListener(keyWidget.inputElement, DOM.EventType.KEY_DOWN, e => onKeydown(e, updatedItem())));
-		} else if (keyWidget instanceof SelectBox) {
-			this.listDisposables.add(
-				keyWidget.onDidSelect(({ selected }) => {
-					const editKey = this.model.items.findIndex(({ key }) => selected === key.data);
+		renderLatestValue();
 
-					if (editKey >= 0) {
-						this.model.select(editKey);
-						this.model.setEditKey(editKey);
-						this.renderList();
-					} else {
-						onSubmit({ ...item, key: { ...item.key, data: selected } });
-					}
-				})
-			);
-		}
-
-		if (valueWidget instanceof InputBox) {
-			valueWidget.setPlaceHolder(this.getLocalizedStrings().valueInputPlaceholder);
-			this.listDisposables.add(DOM.addStandardDisposableListener(valueWidget.inputElement, DOM.EventType.KEY_DOWN, e => onKeydown(e, updatedItem())));
-		} else if (valueWidget instanceof SelectBox) {
-			this.listDisposables.add(
-				valueWidget.onDidSelect(({ selected }) => {
-					onSubmit({
-						...item,
-						value: item.value.type === 'boolean'
-							? { ...item.value, data: selected === 'true' ? true : false }
-							: { ...item.value, data: selected },
-					});
-				})
-			);
-		}
+		rowElement.append(keyElement, valueContainer);
 
 		const okButton = this._register(new Button(rowElement));
 		okButton.label = localize('okButton', "OK");
 		okButton.element.classList.add('setting-list-ok-button');
 
 		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
-		this.listDisposables.add(okButton.onDidClick(() => onSubmit(updatedItem())));
+		this.listDisposables.add(okButton.onDidClick(() => this.handleItemChange(item, changedItem, idx)));
 
 		const cancelButton = this._register(new Button(rowElement));
 		cancelButton.label = localize('cancelButton', "Cancel");
 		cancelButton.element.classList.add('setting-list-cancel-button');
 
 		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
-		this.listDisposables.add(cancelButton.onDidClick(onCancel));
+		this.listDisposables.add(cancelButton.onDidClick(() => this.cancelEdit()));
 
 		this.listDisposables.add(
 			disposableTimeout(() => {
@@ -851,6 +847,140 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		);
 
 		return rowElement;
+	}
+
+	private renderEditWidget(
+		keyOrValue: ObjectKey | ObjectValue,
+		options: IObjectRenderEditWidgetOptions,
+	) {
+		switch (keyOrValue.type) {
+			case 'string':
+				return this.renderStringEditWidget(keyOrValue, options);
+			case 'enum':
+				return this.renderEnumEditWidget(keyOrValue, options);
+			case 'boolean':
+				return this.renderEnumEditWidget(
+					{
+						type: 'enum',
+						data: keyOrValue.data.toString(),
+						options: [{ value: 'true' }, { value: 'false' }],
+					},
+					options,
+				);
+		}
+	}
+
+	private renderStringEditWidget(
+		keyOrValue: IObjectStringData,
+		{ idx, isKey, originalItem, changedItem, update }: IObjectRenderEditWidgetOptions,
+	) {
+		const wrapper = $(isKey ? '.setting-list-object-input-key' : '.setting-list-object-input-value');
+		const inputBox = new InputBox(wrapper, this.contextViewService, {
+			placeholder: isKey
+				? localize('objectKeyInputPlaceholder', "Key")
+				: localize('objectValueInputPlaceholder', "Value"),
+		});
+
+		inputBox.element.classList.add('setting-list-object-input');
+
+		this.listDisposables.add(attachInputBoxStyler(inputBox, this.themeService, {
+			inputBackground: settingsTextInputBackground,
+			inputForeground: settingsTextInputForeground,
+			inputBorder: settingsTextInputBorder
+		}));
+		this.listDisposables.add(inputBox);
+		inputBox.value = keyOrValue.data;
+
+		this.listDisposables.add(inputBox.onDidChange(value => update({ ...keyOrValue, data: value })));
+
+		const onKeyDown = (e: StandardKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter)) {
+				this.handleItemChange(originalItem, changedItem, idx);
+			} else if (e.equals(KeyCode.Escape)) {
+				this.cancelEdit();
+				e.preventDefault();
+			}
+		};
+
+		this.listDisposables.add(
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, onKeyDown)
+		);
+
+		return { widget: inputBox, element: wrapper };
+	}
+
+	private renderEnumEditWidget(
+		keyOrValue: IObjectEnumData,
+		{ isKey, originalItem, update }: IObjectRenderEditWidgetOptions,
+	) {
+		const selectBoxOptions = keyOrValue.options.map(({ value, description }) => ({ text: value, description }));
+		const selected = keyOrValue.options.findIndex(option => keyOrValue.data === option.value);
+
+		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, undefined, {
+			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
+		});
+
+		this.listDisposables.add(attachSelectBoxStyler(selectBox, this.themeService, {
+			selectBackground: settingsSelectBackground,
+			selectForeground: settingsSelectForeground,
+			selectBorder: settingsSelectBorder,
+			selectListBorder: settingsSelectListBorder
+		}));
+
+		const originalKeyOrValue = isKey ? originalItem.key : originalItem.value;
+
+		this.listDisposables.add(
+			selectBox.onDidSelect(({ selected }) =>
+				update(
+					originalKeyOrValue.type === 'boolean'
+						? { ...originalKeyOrValue, data: selected === 'true' ? true : false }
+						: { ...originalKeyOrValue, data: selected },
+				)
+			)
+		);
+
+		const wrapper = $('.setting-list-object-input');
+		wrapper.classList.add(
+			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
+		);
+
+		selectBox.render(wrapper);
+
+		return { widget: selectBox, element: wrapper };
+	}
+
+	@debounce(300)
+	private updateValueUsingSuggestion(key: string, defaultValue: ObjectValue, onUpdate: (value: ObjectValue) => void) {
+		const suggestion = this.valueSuggester(key);
+		onUpdate(suggestion ?? defaultValue);
+	}
+
+	private shouldUseSuggestion(originalValue: ObjectValue, previousValue: ObjectValue, newValue: ObjectValue): boolean {
+		if (previousValue === newValue) {
+			return false;
+		}
+
+		// item is new, use suggestion
+		if (originalValue.data === '') {
+			return true;
+		}
+
+		if (previousValue.type === newValue.type && newValue.type !== 'enum') {
+			return false;
+		}
+
+		// check if all enum options are the same
+		if (previousValue.type === 'enum' && newValue.type === 'enum') {
+			const previousEnums = new Set(previousValue.options.map(({ value }) => value));
+			newValue.options.forEach(({ value }) => previousEnums.delete(value));
+
+			// all options are the same
+			if (previousEnums.size === 0) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	protected getLocalizedRowTitle(item: IObjectDataItem): string {
@@ -876,72 +1006,6 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 			addButtonLabel: localize('addItem', "Add Item"),
 			keyHeaderText: localize('objectKeyHeader', "Item"),
 			valueHeaderText: localize('objectValueHeader', "Value"),
-			keyInputPlaceholder: localize('objectKeyInputPlaceholder', "Key"),
-			valueInputPlaceholder: localize('objectValueInputPlaceholder', "Value"),
 		};
-	}
-
-	private renderEditWidget(keyOrValue: ObjectKey | ObjectValue, rowElement: HTMLElement, isKey: boolean) {
-		switch (keyOrValue.type) {
-			case 'string':
-				return this.renderStringEditWidget(keyOrValue, rowElement, isKey);
-			case 'enum':
-				return this.renderEnumEditWidget(keyOrValue, rowElement, isKey);
-			case 'boolean':
-				return this.renderEnumEditWidget(
-					{
-						type: 'enum',
-						data: keyOrValue.data.toString(),
-						options: [{ value: 'true' }, { value: 'false' }],
-					},
-					rowElement,
-					isKey
-				);
-		}
-	}
-
-	private renderStringEditWidget(keyOrValue: IObjectStringData, rowElement: HTMLElement, isKey: boolean) {
-		const inputBox = new InputBox(rowElement, this.contextViewService);
-
-		inputBox.element.classList.add(
-			'setting-list-object-input',
-			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
-		);
-
-		this.listDisposables.add(attachInputBoxStyler(inputBox, this.themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
-		}));
-		this.listDisposables.add(inputBox);
-		inputBox.value = keyOrValue.data;
-
-		return inputBox;
-	}
-
-	private renderEnumEditWidget(keyOrValue: IObjectEnumData, rowElement: HTMLElement, isKey: boolean) {
-		const selectBoxOptions = keyOrValue.options.map(({ value, description }) => ({ text: value, description }));
-		const selected = keyOrValue.options.findIndex(option => keyOrValue.data === option.value);
-
-		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, undefined, {
-			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
-		});
-
-		this.listDisposables.add(attachSelectBoxStyler(selectBox, this.themeService, {
-			selectBackground: settingsSelectBackground,
-			selectForeground: settingsSelectForeground,
-			selectBorder: settingsSelectBorder,
-			selectListBorder: settingsSelectListBorder
-		}));
-
-		const wrapper = $('.setting-list-object-input');
-		wrapper.classList.add(
-			isKey ? 'setting-list-object-input-key' : 'setting-list-object-input-value',
-		);
-
-		selectBox.render(wrapper);
-		rowElement.append(wrapper);
-
-		return selectBox;
 	}
 }
