@@ -40,6 +40,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 
 export const TestWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
@@ -232,7 +233,7 @@ export class TestElectronService implements IElectronService {
 	async writeClipboardBuffer(format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
 	async readClipboardBuffer(format: string): Promise<Uint8Array> { return Uint8Array.from([]); }
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
-	async sendInputEvent(event: { type: 'mouseDown' | 'mouseUp'; x: number; y: number; clickCount: number; }): Promise<void> { }
+	async sendInputEvent(event: MouseInputEvent): Promise<void> { }
 }
 
 export function workbenchInstantiationService(): ITestInstantiationService {

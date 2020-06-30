@@ -128,7 +128,7 @@
       "editor/context": [
         {
           "command": "npm.runSelectedScript",
-          "when": "resourceFilename == 'package.json'",
+          "when": "resourceFilename == 'package.json' && resourceScheme == file",
           "group": "navigation@+1"
         }
       ],
@@ -183,7 +183,7 @@
       ],
       "explorer/context": [
         {
-          "when": "config.npm.enableRunFromFolder && explorerViewletVisible && explorerResourceIsFolder",
+          "when": "config.npm.enableRunFromFolder && explorerViewletVisible && explorerResourceIsFolder && resourceScheme == file",
           "command": "npm.runScriptFromFolder",
           "group": "2_workspace"
         }

@@ -96,8 +96,8 @@ export class StatefullMarkdownCell extends Disposable {
 		this._register(viewCell.onDidChangeLayout((e) => {
 			const layoutInfo = this.editor?.getLayoutInfo();
 			if (e.outerWidth && layoutInfo && layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
-				this.onCellWidthChange();
-			} else if (e.totalHeight) {
+				this.onCellEditorWidthChange();
+			} else if (e.totalHeight || e.outerWidth) {
 				this.relayoutCell();
 			}
 		}));
@@ -236,7 +236,7 @@ export class StatefullMarkdownCell extends Disposable {
 		this.templateData.statusBarContainer.style.width = `${dimension.width}px`;
 	}
 
-	private onCellWidthChange(): void {
+	private onCellEditorWidthChange(): void {
 		const realContentHeight = this.editor!.getContentHeight();
 		this.layoutEditor(
 			{

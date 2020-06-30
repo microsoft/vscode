@@ -234,6 +234,10 @@ export function isMonacoEditor(e: HTMLElement): boolean {
 		return true;
 	}
 
+	if (DOM.hasClass(e, 'monaco-list')) {
+		return false;
+	}
+
 	if (!e.parentElement) {
 		return false;
 	}

@@ -63,7 +63,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		return {
 			onSaveError(error: Error, model: ITextFileEditorModel): void {
-				notificationService.error(localize('genericSaveError', "Failed to save '{0}': {1}", model.name, toErrorMessage(error, false)));
+				notificationService.error(localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", model.name, toErrorMessage(error, false)));
 			}
 		};
 	})();

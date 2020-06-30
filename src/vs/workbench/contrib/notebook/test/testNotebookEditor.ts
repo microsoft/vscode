@@ -217,8 +217,8 @@ export class TestNotebookEditor implements INotebookEditor {
 		// throw new Error('Method not implemented.');
 		return;
 	}
-	createInset(cell: CellViewModel, output: IProcessedOutput, shadowContent: string, offset: number): void {
-		// throw new Error('Method not implemented.');
+	createInset(cell: CellViewModel, output: IProcessedOutput, shadowContent: string, offset: number): Promise<void> {
+		return Promise.resolve();
 	}
 	removeInset(output: IProcessedOutput): void {
 		// throw new Error('Method not implemented.');

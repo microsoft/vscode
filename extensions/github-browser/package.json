@@ -147,14 +147,13 @@
     "vscode:prepublish": "npm run compile"
   },
   "dependencies": {
-    "@octokit/graphql": "4.5.0",
-    "@octokit/rest": "17.11.0",
+    "@octokit/graphql": "4.5.1",
+    "@octokit/rest": "18.0.0",
     "fuzzysort": "1.1.4",
-    "node-fetch": "2.6.0"
+    "node-fetch": "2.6.0",
+    "vscode-nls": "4.1.2"
   },
   "devDependencies": {
-    "@types/node-fetch": "2.5.7",
-    "webpack": "4.43.0",
-    "webpack-cli": "3.3.11"
+    "@types/node-fetch": "2.5.7"
   }
 }

@@ -148,9 +148,12 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input {
 	max-width: unset;
 }
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value-container .setting-list-object-input {
+	margin-right: 0;
+}
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-ok-button {
-	margin-right: 4px;
+	margin: 0 4px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget,
@@ -160,6 +163,7 @@
 	padding: 1px;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value-container,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input select {
 	width: 100%;
 	height: 24px;

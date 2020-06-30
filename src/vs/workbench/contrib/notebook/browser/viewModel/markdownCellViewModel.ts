@@ -119,7 +119,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	hasDynamicHeight() {
-		return true;
+		return false;
 	}
 
 	getHeight(lineHeight: number) {

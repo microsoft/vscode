@@ -247,7 +247,7 @@ class ShowDebugHoverAction extends EditorAction {
 class StepIntoTargetsAction extends EditorAction {
 
 	public static readonly ID = 'editor.debug.action.stepIntoTargets';
-	public static readonly LABEL = nls.localize('stepIntoTargets', "Step Into Targets...");
+	public static readonly LABEL = nls.localize({ key: 'stepIntoTargets', comment: ['Step Into Targets lets the user step into an exact function he or she is interested in.'] }, "Step Into Targets...");
 
 	constructor() {
 		super({

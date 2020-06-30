@@ -224,7 +224,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				const resolvable = new ResolvableTreeItem(element, hasResolve ? () => {
 					return this._proxy.$resolve(this.treeViewId, element.handle);
 				} : undefined);
-				this.itemsMap.set(element.handle, element);
+				this.itemsMap.set(element.handle, resolvable);
 				result.push(resolvable);
 			}
 		}

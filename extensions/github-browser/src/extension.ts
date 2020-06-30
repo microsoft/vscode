@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionContext, Uri, workspace } from 'vscode';
-import { ChangeStore, ContextStore } from './stores';
+import { ChangeStore } from './changeStore';
+import { ContextStore } from './contextStore';
 import { VirtualFS } from './fs';
 import { GitHubApiContext, GitHubApi } from './github/api';
 import { GitHubFS } from './github/fs';
@@ -46,8 +47,20 @@ export function activate(context: ExtensionContext) {
 	// });
 }
 
+export function getRelativePath(rootUri: Uri, uri: Uri) {
+	return uri.path.substr(rootUri.path.length + 1);
+}
+
 export function getRootUri(uri: Uri) {
 	return workspace.getWorkspaceFolder(uri)?.uri;
+}
+
+export function isChild(folderPath: string, filePath: string) {
+	return isDescendent(folderPath, filePath) && filePath.substr(folderPath.length + (folderPath.endsWith('/') ? 0 : 1)).split('/').length === 1;
+}
+
+export function isDescendent(folderPath: string, filePath: string) {
+	return folderPath.length === 0 || filePath.startsWith(folderPath.endsWith('/') ? folderPath : `${folderPath}/`);
 }
 
 // function openWorkspace(uri: Uri, name: string, location: 'currentWindow' | 'newWindow' | 'addToCurrentWorkspace') {

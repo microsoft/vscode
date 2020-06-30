@@ -61,11 +61,11 @@ export class DebugService implements IDebugService {
 	private taskRunner: DebugTaskRunner;
 	private configurationManager: ConfigurationManager;
 	private toDispose: IDisposable[];
-	private debugType: IContextKey<string>;
-	private debugState: IContextKey<string>;
-	private inDebugMode: IContextKey<boolean>;
-	private debugUx: IContextKey<string>;
-	private breakpointsExist: IContextKey<boolean>;
+	private debugType!: IContextKey<string>;
+	private debugState!: IContextKey<string>;
+	private inDebugMode!: IContextKey<boolean>;
+	private debugUx!: IContextKey<string>;
+	private breakpointsExist!: IContextKey<boolean>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private initializing = false;
 	private previousState: State | undefined;
@@ -80,7 +80,7 @@ export class DebugService implements IDebugService {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -101,17 +101,19 @@ export class DebugService implements IDebugService {
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.toDispose.push(this.configurationManager);
 
-		this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
-		this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
-		this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
-		this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
-		this.debugUx.set(!!this.configurationManager.selectedConfiguration.name ? 'default' : 'simple');
+		contextKeyService.bufferChangeEvents(() => {
+			this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
+			this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
+			this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
+			this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
+			this.debugUx.set(!!this.configurationManager.selectedConfiguration.name ? 'default' : 'simple');
+			this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
+		});
 
 		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
 		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
 		this.telemetry = this.instantiationService.createInstance(DebugTelemetry, this.model);
 		const setBreakpointsExistContext = () => this.breakpointsExist.set(!!(this.model.getBreakpoints().length || this.model.getDataBreakpoints().length || this.model.getFunctionBreakpoints().length));
-		this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
 		setBreakpointsExistContext();
 
 		this.viewModel = new ViewModel(contextKeyService);
@@ -229,10 +231,12 @@ export class DebugService implements IDebugService {
 	private onStateChange(): void {
 		const state = this.state;
 		if (this.previousState !== state) {
-			this.debugState.set(getStateLabel(state));
-			this.inDebugMode.set(state !== State.Inactive);
-			// Only show the simple ux if debug is not yet started and if no launch.json exists
-			this.debugUx.set(((state !== State.Inactive && state !== State.Initializing) || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
+			this.contextKeyService.bufferChangeEvents(() => {
+				this.debugState.set(getStateLabel(state));
+				this.inDebugMode.set(state !== State.Inactive);
+				// Only show the simple ux if debug is not yet started and if no launch.json exists
+				this.debugUx.set(((state !== State.Inactive && state !== State.Initializing) || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
+			});
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
 		}

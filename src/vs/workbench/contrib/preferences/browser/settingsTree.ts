@@ -44,7 +44,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -172,6 +172,68 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			removable: true,
 		};
 	});
+}
+
+function createObjectKeySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
+	const { objectProperties } = element.setting;
+	const allStaticKeys = Object.keys(objectProperties ?? {});
+
+	return keys => {
+		const existingKeys = new Set(keys);
+		const enumOptions: IObjectEnumOption[] = [];
+
+		allStaticKeys.forEach(staticKey => {
+			if (!existingKeys.has(staticKey)) {
+				enumOptions.push({ value: staticKey, description: objectProperties![staticKey].description });
+			}
+		});
+
+		return enumOptions.length > 0
+			? { type: 'enum', data: enumOptions[0].value, options: enumOptions }
+			: undefined;
+	};
+}
+
+function createObjectValueSuggester(element: SettingsTreeSettingElement): IObjectValueSuggester {
+	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
+
+	const patternsAndSchemas = Object
+		.entries(objectPatternProperties ?? {})
+		.map(([pattern, schema]) => ({
+			pattern: new RegExp(pattern),
+			schema
+		}));
+
+	return (key: string) => {
+		let suggestedSchema: IJSONSchema | undefined;
+
+		if (isDefined(objectProperties) && key in objectProperties) {
+			suggestedSchema = objectProperties[key];
+		}
+
+		const patternSchema = suggestedSchema ?? patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
+
+		if (isDefined(patternSchema)) {
+			suggestedSchema = patternSchema;
+		} else if (isDefined(objectAdditionalProperties) && typeof objectAdditionalProperties === 'object') {
+			suggestedSchema = objectAdditionalProperties;
+		}
+
+		if (isDefined(suggestedSchema)) {
+			const type = getObjectValueType(suggestedSchema);
+
+			if (type === 'boolean') {
+				return { type, data: suggestedSchema.default ?? true };
+			} else if (type === 'enum') {
+				const options = getEnumOptionsFromSchema(suggestedSchema);
+				return { type, data: suggestedSchema.default ?? options[0].value, options };
+			} else {
+				return { type, data: suggestedSchema.default ?? '' };
+			}
+		}
+
+		return;
+	};
 }
 
 function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
@@ -996,25 +1058,39 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 			const defaultValue: Record<string, unknown> = template.context.defaultValue;
 			const scopeValue: Record<string, unknown> = template.context.scopeValue;
 			const newValue: Record<string, unknown> = {};
+			let newItems: IObjectDataItem[] = [];
 
-			template.objectWidget.items.forEach(item => {
+			template.objectWidget.items.forEach((item, idx) => {
 				// Item was updated
-				if (isDefined(e.item) && e.originalItem.key.data === item.key.data) {
+				if (isDefined(e.item) && e.targetIndex === idx) {
 					newValue[e.item.key.data] = e.item.value.data;
+					newItems.push(e.item);
 				}
-				// All remaining items
-				else {
+				// All remaining items, but skip the one that we just updated
+				else if (isUndefinedOrNull(e.item) || e.item.key.data !== item.key.data) {
 					newValue[item.key.data] = item.value.data;
+					newItems.push(item);
 				}
 			});
 
 			// Item was deleted
 			if (isUndefinedOrNull(e.item)) {
 				delete newValue[e.originalItem.key.data];
+
+				const itemToDelete = newItems.findIndex(item => item.key.data === e.originalItem.key.data);
+				const defaultItemValue = defaultValue[e.originalItem.key.data] as string | boolean;
+
+				// Item does not have a default
+				if (isUndefinedOrNull(defaultValue[e.originalItem.key.data]) && itemToDelete > -1) {
+					newItems.splice(itemToDelete, 1);
+				} else if (itemToDelete > -1) {
+					newItems[itemToDelete].value.data = defaultItemValue;
+				}
 			}
 			// New item was added
 			else if (template.objectWidget.isItemNew(e.originalItem)) {
 				newValue[e.item.key.data] = e.item.value.data;
+				newItems.push(e.item);
 			}
 
 			Object.entries(newValue).forEach(([key, value]) => {
@@ -1029,6 +1105,8 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 				value: Object.keys(newValue).length === 0 ? undefined : newValue,
 				type: template.context.valueType
 			});
+
+			template.objectWidget.setValue(newItems);
 		}
 	}
 
@@ -1039,13 +1117,14 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: string) => void): void {
 		const items = getObjectDisplayValue(dataElement);
 
-
 		template.objectWidget.setValue(items, {
 			showAddButton: (
-				isDefined(dataElement.setting.objectAdditionalProperties) ||
+				typeof dataElement.setting.objectAdditionalProperties === 'object' ||
 				isDefined(dataElement.setting.objectPatternProperties) ||
 				!areAllPropertiesDefined(Object.keys(dataElement.setting.objectProperties ?? {}), items)
 			),
+			keySuggester: createObjectKeySuggester(dataElement),
+			valueSuggester: createObjectValueSuggester(dataElement),
 		});
 
 		this.setElementAriaLabels(dataElement, this.templateId, template);

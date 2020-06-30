@@ -387,7 +387,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 
-	private _getViewIndexUpperBound(cell: ICellViewModel) {
+	private _getViewIndexUpperBound(cell: ICellViewModel): number {
 		const modelIndex = this._viewModel!.getCellIndex(cell);
 		if (!this.hiddenRangesPrefixSum) {
 			return modelIndex;
@@ -401,7 +401,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	focusElement(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index !== undefined) {
+		if (index >= 0) {
 			this.setFocus([index]);
 		}
 	}
@@ -412,7 +412,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		const index = this._getViewIndexUpperBound(cell);
-		if (index !== undefined) {
+		if (index >= 0) {
 			this.setSelection([index]);
 			this.setFocus([index]);
 		}
@@ -433,7 +433,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	revealElementInView(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index !== undefined) {
+		if (index >= 0) {
 			this._revealInView(index);
 		}
 	}
@@ -441,7 +441,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	revealElementInCenterIfOutsideViewport(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index !== undefined) {
+		if (index >= 0) {
 			this._revealInCenterIfOutsideViewport(index);
 		}
 	}
@@ -449,7 +449,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	revealElementInCenter(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index !== undefined) {
+		if (index >= 0) {
 			this._revealInCenter(index);
 		}
 	}
@@ -457,7 +457,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	async revealElementLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index !== undefined) {
+		if (index >= 0) {
 			return this._revealLineInViewAsync(index, line);
 		}
 	}
@@ -465,7 +465,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	async revealElementLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index !== undefined) {
+		if (index >= 0) {
 			return this._revealLineInCenterAsync(index, line);
 		}
 	}
@@ -473,7 +473,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	async revealElementLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index !== undefined) {
+		if (index >= 0) {
 			return this._revealLineInCenterIfOutsideViewportAsync(index, line);
 		}
 	}
@@ -481,7 +481,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	async revealElementRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index !== undefined) {
+		if (index >= 0) {
 			return this._revealRangeInView(index, range);
 		}
 	}
@@ -489,7 +489,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	async revealElementRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void> {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index !== undefined) {
+		if (index >= 0) {
 			return this._revealRangeInCenterAsync(index, range);
 		}
 	}
@@ -497,14 +497,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	async revealElementRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index !== undefined) {
+		if (index >= 0) {
 			return this._revealRangeInCenterIfOutsideViewportAsync(index, range);
 		}
 	}
 
 	domElementOfElement(element: ICellViewModel): HTMLElement | null {
 		const index = this._getViewIndexUpperBound(element);
-		if (index !== undefined && index >= 0) {
+		if (index >= 0) {
 			return this.view.domElement(index);
 		}
 
