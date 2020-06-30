@@ -63,7 +63,7 @@ The server supports the following settings:
   - `format`
     - `enable`: Whether the server should register the formatting support. This option is only applicable if the client supports *dynamicRegistration* for *rangeFormatting* and `initializationOptions.provideFormatter` is not defined.
   - `schemas`: Configures association of file names to schema URL or schemas and/or associations of schema URL to schema content.
-    - `fileMatch`: an array of file names or paths (separated by `/`). `*` can be used as a wildcard. Exclusion patterns can also be defined and start with '!'. A file matches when there at least one matching pattern and the last matching pattern is not an exclusion pattern.
+    - `fileMatch`: an array of file names or paths (separated by `/`). `*` can be used as a wildcard. Exclusion patterns can also be defined and start with '!'. A file matches when there is at least one matching pattern and the last matching pattern is not an exclusion pattern.
     - `url`: The URL of the schema, optional when also a schema is provided.
     - `schema`: The schema content.
   - `resultLimit`: The max number foldig ranges and otline symbols to be computed (for performance reasons)
