@@ -57,6 +57,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -247,7 +248,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			cellOptions = { resource: originalInput.resource, options };
 		}
 
-		if (id === undefined) {
+		if (id === undefined && originalInput instanceof ResourceEditorInput) {
 			const exitingNotebookEditor = <NotebookEditorInput | undefined>group.editors.find(editor => editor instanceof NotebookEditorInput && isEqual(editor.resource, notebookUri));
 			id = exitingNotebookEditor?.viewType;
 		}
