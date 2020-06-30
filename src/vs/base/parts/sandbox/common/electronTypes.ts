@@ -247,3 +247,37 @@ export interface FileFilter {
 	extensions: string[];
 	name: string;
 }
+
+export interface InputEvent {
+
+	// Docs: http://electronjs.org/docs/api/structures/input-event
+
+	/**
+	 * An array of modifiers of the event, can be `shift`, `control`, `alt`, `meta`,
+	 * `isKeypad`, `isAutoRepeat`, `leftButtonDown`, `middleButtonDown`,
+	 * `rightButtonDown`, `capsLock`, `numLock`, `left`, `right`.
+	 */
+	modifiers: Array<'shift' | 'control' | 'alt' | 'meta' | 'isKeypad' | 'isAutoRepeat' | 'leftButtonDown' | 'middleButtonDown' | 'rightButtonDown' | 'capsLock' | 'numLock' | 'left' | 'right'>;
+}
+
+export interface MouseInputEvent extends InputEvent {
+
+	// Docs: http://electronjs.org/docs/api/structures/mouse-input-event
+
+	/**
+	 * The button pressed, can be `left`, `middle`, `right`.
+	 */
+	button?: ('left' | 'middle' | 'right');
+	clickCount?: number;
+	globalX?: number;
+	globalY?: number;
+	movementX?: number;
+	movementY?: number;
+	/**
+	 * The type of the event, can be `mouseDown`, `mouseUp`, `mouseEnter`,
+	 * `mouseLeave`, `contextMenu`, `mouseWheel` or `mouseMove`.
+	 */
+	type: ('mouseDown' | 'mouseUp' | 'mouseEnter' | 'mouseLeave' | 'contextMenu' | 'mouseWheel' | 'mouseMove');
+	x: number;
+	y: number;
+}
