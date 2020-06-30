@@ -19,6 +19,7 @@
 
 .monaco-workbench .cell.markdown p.emptyMarkdownPlaceholder {
 	font-style: italic;
+	opacity: 0.6;
 }
 
 .monaco-workbench .notebookOverlay .simple-fr-find-part-wrapper.visible {
