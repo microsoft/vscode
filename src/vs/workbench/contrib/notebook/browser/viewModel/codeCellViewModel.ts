@@ -7,7 +7,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -69,8 +68,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
-		readonly eventDispatcher: NotebookEventDispatcher,
-		@ITextModelService private readonly _modelService: ITextModelService,
+		readonly eventDispatcher: NotebookEventDispatcher
 	) {
 		super(viewType, model, UUID.generateUuid());
 		this._register(this.model.onDidChangeOutputs((splices) => {
@@ -174,7 +172,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	 */
 	async resolveTextModel(): Promise<model.ITextModel> {
 		if (!this.textModel) {
-			const ref = await this._modelService.createModelReference(this.model.uri);
+			const ref = await this.model.resolveTextModelRef();
 			this.textModel = ref.object.textEditorModel;
 			this._register(ref);
 			this._register(this.textModel.onDidChangeContent(() => {
@@ -256,5 +254,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			cell: this,
 			matches
 		};
+	}
+
+	dispose() {
+		super.dispose();
 	}
 }

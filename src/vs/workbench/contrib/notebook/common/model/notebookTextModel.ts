@@ -11,6 +11,7 @@ import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSpl
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { InsertCellEdit, DeleteCellEdit, MoveCellEdit, SpliceCellsEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 function compareRangesUsingEnds(a: [number, number], b: [number, number]): number {
 	if (a[1] === b[1]) {
@@ -115,7 +116,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		public viewType: string,
 		public supportBackup: boolean,
 		public uri: URI,
-		private _undoService: IUndoRedoService
+		private _undoService: IUndoRedoService,
+		private _modelService: ITextModelService
 	) {
 		super();
 		this.cells = [];
@@ -141,7 +143,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	) {
 		const cellHandle = this._cellhandlePool++;
 		const cellUri = CellUri.generate(this.uri, cellHandle);
-		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata);
+		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata, this._modelService);
 	}
 
 	initialize(cells: ICellDto2[]) {
@@ -151,7 +153,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const mainCells = cells.map(cell => {
 			const cellHandle = this._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
-			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
+			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this._modelService);
 		});
 
 		this._isUntitled = false;
@@ -215,7 +217,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					const mainCells = insertEdit.cells.map(cell => {
 						const cellHandle = this._cellhandlePool++;
 						const cellUri = CellUri.generate(this.uri, cellHandle);
-						return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
+						return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this._modelService);
 					});
 					this.insertNewCell(insertEdit.index, mainCells, false);
 					break;
@@ -583,6 +585,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	dispose() {
 		this._onWillDispose.fire();
 		this._cellListeners.forEach(val => val.dispose());
+		this.cells.forEach(cell => cell.dispose());
 		super.dispose();
 	}
 }

@@ -7,7 +7,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellFindMatch, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
@@ -65,8 +64,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		readonly foldingDelegate: EditorFoldingStateDelegate,
 		readonly eventDispatcher: NotebookEventDispatcher,
-		private readonly _mdRenderer: MarkdownRenderer,
-		@ITextModelService private readonly _modelService: ITextModelService) {
+		private readonly _mdRenderer: MarkdownRenderer
+	) {
 		super(viewType, model, UUID.generateUuid());
 
 		this._layoutInfo = {
@@ -148,7 +147,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 	async resolveTextModel(): Promise<model.ITextModel> {
 		if (!this.textModel) {
-			const ref = await this._modelService.createModelReference(this.model.uri);
+			const ref = await this.model.resolveTextModelRef();
 			this.textModel = ref.object.textEditorModel;
 			this._register(ref);
 			this._register(this.textModel.onDidChangeContent(() => {

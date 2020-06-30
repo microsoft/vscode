@@ -21,6 +21,7 @@ import { IRelativePattern } from 'vs/base/common/glob';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export class MainThreadNotebookDocument extends Disposable {
 	private _textModel: NotebookTextModel;
@@ -36,12 +37,13 @@ export class MainThreadNotebookDocument extends Disposable {
 		public supportBackup: boolean,
 		public uri: URI,
 		@INotebookService readonly notebookService: INotebookService,
-		@IUndoRedoService readonly undoRedoService: IUndoRedoService
+		@IUndoRedoService readonly undoRedoService: IUndoRedoService,
+		@ITextModelService modelService: ITextModelService
 
 	) {
 		super();
 
-		this._textModel = new NotebookTextModel(handle, viewType, supportBackup, uri, undoRedoService);
+		this._textModel = new NotebookTextModel(handle, viewType, supportBackup, uri, undoRedoService, modelService);
 		this._register(this._textModel.onDidModelChangeProxy(e => {
 			this._proxy.$acceptModelChanged(this.uri, e);
 			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: { selections: this._textModel.selections }, metadata: null });
