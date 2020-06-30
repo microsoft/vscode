@@ -409,7 +409,7 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 	try {
 		await editorService.save(editors, options);
 	} catch (error) {
-		notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
+		notificationService.error(nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
 	}
 }
 
