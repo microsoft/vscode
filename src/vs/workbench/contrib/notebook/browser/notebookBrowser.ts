@@ -260,7 +260,7 @@ export interface INotebookEditor extends IEditor {
 	/**
 	 * Render the output in webview layer
 	 */
-	createInset(cell: ICellViewModel, output: IProcessedOutput, shadowContent: string, offset: number): void;
+	createInset(cell: ICellViewModel, output: IProcessedOutput, shadowContent: string, offset: number): Promise<void>;
 
 	/**
 	 * Remove the output from the webview layer

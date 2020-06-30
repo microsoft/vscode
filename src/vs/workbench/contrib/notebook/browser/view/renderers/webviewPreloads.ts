@@ -440,8 +440,8 @@ function webviewPreloads() {
 					scriptTag.setAttribute('src', uri);
 					preloadsContainer.appendChild(scriptTag);
 					preloadPromises.set(uri, new Promise<void>(resolve => {
-						scriptTag.addEventListener('load', () => setTimeout(resolve, 5000));
-						scriptTag.addEventListener('error', () => setTimeout(resolve, 5000));
+						scriptTag.addEventListener('load', () => resolve());
+						scriptTag.addEventListener('error', () => resolve());
 					}));
 				}
 				break;
