@@ -86,18 +86,14 @@ export interface IClearMessage {
 	type: 'clear';
 }
 
-export interface IFocusOutputMessage {
-	type: 'focus-output';
-	id: string;
-}
-
 export interface ICreationRequestMessage {
 	type: 'html';
 	content: string;
-	id: string;
+	cellId: string;
 	outputId: string;
 	top: number;
 	left: number;
+	requiredPreloads: IPreloadResource[];
 	initiallyHidden?: boolean;
 	apiNamespace?: string | undefined;
 }
@@ -125,25 +121,28 @@ export interface IScrollRequestMessage {
 
 export interface IClearOutputRequestMessage {
 	type: 'clearOutput';
-	id: string;
+	cellId: string;
+	outputId: string;
 	cellUri: string;
 	apiNamespace: string | undefined;
 }
 
 export interface IHideOutputMessage {
 	type: 'hideOutput';
-	id: string;
+	outputId: string;
+	cellId: string;
 }
 
 export interface IShowOutputMessage {
 	type: 'showOutput';
-	id: string;
+	cellId: string;
+	outputId: string;
 	top: number;
 }
 
 export interface IFocusOutputMessage {
 	type: 'focus-output';
-	id: string;
+	cellId: string;
 }
 
 export interface IPreloadResource {
@@ -560,12 +559,12 @@ ${loaderJs}
 		});
 	}
 
-	createInset(cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<string>) {
+	async createInset(cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<string>) {
 		if (this._disposed) {
 			return;
 		}
 
-		this.updateRendererPreloads(preloads);
+		const requiredPreloads = await this.updateRendererPreloads(preloads);
 		let initialTop = cellTop + offset;
 
 		if (this.insetMapping.has(output)) {
@@ -575,7 +574,8 @@ ${loaderJs}
 				this.hiddenInsetMapping.delete(output);
 				this._sendMessageToWebview({
 					type: 'showOutput',
-					id: outputCache.outputId,
+					cellId: outputCache.cell.id,
+					outputId: outputCache.outputId,
 					top: initialTop
 				});
 				return;
@@ -594,10 +594,11 @@ ${loaderJs}
 		let message: ICreationRequestMessage = {
 			type: 'html',
 			content: shadowContent,
-			id: cell.id,
+			cellId: cell.id,
 			apiNamespace,
 			outputId: outputId,
 			top: initialTop,
+			requiredPreloads,
 			left: 0
 		};
 
@@ -623,7 +624,8 @@ ${loaderJs}
 			type: 'clearOutput',
 			apiNamespace: outputCache.cachedCreation.apiNamespace,
 			cellUri: outputCache.cell.uri.toString(),
-			id: id
+			outputId: id,
+			cellId: outputCache.cell.id
 		});
 		this.insetMapping.delete(output);
 		this.reversedInsetMapping.delete(id);
@@ -639,12 +641,12 @@ ${loaderJs}
 			return;
 		}
 
-		let id = outputCache.outputId;
 		this.hiddenInsetMapping.add(output);
 
 		this._sendMessageToWebview({
 			type: 'hideOutput',
-			id: id
+			outputId: outputCache.outputId,
+			cellId: outputCache.cell.id,
 		});
 	}
 
@@ -678,7 +680,7 @@ ${loaderJs}
 		setTimeout(() => { // Need this, or focus decoration is not shown. No clue.
 			this._sendMessageToWebview({
 				type: 'focus-output',
-				id: cellId
+				cellId,
 			});
 		}, 50);
 	}
@@ -715,11 +717,12 @@ ${loaderJs}
 
 	async updateRendererPreloads(preloads: ReadonlySet<string>) {
 		if (this._disposed) {
-			return;
+			return [];
 		}
 
 		await this._loaded;
 
+		let requiredPreloads: IPreloadResource[] = [];
 		let resources: IPreloadResource[] = [];
 		let extensionLocations: URI[] = [];
 		preloads.forEach(preload => {
@@ -734,8 +737,11 @@ ${loaderJs}
 				});
 				extensionLocations.push(rendererInfo.extensionLocation);
 				preloadResources.forEach(e => {
+					const resource: IPreloadResource = { uri: e.toString() };
+					requiredPreloads.push(resource);
+
 					if (!this.preloadsCache.has(e.toString())) {
-						resources.push({ uri: e.toString() });
+						resources.push(resource);
 						this.preloadsCache.set(e.toString(), true);
 					}
 				});
@@ -743,11 +749,12 @@ ${loaderJs}
 		});
 
 		if (!resources.length) {
-			return;
+			return requiredPreloads;
 		}
 
 		this.rendererRootsCache = extensionLocations;
 		this._updatePreloads(resources, 'renderer');
+		return requiredPreloads;
 	}
 
 	private _updatePreloads(resources: IPreloadResource[], source: 'renderer' | 'kernel') {

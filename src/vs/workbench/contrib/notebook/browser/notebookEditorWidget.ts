@@ -1208,7 +1208,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	createInset(cell: CodeCellViewModel, output: IProcessedOutput, shadowContent: string, offset: number) {
+	async createInset(cell: CodeCellViewModel, output: IProcessedOutput, shadowContent: string, offset: number) {
 		if (!this._webview) {
 			return;
 		}
@@ -1217,7 +1217,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		if (!this._webview!.insetMapping.has(output)) {
 			let cellTop = this._list?.getAbsoluteTopOfElement(cell) || 0;
-			this._webview!.createInset(cell, output, cellTop, offset, shadowContent, preloads);
+			await this._webview!.createInset(cell, output, cellTop, offset, shadowContent, preloads);
 		} else {
 			let cellTop = this._list?.getAbsoluteTopOfElement(cell) || 0;
 			let scrollTop = this._list?.scrollTop || 0;
