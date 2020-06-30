@@ -169,7 +169,6 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 		// First exact name match
 		if (filename === association.filenameLowercase) {
 			filenameMatch = association;
-			break; // take it!
 		}
 
 		// Longest pattern match
