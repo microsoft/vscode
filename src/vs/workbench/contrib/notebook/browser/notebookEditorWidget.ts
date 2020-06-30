@@ -920,7 +920,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const insertIndex = cell ?
 			(direction === 'above' ? index : nextIndex) :
 			index;
-		const newCell = this._notebookViewModel!.createCell(insertIndex, initialText.split(/\r?\n/g), language, type, cell?.metadata, true);
+		const newCell = this._notebookViewModel!.createCell(insertIndex, initialText.split(/\r?\n/g), language, type, undefined, true);
 		return newCell as CellViewModel;
 	}
 
