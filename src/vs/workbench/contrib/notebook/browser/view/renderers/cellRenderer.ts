@@ -665,9 +665,9 @@ export class CellDragAndDropController extends Disposable {
 		}));
 	}
 
-	private moveCell(draggedCell: ICellViewModel, ontoCell: ICellViewModel, direction: 'above' | 'below') {
+	private async moveCell(draggedCell: ICellViewModel, ontoCell: ICellViewModel, direction: 'above' | 'below') {
 		const editState = draggedCell.editState;
-		this.notebookEditor.moveCell(draggedCell, ontoCell, direction);
+		await this.notebookEditor.moveCell(draggedCell, ontoCell, direction);
 		this.notebookEditor.focusNotebookCell(draggedCell, editState === CellEditState.Editing ? 'editor' : 'container');
 	}
 
