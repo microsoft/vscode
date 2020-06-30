@@ -9,10 +9,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 
-export enum WorkspaceStorageSettings {
-	WORKSPACE_FIRST_OPEN = 'workbench.workspaceFirstOpen'
-}
-
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
 export enum WillSaveStateReason {
@@ -106,6 +102,14 @@ export interface IStorageService {
 	 * Migrate the storage contents to another workspace.
 	 */
 	migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void>;
+
+	/**
+	 * Wether the storage for the given scope was created during this session or
+	 * existed before.
+	 *
+	 * Note: currently only implemented for `WORKSPACE` scope.
+	 */
+	isNew(scope: StorageScope.WORKSPACE): boolean;
 
 	/**
 	 * Allows to flush state, e.g. in cases where a shutdown is
@@ -230,6 +234,10 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 
 	flush(): void {
 		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
+	}
+
+	isNew(): boolean {
+		return true; // always new when in-memory
 	}
 }
 

@@ -666,6 +666,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return extensions[0];
 		}
 		const enabledExtensions = extensions.filter(e => e.local && this.extensionEnablementService.isEnabled(e.local));
+		if (enabledExtensions.length === 0) {
+			return extensions[0];
+		}
 		if (enabledExtensions.length === 1) {
 			return enabledExtensions[0];
 		}

@@ -537,7 +537,7 @@ class DotGitWatcher implements IFileWatcher {
 			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
 		} catch (err) {
 			if (Log.logLevel <= LogLevel.Error) {
-				this.outputChannel.appendLine(`Failed to watch ref '${upstreamPath}', is most likely packed.\n${err.stack || err}`);
+				this.outputChannel.appendLine(`Warning: Failed to watch ref '${upstreamPath}', is most likely packed.`);
 			}
 		}
 	}
@@ -865,10 +865,10 @@ export class Repository implements Disposable {
 	}
 
 	async getInputTemplate(): Promise<string> {
-		const mergeMessage = await this.repository.getMergeMessage();
+		const commitMessage = (await Promise.all([this.repository.getMergeMessage(), this.repository.getSquashMessage()])).find(msg => msg !== undefined);
 
-		if (mergeMessage) {
-			return mergeMessage;
+		if (commitMessage) {
+			return commitMessage;
 		}
 
 		return await this.repository.getCommitTemplate();

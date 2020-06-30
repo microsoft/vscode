@@ -36,8 +36,6 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { IFileService } from 'vs/platform/files/common/files';
 
-const RUN_TEXTMATE_IN_WORKER = false;
-
 export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string[];
@@ -168,9 +166,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				webPreferences: {
 					preload: URI.parse(this.doGetPreloadUrl()).fsPath,
 					nodeIntegration: true,
-					nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
 					webviewTag: true,
 					enableWebSQL: false,
+					enableRemoteModule: false,
 					nativeWindowOpen: true
 				}
 			};

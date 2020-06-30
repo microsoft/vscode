@@ -271,7 +271,7 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onStartupFinished',
-						description: nls.localize('vscode.extension.activationEvents.onStartupFinished', 'An activation event emitted after the start-up finished (after all eager activated extensions have finished activating).'),
+						description: nls.localize('vscode.extension.activationEvents.onStartupFinished', 'An activation event emitted after the start-up finished (after all `*` activated extensions have finished activating).'),
 						body: 'onStartupFinished'
 					},
 					{

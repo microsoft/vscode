@@ -98,11 +98,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	type: 'object',
 	scope: ConfigurationScope.RESOURCE,
 	properties: {
-		'scm.providers.visible': {
-			type: 'number',
-			description: localize('providersVisible', "Controls how many providers are visible in the Source Control Provider section. Set to `0` to be able to manually resize the view."),
-			default: 10
-		},
 		'scm.diffDecorations': {
 			type: 'string',
 			enum: ['all', 'gutter', 'overview', 'minimap', 'none'],

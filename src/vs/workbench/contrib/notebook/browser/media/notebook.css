@@ -142,6 +142,7 @@
 .monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext {
 	font-family: var(--monaco-monospace-font);
 	white-space: pre-wrap;
+	word-wrap: break-word;
 }
 
 .monaco-workbench .notebookOverlay .cell-drag-image .output .multi-mimetype-output {
@@ -299,10 +300,10 @@
 	position: relative;
 	height: 22px;
 	flex-shrink: 0;
+	top: 9px;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell .run-button-container .monaco-toolbar {
-	margin-top: 4px;
 	visibility: hidden;
 }
 
@@ -394,6 +395,12 @@
 	top: 0px;
 	visibility: hidden;
 	opacity: 1;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side {
+	/** Overidden for code cells */
+	top: 0px;
+	bottom: 0px;
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top,
@@ -654,7 +661,7 @@
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator {
 	position: absolute;
-	top: 4px;
+	top: 11px;
 	left: 0px;
 	right: 0;
 }

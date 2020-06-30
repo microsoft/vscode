@@ -401,6 +401,10 @@ export class CommentNode extends Disposable {
 		this._commentEditContainer!.remove();
 	}
 
+	layout() {
+		this._commentEditor?.layout();
+	}
+
 	public switchToEditMode() {
 		if (this.isEditing) {
 			return;

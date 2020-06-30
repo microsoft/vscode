@@ -23,7 +23,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { contrastBorder, editorBackground, focusBorder, foreground, registerColor, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, errorForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorBackground, focusBorder, foreground, registerColor, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, errorForeground, transparent, widgetShadow, listFocusBackground, listInactiveSelectionBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
@@ -98,6 +98,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
 	private _isVisible = false;
 	private readonly _uuid = generateUuid();
+	private _webiewFocused: boolean = false;
 
 	private _isDisposed: boolean = false;
 
@@ -389,19 +390,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._isVisible = true;
 		this._editorFocus?.set(true);
 
-		const focus = this._list?.getFocus()[0];
-		if (typeof focus === 'number') {
-			const element = this._notebookViewModel!.viewCells[focus];
+		if (this._webiewFocused) {
+			this._webview?.focusWebview();
+		} else {
+			const focus = this._list?.getFocus()[0];
+			if (typeof focus === 'number') {
+				const element = this._notebookViewModel!.viewCells[focus];
 
-			if (element.focusMode === CellFocusMode.Editor) {
-				element.editState = CellEditState.Editing;
-				element.focusMode = CellFocusMode.Editor;
-				this._onDidFocusEditorWidget.fire();
-				return;
+				if (element.focusMode === CellFocusMode.Editor) {
+					element.editState = CellEditState.Editing;
+					element.focusMode = CellFocusMode.Editor;
+					this._onDidFocusEditorWidget.fire();
+					return;
+				}
+
 			}
-
+			this._list?.domFocus();
 		}
-		this._list?.domFocus();
+
 		this._onDidFocusEditorWidget.fire();
 	}
 
@@ -530,19 +536,27 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		DOM.toggleClass(this.getDomNode(), 'notebook-editor-editable', !!this.viewModel!.metadata?.editable);
 	}
 
-	private async _createWebview(id: string, document: URI): Promise<void> {
-		this._webview = this.instantiationService.createInstance(BackLayerWebView, this, id, document);
+	private async _createWebview(id: string, resource: URI): Promise<void> {
+		this._webview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource);
 		// attach the webview container to the DOM tree first
 		this._list?.rowsContainer.insertAdjacentElement('afterbegin', this._webview.element);
 		await this._webview.createWebview();
 		this._webview.webview.onDidBlur(() => {
 			this._outputFocus?.set(false);
 			this.updateEditorFocus();
+
+			if (this._overlayContainer.contains(document.activeElement)) {
+				this._webiewFocused = false;
+			}
 		});
 		this._webview.webview.onDidFocus(() => {
 			this._outputFocus?.set(true);
 			this.updateEditorFocus();
 			this._onDidFocusEmitter.fire();
+
+			if (this._overlayContainer.contains(document.activeElement)) {
+				this._webiewFocused = true;
+			}
 		});
 
 		this._localStore.add(this._webview.onMessage(({ message, forRenderer }) => {
@@ -1294,7 +1308,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	dark: transparent(PANEL_BORDER, .4),
-	light: transparent(PANEL_BORDER, .3),
+	light: transparent(listInactiveSelectionBackground, 1),
 	hc: PANEL_BORDER
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
@@ -1324,7 +1338,7 @@ export const cellStatusIconRunning = registerColor('notebookStatusRunningIcon.fo
 
 export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
 	dark: notebookCellBorder,
-	light: notebookCellBorder,
+	light: transparent(listFocusBackground, .4),
 	hc: null
 }, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
 
@@ -1337,13 +1351,13 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeperat
 
 export const cellFocusBackground = registerColor('notebook.cellFocusBackground', {
 	dark: transparent(PANEL_BORDER, .4),
-	light: transparent(PANEL_BORDER, .3),
+	light: transparent(listFocusBackground, .4),
 	hc: PANEL_BORDER
 }, nls.localize('cellFocusBackground', "The background color of focused or hovered cells"));
 
 export const focusedCellShadow = registerColor('notebook.focusedCellShadow', {
-	dark: Color.black.transparent(0.6),
-	light: Color.black.transparent(0.04),
+	dark: transparent(widgetShadow, 0.6),
+	light: transparent(widgetShadow, 0.4),
 	hc: Color.transparent
 }, nls.localize('cellShadow', "The color of the shadow on the focused or hovered cell"));
 
@@ -1361,21 +1375,21 @@ export const cellInsertionIndicator = registerColor('notebook.cellInsertionIndic
 
 
 export const listScrollbarSliderBackground = registerColor('notebookScrollbarSlider.background', {
-	dark: Color.fromHex('#797979').transparent(0.4),
-	light: Color.fromHex('#646464').transparent(0.4),
-	hc: transparent(contrastBorder, 0.6)
+	dark: scrollbarSliderBackground,
+	light: scrollbarSliderBackground,
+	hc: scrollbarSliderBackground
 }, nls.localize('notebookScrollbarSliderBackground', "Notebook scrollbar slider background color."));
 
 export const listScrollbarSliderHoverBackground = registerColor('notebookScrollbarSlider.hoverBackground', {
-	dark: Color.fromHex('#646464').transparent(0.7),
-	light: Color.fromHex('#646464').transparent(0.7),
-	hc: transparent(contrastBorder, 0.8)
+	dark: scrollbarSliderHoverBackground,
+	light: scrollbarSliderHoverBackground,
+	hc: scrollbarSliderHoverBackground
 }, nls.localize('notebookScrollbarSliderHoverBackground', "Notebook scrollbar slider background color when hovering."));
 
 export const listScrollbarSliderActiveBackground = registerColor('notebookScrollbarSlider.activeBackground', {
-	dark: Color.fromHex('#BFBFBF').transparent(0.4),
-	light: Color.fromHex('#000000').transparent(0.6),
-	hc: contrastBorder
+	dark: scrollbarSliderActiveBackground,
+	light: scrollbarSliderActiveBackground,
+	hc: scrollbarSliderActiveBackground
 }, nls.localize('notebookScrollbarSliderActiveBackground', "Notebook scrollbar slider background color when clicked on."));
 
 
@@ -1489,10 +1503,10 @@ registerThemingParticipant((theme, collector) => {
 	const cellShadowColor = theme.getColor(focusedCellShadow);
 	if (cellShadowColor) {
 		// Code cells
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-shadow { box-shadow: 0px 1px 4px 2px ${cellShadowColor} }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-shadow { box-shadow: 0px 0px 4px 2px ${cellShadowColor} }`);
 
 		// Markdown cells
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused { box-shadow: 0px 1px 4px 2px ${cellShadowColor} }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused { box-shadow: 0px 0px 4px 2px ${cellShadowColor} }`);
 	}
 
 	const cellInsertionIndicatorColor = theme.getColor(cellInsertionIndicator);
@@ -1502,17 +1516,20 @@ registerThemingParticipant((theme, collector) => {
 
 	const scrollbarSliderBackgroundColor = theme.getColor(listScrollbarSliderBackground);
 	if (scrollbarSliderBackgroundColor) {
-		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider { background: ${scrollbarSliderBackgroundColor}; } `);
+		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider { background: ${editorBackgroundColor}; } `);
+		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:before { content: ""; width: 100%; height: 100%; position: absolute; background: ${scrollbarSliderBackgroundColor}; } `); /* hack to not have cells see through scroller */
 	}
 
 	const scrollbarSliderHoverBackgroundColor = theme.getColor(listScrollbarSliderHoverBackground);
 	if (scrollbarSliderHoverBackgroundColor) {
-		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:hover { background: ${scrollbarSliderHoverBackgroundColor}; } `);
+		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:hover { background: ${editorBackgroundColor}; } `);
+		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:hover:before { content: ""; width: 100%; height: 100%; position: absolute; background: ${scrollbarSliderHoverBackgroundColor}; } `); /* hack to not have cells see through scroller */
 	}
 
 	const scrollbarSliderActiveBackgroundColor = theme.getColor(listScrollbarSliderActiveBackground);
 	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider.active { background: ${scrollbarSliderActiveBackgroundColor}; } `);
+		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider.active { background: ${editorBackgroundColor}; } `);
+		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider.active:before { content: ""; width: 100%; height: 100%; position: absolute; background: ${scrollbarSliderActiveBackgroundColor}; } `); /* hack to not have cells see through scroller */
 	}
 
 	// Cell Margin

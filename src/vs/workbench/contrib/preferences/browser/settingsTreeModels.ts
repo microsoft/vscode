@@ -469,7 +469,7 @@ export function isExcludeSetting(setting: ISetting): boolean {
 }
 
 function isObjectRenderableSchema({ type }: IJSONSchema): boolean {
-	return type === 'string';
+	return type === 'string' || type === 'boolean';
 }
 
 function isObjectSetting({
@@ -496,13 +496,14 @@ function isObjectSetting({
 		return false;
 	}
 
-	return Object.values(objectProperties ?? {}).every(isObjectRenderableSchema) &&
-		Object.values(objectPatternProperties ?? {}).every(isObjectRenderableSchema) &&
-		(
-			typeof objectAdditionalProperties === 'object'
-				? isObjectRenderableSchema(objectAdditionalProperties)
-				: true
-		);
+	const schemas = [...Object.values(objectProperties ?? {}), ...Object.values(objectPatternProperties ?? {})];
+
+	if (typeof objectAdditionalProperties === 'object') {
+		schemas.push(objectAdditionalProperties);
+	}
+
+	// This should not render boolean only objects
+	return schemas.every(isObjectRenderableSchema) && schemas.some(({ type }) => type === 'string');
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {

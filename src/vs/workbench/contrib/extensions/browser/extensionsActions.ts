@@ -1644,7 +1644,7 @@ export class ShowDisabledExtensionsAction extends Action {
 export class ClearExtensionsInputAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.clearExtensionsInput';
-	static readonly LABEL = localize('clearExtensionsInput', "Clear Extensions Input");
+	static readonly LABEL = localize('clearExtensionsInput', "Clear Extensions Search Results");
 
 	constructor(
 		id: string,
@@ -2671,7 +2671,7 @@ export class MaliciousStatusLabelAction extends ExtensionAction {
 
 	constructor(long: boolean) {
 		const tooltip = localize('malicious tooltip', "This extension was reported to be problematic.");
-		const label = long ? tooltip : localize('malicious', "Malicious");
+		const label = long ? tooltip : localize({ key: 'malicious', comment: ['Refers to a malicious extension'] }, "Malicious");
 		super('extensions.install', label, '', false);
 		this.tooltip = localize('malicious tooltip', "This extension was reported to be problematic.");
 	}

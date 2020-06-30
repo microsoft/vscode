@@ -44,7 +44,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -94,6 +94,16 @@ function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
 	});
 }
 
+function getObjectValueType(schema: IJSONSchema): ObjectValue['type'] {
+	if (schema.type === 'boolean') {
+		return 'boolean';
+	} else if (schema.type === 'string' && isDefined(schema.enum) && schema.enum.length > 0) {
+		return 'enum';
+	} else {
+		return 'string';
+	}
+}
+
 function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectDataItem[] {
 	const data = element.isConfigured ?
 		{ ...element.defaultValue, ...element.scopeValue } :
@@ -129,7 +139,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					options: wellDefinedKeyEnumOptions,
 				},
 				value: {
-					type: valueEnumOptions.length > 0 ? 'enum' : 'string',
+					type: getObjectValueType(objectProperties[key]),
 					data: data[key],
 					options: valueEnumOptions,
 				},
@@ -144,7 +154,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			return {
 				key: { type: 'string', data: key },
 				value: {
-					type: valueEnumOptions.length > 0 ? 'enum' : 'string',
+					type: getObjectValueType(schema),
 					data: data[key],
 					options: valueEnumOptions,
 				},
@@ -155,13 +165,75 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		return {
 			key: { type: 'string', data: key },
 			value: {
-				type: additionalValueEnums.length > 0 ? 'enum' : 'string',
+				type: typeof objectAdditionalProperties === 'object' ? getObjectValueType(objectAdditionalProperties) : 'string',
 				data: data[key],
 				options: additionalValueEnums,
 			},
 			removable: true,
 		};
 	});
+}
+
+function createObjectKeySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
+	const { objectProperties } = element.setting;
+	const allStaticKeys = Object.keys(objectProperties ?? {});
+
+	return keys => {
+		const existingKeys = new Set(keys);
+		const enumOptions: IObjectEnumOption[] = [];
+
+		allStaticKeys.forEach(staticKey => {
+			if (!existingKeys.has(staticKey)) {
+				enumOptions.push({ value: staticKey, description: objectProperties![staticKey].description });
+			}
+		});
+
+		return enumOptions.length > 0
+			? { type: 'enum', data: enumOptions[0].value, options: enumOptions }
+			: undefined;
+	};
+}
+
+function createObjectValueSuggester(element: SettingsTreeSettingElement): IObjectValueSuggester {
+	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
+
+	const patternsAndSchemas = Object
+		.entries(objectPatternProperties ?? {})
+		.map(([pattern, schema]) => ({
+			pattern: new RegExp(pattern),
+			schema
+		}));
+
+	return (key: string) => {
+		let suggestedSchema: IJSONSchema | undefined;
+
+		if (isDefined(objectProperties) && key in objectProperties) {
+			suggestedSchema = objectProperties[key];
+		}
+
+		const patternSchema = suggestedSchema ?? patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
+
+		if (isDefined(patternSchema)) {
+			suggestedSchema = patternSchema;
+		} else if (isDefined(objectAdditionalProperties) && typeof objectAdditionalProperties === 'object') {
+			suggestedSchema = objectAdditionalProperties;
+		}
+
+		if (isDefined(suggestedSchema)) {
+			const type = getObjectValueType(suggestedSchema);
+
+			if (type === 'boolean') {
+				return { type, data: suggestedSchema.default ?? true };
+			} else if (type === 'enum') {
+				const options = getEnumOptionsFromSchema(suggestedSchema);
+				return { type, data: suggestedSchema.default ?? options[0].value, options };
+			} else {
+				return { type, data: suggestedSchema.default ?? '' };
+			}
+		}
+
+		return;
+	};
 }
 
 function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
@@ -690,6 +762,11 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 				itemElement.setAttribute('role', 'combobox');
 				label += modifiedText;
 			}
+		} else if (templateId === SETTINGS_OBJECT_TEMPLATE_ID) {
+			if (itemElement = (<ISettingObjectItemTemplate>template).objectWidget.domNode) {
+				itemElement.setAttribute('role', 'list');
+				label += modifiedText;
+			}
 		} else {
 			// Don't change attributes if we don't know what we areFunctions
 			return '';
@@ -1030,7 +1107,12 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 				isDefined(dataElement.setting.objectPatternProperties) ||
 				!areAllPropertiesDefined(Object.keys(dataElement.setting.objectProperties ?? {}), items)
 			),
+			keySuggester: createObjectKeySuggester(dataElement),
+			valueSuggester: createObjectValueSuggester(dataElement),
 		});
+
+		this.setElementAriaLabels(dataElement, this.templateId, template);
+
 		template.context = dataElement;
 	}
 }

@@ -569,9 +569,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			message: localize('turn off sync confirmation', "Do you want to turn off sync?"),
 			detail: localize('turn off sync detail', "Your settings, keybindings, extensions and UI State will no longer be synced."),
 			primaryButton: localize('turn off', "Turn Off"),
-			checkbox: {
+			checkbox: this.userDataSyncWorkbenchService.accountStatus === AccountStatus.Available ? {
 				label: localize('turn off sync everywhere', "Turn off sync on all your devices and clear the data from the cloud.")
-			}
+			} : undefined
 		});
 		if (result.confirmed) {
 			return this.userDataSyncWorkbenchService.turnoff(!!result.checkboxChecked);

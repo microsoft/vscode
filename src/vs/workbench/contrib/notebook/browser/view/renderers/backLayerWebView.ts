@@ -663,6 +663,14 @@ ${loaderJs}
 		this.reversedInsetMapping = new Map();
 	}
 
+	focusWebview() {
+		if (this._disposed) {
+			return;
+		}
+
+		this.webview.focus();
+	}
+
 	focusOutput(cellId: string) {
 		if (this._disposed) {
 			return;

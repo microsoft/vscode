@@ -1437,7 +1437,7 @@ export interface ExtHostSCMShape {
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number, preserveFocus: boolean): Promise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string, number] | undefined>;
-	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Promise<void>;
+	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void>;
 }
 
 export interface ExtHostTaskShape {

@@ -459,6 +459,13 @@ export class ElectronMainService implements IElectronMainService {
 		crashReporter.start(options);
 	}
 
+	async sendInputEvent(windowId: number | undefined, event: { type: 'mouseDown' | 'mouseUp'; x: number; y: number; clickCount: number; }): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
+			window.win.webContents.sendInputEvent(event);
+		}
+	}
+
 	//#endregion
 
 	private windowById(windowId: number | undefined): ICodeWindow | undefined {

@@ -92,7 +92,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const focusDisposable = repository.onDidFocus(() => this.focusRepository(repository));
+		const selectedDisposable = Event.filter(repository.onDidChangeSelection, selected => selected)(() => this.focusRepository(repository));
 
 		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
 		const changeDisposable = onDidChange(() => this.renderActivityCount());
@@ -104,14 +104,12 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 			if (this.scmService.repositories.length === 0) {
 				this.focusRepository(undefined);
-			} else if (this.focusedRepository === repository) {
-				this.scmService.repositories[0].focus();
 			}
 
 			this.renderActivityCount();
 		});
 
-		const disposable = combinedDisposable(focusDisposable, changeDisposable, removeDisposable);
+		const disposable = combinedDisposable(selectedDisposable, changeDisposable, removeDisposable);
 		this.disposables.push(disposable);
 
 		if (this.focusedRepository) {

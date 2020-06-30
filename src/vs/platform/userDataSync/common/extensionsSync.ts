@@ -5,7 +5,7 @@
 
 import {
 	IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncResource, IUserDataSyncResourceEnablementService,
-	IUserDataSyncBackupStoreService, ISyncResourceHandle, ISyncPreview, USER_DATA_SYNC_SCHEME, IRemoteUserData, ISyncData
+	IUserDataSyncBackupStoreService, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, IRemoteUserData, ISyncData, IResourcePreview
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -14,8 +14,8 @@ import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/comm
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { merge, getIgnoredExtensions } from 'vs/platform/userDataSync/common/extensionsMerge';
-import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { merge, getIgnoredExtensions, IMergeResult } from 'vs/platform/userDataSync/common/extensionsMerge';
+import { AbstractSynchroniser, ISyncResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, dirname, basename, isEqual } from 'vs/base/common/resources';
@@ -25,9 +25,8 @@ import { compare } from 'vs/base/common/strings';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-interface IExtensionsSyncPreview extends ISyncPreview {
+interface IExtensionsSyncPreview extends ISyncResourcePreview {
 	readonly localExtensions: ISyncExtension[];
-	readonly remoteUserData: IRemoteUserData;
 	readonly lastSyncUserData: ILastSyncUserData | null;
 	readonly added: ISyncExtension[];
 	readonly removed: IExtensionIdentifier[];
@@ -48,6 +47,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	*/
 	protected readonly version: number = 3;
 	protected isEnabled(): boolean { return super.isEnabled() && this.extensionGalleryService.isEnabled(); }
+	private readonly localPreviewResource: URI = joinPath(this.syncPreviewFolder, 'extensions.json');
+	private readonly remotePreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME });
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -79,14 +80,17 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
 		if (remoteUserData.syncData !== null) {
 			const remoteExtensions = await this.parseAndMigrateExtensions(remoteUserData.syncData);
-			const { added, updated, remote, removed } = merge(localExtensions, remoteExtensions, localExtensions, [], ignoredExtensions);
+			const mergeResult = merge(localExtensions, remoteExtensions, localExtensions, [], ignoredExtensions);
+			const { added, removed, updated, remote } = mergeResult;
+			const resourcePreviews: IResourcePreview[] = this.getResourcePreviews(mergeResult);
 			return {
 				remoteUserData, lastSyncUserData,
 				added, removed, updated, remote, localExtensions, skippedExtensions: [],
-				hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
-				hasRemoteChanged: remote !== null,
+				hasLocalChanged: resourcePreviews.some(({ hasLocalChanged }) => hasLocalChanged),
+				hasRemoteChanged: resourcePreviews.some(({ hasRemoteChanged }) => hasRemoteChanged),
 				hasConflicts: false,
 				isLastSyncFromCurrentMachine: false,
+				resourcePreviews,
 			};
 		} else {
 			return {
@@ -96,6 +100,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				hasRemoteChanged: false,
 				hasConflicts: false,
 				isLastSyncFromCurrentMachine: false,
+				resourcePreviews: [],
 			};
 		}
 	}
@@ -104,13 +109,16 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const localExtensions = this.getLocalExtensions(installedExtensions);
 		const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
-		const { added, removed, updated, remote } = merge(localExtensions, null, null, [], ignoredExtensions);
+		const mergeResult = merge(localExtensions, null, null, [], ignoredExtensions);
+		const { added, removed, updated, remote } = mergeResult;
+		const resourcePreviews: IResourcePreview[] = this.getResourcePreviews(mergeResult);
 		return {
 			added, removed, updated, remote, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData,
-			hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
-			hasRemoteChanged: remote !== null,
+			hasLocalChanged: resourcePreviews.some(({ hasLocalChanged }) => hasLocalChanged),
+			hasRemoteChanged: resourcePreviews.some(({ hasRemoteChanged }) => hasRemoteChanged),
 			isLastSyncFromCurrentMachine: false,
 			hasConflicts: false,
+			resourcePreviews
 		};
 	}
 
@@ -119,14 +127,16 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const localExtensions = this.getLocalExtensions(installedExtensions);
 		const syncExtensions = await this.parseAndMigrateExtensions(syncData);
 		const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
-		const { added, updated, removed } = merge(localExtensions, syncExtensions, localExtensions, [], ignoredExtensions);
-
+		const mergeResult = merge(localExtensions, syncExtensions, localExtensions, [], ignoredExtensions);
+		const { added, removed, updated } = mergeResult;
+		const resourcePreviews: IResourcePreview[] = this.getResourcePreviews(mergeResult);
 		return {
 			added, removed, updated, remote: syncExtensions, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData,
-			hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
+			hasLocalChanged: resourcePreviews.some(({ hasLocalChanged }) => hasLocalChanged),
 			hasRemoteChanged: true,
 			isLastSyncFromCurrentMachine: false,
 			hasConflicts: false,
+			resourcePreviews
 		};
 	}
 
@@ -153,7 +163,9 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			this.logService.trace(`${this.syncResourceLogLabel}: Remote extensions does not exist. Synchronizing extensions for the first time.`);
 		}
 
-		const { added, removed, updated, remote } = merge(localExtensions, remoteExtensions, lastSyncExtensions, skippedExtensions, ignoredExtensions);
+		const mergeResult = merge(localExtensions, remoteExtensions, lastSyncExtensions, skippedExtensions, ignoredExtensions);
+		const { added, removed, updated, remote } = mergeResult;
+		const resourcePreviews: IResourcePreview[] = this.getResourcePreviews(mergeResult);
 
 		return {
 			added,
@@ -164,10 +176,11 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			remoteUserData,
 			localExtensions,
 			lastSyncUserData,
-			hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
-			hasRemoteChanged: remote !== null,
+			hasLocalChanged: resourcePreviews.some(({ hasLocalChanged }) => hasLocalChanged),
+			hasRemoteChanged: resourcePreviews.some(({ hasRemoteChanged }) => hasRemoteChanged),
 			isLastSyncFromCurrentMachine,
-			hasConflicts: false
+			hasConflicts: false,
+			resourcePreviews
 		};
 	}
 
@@ -200,6 +213,18 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			await this.updateLastSyncUserData(remoteUserData, { skippedExtensions });
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized extensions`);
 		}
+	}
+
+	private getResourcePreviews({ added, removed, updated, remote }: IMergeResult): IResourcePreview[] {
+		const hasLocalChanged = added.length > 0 || removed.length > 0 || updated.length > 0;
+		const hasRemoteChanged = remote !== null;
+		return [{
+			hasLocalChanged,
+			hasConflicts: false,
+			hasRemoteChanged,
+			localResouce: ExtensionsSynchroniser.EXTENSIONS_DATA_URI,
+			remoteResource: this.remotePreviewResource
+		}];
 	}
 
 	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
