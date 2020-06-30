@@ -1058,25 +1058,30 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 			const defaultValue: Record<string, unknown> = template.context.defaultValue;
 			const scopeValue: Record<string, unknown> = template.context.scopeValue;
 			const newValue: Record<string, unknown> = {};
+			let newItems: IObjectDataItem[] = [];
 
-			template.objectWidget.items.forEach(item => {
+			template.objectWidget.items.forEach((item, idx) => {
 				// Item was updated
-				if (isDefined(e.item) && e.originalItem.key.data === item.key.data) {
+				if (isDefined(e.item) && e.targetIndex === idx) {
 					newValue[e.item.key.data] = e.item.value.data;
+					newItems.push(e.item);
 				}
-				// All remaining items
-				else {
+				// All remaining items, but skip the one that we just updated
+				else if (isUndefinedOrNull(e.item) || e.item.key.data !== item.key.data) {
 					newValue[item.key.data] = item.value.data;
+					newItems.push(item);
 				}
 			});
 
 			// Item was deleted
 			if (isUndefinedOrNull(e.item)) {
 				delete newValue[e.originalItem.key.data];
+				newItems = newItems.filter(item => item.key.data !== e.originalItem.key.data);
 			}
 			// New item was added
 			else if (template.objectWidget.isItemNew(e.originalItem)) {
 				newValue[e.item.key.data] = e.item.value.data;
+				newItems.push(e.item);
 			}
 
 			Object.entries(newValue).forEach(([key, value]) => {
@@ -1091,6 +1096,8 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 				value: Object.keys(newValue).length === 0 ? undefined : newValue,
 				type: template.context.valueType
 			});
+
+			template.objectWidget.setValue(newItems);
 		}
 	}
 
@@ -1103,7 +1110,7 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 
 		template.objectWidget.setValue(items, {
 			showAddButton: (
-				isDefined(dataElement.setting.objectAdditionalProperties) ||
+				typeof dataElement.setting.objectAdditionalProperties === 'object' ||
 				isDefined(dataElement.setting.objectPatternProperties) ||
 				!areAllPropertiesDefined(Object.keys(dataElement.setting.objectProperties ?? {}), items)
 			),

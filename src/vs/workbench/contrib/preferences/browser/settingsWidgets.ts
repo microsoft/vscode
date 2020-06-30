@@ -742,19 +742,15 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 	}
 
 	protected renderHeader() {
-		if (this.model.items.length > 0) {
-			const header = $('.setting-list-row-header');
-			const keyHeader = DOM.append(header, $('.setting-list-object-key'));
-			const valueHeader = DOM.append(header, $('.setting-list-object-value'));
-			const { keyHeaderText, valueHeaderText } = this.getLocalizedStrings();
+		const header = $('.setting-list-row-header');
+		const keyHeader = DOM.append(header, $('.setting-list-object-key'));
+		const valueHeader = DOM.append(header, $('.setting-list-object-value'));
+		const { keyHeaderText, valueHeaderText } = this.getLocalizedStrings();
 
-			keyHeader.textContent = keyHeaderText;
-			valueHeader.textContent = valueHeaderText;
+		keyHeader.textContent = keyHeaderText;
+		valueHeader.textContent = valueHeaderText;
 
-			return header;
-		}
-
-		return;
+		return header;
 	}
 
 	protected renderItem(item: IObjectDataItem): HTMLElement {
