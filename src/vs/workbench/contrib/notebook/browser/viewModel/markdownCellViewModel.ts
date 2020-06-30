@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -139,7 +140,17 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				return this._html;
 			}
 			let renderer = this.getMarkdownRenderer();
-			this._html = renderer.render({ value: this.getText(), isTrusted: true }).element;
+			const text = this.getText();
+
+			if (text.length === 0) {
+				const el = document.createElement('p');
+				el.className = 'emptyMarkdownPlaceholder';
+				el.innerText = nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit.");
+				this._html = el;
+			} else {
+				this._html = renderer.render({ value: this.getText(), isTrusted: true }).element;
+			}
+
 			return this._html;
 		}
 		return null;

@@ -17,6 +17,10 @@
 	white-space: initial;
 }
 
+.monaco-workbench .cell.markdown p.emptyMarkdownPlaceholder {
+	font-style: italic;
+}
+
 .monaco-workbench .notebookOverlay .simple-fr-find-part-wrapper.visible {
 	z-index: 100;
 }
