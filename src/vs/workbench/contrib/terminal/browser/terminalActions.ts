@@ -415,12 +415,12 @@ export class ClearTerminalAction extends Action {
 	}
 }
 
-export class TerminalLaunchTroubleshootAction extends Action {
+export class TerminalLaunchHelpAction extends Action {
 
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService
 	) {
-		super('workbench.action.terminal.launchHelp', localize('terminalLaunchTroubleshoot', "Troubleshoot"));
+		super('workbench.action.terminal.launchHelp', localize('terminalLaunchHelp', "Open Help"));
 	}
 
 	async run(): Promise<void> {
