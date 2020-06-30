@@ -1076,7 +1076,16 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 			// Item was deleted
 			if (isUndefinedOrNull(e.item)) {
 				delete newValue[e.originalItem.key.data];
-				newItems = newItems.filter(item => item.key.data !== e.originalItem.key.data);
+
+				const itemToDelete = newItems.findIndex(item => item.key.data === e.originalItem.key.data);
+				const defaultItemValue = defaultValue[e.originalItem.key.data] as string | boolean;
+
+				// Item does not have a default
+				if (isUndefinedOrNull(defaultValue[e.originalItem.key.data]) && itemToDelete > -1) {
+					newItems.splice(itemToDelete, 1);
+				} else if (itemToDelete > -1) {
+					newItems[itemToDelete].value.data = defaultItemValue;
+				}
 			}
 			// New item was added
 			else if (template.objectWidget.isItemNew(e.originalItem)) {
