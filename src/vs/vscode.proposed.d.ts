@@ -830,10 +830,9 @@ declare module 'vscode' {
 		noDebug?: boolean;
 
 		/**
-		 * Controls if the debug session created will be compacted with the parent in the CALL STACK view.
-		 * Compact with the parent is only done if the session is the only child of it's parent session.
-		 * Default is to compact.
-		 *
+		 * Controls if the debug session's parent session is shown in the CALL STACK view even if it has only a single child.
+		 * By default, debug sessions with a single child are hidden in the CALL STACK view to make the tree more compact.
+		 * If noCompact is true, then the debug session will never hide its parent.
 		 */
 		noCompact?: boolean;
 	}
