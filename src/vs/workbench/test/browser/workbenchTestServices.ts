@@ -495,6 +495,7 @@ export class TestViewsService implements IViewsService {
 	openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> { return Promise.resolve(null); }
 	closeView(id: string): void { }
 	getViewProgressIndicator(id: string) { return null!; }
+	getActiveViewPaneContainerWithId(id: string) { return null; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
@@ -835,6 +836,7 @@ export class TestFileService implements IFileService {
 	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
 	dispose(): void { }
 
+	async canCreateFile(source: URI, options?: ICreateFileOptions): Promise<Error | true> { return true; }
 	async canMove(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
 	async canCopy(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
 	async canDelete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<Error | true> { return true; }
@@ -1056,6 +1058,9 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 }
 
 export class TestFileEditorInput extends EditorInput implements IFileEditorInput {
+
+	readonly label = this.resource;
+
 	gotDisposed = false;
 	gotSaved = false;
 	gotSavedAs = false;
@@ -1151,7 +1156,7 @@ export class TestPathService implements IPathService {
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
 
-	get userHome() { return Promise.resolve(this.fallbackUserHome); }
+	async userHome() { return this.fallbackUserHome; }
 	get resolvedUserHome() { return this.fallbackUserHome; }
 
 	async fileURI(path: string): Promise<URI> {

@@ -179,6 +179,8 @@ function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationServic
 		}
 	};
 
+	result.smoothScrolling = configurationService.getValue<boolean>(listSmoothScrolling);
+
 	return [result, disposables];
 }
 
@@ -193,7 +195,6 @@ export interface IWorkbenchListOptions<T> extends IWorkbenchListOptionsUpdate, I
 export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
-	private readonly configurationService: IConfigurationService;
 	private readonly themeService: IThemeService;
 
 	private listHasSelectionOrFocus: IContextKey<boolean>;
@@ -231,7 +232,6 @@ export class WorkbenchList<T> extends List<T> {
 		this.disposables.add(workbenchListOptionsDisposable);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
-		this.configurationService = configurationService;
 		this.themeService = themeService;
 
 		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
@@ -265,8 +265,25 @@ export class WorkbenchList<T> extends List<T> {
 
 			this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
 		}));
+		this.disposables.add(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+			}
 
-		this.registerListeners();
+			let options: IListOptionsUpdate = {};
+
+			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
+				const horizontalScrolling = configurationService.getValue<boolean>(horizontalScrollingKey);
+				options = { ...options, horizontalScrolling };
+			}
+			if (e.affectsConfiguration(listSmoothScrolling)) {
+				const smoothScrolling = configurationService.getValue<boolean>(listSmoothScrolling);
+				options = { ...options, smoothScrolling };
+			}
+			if (Object.keys(options).length > 0) {
+				this.updateOptions(options);
+			}
+		}));
 	}
 
 	updateOptions(options: IWorkbenchListOptionsUpdate): void {
@@ -292,18 +309,6 @@ export class WorkbenchList<T> extends List<T> {
 		this._styler = attachListStyler(this, this.themeService, styles);
 	}
 
-	private registerListeners(): void {
-		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
-			}
-			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
-				const horizontalScrolling = this.configurationService.getValue<boolean>(horizontalScrollingKey);
-				this.updateOptions({ horizontalScrolling });
-			}
-		}));
-	}
-
 	get useAltAsMultipleSelectionModifier(): boolean {
 		return this._useAltAsMultipleSelectionModifier;
 	}
@@ -316,7 +321,6 @@ export interface IWorkbenchPagedListOptions<T> extends IWorkbenchListOptionsUpda
 export class WorkbenchPagedList<T> extends PagedList<T> {
 
 	readonly contextKeyService: IContextKeyService;
-	private readonly configurationService: IConfigurationService;
 
 	private readonly disposables: DisposableStore;
 
@@ -350,7 +354,6 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		this.disposables.add(workbenchListOptionsDisposable);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
-		this.configurationService = configurationService;
 		this.horizontalScrolling = options.horizontalScrolling;
 
 		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
@@ -365,17 +368,23 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 			this.disposables.add(attachListStyler(this, themeService, options.overrideStyles));
 		}
 
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+		this.disposables.add(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
+				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 			}
+
+			let options: IListOptionsUpdate = {};
+
 			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
-				const horizontalScrolling = this.configurationService.getValue<boolean>(horizontalScrollingKey);
-				this.updateOptions({ horizontalScrolling });
+				const horizontalScrolling = configurationService.getValue<boolean>(horizontalScrollingKey);
+				options = { ...options, horizontalScrolling };
+			}
+			if (e.affectsConfiguration(listSmoothScrolling)) {
+				const smoothScrolling = configurationService.getValue<boolean>(listSmoothScrolling);
+				options = { ...options, smoothScrolling };
+			}
+			if (Object.keys(options).length > 0) {
+				this.updateOptions(options);
 			}
 		}));
 	}
@@ -836,7 +845,8 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			horizontalScrolling,
 			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService),
 			additionalScrollHeight,
-			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements
+			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements,
+			expandOnlyOnDoubleClick: configurationService.getValue(openModeSettingKey) === 'doubleClick'
 		} as TOptions
 	};
 }
@@ -932,6 +942,9 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 				if (e.affectsConfiguration(horizontalScrollingKey) && options.horizontalScrolling === undefined) {
 					const horizontalScrolling = configurationService.getValue<boolean>(horizontalScrollingKey);
 					newOptions = { ...newOptions, horizontalScrolling };
+				}
+				if (e.affectsConfiguration(openModeSettingKey)) {
+					newOptions = { ...newOptions, expandOnlyOnDoubleClick: configurationService.getValue(openModeSettingKey) === 'doubleClick' };
 				}
 				if (Object.keys(newOptions).length > 0) {
 					tree.updateOptions(newOptions);

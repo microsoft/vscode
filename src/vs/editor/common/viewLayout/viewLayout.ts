@@ -210,12 +210,12 @@ export class ViewLayout extends Disposable implements IViewLayout {
 			const width = layoutInfo.contentWidth;
 			const height = layoutInfo.height;
 			const scrollDimensions = this._scrollable.getScrollDimensions();
-			const scrollWidth = scrollDimensions.scrollWidth;
+			const contentWidth = scrollDimensions.contentWidth;
 			this._scrollable.setScrollDimensions(new EditorScrollDimensions(
 				width,
 				scrollDimensions.contentWidth,
 				height,
-				this._getContentHeight(width, height, scrollWidth)
+				this._getContentHeight(width, height, contentWidth)
 			));
 		} else {
 			this._updateHeight();
@@ -250,14 +250,14 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		return scrollbar.horizontalScrollbarSize;
 	}
 
-	private _getContentHeight(width: number, height: number, scrollWidth: number): number {
+	private _getContentHeight(width: number, height: number, contentWidth: number): number {
 		const options = this._configuration.options;
 
 		let result = this._linesLayout.getLinesTotalHeight();
 		if (options.get(EditorOption.scrollBeyondLastLine)) {
 			result += height - options.get(EditorOption.lineHeight);
 		} else {
-			result += this._getHorizontalScrollbarHeight(width, scrollWidth);
+			result += this._getHorizontalScrollbarHeight(width, contentWidth);
 		}
 
 		return result;
@@ -267,12 +267,12 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const scrollDimensions = this._scrollable.getScrollDimensions();
 		const width = scrollDimensions.width;
 		const height = scrollDimensions.height;
-		const scrollWidth = scrollDimensions.scrollWidth;
+		const contentWidth = scrollDimensions.contentWidth;
 		this._scrollable.setScrollDimensions(new EditorScrollDimensions(
 			width,
 			scrollDimensions.contentWidth,
 			height,
-			this._getContentHeight(width, height, scrollWidth)
+			this._getContentHeight(width, height, contentWidth)
 		));
 	}
 

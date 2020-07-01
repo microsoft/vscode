@@ -6,8 +6,8 @@
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import {
 	UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, SyncResource,
-	IUserDataSynchroniser, IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, USER_DATA_SYNC_SCHEME, PREVIEW_DIR_NAME, ISyncResourceHandle,
-	IRemoteUserData, ISyncData
+	IUserDataSynchroniser, IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, USER_DATA_SYNC_SCHEME, ISyncResourceHandle,
+	IRemoteUserData, ISyncData, IResourcePreview
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -35,7 +35,7 @@ interface ISyncContent {
 export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implements IUserDataSynchroniser {
 
 	protected readonly version: number = 1;
-	protected readonly localPreviewResource: URI = joinPath(this.syncFolder, PREVIEW_DIR_NAME, 'keybindings.json');
+	protected readonly localPreviewResource: URI = joinPath(this.syncPreviewFolder, 'keybindings.json');
 	protected readonly remotePreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME });
 
 	constructor(
@@ -57,45 +57,81 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		const fileContent = await this.getLocalFileContent();
 		const content = remoteUserData.syncData !== null ? this.getKeybindingsContentFromSyncContent(remoteUserData.syncData.content) : null;
 		const hasLocalChanged = content !== null;
+		const hasRemoteChanged = false;
+		const hasConflicts = false;
+
+		const resourcePreviews: IResourcePreview[] = [{
+			hasConflicts,
+			hasLocalChanged,
+			hasRemoteChanged,
+			localResouce: this.file,
+			remoteResource: this.remotePreviewResource,
+		}];
+
 		return {
 			fileContent,
 			remoteUserData,
 			lastSyncUserData,
 			content,
-			hasConflicts: false,
+			hasConflicts,
 			hasLocalChanged,
-			hasRemoteChanged: false,
-			isLastSyncFromCurrentMachine: false
+			hasRemoteChanged,
+			isLastSyncFromCurrentMachine: false,
+			resourcePreviews
 		};
 	}
 
 	protected async generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<IFileSyncPreview> {
 		const fileContent = await this.getLocalFileContent();
 		const content: string | null = fileContent ? fileContent.value.toString() : null;
+		const hasLocalChanged = false;
+		const hasRemoteChanged = content !== null;
+		const hasConflicts = false;
+
+		const resourcePreviews: IResourcePreview[] = [{
+			hasConflicts,
+			hasLocalChanged,
+			hasRemoteChanged,
+			localResouce: this.file,
+			remoteResource: this.remotePreviewResource,
+		}];
 		return {
 			fileContent,
 			remoteUserData,
 			lastSyncUserData,
 			content,
-			hasLocalChanged: false,
-			hasRemoteChanged: content !== null,
-			hasConflicts: false,
-			isLastSyncFromCurrentMachine: false
+			hasLocalChanged,
+			hasRemoteChanged,
+			hasConflicts,
+			isLastSyncFromCurrentMachine: false,
+			resourcePreviews
 		};
 	}
 
 	protected async generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<IFileSyncPreview> {
 		const fileContent = await this.getLocalFileContent();
 		const content = this.getKeybindingsContentFromSyncContent(syncData.content);
+		const hasLocalChanged = content !== null;
+		const hasRemoteChanged = content !== null;
+		const hasConflicts = false;
+
+		const resourcePreviews: IResourcePreview[] = [{
+			hasConflicts,
+			hasLocalChanged,
+			hasRemoteChanged,
+			localResouce: this.file,
+			remoteResource: this.remotePreviewResource,
+		}];
 		return {
 			fileContent,
 			remoteUserData,
 			lastSyncUserData,
 			content,
-			hasConflicts: false,
-			hasLocalChanged: content !== null,
-			hasRemoteChanged: content !== null,
-			isLastSyncFromCurrentMachine: false
+			hasConflicts,
+			hasLocalChanged,
+			hasRemoteChanged,
+			isLastSyncFromCurrentMachine: false,
+			resourcePreviews
 		};
 	}
 
@@ -154,8 +190,16 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		}
 
 		this.setConflicts(hasConflicts && !token.isCancellationRequested ? [{ local: this.localPreviewResource, remote: this.remotePreviewResource }] : []);
+		const resourcePreviews: IResourcePreview[] = [{
+			hasConflicts,
+			hasLocalChanged,
+			hasRemoteChanged,
+			localResouce: this.file,
+			remoteResource: this.remotePreviewResource,
+			previewResource: this.localPreviewResource
+		}];
 
-		return { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged, hasConflicts, isLastSyncFromCurrentMachine };
+		return { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged, hasConflicts, isLastSyncFromCurrentMachine, resourcePreviews };
 	}
 
 	protected async updatePreviewWithConflict(preview: IFileSyncPreview, conflictResource: URI, conflictContent: string, token: CancellationToken): Promise<IFileSyncPreview> {
@@ -229,7 +273,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 	async resolveContent(uri: URI): Promise<string | null> {
 		if (isEqual(this.remotePreviewResource, uri)) {
-			return this.getConflictContent(uri);
+			return this.resolvePreviewContent(uri);
 		}
 		let content = await super.resolveContent(uri);
 		if (content) {
@@ -248,8 +292,8 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		return null;
 	}
 
-	protected async getConflictContent(conflictResource: URI): Promise<string | null> {
-		const content = await super.getConflictContent(conflictResource);
+	protected async resolvePreviewContent(conflictResource: URI): Promise<string | null> {
+		const content = await super.resolvePreviewContent(conflictResource);
 		return content !== null ? this.getKeybindingsContentFromSyncContent(content) : null;
 	}
 

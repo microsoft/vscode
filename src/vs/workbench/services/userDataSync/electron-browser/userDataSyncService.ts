@@ -38,6 +38,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onSyncErrors: Emitter<[SyncResource, UserDataSyncError][]> = this._register(new Emitter<[SyncResource, UserDataSyncError][]>());
 	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]> = this._onSyncErrors.event;
 
+	get onSynchronizeResource(): Event<SyncResource> { return this.channel.listen<SyncResource>('onSynchronizeResource'); }
+
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService
 	) {

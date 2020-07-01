@@ -6,8 +6,8 @@
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import {
 	UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, CONFIGURATION_SYNC_STORE_KEY,
-	SyncResource, IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, USER_DATA_SYNC_SCHEME, PREVIEW_DIR_NAME, ISyncResourceHandle, IUserDataSynchroniser,
-	IRemoteUserData, ISyncData
+	SyncResource, IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, USER_DATA_SYNC_SCHEME, ISyncResourceHandle, IUserDataSynchroniser,
+	IRemoteUserData, ISyncData, IResourcePreview
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { localize } from 'vs/nls';
@@ -39,7 +39,7 @@ function isSettingsSyncContent(thing: any): thing is ISettingsSyncContent {
 export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implements IUserDataSynchroniser {
 
 	protected readonly version: number = 1;
-	protected readonly localPreviewResource: URI = joinPath(this.syncFolder, PREVIEW_DIR_NAME, 'settings.json');
+	protected readonly localPreviewResource: URI = joinPath(this.syncPreviewFolder, 'settings.json');
 	protected readonly remotePreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME });
 
 	constructor(
@@ -71,15 +71,28 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			content = updateIgnoredSettings(remoteSettingsSyncContent.settings, fileContent ? fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
 		}
 
+		const hasLocalChanged = content !== null;
+		const hasRemoteChanged = false;
+		const hasConflicts = false;
+
+		const resourcePreviews: IResourcePreview[] = [{
+			hasConflicts,
+			hasLocalChanged,
+			hasRemoteChanged,
+			localResouce: this.file,
+			remoteResource: this.remotePreviewResource,
+		}];
+
 		return {
 			fileContent,
 			remoteUserData,
 			lastSyncUserData,
 			content,
-			hasLocalChanged: content !== null,
-			hasRemoteChanged: false,
-			hasConflicts: false,
-			isLastSyncFromCurrentMachine: false
+			hasLocalChanged,
+			hasRemoteChanged,
+			hasConflicts,
+			isLastSyncFromCurrentMachine: false,
+			resourcePreviews
 		};
 	}
 
@@ -95,15 +108,28 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			content = updateIgnoredSettings(fileContent.value.toString(), '{}', ignoredSettings, formatUtils);
 		}
 
+		const hasLocalChanged = false;
+		const hasRemoteChanged = content !== null;
+		const hasConflicts = false;
+
+		const resourcePreviews: IResourcePreview[] = [{
+			hasConflicts,
+			hasLocalChanged,
+			hasRemoteChanged,
+			localResouce: this.file,
+			remoteResource: this.remotePreviewResource,
+		}];
+
 		return {
 			fileContent,
 			remoteUserData,
 			lastSyncUserData,
 			content,
-			hasLocalChanged: false,
-			hasRemoteChanged: content !== null,
-			hasConflicts: false,
-			isLastSyncFromCurrentMachine: false
+			hasLocalChanged,
+			hasRemoteChanged,
+			hasConflicts,
+			isLastSyncFromCurrentMachine: false,
+			resourcePreviews
 		};
 	}
 
@@ -119,14 +145,27 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			content = updateIgnoredSettings(settingsSyncContent.settings, fileContent ? fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
 		}
 
+		const hasLocalChanged = content !== null;
+		const hasRemoteChanged = content !== null;
+		const hasConflicts = false;
+
+		const resourcePreviews: IResourcePreview[] = [{
+			hasConflicts,
+			hasLocalChanged,
+			hasRemoteChanged,
+			localResouce: this.file,
+			remoteResource: this.remotePreviewResource,
+		}];
+
 		return {
 			fileContent,
 			remoteUserData,
 			lastSyncUserData,
 			content,
-			hasLocalChanged: content !== null,
-			hasRemoteChanged: content !== null,
-			hasConflicts: false,
+			hasLocalChanged,
+			hasRemoteChanged,
+			hasConflicts,
+			resourcePreviews,
 			isLastSyncFromCurrentMachine: false
 		};
 	}
@@ -177,8 +216,16 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		}
 
 		this.setConflicts(hasConflicts && !token.isCancellationRequested ? [{ local: this.localPreviewResource, remote: this.remotePreviewResource }] : []);
+		const resourcePreviews: IResourcePreview[] = [{
+			hasConflicts,
+			hasLocalChanged,
+			hasRemoteChanged,
+			localResouce: this.file,
+			remoteResource: this.remotePreviewResource,
+			previewResource: this.localPreviewResource
+		}];
 
-		return { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged, hasConflicts, isLastSyncFromCurrentMachine };
+		return { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged, hasConflicts, isLastSyncFromCurrentMachine, resourcePreviews };
 	}
 
 	protected async updatePreviewWithConflict(preview: IFileSyncPreview, conflictResource: URI, conflictContent: string, token: CancellationToken): Promise<IFileSyncPreview> {
@@ -256,7 +303,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 	async resolveContent(uri: URI): Promise<string | null> {
 		if (isEqual(this.remotePreviewResource, uri)) {
-			return this.getConflictContent(uri);
+			return this.resolvePreviewContent(uri);
 		}
 		let content = await super.resolveContent(uri);
 		if (content) {
@@ -278,8 +325,8 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return null;
 	}
 
-	protected async getConflictContent(conflictResource: URI): Promise<string | null> {
-		let content = await super.getConflictContent(conflictResource);
+	protected async resolvePreviewContent(conflictResource: URI): Promise<string | null> {
+		let content = await super.resolvePreviewContent(conflictResource);
 		if (content !== null) {
 			const settingsSyncContent = this.parseSettingsSyncContent(content);
 			content = settingsSyncContent ? settingsSyncContent.settings : null;

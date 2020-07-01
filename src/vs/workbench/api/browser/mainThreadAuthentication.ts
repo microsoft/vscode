@@ -18,7 +18,7 @@ import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { fromNow } from 'vs/base/common/date';
 
-const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline'];
+const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser'];
 
 interface IAccountUsage {
 	extensionId: string;
@@ -104,7 +104,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			return {
 				label: extension.name,
 				description: usage
-					? nls.localize('accountLastUsedDate', "Last used this account {0}", fromNow(usage.lastUsed, true))
+					? nls.localize({ key: 'accountLastUsedDate', comment: ['The placeholder {0} is a string with time information, such as "3 days ago"'] }, "Last used this account {0}", fromNow(usage.lastUsed, true))
 					: nls.localize('notUsed', "Has not used this account"),
 				extension
 			};
@@ -336,7 +336,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			});
 
 			quickPick.items = items;
-			quickPick.title = nls.localize('selectAccount', "The extension '{0}' wants to access a {1} account", extensionName, providerName);
+			quickPick.title = nls.localize(
+				{
+					key: 'selectAccount',
+					comment: ['The placeholder {0} is the name of an extension. {1} is the name of the type of account, such as Microsoft or GitHub.']
+				},
+				"The extension '{0}' wants to access a {1} account",
+				extensionName,
+				providerName);
 			quickPick.placeholder = nls.localize('getSessionPlateholder', "Select an account for '{0}' to use or Esc to cancel", extensionName);
 
 			quickPick.onDidAccept(async _ => {

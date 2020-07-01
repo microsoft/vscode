@@ -46,6 +46,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { Color, RGBA } from 'vs/base/common/color';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
+import { ThemableCheckboxActionViewItem } from 'vs/platform/browser/checkbox';
 
 const $ = DOM.$;
 
@@ -376,13 +377,17 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 		const actionBar = this._register(new ActionBar(this.actionsContainer, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
+				let checkboxViewItem: CheckboxActionViewItem | undefined;
 				if (action.id === this.sortByPrecedenceAction.id) {
-					return new CheckboxActionViewItem(null, action);
+					checkboxViewItem = new ThemableCheckboxActionViewItem(null, action, undefined, this.themeService);
 				}
-				if (action.id === this.recordKeysAction.id) {
-					return new CheckboxActionViewItem(null, action);
+				else if (action.id === this.recordKeysAction.id) {
+					checkboxViewItem = new ThemableCheckboxActionViewItem(null, action, undefined, this.themeService);
 				}
-				return undefined;
+				if (checkboxViewItem) {
+
+				}
+				return checkboxViewItem;
 			}
 		}));
 

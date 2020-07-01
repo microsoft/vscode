@@ -65,6 +65,7 @@ import { Event } from 'vs/base/common/event';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
 
 export class NativeWindow extends Disposable {
 
@@ -138,7 +139,7 @@ export class NativeWindow extends Disposable {
 			if (request.from === 'touchbar') {
 				const activeEditor = this.editorService.activeEditor;
 				if (activeEditor) {
-					const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+					const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 					if (resource) {
 						args.push(resource);
 					}
@@ -250,7 +251,7 @@ export class NativeWindow extends Disposable {
 		// macOS OS integration
 		if (isMacintosh) {
 			this._register(this.editorService.onDidActiveEditorChange(() => {
-				const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.file });
+				const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
 
 				// Represented Filename
 				this.updateRepresentedFilename(file?.fsPath);
@@ -473,8 +474,13 @@ export class NativeWindow extends Disposable {
 				if (options?.allowTunneling) {
 					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
 					if (portMappingRequest) {
-						const resolvedRemote = this.environmentService.configuration.remoteAuthority ? await this.remoteAuthorityResolverService.resolveAuthority(this.environmentService.configuration.remoteAuthority) : undefined;
-						const tunnel = await this.tunnelService.openTunnel(resolvedRemote?.authority, undefined, portMappingRequest.port);
+						const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+						const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
+							getAddress: async (): Promise<IAddress> => {
+								return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
+							}
+						} : undefined;
+						const tunnel = await this.tunnelService.openTunnel(addressProvider, undefined, portMappingRequest.port);
 						if (tunnel) {
 							return {
 								resolved: uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` }),

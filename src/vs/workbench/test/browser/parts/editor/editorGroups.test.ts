@@ -150,6 +150,8 @@ class NonSerializableTestEditorInput extends EditorInput {
 
 class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
+	readonly label = this.resource;
+
 	constructor(public id: string, public resource: URI) {
 		super();
 	}

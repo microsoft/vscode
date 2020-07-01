@@ -10,7 +10,7 @@ import { findFreePortFaster } from 'vs/base/node/ports';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { connectRemoteAgentTunnel, IAddress, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
+import { connectRemoteAgentTunnel, IConnectionOptions, IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { AbstractTunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -131,7 +131,7 @@ export class TunnelService extends AbstractTunnelService {
 		super(logService);
 	}
 
-	protected retainOrCreateTunnel(resolveRemoteAuthority: IAddress, remoteHost: string, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined {
+	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined {
 		const portMap = this._tunnels.get(remoteHost);
 		const existing = portMap ? portMap.get(remotePort) : undefined;
 		if (existing) {
@@ -149,11 +149,7 @@ export class TunnelService extends AbstractTunnelService {
 			const options: IConnectionOptions = {
 				commit: this.productService.commit,
 				socketFactory: nodeSocketFactory,
-				addressProvider: {
-					getAddress: async () => {
-						return resolveRemoteAuthority;
-					}
-				},
+				addressProvider,
 				signService: this.signService,
 				logService: this.logService
 			};

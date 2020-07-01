@@ -36,8 +36,6 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { IFileService } from 'vs/platform/files/common/files';
 
-const RUN_TEXTMATE_IN_WORKER = false;
-
 export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string[];
@@ -168,9 +166,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				webPreferences: {
 					preload: URI.parse(this.doGetPreloadUrl()).fsPath,
 					nodeIntegration: true,
-					nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
 					webviewTag: true,
 					enableWebSQL: false,
+					enableRemoteModule: false,
 					nativeWindowOpen: true
 				}
 			};
@@ -809,7 +807,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// fullscreen gets special treatment
 		if (this.isFullScreen) {
-			const display = screen.getDisplayMatching(this.getBounds());
+			let display: Display | undefined;
+			try {
+				display = screen.getDisplayMatching(this.getBounds());
+			} catch (error) {
+				// Electron has weird conditions under which it throws errors
+				// e.g. https://github.com/microsoft/vscode/issues/100334 when
+				// large numbers are passed in
+			}
 
 			const defaultState = defaultWindowState();
 
@@ -976,8 +981,17 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Multi Monitor (non-fullscreen): ensure window is within display bounds
-		const display = screen.getDisplayMatching({ x: state.x, y: state.y, width: state.width, height: state.height });
-		const displayWorkingArea = this.getWorkingArea(display);
+		let display: Display | undefined;
+		let displayWorkingArea: Rectangle | undefined;
+		try {
+			display = screen.getDisplayMatching({ x: state.x, y: state.y, width: state.width, height: state.height });
+			displayWorkingArea = this.getWorkingArea(display);
+		} catch (error) {
+			// Electron has weird conditions under which it throws errors
+			// e.g. https://github.com/microsoft/vscode/issues/100334 when
+			// large numbers are passed in
+		}
+
 		if (
 			display &&														// we have a display matching the desired bounds
 			displayWorkingArea &&											// we have valid working area bounds

@@ -18,6 +18,7 @@ import { getExtensionKind } from 'vs/workbench/services/extensions/common/extens
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { StorageManager } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -137,8 +138,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const server = this.extensionManagementServerService.getExtensionManagementServer(extension.location);
+		if (this.extensionManagementServerService.remoteExtensionManagementServer || this.extensionManagementServerService.webExtensionManagementServer) {
+			const server = this.extensionManagementServerService.getExtensionManagementServer(extension);
 			for (const extensionKind of getExtensionKind(extension.manifest, this.productService, this.configurationService)) {
 				if (extensionKind === 'ui') {
 					if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.localExtensionManagementServer === server) {
@@ -151,8 +152,13 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 					}
 				}
 				if (extensionKind === 'web') {
-					// Web extensions are not yet supported to be disabled by kind. Enable them always on web.
+					const enableLocalWebWorker = this.configurationService.getValue<boolean>(webWorkerExtHostConfig);
+					if (enableLocalWebWorker) {
+						// Web extensions are enabled on all configurations
+						return false;
+					}
 					if (this.extensionManagementServerService.localExtensionManagementServer === null) {
+						// Web extensions run only in the web
 						return false;
 					}
 				}

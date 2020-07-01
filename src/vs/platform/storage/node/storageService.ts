@@ -6,7 +6,7 @@
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage, WorkspaceStorageSettings } from 'vs/platform/storage/common/storage';
+import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorageDatabase, IStorage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { mark } from 'vs/base/common/performance';
@@ -24,6 +24,8 @@ export class NativeStorageService extends Disposable implements IStorageService 
 
 	private static readonly WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static readonly WORKSPACE_META_NAME = 'workspace.json';
+
+	private static readonly WORKSPACE_IS_NEW_KEY = '__$__isNewStorageMarker';
 
 	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
@@ -105,11 +107,12 @@ export class NativeStorageService extends Disposable implements IStorageService 
 				);
 				await workspaceStorage.init();
 
-				const firstOpen = workspaceStorage.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN);
+				// Check to see if this is the first time we are "opening" this workspace
+				const firstOpen = workspaceStorage.getBoolean(NativeStorageService.WORKSPACE_IS_NEW_KEY);
 				if (firstOpen === undefined) {
-					workspaceStorage.set(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, !result.wasCreated);
+					workspaceStorage.set(NativeStorageService.WORKSPACE_IS_NEW_KEY, result.wasCreated);
 				} else if (firstOpen) {
-					workspaceStorage.set(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, false);
+					workspaceStorage.set(NativeStorageService.WORKSPACE_IS_NEW_KEY, false);
 				}
 			} finally {
 				mark('didInitWorkspaceStorage');
@@ -276,5 +279,9 @@ export class NativeStorageService extends Disposable implements IStorageService 
 
 		// Recreate and init workspace storage
 		return this.createWorkspaceStorage(newWorkspaceStoragePath).init();
+	}
+
+	isNew(scope: StorageScope.WORKSPACE): boolean {
+		return this.getBoolean(NativeStorageService.WORKSPACE_IS_NEW_KEY, scope) === true;
 	}
 }

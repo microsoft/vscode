@@ -77,6 +77,7 @@ export class BreakpointsView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -95,12 +96,12 @@ export class BreakpointsView extends ViewPane {
 			new ExceptionBreakpointsRenderer(this.debugService),
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer),
 			this.instantiationService.createInstance(DataBreakpointsRenderer),
-			new FunctionBreakpointInputRenderer(this.debugService, this.contextViewService, this.themeService)
+			new FunctionBreakpointInputRenderer(this.debugService, this.contextViewService, this.themeService, this.labelService)
 		], {
 			identityProvider: { getId: (element: IEnablement) => element.getId() },
 			multipleSelectionSupport: false,
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e },
-			accessibilityProvider: new BreakpointsAccessibilityProvider(this.debugService),
+			accessibilityProvider: new BreakpointsAccessibilityProvider(this.debugService, this.labelService),
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
 			}
@@ -379,7 +380,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		data.filePath.textContent = this.labelService.getUriLabel(resources.dirname(breakpoint.uri), { relative: true });
 		data.checkbox.checked = breakpoint.enabled;
 
-		const { message, className } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), breakpoint);
+		const { message, className } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), breakpoint, this.labelService);
 		data.icon.className = `codicon ${className}`;
 		data.breakpoint.title = breakpoint.message || message || '';
 
@@ -441,7 +442,8 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, IBaseBreakpointWithIconTemplateData> {
 
 	constructor(
-		@IDebugService private readonly debugService: IDebugService
+		@IDebugService private readonly debugService: IDebugService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		// noop
 	}
@@ -474,7 +476,7 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 	renderElement(functionBreakpoint: FunctionBreakpoint, _index: number, data: IBaseBreakpointWithIconTemplateData): void {
 		data.context = functionBreakpoint;
 		data.name.textContent = functionBreakpoint.name;
-		const { className, message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), functionBreakpoint);
+		const { className, message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), functionBreakpoint, this.labelService);
 		data.icon.className = `codicon ${className}`;
 		data.icon.title = message ? message : '';
 		data.checkbox.checked = functionBreakpoint.enabled;
@@ -496,7 +498,8 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IBaseBreakpointWithIconTemplateData> {
 
 	constructor(
-		@IDebugService private readonly debugService: IDebugService
+		@IDebugService private readonly debugService: IDebugService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		// noop
 	}
@@ -529,7 +532,7 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IBaseBrea
 	renderElement(dataBreakpoint: DataBreakpoint, _index: number, data: IBaseBreakpointWithIconTemplateData): void {
 		data.context = dataBreakpoint;
 		data.name.textContent = dataBreakpoint.description;
-		const { className, message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), dataBreakpoint);
+		const { className, message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), dataBreakpoint, this.labelService);
 		data.icon.className = `codicon ${className}`;
 		data.icon.title = message ? message : '';
 		data.checkbox.checked = dataBreakpoint.enabled;
@@ -553,7 +556,8 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 	constructor(
 		private debugService: IDebugService,
 		private contextViewService: IContextViewService,
-		private themeService: IThemeService
+		private themeService: IThemeService,
+		private labelService: ILabelService
 	) {
 		// noop
 	}
@@ -619,7 +623,7 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 	renderElement(functionBreakpoint: FunctionBreakpoint, _index: number, data: IInputTemplateData): void {
 		data.breakpoint = functionBreakpoint;
 		data.reactedOnEvent = false;
-		const { className, message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), functionBreakpoint);
+		const { className, message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), functionBreakpoint, this.labelService);
 
 		data.icon.className = `codicon ${className}`;
 		data.icon.title = message ? message : '';
@@ -639,7 +643,10 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 
 class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<BreakpointItem> {
 
-	constructor(private readonly debugService: IDebugService) { }
+	constructor(
+		private readonly debugService: IDebugService,
+		private readonly labelService: ILabelService
+	) { }
 
 	getWidgetAriaLabel(): string {
 		return nls.localize('breakpoints', "Breakpoints");
@@ -658,7 +665,7 @@ class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<Bre
 			return element.toString();
 		}
 
-		const { message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), element as IBreakpoint | IDataBreakpoint | IFunctionBreakpoint);
+		const { message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), element as IBreakpoint | IDataBreakpoint | IFunctionBreakpoint, this.labelService);
 		const toString = element.toString();
 
 		return message ? `${toString}, ${message}` : toString;
@@ -694,7 +701,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }
 
-export function getBreakpointMessageAndClassName(state: State, breakpointsActivated: boolean, breakpoint: IBreakpoint | IFunctionBreakpoint | IDataBreakpoint): { message?: string, className: string } {
+export function getBreakpointMessageAndClassName(state: State, breakpointsActivated: boolean, breakpoint: IBreakpoint | IFunctionBreakpoint | IDataBreakpoint, labelService?: ILabelService): { message?: string, className: string } {
 	const debugActive = state === State.Running || state === State.Stopped;
 
 	if (!breakpoint.enabled || !breakpointsActivated) {
@@ -768,8 +775,9 @@ export function getBreakpointMessageAndClassName(state: State, breakpointsActiva
 		};
 	}
 
+	const message = ('message' in breakpoint && breakpoint.message) ? breakpoint.message : breakpoint instanceof Breakpoint && labelService ? labelService.getUriLabel(breakpoint.uri) : nls.localize('breakpoint', "Breakpoint");
 	return {
 		className: 'codicon-debug-breakpoint',
-		message: ('message' in breakpoint && breakpoint.message) ? breakpoint.message : nls.localize('breakpoint', "Breakpoint")
+		message
 	};
 }

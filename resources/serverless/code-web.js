@@ -6,17 +6,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 // @ts-check
-/** @typedef {import('../../src/vs/workbench/workbench.web.api').IWorkbenchConstructionOptions} WebConfiguration **/
 
 const http = require('http');
 const url = require('url');
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
-const glob = require('glob');
 const opn = require('opn');
 const minimist = require('minimist');
-const webpack = require('webpack');
+const fancyLog = require('fancy-log');
+const ansiColors = require('ansi-colors');
+
+const extensions = require('../../build/lib/extensions');
 
 const APP_ROOT = path.join(__dirname, '..', '..');
 const EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
@@ -60,20 +61,35 @@ const AUTHORITY = process.env.VSCODE_AUTHORITY || `${HOST}:${PORT}`;
 
 const exists = (path) => util.promisify(fs.exists)(path);
 const readFile = (path) => util.promisify(fs.readFile)(path);
-const CharCode_PC = '%'.charCodeAt(0);
+
+let unbuiltExensions = [];
 
 async function initialize() {
-	const extensionFolders = await util.promisify(fs.readdir)(EXTENSIONS_ROOT);
+	const builtinExtensions = [];
 
-	const staticExtensions = [];
+	const children = await util.promisify(fs.readdir)(EXTENSIONS_ROOT, { withFileTypes: true });
+	const folders = children.filter(c => !c.isFile());
+	await Promise.all(folders.map(async folder => {
+		const folderName = folder.name;
+		const extensionPath = path.join(EXTENSIONS_ROOT, folderName);
 
-	const webpackConfigs = [];
+		let children = [];
+		try {
+			children = await util.promisify(fs.readdir)(extensionPath);
+		} catch (error) {
+			console.log(error);
+			return;
+		}
 
-	await Promise.all(extensionFolders.map(async extensionFolder => {
-		const packageJSONPath = path.join(EXTENSIONS_ROOT, extensionFolder, 'package.json');
+		const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+		const readmePath = readme ? path.join(extensionPath, readme) : undefined;
+		const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+		const changelogPath = changelog ? path.join(extensionPath, changelog) : undefined;
+
+		const packageJSONPath = path.join(EXTENSIONS_ROOT, folderName, 'package.json');
 		if (await exists(packageJSONPath)) {
 			try {
-				const packageJSON = JSON.parse((await readFile(packageJSONPath)).toString());
+				let packageJSON = JSON.parse((await readFile(packageJSONPath)).toString());
 				if (packageJSON.main && !packageJSON.browser) {
 					return; // unsupported
 				}
@@ -81,82 +97,40 @@ async function initialize() {
 				if (packageJSON.browser) {
 					packageJSON.main = packageJSON.browser;
 
-					const webpackConfigLocations = await util.promisify(glob)(
-						path.join(EXTENSIONS_ROOT, extensionFolder, '**', 'extension-browser.webpack.config.js'),
-						{ ignore: ['**/node_modules'] }
-					);
-
-					for (const webpackConfigPath of webpackConfigLocations) {
-						const configOrFnOrArray = require(webpackConfigPath);
-						function addConfig(configOrFn) {
-							if (typeof configOrFn === 'function') {
-								webpackConfigs.push(configOrFn({}, {}));
-							} else {
-								webpackConfigs.push(configOrFn);
-							}
-						}
-						addConfig(configOrFnOrArray);
+					let mainFilePath = path.join(EXTENSIONS_ROOT, folderName, packageJSON.browser);
+					if (path.extname(mainFilePath) !== '.js') {
+						mainFilePath += '.js';
+					}
+					if (!await exists(mainFilePath)) {
+						unbuiltExensions.push(path.relative(EXTENSIONS_ROOT, mainFilePath));
 					}
 				}
-
-				const packageNlsPath = path.join(EXTENSIONS_ROOT, extensionFolder, 'package.nls.json');
-				if (await exists(packageNlsPath)) {
-					const packageNls = JSON.parse((await readFile(packageNlsPath)).toString());
-					const translate = (obj) => {
-						for (let key in obj) {
-							const val = obj[key];
-							if (Array.isArray(val)) {
-								val.forEach(translate);
-							} else if (val && typeof val === 'object') {
-								translate(val);
-							} else if (typeof val === 'string' && val.charCodeAt(0) === CharCode_PC && val.charCodeAt(val.length - 1) === CharCode_PC) {
-								const translated = packageNls[val.substr(1, val.length - 2)];
-								if (translated) {
-									obj[key] = translated;
-								}
-							}
-						}
-					};
-					translate(packageJSON);
-				}
 				packageJSON.extensionKind = ['web']; // enable for Web
-				staticExtensions.push({
+
+				const packageNLSPath = path.join(folderName, 'package.nls.json');
+				const packageNLSExists = await exists(path.join(EXTENSIONS_ROOT, packageNLSPath));
+				if (packageNLSExists) {
+					packageJSON = extensions.translatePackageJSON(packageJSON, path.join(EXTENSIONS_ROOT, packageNLSPath)); // temporary, until fixed in core
+				}
+				builtinExtensions.push({
+					extensionPath: folderName,
 					packageJSON,
-					extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/static-extension/${extensionFolder}` },
-					isBuiltin: true
+					packageNLSPath: packageNLSExists ? packageNLSPath : undefined,
+					readmePath,
+					changelogPath
 				});
 			} catch (e) {
 				console.log(e);
 			}
 		}
 	}));
-
-	return new Promise((resolve, reject) => {
-		if (args.watch) {
-			webpack(webpackConfigs).watch({}, (err, stats) => {
-				if (err) {
-					console.log(err);
-					reject();
-				} else {
-					console.log(stats.toString());
-					resolve(staticExtensions);
-				}
-			});
-		} else {
-			webpack(webpackConfigs).run((err, stats) => {
-				if (err) {
-					console.log(err);
-					reject();
-				} else {
-					console.log(stats.toString());
-					resolve(staticExtensions);
-				}
-			});
-		}
-	});
+	if (unbuiltExensions.length) {
+		fancyLog(`${ansiColors.yellow('Warning')}: Make sure to run ${ansiColors.cyan('yarn gulp watch-web')}\nCould not find the following browser main files: \n${unbuiltExensions.join('\n')}`);
+	}
+	return builtinExtensions;
 }
 
-const staticExtensionsPromise = initialize();
+const builtinExtensionsPromise = initialize();
 
 const mapCallbackUriToRequestId = new Map();
 
@@ -252,31 +226,40 @@ function handleStaticExtension(req, res, parsedUrl) {
  * @param {import('http').ServerResponse} res
  */
 async function handleRoot(req, res) {
+	let folderUri = { scheme: 'memfs', path: `/sample-folder` };
+
 	const match = req.url && req.url.match(/\?([^#]+)/);
-	let ghPath;
 	if (match) {
 		const qs = new URLSearchParams(match[1]);
-		ghPath = qs.get('gh');
-		if (ghPath && !ghPath.startsWith('/')) {
-			ghPath = '/' + ghPath;
+
+		let ghPath = qs.get('gh');
+		if (ghPath) {
+			if (!ghPath.startsWith('/')) {
+				ghPath = '/' + ghPath;
+			}
+			folderUri = { scheme: 'github', authority: 'HEAD', path: ghPath };
+		} else {
+
+			let csPath = qs.get('cs');
+			if (csPath) {
+				if (!csPath.startsWith('/')) {
+					csPath = '/' + csPath;
+				}
+				folderUri = { scheme: 'codespace', authority: 'HEAD', path: csPath };
+			}
 		}
 	}
 
-	const staticExtensions = await staticExtensionsPromise;
-	/** @type {WebConfiguration} */
-	const webConfig = {
-		staticExtensions: staticExtensions,
-	};
+	const builtinExtensions = await builtinExtensionsPromise;
 
 	const webConfigJSON = escapeAttribute(JSON.stringify({
-		...webConfig,
-		folderUri: ghPath
-			? { scheme: 'github', authority: 'HEAD', path: ghPath }
-			: { scheme: 'memfs', path: `/sample-folder` },
+		folderUri: folderUri,
+		builtinExtensionsServiceUrl: `${SCHEME}://${AUTHORITY}/static-extension`
 	}));
 
 	const data = (await util.promisify(fs.readFile)(WEB_MAIN)).toString()
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => webConfigJSON) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
+		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(builtinExtensions)))
 		.replace('{{WEBVIEW_ENDPOINT}}', '')
 		.replace('{{REMOTE_USER_DATA_URI}}', '');
 

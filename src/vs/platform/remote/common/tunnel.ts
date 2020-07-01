@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
+import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 
 export const ITunnelService = createDecorator<ITunnelService>('tunnelService');
 
@@ -37,7 +37,7 @@ export interface ITunnelService {
 	readonly onTunnelOpened: Event<RemoteTunnel>;
 	readonly onTunnelClosed: Event<{ host: string, port: number }>;
 
-	openTunnel(resolveAuthority: IAddress | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined;
+	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined;
 	closeTunnel(remoteHost: string, remotePort: number): Promise<void>;
 	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable;
 }
@@ -102,8 +102,8 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		this._tunnels.clear();
 	}
 
-	openTunnel(resolvedAuthority: IAddress | undefined, remoteHost: string | undefined, remotePort: number, localPort: number): Promise<RemoteTunnel> | undefined {
-		if (!resolvedAuthority) {
+	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort: number): Promise<RemoteTunnel> | undefined {
+		if (!addressProvider) {
 			return undefined;
 		}
 
@@ -111,7 +111,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 			remoteHost = 'localhost';
 		}
 
-		const resolvedTunnel = this.retainOrCreateTunnel(resolvedAuthority, remoteHost, remotePort, localPort);
+		const resolvedTunnel = this.retainOrCreateTunnel(addressProvider, remoteHost, remotePort, localPort);
 		if (!resolvedTunnel) {
 			return resolvedTunnel;
 		}
@@ -174,11 +174,11 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		this._tunnels.get(remoteHost)!.set(remotePort, { refcount: 1, value: tunnel });
 	}
 
-	protected abstract retainOrCreateTunnel(resolveRemoteAuthority: IAddress, remoteHost: string, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined;
+	protected abstract retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined;
 }
 
 export class TunnelService extends AbstractTunnelService {
-	protected retainOrCreateTunnel(_resolveRemoteAuthority: IAddress, remoteHost: string, remotePort: number, localPort?: number | undefined): Promise<RemoteTunnel> | undefined {
+	protected retainOrCreateTunnel(_addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort?: number | undefined): Promise<RemoteTunnel> | undefined {
 		const portMap = this._tunnels.get(remoteHost);
 		const existing = portMap ? portMap.get(remotePort) : undefined;
 		if (existing) {

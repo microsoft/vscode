@@ -15,6 +15,7 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 	private readonly entries: Map<number, { accessor: IStatusbarEntryAccessor, alignment: MainThreadStatusBarAlignment, priority: number }> = new Map();
+	static readonly CODICON_REGEXP = /\$\((.*?)\)/g;
 
 	constructor(
 		_extHostContext: IExtHostContext,
@@ -29,12 +30,14 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, alignment: MainThreadStatusBarAlignment, priority: number | undefined, accessibilityInformation: IAccessibilityInformation): void {
 		// if there are icons in the text use the tooltip for the aria label
 		let ariaLabel: string;
+		let role: string | undefined = undefined;
 		if (accessibilityInformation) {
 			ariaLabel = accessibilityInformation.label;
+			role = accessibilityInformation.role;
 		} else {
-			ariaLabel = text && text.indexOf('$(') === -1 ? text : tooltip || text;
+			ariaLabel = text ? text.replace(MainThreadStatusBar.CODICON_REGEXP, (_match, codiconName) => codiconName) : '';
 		}
-		const entry: IStatusbarEntry = { text, tooltip, command, color, ariaLabel };
+		const entry: IStatusbarEntry = { text, tooltip, command, color, ariaLabel, role };
 
 		if (typeof priority === 'undefined') {
 			priority = 0;

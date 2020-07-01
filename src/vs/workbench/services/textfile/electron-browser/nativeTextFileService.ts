@@ -5,23 +5,18 @@
 
 import { localize } from 'vs/nls';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
-import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IResourceEncoding, IReadTextFileOptions, IWriteTextFileOptions, stringToSnapshot, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, IWriteTextFileOptions, stringToSnapshot, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IFileStatWithMetadata, ICreateFileOptions, FileOperationError, FileOperationResult, IFileStreamContent, IFileService } from 'vs/platform/files/common/files';
+import { IFileStatWithMetadata, FileOperationError, FileOperationResult, IFileStreamContent, IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { stat, chmod, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, UTF8_BOM, toDecodeStream, toEncodeReadable, IDecodeStreamResult, detectEncodingByBOMFromBuffer } from 'vs/base/node/encoding';
-import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
-import { joinPath, extname, isEqualOrParent } from 'vs/base/common/resources';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { bufferToStream, VSBufferReadable } from 'vs/base/common/buffer';
+import { UTF8, UTF8_with_bom, toDecodeStream, toEncodeReadable, IDecodeStreamResult } from 'vs/workbench/services/textfile/common/encoding';
+import { bufferToStream, VSBufferReadable, VSBuffer } from 'vs/base/common/buffer';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { consumeStream } from 'vs/base/common/stream';
@@ -62,15 +57,6 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
 		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService);
-	}
-
-	private _encoding: EncodingOracle | undefined;
-	get encoding(): EncodingOracle {
-		if (!this._encoding) {
-			this._encoding = this._register(this.instantiationService.createInstance(EncodingOracle));
-		}
-
-		return this._encoding;
 	}
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
@@ -159,19 +145,20 @@ export class NativeTextFileService extends AbstractTextFileService {
 		return ensuredOptions;
 	}
 
-	protected async doCreate(resource: URI, value?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+	protected async doEncodeText(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined> {
 
 		// check for encoding
 		const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource);
 
 		// return to parent when encoding is standard
 		if (encoding === UTF8 && !addBOM) {
-			return super.doCreate(resource, value, options);
+			return super.doEncodeText(resource, value);
 		}
 
 		// otherwise create with encoding
 		const encodedReadable = await this.getEncodedReadable(value || '', encoding, addBOM);
-		return this.fileService.createFile(resource, encodedReadable, options);
+
+		return encodedReadable;
 	}
 
 	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
@@ -289,153 +276,6 @@ export class NativeTextFileService extends AbstractTextFileService {
 				}
 			});
 		});
-	}
-}
-
-export interface IEncodingOverride {
-	parent?: URI;
-	extension?: string;
-	encoding: string;
-}
-
-export class EncodingOracle extends Disposable implements IResourceEncodings {
-
-	private _encodingOverrides: IEncodingOverride[];
-	protected get encodingOverrides(): IEncodingOverride[] { return this._encodingOverrides; }
-	protected set encodingOverrides(value: IEncodingOverride[]) { this._encodingOverrides = value; }
-
-	constructor(
-		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IFileService private fileService: IFileService
-	) {
-		super();
-
-		this._encodingOverrides = this.getDefaultEncodingOverrides();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-
-		// Workspace Folder Change
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.encodingOverrides = this.getDefaultEncodingOverrides()));
-	}
-
-	private getDefaultEncodingOverrides(): IEncodingOverride[] {
-		const defaultEncodingOverrides: IEncodingOverride[] = [];
-
-		// Global settings
-		defaultEncodingOverrides.push({ parent: this.environmentService.userRoamingDataHome, encoding: UTF8 });
-
-		// Workspace files (via extension and via untitled workspaces location)
-		defaultEncodingOverrides.push({ extension: WORKSPACE_EXTENSION, encoding: UTF8 });
-		defaultEncodingOverrides.push({ parent: this.environmentService.untitledWorkspacesHome, encoding: UTF8 });
-
-		// Folder Settings
-		this.contextService.getWorkspace().folders.forEach(folder => {
-			defaultEncodingOverrides.push({ parent: joinPath(folder.uri, '.vscode'), encoding: UTF8 });
-		});
-
-		return defaultEncodingOverrides;
-	}
-
-	async getWriteEncoding(resource: URI, options?: IWriteTextFileOptions): Promise<{ encoding: string, addBOM: boolean }> {
-		const { encoding, hasBOM } = await this.getPreferredWriteEncoding(resource, options ? options.encoding : undefined);
-
-		// Some encodings come with a BOM automatically
-		if (hasBOM) {
-			return { encoding, addBOM: true };
-		}
-
-		// Ensure that we preserve an existing BOM if found for UTF8
-		// unless we are instructed to overwrite the encoding
-		const overwriteEncoding = options?.overwriteEncoding;
-		if (!overwriteEncoding && encoding === UTF8) {
-			try {
-				const buffer = (await this.fileService.readFile(resource, { length: UTF8_BOM.length })).value;
-				if (detectEncodingByBOMFromBuffer(buffer, buffer.byteLength) === UTF8_with_bom) {
-					return { encoding, addBOM: true };
-				}
-			} catch (error) {
-				// ignore - file might not exist
-			}
-		}
-
-		return { encoding, addBOM: false };
-	}
-
-	async getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): Promise<IResourceEncoding> {
-		const resourceEncoding = await this.getEncodingForResource(resource, preferredEncoding);
-
-		return {
-			encoding: resourceEncoding,
-			hasBOM: resourceEncoding === UTF16be || resourceEncoding === UTF16le || resourceEncoding === UTF8_with_bom // enforce BOM for certain encodings
-		};
-	}
-
-	getReadEncoding(resource: URI, options: IReadTextFileOptions | undefined, detectedEncoding: string | null): Promise<string> {
-		let preferredEncoding: string | undefined;
-
-		// Encoding passed in as option
-		if (options?.encoding) {
-			if (detectedEncoding === UTF8_with_bom && options.encoding === UTF8) {
-				preferredEncoding = UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
-			} else {
-				preferredEncoding = options.encoding; // give passed in encoding highest priority
-			}
-		}
-
-		// Encoding detected
-		else if (detectedEncoding) {
-			preferredEncoding = detectedEncoding;
-		}
-
-		// Encoding configured
-		else if (this.textResourceConfigurationService.getValue(resource, 'files.encoding') === UTF8_with_bom) {
-			preferredEncoding = UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
-		}
-
-		return this.getEncodingForResource(resource, preferredEncoding);
-	}
-
-	private async getEncodingForResource(resource: URI, preferredEncoding?: string): Promise<string> {
-		let fileEncoding: string;
-
-		const override = this.getEncodingOverride(resource);
-		if (override) {
-			fileEncoding = override; // encoding override always wins
-		} else if (preferredEncoding) {
-			fileEncoding = preferredEncoding; // preferred encoding comes second
-		} else {
-			fileEncoding = this.textResourceConfigurationService.getValue(resource, 'files.encoding'); // and last we check for settings
-		}
-
-		if (!fileEncoding || !(await encodingExists(fileEncoding))) {
-			fileEncoding = UTF8; // the default is UTF 8
-		}
-
-		return fileEncoding;
-	}
-
-	private getEncodingOverride(resource: URI): string | undefined {
-		if (this.encodingOverrides && this.encodingOverrides.length) {
-			for (const override of this.encodingOverrides) {
-
-				// check if the resource is child of encoding override path
-				if (override.parent && isEqualOrParent(resource, override.parent)) {
-					return override.encoding;
-				}
-
-				// check if the resource extension is equal to encoding override
-				if (override.extension && extname(resource) === `.${override.extension}`) {
-					return override.encoding;
-				}
-			}
-		}
-
-		return undefined;
 	}
 }
 

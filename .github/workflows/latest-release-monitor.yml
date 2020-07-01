@@ -2,6 +2,8 @@ name: Latest Release Monitor
 on:
   schedule:
     - cron: 0/5 * * * *
+  repository_dispatch:
+    types: [trigger-latest-release-monitor]
 
 jobs:
   main:
@@ -12,7 +14,7 @@ jobs:
         with:
           repository: 'microsoft/vscode-github-triage-actions'
           path: ./actions
-          ref: v29
+          ref: v31
       - name: Install Actions
         run: npm install --production --prefix ./actions
       - name: Install Storage Module

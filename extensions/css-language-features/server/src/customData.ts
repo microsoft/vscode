@@ -29,7 +29,7 @@ function parseCSSData(source: string): ICSSDataProvider {
 	}
 
 	return newCSSDataProvider({
-		version: 1,
+		version: rawData.version || 1,
 		properties: rawData.properties || [],
 		atDirectives: rawData.atDirectives || [],
 		pseudoClasses: rawData.pseudoClasses || [],

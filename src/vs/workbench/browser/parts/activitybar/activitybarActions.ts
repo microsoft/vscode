@@ -170,10 +170,12 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 			menus.push(new Separator());
 		}
 
-		otherCommands.forEach(group => {
+		otherCommands.forEach((group, i) => {
 			const actions = group[1];
 			menus = menus.concat(actions);
-			menus.push(new Separator());
+			if (i !== otherCommands.length - 1) {
+				menus.push(new Separator());
+			}
 		});
 
 		return menus;

@@ -696,7 +696,7 @@ export class EditorGroup extends Disposable {
 			}
 
 			if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
-				if (this.matches(editor.master, candidate, options?.strictEquals) || this.matches(editor.details, candidate, options?.strictEquals)) {
+				if (this.matches(editor.primary, candidate, options?.strictEquals) || this.matches(editor.secondary, candidate, options?.strictEquals)) {
 					return true;
 				}
 			}

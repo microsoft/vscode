@@ -237,7 +237,13 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				group: '2_signInRequests',
 				command: {
 					id: `${extensionId}signIn`,
-					title: nls.localize('signInRequest', "Sign in to use {0} (1)", extensionName)
+					title: nls.localize(
+						{
+							key: 'signInRequest',
+							comment: ['The placeholder {0} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count.']
+						},
+						"Sign in to use {0} (1)",
+						extensionName)
 				}
 			});
 

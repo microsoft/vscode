@@ -21,7 +21,7 @@ const product = require('../product.json');
 const { app, protocol } = require('electron');
 
 // Enable portable support
-const portable = bootstrap.configurePortable();
+const portable = bootstrap.configurePortable(product);
 
 // Enable ASAR support
 bootstrap.enableASARSupport();
@@ -86,8 +86,9 @@ setCurrentWorkingDirectory();
 // Register custom schemes with privileges
 protocol.registerSchemesAsPrivileged([
 	{
-		scheme: 'vscode-resource',
+		scheme: 'vscode-webview',
 		privileges: {
+			standard: true,
 			secure: true,
 			supportFetchAPI: true,
 			corsEnabled: true,
@@ -466,7 +467,7 @@ function getNodeCachedDir() {
 
 		async ensureExists() {
 			try {
-				await bootstrap.mkdirp(this.value);
+				await mkdirp(this.value);
 
 				return this.value;
 			} catch (error) {
@@ -493,6 +494,18 @@ function getNodeCachedDir() {
 			return path.join(userDataPath, 'CachedData', commit);
 		}
 	};
+}
+
+/**
+ * @param {string} dir
+ * @returns {Promise<string>}
+ */
+function mkdirp(dir) {
+	const fs = require('fs');
+
+	return new Promise((resolve, reject) => {
+		fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? reject(err) : resolve(dir));
+	});
 }
 
 //#region NLS Support

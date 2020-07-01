@@ -40,10 +40,10 @@ import { coalesce } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { openEditorWith } from 'vs/workbench/contrib/files/common/openWith';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 
 // Commands
 
@@ -178,7 +178,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				// Dispose once no more diff editor is opened with the scheme
 				if (registerEditorListener) {
 					providerDisposables.push(editorService.onDidVisibleEditorsChange(() => {
-						if (!editorService.editors.some(editor => !!toResource(editor, { supportSideBySide: SideBySideEditor.DETAILS, filterByScheme: COMPARE_WITH_SAVED_SCHEMA }))) {
+						if (!editorService.editors.some(editor => !!toResource(editor, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: COMPARE_WITH_SAVED_SCHEMA }))) {
 							providerDisposables = dispose(providerDisposables);
 						}
 					}));
@@ -356,8 +356,8 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 			// We only allow this when saving, not for "Save As".
 			// See also https://github.com/microsoft/vscode/issues/4180
 			if (activeGroup.activeEditor instanceof SideBySideEditorInput && !options?.saveAs) {
-				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.master });
-				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.details });
+				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
+				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
 			} else {
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor });
 			}
@@ -380,7 +380,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 		const resource = focusedCodeEditor.getModel()?.uri;
 
 		// Check that the resource of the model was not saved already
-		if (resource && !editors.some(({ editor }) => isEqual(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }), resource))) {
+		if (resource && !editors.some(({ editor }) => isEqual(toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), resource))) {
 			const model = textFileService.files.get(resource);
 			if (!model?.isReadonly()) {
 				await textFileService.save(resource, options);
@@ -409,7 +409,7 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 	try {
 		await editorService.save(editors, options);
 	} catch (error) {
-		notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
+		notificationService.error(nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
 	}
 }
 

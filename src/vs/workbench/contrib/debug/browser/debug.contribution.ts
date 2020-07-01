@@ -185,7 +185,7 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 });
 
 // register service
-registerSingleton(IDebugService, service.DebugService);
+registerSingleton(IDebugService, service.DebugService, true);
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

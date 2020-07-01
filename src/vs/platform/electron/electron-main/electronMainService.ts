@@ -22,6 +22,7 @@ import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 
 export interface IElectronMainService extends AddFirstParameterToFunctions<ICommonElectronService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -179,11 +180,7 @@ export class ElectronMainService implements IElectronMainService {
 
 		const window = this.windowById(windowId);
 		if (window) {
-			if (isMacintosh) {
-				window.win.show();
-			} else {
-				window.win.focus();
-			}
+			window.focus();
 		}
 	}
 
@@ -327,7 +324,7 @@ export class ElectronMainService implements IElectronMainService {
 	}
 
 	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard'): Promise<void> {
-		return clipboard.writeBuffer(format, buffer as Buffer, type);
+		return clipboard.writeBuffer(format, Buffer.from(buffer), type);
 	}
 
 	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<Uint8Array> {
@@ -461,6 +458,13 @@ export class ElectronMainService implements IElectronMainService {
 		this.logService.trace('ElectronMainService#crashReporter', JSON.stringify(options));
 
 		crashReporter.start(options);
+	}
+
+	async sendInputEvent(windowId: number | undefined, event: MouseInputEvent): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
+			window.win.webContents.sendInputEvent(event);
+		}
 	}
 
 	//#endregion

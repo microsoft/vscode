@@ -263,3 +263,7 @@ body.web {
 .monaco-workbench .monaco-list:focus {
 	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
 }
+
+.monaco-workbench .codicon[class*='codicon-'] {
+	font-size: 16px; /* sets font-size for codicons in workbench https://github.com/microsoft/vscode/issues/98495 */
+}

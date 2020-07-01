@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
+import * as DOM from 'vs/base/browser/dom';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext, INotebookDocumentsAndEditorsDelta, INotebookModelAddedData } from '../common/extHost.protocol';
 import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
@@ -17,6 +19,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export class MainThreadNotebookDocument extends Disposable {
 	private _textModel: NotebookTextModel;
@@ -31,10 +36,14 @@ export class MainThreadNotebookDocument extends Disposable {
 		public viewType: string,
 		public supportBackup: boolean,
 		public uri: URI,
-		readonly notebookService: INotebookService
+		@INotebookService readonly notebookService: INotebookService,
+		@IUndoRedoService readonly undoRedoService: IUndoRedoService,
+		@ITextModelService modelService: ITextModelService
+
 	) {
 		super();
-		this._textModel = new NotebookTextModel(handle, viewType, supportBackup, uri);
+
+		this._textModel = new NotebookTextModel(handle, viewType, supportBackup, uri, undoRedoService, modelService);
 		this._register(this._textModel.onDidModelChangeProxy(e => {
 			this._proxy.$acceptModelChanged(this.uri, e);
 			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: { selections: this._textModel.selections }, metadata: null });
@@ -45,15 +54,40 @@ export class MainThreadNotebookDocument extends Disposable {
 		}));
 	}
 
-	async applyEdit(modelVersionId: number, edits: ICellEditOperation[], emitToExtHost: boolean): Promise<boolean> {
+	async applyEdit(modelVersionId: number, edits: ICellEditOperation[], emitToExtHost: boolean, synchronous: boolean): Promise<boolean> {
 		await this.notebookService.transformEditsOutputs(this.textModel, edits);
-		return this._textModel.$applyEdit(modelVersionId, edits);
+		if (synchronous) {
+			return this._textModel.$applyEdit(modelVersionId, edits, emitToExtHost, synchronous);
+		} else {
+			return new Promise(resolve => {
+				this._register(DOM.scheduleAtNextAnimationFrame(() => {
+					const ret = this._textModel.$applyEdit(modelVersionId, edits, emitToExtHost, true);
+					resolve(ret);
+				}));
+			});
+		}
 	}
 
 	async spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]) {
 		await this.notebookService.transformSpliceOutputs(this.textModel, splices);
 		this._textModel.$spliceNotebookCellOutputs(cellHandle, splices);
 	}
+
+	handleEdit(editId: number, label: string | undefined): void {
+		this.undoRedoService.pushElement({
+			type: UndoRedoElementType.Resource,
+			resource: this._textModel.uri,
+			label: label ?? nls.localize('defaultEditLabel', "Edit"),
+			undo: async () => {
+				await this._proxy.$undoNotebook(this._textModel.viewType, this._textModel.uri, editId, this._textModel.isDirty);
+			},
+			redo: async () => {
+				await this._proxy.$redoNotebook(this._textModel.viewType, this._textModel.uri, editId, this._textModel.isDirty);
+			},
+		});
+		this._textModel.setDirty(true);
+	}
+
 	dispose() {
 		this._textModel.dispose();
 		super.dispose();
@@ -179,7 +213,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		@INotebookService private _notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 
 	) {
 		super();
@@ -230,7 +265,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			return;
 		}
 
-		this._proxy.$acceptDocumentAndEditorsDelta(delta);
+		return this._proxy.$acceptDocumentAndEditorsDelta(delta);
 	}
 
 	registerListeners() {
@@ -388,7 +423,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 
 	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, kernel: INotebookKernelInfoDto | undefined): Promise<void> {
-		let controller = new MainThreadNotebookController(this._proxy, this, viewType, supportBackup, kernel, this._notebookService);
+		let controller = new MainThreadNotebookController(this._proxy, this, viewType, supportBackup, kernel, this._notebookService, this._instantiationService);
 		this._notebookProviders.set(viewType, controller);
 		this._notebookService.registerNotebookController(viewType, extension, controller);
 		return;
@@ -453,19 +488,24 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return this._proxy.$executeNotebook(viewType, uri, undefined, useAttachedKernel, token);
 	}
 
-	async $postMessage(handle: number, value: any): Promise<boolean> {
-
-		const activeEditorPane = this.editorService.activeEditorPane as any | undefined;
-		if (activeEditorPane?.isNotebookEditor) {
-			const notebookEditor = (activeEditorPane.getControl() as INotebookEditor);
-
-			if (notebookEditor.viewModel?.handle === handle) {
-				notebookEditor.postMessage(value);
-				return true;
-			}
+	async $postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean> {
+		const editor = this._notebookService.getNotebookEditor(editorId) as INotebookEditor | undefined;
+		if (editor?.isNotebookEditor) {
+			editor.postMessage(forRendererId, value);
+			return true;
 		}
 
 		return false;
+	}
+
+	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void {
+		let controller = this._notebookProviders.get(viewType);
+		controller?.handleEdit(resource, editId, label);
+	}
+
+	$onContentChange(resource: UriComponents, viewType: string): void {
+		let controller = this._notebookProviders.get(viewType);
+		controller?.handleNotebookChange(resource);
 	}
 }
 
@@ -480,6 +520,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		private _supportBackup: boolean,
 		readonly kernel: INotebookKernelInfoDto | undefined,
 		readonly notebookService: INotebookService,
+		readonly _instantiationService: IInstantiationService
 
 	) {
 	}
@@ -499,12 +540,12 @@ export class MainThreadNotebookController implements IMainNotebookController {
 				await mainthreadNotebook.applyEdit(mainthreadNotebook.textModel.versionId, [
 					{ editType: CellEditType.Delete, count: mainthreadNotebook.textModel.cells.length, index: 0 },
 					{ editType: CellEditType.Insert, index: 0, cells: data.cells }
-				], true);
+				], true, false);
 			}
 			return mainthreadNotebook.textModel;
 		}
 
-		let document = new MainThreadNotebookDocument(this._proxy, MainThreadNotebookController.documentHandle++, viewType, this._supportBackup, uri, this.notebookService);
+		let document = this._instantiationService.createInstance(MainThreadNotebookDocument, this._proxy, MainThreadNotebookController.documentHandle++, viewType, this._supportBackup, uri);
 		this._mapping.set(document.uri.toString(), document);
 
 		if (backup) {
@@ -519,7 +560,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 					index: 0,
 					cells: backup.cells || []
 				}
-			], false);
+			], false, true);
 
 			// create document in ext host with cells data
 			await this._mainThreadNotebook.addNotebookDocument({
@@ -596,7 +637,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		let mainthreadNotebook = this._mapping.get(URI.from(resource).toString());
 
 		if (mainthreadNotebook) {
-			return await mainthreadNotebook.applyEdit(modelVersionId, edits, true);
+			return await mainthreadNotebook.applyEdit(modelVersionId, edits, true, true);
 		}
 
 		return false;
@@ -611,8 +652,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		return this._mainThreadNotebook.executeNotebook(viewType, uri, useAttachedKernel, token);
 	}
 
-	onDidReceiveMessage(editorId: string, message: any): void {
-		this._proxy.$onDidReceiveMessage(editorId, message);
+	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: unknown): void {
+		this._proxy.$onDidReceiveMessage(editorId, rendererType, message);
 	}
 
 	async removeNotebookDocument(notebook: INotebookTextModel): Promise<void> {
@@ -633,6 +674,11 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	handleNotebookChange(resource: UriComponents) {
 		let document = this._mapping.get(URI.from(resource).toString());
 		document?.textModel.handleUnknownChange();
+	}
+
+	handleEdit(resource: UriComponents, editId: number, label: string | undefined): void {
+		let document = this._mapping.get(URI.from(resource).toString());
+		document?.handleEdit(editId, label);
 	}
 
 	updateLanguages(resource: UriComponents, languages: string[]) {

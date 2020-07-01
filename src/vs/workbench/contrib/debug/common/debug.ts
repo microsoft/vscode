@@ -157,6 +157,7 @@ export interface IDebugSessionOptions {
 	parentSession?: IDebugSession;
 	repl?: IDebugSessionReplMode;
 	compoundRoot?: DebugCompoundRoot;
+	noCompact?: boolean;
 }
 
 export interface IDebugSession extends ITreeElement {
@@ -167,6 +168,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly root: IWorkspaceFolder | undefined;
 	readonly parentSession: IDebugSession | undefined;
 	readonly subId: string | undefined;
+	readonly noCompact: boolean;
 
 	setSubId(subId: string | undefined): void;
 

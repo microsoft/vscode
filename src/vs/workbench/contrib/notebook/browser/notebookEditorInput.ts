@@ -84,7 +84,13 @@ export class NotebookEditorInput extends EditorInput {
 
 	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (this._textModel) {
-			await this._textModel.object.save();
+
+			if (this.isUntitled()) {
+				return this.saveAs(group, options);
+			} else {
+				await this._textModel.object.save();
+			}
+
 			return this;
 		}
 
@@ -127,7 +133,7 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		if (this._textModel) {
+		if (this._textModel && this._textModel.object.isDirty()) {
 			await this._textModel.object.revert(options);
 		}
 

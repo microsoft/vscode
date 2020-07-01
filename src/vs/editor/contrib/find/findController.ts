@@ -255,7 +255,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		// overwritten in subclass
 	}
 
-	protected _start(opts: IFindStartOptions): void {
+	protected async _start(opts: IFindStartOptions): Promise<void> {
 		this.disposeModel();
 
 		if (!this._editor.hasModel()) {
@@ -279,7 +279,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		}
 
 		if (!stateChanges.searchString && opts.seedSearchStringFromGlobalClipboard) {
-			let selectionSearchString = this.getGlobalBufferTerm();
+			let selectionSearchString = await this.getGlobalBufferTerm();
 			if (selectionSearchString) {
 				stateChanges.searchString = selectionSearchString;
 			}
@@ -308,8 +308,8 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		}
 	}
 
-	public start(opts: IFindStartOptions): void {
-		this._start(opts);
+	public start(opts: IFindStartOptions): Promise<void> {
+		return this._start(opts);
 	}
 
 	public moveToNextMatch(): boolean {
@@ -353,24 +353,24 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		return false;
 	}
 
-	public getGlobalBufferTerm(): string {
+	public async getGlobalBufferTerm(): Promise<string> {
 		if (this._editor.getOption(EditorOption.find).globalFindClipboard
 			&& this._clipboardService
 			&& this._editor.hasModel()
 			&& !this._editor.getModel().isTooLargeForSyncing()
 		) {
-			return this._clipboardService.readFindTextSync();
+			return this._clipboardService.readFindText();
 		}
 		return '';
 	}
 
-	public setGlobalBufferTerm(text: string) {
+	public async setGlobalBufferTerm(text: string) {
 		if (this._editor.getOption(EditorOption.find).globalFindClipboard
 			&& this._clipboardService
 			&& this._editor.hasModel()
 			&& !this._editor.getModel().isTooLargeForSyncing()
 		) {
-			this._clipboardService.writeFindTextSync(text);
+			await this._clipboardService.writeFindText(text);
 		}
 	}
 }
@@ -396,7 +396,7 @@ export class FindController extends CommonFindController implements IFindControl
 		this._findOptionsWidget = null;
 	}
 
-	protected _start(opts: IFindStartOptions): void {
+	protected async _start(opts: IFindStartOptions): Promise<void> {
 		if (!this._widget) {
 			this._createFindWidget();
 		}
@@ -422,7 +422,7 @@ export class FindController extends CommonFindController implements IFindControl
 
 		opts.updateSearchScope = updateSearchScope;
 
-		super._start(opts);
+		await super._start(opts);
 
 		if (opts.shouldFocus === FindStartFocusAction.FocusReplaceInput) {
 			this._widget!.focusReplaceInput();
@@ -505,7 +505,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		let controller = CommonFindController.get(editor);
 		if (controller) {
 			controller.start({
@@ -518,7 +518,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 				loop: editor.getOption(EditorOption.find).loop
 			});
 
-			controller.setGlobalBufferTerm(controller.getState().searchString);
+			return controller.setGlobalBufferTerm(controller.getState().searchString);
 		}
 	}
 }

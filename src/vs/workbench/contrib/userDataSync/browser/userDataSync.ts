@@ -53,7 +53,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
 import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer } from 'vs/workbench/common/views';
 import { UserDataSyncViewPaneContainer, UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncViews';
-import { IUserDataSyncWorkbenchService, CONTEXT_ENABLE_VIEWS, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, CONTEXT_ENABLE_VIEWS, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, SHOW_SYNCED_DATA_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -75,10 +75,10 @@ const syncNowCommand = {
 	title: localize('sync now', "Preferences Sync: Sync Now"),
 	description(userDataSyncService: IUserDataSyncService): string | undefined {
 		if (userDataSyncService.status === SyncStatus.Syncing) {
-			return localize('sync is on with syncing', "syncing");
+			return localize('syncing', "syncing");
 		}
 		if (userDataSyncService.lastSyncTime) {
-			return localize('sync is on with time', "synced {0}", fromNow(userDataSyncService.lastSyncTime, true));
+			return localize('synced with time', "synced {0}", fromNow(userDataSyncService.lastSyncTime, true));
 		}
 		return undefined;
 	}
@@ -143,6 +143,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this._register(userDataSyncService.onDidChangeConflicts(() => this.onDidChangeConflicts(this.userDataSyncService.conflicts)));
 			this._register(userDataSyncService.onSyncErrors(errors => this.onSynchronizerErrors(errors)));
 			this._register(userDataAutoSyncService.onError(error => this.onAutoSyncError(error)));
+			this._register(userDataAutoSyncService.onTurnOnSync(() => this.turningOnSync = true));
+			this._register(userDataAutoSyncService.onDidTurnOnSync(() => this.turningOnSync = false));
 
 			this.registerActions();
 			this.registerViews();
@@ -176,7 +178,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				// close stale conflicts editor previews
 				if (conflictsEditorInputs.length) {
 					conflictsEditorInputs.forEach(input => {
-						if (!conflicts.some(({ local }) => isEqual(local, input.master.resource))) {
+						if (!conflicts.some(({ local }) => isEqual(local, input.primary.resource))) {
 							input.dispose();
 						}
 					});
@@ -338,7 +340,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			return;
 		}
 		const resource = source === SyncResource.Settings ? this.workbenchEnvironmentService.settingsResource : this.workbenchEnvironmentService.keybindingsResource;
-		if (isEqual(resource, toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }))) {
+		if (isEqual(resource, toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }))) {
 			// Do not show notification if the file in error is active
 			return;
 		}
@@ -402,7 +404,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async turnOn(): Promise<void> {
-		this.turningOnSync = true;
 		try {
 			if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
 				if (!await this.askForConfirmation()) {
@@ -438,8 +439,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				}
 			}
 			this.notificationService.error(localize('turn on failed', "Error while starting Sync: {0}", toErrorMessage(e)));
-		} finally {
-			this.turningOnSync = false;
 		}
 	}
 
@@ -570,9 +569,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			message: localize('turn off sync confirmation', "Do you want to turn off sync?"),
 			detail: localize('turn off sync detail', "Your settings, keybindings, extensions and UI State will no longer be synced."),
 			primaryButton: localize('turn off', "Turn Off"),
-			checkbox: {
+			checkbox: this.userDataSyncWorkbenchService.accountStatus === AccountStatus.Available ? {
 				label: localize('turn off sync everywhere', "Turn off sync on all your devices and clear the data from the cloud.")
-			}
+			} : undefined
 		});
 		if (result.confirmed) {
 			return this.userDataSyncWorkbenchService.turnoff(!!result.checkboxChecked);
@@ -591,14 +590,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private getConflictsEditorInputs(syncResource: SyncResource): DiffEditorInput[] {
 		return this.editorService.editors.filter(input => {
-			const resource = input instanceof DiffEditorInput ? input.master.resource : input.resource;
+			const resource = input instanceof DiffEditorInput ? input.primary.resource : input.resource;
 			return resource && getSyncResourceFromLocalPreview(resource!, this.workbenchEnvironmentService) === syncResource;
 		}) as DiffEditorInput[];
 	}
 
 	private getAllConflictsEditorInputs(): IEditorInput[] {
 		return this.editorService.editors.filter(input => {
-			const resource = input instanceof DiffEditorInput ? input.master.resource : input.resource;
+			const resource = input instanceof DiffEditorInput ? input.primary.resource : input.resource;
 			return resource && getSyncResourceFromLocalPreview(resource!, this.workbenchEnvironmentService) !== undefined;
 		});
 	}
@@ -887,6 +886,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						items.push({ type: 'separator' });
 					}
 					items.push({ id: configureSyncCommand.id, label: configureSyncCommand.title });
+					items.push({ id: showSyncSettingsCommand.id, label: showSyncSettingsCommand.title });
+					items.push({ id: SHOW_SYNCED_DATA_COMMAND_ID, label: localize('show synced data', "Preferences Sync: Show Synced Data") });
 					items.push({ type: 'separator' });
 					items.push({ id: syncNowCommand.id, label: syncNowCommand.title, description: syncNowCommand.description(that.userDataSyncService) });
 					if (that.userDataAutoSyncService.canToggleEnablement()) {

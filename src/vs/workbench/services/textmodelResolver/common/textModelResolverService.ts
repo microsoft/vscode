@@ -33,7 +33,11 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		super();
 	}
 
-	async createReferencedObject(key: string, skipActivateProvider?: boolean): Promise<ITextEditorModel> {
+	createReferencedObject(key: string): Promise<ITextEditorModel> {
+		return this.doCreateReferencedObject(key);
+	}
+
+	private async doCreateReferencedObject(key: string, skipActivateProvider?: boolean): Promise<ITextEditorModel> {
 
 		// Untrack as being disposed
 		this.modelsToDispose.delete(key);
@@ -70,7 +74,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		if (!skipActivateProvider) {
 			await this.fileService.activateProvider(resource.scheme);
 
-			return this.createReferencedObject(key, true);
+			return this.doCreateReferencedObject(key, true);
 		}
 
 		throw new Error(`Unable to resolve resource ${key}`);
@@ -179,6 +183,7 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
+
 		this._register(new ModelUndoRedoParticipant(this.modelService, this, this.undoRedoService));
 	}
 
