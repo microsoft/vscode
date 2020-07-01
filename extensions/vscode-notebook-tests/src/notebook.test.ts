@@ -812,10 +812,11 @@ suite('metadata', () => {
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.metadata.custom!['testCellMetadata'] as number, 123);
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
 
-		await vscode.commands.executeCommand('notebook.cell.copyDown');
-		const activeCell = vscode.notebook.activeNotebookEditor!.selection;
-		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
-		assert.equal(activeCell?.metadata.custom!['testCellMetadata'] as number, 123);
+		// TODO see #101462
+		// await vscode.commands.executeCommand('notebook.cell.copyDown');
+		// const activeCell = vscode.notebook.activeNotebookEditor!.selection;
+		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
+		// assert.equal(activeCell?.metadata.custom!['testCellMetadata'] as number, 123);
 
 		await vscode.commands.executeCommand('workbench.action.files.saveAll');
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
