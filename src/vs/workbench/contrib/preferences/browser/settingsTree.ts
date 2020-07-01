@@ -1845,6 +1845,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 		viewState: ISettingsEditorViewState,
 		renderers: ITreeRenderer<any, void, any>[],
 		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super('SettingsTree', container,
@@ -1870,7 +1871,8 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 					}
 				},
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
-				filter: instantiationService.createInstance(SettingsTreeFilter, viewState)
+				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
+				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 			});
 
 		this.disposables.clear();
@@ -1944,6 +1946,14 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			listInactiveFocusOutline: editorBackground
 		}, colors => {
 			this.style(colors);
+		}));
+
+		this.disposables.add(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.list.smoothScrolling')) {
+				this.updateOptions({
+					smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling')
+				});
+			}
 		}));
 	}
 
