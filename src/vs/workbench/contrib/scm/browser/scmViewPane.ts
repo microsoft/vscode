@@ -724,20 +724,20 @@ class SCMResourceIdentityProvider implements IIdentityProvider<TreeElement> {
 	getId(element: TreeElement): string {
 		if (ResourceTree.isResourceNode(element)) {
 			const group = element.context;
-			return `folder:${group.provider.contextValue}/${group.id}/$FOLDER/${element.uri.toString()}`;
+			return `folder:${group.provider.id}/${group.id}/$FOLDER/${element.uri.toString()}`;
 		} else if (isSCMRepository(element)) {
 			const provider = element.provider;
-			return `repo:${provider.contextValue}`;
+			return `repo:${provider.id}`;
 		} else if (isSCMInput(element)) {
 			const provider = element.repository.provider;
-			return `input:${provider.contextValue}`;
+			return `input:${provider.id}`;
 		} else if (isSCMResource(element)) {
 			const group = element.resourceGroup;
 			const provider = group.provider;
-			return `resource:${provider.contextValue}/${group.id}/${element.sourceUri.toString()}`;
+			return `resource:${provider.id}/${group.id}/${element.sourceUri.toString()}`;
 		} else {
 			const provider = element.provider;
-			return `group:${provider.contextValue}/${element.id}`;
+			return `group:${provider.id}/${element.id}`;
 		}
 	}
 }
