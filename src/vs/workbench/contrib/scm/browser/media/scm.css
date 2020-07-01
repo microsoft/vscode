@@ -47,18 +47,19 @@
 }
 
 .scm-view .scm-provider > .actions .monaco-action-bar .action-item {
-	margin-left: 4px;
-	text-overflow: ellipsis;
+	padding-left: 4px;
 	display: flex;
 	align-items: center;
-	min-width: 14px;
+	min-width: 16px;
 }
 
 .scm-view .scm-provider > .actions .monaco-action-bar .action-label {
-	text-overflow: ellipsis;
+	display: flex;
+	align-items: center;
 	overflow: hidden;
-	min-width: 14px; /* for flex */
+	min-width: 16px; /* for flex */
 	height: 100%;
+	margin: 0;
 }
 
 .scm-view .scm-provider > .actions .monaco-action-bar .action-label .codicon {
