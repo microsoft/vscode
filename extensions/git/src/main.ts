@@ -175,7 +175,7 @@ export async function activate(context: ExtensionContext): Promise<GitExtension>
 	return result;
 }
 
-async function checkGitVersion(info: IGit): Promise<void> {
+async function checkGitv1(info: IGit): Promise<void> {
 	const config = workspace.getConfiguration('git');
 	const shouldIgnore = config.get<boolean>('ignoreLegacyWarning') === true;
 
@@ -200,5 +200,29 @@ async function checkGitVersion(info: IGit): Promise<void> {
 		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
 	} else if (choice === neverShowAgain) {
 		await config.update('ignoreLegacyWarning', true, true);
+	}
+}
+
+async function checkGitWindows(info: IGit): Promise<void> {
+	if (!/^2\.(25|26)\./.test(info.version)) {
+		return;
+	}
+
+	const update = localize('updateGit', "Update Git");
+	const choice = await window.showWarningMessage(
+		localize('git2526', "There are known issues with the installed Git {0}. Please update to Git >= 2.27 for the git features to work correctly.", info.version),
+		update
+	);
+
+	if (choice === update) {
+		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+	}
+}
+
+async function checkGitVersion(info: IGit): Promise<void> {
+	await checkGitv1(info);
+
+	if (process.platform === 'win32') {
+		await checkGitWindows(info);
 	}
 }
