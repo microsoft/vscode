@@ -16,14 +16,14 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
 
-const unixPathPrefix = '(\\.\\.?|\\~|)';
-const unixPathSeparatorClause = '\\/';
+const pathPrefix = '(\\.\\.?|\\~|)';
+const pathSeparatorClause = '\\/';
 // '":; are allowed in paths but they are often separators so ignore them
 // Also disallow \\ to prevent a catastropic backtracking case #24798
-const unixExcludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;\\\\]';
-const unixPathPartClause = '(' + unixExcludedPathCharactersClause + ')+';
+const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;\\\\]';
+const pathPartClause = '(' + excludedPathCharactersClause + ')+';
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar, foo */
-export const unixLocalLinkClause = '(((' + unixPathPrefix + ')?' + unixPathSeparatorClause + ')?' + unixPathPartClause + '(' + unixPathSeparatorClause + unixPathPartClause + ')*(' + unixPathSeparatorClause + ')?)';
+export const unixLocalLinkClause = '(((' + pathPrefix + ')?' + pathSeparatorClause + ')?' + pathPartClause + '(' + pathSeparatorClause + pathPartClause + ')*(' + pathSeparatorClause + ')?)';
 
 export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
 const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
