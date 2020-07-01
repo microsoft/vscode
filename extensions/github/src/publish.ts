@@ -144,8 +144,6 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		}
 	}
 
-	return;
-
 	const githubRepository = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, cancellable: false, title: 'Publish to GitHub' }, async progress => {
 		progress.report({ message: 'Publishing to GitHub private repository', increment: 25 });
 
