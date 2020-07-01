@@ -1487,6 +1487,43 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 
 //#endregion
 
+//#region fontWeight
+
+class EditorFontWeight extends BaseEditorOption<EditorOption.fontWeight, string> {
+	private static ENUM_VALUES = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+	private static MINIMUM_VALUE = 1;
+	private static MAXIMUM_VALUE = 1000;
+
+	constructor() {
+		super(
+			EditorOption.fontWeight, 'fontWeight', EDITOR_FONT_DEFAULTS.fontWeight,
+			{
+				anyOf: [
+					{
+						type: 'number',
+						minimum: EditorFontWeight.MINIMUM_VALUE,
+						maximum: EditorFontWeight.MAXIMUM_VALUE
+					},
+					{
+						enum: EditorFontWeight.ENUM_VALUES
+					}
+				],
+				default: EDITOR_FONT_DEFAULTS.fontWeight,
+				description: nls.localize('fontWeight', "Controls the font weight.")
+			}
+		);
+	}
+
+	public validate(input: any): string {
+		if (typeof input === 'number') {
+			return EditorFontWeight.MINIMUM_VALUE <= input && input <= EditorFontWeight.MAXIMUM_VALUE ? String(input) : EDITOR_FONT_DEFAULTS.fontWeight;
+		}
+		return EditorStringEnumOption.stringSet<string>(input, EDITOR_FONT_DEFAULTS.fontWeight, EditorFontWeight.ENUM_VALUES);
+	}
+}
+
+//#endregion
+
 //#region gotoLocation
 
 export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';
@@ -1820,7 +1857,7 @@ export interface EditorLayoutInfoComputerEnv {
 	readonly memory: ComputeOptionsMemory | null;
 	readonly outerWidth: number;
 	readonly outerHeight: number;
-	readonly isDominatedByLongLines: boolean
+	readonly isDominatedByLongLines: boolean;
 	readonly lineHeight: number;
 	readonly viewLineCount: number;
 	readonly lineNumbersDigitCount: number;
@@ -1835,7 +1872,7 @@ export interface EditorLayoutInfoComputerEnv {
 export interface IEditorLayoutComputerInput {
 	readonly outerWidth: number;
 	readonly outerHeight: number;
-	readonly isDominatedByLongLines: boolean
+	readonly isDominatedByLongLines: boolean;
 	readonly lineHeight: number;
 	readonly lineNumbersDigitCount: number;
 	readonly typicalHalfwidthCharacterWidth: number;
@@ -3098,7 +3135,7 @@ export interface ISuggestOptions {
 		 * Controls the visibility of the status bar at the bottom of the suggest widget.
 		 */
 		visible?: boolean;
-	}
+	};
 }
 
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
@@ -3863,13 +3900,7 @@ export const EditorOptions = {
 	fontInfo: register(new EditorFontInfo()),
 	fontLigatures2: register(new EditorFontLigatures()),
 	fontSize: register(new EditorFontSize()),
-	fontWeight: register(new EditorStringOption(
-		EditorOption.fontWeight, 'fontWeight', EDITOR_FONT_DEFAULTS.fontWeight,
-		{
-			enum: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			description: nls.localize('fontWeight', "Controls the font weight.")
-		}
-	)),
+	fontWeight: register(new EditorFontWeight()),
 	formatOnPaste: register(new EditorBooleanOption(
 		EditorOption.formatOnPaste, 'formatOnPaste', false,
 		{ description: nls.localize('formatOnPaste', "Controls whether the editor should automatically format the pasted content. A formatter must be available and the formatter should be able to format a range in a document.") }
