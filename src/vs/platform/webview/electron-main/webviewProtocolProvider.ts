@@ -156,8 +156,7 @@ export class WebviewProtocolProvider extends Disposable {
 					rewriteUri = (uri) => {
 						if (metadata.remoteConnectionData) {
 							if (uri.scheme === Schemas.vscodeRemote || (metadata.extensionLocation?.scheme === REMOTE_HOST_SCHEME)) {
-								const scheme = metadata.remoteConnectionData.host === 'localhost' || metadata.remoteConnectionData.host === '127.0.0.1' ? 'http' : 'https';
-								return URI.parse(`${scheme}://${metadata.remoteConnectionData.host}:${metadata.remoteConnectionData.port}`).with({
+								return URI.parse(`http://${metadata.remoteConnectionData.host}:${metadata.remoteConnectionData.port}`).with({
 									path: '/vscode-remote-resource',
 									query: `tkn=${metadata.remoteConnectionData.connectionToken}&path=${encodeURIComponent(uri.path)}`,
 								});
