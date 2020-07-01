@@ -47,6 +47,10 @@ export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvide
 		}
 
 		const lineContent = getXtermLineContent(this._xterm.buffer.active, startLine, endLine, this._xterm.cols);
+		if (lineContent.trim().length === 0) {
+			return [];
+		}
+
 		const externalLinks = await this._externalLinkProvider.provideLinks(this._instance, lineContent);
 		if (!externalLinks) {
 			return [];
