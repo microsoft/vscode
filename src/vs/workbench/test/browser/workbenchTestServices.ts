@@ -989,10 +989,11 @@ export class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider i
 			try {
 				const data = await this.readFile(resource);
 
-				for (let i = 0; i < data.length; i++) {
-					const offset = BUFFER_SIZE * i;
+				let offset = 0;
+				while (offset <= data.length) {
 					await timeout(0);
 					await stream.write(data.subarray(offset, offset + BUFFER_SIZE));
+					offset += BUFFER_SIZE;
 				}
 
 				await timeout(0);
