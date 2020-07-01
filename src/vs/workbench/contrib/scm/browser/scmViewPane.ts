@@ -6,7 +6,7 @@
 import 'vs/css!./media/scm';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, addClass, toggleClass, removeClass, Dimension } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
@@ -59,7 +59,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import * as platform from 'vs/base/common/platform';
 import { escape, compare, format } from 'vs/base/common/strings';
-import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder, registerColor, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
@@ -174,7 +174,10 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
 		// hack
-		addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-twistie');
+		const row = container.parentElement!.parentElement!;
+		addClass(row.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-twistie');
+		addClass(row, 'scm-provider-row');
+		const rowDisposable = toDisposable(() => removeClass(row, 'scm-provider-row'));
 
 		const provider = append(container, $('.scm-provider'));
 		const label = append(provider, $('.label'));
@@ -188,7 +191,7 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => toggleClass(provider, 'active', e));
 
 		const disposable = Disposable.None;
-		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar, badgeStyler);
+		const templateDisposable = combinedDisposable(rowDisposable, visibilityDisposable, toolBar, badgeStyler);
 
 		return { name, description, countContainer, count, toolBar, disposable, templateDisposable };
 	}
@@ -985,7 +988,7 @@ class ViewModel {
 				children.push(...item.groupItems.map(i => this.render(i)));
 			}
 
-			return { element: item.element, children, incompressible: true, collapsible: true };
+			return { element: item.element, children, incompressible: true, collapsible: hasSomeChanges };
 		} else {
 			const children = this.mode === ViewModelMode.List
 				? Iterable.map(item.resources, element => ({ element, incompressible: true }))
@@ -1772,6 +1775,8 @@ export class SCMViewPane extends ViewPane {
 	}
 }
 
+export const scmProviderSeparatorBorderColor = registerColor('scm.providerBorder', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, localize('scm.providerBorder', "SCM Provider separator border."));
+
 registerThemingParticipant((theme, collector) => {
 	const inputBackgroundColor = theme.getColor(inputBackground);
 	if (inputBackgroundColor) {
@@ -1857,5 +1862,10 @@ registerThemingParticipant((theme, collector) => {
 	const repositoryStatusActionsBorderColor = theme.getColor(SIDE_BAR_BORDER);
 	if (repositoryStatusActionsBorderColor) {
 		collector.addRule(`.scm-view .scm-provider > .status > .monaco-action-bar > .actions-container { border-color: ${repositoryStatusActionsBorderColor}; }`);
+	}
+
+	const providerSeparatorBorderColor = theme.getColor(scmProviderSeparatorBorderColor);
+	if (providerSeparatorBorderColor) {
+		collector.addRule(`.scm-view .scm-provider-row:not([data-index="0"]) { border-top: 1px dashed ${providerSeparatorBorderColor}; }`);
 	}
 });
