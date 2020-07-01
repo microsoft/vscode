@@ -302,7 +302,6 @@ class TestEncodingOracle extends EncodingOracle {
 	protected set encodingOverrides(overrides: IEncodingOverride[]) { }
 }
 
-
 class TestEnvironmentServiceWithArgs extends BrowserWorkbenchEnvironmentService {
 	args = [];
 }
@@ -984,24 +983,24 @@ export class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider i
 
 	readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
 		const BUFFER_SIZE = 64 * 1024;
-
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
 
-		this.readFile(resource)
-			.then(data => {
+		(async () => {
+			try {
+				const data = await this.readFile(resource);
+
 				for (let i = 0; i < data.length; i++) {
 					const offset = BUFFER_SIZE * i;
-					setTimeout(() => {
-						stream.write(data.subarray(offset, offset + BUFFER_SIZE));
-					});
+					await timeout(0);
+					await stream.write(data.subarray(offset, offset + BUFFER_SIZE));
 				}
-				setTimeout(() => {
-					stream.end();
-				});
-			})
-			.catch(error => {
+
+				await timeout(0);
+				stream.end();
+			} catch (error) {
 				stream.end(error);
-			});
+			}
+		})();
 
 		return stream;
 	}

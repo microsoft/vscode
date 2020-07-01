@@ -17,7 +17,7 @@ import { join } from 'vs/base/common/path';
 import { UTF16le, detectEncodingByBOMFromBuffer, UTF8_with_bom, UTF16be, toCanonicalName } from 'vs/workbench/services/textfile/common/encoding';
 import { VSBuffer } from 'vs/base/common/buffer';
 import files from 'vs/workbench/services/textfile/test/browser/fixtures/files';
-import createSuite from 'vs/workbench/services/textfile/test/browser/createTextFileServiceIOSuite';
+import createSuite from 'vs/workbench/services/textfile/test/common/textFileService.io.test';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -73,7 +73,7 @@ if (isWeb) {
 			exists,
 			stat,
 			readFile,
-			detectEncodingByBOM,
+			detectEncodingByBOM
 		});
 
 		async function exists(fsPath: string): Promise<boolean> {

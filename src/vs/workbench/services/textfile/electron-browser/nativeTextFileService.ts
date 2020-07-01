@@ -58,7 +58,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
 
-		// ensure limits
+		// ensure size & memory limits
 		options = this.ensureLimits(options);
 
 		return super.read(resource, options);
@@ -66,7 +66,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 
-		// ensure limits
+		// ensure size & memory limits
 		options = this.ensureLimits(options);
 
 		return super.readStream(resource, options);

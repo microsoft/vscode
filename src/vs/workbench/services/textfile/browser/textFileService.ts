@@ -153,8 +153,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
-
 		const readable = await this.getEncodedReadable(resource, value, options);
+
 		return this.fileService.writeFile(resource, readable, options);
 	}
 

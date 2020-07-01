@@ -20,7 +20,7 @@ import { join } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { detectEncodingByBOM } from 'vs/workbench/services/textfile/test/node/encoding/encoding.test';
 import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import createSuite from 'vs/workbench/services/textfile/test/browser/createTextFileServiceIOSuite';
+import createSuite from 'vs/workbench/services/textfile/test/common/textFileService.io.test';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
@@ -79,6 +79,6 @@ suite('Files - NativeTextFileService i/o', function () {
 		exists,
 		stat,
 		readFile,
-		detectEncodingByBOM,
+		detectEncodingByBOM
 	});
 });

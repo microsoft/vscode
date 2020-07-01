@@ -240,7 +240,7 @@ async function guessEncodingByBuffer(buffer: VSBuffer): Promise<string | null> {
 	// before guessing jschardet calls toString('binary') on input if it is a Buffer,
 	// since we are using it inside browser environment as well we do conversion ourselves
 	// https://github.com/aadsm/jschardet/blob/v2.1.1/src/index.js#L36-L40
-	let binaryString = encodeLatin1(limitedBuffer.buffer);
+	const binaryString = encodeLatin1(limitedBuffer.buffer);
 
 	// override type since jschardet expects Buffer even though can accept string
 	// can be fixed once https://github.com/aadsm/jschardet/pull/58 is merged
@@ -271,11 +271,12 @@ function toIconvLiteEncoding(encodingName: string): string {
 	return mapped || normalizedEncodingName;
 }
 
-function encodeLatin1(uint8Array: Uint8Array): string {
+function encodeLatin1(buffer: Uint8Array): string {
 	let result = '';
-	for (let i = 0; i < uint8Array.length; i++) {
-		result += String.fromCharCode(uint8Array[i]);
+	for (let i = 0; i < buffer.length; i++) {
+		result += String.fromCharCode(buffer[i]);
 	}
+
 	return result;
 }
 
