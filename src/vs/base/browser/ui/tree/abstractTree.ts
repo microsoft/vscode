@@ -951,6 +951,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly filterOnType?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly expandOnlyOnDoubleClick?: boolean;
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
@@ -1094,7 +1095,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return super.onViewPointer(e);
 		}
 
-		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
+		const target = e.browserEvent.target as HTMLElement;
+		const onTwistie = hasClass(target, 'monaco-tl-twistie')
+			|| (hasClass(target, 'monaco-icon-label') && hasClass(target, 'folder-icon') && e.browserEvent.offsetX < 16);
+
 		let expandOnlyOnTwistieClick = false;
 
 		if (typeof this.tree.expandOnlyOnTwistieClick === 'function') {
@@ -1104,6 +1108,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		}
 
 		if (expandOnlyOnTwistieClick && !onTwistie) {
+			return super.onViewPointer(e);
+		}
+
+		if (this.tree.expandOnlyOnDoubleClick && e.browserEvent.detail !== 2 && !onTwistie) {
 			return super.onViewPointer(e);
 		}
 
@@ -1244,6 +1252,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get filterOnType(): boolean { return !!this._options.filterOnType; }
 	get onDidChangeTypeFilterPattern(): Event<string> { return this.typeFilterController ? this.typeFilterController.onDidChangePattern : Event.None; }
 
+	get expandOnlyOnDoubleClick(): boolean { return this._options.expandOnlyOnDoubleClick ?? false; }
 	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
 
 	private readonly _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();

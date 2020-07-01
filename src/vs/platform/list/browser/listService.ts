@@ -836,7 +836,8 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			horizontalScrolling,
 			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService),
 			additionalScrollHeight,
-			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements
+			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements,
+			expandOnlyOnDoubleClick: configurationService.getValue(openModeSettingKey) === 'doubleClick'
 		} as TOptions
 	};
 }
@@ -932,6 +933,9 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 				if (e.affectsConfiguration(horizontalScrollingKey) && options.horizontalScrolling === undefined) {
 					const horizontalScrolling = configurationService.getValue<boolean>(horizontalScrollingKey);
 					newOptions = { ...newOptions, horizontalScrolling };
+				}
+				if (e.affectsConfiguration(openModeSettingKey)) {
+					newOptions = { ...newOptions, expandOnlyOnDoubleClick: configurationService.getValue(openModeSettingKey) === 'doubleClick' };
 				}
 				if (Object.keys(newOptions).length > 0) {
 					tree.updateOptions(newOptions);
