@@ -133,7 +133,7 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		if (this._textModel) {
+		if (this._textModel && this._textModel.object.isDirty()) {
 			await this._textModel.object.revert(options);
 		}
 
