@@ -72,16 +72,16 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 					title: localize('status.feedback', "Tweet Feedback")
 				}
 			});
-
-			CommandsRegistry.registerCommand('help.hideTweetFeedback', () => this.hideFeedback());
-			MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-				command: {
-					id: 'help.hideTweetFeedback',
-					category: localize('help', "Help"),
-					title: localize('status.feedback', "Tweet Feedback")
-				}
-			});
 		}
+
+		CommandsRegistry.registerCommand('help.hideTweetFeedback', () => this.hideFeedback());
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: 'help.hideTweetFeedback',
+				category: localize('help', "Help"),
+				title: localize('status.feedback', "Tweet Feedback")
+			}
+		});
 	}
 
 	private toggleFeedback(): void {
@@ -110,7 +110,7 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 	}
 
 	private hideFeedback(): void {
-		if (this.dropdown) {
+		if (this.entry !== undefined && this.dropdown) {
 			if (this.dropdown.isVisible()) {
 				this.dropdown.hide();
 			}
