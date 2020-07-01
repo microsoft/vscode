@@ -151,6 +151,7 @@ interface ISCMLayout {
 
 interface RepositoryTemplate {
 	readonly name: HTMLElement;
+	readonly description: HTMLElement;
 	readonly countContainer: HTMLElement;
 	readonly count: CountBadge;
 	readonly toolBar: ToolBar;
@@ -178,6 +179,7 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const provider = append(container, $('.scm-provider'));
 		const label = append(provider, $('.label'));
 		const name = append(label, $('span.name'));
+		const description = append(label, $('span.description'));
 		const actions = append(provider, $('.actions'));
 		const toolBar = new ToolBar(actions, this.contextMenuService, { actionViewItemProvider: this.actionViewItemProvider });
 		const countContainer = append(provider, $('.count'));
@@ -188,7 +190,7 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const disposable = Disposable.None;
 		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar, badgeStyler);
 
-		return { name, countContainer, count, toolBar, disposable, templateDisposable };
+		return { name, description, countContainer, count, toolBar, disposable, templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
@@ -199,8 +201,10 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 
 		if (repository.provider.rootUri) {
 			templateData.name.textContent = basename(repository.provider.rootUri);
+			templateData.description.textContent = repository.provider.label;
 		} else {
 			templateData.name.textContent = repository.provider.label;
+			templateData.description.textContent = '';
 		}
 
 		let statusPrimaryActions: IAction[] = [];
