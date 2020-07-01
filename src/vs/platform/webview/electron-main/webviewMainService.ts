@@ -30,7 +30,7 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		this.portMappingProvider = this._register(new WebviewPortMappingProvider(tunnelService));
 	}
 
-	public async registerWebview(id: string, webContentsId: number, metadata: RegisterWebviewMetadata): Promise<void> {
+	public async registerWebview(id: string, webContentsId: number | undefined, metadata: RegisterWebviewMetadata): Promise<void> {
 		const extensionLocation = metadata.extensionLocation ? URI.from(metadata.extensionLocation) : undefined;
 
 		this.protocolProvider.registerWebview(id, {

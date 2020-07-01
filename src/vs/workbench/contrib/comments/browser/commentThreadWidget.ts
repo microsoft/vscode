@@ -739,6 +739,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	_refresh() {
 		if (this._isExpanded && this._bodyElement) {
 			let dimensions = dom.getClientArea(this._bodyElement);
+
+			this._commentElements.forEach(element => {
+				element.layout();
+			});
+
 			const headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
 			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 			const arrowHeight = Math.round(lineHeight / 3);

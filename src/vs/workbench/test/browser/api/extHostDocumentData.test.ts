@@ -303,7 +303,7 @@ suite('ExtHostDocumentData', () => {
 		const regex = /(https?:\/\/github\.com\/(([^\s]+)\/([^\s]+))\/([^\s]+\/)?(issues|pull)\/([0-9]+))|(([^\s]+)\/([^\s]+))?#([1-9][0-9]*)($|[\s\:\;\-\(\=])/;
 
 		data = new ExtHostDocumentData(undefined!, URI.file(''), [
-			perfData.line
+			perfData._$_$_expensive
 		], '\n', 'text', 1, false);
 
 		let range = data.document.getWordRangeAtPosition(new Position(0, 1_177_170), regex)!;

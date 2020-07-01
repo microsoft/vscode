@@ -10,7 +10,6 @@ import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { ICellRange, ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -24,6 +23,16 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
 import { NotImplementedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -32,9 +41,10 @@ export class TestCell extends NotebookCellTextModel {
 		public source: string[],
 		language: string,
 		cellKind: CellKind,
-		outputs: IProcessedOutput[]
+		outputs: IProcessedOutput[],
+		modelService: ITextModelService
 	) {
-		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined);
+		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined, modelService);
 	}
 }
 
@@ -51,6 +61,9 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+
+	uri?: URI | undefined;
+	textModel?: NotebookTextModel | undefined;
 
 	hasModel(): boolean {
 		return true;
@@ -110,7 +123,19 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	isNotebookEditor = true;
 
-	postMessage(message: any): void {
+	postMessage(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	toggleClassName(className: string): void {
+		throw new Error('Method not implemented.');
+	}
+
+	addClassName(className: string): void {
+		throw new Error('Method not implemented.');
+	}
+
+	removeClassName(className: string): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -122,15 +147,15 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	moveCellDown(cell: CellViewModel): Promise<boolean> {
+	moveCellDown(cell: CellViewModel): Promise<ICellViewModel | null> {
 		throw new Error('Method not implemented.');
 	}
 
-	moveCellUp(cell: CellViewModel): Promise<boolean> {
+	moveCellUp(cell: CellViewModel): Promise<ICellViewModel | null> {
 		throw new Error('Method not implemented.');
 	}
 
-	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<boolean> {
+	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<ICellViewModel | null> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -202,8 +227,8 @@ export class TestNotebookEditor implements INotebookEditor {
 		// throw new Error('Method not implemented.');
 		return;
 	}
-	createInset(cell: CellViewModel, output: IProcessedOutput, shadowContent: string, offset: number): void {
-		// throw new Error('Method not implemented.');
+	createInset(cell: CellViewModel, output: IProcessedOutput, shadowContent: string, offset: number): Promise<void> {
+		return Promise.resolve();
 	}
 	removeInset(output: IProcessedOutput): void {
 		// throw new Error('Method not implemented.');
@@ -220,7 +245,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
 		throw new Error('Method not implemented.');
 	}
 
@@ -302,12 +327,26 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	}
 }
 
-export function withTestNotebook(instantiationService: IInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IProcessedOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
+export function setupInstantiationService() {
+	const instantiationService = new TestInstantiationService();
+
+	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
+	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(IThemeService, new TestThemeService());
+	instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
+	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+
+	return instantiationService;
+}
+
+export function withTestNotebook(instantiationService: TestInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IProcessedOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
+	const textModelService = instantiationService.get(ITextModelService);
+
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
-	const notebook = new NotebookTextModel(0, viewType, false, URI.parse('test'));
+	const notebook = new NotebookTextModel(0, viewType, false, URI.parse('test'), undoRedoService, textModelService);
 	notebook.cells = cells.map((cell, index) => {
-		return new NotebookCellTextModel(notebook.uri, index, cell[0], cell[1], cell[2], cell[3], cell[4]);
+		return new NotebookCellTextModel(notebook.uri, index, cell[0], cell[1], cell[2], cell[3], cell[4], textModelService);
 	});
 	const model = new NotebookEditorTestModel(notebook);
 	const eventDispatcher = new NotebookEventDispatcher();

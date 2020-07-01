@@ -327,7 +327,7 @@ export class CodeCell extends Disposable {
 
 			if (pickedMimeTypeRenderer.isResolved) {
 				// html
-				result = this.notebookEditor.getOutputRenderer().render({ outputKind: CellOutputKind.Rich, data: { 'text/html': pickedMimeTypeRenderer.output! } } as any, innerContainer, 'text/html');
+				result = this.notebookEditor.getOutputRenderer().render({ outputId: currOutput.outputId, outputKind: CellOutputKind.Rich, data: { 'text/html': pickedMimeTypeRenderer.output! } }, innerContainer, 'text/html');
 			} else {
 				result = this.notebookEditor.getOutputRenderer().render(currOutput, innerContainer, pickedMimeTypeRenderer.mimeType);
 			}
@@ -364,6 +364,8 @@ export class CodeCell extends Disposable {
 		let hasDynamicHeight = result.hasDynamicHeight;
 
 		if (hasDynamicHeight) {
+			this.viewCell.selfSizeMonitoring = true;
+
 			let clientHeight = outputItemDiv.clientHeight;
 			let dimension = {
 				width: this.viewCell.layoutInfo.editorWidth,
@@ -482,14 +484,17 @@ export class CodeCell extends Disposable {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
-	private _timer: any = null;
+	private _timer: number | null = null;
 
 	relayoutCellDebounced() {
-		clearTimeout(this._timer);
+		if (this._timer !== null) {
+			clearTimeout(this._timer);
+		}
+
 		this._timer = setTimeout(() => {
 			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 			this._timer = null;
-		}, 200);
+		}, 200) as unknown as number | null;
 	}
 
 	dispose() {

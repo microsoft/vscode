@@ -135,7 +135,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHosLabelService, new ExtHostLabelService(rpcProtocol));
-	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, initData.environment, extensionStoragePaths));
+	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, initData.uiKind === UIKind.Web ? new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, initData.environment) : new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, initData.environment, extensionStoragePaths));
 	const extHostTheming = rpcProtocol.set(ExtHostContext.ExtHostTheming, new ExtHostTheming(rpcProtocol));
 	const extHostAuthentication = rpcProtocol.set(ExtHostContext.ExtHostAuthentication, new ExtHostAuthentication(rpcProtocol));
 	const extHostTimeline = rpcProtocol.set(ExtHostContext.ExtHostTimeline, new ExtHostTimeline(rpcProtocol, extHostCommands));
@@ -205,12 +205,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			getSession(providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions) {
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
-			},
-			getSessions(providerId: string, scopes: string[]): Thenable<readonly vscode.AuthenticationSession[]> {
-				return extHostAuthentication.getSessions(extension, providerId, scopes);
-			},
-			login(providerId: string, scopes: string[]): Thenable<vscode.AuthenticationSession> {
-				return extHostAuthentication.login(extension, providerId, scopes);
 			},
 			logout(providerId: string, sessionId: string): Thenable<void> {
 				return extHostAuthentication.logout(providerId, sessionId);
@@ -586,6 +580,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerTerminalLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable {
 				checkProposedApiEnabled(extension);
 				return extHostTerminalService.registerLinkHandler(handler);
+			},
+			registerTerminalLinkProvider(handler: vscode.TerminalLinkProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension);
+				return extHostTerminalService.registerLinkProvider(handler);
 			},
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, extension);
@@ -1098,7 +1096,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CellKind: extHostTypes.CellKind,
 			CellOutputKind: extHostTypes.CellOutputKind,
 			NotebookCellRunState: extHostTypes.NotebookCellRunState,
-			AuthenticationSession2: extHostTypes.AuthenticationSession
+			AuthenticationSession: extHostTypes.AuthenticationSession
 		};
 	};
 }

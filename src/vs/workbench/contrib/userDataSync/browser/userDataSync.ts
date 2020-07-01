@@ -53,7 +53,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
 import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer } from 'vs/workbench/common/views';
 import { UserDataSyncViewPaneContainer, UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncViews';
-import { IUserDataSyncWorkbenchService, CONTEXT_ENABLE_VIEWS, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, CONTEXT_ENABLE_VIEWS, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, SHOW_SYNCED_DATA_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -569,9 +569,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			message: localize('turn off sync confirmation', "Do you want to turn off sync?"),
 			detail: localize('turn off sync detail', "Your settings, keybindings, extensions and UI State will no longer be synced."),
 			primaryButton: localize('turn off', "Turn Off"),
-			checkbox: {
+			checkbox: this.userDataSyncWorkbenchService.accountStatus === AccountStatus.Available ? {
 				label: localize('turn off sync everywhere', "Turn off sync on all your devices and clear the data from the cloud.")
-			}
+			} : undefined
 		});
 		if (result.confirmed) {
 			return this.userDataSyncWorkbenchService.turnoff(!!result.checkboxChecked);
@@ -886,6 +886,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						items.push({ type: 'separator' });
 					}
 					items.push({ id: configureSyncCommand.id, label: configureSyncCommand.title });
+					items.push({ id: showSyncSettingsCommand.id, label: showSyncSettingsCommand.title });
+					items.push({ id: SHOW_SYNCED_DATA_COMMAND_ID, label: localize('show synced data', "Preferences Sync: Show Synced Data") });
 					items.push({ type: 'separator' });
 					items.push({ id: syncNowCommand.id, label: syncNowCommand.title, description: syncNowCommand.description(that.userDataSyncService) });
 					if (that.userDataAutoSyncService.canToggleEnablement()) {

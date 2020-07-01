@@ -7,11 +7,10 @@
 
 'use strict';
 
-const withDefaults = require('../shared.webpack.config');
+const withBrowserDefaults = require('../shared.webpack.config').browser;
 const path = require('path');
 
-const clientConfig = withDefaults({
-	target: 'webworker',
+module.exports = withBrowserDefaults({
 	context: path.join(__dirname, 'client'),
 	entry: {
 		extension: './src/browser/cssClientMain.ts'
@@ -19,16 +18,5 @@ const clientConfig = withDefaults({
 	output: {
 		filename: 'cssClientMain.js',
 		path: path.join(__dirname, 'client', 'dist', 'browser')
-	},
-	performance: {
-		hints: false
-	},
-	resolve: {
-		alias: {
-			'vscode-nls': path.resolve(__dirname, '../../build/polyfills/vscode-nls.js')
-		}
 	}
 });
-clientConfig.module.rules[0].use.shift(); // remove nls loader
-
-module.exports = clientConfig;

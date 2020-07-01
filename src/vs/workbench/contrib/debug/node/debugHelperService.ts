@@ -47,4 +47,4 @@ export class NodeDebugHelperService implements IDebugHelperService {
 	}
 }
 
-registerSingleton(IDebugHelperService, NodeDebugHelperService);
+registerSingleton(IDebugHelperService, NodeDebugHelperService, true);

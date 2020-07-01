@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto, ITerminalLinkDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -39,6 +39,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 	getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
 	getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string;
 	registerLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable;
+	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
 }
 
@@ -293,6 +294,13 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	}
 }
 
+let nextLinkId = 1;
+
+interface ICachedLinkEntry {
+	provider: vscode.TerminalLinkProvider;
+	link: vscode.TerminalLink;
+}
+
 export abstract class BaseExtHostTerminalService implements IExtHostTerminalService, ExtHostTerminalServiceShape {
 
 	readonly _serviceBrand: undefined;
@@ -307,6 +315,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkHandlers: Set<vscode.TerminalLinkHandler> = new Set();
+	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
+	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
 
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
@@ -547,13 +557,26 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 	public registerLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable {
 		this._linkHandlers.add(handler);
-		if (this._linkHandlers.size === 1) {
+		if (this._linkHandlers.size === 1 && this._linkProviders.size === 0) {
 			this._proxy.$startHandlingLinks();
 		}
 		return new VSCodeDisposable(() => {
 			this._linkHandlers.delete(handler);
-			if (this._linkHandlers.size === 0) {
+			if (this._linkHandlers.size === 0 && this._linkProviders.size === 0) {
 				this._proxy.$stopHandlingLinks();
+			}
+		});
+	}
+
+	public registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable {
+		this._linkProviders.add(provider);
+		if (this._linkProviders.size === 1) {
+			this._proxy.$startLinkProvider();
+		}
+		return new VSCodeDisposable(() => {
+			this._linkProviders.delete(provider);
+			if (this._linkProviders.size === 0) {
+				this._proxy.$stopLinkProvider();
 			}
 		});
 	}
@@ -575,6 +598,60 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			next = it.next();
 		}
 		return false;
+	}
+
+	public async $provideLinks(terminalId: number, line: string): Promise<ITerminalLinkDto[]> {
+		const terminal = this._getTerminalById(terminalId);
+		if (!terminal) {
+			return [];
+		}
+
+		// Discard any cached links the terminal has been holding, currently all links are released
+		// when new links are provided.
+		this._terminalLinkCache.delete(terminalId);
+
+		const result: ITerminalLinkDto[] = [];
+		const context: vscode.TerminalLinkContext = { terminal, line };
+		const promises: vscode.ProviderResult<{ provider: vscode.TerminalLinkProvider, links: vscode.TerminalLink[] }>[] = [];
+		for (const provider of this._linkProviders) {
+			promises.push(new Promise(async r => {
+				const links = (await provider.provideTerminalLinks(context)) || [];
+				r({ provider, links });
+			}));
+		}
+
+		const provideResults = await Promise.all(promises);
+		const cacheLinkMap = new Map<number, ICachedLinkEntry>();
+		for (const provideResult of provideResults) {
+			if (provideResult && provideResult.links.length > 0) {
+				result.push(...provideResult.links.map(providerLink => {
+					const endIndex = Math.max(providerLink.endIndex, providerLink.startIndex + 1);
+					const link = {
+						id: nextLinkId++,
+						startIndex: providerLink.startIndex,
+						length: endIndex - providerLink.startIndex,
+						label: providerLink.tooltip
+					};
+					cacheLinkMap.set(link.id, {
+						provider: provideResult.provider,
+						link: providerLink
+					});
+					return link;
+				}));
+			}
+		}
+
+		this._terminalLinkCache.set(terminalId, cacheLinkMap);
+
+		return result;
+	}
+
+	$activateLink(terminalId: number, linkId: number): void {
+		const cachedLink = this._terminalLinkCache.get(terminalId)?.get(linkId);
+		if (!cachedLink) {
+			return;
+		}
+		cachedLink.provider.handleTerminalLink(cachedLink.link);
 	}
 
 	private _onProcessExit(id: number, exitCode: number | undefined): void {

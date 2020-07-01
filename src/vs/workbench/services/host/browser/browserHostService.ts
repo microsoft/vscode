@@ -283,7 +283,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.workspaceProvider.open(undefined, { reuse: options?.forceReuseWindow });
+		return this.workspaceProvider.open(undefined, { reuse: options?.forceReuseWindow });
 	}
 
 	async toggleFullScreen(): Promise<void> {

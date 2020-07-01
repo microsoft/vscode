@@ -1836,7 +1836,7 @@ export class ToggleEditorTypeAction extends Action {
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
 
-		const overrides = getAllAvailableEditors(input.resource, options, group, this.editorService);
+		const overrides = getAllAvailableEditors(input.resource, undefined, options, group, this.editorService);
 		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
 		if (!firstNonActiveOverride) {
 			return;

@@ -10,7 +10,7 @@ import { GLOBAL_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIIVTY_ID } from 'vs/workbenc
 import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActionViewItem, HomeAction, HomeActionViewItem, DeprecatedHomeAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction, ToggleMenuBarAction } from 'vs/workbench/browser/actions/layoutActions';
@@ -18,7 +18,7 @@ import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeServic
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
-import { Dimension, addClass, removeNode, createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
+import { Dimension, addClass, removeNode, createCSSRule, asCSSUrl, toggleClass } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -458,14 +458,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		container.style.backgroundColor = background;
 
 		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder) || '';
-		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : '';
-		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : '';
-		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : '';
-		container.style.borderRightColor = isPositionLeft ? borderColor : '';
-		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '';
-		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
-		container.style.borderLeftColor = !isPositionLeft ? borderColor : '';
+		toggleClass(container, 'bordered', !!borderColor);
+		container.style.borderColor = borderColor ? borderColor : '';
 	}
 
 	private getActivitybarItemColors(theme: IColorTheme): ICompositeBarColors {

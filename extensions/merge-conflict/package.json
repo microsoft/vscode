@@ -17,7 +17,7 @@
     "*"
   ],
   "main": "./out/mergeConflictMain",
-  "browser": "./dist/mergeConflictMain",
+  "browser": "./dist/browser/mergeConflictMain",
   "scripts": {
     "compile": "gulp compile-extension:merge-conflict",
     "watch": "gulp watch-extension:merge-conflict"

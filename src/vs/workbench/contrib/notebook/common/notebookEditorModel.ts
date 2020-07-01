@@ -148,6 +148,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 		const notebook = await this._notebookService.createNotebookFromBackup(this.viewType!, this.resource, data.metadata, data.languages, data.cells, editorId);
 		this._notebook = notebook!;
+		this._register(this._notebook);
 
 		this._name = basename(this._notebook!.uri);
 
@@ -167,6 +168,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	private async loadFromProvider(forceReloadFromDisk: boolean, editorId: string | undefined, backupId: string | undefined) {
 		const notebook = await this._notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, editorId, backupId);
 		this._notebook = notebook!;
+		this._register(this._notebook);
 
 		this._name = basename(this._notebook!.uri);
 
@@ -209,5 +211,9 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		await this._notebookService.saveAs(this.notebook.viewType, this.notebook.uri, targetResource, tokenSource.token);
 		this._notebook.setDirty(false);
 		return true;
+	}
+
+	dispose() {
+		super.dispose();
 	}
 }

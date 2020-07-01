@@ -7,9 +7,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -69,8 +68,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
-		readonly eventDispatcher: NotebookEventDispatcher,
-		@ITextModelService private readonly _modelService: ITextModelService,
+		readonly eventDispatcher: NotebookEventDispatcher
 	) {
 		super(viewType, model, UUID.generateUuid());
 		this._register(this.model.onDidChangeOutputs((splices) => {
@@ -94,14 +92,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	private computeEditorWidth(outerWidth: number): number {
-		return outerWidth - (CELL_MARGIN * 2 + CELL_RUN_GUTTER);
+		return outerWidth - (CODE_CELL_LEFT_MARGIN + CELL_MARGIN + CELL_RUN_GUTTER);
 	}
 
 	layoutChange(state: CodeCellLayoutChangeEvent) {
 		// recompute
 		this._ensureOutputsTop();
 		const outputTotalHeight = this._outputsTop!.getTotalValue();
-		const totalHeight = EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_MARGIN + outputTotalHeight + BOTTOM_CELL_TOOLBAR_HEIGHT + CELL_STATUSBAR_HEIGHT;
+		const totalHeight = EDITOR_TOOLBAR_HEIGHT + this.editorHeight + EDITOR_TOP_MARGIN + outputTotalHeight + BOTTOM_CELL_TOOLBAR_HEIGHT + CELL_STATUSBAR_HEIGHT + CELL_BOTTOM_MARGIN;
 		const indicatorHeight = this.editorHeight + CELL_STATUSBAR_HEIGHT + outputTotalHeight;
 		const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN + this.editorHeight + CELL_STATUSBAR_HEIGHT;
 		const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT;
@@ -173,17 +171,17 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	 * Text model is used for editing.
 	 */
 	async resolveTextModel(): Promise<model.ITextModel> {
-		if (!this._textModel) {
-			const ref = await this._modelService.createModelReference(this.model.uri);
-			this._textModel = ref.object.textEditorModel;
+		if (!this.textModel) {
+			const ref = await this.model.resolveTextModelRef();
+			this.textModel = ref.object.textEditorModel;
 			this._register(ref);
-			this._register(this._textModel.onDidChangeContent(() => {
+			this._register(this.textModel.onDidChangeContent(() => {
 				this.editState = CellEditState.Editing;
 				this._onDidChangeState.fire({ contentChanged: true });
 			}));
 		}
 
-		return this._textModel;
+		return this.textModel;
 	}
 
 	onDeselect() {
@@ -256,5 +254,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			cell: this,
 			matches
 		};
+	}
+
+	dispose() {
+		super.dispose();
 	}
 }

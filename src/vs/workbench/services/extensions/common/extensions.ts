@@ -24,6 +24,8 @@ export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	isBuiltin: false,
 });
 
+export const webWorkerExtHostConfig = 'extensions.webWorker';
+
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
 
 export interface IMessage {

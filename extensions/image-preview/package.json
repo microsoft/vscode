@@ -16,7 +16,7 @@
     "vscode": "^1.39.0"
   },
   "main": "./out/extension",
-  "browser": "./dist/extension.js",
+  "browser": "./dist/browser/extension.js",
   "categories": [
     "Other"
   ],

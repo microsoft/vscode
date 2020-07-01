@@ -169,7 +169,7 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		try {
 
 			// Remove machine
-			if (!donotRemoveMachine) {
+			if (this.userDataSyncAccountService.account && !donotRemoveMachine) {
 				await this.userDataSyncMachinesService.removeCurrentMachine();
 			}
 

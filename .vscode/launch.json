@@ -26,6 +26,7 @@
 			"type": "pwa-chrome",
 			"request": "attach",
 			"name": "Attach to Shared Process",
+			"timeout": 30000,
 			"port": 9222,
 			"urlFilter": "*sharedProcess.html*",
 			"presentation": {
@@ -57,6 +58,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Main Process",
+			"timeout": 30000,
 			"port": 5875,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"

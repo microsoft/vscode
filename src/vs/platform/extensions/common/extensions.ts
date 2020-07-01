@@ -142,6 +142,9 @@ export interface IExtensionIdentifier {
 	uuid?: string;
 }
 
+export const EXTENSION_CATEGORIES = ['Programming Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs',
+	'SCM Providers', 'Azure', 'Language Packs', 'Data Science', 'Machine Learning', 'Visualization', 'Testing', 'Notebooks'];
+
 export interface IExtensionManifest {
 	readonly name: string;
 	readonly displayName?: string;
@@ -249,6 +252,7 @@ export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 }
 
 export interface IScannedExtension {
+	readonly identifier: IExtensionIdentifier;
 	readonly location: URI;
 	readonly type: ExtensionType;
 	readonly packageJSON: IExtensionManifest

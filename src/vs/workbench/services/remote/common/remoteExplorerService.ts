@@ -13,6 +13,7 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TunnelInformation, TunnelDescription, IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -141,12 +142,11 @@ export class TunnelModel extends Disposable {
 		const key = MakeAddress(remote.host, remote.port);
 		if (!this.forwarded.has(key)) {
 			const authority = this.environmentService.configuration.remoteAuthority;
-			const resolvedRemote = authority ? await this.remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
-			if (!resolvedRemote) {
-				return;
-			}
+			const addressProvider: IAddressProvider | undefined = authority ? {
+				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
+			} : undefined;
 
-			const tunnel = await this.tunnelService.openTunnel(resolvedRemote.authority, remote.host, remote.port, local);
+			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local);
 			if (tunnel && tunnel.localAddress) {
 				const newForward: Tunnel = {
 					remoteHost: tunnel.tunnelRemoteHost,

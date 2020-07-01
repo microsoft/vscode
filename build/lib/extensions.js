@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.packageMarketplaceWebExtensionsStream = exports.packageMarketplaceExtensionsStream = exports.packageLocalWebExtensionsStream = exports.packageLocalExtensionsStream = exports.fromMarketplace = void 0;
+exports.translatePackageJSON = exports.scanBuiltinExtensions = exports.packageMarketplaceWebExtensionsStream = exports.packageMarketplaceExtensionsStream = exports.packageLocalWebExtensionsStream = exports.packageLocalExtensionsStream = exports.fromMarketplace = void 0;
 const es = require("event-stream");
 const fs = require("fs");
 const glob = require("glob");
@@ -261,3 +261,59 @@ function packageMarketplaceWebExtensionsStream(builtInExtensions) {
     return es.merge(extensions);
 }
 exports.packageMarketplaceWebExtensionsStream = packageMarketplaceWebExtensionsStream;
+function scanBuiltinExtensions(extensionsRoot, forWeb) {
+    const scannedExtensions = [];
+    const extensionsFolders = fs.readdirSync(extensionsRoot);
+    for (const extensionFolder of extensionsFolders) {
+        const packageJSONPath = path.join(extensionsRoot, extensionFolder, 'package.json');
+        if (!fs.existsSync(packageJSONPath)) {
+            continue;
+        }
+        let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
+        const extensionKind = packageJSON['extensionKind'] || [];
+        if (forWeb && extensionKind.indexOf('web') === -1) {
+            continue;
+        }
+        const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
+        const packageNLS = children.filter(child => child === 'package.nls.json')[0];
+        const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+        const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+        if (packageNLS) {
+            // temporary
+            packageJSON = translatePackageJSON(packageJSON, path.join(extensionsRoot, extensionFolder, packageNLS));
+        }
+        scannedExtensions.push({
+            extensionPath: extensionFolder,
+            packageJSON,
+            packageNLSPath: packageNLS ? path.join(extensionFolder, packageNLS) : undefined,
+            readmePath: readme ? path.join(extensionFolder, readme) : undefined,
+            changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
+        });
+    }
+    return scannedExtensions;
+}
+exports.scanBuiltinExtensions = scanBuiltinExtensions;
+function translatePackageJSON(packageJSON, packageNLSPath) {
+    const CharCode_PC = '%'.charCodeAt(0);
+    const packageNls = JSON.parse(fs.readFileSync(packageNLSPath).toString());
+    const translate = (obj) => {
+        for (let key in obj) {
+            const val = obj[key];
+            if (Array.isArray(val)) {
+                val.forEach(translate);
+            }
+            else if (val && typeof val === 'object') {
+                translate(val);
+            }
+            else if (typeof val === 'string' && val.charCodeAt(0) === CharCode_PC && val.charCodeAt(val.length - 1) === CharCode_PC) {
+                const translated = packageNls[val.substr(1, val.length - 2)];
+                if (translated) {
+                    obj[key] = translated;
+                }
+            }
+        }
+    };
+    translate(packageJSON);
+    return packageJSON;
+}
+exports.translatePackageJSON = translatePackageJSON;

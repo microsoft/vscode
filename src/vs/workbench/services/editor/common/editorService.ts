@@ -36,7 +36,7 @@ export interface IOpenEditorOverrideEntry {
 
 export interface IOpenEditorOverrideHandler {
 	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorContext): IOpenEditorOverride | undefined;
-	getEditorOverrides?(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[];
+	getEditorOverrides?(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined, id: string | undefined): IOpenEditorOverrideEntry[];
 }
 
 export interface IOpenEditorOverride {
@@ -236,7 +236,7 @@ export interface IEditorService {
 	/**
 	 * Get all available editor overrides for the editor input.
 	 */
-	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][];
+	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined, id: string | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][];
 
 	/**
 	 * Allows to override the opening of editors by installing a handler that will

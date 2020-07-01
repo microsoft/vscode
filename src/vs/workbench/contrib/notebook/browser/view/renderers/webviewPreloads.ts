@@ -11,17 +11,17 @@ import { ToWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/ren
 // function. Imports are not allowed. This is stringifies and injected into
 // the webview.
 
-declare const acquireVsCodeApi: () => ({ getState(): { [key: string]: unknown }, setState(data: { [key: string]: unknown }): void, postMessage: (msg: unknown) => void });
+declare const acquireVsCodeApi: () => ({ getState(): { [key: string]: unknown; }, setState(data: { [key: string]: unknown; }): void, postMessage: (msg: unknown) => void; });
 
 declare class ResizeObserver {
-	constructor(onChange: (entries: { target: HTMLElement, contentRect?: ClientRect }[]) => void);
+	constructor(onChange: (entries: { target: HTMLElement, contentRect?: ClientRect; }[]) => void);
 	observe(element: Element): void;
 	disconnect(): void;
 }
 
 declare const __outputNodePadding__: number;
 
-type Listener<T> = { fn: (evt: T) => void; thisArg: unknown };
+type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
 interface EmitterLike<T> {
 	fire(data: T): void;
@@ -262,6 +262,7 @@ function webviewPreloads() {
 
 	const onWillDestroyOutput = createEmitter<[string | undefined /* namespace */, IDestroyCellInfo | undefined /* cell uri */]>();
 	const onDidCreateOutput = createEmitter<[string | undefined /* namespace */, ICreateCellInfo]>();
+	const onDidReceiveMessage = createEmitter<[string, unknown]>();
 
 	const matchesNs = (namespace: string, query: string | undefined) => namespace === '*' || query === namespace || query === 'undefined';
 
@@ -271,7 +272,14 @@ function webviewPreloads() {
 		}
 
 		return {
-			postMessage: vscode.postMessage,
+			postMessage(message: unknown) {
+				vscode.postMessage({
+					__vscode_notebook_message: true,
+					type: 'customRendererMessage',
+					rendererId: namespace,
+					message,
+				});
+			},
 			setState(newState: T) {
 				vscode.setState({ ...vscode.getState(), [namespace]: newState });
 			},
@@ -279,55 +287,89 @@ function webviewPreloads() {
 				const state = vscode.getState();
 				return typeof state === 'object' && state ? state[namespace] as T : undefined;
 			},
+			onDidReceiveMessage: mapEmitter(onDidReceiveMessage, ([ns, data]) => ns === namespace ? data : dontEmit),
 			onWillDestroyOutput: mapEmitter(onWillDestroyOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
 			onDidCreateOutput: mapEmitter(onDidCreateOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
 		};
 	};
 
+	/**
+	 * Map of preload resource URIs to promises that resolve one the resource
+	 * loads or errors.
+	 */
+	const preloadPromises = new Map<string, Promise<void>>();
+	const queuedOuputActions = new Map<string, Promise<void>>();
+
+	/**
+	 * Enqueues an action that affects a output. This blocks behind renderer load
+	 * requests that affect the same output. This should be called whenever you
+	 * do something that affects output to ensure it runs in
+	 * the correct order.
+	 */
+	const enqueueOutputAction = <T extends { outputId: string; }>(event: T, fn: (event: T) => Promise<void> | void) => {
+		const queued = queuedOuputActions.get(event.outputId);
+		const maybePromise = queued ? queued.then(() => fn(event)) : fn(event);
+		if (typeof maybePromise === 'undefined') {
+			return; // a synchonrously-called function, we're done
+		}
+
+		const promise = maybePromise.then(() => {
+			if (queuedOuputActions.get(event.outputId) === promise) {
+				queuedOuputActions.delete(event.outputId);
+			}
+		});
+
+		queuedOuputActions.set(event.outputId, promise);
+	};
+
 	window.addEventListener('wheel', handleWheel);
 
 	window.addEventListener('message', rawEvent => {
-		const event = rawEvent as ({ data: ToWebviewMessage });
+		const event = rawEvent as ({ data: ToWebviewMessage; });
 
 		switch (event.data.type) {
 			case 'html':
-				{
-					const id = event.data.id;
-					let cellOutputContainer = document.getElementById(id);
-					let outputId = event.data.outputId;
+				enqueueOutputAction(event.data, async data => {
+					await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));
+					if (!queuedOuputActions.has(data.outputId)) { // output was cleared while loading
+						return;
+					}
+
+					let cellOutputContainer = document.getElementById(data.cellId);
+					let outputId = data.outputId;
 					if (!cellOutputContainer) {
 						const container = document.getElementById('container')!;
 
-						const upperWrapperElement = createFocusSink(id, outputId);
+						const upperWrapperElement = createFocusSink(data.cellId, outputId);
 						container.appendChild(upperWrapperElement);
 
 						let newElement = document.createElement('div');
 
-						newElement.id = id;
+						newElement.id = data.cellId;
 						container.appendChild(newElement);
 						cellOutputContainer = newElement;
 
-						const lowerWrapperElement = createFocusSink(id, outputId, true);
+						const lowerWrapperElement = createFocusSink(data.cellId, outputId, true);
 						container.appendChild(lowerWrapperElement);
 					}
 
 					let outputNode = document.createElement('div');
 					outputNode.style.position = 'absolute';
-					outputNode.style.top = event.data.top + 'px';
-					outputNode.style.left = event.data.left + 'px';
-					outputNode.style.width = 'calc(100% - ' + event.data.left + 'px)';
+					outputNode.style.top = data.top + 'px';
+					outputNode.style.left = data.left + 'px';
+					outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
 					outputNode.style.minHeight = '32px';
 					outputNode.id = outputId;
 
 					addMouseoverListeners(outputNode, outputId);
-					let content = event.data.content;
+					let content = data.content;
 					outputNode.innerHTML = content;
 					cellOutputContainer.appendChild(outputNode);
 
 					// eval
 					domEval(outputNode);
 					resizeObserve(outputNode, outputId);
-					onDidCreateOutput.fire([event.data.apiNamespace, { element: outputNode, outputId }]);
+					onDidCreateOutput.fire([data.apiNamespace, { element: outputNode, outputId }]);
 
 					vscode.postMessage({
 						__vscode_notebook_message: true,
@@ -339,8 +381,8 @@ function webviewPreloads() {
 					});
 
 					// don't hide until after this step so that the height is right
-					cellOutputContainer.style.display = event.data.initiallyHidden ? 'none' : 'block';
-				}
+					cellOutputContainer.style.display = data.initiallyHidden ? 'none' : 'block';
+				});
 				break;
 			case 'view-scroll':
 				{
@@ -355,6 +397,7 @@ function webviewPreloads() {
 					break;
 				}
 			case 'clear':
+				queuedOuputActions.clear(); // stop all loading outputs
 				onWillDestroyOutput.fire([undefined, undefined]);
 				document.getElementById('container')!.innerHTML = '';
 				for (let i = 0; i < observers.length; i++) {
@@ -364,32 +407,29 @@ function webviewPreloads() {
 				observers = [];
 				break;
 			case 'clearOutput':
-				{
-					const id = event.data.id;
-					onWillDestroyOutput.fire([event.data.apiNamespace, { outputId: id }]);
-					let output = document.getElementById(id);
-					if (output && output.parentNode) {
-						document.getElementById(id)!.parentNode!.removeChild(output);
-					}
-					// @TODO remove observer
+				let output = document.getElementById(event.data.outputId);
+				queuedOuputActions.delete(event.data.outputId); // stop any in-progress rendering
+				if (output && output.parentNode) {
+					onWillDestroyOutput.fire([event.data.apiNamespace, { outputId: event.data.outputId }]);
+					output.parentNode.removeChild(output);
 				}
 				break;
 			case 'hideOutput':
-				{
-					const container = document.getElementById(event.data.id)?.parentElement;
+				enqueueOutputAction(event.data, ({ outputId }) => {
+					const container = document.getElementById(outputId)?.parentElement;
 					if (container) {
 						container.style.display = 'none';
 					}
-				}
+				});
 				break;
 			case 'showOutput':
-				{
-					let output = document.getElementById(event.data.id);
+				enqueueOutputAction(event.data, ({ outputId, top }) => {
+					let output = document.getElementById(outputId);
 					if (output) {
 						output.parentElement!.style.display = 'block';
-						output.style.top = event.data.top + 'px';
+						output.style.top = top + 'px';
 					}
-				}
+				});
 				break;
 			case 'preload':
 				let resources = event.data.resources;
@@ -399,13 +439,18 @@ function webviewPreloads() {
 					const scriptTag = document.createElement('script');
 					scriptTag.setAttribute('src', uri);
 					preloadsContainer.appendChild(scriptTag);
+					preloadPromises.set(uri, new Promise<void>(resolve => {
+						scriptTag.addEventListener('load', () => resolve());
+						scriptTag.addEventListener('error', () => resolve());
+					}));
 				}
 				break;
 			case 'focus-output':
-				{
-					focusFirstFocusableInCell(event.data.id);
-					break;
-				}
+				focusFirstFocusableInCell(event.data.cellId);
+				break;
+			case 'customRendererMessage':
+				onDidReceiveMessage.fire([event.data.rendererId, event.data.message]);
+				break;
 		}
 	});
 

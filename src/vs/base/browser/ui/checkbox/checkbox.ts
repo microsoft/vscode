@@ -41,8 +41,8 @@ const defaultOpts = {
 
 export class CheckboxActionViewItem extends BaseActionViewItem {
 
-	private checkbox: Checkbox | undefined;
-	private readonly disposables = new DisposableStore();
+	protected checkbox: Checkbox | undefined;
+	protected readonly disposables = new DisposableStore();
 
 	render(container: HTMLElement): void {
 		this.element = container;

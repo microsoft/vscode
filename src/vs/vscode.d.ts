@@ -1730,6 +1730,14 @@ declare module 'vscode' {
 		 * ```
 		 */
 		filters?: { [name: string]: string[] };
+
+		/**
+		 * Dialog title.
+		 *
+		 * Depending on the underlying operating system this parameter might be ignored, since some
+		 * systems do not present title on open dialogs.
+		 */
+		title?: string;
 	}
 
 	/**
@@ -1757,6 +1765,14 @@ declare module 'vscode' {
 		 * ```
 		 */
 		filters?: { [name: string]: string[] };
+
+		/**
+		 * Dialog title.
+		 *
+		 * Depending on the underlying operating system this parameter might be ignored, since some
+		 * systems do not present title on save dialogs.
+		 */
+		title?: string;
 	}
 
 	/**
@@ -2228,6 +2244,40 @@ declare module 'vscode' {
 		 * such as `[CodeActionKind.Refactor.Extract.append('function'), CodeActionKind.Refactor.Extract.append('constant'), ...]`.
 		 */
 		readonly providedCodeActionKinds?: ReadonlyArray<CodeActionKind>;
+
+		/**
+		 * Static documentation for a class of code actions.
+		 *
+		 * Documentation from the provider is shown in the code actions menu if either:
+		 *
+		 * - Code actions of `kind` are requested by VS Code. In this case, VS Code will show the documentation that
+		 *   most closely matches the requested code action kind. For example, if a provider has documentation for
+		 *   both `Refactor` and `RefactorExtract`, when the user requests code actions for `RefactorExtract`,
+		 *   VS Code will use the documentation for `RefactorExtract` instead of the documentation for `Refactor`.
+		 *
+		 * - Any code actions of `kind` are returned by the provider.
+		 *
+		 * At most one documentation entry will be shown per provider.
+		 */
+		readonly documentation?: ReadonlyArray<{
+			/**
+			 * The kind of the code action being documented.
+			 *
+			 * If the kind is generic, such as `CodeActionKind.Refactor`, the documentation will be shown whenever any
+			 * refactorings are returned. If the kind if more specific, such as `CodeActionKind.RefactorExtract`, the
+			 * documentation will only be shown when extract refactoring code actions are returned.
+			 */
+			readonly kind: CodeActionKind;
+
+			/**
+			 * Command that displays the documentation to the user.
+			 *
+			 * This can display the documentation directly in VS Code or open a website using [`env.openExternal`](#env.openExternal);
+			 *
+			 * The title of this documentation code action is taken from [`Command.title`](#Command.title)
+			 */
+			readonly command: Command;
+		}>;
 	}
 
 	/**
@@ -2270,7 +2320,7 @@ declare module 'vscode' {
 	 * A code lens provider adds [commands](#Command) to source text. The commands will be shown
 	 * as dedicated horizontal lines in between the source text.
 	 */
-	export interface CodeLensProvider<T = CodeLens> {
+	export interface CodeLensProvider<T extends CodeLens = CodeLens> {
 
 		/**
 		 * An optional event to signal that the code lenses from this provider have changed.
@@ -2802,7 +2852,7 @@ declare module 'vscode' {
 	 * The workspace symbol provider interface defines the contract between extensions and
 	 * the [symbol search](https://code.visualstudio.com/docs/editor/editingevolved#_open-symbol-by-name)-feature.
 	 */
-	export interface WorkspaceSymbolProvider<T = SymbolInformation> {
+	export interface WorkspaceSymbolProvider<T extends SymbolInformation = SymbolInformation> {
 
 		/**
 		 * Project-wide search for a symbol matching the given query string.
@@ -3861,7 +3911,7 @@ declare module 'vscode' {
 	 * Represents a collection of [completion items](#CompletionItem) to be presented
 	 * in the editor.
 	 */
-	export class CompletionList<T = CompletionItem> {
+	export class CompletionList<T extends CompletionItem = CompletionItem> {
 
 		/**
 		 * This list is not complete. Further typing should result in recomputing
@@ -3934,7 +3984,7 @@ declare module 'vscode' {
 	 * Providers are asked for completions either explicitly by a user gesture or -depending on the configuration-
 	 * implicitly when typing words or trigger characters.
 	 */
-	export interface CompletionItemProvider<T = CompletionItem> {
+	export interface CompletionItemProvider<T extends CompletionItem = CompletionItem> {
 
 		/**
 		 * Provide completion items for the given position and document.
@@ -4009,7 +4059,7 @@ declare module 'vscode' {
 	 * The document link provider defines the contract between extensions and feature of showing
 	 * links in the editor.
 	 */
-	export interface DocumentLinkProvider<T = DocumentLink> {
+	export interface DocumentLinkProvider<T extends DocumentLink = DocumentLink> {
 
 		/**
 		 * Provide links for the given document. Note that the editor ships with a default provider that detects
@@ -5189,6 +5239,24 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Accessibility information which controls screen reader behavior.
+	 */
+	export interface AccessibilityInformation {
+		/**
+		 * Label to be read out by a screen reader once the item has focus.
+		 */
+		label: string;
+
+		/**
+		 * Role of the widget which defines how a screen reader interacts with it.
+		 * The role should be set in special cases when for example a tree-like element behaves like a checkbox.
+		 * If role is not specified VS Code will pick the appropriate role automatically.
+		 * More about aria roles can be found here https://w3c.github.io/aria/#widget_roles
+		 */
+		role?: string;
+	}
+
+	/**
 	 * Represents the alignment of status bar items.
 	 */
 	export enum StatusBarAlignment {
@@ -5250,6 +5318,11 @@ declare module 'vscode' {
 		 * are used by VS Code.
 		 */
 		command: string | Command | undefined;
+
+		/**
+		 * Accessibility information used when screen reader interacts with this StatusBar item
+		 */
+		accessibilityInformation?: AccessibilityInformation;
 
 		/**
 		 * Shows the entry in the status bar.
@@ -6072,7 +6145,7 @@ declare module 'vscode' {
 	 * A task provider allows to add tasks to the task service.
 	 * A task provider is registered via #tasks.registerTaskProvider.
 	 */
-	export interface TaskProvider<T = Task> {
+	export interface TaskProvider<T extends Task = Task> {
 		/**
 		 * Provides tasks.
 		 * @param token A cancellation token.
@@ -8343,6 +8416,13 @@ declare module 'vscode' {
 		contextValue?: string;
 
 		/**
+		 * Accessibility information used when screen reader interacts with this tree item.
+		 * Generally, a TreeItem has no need to set the `role` of the accessibilityInformation;
+		 * however, there are cases where a TreeItem is not displayed in a tree-like way where setting the `role` may make sense.
+		 */
+		accessibilityInformation?: AccessibilityInformation;
+
+		/**
 		 * @param label A human-readable string describing this item
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
@@ -9315,7 +9395,7 @@ declare module 'vscode' {
 
 	/**
 	 * A workspace folder is one of potentially many roots opened by the editor. All workspace folders
-	 * are equal which means there is no notion of an active or master workspace folder.
+	 * are equal which means there is no notion of an active or primary workspace folder.
 	 */
 	export interface WorkspaceFolder {
 

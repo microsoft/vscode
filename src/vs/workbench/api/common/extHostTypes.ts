@@ -1252,7 +1252,7 @@ export class MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
 		this.value += (this.supportThemeIcons ? escapeCodicons(value) : value)
 			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
-			.replace('\n', '\n\n');
+			.replace(/\n/, '\n\n');
 
 		return this;
 	}
@@ -2101,7 +2101,7 @@ export class TreeItem {
 	iconPath?: string | URI | { light: string | URI; dark: string | URI; };
 	command?: vscode.Command;
 	contextValue?: string;
-	tooltip?: string;
+	tooltip?: string | vscode.MarkdownString;
 
 	constructor(label: string | vscode.TreeItemLabel, collapsibleState?: vscode.TreeItemCollapsibleState);
 	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState);
@@ -2769,7 +2769,7 @@ export enum ExtensionMode {
 
 
 //#region Authentication
-export class AuthenticationSession implements vscode.AuthenticationSession2 {
+export class AuthenticationSession implements vscode.AuthenticationSession {
 	constructor(public id: string, public accessToken: string, public account: { displayName: string, id: string }, public scopes: string[]) { }
 }
 

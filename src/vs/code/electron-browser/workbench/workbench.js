@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/// <reference path="../../../../typings/require.d.ts" />
+
 //@ts-check
 'use strict';
 
@@ -31,10 +33,16 @@ const perf = (function () {
 
 perf.mark('renderer/started');
 
-const bootstrapWindow = require('../../../../bootstrap-window');
-
 // Setup shell environment
 process['lazyEnv'] = getLazyEnv();
+
+/**
+ * @type {{ load: (modules: string[], resultCallback: (result, configuration: object) => any, options: object) => unknown }}
+ */
+const bootstrapWindow = (() => {
+	// @ts-ignore (defined in bootstrap-window.js)
+	return window.MonacoBootstrapWindow;
+})();
 
 // Load workbench main JS, CSS and NLS all in parallel. This is an
 // optimization to prevent a waterfall of loading to happen, because
@@ -47,6 +55,7 @@ bootstrapWindow.load([
 ],
 	function (workbench, configuration) {
 		perf.mark('didLoadWorkbenchMain');
+		performance.mark('workbench-start');
 
 		return process['lazyEnv'].then(function () {
 			perf.mark('main/startup');
@@ -54,18 +63,20 @@ bootstrapWindow.load([
 			// @ts-ignore
 			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
 		});
-	}, {
-	removeDeveloperKeybindingsAfterLoad: true,
-	canModifyDOM: function (windowConfig) {
-		showPartsSplash(windowConfig);
 	},
-	beforeLoaderConfig: function (windowConfig, loaderConfig) {
-		loaderConfig.recordStats = true;
-	},
-	beforeRequire: function () {
-		perf.mark('willLoadWorkbenchMain');
+	{
+		removeDeveloperKeybindingsAfterLoad: true,
+		canModifyDOM: function (windowConfig) {
+			showPartsSplash(windowConfig);
+		},
+		beforeLoaderConfig: function (windowConfig, loaderConfig) {
+			loaderConfig.recordStats = true;
+		},
+		beforeRequire: function () {
+			perf.mark('willLoadWorkbenchMain');
+		}
 	}
-});
+);
 
 /**
  * @param {{
@@ -83,7 +94,7 @@ function showPartsSplash(configuration) {
 	let data;
 	if (typeof configuration.partsSplashPath === 'string') {
 		try {
-			data = JSON.parse(require('fs').readFileSync(configuration.partsSplashPath, 'utf8'));
+			data = JSON.parse(require.__$__nodeRequire('fs').readFileSync(configuration.partsSplashPath, 'utf8'));
 		} catch (e) {
 			// ignore
 		}
@@ -172,7 +183,7 @@ function showPartsSplash(configuration) {
  */
 function getLazyEnv() {
 
-	const ipc = require('electron').ipcRenderer;
+	const ipc = require.__$__nodeRequire('electron').ipcRenderer;
 
 	return new Promise(function (resolve) {
 		const handle = setTimeout(function () {
@@ -182,7 +193,7 @@ function getLazyEnv() {
 
 		ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
 			clearTimeout(handle);
-			bootstrapWindow.assign(process.env, shellEnv);
+			Object.assign(process.env, shellEnv);
 			// @ts-ignore
 			resolve(process.env);
 		});

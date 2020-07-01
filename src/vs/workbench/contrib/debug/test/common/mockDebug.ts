@@ -135,7 +135,6 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
-
 	stepInTargets(frameId: number): Promise<{ id: number; label: string; }[]> {
 		throw new Error('Method not implemented.');
 	}
@@ -157,6 +156,10 @@ export class MockSession implements IDebugSession {
 	}
 
 	subId: string | undefined;
+
+	get noCompact(): boolean {
+		return false;
+	}
 
 	setSubId(subId: string | undefined): void {
 		throw new Error('Method not implemented.');
