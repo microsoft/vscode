@@ -518,7 +518,8 @@ registerAction2(class extends InsertCellCommand {
 MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	command: {
 		id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
-		title: localize('notebookActions.menu.insertCode', "$(add) Code")
+		title: localize('notebookActions.menu.insertCode', "$(add) Code"),
+		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
 	},
 	order: 0,
 	group: 'inline'
@@ -551,7 +552,8 @@ registerAction2(class extends InsertCellCommand {
 MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	command: {
 		id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
-		title: localize('notebookActions.menu.insertMarkdown', "$(add) Markdown")
+		title: localize('notebookActions.menu.insertMarkdown', "$(add) Markdown"),
+		tooltip: localize('notebookActions.menu.insertMarkdown.tooltip', "Add Markdown Cell")
 	},
 	order: 1,
 	group: 'inline'
