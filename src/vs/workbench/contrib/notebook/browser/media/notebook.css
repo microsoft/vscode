@@ -211,6 +211,35 @@
 	outline: none !important;
 }
 
+/* top and bottom borders on cells */
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
+.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:before,
+.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:after{
+	content: "";
+	position: absolute;
+	width: 100%;
+	height: 1px;
+	background-color: rgba(255, 255, 255, 0.12);
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
+.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:before {
+	top: 0;
+}
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
+.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:after {
+	bottom: 0px;
+}
+
+/* border color on light theme */
+.monaco-workbench.vs .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
+.monaco-workbench.vs .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
+.monaco-workbench.vs .notebookOverlay .monaco-list .markdown-cell-row.focused:before,
+.monaco-workbench.vs .notebookOverlay .monaco-list .markdown-cell-row.focused:after {
+	background-color: rgba(0, 0, 0, 0.12);
+}
+
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .menu.mouseover,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .menu:hover {
 	cursor: pointer;
