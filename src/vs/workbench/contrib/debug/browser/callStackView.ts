@@ -355,6 +355,10 @@ export class CallStackView extends ViewPane {
 			const sessionListeners: IDisposable[] = [];
 			sessionListeners.push(s.onDidChangeName(() => this.tree.rerender(s)));
 			sessionListeners.push(s.onDidEndAdapter(() => dispose(sessionListeners)));
+			if (s.parentSession) {
+				// A session we already expanded has a new child session, allow to expand it again.
+				this.autoExpandedSessions.delete(s.parentSession);
+			}
 		}));
 	}
 
