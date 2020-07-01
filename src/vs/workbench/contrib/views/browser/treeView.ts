@@ -38,7 +38,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -795,6 +795,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const resolvableNode: ResolvableTreeItem = node;
 		const hoverService = this.hoverService;
 		const hoverDelay = this.hoverDelay;
+		let hoverOptions: IHoverOptions | undefined;
 		function mouseOver(this: HTMLElement, e: MouseEvent): any {
 			let isHovering = true;
 			function mouseLeave(this: HTMLElement, e: MouseEvent): any {
@@ -805,7 +806,10 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				await resolvableNode.resolve();
 				const tooltip = resolvableNode.tooltip ?? label;
 				if (isHovering && tooltip) {
-					hoverService.showHover({ text: isString(tooltip) ? { value: tooltip } : tooltip, target: this });
+					if (!hoverOptions) {
+						hoverOptions = { text: isString(tooltip) ? { value: tooltip } : tooltip, target: this };
+					}
+					hoverService.showHover(hoverOptions);
 				}
 				this.removeEventListener(DOM.EventType.MOUSE_LEAVE, mouseLeave);
 			}, hoverDelay);
