@@ -19,7 +19,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider({
 		id: 'microsoft',
-		displayName: 'Microsoft',
+		label: 'Microsoft',
 		supportsMultipleAccounts: true,
 		onDidChangeSessions: onDidChangeSessions.event,
 		getSessions: () => Promise.resolve(loginService.sessions),

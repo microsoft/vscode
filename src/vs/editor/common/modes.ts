@@ -1416,16 +1416,16 @@ export interface AuthenticationSession {
 		displayName: string;
 		id: string;
 	}
-	scopes: string[];
+	scopes: ReadonlyArray<string>;
 }
 
 /**
  * @internal
  */
 export interface AuthenticationSessionsChangeEvent {
-	added: string[];
-	removed: string[];
-	changed: string[];
+	added: ReadonlyArray<string>;
+	removed: ReadonlyArray<string>;
+	changed: ReadonlyArray<string>;
 }
 
 export interface Command {
