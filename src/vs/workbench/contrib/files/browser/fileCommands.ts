@@ -243,14 +243,11 @@ CommandsRegistry.registerCommand({
 async function resourcesToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, notificationService: INotificationService, labelService: ILabelService, configurationService: IConfigurationService): Promise<void> {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
-		const sep = configurationService.getValue<'auto' | typeof defaultSep>('files.copyPathSeparator');
+		const settingsSep = configurationService.getValue<'auto' | typeof defaultSep>('files.copyPathSeparator');
+		const sep = (settingsSep && settingsSep !== 'auto') ? settingsSep : defaultSep;
 
-		let text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true }))
+		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true, pathSeparator: sep }))
 			.join(lineDelimiter);
-		if (sep && sep !== defaultSep && sep !== 'auto') {
-			text = text.replace(/[/\\]/g, sep);
-		}
-
 		await clipboardService.writeText(text);
 	} else {
 		notificationService.info(nls.localize('openFileToCopy', "Open a file first to copy its path"));

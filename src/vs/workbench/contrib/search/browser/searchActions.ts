@@ -29,6 +29,7 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { searchRefreshIcon, searchCollapseAllIcon, searchExpandAllIcon, searchClearIcon, searchReplaceAllIcon, searchReplaceIcon, searchRemoveIcon, searchStopIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { sep as defaultSep } from 'vs/base/common/path';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
@@ -777,8 +778,12 @@ export const copyPathCommand: ICommandHandler = async (accessor, fileMatch: File
 
 	const clipboardService = accessor.get(IClipboardService);
 	const labelService = accessor.get(ILabelService);
+	const configurationService = accessor.get(IConfigurationService);
 
-	const text = labelService.getUriLabel(fileMatch.resource, { noPrefix: true });
+	const settingsSep = configurationService.getValue<'auto' | typeof defaultSep>('files.copyPathSeparator');
+	const sep = (settingsSep && settingsSep !== 'auto') ? settingsSep : defaultSep;
+
+	const text = labelService.getUriLabel(fileMatch.resource, { noPrefix: true, pathSeparator: sep });
 	await clipboardService.writeText(text);
 };
 
