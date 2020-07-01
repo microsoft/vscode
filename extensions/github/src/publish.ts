@@ -97,38 +97,51 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 	}
 
 	if (!repository) {
-		quickpick = vscode.window.createQuickPick();
-		quickpick.placeholder = localize('ignore', "Select which files should be included in the repository.");
-		quickpick.canSelectMany = true;
-		quickpick.show();
+		const gitignore = vscode.Uri.joinPath(folder.uri, '.gitignore');
+		let shouldGenerateGitignore = false;
 
 		try {
-			quickpick.busy = true;
+			await vscode.workspace.fs.stat(gitignore);
+		} catch (err) {
+			shouldGenerateGitignore = true;
+		}
 
-			const children = (await vscode.workspace.fs.readDirectory(folder.uri)).map(([name]) => name);
-			quickpick.items = children.map(name => ({ label: name }));
-			quickpick.selectedItems = quickpick.items;
-			quickpick.busy = false;
+		if (shouldGenerateGitignore) {
+			quickpick = vscode.window.createQuickPick();
+			quickpick.placeholder = localize('ignore', "Select which files should be included in the repository.");
+			quickpick.canSelectMany = true;
+			quickpick.show();
 
-			const result = await Promise.race([
-				new Promise<readonly vscode.QuickPickItem[]>(c => quickpick.onDidAccept(() => c(quickpick.selectedItems))),
-				new Promise<undefined>(c => quickpick.onDidHide(() => c(undefined)))
-			]);
+			try {
+				quickpick.busy = true;
 
-			if (!result) {
-				return;
+				const children = (await vscode.workspace.fs.readDirectory(folder.uri)).map(([name]) => name);
+				quickpick.items = children.map(name => ({ label: name }));
+				quickpick.selectedItems = quickpick.items;
+				quickpick.busy = false;
+
+				const result = await Promise.race([
+					new Promise<readonly vscode.QuickPickItem[]>(c => quickpick.onDidAccept(() => c(quickpick.selectedItems))),
+					new Promise<undefined>(c => quickpick.onDidHide(() => c(undefined)))
+				]);
+
+				if (!result) {
+					return;
+				}
+
+				const ignored = new Set(children);
+				result.forEach(c => ignored.delete(c.label));
+
+				const raw = [...ignored].map(i => `/${i}`).join('\n');
+				const encoder = new TextEncoder();
+				await vscode.workspace.fs.writeFile(gitignore, encoder.encode(raw));
+			} finally {
+				quickpick.dispose();
 			}
-
-			const ignored = new Set(children);
-			result.forEach(c => ignored.delete(c.label));
-
-			const raw = [...ignored].map(i => `/${i}`).join('\n');
-			const encoder = new TextEncoder();
-			await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(folder.uri, '.gitignore'), encoder.encode(raw));
-		} finally {
-			quickpick.dispose();
 		}
 	}
+
+	return;
 
 	const githubRepository = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, cancellable: false, title: 'Publish to GitHub' }, async progress => {
 		progress.report({ message: 'Publishing to GitHub private repository', increment: 25 });
