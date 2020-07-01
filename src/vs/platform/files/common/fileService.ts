@@ -26,19 +26,19 @@ export class FileService extends Disposable implements IFileService {
 
 	private readonly BUFFER_SIZE = 64 * 1024;
 
-	constructor(@ILogService private logService: ILogService) {
+	constructor(@ILogService private readonly logService: ILogService) {
 		super();
 	}
 
 	//#region File System Provider
 
-	private _onDidChangeFileSystemProviderRegistrations = this._register(new Emitter<IFileSystemProviderRegistrationEvent>());
+	private readonly _onDidChangeFileSystemProviderRegistrations = this._register(new Emitter<IFileSystemProviderRegistrationEvent>());
 	readonly onDidChangeFileSystemProviderRegistrations = this._onDidChangeFileSystemProviderRegistrations.event;
 
-	private _onWillActivateFileSystemProvider = this._register(new Emitter<IFileSystemProviderActivationEvent>());
+	private readonly _onWillActivateFileSystemProvider = this._register(new Emitter<IFileSystemProviderActivationEvent>());
 	readonly onWillActivateFileSystemProvider = this._onWillActivateFileSystemProvider.event;
 
-	private _onDidChangeFileSystemProviderCapabilities = this._register(new Emitter<IFileSystemProviderCapabilitiesChangeEvent>());
+	private readonly _onDidChangeFileSystemProviderCapabilities = this._register(new Emitter<IFileSystemProviderCapabilitiesChangeEvent>());
 	readonly onDidChangeFileSystemProviderCapabilities = this._onDidChangeFileSystemProviderCapabilities.event;
 
 	private readonly provider = new Map<string, IFileSystemProvider>();
@@ -146,10 +146,10 @@ export class FileService extends Disposable implements IFileService {
 
 	//#endregion
 
-	private _onDidRunOperation = this._register(new Emitter<FileOperationEvent>());
+	private readonly _onDidRunOperation = this._register(new Emitter<FileOperationEvent>());
 	readonly onDidRunOperation = this._onDidRunOperation.event;
 
-	private _onError = this._register(new Emitter<Error>());
+	private readonly _onError = this._register(new Emitter<Error>());
 	readonly onError = this._onError.event;
 
 	//#region File Metadata Resolving
@@ -881,10 +881,10 @@ export class FileService extends Disposable implements IFileService {
 
 	//#region File Watching
 
-	private _onDidFilesChange = this._register(new Emitter<FileChangesEvent>());
+	private readonly _onDidFilesChange = this._register(new Emitter<FileChangesEvent>());
 	readonly onDidFilesChange = this._onDidFilesChange.event;
 
-	private activeWatchers = new Map<string, { disposable: IDisposable, count: number }>();
+	private readonly activeWatchers = new Map<string, { disposable: IDisposable, count: number }>();
 
 	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
 		let watchDisposed = false;
@@ -950,7 +950,7 @@ export class FileService extends Disposable implements IFileService {
 
 	//#region Helpers
 
-	private writeQueues: Map<string, Queue<void>> = new Map();
+	private readonly writeQueues: Map<string, Queue<void>> = new Map();
 
 	private ensureWriteQueue(provider: IFileSystemProvider, resource: URI): Queue<void> {
 		const { extUri } = this.getExtUri(provider);

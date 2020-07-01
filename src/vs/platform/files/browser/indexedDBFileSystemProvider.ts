@@ -63,8 +63,6 @@ export class IndexedDB {
 
 }
 
-
-
 class IndexedDBFileSystemProvider extends KeyValueFileSystemProvider {
 
 	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
