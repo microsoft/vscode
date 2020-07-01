@@ -224,23 +224,23 @@ export class ExtensionEditor extends BaseEditor {
 		builtin.textContent = localize('builtin', "Built-in");
 
 		const subtitle = append(details, $('.subtitle'));
-		const publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name"), tabIndex: 0 }));
+		const publisher = append(append(subtitle, $('.subtitle-entry')), $('span.publisher.clickable', { title: localize('publisher', "Publisher name"), tabIndex: 0 }));
 
-		const installCount = append(subtitle, $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
+		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
 
-		const rating = append(subtitle, $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
+		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
 
-		const repository = append(subtitle, $('span.repository.clickable'));
+		const repository = append(append(subtitle, $('.subtitle-entry')), $('span.repository.clickable'));
 		repository.textContent = localize('repository', 'Repository');
 		repository.style.display = 'none';
 		repository.tabIndex = 0;
 
-		const license = append(subtitle, $('span.license.clickable'));
+		const license = append(append(subtitle, $('.subtitle-entry')), $('span.license.clickable'));
 		license.textContent = localize('license', 'License');
 		license.style.display = 'none';
 		license.tabIndex = 0;
 
-		const version = append(subtitle, $('span.version'));
+		const version = append(append(subtitle, $('.subtitle-entry')), $('span.version'));
 		version.textContent = localize('version', 'Version');
 
 		const description = append(details, $('.description'));
