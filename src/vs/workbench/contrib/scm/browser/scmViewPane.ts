@@ -855,6 +855,7 @@ class ViewModel {
 	private visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
 	private firstVisible = true;
+	private repositoryCollapseStates: Map<ISCMRepository, boolean> | undefined;
 	private disposables = new DisposableStore();
 
 	constructor(
@@ -950,6 +951,7 @@ class ViewModel {
 			this.visibilityDisposables = new DisposableStore();
 			this.repositories.onDidSplice(this.onDidSpliceRepositories, this, this.visibilityDisposables);
 			this.onDidSpliceRepositories({ start: 0, deleteCount: 0, toInsert: this.repositories.elements });
+			this.repositoryCollapseStates = undefined;
 
 			if (typeof this.scrollTop === 'number') {
 				this.tree.scrollTop = this.scrollTop;
@@ -959,6 +961,14 @@ class ViewModel {
 			this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
 			this.onDidActiveEditorChange();
 		} else {
+			if (this.items.length > 1) {
+				this.repositoryCollapseStates = new Map();
+
+				for (const item of this.items) {
+					this.repositoryCollapseStates.set(item.element, this.tree.isCollapsed(item.element));
+				}
+			}
+
 			this.visibilityDisposables.dispose();
 			this.onDidSpliceRepositories({ start: 0, deleteCount: this.items.length, toInsert: [] });
 			this.scrollTop = this.tree.scrollTop;
@@ -988,7 +998,8 @@ class ViewModel {
 				children.push(...item.groupItems.map(i => this.render(i)));
 			}
 
-			return { element: item.element, children, incompressible: true, collapsible: hasSomeChanges };
+			const collapsed = this.repositoryCollapseStates?.get(item.element) ?? false;
+			return { element: item.element, children, incompressible: true, collapsed, collapsible: hasSomeChanges };
 		} else {
 			const children = this.mode === ViewModelMode.List
 				? Iterable.map(item.resources, element => ({ element, incompressible: true }))
