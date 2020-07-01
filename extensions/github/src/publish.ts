@@ -5,10 +5,9 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as path from 'path';
-import { promises as fs } from 'fs';
 import { API as GitAPI, Repository } from './typings/git';
 import { getOctokit } from './auth';
+import { TextEncoder } from 'util';
 
 const localize = nls.loadMessageBundle();
 
@@ -106,9 +105,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		try {
 			quickpick.busy = true;
 
-			const repositoryPath = folder.uri.fsPath;
-			const currentPath = path.join(repositoryPath);
-			const children = await fs.readdir(currentPath);
+			const children = (await vscode.workspace.fs.readDirectory(folder.uri)).map(([name]) => name);
 			quickpick.items = children.map(name => ({ label: name }));
 			quickpick.selectedItems = quickpick.items;
 			quickpick.busy = false;
@@ -126,7 +123,8 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 			result.forEach(c => ignored.delete(c.label));
 
 			const raw = [...ignored].map(i => `/${i}`).join('\n');
-			await fs.writeFile(path.join(repositoryPath, '.gitignore'), raw, 'utf8');
+			const encoder = new TextEncoder();
+			await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(folder.uri, '.gitignore'), encoder.encode(raw));
 		} finally {
 			quickpick.dispose();
 		}
