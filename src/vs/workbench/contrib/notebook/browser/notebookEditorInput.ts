@@ -84,7 +84,13 @@ export class NotebookEditorInput extends EditorInput {
 
 	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (this._textModel) {
-			await this._textModel.object.save();
+
+			if (this.isUntitled()) {
+				return this.saveAs(group, options);
+			} else {
+				await this._textModel.object.save();
+			}
+
 			return this;
 		}
 
