@@ -633,8 +633,12 @@
 }
 
 /* Removes bottom margin when only one item exists in markdown cell */
-.monaco-workbench .notebookOverlay .cell.markdown div *:only-child,
-.monaco-workbench .notebookOverlay .cell.markdown div *:last-child {
+.monaco-workbench .notebookOverlay .cell.markdown div h1:only-child,
+.monaco-workbench .notebookOverlay .cell.markdown div h2:only-child,
+.monaco-workbench .notebookOverlay .cell.markdown div h3:only-child,
+.monaco-workbench .notebookOverlay .cell.markdown div h1:last-child,
+.monaco-workbench .notebookOverlay .cell.markdown div h2:last-child,
+.monaco-workbench .notebookOverlay .cell.markdown div h3:last-child {
 	margin-bottom: 0;
 }
 
