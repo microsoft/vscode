@@ -39,6 +39,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -830,6 +831,14 @@ class StatusbarEntryItem extends Disposable {
 
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'status bar' });
 		try {
+			if (typeof command === 'string') {
+				if (command === 'help.tweetFeedback') {
+					this.executeCommand(HIDE_NOTIFICATIONS_CENTER);
+				}
+				else if (command === SHOW_NOTIFICATIONS_CENTER) {
+					this.executeCommand('help.hideTweetFeedback');
+				}
+			}
 			await this.commandService.executeCommand(id, ...args);
 		} catch (error) {
 			this.notificationService.error(toErrorMessage(error));

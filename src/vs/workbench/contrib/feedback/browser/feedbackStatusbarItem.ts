@@ -72,6 +72,15 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 					title: localize('status.feedback', "Tweet Feedback")
 				}
 			});
+
+			CommandsRegistry.registerCommand('help.hideTweetFeedback', () => this.hideFeedback());
+			MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+				command: {
+					id: 'help.hideTweetFeedback',
+					category: localize('help', "Help"),
+					title: localize('status.feedback', "Tweet Feedback")
+				}
+			});
 		}
 	}
 
@@ -95,6 +104,14 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 			if (!this.dropdown.isVisible()) {
 				this.dropdown.show();
 			} else {
+				this.dropdown.hide();
+			}
+		}
+	}
+
+	private hideFeedback(): void {
+		if (this.dropdown) {
+			if (this.dropdown.isVisible()) {
 				this.dropdown.hide();
 			}
 		}
