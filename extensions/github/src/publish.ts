@@ -8,6 +8,7 @@ import * as nls from 'vscode-nls';
 import { API as GitAPI, Repository } from './typings/git';
 import { getOctokit } from './auth';
 import { TextEncoder } from 'util';
+import { basename } from 'path';
 
 const localize = nls.loadMessageBundle();
 
@@ -27,10 +28,12 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		return;
 	}
 
-	let folder: vscode.WorkspaceFolder;
+	let folder: vscode.Uri;
 
-	if (vscode.workspace.workspaceFolders.length === 1) {
-		folder = vscode.workspace.workspaceFolders[0];
+	if (repository) {
+		folder = repository.rootUri;
+	} else if (vscode.workspace.workspaceFolders.length === 1) {
+		folder = vscode.workspace.workspaceFolders[0].uri;
 	} else {
 		const picks = vscode.workspace.workspaceFolders.map(folder => ({ label: folder.name, folder }));
 		const placeHolder = localize('pick folder', "Pick a folder to publish to GitHub");
@@ -40,14 +43,14 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 			return;
 		}
 
-		folder = pick.folder;
+		folder = pick.folder.uri;
 	}
 
 	let quickpick = vscode.window.createQuickPick<vscode.QuickPickItem & { repo?: string, auth?: 'https' | 'ssh' }>();
 	quickpick.ignoreFocusOut = true;
 
 	quickpick.placeholder = 'Repository Name';
-	quickpick.value = folder.name;
+	quickpick.value = basename(folder.fsPath);
 	quickpick.show();
 	quickpick.busy = true;
 
@@ -97,7 +100,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 	}
 
 	if (!repository) {
-		const gitignore = vscode.Uri.joinPath(folder.uri, '.gitignore');
+		const gitignore = vscode.Uri.joinPath(folder, '.gitignore');
 		let shouldGenerateGitignore = false;
 
 		try {
@@ -115,7 +118,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 			try {
 				quickpick.busy = true;
 
-				const children = (await vscode.workspace.fs.readDirectory(folder.uri)).map(([name]) => name);
+				const children = (await vscode.workspace.fs.readDirectory(folder)).map(([name]) => name);
 				quickpick.items = children.map(name => ({ label: name }));
 				quickpick.selectedItems = quickpick.items;
 				quickpick.busy = false;
@@ -156,7 +159,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		progress.report({ message: 'Creating first commit', increment: 25 });
 
 		if (!repository) {
-			repository = await gitAPI.init(folder.uri) || undefined;
+			repository = await gitAPI.init(folder) || undefined;
 
 			if (!repository) {
 				return;
