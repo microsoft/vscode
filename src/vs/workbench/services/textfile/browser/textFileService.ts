@@ -167,7 +167,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// when encoding is standard skip encoding step
 		if (encoding === UTF8 && !addBOM) {
-			return !value ? undefined : toBufferOrReadable(value);
+			return typeof value === 'undefined'
+				? undefined
+				: toBufferOrReadable(value);
 		}
 
 		// otherwise create encoded readable
