@@ -52,14 +52,19 @@
 	justify-content: flex-end;
 }
 
-.scm-view .scm-provider > .actions .monaco-action-bar .action-item {
+/**
+ * The following rules are very specific because of inline drop down menus
+ * https://github.com/microsoft/vscode/issues/101410
+ */
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item {
 	padding-left: 4px;
 	display: flex;
 	align-items: center;
 	min-width: 16px;
 }
 
-.scm-view .scm-provider > .actions .monaco-action-bar .action-label {
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label,
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .monaco-dropdown > .dropdown-label > .action-label {
 	display: flex;
 	align-items: center;
 	overflow: hidden;
@@ -68,12 +73,7 @@
 	margin: 0;
 }
 
-.scm-view .scm-provider > .actions .monaco-action-bar .action-label .codicon {
-	vertical-align: sub;
-	display: inline-flex;
-}
-
-.scm-view .scm-provider > .actions .monaco-action-bar .action-item:last-of-type {
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:last-of-type {
 	padding-right: 0;
 }
 
