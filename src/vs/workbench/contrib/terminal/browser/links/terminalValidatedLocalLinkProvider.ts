@@ -16,19 +16,19 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
 
-const unixPathPrefix = String.raw`(\.\.?|\~|)`;
-const unixPathSeparatorClause = String.raw`\/`;
+const unixPathPrefix = '(\\.\\.?|\\~|)';
+const unixPathSeparatorClause = '\\/';
 // '":; are allowed in paths but they are often separators so ignore them
 // Also disallow \\ to prevent a catastropic backtracking case #24798
-const unixExcludedPathCharactersClause = String.raw`[^\0\s!$\`&*()\[\]+'":;\\]`;
+const unixExcludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;\\\\]';
 const unixPathPartClause = '(' + unixExcludedPathCharactersClause + ')+';
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar, foo */
 export const unixLocalLinkClause = '(((' + unixPathPrefix + ')?' + unixPathSeparatorClause + ')?' + unixPathPartClause + '(' + unixPathSeparatorClause + unixPathPartClause + ')*(' + unixPathSeparatorClause + ')?)';
 
-export const winDrivePrefix = String.raw`(?:\\\\\?\\)?[a-zA-Z]:`;
-const winPathPrefix = '(' + winDrivePrefix + String.raw`|\.\.?|\~)`;
-const winPathSeparatorClause = String.raw`(\\|\/)`;
-const winExcludedPathCharactersClause = String.raw`[^\0<>\?\|\/\s!$\`&*()\[\]+'":;]`;
+export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
+const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
+const winPathSeparatorClause = '(\\\\|\\/)';
+const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]';
 const winPathPartClause = '(' + winExcludedPathCharactersClause + ')+';
 /** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar, foo */
 export const winLocalLinkClause = '(((' + winPathPrefix + ')?' + winPathSeparatorClause + ')?' + winPathPartClause + '(' + winPathSeparatorClause + winPathPartClause + ')*(' + winPathSeparatorClause + ')?)';
