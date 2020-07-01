@@ -44,18 +44,6 @@ export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Even
 	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
 }
 
-export function latchEvent<T>(event: Event<T>): Event<T> {
-	let firstCall = true;
-	let cache: T;
-
-	return filterEvent(event, value => {
-		let shouldEmit = firstCall || value !== cache;
-		firstCall = false;
-		cache = value;
-		return shouldEmit;
-	});
-}
-
 export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		const result = combinedDisposable(events.map(event => event(i => listener.call(thisArgs, i))));
