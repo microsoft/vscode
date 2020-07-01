@@ -8,7 +8,6 @@ import * as assert from 'assert';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { testFile, ITestFileResult } from 'vs/base/test/node/utils';
 import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Event } from 'vs/base/common/event';
@@ -20,27 +19,20 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 
-suite('ConfigurationService - Node', () => {
+suite('ConfigurationService', () => {
 
 	let fileService: IFileService;
-	let testFileResult: ITestFileResult;
 	let settingsResource: URI;
 	const disposables: DisposableStore = new DisposableStore();
 
 	setup(async () => {
-		fileService = new FileService(new NullLogService());
-		disposables.add(fileService);
-		const diskFileSystemProvider = new InMemoryFileSystemProvider();
-		disposables.add(diskFileSystemProvider);
+		fileService = disposables.add(new FileService(new NullLogService()));
+		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-		testFileResult = await testFile('config', 'config.json');
-		settingsResource = URI.file(testFileResult.testFile);
+		settingsResource = URI.file('settings.json');
 	});
 
-	teardown(async () => {
-		disposables.clear();
-		await testFileResult.cleanUp();
-	});
+	teardown(() => disposables.clear());
 
 	test('simple', async () => {
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));

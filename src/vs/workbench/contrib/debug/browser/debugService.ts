@@ -348,8 +348,8 @@ export class DebugService implements IDebugService {
 			}
 
 			if (configOrName && !config) {
-				const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", typeof configOrName === 'string' ? configOrName : JSON.stringify(configOrName)) :
-					nls.localize('launchJsonDoesNotExist', "'launch.json' does not exist.");
+				const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", typeof configOrName === 'string' ? configOrName : configOrName.name) :
+					nls.localize('launchJsonDoesNotExist', "'launch.json' does not exist for passed workspace folder.");
 				throw new Error(message);
 			}
 
@@ -358,6 +358,7 @@ export class DebugService implements IDebugService {
 			return result;
 		} catch (err) {
 			// make sure to get out of initializing state, and propagate the result
+			this.notificationService.error(err);
 			this.endInitializingState();
 			return Promise.reject(err);
 		}

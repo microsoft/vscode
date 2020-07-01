@@ -1734,8 +1734,8 @@ declare module 'vscode' {
 		/**
 		 * Dialog title.
 		 *
-		 * Depending on the underlying operating system this parameter might be ignored, since some
-		 * systems do not present title on open dialogs.
+		 * This parameter might be ignored, as not all operating systems display a title on open dialogs
+		 * (for example, macOS).
 		 */
 		title?: string;
 	}
@@ -1769,8 +1769,8 @@ declare module 'vscode' {
 		/**
 		 * Dialog title.
 		 *
-		 * Depending on the underlying operating system this parameter might be ignored, since some
-		 * systems do not present title on save dialogs.
+		 * This parameter might be ignored, as not all operating systems display a title on save dialogs
+		 * (for example, macOS).
 		 */
 		title?: string;
 	}

@@ -60,6 +60,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { Codicon } from 'vs/base/common/codicons';
+import { IViewsService } from 'vs/workbench/common/views';
 
 export function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -1641,19 +1642,39 @@ export class ShowDisabledExtensionsAction extends Action {
 	}
 }
 
-export class ClearExtensionsInputAction extends Action {
+export class ClearExtensionsSearchResultsAction extends Action {
 
-	static readonly ID = 'workbench.extensions.action.clearExtensionsInput';
-	static readonly LABEL = localize('clearExtensionsInput', "Clear Extensions Search Results");
+	static readonly ID = 'workbench.extensions.action.clearExtensionsSearchResults';
+	static readonly LABEL = localize('clearExtensionsSearchResults', "Clear Extensions Search Results");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewsService private readonly viewsService: IViewsService
+	) {
+		super(id, label, 'codicon-clear-all', true);
+	}
+
+	async run(): Promise<void> {
+		const viewPaneContainer = this.viewsService.getActiveViewPaneContainerWithId(VIEWLET_ID);
+		if (viewPaneContainer) {
+			const extensionsViewPaneContainer = viewPaneContainer as IExtensionsViewPaneContainer;
+			extensionsViewPaneContainer.search('');
+			extensionsViewPaneContainer.focus();
+		}
+	}
+}
+
+export class ClearExtensionsInputAction extends ClearExtensionsSearchResultsAction {
 
 	constructor(
 		id: string,
 		label: string,
 		onSearchChange: Event<string>,
 		value: string,
-		@IViewletService private readonly viewletService: IViewletService
+		@IViewsService viewsService: IViewsService
 	) {
-		super(id, label, 'codicon-clear-all', true);
+		super(id, label, viewsService);
 		this.onSearchChange(value);
 		this._register(onSearchChange(this.onSearchChange, this));
 	}
@@ -1662,14 +1683,6 @@ export class ClearExtensionsInputAction extends Action {
 		this.enabled = !!value;
 	}
 
-	run(): Promise<void> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-			.then(viewlet => {
-				viewlet.search('');
-				viewlet.focus();
-			});
-	}
 }
 
 export class ShowBuiltInExtensionsAction extends Action {

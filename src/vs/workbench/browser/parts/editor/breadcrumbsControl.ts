@@ -38,7 +38,7 @@ import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { BreadcrumbsPicker, createBreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
-import { IEditorPartOptions, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorPartOptions, toResource, SideBySideEditor, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -49,6 +49,7 @@ import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 class Item extends BreadcrumbsItem {
 
@@ -248,12 +249,23 @@ export class BreadcrumbsControl {
 			}
 		}
 
+		// display uri which can be derived from file input
+		let fileInfoUri = uri;
+		let input = this._editorGroup.activeEditor;
+		if (input instanceof SideBySideEditorInput) {
+			input = input.primary;
+		}
+		if (Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories).getFileEditorInputFactory().isFileEditorInput(input)) {
+			fileInfoUri = input.label;
+		}
+
 		this.domNode.classList.toggle('hidden', false);
 		this._ckBreadcrumbsVisible.set(true);
 		this._ckBreadcrumbsPossible.set(true);
 
 		const editor = this._getActiveCodeEditor();
 		const model = new EditorBreadcrumbsModel(
+			fileInfoUri,
 			uri, editor,
 			this._configurationService,
 			this._textResourceConfigurationService,
