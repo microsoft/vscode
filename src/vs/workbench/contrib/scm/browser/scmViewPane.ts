@@ -47,7 +47,7 @@ import { flatten } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, PANEL_BACKGROUND, PANEL_INPUT_BORDER } from 'vs/workbench/common/theme';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
@@ -1774,7 +1774,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.scm-view .scm-editor-container .monaco-editor-background,
 		.scm-view .scm-editor-container .monaco-editor,
 		.scm-view .scm-editor-container .monaco-editor .margin
-		{ background-color: ${inputBackgroundColor}; }`);
+		{ background-color: ${inputBackgroundColor} !important; }`);
 	}
 
 	const inputForegroundColor = theme.getColor(inputForeground);
@@ -1785,6 +1785,11 @@ registerThemingParticipant((theme, collector) => {
 	const inputBorderColor = theme.getColor(inputBorder);
 	if (inputBorderColor) {
 		collector.addRule(`.scm-view .scm-editor-container { outline: 1px solid ${inputBorderColor}; }`);
+	}
+
+	const panelInputBorder = theme.getColor(PANEL_INPUT_BORDER);
+	if (panelInputBorder) {
+		collector.addRule(`.monaco-workbench .part.panel .scm-view .scm-editor-container { outline: 1px solid ${panelInputBorder}; }`);
 	}
 
 	const focusBorderColor = theme.getColor(focusBorder);
@@ -1799,7 +1804,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const inputValidationInfoBorderColor = theme.getColor(inputValidationInfoBorder);
 	if (inputValidationInfoBorderColor) {
-		collector.addRule(`.scm-view .scm-editor-container.validation-info { outline: 1px solid ${inputValidationInfoBorderColor}; }`);
+		collector.addRule(`.scm-view .scm-editor-container.validation-info { outline: 1px solid ${inputValidationInfoBorderColor} !important; }`);
 		collector.addRule(`.scm-editor-validation.validation-info { border-color: ${inputValidationInfoBorderColor}; }`);
 	}
 
@@ -1815,7 +1820,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const inputValidationWarningBorderColor = theme.getColor(inputValidationWarningBorder);
 	if (inputValidationWarningBorderColor) {
-		collector.addRule(`.scm-view .scm-editor-container.validation-warning { outline: 1px solid ${inputValidationWarningBorderColor}; }`);
+		collector.addRule(`.scm-view .scm-editor-container.validation-warning { outline: 1px solid ${inputValidationWarningBorderColor} !important; }`);
 		collector.addRule(`.scm-editor-validation.validation-warning { border-color: ${inputValidationWarningBorderColor}; }`);
 	}
 
@@ -1831,7 +1836,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const inputValidationErrorBorderColor = theme.getColor(inputValidationErrorBorder);
 	if (inputValidationErrorBorderColor) {
-		collector.addRule(`.scm-view .scm-editor-container.validation-error { outline: 1px solid ${inputValidationErrorBorderColor}; }`);
+		collector.addRule(`.scm-view .scm-editor-container.validation-error { outline: 1px solid ${inputValidationErrorBorderColor} !important; }`);
 		collector.addRule(`.scm-editor-validation.validation-error { border-color: ${inputValidationErrorBorderColor}; }`);
 	}
 
