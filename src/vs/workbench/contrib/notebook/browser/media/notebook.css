@@ -215,12 +215,33 @@
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
 .monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:before,
-.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:after{
+.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:after {
 	content: "";
 	position: absolute;
 	width: 100%;
 	height: 1px;
-	background-color: rgba(255, 255, 255, 0.12);
+}
+
+/* top border */
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
+.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:before {
+	border-top: 1px solid transparent;
+}
+
+.monaco-workbench.hc-black .notebookOverlay .monaco-list .monaco-list-row.focused.cell-editor-focus .cell-focus-indicator-top:before,
+.monaco-workbench.hc-black .notebookOverlay .monaco-list .markdown-cell-row.focused.cell-editor-focus:before {
+	border-top-style: dashed;
+}
+
+/* bottom border */
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
+.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:after {
+	border-bottom: 1px solid transparent;
+}
+
+.monaco-workbench.hc-black .notebookOverlay .monaco-list .monaco-list-row.focused.cell-editor-focus .cell-focus-indicator-bottom:before,
+.monaco-workbench.hc-black .notebookOverlay .monaco-list .markdown-cell-row.focused.cell-editor-focus:after {
+	border-bottom-style: dashed;
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
@@ -230,14 +251,6 @@
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
 .monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:after {
 	bottom: 0px;
-}
-
-/* border color on light theme */
-.monaco-workbench.vs .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
-.monaco-workbench.vs .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
-.monaco-workbench.vs .notebookOverlay .monaco-list .markdown-cell-row.focused:before,
-.monaco-workbench.vs .notebookOverlay .monaco-list .markdown-cell-row.focused:after {
-	background-color: rgba(0, 0, 0, 0.12);
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .menu.mouseover,

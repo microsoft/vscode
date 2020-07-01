@@ -1312,11 +1312,11 @@ export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	hc: PANEL_BORDER
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
-export const focusedEditorIndicator = registerColor('notebook.focusedEditorIndicator', {
+export const focusedEditorBorderColor = registerColor('notebook.focusedEditorBorder', {
 	light: focusBorder,
 	dark: focusBorder,
 	hc: focusBorder
-}, nls.localize('notebook.focusedEditorIndicator', "The color of the notebook cell editor indicator."));
+}, nls.localize('notebook.focusedEditorBorder', "The color of the notebook cell editor border."));
 
 export const cellStatusIconSuccess = registerColor('notebookStatusSuccessIcon.foreground', {
 	light: debugIconStartForeground,
@@ -1349,17 +1349,29 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeperat
 	hc: contrastBorder
 }, nls.localize('cellToolbarSeperator', "The color of the seperator in the cell bottom toolbar"));
 
-export const cellFocusBackground = registerColor('notebook.cellFocusBackground', {
+export const focusedCellBackground = registerColor('notebook.focusedCellBackground', {
 	dark: transparent(PANEL_BORDER, .4),
 	light: transparent(listFocusBackground, .4),
-	hc: PANEL_BORDER
-}, nls.localize('cellFocusBackground', "The background color of focused or hovered cells"));
+	hc: null
+}, nls.localize('focusedCellBackground', "The background color of focused cells."));
+
+export const cellHoverBackground = registerColor('notebook.cellHoverBackground', {
+	dark: transparent(focusedCellBackground, .5),
+	light: transparent(focusedCellBackground, .7),
+	hc: null
+}, nls.localize('notebook.cellHoverBackground', "The background color of hovered cells."));
+
+export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
+	dark: Color.white.transparent(0.12),
+	light: Color.black.transparent(0.12),
+	hc: focusBorder
+}, nls.localize('notebook.focusedCellBorder', "The color of focused cells."));
 
 export const focusedCellShadow = registerColor('notebook.focusedCellShadow', {
 	dark: transparent(widgetShadow, 0.6),
 	light: transparent(widgetShadow, 0.4),
 	hc: Color.transparent
-}, nls.localize('cellShadow', "The color of the shadow on the focused or hovered cell"));
+}, nls.localize('notebook.focusedCellShadow', "The color of the shadow on the focused or hovered cell"));
 
 export const cellStatusBarItemHover = registerColor('notebook.cellStatusBarItemHoverBackground', {
 	light: new Color(new RGBA(0, 0, 0, 0.08)),
@@ -1456,18 +1468,30 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .monaco-list-row > .monaco-toolbar { border: solid 1px ${cellToolbarSeperator}; }`);
 	}
 
-	const cellFocusBackgroundColor = theme.getColor(cellFocusBackground);
-	if (cellFocusBackgroundColor) {
-		collector.addRule(`.notebookOverlay .code-cell-row:hover .cell-focus-indicator,
-			.notebookOverlay .code-cell-row.focused .cell-focus-indicator,
-			.notebookOverlay .code-cell-row.cell-output-hover .cell-focus-indicator { background-color: ${cellFocusBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .markdown-cell-row:hover,
-			.notebookOverlay .markdown-cell-row.focused { background-color: ${cellFocusBackgroundColor} !important; }`);
+	const focusedCellBackgroundColor = theme.getColor(focusedCellBackground);
+	if (focusedCellBackgroundColor) {
+		collector.addRule(`.notebookOverlay .code-cell-row.focused .cell-focus-indicator,
+			.notebookOverlay .markdown-cell-row.focused { background-color: ${focusedCellBackgroundColor} !important; }`);
 	}
 
-	const focusedEditorIndicatorColor = theme.getColor(focusedEditorIndicator);
-	if (focusedEditorIndicatorColor) {
-		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedEditorIndicatorColor}; }`);
+	const cellHoverBackgroundColor = theme.getColor(cellHoverBackground);
+	if (cellHoverBackgroundColor) {
+		collector.addRule(`.notebookOverlay .code-cell-row:not(.focused):hover .cell-focus-indicator,
+			.notebookOverlay .code-cell-row:not(.focused).cell-output-hover .cell-focus-indicator,
+			.notebookOverlay .markdown-cell-row:not(.focused):hover { background-color: ${cellHoverBackgroundColor} !important; }`);
+	}
+
+	const focusedCellBorderColor = theme.getColor(focusedCellBorder);
+	collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
+			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:before,
+			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:after {
+				border-color: ${focusedCellBorderColor} !important;
+			}`);
+
+	const focusedEditorBorderColorColor = theme.getColor(focusedEditorBorderColor);
+	if (focusedEditorBorderColorColor) {
+		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedEditorBorderColorColor}; }`);
 	}
 
 	const editorBorderColor = theme.getColor(notebookCellBorder);
