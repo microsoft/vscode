@@ -716,8 +716,7 @@
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
 	visibility: visible;
-	padding: 8px 4px 0;
-	width: calc(100% - 32px);
+	padding: 8px 0 0 10px;
 }
 
 /** Theming */
