@@ -15,9 +15,6 @@
 
 .scm-view .count {
 	display: flex;
-}
-
-.scm-view .count {
 	margin-left: 6px;
 }
 
@@ -37,6 +34,10 @@
 	display: flex;
 	flex-shrink: 1;
 	overflow: hidden;
+}
+
+.scm-view .scm-provider > .label > .name {
+	font-weight: bold;
 }
 
 .scm-view .scm-provider > .label > .description {
