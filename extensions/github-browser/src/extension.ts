@@ -10,22 +10,24 @@ import { VirtualFS } from './fs';
 import { GitHubApiContext, GitHubApi } from './github/api';
 import { GitHubFS } from './github/fs';
 import { VirtualSCM } from './scm';
+import { StatusBar } from './statusbar';
 
 const repositoryRegex = /^(?:(?:https:\/\/)?github.com\/)?([^\/]+)\/([^\/]+?)(?:\/|.git|$)/i;
 
-export function activate(context: ExtensionContext) {
-	const contextStore = new ContextStore<GitHubApiContext>(context.workspaceState, GitHubFS.scheme);
+export async function activate(context: ExtensionContext) {
+	const contextStore = new ContextStore<GitHubApiContext>('codespace', GitHubFS.scheme, context.workspaceState);
 	const changeStore = new ChangeStore(context.workspaceState);
 
 	const githubApi = new GitHubApi(contextStore);
 	const gitHubFS = new GitHubFS(githubApi);
-	const virtualFS = new VirtualFS('codespace', GitHubFS.scheme, contextStore, changeStore, gitHubFS);
+	const virtualFS = new VirtualFS('codespace', contextStore, changeStore, gitHubFS);
 
 	context.subscriptions.push(
 		githubApi,
 		gitHubFS,
 		virtualFS,
-		new VirtualSCM(GitHubFS.scheme, githubApi, changeStore)
+		new VirtualSCM(GitHubFS.scheme, githubApi, changeStore),
+		new StatusBar(contextStore, changeStore),
 	);
 
 	commands.registerCommand('githubBrowser.openRepository', async () => {
@@ -61,6 +63,11 @@ export function isChild(folderPath: string, filePath: string) {
 
 export function isDescendent(folderPath: string, filePath: string) {
 	return folderPath.length === 0 || filePath.startsWith(folderPath.endsWith('/') ? folderPath : `${folderPath}/`);
+}
+
+const shaRegex = /^[0-9a-f]{40}$/;
+export function isSha(ref: string) {
+	return shaRegex.test(ref);
 }
 
 function openWorkspace(uri: Uri, name: string, location: 'currentWindow' | 'newWindow' | 'addToCurrentWorkspace') {
