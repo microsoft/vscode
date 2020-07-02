@@ -127,6 +127,17 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	) {
 		super(id, options, contentOptions, extension, _webviewThemeDataProvider, _myLogService, telemetryService, environmentService, workbenchEnvironmentService);
 
+		/* __GDPR__
+			"webview.createWebview" : {
+				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"enableFindWidget": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		telemetryService.publicLog('webview.createWebview', {
+			enableFindWidget: !!options.enableFindWidget,
+			extension: extension?.id.value,
+		});
+
 		this._myLogService.debug(`Webview(${this.id}): init`);
 
 		const webviewId = new Promise<number | undefined>((resolve, reject) => {
