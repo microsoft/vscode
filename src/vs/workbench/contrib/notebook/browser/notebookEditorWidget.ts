@@ -1347,31 +1347,31 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeperat
 	dark: Color.fromHex('#808080').transparent(0.35),
 	light: Color.fromHex('#808080').transparent(0.35),
 	hc: contrastBorder
-}, nls.localize('cellToolbarSeperator', "The color of the seperator in the cell bottom toolbar"));
+}, nls.localize('notebook.cellToolbarSeperator', "The color of the seperator in the cell bottom toolbar"));
 
 export const focusedCellBackground = registerColor('notebook.focusedCellBackground', {
 	dark: transparent(PANEL_BORDER, .4),
 	light: transparent(listFocusBackground, .4),
 	hc: null
-}, nls.localize('focusedCellBackground', "The background color of focused cells."));
+}, nls.localize('focusedCellBackground', "The background color of a cell when the cell is focused."));
 
 export const cellHoverBackground = registerColor('notebook.cellHoverBackground', {
 	dark: transparent(focusedCellBackground, .5),
 	light: transparent(focusedCellBackground, .7),
 	hc: null
-}, nls.localize('notebook.cellHoverBackground', "The background color of hovered cells."));
+}, nls.localize('notebook.cellHoverBackground', "The background color of a cell when the cell is hovered."));
 
 export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
 	dark: Color.white.transparent(0.12),
 	light: Color.black.transparent(0.12),
 	hc: focusBorder
-}, nls.localize('notebook.focusedCellBorder', "The color of focused cells."));
+}, nls.localize('notebook.focusedCellBorder', "The color of the cell's top and bottom border when the cell is focused."));
 
 export const focusedCellShadow = registerColor('notebook.focusedCellShadow', {
 	dark: transparent(widgetShadow, 0.6),
 	light: transparent(widgetShadow, 0.4),
 	hc: Color.transparent
-}, nls.localize('notebook.focusedCellShadow', "The color of the shadow on the focused or hovered cell"));
+}, nls.localize('notebook.focusedCellShadow', "The color of the cell shadow when cells are focused."));
 
 export const cellStatusBarItemHover = registerColor('notebook.cellStatusBarItemHoverBackground', {
 	light: new Color(new RGBA(0, 0, 0, 0.08)),
