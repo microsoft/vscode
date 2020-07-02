@@ -521,18 +521,18 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 	}
 
 	renderElement(element: ITreeNode<IDebugSession, FuzzyScore>, _: number, data: ISessionTemplateData): void {
-		this.doRenderElement(element.element, element.element.getLabel(), createMatches(element.filterData), data);
+		this.doRenderElement(element.element, createMatches(element.filterData), data);
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IDebugSession>, FuzzyScore>, index: number, templateData: ISessionTemplateData, height: number | undefined): void {
 		const lastElement = node.element.elements[node.element.elements.length - 1];
 		const matches = createMatches(node.filterData);
-		this.doRenderElement(lastElement, node.element.elements[0].getLabel(), matches, templateData);
+		this.doRenderElement(lastElement, matches, templateData);
 	}
 
-	private doRenderElement(session: IDebugSession, label: string, matches: IMatch[], data: ISessionTemplateData): void {
+	private doRenderElement(session: IDebugSession, matches: IMatch[], data: ISessionTemplateData): void {
 		data.session.title = nls.localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
-		data.label.set(label, matches);
+		data.label.set(session.getLabel(), matches);
 		const thread = session.getAllThreads().find(t => t.stopped);
 
 		const setActionBar = () => {
