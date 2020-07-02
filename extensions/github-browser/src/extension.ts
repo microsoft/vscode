@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, Uri, workspace } from 'vscode';
+import { commands, ExtensionContext, Uri, window, workspace } from 'vscode';
 import { ChangeStore } from './changeStore';
 import { ContextStore } from './contextStore';
 import { VirtualFS } from './fs';
@@ -11,7 +11,7 @@ import { GitHubApiContext, GitHubApi } from './github/api';
 import { GitHubFS } from './github/fs';
 import { VirtualSCM } from './scm';
 
-// const repositoryRegex = /^(?:(?:https:\/\/)?github.com\/)?([^\/]+)\/([^\/]+?)(?:\/|.git|$)/i;
+const repositoryRegex = /^(?:(?:https:\/\/)?github.com\/)?([^\/]+)\/([^\/]+?)(?:\/|.git|$)/i;
 
 export function activate(context: ExtensionContext) {
 	const contextStore = new ContextStore<GitHubApiContext>(context.workspaceState, GitHubFS.scheme);
@@ -28,23 +28,23 @@ export function activate(context: ExtensionContext) {
 		new VirtualSCM(GitHubFS.scheme, githubApi, changeStore)
 	);
 
-	// commands.registerCommand('githubBrowser.openRepository', async () => {
-	// 	const value = await window.showInputBox({
-	// 		placeHolder: 'e.g. https://github.com/microsoft/vscode',
-	// 		prompt: 'Enter a GitHub repository url',
-	// 		validateInput: value => repositoryRegex.test(value) ? undefined : 'Invalid repository url'
-	// 	});
+	commands.registerCommand('githubBrowser.openRepository', async () => {
+		const value = await window.showInputBox({
+			placeHolder: 'e.g. https://github.com/microsoft/vscode',
+			prompt: 'Enter a GitHub repository url',
+			validateInput: value => repositoryRegex.test(value) ? undefined : 'Invalid repository url'
+		});
 
-	// 	if (value) {
-	// 		const match = repositoryRegex.exec(value);
-	// 		if (match) {
-	// 			const [, owner, repo] = match;
+		if (value) {
+			const match = repositoryRegex.exec(value);
+			if (match) {
+				const [, owner, repo] = match;
 
-	// 			const uri = Uri.parse(`codespace://HEAD/${owner}/${repo}`);
-	// 			openWorkspace(uri, repo, 'currentWindow');
-	// 		}
-	// 	}
-	// });
+				const uri = Uri.parse(`codespace://HEAD/${owner}/${repo}`);
+				openWorkspace(uri, repo, 'currentWindow');
+			}
+		}
+	});
 }
 
 export function getRelativePath(rootUri: Uri, uri: Uri) {
@@ -63,11 +63,11 @@ export function isDescendent(folderPath: string, filePath: string) {
 	return folderPath.length === 0 || filePath.startsWith(folderPath.endsWith('/') ? folderPath : `${folderPath}/`);
 }
 
-// function openWorkspace(uri: Uri, name: string, location: 'currentWindow' | 'newWindow' | 'addToCurrentWorkspace') {
-// 	if (location === 'addToCurrentWorkspace') {
-// 		const count = (workspace.workspaceFolders && workspace.workspaceFolders.length) || 0;
-// 		return workspace.updateWorkspaceFolders(count, 0, { uri: uri, name: name });
-// 	}
+function openWorkspace(uri: Uri, name: string, location: 'currentWindow' | 'newWindow' | 'addToCurrentWorkspace') {
+	if (location === 'addToCurrentWorkspace') {
+		const count = (workspace.workspaceFolders && workspace.workspaceFolders.length) || 0;
+		return workspace.updateWorkspaceFolders(count, 0, { uri: uri, name: name });
+	}
 
-// 	return commands.executeCommand('vscode.openFolder', uri, location === 'newWindow');
-// }
+	return commands.executeCommand('vscode.openFolder', uri, location === 'newWindow');
+}
