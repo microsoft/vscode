@@ -263,7 +263,7 @@ export class NativeStorageService extends Disposable implements IStorageService 
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		if (this.workspaceStoragePath === SQLiteStorageDatabase.IN_MEMORY_PATH) {
-			return Promise.resolve(); // no migration needed if running in memory
+			return; // no migration needed if running in memory
 		}
 
 		// Close workspace DB to be able to copy
