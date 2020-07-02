@@ -308,7 +308,7 @@ export const getOrMakeSearchEditorInput = (
 	let config = { ...defaultConfig, ...priorConfig, ...existingData.config };
 
 	if (defaultNumberOfContextLines !== null && defaultNumberOfContextLines !== undefined) {
-		config.contextLines = defaultNumberOfContextLines;
+		config.contextLines = existingData.config.contextLines ?? defaultNumberOfContextLines;
 	}
 
 	if (existingData.text) {
