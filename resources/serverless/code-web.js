@@ -232,20 +232,23 @@ async function handleRoot(req, res) {
 	if (match) {
 		const qs = new URLSearchParams(match[1]);
 
-		let ghPath = qs.get('gh');
-		if (ghPath) {
-			if (!ghPath.startsWith('/')) {
-				ghPath = '/' + ghPath;
+		let gh = qs.get('gh');
+		if (gh) {
+			if (gh.startsWith('/')) {
+				gh = gh.substr(1);
 			}
-			folderUri = { scheme: 'github', authority: 'HEAD', path: ghPath };
-		} else {
 
-			let csPath = qs.get('cs');
-			if (csPath) {
-				if (!csPath.startsWith('/')) {
-					csPath = '/' + csPath;
+			const [owner, repo, ...branch] = gh.split('/', 3);
+			folderUri = { scheme: 'github', authority: branch.join('/') || 'HEAD', path: `/${owner}/${repo}` };
+		} else {
+			let cs = qs.get('cs');
+			if (cs) {
+				if (cs.startsWith('/')) {
+					cs = cs.substr(1);
 				}
-				folderUri = { scheme: 'codespace', authority: 'HEAD', path: csPath };
+
+				const [owner, repo, ...branch] = cs.split('/');
+				folderUri = { scheme: 'codespace', authority: branch.join('/') || 'HEAD', path: `/${owner}/${repo}` };
 			}
 		}
 	}
