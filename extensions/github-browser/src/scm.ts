@@ -48,7 +48,18 @@ export class VirtualSCM implements Disposable {
 	}
 
 	private registerCommands() {
-		commands.registerCommand('githubBrowser.commit', (...args: any[]) => this.commitChanges(args[0]));
+		commands.registerCommand('githubBrowser.commit', (sourceControl: SourceControl | undefined) => {
+			// TODO@eamodio remove this hack once I figure out why the args are missing
+			if (sourceControl === undefined && this.providers.length === 1) {
+				sourceControl = this.providers[0].sourceControl;
+			}
+
+			if (sourceControl === undefined) {
+				return;
+			}
+
+			this.commitChanges(sourceControl);
+		});
 
 		commands.registerCommand('githubBrowser.discardChanges', (resourceState: SourceControlResourceState) =>
 			this.discardChanges(resourceState.resourceUri)
