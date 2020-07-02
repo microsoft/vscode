@@ -217,7 +217,7 @@ export class CallStackView extends ViewPane {
 
 		this.dataSource = new CallStackDataSource(this.debugService);
 		const sessionsRenderer = this.instantiationService.createInstance(SessionsRenderer, this.menu);
-		this.tree = <WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), new CallStackCompressionDelegate(), [
+		this.tree = <WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), new CallStackCompressionDelegate(this.debugService), [
 			sessionsRenderer,
 			new ThreadsRenderer(this.instantiationService),
 			this.instantiationService.createInstance(StackFramesRenderer),
@@ -1104,9 +1104,20 @@ class ContinueAction extends Action {
 }
 
 class CallStackCompressionDelegate implements ITreeCompressionDelegate<CallStackItem> {
+
+	constructor(private readonly debugService: IDebugService) { }
+
 	isIncompressible(stat: CallStackItem): boolean {
 		if (isDebugSession(stat)) {
-			return stat.noCompact;
+			if (stat.compact) {
+				return false;
+			}
+			const sessions = this.debugService.getModel().getSessions();
+			if (sessions.some(s => s.parentSession === stat && s.compact)) {
+				return false;
+			}
+
+			return true;
 		}
 
 		return true;
