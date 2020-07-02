@@ -76,7 +76,7 @@ import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { Command } from 'vs/editor/common/modes';
-import { renderCodicons } from 'vs/base/common/codicons';
+import { renderCodicons, Codicon } from 'vs/base/common/codicons';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { domEvent } from 'vs/base/browser/event';
@@ -831,6 +831,10 @@ class ViewModel {
 	private readonly _onDidChangeMode = new Emitter<ViewModelMode>();
 	readonly onDidChangeMode = this._onDidChangeMode.event;
 
+	private _onDidChangeRepositoryCollapseState = new Emitter<void>();
+	readonly onDidChangeRepositoryCollapseState: Event<void>;
+	private visible: boolean = false;
+
 	get mode(): ViewModelMode { return this._mode; }
 	set mode(mode: ViewModelMode) {
 		this._mode = mode;
@@ -867,7 +871,7 @@ class ViewModel {
 	private disposables = new DisposableStore();
 
 	constructor(
-		private repositories: ISequence<ISCMRepository>,
+		readonly repositories: ISequence<ISCMRepository>,
 		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
 		private menus: SCMMenus,
 		private inputRenderer: InputRenderer,
@@ -875,12 +879,17 @@ class ViewModel {
 		private _sortKey: ViewModelSortKey,
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-	) { }
+	) {
+		this.onDidChangeRepositoryCollapseState = Event.any(
+			this._onDidChangeRepositoryCollapseState.event,
+			Event.signal(Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element)))
+		);
+	}
 
-	private onDidSpliceRepositories({ start, deleteCount, toInsert }: ISplice<ISCMRepository>): void {
+	private _onDidSpliceRepositories({ start, deleteCount, toInsert }: ISplice<ISCMRepository>): void {
 		const itemsToInsert = toInsert.map(repository => {
 			const disposable = combinedDisposable(
-				repository.provider.groups.onDidSplice(splice => this.onDidSpliceGroups(item, splice)),
+				repository.provider.groups.onDidSplice(splice => this._onDidSpliceGroups(item, splice)),
 				repository.input.onDidChangeVisibility(() => this.refresh(item))
 			);
 			const groupItems = repository.provider.groups.elements.map(group => this.createGroupItem(group));
@@ -902,7 +911,7 @@ class ViewModel {
 		this.refresh();
 	}
 
-	private onDidSpliceGroups(item: IRepositoryItem, { start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
+	private _onDidSpliceGroups(item: IRepositoryItem, { start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
 		const itemsToInsert: IGroupItem[] = toInsert.map(group => this.createGroupItem(group));
 		const itemsToDispose = item.groupItems.splice(start, deleteCount, ...itemsToInsert);
 
@@ -918,7 +927,7 @@ class ViewModel {
 		const resources: ISCMResource[] = [...group.elements];
 		const disposable = combinedDisposable(
 			group.onDidChange(() => this.tree.refilter()),
-			group.onDidSplice(splice => this.onDidSpliceGroup(item, splice))
+			group.onDidSplice(splice => this._onDidSpliceGroup(item, splice))
 		);
 
 		const item: IGroupItem = { element: group, resources, tree, disposable };
@@ -932,7 +941,7 @@ class ViewModel {
 		return item;
 	}
 
-	private onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
+	private _onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
 		const before = item.resources.length;
 		const deleted = item.resources.splice(start, deleteCount, ...toInsert);
 		const after = item.resources.length;
@@ -957,8 +966,8 @@ class ViewModel {
 	setVisible(visible: boolean): void {
 		if (visible) {
 			this.visibilityDisposables = new DisposableStore();
-			this.repositories.onDidSplice(this.onDidSpliceRepositories, this, this.visibilityDisposables);
-			this.onDidSpliceRepositories({ start: 0, deleteCount: 0, toInsert: this.repositories.elements });
+			this.repositories.onDidSplice(this._onDidSpliceRepositories, this, this.visibilityDisposables);
+			this._onDidSpliceRepositories({ start: 0, deleteCount: 0, toInsert: this.repositories.elements });
 			this.repositoryCollapseStates = undefined;
 
 			if (typeof this.scrollTop === 'number') {
@@ -978,9 +987,12 @@ class ViewModel {
 			}
 
 			this.visibilityDisposables.dispose();
-			this.onDidSpliceRepositories({ start: 0, deleteCount: this.items.length, toInsert: [] });
+			this._onDidSpliceRepositories({ start: 0, deleteCount: this.items.length, toInsert: [] });
 			this.scrollTop = this.tree.scrollTop;
 		}
+
+		this.visible = visible;
+		this._onDidChangeRepositoryCollapseState.fire();
 	}
 
 	private refresh(item?: IRepositoryItem | IGroupItem): void {
@@ -991,6 +1003,8 @@ class ViewModel {
 		} else {
 			this.tree.setChildren(null, this.items.map(item => this.render(item)));
 		}
+
+		this._onDidChangeRepositoryCollapseState.fire();
 	}
 
 	private render(item: IRepositoryItem | IGroupItem): ICompressedTreeElement<TreeElement> {
@@ -1082,6 +1096,10 @@ class ViewModel {
 	}
 
 	getViewSecondaryActions(): IAction[] {
+		if (this.repositories.elements.length === 0) {
+			return [];
+		}
+
 		const viewAction = new SCMViewSubMenuAction(this);
 
 		if (this.repositories.elements.length !== 1) {
@@ -1104,6 +1122,38 @@ class ViewModel {
 		}
 
 		return this.repositories.elements[0].provider;
+	}
+
+	collapseAllProviders(): void {
+		for (const repository of this.repositories.elements) {
+			if (this.tree.isCollapsible(repository)) {
+				this.tree.collapse(repository);
+			}
+		}
+	}
+
+	expandAllProviders(): void {
+		for (const repository of this.repositories.elements) {
+			if (this.tree.isCollapsible(repository)) {
+				this.tree.expand(repository);
+			}
+		}
+	}
+
+	isAnyProviderCollapsible(): boolean {
+		if (!this.visible || this.repositories.elements.length === 1) {
+			return false;
+		}
+
+		return this.repositories.elements.some(r => this.tree.hasElement(r) && this.tree.isCollapsible(r));
+	}
+
+	areAllProvidersCollapsed(): boolean {
+		if (!this.visible || this.repositories.elements.length === 1) {
+			return false;
+		}
+
+		return this.repositories.elements.every(r => this.tree.hasElement(r) && (!this.tree.isCollapsible(r) || this.tree.isCollapsed(r)));
 	}
 
 	dispose(): void {
@@ -1490,6 +1540,34 @@ class SCMInputWidget extends Disposable {
 	}
 }
 
+class SCMCollapseAction extends Action {
+
+	private allCollapsed = false;
+
+	constructor(private viewModel: ViewModel) {
+		super('scm.collapse', undefined, undefined, true);
+		this._register(viewModel.onDidChangeRepositoryCollapseState(this.update, this));
+		this.update();
+	}
+
+	async run(): Promise<void> {
+		if (this.allCollapsed) {
+			this.viewModel.expandAllProviders();
+		} else {
+			this.viewModel.collapseAllProviders();
+		}
+	}
+
+	private update(): void {
+		const isAnyProviderCollapsible = this.viewModel.isAnyProviderCollapsible();
+
+		this.enabled = isAnyProviderCollapsible;
+		this.allCollapsed = isAnyProviderCollapsible && this.viewModel.areAllProvidersCollapsed();
+		this.label = this.allCollapsed ? localize('expand all', "Expand All Providers") : localize('collapse all', "Collapse All Providers");
+		this.class = this.allCollapsed ? Codicon.expandAll.classNames : Codicon.collapseAll.classNames;
+	}
+}
+
 export class SCMViewPane extends ViewPane {
 
 	private _onDidLayout = new Emitter<void>();
@@ -1660,7 +1738,14 @@ export class SCMViewPane extends ViewPane {
 			return [];
 		}
 
-		return this.viewModel.getViewActions();
+		if (this.viewModel.repositories.elements.length < 2) {
+			return this.viewModel.getViewActions();
+		}
+
+		return [
+			new SCMCollapseAction(this.viewModel),
+			...this.viewModel.getViewActions()
+		];
 	}
 
 	getSecondaryActions(): IAction[] {
