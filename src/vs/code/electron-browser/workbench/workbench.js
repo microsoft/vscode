@@ -54,6 +54,8 @@ bootstrapWindow.load([
 	'vs/css!vs/workbench/workbench.desktop.main'
 ],
 	function (workbench, configuration) {
+
+		// Mark start of workbench
 		perf.mark('didLoadWorkbenchMain');
 		performance.mark('workbench-start');
 
