@@ -30,6 +30,10 @@
 	flex-flow: nowrap;
 }
 
+.scm-view .scm-provider > .count {
+	display: none;
+}
+
 .scm-view .scm-provider > .label {
 	display: flex;
 	flex-shrink: 1;
