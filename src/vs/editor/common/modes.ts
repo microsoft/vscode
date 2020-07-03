@@ -647,7 +647,8 @@ export interface CompletionList {
 export const enum CompletionTriggerKind {
 	Invoke = 0,
 	TriggerCharacter = 1,
-	TriggerForIncompleteCompletions = 2
+	TriggerForIncompleteCompletions = 2,
+	UpdateSuggestions = 3
 }
 /**
  * Contains additional information about the context in which

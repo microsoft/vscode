@@ -6,13 +6,20 @@
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { Position, IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { CompletionItemProvider, StandardTokenType, CompletionContext, CompletionProviderRegistry, CompletionTriggerKind, CompletionItemKind } from 'vs/editor/common/modes';
+import {
+	CompletionContext,
+	CompletionItemKind,
+	CompletionItemProvider,
+	CompletionProviderRegistry,
+	CompletionTriggerKind,
+	StandardTokenType
+} from 'vs/editor/common/modes';
 import { CompletionModel } from './completionModel';
 import { CompletionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport, SnippetSortOrder, CompletionOptions, CompletionDurations } from './suggest';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -47,6 +54,7 @@ export interface SuggestTriggerContext {
 	readonly shy: boolean;
 	readonly triggerKind?: CompletionTriggerKind;
 	readonly triggerCharacter?: string;
+	readonly updateSuggestions?: boolean;
 }
 
 export class LineContext {
@@ -408,6 +416,8 @@ export class SuggestModel implements IDisposable {
 				triggerKind: CompletionTriggerKind.TriggerCharacter,
 				triggerCharacter: context.triggerCharacter
 			};
+		} else if (context.updateSuggestions) {
+			suggestCtx = { triggerKind: CompletionTriggerKind.UpdateSuggestions };
 		}
 
 		this._requestToken = new CancellationTokenSource();
