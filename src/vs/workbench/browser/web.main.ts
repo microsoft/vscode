@@ -205,7 +205,6 @@ class BrowserMain extends Disposable {
 	}
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
-
 		const indexedDB = new IndexedDB();
 
 		// Logger
