@@ -665,6 +665,10 @@ export interface CompletionContext {
 	 * `undefined` if provider was not triggered by a character.
 	 */
 	triggerCharacter?: string;
+	/**
+	 * Was completion triggered automatically or explicitly by user.
+	 */
+	auto: boolean;
 }
 /**
  * The completion item provider interface defines the contract between extensions and
