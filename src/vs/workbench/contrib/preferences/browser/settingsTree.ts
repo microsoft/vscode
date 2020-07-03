@@ -1118,6 +1118,7 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 		const items = getObjectDisplayValue(dataElement);
 
 		template.objectWidget.setValue(items, {
+			settingKey: dataElement.setting.key,
 			showAddButton: (
 				typeof dataElement.setting.objectAdditionalProperties === 'object' ||
 				isDefined(dataElement.setting.objectPatternProperties) ||
