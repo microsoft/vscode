@@ -940,7 +940,8 @@ export namespace CompletionContext {
 	export function to(context: modes.CompletionContext): types.CompletionContext {
 		return {
 			triggerKind: CompletionTriggerKind.to(context.triggerKind),
-			triggerCharacter: context.triggerCharacter
+			triggerCharacter: context.triggerCharacter,
+			auto: context.auto
 		};
 	}
 }
