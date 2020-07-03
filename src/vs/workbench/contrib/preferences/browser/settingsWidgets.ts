@@ -188,7 +188,7 @@ export class ListSettingListModel<TDataItem extends object> {
 		this._dataItems = listData;
 	}
 
-	select(idx: number): void {
+	select(idx: number | null): void {
 		this._selectedIdx = idx;
 	}
 
@@ -664,6 +664,7 @@ export interface IObjectKeySuggester {
 }
 
 interface IObjectSetValueOptions {
+	settingKey: string;
 	showAddButton: boolean;
 	keySuggester: IObjectKeySuggester;
 	valueSuggester: IObjectValueSuggester;
@@ -678,6 +679,7 @@ interface IObjectRenderEditWidgetOptions {
 }
 
 export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataItem> {
+	private currentSettingKey: string = '';
 	private showAddButton: boolean = true;
 	private keySuggester: IObjectKeySuggester = () => undefined;
 	private valueSuggester: IObjectValueSuggester = () => undefined;
@@ -686,6 +688,13 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		this.showAddButton = options?.showAddButton ?? this.showAddButton;
 		this.keySuggester = options?.keySuggester ?? this.keySuggester;
 		this.valueSuggester = options?.valueSuggester ?? this.valueSuggester;
+
+		if (isDefined(options) && options.settingKey !== this.currentSettingKey) {
+			this.model.setEditKey('none');
+			this.model.select(null);
+			this.currentSettingKey = options.settingKey;
+		}
+
 		super.setValue(listData);
 	}
 
