@@ -26,8 +26,8 @@
 					"message": 3
 				},
 				"background": {
-					"beginsPattern": "Starting compilation",
-					"endsPattern": "Finished compilation"
+					"beginsPattern": "\\[watch-client\\].*Starting compilation",
+					"endsPattern": "\\[watch-client\\].*Finished compilation"
 				}
 			}
 		},
