@@ -5,10 +5,10 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUntitledTextEditorService, IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
@@ -20,7 +20,7 @@ import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream 
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { joinPath, dirname, basename, toLocalResource, extUri, extname, isEqualOrParent } from 'vs/base/common/resources';
 import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
-import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, bufferToStream } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -36,7 +36,8 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, UTF8_BOM, detectEncodingByBOMFromBuffer } from 'vs/workbench/services/textfile/common/encoding';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, UTF8_BOM, detectEncodingByBOMFromBuffer, toEncodeReadable, toDecodeStream, IDecodeStreamResult } from 'vs/workbench/services/textfile/common/encoding';
+import { consumeStream } from 'vs/base/common/stream';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -90,75 +91,91 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
-		const content = await this.fileService.readFile(resource, options);
-
-		// in case of acceptTextOnly: true, we check the first
-		// chunk for possibly being binary by looking for 0-bytes
-		// we limit this check to the first 512 bytes
-		this.validateBinary(content.value, options);
+		const [bufferStream, decoder] = await this.doRead(resource, {
+			...options,
+			// optimization: since we know that the caller does not
+			// care about buffering, we indicate this to the reader.
+			// this reduces all the overhead the buffered reading
+			// has (open, read, close) if the provider supports
+			// unbuffered reading.
+			preferUnbuffered: true
+		});
 
 		return {
-			...content,
-			encoding: 'utf8',
-			value: content.value.toString()
+			...bufferStream,
+			encoding: decoder.detected.encoding || UTF8,
+			value: await consumeStream(decoder.stream, strings => strings.join(''))
 		};
 	}
 
 	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
-		const stream = await this.fileService.readFileStream(resource, options);
-
-		// in case of acceptTextOnly: true, we check the first
-		// chunk for possibly being binary by looking for 0-bytes
-		// we limit this check to the first 512 bytes
-		let checkedForBinary = false;
-		const throwOnBinary = (data: VSBuffer): Error | undefined => {
-			if (!checkedForBinary) {
-				checkedForBinary = true;
-
-				this.validateBinary(data, options);
-			}
-
-			return undefined;
-		};
+		const [bufferStream, decoder] = await this.doRead(resource, options);
 
 		return {
-			...stream,
-			encoding: 'utf8',
-			value: await createTextBufferFactoryFromStream(stream.value, undefined, options?.acceptTextOnly ? throwOnBinary : undefined)
+			...bufferStream,
+			encoding: decoder.detected.encoding || UTF8,
+			value: await createTextBufferFactoryFromStream(decoder.stream)
 		};
 	}
 
-	private validateBinary(buffer: VSBuffer, options?: IReadTextFileOptions): void {
-		if (!options || !options.acceptTextOnly) {
-			return; // no validation needed
+	private async doRead(resource: URI, options?: IReadTextFileOptions & { preferUnbuffered?: boolean }): Promise<[IFileStreamContent, IDecodeStreamResult]> {
+
+		// read stream raw (either buffered or unbuffered)
+		let bufferStream: IFileStreamContent;
+		if (options?.preferUnbuffered) {
+			const content = await this.fileService.readFile(resource, options);
+			bufferStream = {
+				...content,
+				value: bufferToStream(content.value)
+			};
+		} else {
+			bufferStream = await this.fileService.readFileStream(resource, options);
 		}
 
-		// in case of acceptTextOnly: true, we check the first
-		// chunk for possibly being binary by looking for 0-bytes
-		// we limit this check to the first 512 bytes
-		for (let i = 0; i < buffer.byteLength && i < 512; i++) {
-			if (buffer.readUInt8(i) === 0) {
-				throw new TextFileOperationError(nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), TextFileOperationResult.FILE_IS_BINARY, options);
-			}
+		// read through encoding library
+		const decoder = await toDecodeStream(bufferStream.value, {
+			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
+			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
+		});
+
+		// validate binary
+		if (options?.acceptTextOnly && decoder.detected.seemsBinary) {
+			throw new TextFileOperationError(nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), TextFileOperationResult.FILE_IS_BINARY, options);
 		}
+
+		return [bufferStream, decoder];
 	}
 
 	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
-		const encodedValue = await this.doEncodeText(resource, value);
+		const readable = await this.getEncodedReadable(resource, value);
 
-		return this.workingCopyFileService.create(resource, encodedValue, options);
-	}
-
-	protected async doEncodeText(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined> {
-		if (!value) {
-			return undefined;
-		}
-
-		return toBufferOrReadable(value);
+		return this.workingCopyFileService.create(resource, readable, options);
 	}
 
 	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
-		return this.fileService.writeFile(resource, toBufferOrReadable(value), options);
+		const readable = await this.getEncodedReadable(resource, value, options);
+
+		return this.fileService.writeFile(resource, readable, options);
+	}
+
+	private async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined>;
+	private async getEncodedReadable(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable>;
+	private async getEncodedReadable(resource: URI, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined> {
+
+		// check for encoding
+		const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource, options);
+
+		// when encoding is standard skip encoding step
+		if (encoding === UTF8 && !addBOM) {
+			return typeof value === 'undefined'
+				? undefined
+				: toBufferOrReadable(value);
+		}
+
+		// otherwise create encoded readable
+		value = value || '';
+		const snapshot = typeof value === 'string' ? stringToSnapshot(value) : value;
+		return toEncodeReadable(snapshot, encoding, { addBOM });
 	}
 
 	//#endregion
