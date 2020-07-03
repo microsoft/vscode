@@ -222,6 +222,7 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 			updateToolbar();
 
 			const count = repository.provider.count || 0;
+			templateData.countContainer.setAttribute('data-count', String(count));
 			templateData.count.setCount(count);
 		};
 		disposables.add(repository.provider.onDidChange(onDidChangeProvider, null));
@@ -1616,6 +1617,14 @@ export class SCMViewPane extends ViewPane {
 		const updateActionsVisibility = () => toggleClass(this.listContainer, 'show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
 		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility);
 		updateActionsVisibility();
+
+		const updateProviderCountVisibility = () => {
+			const value = this.configurationService.getValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge');
+			toggleClass(this.listContainer, 'hide-provider-counts', value === 'hidden');
+			toggleClass(this.listContainer, 'auto-provider-counts', value === 'auto');
+		};
+		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'))(updateProviderCountVisibility);
+		updateProviderCountVisibility();
 
 		const repositories = new SimpleSequence(this.scmService.repositories, this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository);
 		this._register(repositories);

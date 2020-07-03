@@ -30,7 +30,8 @@
 	flex-flow: nowrap;
 }
 
-.scm-view .scm-provider > .count {
+.scm-view.hide-provider-counts .scm-provider > .count,
+.scm-view.auto-provider-counts .scm-provider > .count[data-count="0"] {
 	display: none;
 }
 

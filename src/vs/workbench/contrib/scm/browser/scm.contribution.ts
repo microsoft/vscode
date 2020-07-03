@@ -143,6 +143,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.countBadge', "Controls the Source Control count badge."),
 			default: 'all'
 		},
+		'scm.providerCountBadge': {
+			type: 'string',
+			enum: ['hidden', 'auto', 'visible'],
+			enumDescriptions: [
+				localize('scm.providerCountBadge.hidden', "Hide Source Control Providers count badges."),
+				localize('scm.providerCountBadge.auto', "Show Source Control Providers count badges if there are any changes."),
+				localize('scm.providerCountBadge.visible', "Show Source Control Providers count badges.")
+			],
+			description: localize('scm.providerCountBadge', "Controls the Source Control Providers count badge."),
+			default: 'hidden'
+		},
 		'scm.defaultViewMode': {
 			type: 'string',
 			enum: ['tree', 'list'],
