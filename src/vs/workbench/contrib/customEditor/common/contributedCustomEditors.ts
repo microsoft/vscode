@@ -12,8 +12,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { Memento } from 'vs/workbench/common/memento';
 import { CustomEditorDescriptor, CustomEditorInfo, CustomEditorPriority } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/common/extensionPoint';
-import { DEFAULT_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { DEFAULT_EDITOR_ID } from 'vs/workbench/services/editor/common/editorOpenWith';
 
 const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
 

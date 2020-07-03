@@ -17,6 +17,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { GlobPattern } from 'vs/workbench/api/common/extHost.protocol';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
+import { IRevertOptions } from 'vs/workbench/common/editor';
 
 export enum CellKind {
 	Markdown = 1,
@@ -69,7 +70,7 @@ export interface NotebookDocumentMetadata {
 	cellRunnable: boolean;
 	cellHasExecutionOrder: boolean;
 	displayOrder?: GlobPattern[];
-	custom?: { [key: string]: any };
+	custom?: { [key: string]: unknown };
 }
 
 export enum NotebookCellRunState {
@@ -89,7 +90,7 @@ export interface NotebookCellMetadata {
 	runState?: NotebookCellRunState;
 	runStartTime?: number;
 	lastRunDuration?: number;
-	custom?: { [key: string]: any };
+	custom?: { [key: string]: unknown };
 }
 
 export interface INotebookDisplayOrder {
@@ -98,8 +99,7 @@ export interface INotebookDisplayOrder {
 }
 
 export interface INotebookMimeTypeSelector {
-	type: string;
-	subTypes?: string[];
+	mimeTypes?: string[];
 }
 
 export interface INotebookRendererInfo {
@@ -153,12 +153,21 @@ export interface IErrorOutput {
 	traceback?: string[];
 }
 
+export interface NotebookCellOutputMetadata {
+	/**
+	 * Additional attributes of a cell metadata.
+	 */
+	custom?: { [key: string]: unknown };
+}
+
 export interface IDisplayOutput {
 	outputKind: CellOutputKind.Rich;
 	/**
 	 * { mime_type: value }
 	 */
-	data: { [key: string]: any; }
+	data: { [key: string]: unknown; }
+
+	metadata?: NotebookCellOutputMetadata;
 }
 
 export enum MimeTypeRendererResolver {
@@ -176,7 +185,9 @@ export interface IOrderedMimeType {
 
 export interface ITransformedDisplayOutputDto {
 	outputKind: CellOutputKind.Rich;
-	data: { [key: string]: any; }
+	outputId: string;
+	data: { [key: string]: unknown; }
+	metadata?: NotebookCellOutputMetadata;
 
 	orderedMimeTypes?: IOrderedMimeType[];
 	pickedMimeTypeIndex?: number;
@@ -195,6 +206,7 @@ export type IRawOutput = IDisplayOutput | IStreamOutput | IErrorOutput;
 
 export interface IOutputRenderRequestOutputInfo {
 	index: number;
+	outputId: string;
 	handlerId: string;
 	mimeType: string;
 	output?: IRawOutput;
@@ -211,6 +223,7 @@ export interface IOutputRenderRequest<T> {
 
 export interface IOutputRenderResponseOutputInfo {
 	index: number;
+	outputId: string;
 	mimeType: string;
 	handlerId: string;
 	transformedOutput: string;
@@ -250,15 +263,14 @@ export interface IMetadata {
 export interface INotebookTextModel {
 	handle: number;
 	viewType: string;
-	// metadata: IMetadata;
+	metadata: NotebookDocumentMetadata
 	readonly uri: URI;
 	readonly versionId: number;
 	languages: string[];
 	cells: ICell[];
 	renderers: Set<string>;
-	onDidChangeCells?: Event<NotebookCellTextModelSplice[]>;
+	onDidChangeCells?: Event<{ synchronous: boolean, splices: NotebookCellTextModelSplice[] }>;
 	onDidChangeContent: Event<void>;
-	onDidChangeUnknown: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }
 
@@ -549,9 +561,15 @@ export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' 
 
 
 export interface INotebookEditorModel extends IEditorModel {
-	notebook: NotebookTextModel;
+	readonly onDidChangeDirty: Event<void>;
+	readonly resource: URI;
+	readonly viewType: string;
+	readonly notebook: NotebookTextModel;
 	isDirty(): boolean;
+	isUntitled(): boolean;
 	save(): Promise<boolean>;
+	saveAs(target: URI): Promise<boolean>;
+	revert(options?: IRevertOptions | undefined): Promise<void>;
 }
 
 export interface INotebookTextModelBackup {
@@ -563,6 +581,7 @@ export interface INotebookTextModelBackup {
 export interface NotebookDocumentBackupData {
 	readonly viewType: string;
 	readonly name: string;
+	readonly backupId?: string;
 }
 
 export interface IEditor extends editorCommon.ICompositeCodeEditor {
@@ -574,4 +593,9 @@ export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	getId(): string;
 	hasFocus(): boolean;
 	hasModel(): boolean;
+}
+
+export enum NotebookEditorPriority {
+	default = 'default',
+	option = 'option',
 }

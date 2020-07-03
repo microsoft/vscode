@@ -227,10 +227,10 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	}
 
 	private get iconPath() {
-		const root = path.join(this._contributionProvider.extensionPath, 'media');
+		const root = vscode.Uri.joinPath(this._contributionProvider.extensionUri, 'media');
 		return {
-			light: vscode.Uri.file(path.join(root, 'preview-light.svg')),
-			dark: vscode.Uri.file(path.join(root, 'preview-dark.svg'))
+			light: vscode.Uri.joinPath(root, 'preview-light.svg'),
+			dark: vscode.Uri.joinPath(root, 'preview-dark.svg'),
 		};
 	}
 

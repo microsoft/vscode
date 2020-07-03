@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, IUserDataSyncService, SyncResource, SyncStatus, IGlobalState } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserDataSyncService, SyncResource, SyncStatus, IGlobalState, ISyncData } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
 import { VSBuffer } from 'vs/base/common/buffer';

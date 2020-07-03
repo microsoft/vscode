@@ -113,8 +113,25 @@ export function basename(uri: string) {
 	return uri.substr(lastIndexOfSlash + 1);
 }
 
+
 const Slash = '/'.charCodeAt(0);
 const Dot = '.'.charCodeAt(0);
+
+export function extname(uri: string) {
+	for (let i = uri.length - 1; i >= 0; i--) {
+		const ch = uri.charCodeAt(i);
+		if (ch === Dot) {
+			if (i > 0 && uri.charCodeAt(i - 1) !== Slash) {
+				return uri.substr(i);
+			} else {
+				break;
+			}
+		} else if (ch === Slash) {
+			break;
+		}
+	}
+	return '';
+}
 
 export function isAbsolutePath(path: string) {
 	return path.charCodeAt(0) === Slash;

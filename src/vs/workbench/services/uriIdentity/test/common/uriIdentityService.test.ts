@@ -8,10 +8,14 @@ import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uri
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 
 suite('URI Identity', function () {
 
 	class FakeFileService extends mock<IFileService>() {
+
+		onDidChangeFileSystemProviderCapabilities = Event.None;
+		onDidChangeFileSystemProviderRegistrations = Event.None;
 
 		constructor(readonly data: Map<string, FileSystemProviderCapabilities>) {
 			super();

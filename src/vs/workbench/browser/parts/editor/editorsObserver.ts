@@ -185,7 +185,7 @@ export class EditorsObserver extends Disposable {
 	}
 
 	private updateEditorResourcesMap(editor: IEditorInput, add: boolean): void {
-		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (!resource) {
 			return; // require a resource
 		}

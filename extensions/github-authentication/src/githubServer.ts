@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as https from 'https';
 import * as nls from 'vscode-nls';
 import * as vscode from 'vscode';
-import * as uuid from 'uuid';
+import fetch from 'node-fetch';
+import { v4 as uuid } from 'uuid';
 import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import Logger from './common/logger';
 
@@ -36,33 +36,24 @@ const exchangeCodeForToken: (state: string) => PromiseAdapter<vscode.Uri, string
 			return;
 		}
 
-		const post = https.request({
-			host: AUTH_RELAY_SERVER,
-			path: `/token?code=${code}&state=${state}`,
-			method: 'POST',
-			headers: {
-				Accept: 'application/json'
-			}
-		}, result => {
-			const buffer: Buffer[] = [];
-			result.on('data', (chunk: Buffer) => {
-				buffer.push(chunk);
-			});
-			result.on('end', () => {
-				if (result.statusCode === 200) {
-					const json = JSON.parse(Buffer.concat(buffer).toString());
-					Logger.info('Token exchange success!');
-					resolve(json.access_token);
-				} else {
-					reject(new Error(result.statusMessage));
+		try {
+			const result = await fetch(`https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${state}`, {
+				method: 'POST',
+				headers: {
+					Accept: 'application/json'
 				}
 			});
-		});
 
-		post.end();
-		post.on('error', err => {
-			reject(err);
-		});
+			if (result.ok) {
+				const json = await result.json();
+				Logger.info('Token exchange success!');
+				resolve(json.access_token);
+			} else {
+				reject(result.statusText);
+			}
+		} catch (ex) {
+			reject(ex);
+		}
 	};
 
 function parseQuery(uri: vscode.Uri) {
@@ -84,7 +75,7 @@ export class GitHubServer {
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
 		const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com`);
 
-		vscode.env.openExternal(uri);
+		await vscode.env.openExternal(uri);
 
 		return Promise.race([
 			promiseFromEvent(uriHandler.event, exchangeCodeForToken(state)),
@@ -123,38 +114,26 @@ export class GitHubServer {
 	}
 
 	public async getUserInfo(token: string): Promise<{ id: string, accountName: string }> {
-		return new Promise((resolve, reject) => {
-			Logger.info('Getting account info...');
-			const post = https.request({
-				host: 'api.github.com',
-				path: `/user`,
-				method: 'GET',
+		try {
+			Logger.info('Getting user info...');
+			const result = await fetch('https://api.github.com/user', {
 				headers: {
 					Authorization: `token ${token}`,
 					'User-Agent': 'Visual-Studio-Code'
 				}
-			}, result => {
-				const buffer: Buffer[] = [];
-				result.on('data', (chunk: Buffer) => {
-					buffer.push(chunk);
-				});
-				result.on('end', () => {
-					if (result.statusCode === 200) {
-						const json = JSON.parse(Buffer.concat(buffer).toString());
-						Logger.info('Got account info!');
-						resolve({ id: json.id, accountName: json.login });
-					} else {
-						Logger.error(`Getting account info failed: ${result.statusMessage}`);
-						reject(new Error(result.statusMessage));
-					}
-				});
 			});
 
-			post.end();
-			post.on('error', err => {
-				Logger.error(err.message);
-				reject(new Error(NETWORK_ERROR));
-			});
-		});
+			if (result.ok) {
+				const json = await result.json();
+				Logger.info('Got account info!');
+				return { id: json.id, accountName: json.login };
+			} else {
+				Logger.error(`Getting account info failed: ${result.statusText}`);
+				throw new Error(result.statusText);
+			}
+		} catch (ex) {
+			Logger.error(ex.message);
+			throw new Error(NETWORK_ERROR);
+		}
 	}
 }

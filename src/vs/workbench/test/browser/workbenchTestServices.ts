@@ -112,7 +112,7 @@ import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uri
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
-	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
+	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined);
 }
 
 export interface ITestInstantiationService extends IInstantiationService {
@@ -495,6 +495,7 @@ export class TestViewsService implements IViewsService {
 	openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> { return Promise.resolve(null); }
 	closeView(id: string): void { }
 	getViewProgressIndicator(id: string) { return null!; }
+	getActiveViewPaneContainerWithId(id: string) { return null; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
@@ -752,7 +753,7 @@ export class TestFileService implements IFileService {
 		this.lastReadFileUri = resource;
 
 		return Promise.resolve({
-			resource: resource,
+			resource,
 			value: {
 				on: (event: string, callback: Function): void => {
 					if (event === 'data') {
@@ -762,6 +763,7 @@ export class TestFileService implements IFileService {
 						callback();
 					}
 				},
+				removeListener: () => { },
 				resume: () => { },
 				pause: () => { },
 				destroy: () => { }
@@ -834,6 +836,7 @@ export class TestFileService implements IFileService {
 	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
 	dispose(): void { }
 
+	async canCreateFile(source: URI, options?: ICreateFileOptions): Promise<Error | true> { return true; }
 	async canMove(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
 	async canCopy(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
 	async canDelete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<Error | true> { return true; }
@@ -1055,6 +1058,9 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 }
 
 export class TestFileEditorInput extends EditorInput implements IFileEditorInput {
+
+	readonly label = this.resource;
+
 	gotDisposed = false;
 	gotSaved = false;
 	gotSavedAs = false;
@@ -1072,6 +1078,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	getTypeId() { return this.typeId; }
 	resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
 	matches(other: EditorInput): boolean { return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.getTypeId() === this.typeId); }
+	setLabel(label: URI): void { }
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
 	setPreferredEncoding(encoding: string) { }
@@ -1109,7 +1116,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		this.gotDisposed = true;
 	}
 	movedEditor: IMoveResult | undefined = undefined;
-	move(): IMoveResult | undefined { return this.movedEditor; }
+	rename(): IMoveResult | undefined { return this.movedEditor; }
 }
 
 export class TestEditorPart extends EditorPart {
@@ -1149,7 +1156,7 @@ export class TestPathService implements IPathService {
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
 
-	get userHome() { return Promise.resolve(this.fallbackUserHome); }
+	async userHome() { return this.fallbackUserHome; }
 	get resolvedUserHome() { return this.fallbackUserHome; }
 
 	async fileURI(path: string): Promise<URI> {

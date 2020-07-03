@@ -5,7 +5,7 @@
 
 import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IRecentFile, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { normalize } from 'vs/base/common/path';
-import { basename } from 'vs/base/common/resources';
+import { basename, extUri } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
@@ -357,7 +357,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 					for (const textEditorControl of textEditorControls) {
 						if (isCodeEditor(textEditorControl)) {
 							const model = textEditorControl.getModel();
-							if (model?.uri?.toString() === file.resource.toString()) {
+							if (extUri.isEqual(model?.uri, file.resource)) {
 								return withNullAsUndefined(textEditorControl.saveViewState());
 							}
 						}
@@ -748,4 +748,12 @@ export class CompositeDragAndDropObserver extends Disposable {
 		}
 		return this._register(disposableStore);
 	}
+}
+
+export function toggleDropEffect(dataTransfer: DataTransfer | null, dropEffect: string, shouldHaveIt: boolean) {
+	if (!dataTransfer) {
+		return;
+	}
+
+	dataTransfer.dropEffect = shouldHaveIt ? dropEffect : 'none';
 }

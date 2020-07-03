@@ -14,7 +14,7 @@ import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile, toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { isEqual as areResourcesEqual, dirname, originalFSPath, basename } from 'vs/base/common/resources';
+import { isEqual, dirname, originalFSPath, basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -152,8 +152,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	removeRecentlyOpened(toRemove: URI[]): void {
 		const keep = (recent: IRecent) => {
 			const uri = location(recent);
-			for (const r of toRemove) {
-				if (areResourcesEqual(r, uri)) {
+			for (const resource of toRemove) {
+				if (isEqual(resource, uri)) {
 					return false;
 				}
 			}
@@ -411,9 +411,9 @@ function indexOfWorkspace(arr: IRecent[], candidate: IWorkspaceIdentifier): numb
 }
 
 function indexOfFolder(arr: IRecent[], candidate: ISingleFolderWorkspaceIdentifier): number {
-	return arr.findIndex(folder => isRecentFolder(folder) && areResourcesEqual(folder.folderUri, candidate));
+	return arr.findIndex(folder => isRecentFolder(folder) && isEqual(folder.folderUri, candidate));
 }
 
 function indexOfFile(arr: IRecentFile[], candidate: URI): number {
-	return arr.findIndex(file => areResourcesEqual(file.fileUri, candidate));
+	return arr.findIndex(file => isEqual(file.fileUri, candidate));
 }

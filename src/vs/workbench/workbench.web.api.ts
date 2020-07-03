@@ -17,6 +17,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IProductConfiguration } from 'vs/platform/product/common/productService';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -25,6 +26,7 @@ interface IResourceUriProvider {
 interface IStaticExtension {
 	packageJSON: IExtensionManifest;
 	extensionLocation: URI;
+	isBuiltin?: boolean;
 }
 
 interface ICommontTelemetryPropertiesResolver {
@@ -161,6 +163,10 @@ interface IDefaultPanelLayout {
 	})[];
 }
 
+interface IDefaultView {
+	readonly id: string;
+}
+
 interface IDefaultEditor {
 	readonly uri: UriComponents;
 	readonly openOnlyIfExists?: boolean;
@@ -168,8 +174,11 @@ interface IDefaultEditor {
 }
 
 interface IDefaultLayout {
+	/** @deprecated Use views instead */
 	readonly sidebar?: IDefaultSideBarLayout;
+	/** @deprecated Use views instead */
 	readonly panel?: IDefaultPanelLayout;
+	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
 }
 
@@ -252,6 +261,11 @@ interface IWorkbenchConstructionOptions {
 	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
 
 	/**
+	 * Service end-point hosting builtin extensions
+	 */
+	readonly builtinExtensionsServiceUrl?: string;
+
+	/**
 	 * Support for URL callbacks.
 	 */
 	readonly urlCallbackProvider?: IURLCallbackProvider;
@@ -275,14 +289,24 @@ interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
+	 * Optional default layout to apply on first time the workspace is opened.
+	 */
+	readonly defaultLayout?: IDefaultLayout;
+
+	//#endregion
+
+
+	//#region Branding
+
+	/**
 	 * Optional home indicator to appear above the hamburger menu in the activity bar.
 	 */
 	readonly homeIndicator?: IHomeIndicator;
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened.
+	 * Optional override for the product configuration properties.
 	 */
-	readonly defaultLayout?: IDefaultLayout;
+	readonly productConfiguration?: Partial<IProductConfiguration>;
 
 	//#endregion
 
@@ -430,14 +454,16 @@ export {
 	ICommand,
 	commands,
 
-	// Home Indicator
+	// Branding
 	IHomeIndicator,
+	IProductConfiguration,
 
 	// Default layout
+	IDefaultView,
 	IDefaultEditor,
 	IDefaultLayout,
 	IDefaultPanelLayout,
-	IDefaultSideBarLayout,
+	IDefaultSideBarLayout
 };
 
 //#endregion

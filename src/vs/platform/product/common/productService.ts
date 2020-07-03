@@ -102,12 +102,7 @@ export interface IProductConfiguration {
 	readonly checksums?: { [path: string]: string; };
 	readonly checksumFailMoreInfoUrl?: string;
 
-	readonly appCenter?: {
-		readonly 'win32-ia32': string;
-		readonly 'win32-x64': string;
-		readonly 'linux-x64': string;
-		readonly 'darwin': string;
-	};
+	readonly appCenter?: IAppCenterConfiguration;
 
 	readonly portable?: string;
 
@@ -118,6 +113,13 @@ export interface IProductConfiguration {
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
+}
+
+export interface IAppCenterConfiguration {
+	readonly 'win32-ia32': string;
+	readonly 'win32-x64': string;
+	readonly 'linux-x64': string;
+	readonly 'darwin': string;
 }
 
 export interface IConfigBasedExtensionTip {

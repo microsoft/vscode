@@ -6,7 +6,7 @@
 import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/path';
-import { INotebookKernelInfoDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernelInfoDto, NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface NotebookSelector {
 	readonly filenamePattern?: string;
@@ -17,6 +17,7 @@ export interface NotebookEditorDescriptor {
 	readonly id: string;
 	readonly displayName: string;
 	readonly selector: readonly NotebookSelector[];
+	readonly priority: NotebookEditorPriority;
 	readonly providerDisplayName: string;
 	readonly providerExtensionLocation: URI;
 	kernel?: INotebookKernelInfoDto;
@@ -27,6 +28,7 @@ export class NotebookProviderInfo implements NotebookEditorDescriptor {
 	readonly id: string;
 	readonly displayName: string;
 	readonly selector: readonly NotebookSelector[];
+	readonly priority: NotebookEditorPriority;
 	readonly providerDisplayName: string;
 	readonly providerExtensionLocation: URI;
 	kernel?: INotebookKernelInfoDto;
@@ -35,6 +37,7 @@ export class NotebookProviderInfo implements NotebookEditorDescriptor {
 		this.id = descriptor.id;
 		this.displayName = descriptor.displayName;
 		this.selector = descriptor.selector;
+		this.priority = descriptor.priority;
 		this.providerDisplayName = descriptor.providerDisplayName;
 		this.providerExtensionLocation = descriptor.providerExtensionLocation;
 	}

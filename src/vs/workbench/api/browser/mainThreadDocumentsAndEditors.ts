@@ -29,38 +29,39 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 namespace delta {
 
 	export function ofSets<T>(before: Set<T>, after: Set<T>): { removed: T[], added: T[] } {
 		const removed: T[] = [];
 		const added: T[] = [];
-		before.forEach(element => {
+		for (let element of before) {
 			if (!after.has(element)) {
 				removed.push(element);
 			}
-		});
-		after.forEach(element => {
+		}
+		for (let element of after) {
 			if (!before.has(element)) {
 				added.push(element);
 			}
-		});
+		}
 		return { removed, added };
 	}
 
 	export function ofMaps<K, V>(before: Map<K, V>, after: Map<K, V>): { removed: V[], added: V[] } {
 		const removed: V[] = [];
 		const added: V[] = [];
-		before.forEach((value, index) => {
+		for (let [index, value] of before) {
 			if (!after.has(index)) {
 				removed.push(value);
 			}
-		});
-		after.forEach((value, index) => {
+		}
+		for (let [index, value] of after) {
 			if (!before.has(index)) {
 				added.push(value);
 			}
-		});
+		}
 		return { removed, added };
 	}
 }
@@ -265,11 +266,11 @@ class MainThreadDocumentAndEditorStateComputer {
 			}
 
 			if (candidate) {
-				editors.forEach(snapshot => {
+				for (const snapshot of editors.values()) {
 					if (candidate === snapshot.editor) {
 						activeEditor = snapshot.id;
 					}
-				});
+				}
 			}
 		}
 
@@ -331,6 +332,7 @@ export class MainThreadDocumentsAndEditors {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
@@ -365,7 +367,7 @@ export class MainThreadDocumentsAndEditors {
 		// added editors
 		for (const apiEditor of delta.addedEditors) {
 			const mainThreadEditor = new MainThreadTextEditor(apiEditor.id, apiEditor.editor.getModel(),
-				apiEditor.editor, { onGainedFocus() { }, onLostFocus() { } }, this._modelService);
+				apiEditor.editor, { onGainedFocus() { }, onLostFocus() { } }, this._modelService, this._clipboardService);
 
 			this._textEditors.set(apiEditor.id, mainThreadEditor);
 			addedEditors.push(mainThreadEditor);

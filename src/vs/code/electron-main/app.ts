@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -26,7 +26,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
-import { ITelemetryService, machineIdKey, trueMachineIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
@@ -80,6 +80,8 @@ import { INativeEnvironmentService } from 'vs/platform/environment/node/environm
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
+import { createServer, AddressInfo } from 'net';
+import { IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -132,7 +134,11 @@ export class CodeApplication extends Disposable {
 		//
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
-		// app.on('remote-get-guest-web-contents', event => event.preventDefault()); // TODO@Matt revisit this need for <webview>
+		app.on('remote-get-guest-web-contents', event => {
+			this.logService.trace('App#on(remote-get-guest-web-contents): prevented');
+
+			event.preventDefault();
+		});
 		app.on('remote-require', (event, sender, module) => {
 			this.logService.trace('App#on(remote-require): prevented');
 
@@ -172,11 +178,12 @@ export class CodeApplication extends Disposable {
 						return false;
 					}
 
-					if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%20role%3D%22document%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
-						return true;
+					const uri = URI.parse(source);
+					if (uri.scheme === Schemas.vscodeWebview) {
+						return uri.path === '/index.html' || uri.path === '/electron-browser/index.html';
 					}
 
-					const srcUri = URI.parse(source).fsPath.toLowerCase();
+					const srcUri = uri.fsPath.toLowerCase();
 					const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
 
 					return srcUri.startsWith(rootUri + sep);
@@ -261,13 +268,6 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:exit', (event: Event, code: number) => {
-			this.logService.trace('IPC#vscode:exit', code);
-
-			this.dispose();
-			this.lifecycleMainService.kill(code);
-		});
-
 		ipc.on('vscode:fetchShellEnv', async (event: IpcMainEvent) => {
 			const webContents = event.sender;
 
@@ -293,13 +293,6 @@ export class CodeApplication extends Disposable {
 		// Some listeners after window opened
 		(async () => {
 			await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
-
-			// After waking up from sleep  (after window opened)
-			powerMonitor.on('resume', () => {
-				if (this.windowsMainService) {
-					this.windowsMainService.sendToAll('vscode:osResume', undefined);
-				}
-			});
 
 			// Keyboard layout changes (after window opened)
 			const nativeKeymap = await import('native-keymap');
@@ -365,8 +358,8 @@ export class CodeApplication extends Disposable {
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const { machineId, trueMachineId } = await this.resolveMachineId();
-		this.logService.trace(`Resolved machine identifier: ${machineId} (trueMachineId: ${trueMachineId})`);
+		const machineId = await this.resolveMachineId();
+		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Spawn shared process after the first window has opened and 3s have passed
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
@@ -387,7 +380,7 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Services
-		const appInstantiationService = await this.createServices(machineId, trueMachineId, sharedProcess, sharedProcessReady);
+		const appInstantiationService = await this.createServices(machineId, sharedProcess, sharedProcessReady);
 
 		// Create driver
 		if (this.environmentService.driverHandle) {
@@ -412,32 +405,21 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	private async resolveMachineId(): Promise<{ machineId: string, trueMachineId?: string }> {
+	private async resolveMachineId(): Promise<string> {
 
 		// We cache the machineId for faster lookups on startup
-		// and resolve it only once initially if not cached
+		// and resolve it only once initially if not cached or we need to replace the macOS iBridge device
 		let machineId = this.stateService.getItem<string>(machineIdKey);
-		if (!machineId) {
+		if (!machineId || (isMacintosh && machineId === '6c9d2bc8f91b89624add29c0abeae7fb42bf539fa1cdb2e3e57cd668fa9bcead')) {
 			machineId = await getMachineId();
 
 			this.stateService.setItem(machineIdKey, machineId);
 		}
 
-		// Check if machineId is hashed iBridge Device
-		let trueMachineId: string | undefined;
-		if (isMacintosh && machineId === '6c9d2bc8f91b89624add29c0abeae7fb42bf539fa1cdb2e3e57cd668fa9bcead') {
-			trueMachineId = this.stateService.getItem<string>(trueMachineIdKey);
-			if (!trueMachineId) {
-				trueMachineId = await getMachineId();
-
-				this.stateService.setItem(trueMachineIdKey, trueMachineId);
-			}
-		}
-
-		return { machineId, trueMachineId };
+		return machineId;
 	}
 
-	private async createServices(machineId: string, trueMachineId: string | undefined, sharedProcess: SharedProcess, sharedProcessReady: Promise<Client<string>>): Promise<IInstantiationService> {
+	private async createServices(machineId: string, sharedProcess: SharedProcess, sharedProcessReady: Promise<Client<string>>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
 		switch (process.platform) {
@@ -489,7 +471,7 @@ export class CodeApplication extends Disposable {
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
 			const commonProperties = resolveCommonProperties(product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
 			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
-			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, trueMachineId, sendErrorTelemetry: true };
+			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, sendErrorTelemetry: true };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
 		} else {
@@ -856,20 +838,93 @@ class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHost
 		super();
 	}
 
-	async call(ctx: TContext, command: string, arg?: any): Promise<any> {
+	call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		if (command === 'openExtensionDevelopmentHostWindow') {
-			const env = arg[1];
-			const pargs = parseArgs(arg[0], OPTIONS);
-			const extDevPaths = pargs.extensionDevelopmentPath;
-			if (extDevPaths) {
-				this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
-					context: OpenContext.API,
-					cli: pargs,
-					userEnv: Object.keys(env).length > 0 ? env : undefined
-				});
-			}
+			return this.openExtensionDevelopmentHostWindow(arg[0], arg[1], arg[2]);
 		} else {
 			return super.call(ctx, command, arg);
 		}
+	}
+
+	private async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
+		const pargs = parseArgs(args, OPTIONS);
+		const extDevPaths = pargs.extensionDevelopmentPath;
+		if (!extDevPaths) {
+			return {};
+		}
+
+		const [codeWindow] = this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
+			context: OpenContext.API,
+			cli: pargs,
+			userEnv: Object.keys(env).length > 0 ? env : undefined
+		});
+
+		if (!debugRenderer) {
+			return {};
+		}
+
+		const debug = codeWindow.win.webContents.debugger;
+
+		let listeners = debug.isAttached() ? Infinity : 0;
+		const server = createServer(listener => {
+			if (listeners++ === 0) {
+				debug.attach();
+			}
+
+			let closed = false;
+			const writeMessage = (message: object) => {
+				if (!closed) { // in case sendCommand promises settle after closed
+					listener.write(JSON.stringify(message) + '\0'); // null-delimited, CDP-compatible
+				}
+			};
+
+			const onMessage = (_event: Event, method: string, params: unknown, sessionId?: string) =>
+				writeMessage(({ method, params, sessionId }));
+
+			codeWindow.win.on('close', () => {
+				debug.removeListener('message', onMessage);
+				listener.end();
+				closed = true;
+			});
+
+			debug.addListener('message', onMessage);
+
+			let buf = Buffer.alloc(0);
+			listener.on('data', data => {
+				buf = Buffer.concat([buf, data]);
+				for (let delimiter = buf.indexOf(0); delimiter !== -1; delimiter = buf.indexOf(0)) {
+					let data: { id: number; sessionId: string; params: {} };
+					try {
+						const contents = buf.slice(0, delimiter).toString('utf8');
+						buf = buf.slice(delimiter + 1);
+						data = JSON.parse(contents);
+					} catch (e) {
+						console.error('error reading cdp line', e);
+					}
+
+					// depends on a new API for which electron.d.ts has not been updated:
+					// @ts-ignore
+					debug.sendCommand(data.method, data.params, data.sessionId)
+						.then((result: object) => writeMessage({ id: data.id, sessionId: data.sessionId, result }))
+						.catch((error: Error) => writeMessage({ id: data.id, sessionId: data.sessionId, error: { code: 0, message: error.message } }));
+				}
+			});
+
+			listener.on('error', err => {
+				console.error('error on cdp pipe:', err);
+			});
+
+			listener.on('close', () => {
+				closed = true;
+				if (--listeners === 0) {
+					debug.detach();
+				}
+			});
+		});
+
+		await new Promise(r => server.listen(0, r));
+		codeWindow.win.on('close', () => server.close());
+
+		return { rendererDebugPort: (server.address() as AddressInfo).port };
 	}
 }

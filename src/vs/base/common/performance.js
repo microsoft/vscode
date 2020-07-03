@@ -28,22 +28,10 @@ function _factory(sharedObj) {
 		for (let i = 0; i < entries.length; i += _dataLen) {
 			result.push({
 				name: entries[i],
-				timestamp: entries[i + 1],
+				startTime: entries[i + 1],
 			});
 		}
 		return result;
-	}
-
-	function getEntry(name) {
-		const entries = sharedObj._performanceEntries;
-		for (let i = 0; i < entries.length; i += _dataLen) {
-			if (entries[i] === name) {
-				return {
-					name: entries[i],
-					timestamp: entries[i + 1],
-				};
-			}
-		}
 	}
 
 	function getDuration(from, to) {
@@ -73,7 +61,6 @@ function _factory(sharedObj) {
 	const exports = {
 		mark: mark,
 		getEntries: getEntries,
-		getEntry: getEntry,
 		getDuration: getDuration,
 		importEntries: importEntries,
 		exportEntries: exportEntries

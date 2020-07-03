@@ -3,14 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { VSBufferReadableStream } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { isUNC } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
+
+
+export const webviewPartitionId = 'webview';
 
 export namespace WebviewResourceResponse {
 	export enum Type { Success, Failed, AccessDenied }
@@ -24,57 +29,45 @@ export namespace WebviewResourceResponse {
 		) { }
 	}
 
-	export class BufferSuccess {
-		readonly type = Type.Success;
-
-		constructor(
-			public readonly buffer: VSBuffer,
-			public readonly mimeType: string
-		) { }
-	}
-
 	export const Failed = { type: Type.Failed } as const;
 	export const AccessDenied = { type: Type.AccessDenied } as const;
 
-	export type BufferResponse = BufferSuccess | typeof Failed | typeof AccessDenied;
 	export type StreamResponse = StreamSuccess | typeof Failed | typeof AccessDenied;
 }
 
 export async function loadLocalResource(
 	requestUri: URI,
+	options: {
+		extensionLocation: URI | undefined;
+		roots: ReadonlyArray<URI>;
+		remoteConnectionData?: IRemoteConnectionData | null;
+		rewriteUri?: (uri: URI) => URI,
+	},
 	fileService: IFileService,
-	extensionLocation: URI | undefined,
-	roots: ReadonlyArray<URI>
-): Promise<WebviewResourceResponse.BufferResponse> {
-	const resourceToLoad = getResourceToLoad(requestUri, extensionLocation, roots);
-	if (!resourceToLoad) {
-		return WebviewResourceResponse.AccessDenied;
-	}
-
-	try {
-		const data = await fileService.readFile(resourceToLoad);
-		const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
-		return new WebviewResourceResponse.BufferSuccess(data.value, mime);
-	} catch (err) {
-		console.log(err);
-		return WebviewResourceResponse.Failed;
-	}
-}
-
-export async function loadLocalResourceStream(
-	requestUri: URI,
-	fileService: IFileService,
-	extensionLocation: URI | undefined,
-	roots: ReadonlyArray<URI>
+	requestService: IRequestService,
 ): Promise<WebviewResourceResponse.StreamResponse> {
-	const resourceToLoad = getResourceToLoad(requestUri, extensionLocation, roots);
+	let resourceToLoad = getResourceToLoad(requestUri, options.roots);
 	if (!resourceToLoad) {
 		return WebviewResourceResponse.AccessDenied;
+	}
+
+	const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
+
+	// Perform extra normalization if needed
+	if (options.rewriteUri) {
+		resourceToLoad = options.rewriteUri(resourceToLoad);
+	}
+
+	if (resourceToLoad.scheme === Schemas.http || resourceToLoad.scheme === Schemas.https) {
+		const response = await requestService.request({ url: resourceToLoad.toString(true) }, CancellationToken.None);
+		if (response.res.statusCode === 200) {
+			return new WebviewResourceResponse.StreamSuccess(response.stream, mime);
+		}
+		return WebviewResourceResponse.Failed;
 	}
 
 	try {
 		const contents = await fileService.readFileStream(resourceToLoad);
-		const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
 		return new WebviewResourceResponse.StreamSuccess(contents.value, mime);
 	} catch (err) {
 		console.log(err);
@@ -84,26 +77,12 @@ export async function loadLocalResourceStream(
 
 function getResourceToLoad(
 	requestUri: URI,
-	extensionLocation: URI | undefined,
 	roots: ReadonlyArray<URI>
 ): URI | undefined {
 	const normalizedPath = normalizeRequestPath(requestUri);
 
 	for (const root of roots) {
-		if (!containsResource(root, normalizedPath)) {
-			continue;
-		}
-
-		if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
-			return URI.from({
-				scheme: REMOTE_HOST_SCHEME,
-				authority: extensionLocation.authority,
-				path: '/vscode-resource',
-				query: JSON.stringify({
-					requestResourcePath: normalizedPath.path
-				})
-			});
-		} else {
+		if (containsResource(root, normalizedPath)) {
 			return normalizedPath;
 		}
 	}
@@ -123,19 +102,6 @@ function normalizeRequestPath(requestUri: URI) {
 			query: requestUri.query,
 			fragment: requestUri.fragment
 		});
-	} else if (requestUri.scheme === Schemas.oldVscodeWebviewResource) {
-		// Modern `vscode-resource` uris puts the scheme as the authority
-		if (requestUri.authority) {
-			const resourceUri = URI.parse(`${requestUri.authority}:${encodeURIComponent(requestUri.path).replace(/%2F/g, '/')}`);
-			return resourceUri.with({
-				query: requestUri.query,
-				fragment: requestUri.fragment
-			});
-		}
-
-		// Old style vscode-resource uris lose the scheme of the resource which means they are unable to
-		// load a mix of local and remote content properly.
-		return requestUri.with({ scheme: 'file' });
 	} else {
 		return requestUri;
 	}

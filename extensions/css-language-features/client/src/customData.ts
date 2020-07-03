@@ -76,17 +76,13 @@ function getCustomDataPathsInAllWorkspaces(): string[] {
 
 function getCustomDataPathsFromAllExtensions(): string[] {
 	const dataPaths: string[] = [];
-
 	for (const extension of extensions.all) {
-		const contributes = extension.packageJSON && extension.packageJSON.contributes;
-
-		if (contributes && contributes.css && contributes.css.customData && Array.isArray(contributes.css.customData)) {
-			const relativePaths: string[] = contributes.css.customData;
-			relativePaths.forEach(rp => {
+		const customData = extension.packageJSON?.contributes?.css?.customData;
+		if (Array.isArray(customData)) {
+			for (const rp of customData) {
 				dataPaths.push(joinPath(extension.extensionUri, rp).toString());
-			});
+			}
 		}
 	}
-
 	return dataPaths;
 }

@@ -62,12 +62,12 @@ export class BrowserEnvironmentConfiguration implements IEnvironmentConfiguratio
 	@memoize
 	get filesToDiff(): IPath[] | undefined {
 		if (this.payload) {
-			const fileToDiffDetail = this.payload.get('diffFileDetail');
-			const fileToDiffMaster = this.payload.get('diffFileMaster');
-			if (fileToDiffDetail && fileToDiffMaster) {
+			const fileToDiffPrimary = this.payload.get('diffFilePrimary');
+			const fileToDiffSecondary = this.payload.get('diffFileSecondary');
+			if (fileToDiffPrimary && fileToDiffSecondary) {
 				return [
-					{ fileUri: URI.parse(fileToDiffDetail) },
-					{ fileUri: URI.parse(fileToDiffMaster) }
+					{ fileUri: URI.parse(fileToDiffSecondary) },
+					{ fileUri: URI.parse(fileToDiffPrimary) }
 				];
 			}
 		}

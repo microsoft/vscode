@@ -250,7 +250,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 						}
 
 						return {
-							suggestions: suggestions.map(s => {
+							suggestions: suggestions.items.map(s => {
 								s.completion.range = Range.fromPositions(position.delta(0, -overwriteBefore), position);
 								return s.completion;
 							})

@@ -12,6 +12,7 @@
 		"vscode": "^1.20.0"
 	},
 	"main": "./out/extension",
+	"browser": "./dist/browser/extension",
 	"categories": [
 		"Programming Languages"
 	],
@@ -43,28 +44,19 @@
 				"command": "markdown.showPreviewToSide",
 				"title": "%markdown.previewSide.title%",
 				"category": "Markdown",
-				"icon": {
-					"light": "./media/preview-right-light.svg",
-					"dark": "./media/preview-right-dark.svg"
-				}
+				"icon": "$(open-preview)"
 			},
 			{
 				"command": "markdown.showLockedPreviewToSide",
 				"title": "%markdown.showLockedPreviewToSide.title%",
 				"category": "Markdown",
-				"icon": {
-					"light": "./media/preview-right-light.svg",
-					"dark": "./media/preview-right-dark.svg"
-				}
+				"icon": "$(open-preview)"
 			},
 			{
 				"command": "markdown.showSource",
 				"title": "%markdown.showSource.title%",
 				"category": "Markdown",
-				"icon": {
-					"light": "./media/view-source-light.svg",
-					"dark": "./media/view-source-dark.svg"
-				}
+				"icon": "$(go-to-file)"
 			},
 			{
 				"command": "markdown.showPreviewSecuritySelector",
@@ -327,7 +319,9 @@
 		"watch": "npm run build-preview && gulp watch-extension:markdown-language-features",
 		"vscode:prepublish": "npm run build-ext && npm run build-preview",
 		"build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
-		"build-preview": "webpack --mode production"
+		"build-preview": "webpack --mode production",
+		"compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
+		"watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
 	},
 	"dependencies": {
 		"highlight.js": "9.15.10",

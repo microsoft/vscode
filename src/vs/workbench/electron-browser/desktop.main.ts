@@ -178,7 +178,8 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
 
 		// Product
-		serviceCollection.set(IProductService, { _serviceBrand: undefined, ...product });
+		const productService: IProductService = { _serviceBrand: undefined, ...product };
+		serviceCollection.set(IProductService, productService);
 
 		// Log
 		const logService = this._register(new DesktopLogService(this.configuration.windowId, mainProcessService, this.environmentService));
@@ -193,7 +194,7 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
-		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, remoteAuthorityResolverService, signService, logService));
+		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, remoteAuthorityResolverService, signService, logService, productService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Electron

@@ -51,7 +51,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// fetch JS sources as text and create a new function around it
 		const source = await response.text();
-		const initFn = new Function('module', 'exports', 'require', 'window', `${source}\n//# sourceURL=${module.toString(true)}`);
+		const initFn = new Function('module', 'exports', 'require', `${source}\n//# sourceURL=${module.toString(true)}`);
 
 		// define commonjs globals: `module`, `exports`, and `require`
 		const _exports = {};
@@ -66,7 +66,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		try {
 			activationTimesBuilder.codeLoadingStart();
-			initFn(_module, _exports, _require, self);
+			initFn(_module, _exports, _require);
 			return <T>(_module.exports !== _exports ? _module.exports : _exports);
 		} finally {
 			activationTimesBuilder.codeLoadingStop();

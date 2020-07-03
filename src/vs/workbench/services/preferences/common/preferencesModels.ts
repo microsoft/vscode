@@ -620,6 +620,10 @@ export class DefaultSettings extends Disposable {
 					? prop.items.type
 					: undefined;
 
+				const objectProperties = prop.type === 'object' ? prop.properties : undefined;
+				const objectPatternProperties = prop.type === 'object' ? prop.patternProperties : undefined;
+				const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
+
 				result.push({
 					key,
 					value,
@@ -633,6 +637,9 @@ export class DefaultSettings extends Disposable {
 					scope: prop.scope,
 					type: prop.type,
 					arrayItemType: listItemType,
+					objectProperties,
+					objectPatternProperties,
+					objectAdditionalProperties,
 					enum: prop.enum,
 					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
 					enumDescriptionsAreMarkdown: !prop.enumDescriptions,

@@ -15,24 +15,29 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/electron-browser/terminalRemote';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class TerminalNativeService implements ITerminalNativeService {
+export class TerminalNativeService extends Disposable implements ITerminalNativeService {
 	public _serviceBrand: undefined;
 
 	public get linuxDistro(): LinuxDistro { return linuxDistro; }
 
-	private readonly _onOpenFileRequest = new Emitter<IOpenFileRequest>();
+	private readonly _onOpenFileRequest = this._register(new Emitter<IOpenFileRequest>());
 	public get onOpenFileRequest(): Event<IOpenFileRequest> { return this._onOpenFileRequest.event; }
-	private readonly _onOsResume = new Emitter<void>();
+	private readonly _onOsResume = this._register(new Emitter<void>());
 	public get onOsResume(): Event<void> { return this._onOsResume.event; }
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IElectronService electronService: IElectronService
 	) {
+		super();
+
 		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => this._onOpenFileRequest.fire(request));
-		ipcRenderer.on('vscode:osResume', () => this._onOsResume.fire());
+		this._register(electronService.onOSResume(() => this._onOsResume.fire()));
 
 		const connection = remoteAgentService.getConnection();
 		if (connection && connection.remoteAuthority) {

@@ -20,7 +20,6 @@ export interface ITelemetryServiceConfig {
 	sendErrorTelemetry?: boolean;
 	commonProperties?: Promise<{ [name: string]: any }>;
 	piiPaths?: string[];
-	trueMachineId?: string;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -76,13 +75,6 @@ export class TelemetryService implements ITelemetryService {
 					usingFallbackGuid: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
 				};
 				this.publicLog2<{ usingFallbackGuid: boolean }, MachineIdFallbackClassification>('machineIdFallback', { usingFallbackGuid: !isHashedId });
-
-				if (config.trueMachineId) {
-					type MachineIdDisambiguationClassification = {
-						correctedMachineId: { endPoint: 'MacAddressHash', classification: 'EndUserPseudonymizedInformation', purpose: 'FeatureInsight' };
-					};
-					this.publicLog2<{ correctedMachineId: string }, MachineIdDisambiguationClassification>('machineIdDisambiguation', { correctedMachineId: config.trueMachineId });
-				}
 			});
 		}
 	}

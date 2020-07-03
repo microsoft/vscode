@@ -4,6 +4,7 @@
 	"recommendations": [
 		"dbaeumer.vscode-eslint",
 		"EditorConfig.EditorConfig",
-		"msjsdiag.debugger-for-chrome"
+		"msjsdiag.debugger-for-chrome",
+		"ms-vscode.vscode-github-issue-notebooks"
 	]
 }
