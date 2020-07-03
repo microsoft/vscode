@@ -321,9 +321,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				action.label,
 				action.alias,
 				withNullAsUndefined(action.precondition),
-				(): Promise<void> => {
+				(args?: any): Promise<void> => {
 					return this._instantiationService.invokeFunction((accessor) => {
-						return Promise.resolve(action.runEditorCommand(accessor, this, null));
+						return Promise.resolve(action.runEditorCommand(accessor, this, args));
 					});
 				},
 				this._contextKeyService

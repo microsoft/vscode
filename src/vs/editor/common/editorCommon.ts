@@ -196,7 +196,7 @@ export interface IEditorAction {
 	readonly label: string;
 	readonly alias: string;
 	isSupported(): boolean;
-	run(): Promise<void>;
+	run(args?: any): Promise<void>;
 }
 
 export type IEditorModel = ITextModel | IDiffEditorModel;

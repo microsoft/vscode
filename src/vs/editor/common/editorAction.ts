@@ -13,7 +13,7 @@ export class InternalEditorAction implements IEditorAction {
 	public readonly alias: string;
 
 	private readonly _precondition: ContextKeyExpression | undefined;
-	private readonly _run: () => Promise<void>;
+	private readonly _run: (args?: any) => Promise<void>;
 	private readonly _contextKeyService: IContextKeyService;
 
 	constructor(
@@ -21,7 +21,7 @@ export class InternalEditorAction implements IEditorAction {
 		label: string,
 		alias: string,
 		precondition: ContextKeyExpression | undefined,
-		run: () => Promise<void>,
+		run: (args?: any) => Promise<void>,
 		contextKeyService: IContextKeyService
 	) {
 		this.id = id;
@@ -36,11 +36,11 @@ export class InternalEditorAction implements IEditorAction {
 		return this._contextKeyService.contextMatchesRules(this._precondition);
 	}
 
-	public run(): Promise<void> {
+	public run(args?: any): Promise<void> {
 		if (!this.isSupported()) {
 			return Promise.resolve(undefined);
 		}
 
-		return this._run();
+		return this._run(args);
 	}
 }
