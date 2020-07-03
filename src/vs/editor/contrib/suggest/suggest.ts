@@ -193,7 +193,7 @@ export async function provideSuggestionItems(
 	model: ITextModel,
 	position: Position,
 	options: CompletionOptions = CompletionOptions.default,
-	context: modes.CompletionContext = { triggerKind: modes.CompletionTriggerKind.Invoke },
+	context: modes.CompletionContext = { triggerKind: modes.CompletionTriggerKind.Invoke, auto: false },
 	token: CancellationToken = CancellationToken.None
 ): Promise<CompletionItemModel> {
 
