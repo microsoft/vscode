@@ -830,12 +830,11 @@ declare module 'vscode' {
 		noDebug?: boolean;
 
 		/**
-		 * Controls if the debug session created will be compacted with the parent in the CALL STACK view.
-		 * Compact with the parent is only done if the session is the only child of it's parent session.
-		 * Default is to compact.
-		 *
+		 * Controls if the debug session's parent session is shown in the CALL STACK view even if it has only a single child.
+		 * By default, the debug session will never hide its parent.
+		 * If compact is true, debug sessions with a single child are hidden in the CALL STACK view to make the tree more compact.
 		 */
-		noCompact?: boolean;
+		compact?: boolean;
 	}
 
 	// deprecated debug API
@@ -1053,7 +1052,9 @@ declare module 'vscode' {
 
 	export interface TerminalLinkProvider<T extends TerminalLink = TerminalLink> {
 		/**
-		 * Provide terminal links for the given context.
+		 * Provide terminal links for the given context. Note that this can be called multiple times
+		 * even before previous calls resolve, make sure to not share global objects (eg. `RegExp`)
+		 * that could have problems when asynchronous usage may overlap.
 		 * @param context Information about what links are being provided for.
 		 */
 		provideTerminalLinks(context: TerminalLinkContext): ProviderResult<T[]>

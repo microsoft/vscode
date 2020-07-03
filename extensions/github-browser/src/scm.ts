@@ -32,17 +32,15 @@ export class VirtualSCM implements Disposable {
 		// TODO@eamodio listen for workspace folder changes
 		for (const folder of workspace.workspaceFolders ?? []) {
 			this.createScmProvider(folder.uri, folder.name);
+
+			for (const operation of changeStore.getChanges(folder.uri)) {
+				this.update(folder.uri, operation.uri);
+			}
 		}
 
 		this.disposable = Disposable.from(
 			changeStore.onDidChange(e => this.update(e.rootUri, e.uri)),
 		);
-
-		for (const { uri } of workspace.workspaceFolders ?? []) {
-			for (const operation of changeStore.getChanges(uri)) {
-				this.update(uri, operation.uri);
-			}
-		}
 	}
 
 	dispose() {
@@ -50,7 +48,18 @@ export class VirtualSCM implements Disposable {
 	}
 
 	private registerCommands() {
-		commands.registerCommand('githubBrowser.commit', (...args: any[]) => this.commitChanges(args[0]));
+		commands.registerCommand('githubBrowser.commit', (sourceControl: SourceControl | undefined) => {
+			// TODO@eamodio remove this hack once I figure out why the args are missing
+			if (sourceControl === undefined && this.providers.length === 1) {
+				sourceControl = this.providers[0].sourceControl;
+			}
+
+			if (sourceControl === undefined) {
+				return;
+			}
+
+			this.commitChanges(sourceControl);
+		});
 
 		commands.registerCommand('githubBrowser.discardChanges', (resourceState: SourceControlResourceState) =>
 			this.discardChanges(resourceState.resourceUri)

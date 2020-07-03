@@ -42,14 +42,16 @@ export async function openEditorWith(
 		return;
 	}
 
-	const allEditorOverrides = getAllAvailableEditors(resource, id, options, group, editorService);
+	const overrideOptions = { ...options, override: id };
+
+	const allEditorOverrides = getAllAvailableEditors(resource, id, overrideOptions, group, editorService);
 	if (!allEditorOverrides.length) {
 		return;
 	}
 
 	const overrideToUse = typeof id === 'string' && allEditorOverrides.find(([_, entry]) => entry.id === id);
 	if (overrideToUse) {
-		return overrideToUse[0].open(input, { ...options, override: id }, group, OpenEditorContext.NEW_EDITOR)?.override;
+		return overrideToUse[0].open(input, overrideOptions, group, OpenEditorContext.NEW_EDITOR)?.override;
 	}
 
 	// Prompt
@@ -134,7 +136,7 @@ export function getAllAvailableEditors(
 	editorService: IEditorService
 ): Array<[IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]> {
 	const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
-	const overrides = editorService.getEditorOverrides(resource, options, group, id);
+	const overrides = editorService.getEditorOverrides(resource, options, group);
 	if (!overrides.some(([_, entry]) => entry.id === DEFAULT_EDITOR_ID)) {
 		overrides.unshift([
 			{

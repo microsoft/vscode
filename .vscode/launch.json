@@ -200,6 +200,7 @@
 			"env": {
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null
 			},
+			"cleanUp": "wholeBrowser",
 			"breakOnLoad": false,
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [

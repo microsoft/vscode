@@ -219,8 +219,14 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 			this.telemetryService.publicLog2<{ code: string }, AutoSyncErrorClassification>(`autosync/error`, { code: userDataSyncError.code });
 		}
 
-		// Turned off from another device or session got expired
-		if (userDataSyncError.code === UserDataSyncErrorCode.TurnedOff || userDataSyncError.code === UserDataSyncErrorCode.SessionExpired) {
+		// Session got expired
+		if (userDataSyncError.code === UserDataSyncErrorCode.SessionExpired) {
+			await this.turnOff(false, true /* force soft turnoff on error */);
+			this.logService.info('Auto Sync: Turned off sync because current session is expired');
+		}
+
+		// Turned off from another device
+		if (userDataSyncError.code === UserDataSyncErrorCode.TurnedOff) {
 			await this.turnOff(false, true /* force soft turnoff on error */);
 			this.logService.info('Auto Sync: Turned off sync because sync is turned off in the cloud');
 		}

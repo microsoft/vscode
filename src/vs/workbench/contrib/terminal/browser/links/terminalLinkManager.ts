@@ -156,7 +156,7 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	public registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
-		const wrappedLinkProvider = this._instantiationService.createInstance(TerminalExternalLinkProviderAdapter, this._xterm, instance, linkProvider, this._tooltipCallback2.bind(this));
+		const wrappedLinkProvider = this._instantiationService.createInstance(TerminalExternalLinkProviderAdapter, this._xterm, instance, linkProvider, this._wrapLinkHandler.bind(this), this._tooltipCallback2.bind(this));
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
 		// Re-register the standard link providers so they are a lower priority that the new one
 		this._registerStandardLinkProviders();

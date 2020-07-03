@@ -232,7 +232,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			noDebug: options.noDebug,
 			parentSession: this.getSession(options.parentSessionID),
 			repl: options.repl,
-			noCompact: options.noCompact
+			compact: options.compact
 		};
 		return this.debugService.startDebugging(launch, nameOrConfig, debugOptions).then(success => {
 			return success;

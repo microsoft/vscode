@@ -495,6 +495,7 @@ export class TestViewsService implements IViewsService {
 	openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> { return Promise.resolve(null); }
 	closeView(id: string): void { }
 	getViewProgressIndicator(id: string) { return null!; }
+	getActiveViewPaneContainerWithId(id: string) { return null; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {

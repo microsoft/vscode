@@ -1312,11 +1312,11 @@ export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	hc: PANEL_BORDER
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
-export const focusedEditorIndicator = registerColor('notebook.focusedEditorIndicator', {
+export const focusedEditorBorderColor = registerColor('notebook.focusedEditorBorder', {
 	light: focusBorder,
 	dark: focusBorder,
 	hc: focusBorder
-}, nls.localize('notebook.focusedEditorIndicator', "The color of the notebook cell editor indicator."));
+}, nls.localize('notebook.focusedEditorBorder', "The color of the notebook cell editor border."));
 
 export const cellStatusIconSuccess = registerColor('notebookStatusSuccessIcon.foreground', {
 	light: debugIconStartForeground,
@@ -1347,19 +1347,31 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeperat
 	dark: Color.fromHex('#808080').transparent(0.35),
 	light: Color.fromHex('#808080').transparent(0.35),
 	hc: contrastBorder
-}, nls.localize('cellToolbarSeperator', "The color of the seperator in the cell bottom toolbar"));
+}, nls.localize('notebook.cellToolbarSeperator', "The color of the seperator in the cell bottom toolbar"));
 
-export const cellFocusBackground = registerColor('notebook.cellFocusBackground', {
+export const focusedCellBackground = registerColor('notebook.focusedCellBackground', {
 	dark: transparent(PANEL_BORDER, .4),
 	light: transparent(listFocusBackground, .4),
-	hc: PANEL_BORDER
-}, nls.localize('cellFocusBackground', "The background color of focused or hovered cells"));
+	hc: null
+}, nls.localize('focusedCellBackground', "The background color of a cell when the cell is focused."));
+
+export const cellHoverBackground = registerColor('notebook.cellHoverBackground', {
+	dark: transparent(focusedCellBackground, .5),
+	light: transparent(focusedCellBackground, .7),
+	hc: null
+}, nls.localize('notebook.cellHoverBackground', "The background color of a cell when the cell is hovered."));
+
+export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
+	dark: Color.white.transparent(0.12),
+	light: Color.black.transparent(0.12),
+	hc: focusBorder
+}, nls.localize('notebook.focusedCellBorder', "The color of the cell's top and bottom border when the cell is focused."));
 
 export const focusedCellShadow = registerColor('notebook.focusedCellShadow', {
 	dark: transparent(widgetShadow, 0.6),
 	light: transparent(widgetShadow, 0.4),
 	hc: Color.transparent
-}, nls.localize('cellShadow', "The color of the shadow on the focused or hovered cell"));
+}, nls.localize('notebook.focusedCellShadow', "The color of the cell shadow when cells are focused."));
 
 export const cellStatusBarItemHover = registerColor('notebook.cellStatusBarItemHoverBackground', {
 	light: new Color(new RGBA(0, 0, 0, 0.08)),
@@ -1456,18 +1468,30 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .monaco-list-row > .monaco-toolbar { border: solid 1px ${cellToolbarSeperator}; }`);
 	}
 
-	const cellFocusBackgroundColor = theme.getColor(cellFocusBackground);
-	if (cellFocusBackgroundColor) {
-		collector.addRule(`.notebookOverlay .code-cell-row:hover .cell-focus-indicator,
-			.notebookOverlay .code-cell-row.focused .cell-focus-indicator,
-			.notebookOverlay .code-cell-row.cell-output-hover .cell-focus-indicator { background-color: ${cellFocusBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .markdown-cell-row:hover,
-			.notebookOverlay .markdown-cell-row.focused { background-color: ${cellFocusBackgroundColor} !important; }`);
+	const focusedCellBackgroundColor = theme.getColor(focusedCellBackground);
+	if (focusedCellBackgroundColor) {
+		collector.addRule(`.notebookOverlay .code-cell-row.focused .cell-focus-indicator,
+			.notebookOverlay .markdown-cell-row.focused { background-color: ${focusedCellBackgroundColor} !important; }`);
 	}
 
-	const focusedEditorIndicatorColor = theme.getColor(focusedEditorIndicator);
-	if (focusedEditorIndicatorColor) {
-		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedEditorIndicatorColor}; }`);
+	const cellHoverBackgroundColor = theme.getColor(cellHoverBackground);
+	if (cellHoverBackgroundColor) {
+		collector.addRule(`.notebookOverlay .code-cell-row:not(.focused):hover .cell-focus-indicator,
+			.notebookOverlay .code-cell-row:not(.focused).cell-output-hover .cell-focus-indicator,
+			.notebookOverlay .markdown-cell-row:not(.focused):hover { background-color: ${cellHoverBackgroundColor} !important; }`);
+	}
+
+	const focusedCellBorderColor = theme.getColor(focusedCellBorder);
+	collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
+			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:before,
+			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:after {
+				border-color: ${focusedCellBorderColor} !important;
+			}`);
+
+	const focusedEditorBorderColorColor = theme.getColor(focusedEditorBorderColor);
+	if (focusedEditorBorderColorColor) {
+		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedEditorBorderColorColor}; }`);
 	}
 
 	const editorBorderColor = theme.getColor(notebookCellBorder);
@@ -1533,23 +1557,22 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	// Cell Margin
-	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell { margin: 0px ${CELL_MARGIN * 2}px 0px ${CELL_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell.code { margin-left: ${CODE_CELL_LEFT_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row { padding-top: ${EDITOR_TOP_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row { padding-bottom: ${CELL_BOTTOM_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row .cell-bottom-toolbar-container { margin-top: ${CELL_BOTTOM_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .output { margin: 0px ${CELL_MARGIN}px 0px ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.notebookOverlay .output { width: calc(100% - ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER + CELL_MARGIN}px); }`);
-	collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px; }`);
+	collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN * 2}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px; }`);
 
-	collector.addRule(`.notebookOverlay .markdown-cell-row .cell .cell-editor-part { margin-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell.markdown { padding-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.notebookOverlay .cell .run-button-container { width: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.notebookOverlay .cell-drag-image .cell-editor-container > div { padding: ${EDITOR_TOP_PADDING}px 16px ${EDITOR_BOTTOM_PADDING}px 16px; }`);
 	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top { height: ${EDITOR_TOP_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side { bottom: ${BOTTOM_CELL_TOOLBAR_HEIGHT}px; }`);
 	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator { width: ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px; }`);
-	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator.cell-focus-indicator-right { width: ${CELL_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator.cell-focus-indicator-right { width: ${CELL_MARGIN * 2}px; }`);
 	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom { height: ${CELL_BOTTOM_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-shadow-container-bottom { top: ${CELL_BOTTOM_MARGIN}px; }`);
 });

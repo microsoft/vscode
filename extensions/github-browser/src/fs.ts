@@ -43,26 +43,22 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 
 	constructor(
 		readonly scheme: string,
-		private readonly originalScheme: string,
-		contextStore: ContextStore<GitHubApiContext>,
+		private readonly contextStore: ContextStore<GitHubApiContext>,
 		private readonly changeStore: IWritableChangeStore,
 		private readonly fs: FileSystemProvider & FileSearchProvider & TextSearchProvider
 	) {
 		// TODO@eamodio listen for workspace folder changes
-		for (const folder of workspace.workspaceFolders ?? []) {
-			const uri = this.getOriginalResource(folder.uri);
-
+		for (const context of contextStore.getForWorkspace()) {
 			// If we have a saved context, but no longer have any changes, reset the context
 			// We only do this on startup/reload to keep things consistent
-			if (contextStore.get(uri) !== undefined && !changeStore.hasChanges(folder.uri)) {
-				contextStore.delete(uri);
+			if (!changeStore.hasChanges(context.folderUri)) {
+				console.log('Clear context', context.folderUri.toString());
+				contextStore.delete(context.folderUri);
 			}
 		}
 
 		this.disposable = Disposable.from(
-			workspace.registerFileSystemProvider(scheme, this, {
-				isCaseSensitive: true,
-			}),
+			workspace.registerFileSystemProvider(scheme, this, { isCaseSensitive: true }),
 			workspace.registerFileSearchProvider(scheme, this),
 			workspace.registerTextSearchProvider(scheme, this),
 			changeStore.onDidChange(e => {
@@ -86,11 +82,11 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 	}
 
 	private getOriginalResource(uri: Uri): Uri {
-		return uri.with({ scheme: this.originalScheme });
+		return this.contextStore.getOriginalResource(uri);
 	}
 
-	private getVirtualResource(uri: Uri): Uri {
-		return uri.with({ scheme: this.scheme });
+	private getWorkspaceResource(uri: Uri): Uri {
+		return this.contextStore.getWorkspaceResource(uri);
 	}
 
 	//#region FileSystemProvider
@@ -211,7 +207,7 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 		return this.fs.provideTextSearchResults(
 			query,
 			{ ...options, folder: this.getOriginalResource(options.folder) },
-			{ report: (result: TextSearchResult) => progress.report({ ...result, uri: this.getVirtualResource(result.uri) }) },
+			{ report: (result: TextSearchResult) => progress.report({ ...result, uri: this.getWorkspaceResource(result.uri) }) },
 			token
 		);
 	}

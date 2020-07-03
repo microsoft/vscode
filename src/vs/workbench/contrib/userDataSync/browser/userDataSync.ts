@@ -75,10 +75,10 @@ const syncNowCommand = {
 	title: localize('sync now', "Preferences Sync: Sync Now"),
 	description(userDataSyncService: IUserDataSyncService): string | undefined {
 		if (userDataSyncService.status === SyncStatus.Syncing) {
-			return localize('sync is on with syncing', "syncing");
+			return localize('syncing', "syncing");
 		}
 		if (userDataSyncService.lastSyncTime) {
-			return localize('sync is on with time', "synced {0}", fromNow(userDataSyncService.lastSyncTime, true));
+			return localize('synced with time', "synced {0}", fromNow(userDataSyncService.lastSyncTime, true));
 		}
 		return undefined;
 	}
@@ -270,11 +270,19 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onAutoSyncError(error: UserDataSyncError): void {
 		switch (error.code) {
-			case UserDataSyncErrorCode.TurnedOff:
 			case UserDataSyncErrorCode.SessionExpired:
 				this.notificationService.notify({
 					severity: Severity.Info,
-					message: localize('turned off', "Preferences sync was turned off from another device."),
+					message: localize('session expired', "Preferences sync was turned off because current session is expired, please sign in again to turn on sync."),
+					actions: {
+						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Preferences Sync..."), undefined, true, () => this.turnOn())]
+					}
+				});
+				break;
+			case UserDataSyncErrorCode.TurnedOff:
+				this.notificationService.notify({
+					severity: Severity.Info,
+					message: localize('turned off', "Preferences sync was turned off from another device, please sign in again to turn on sync."),
 					actions: {
 						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Preferences Sync..."), undefined, true, () => this.turnOn())]
 					}

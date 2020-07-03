@@ -215,7 +215,8 @@
           "type": "string",
           "enum": [
             "npm",
-            "yarn"
+            "yarn",
+            "pnpm"
           ],
           "default": "npm",
           "description": "%config.npm.packageManager%"

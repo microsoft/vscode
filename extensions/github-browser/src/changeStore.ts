@@ -47,31 +47,17 @@ function fromSerialized(operations: StoredOperation): Operation {
 	return { ...operations, uri: Uri.parse(operations.uri) };
 }
 
-interface CreatedFileChangeStoreEvent {
-	type: 'created';
+export interface ChangeStoreEvent {
+	type: 'created' | 'changed' | 'deleted';
 	rootUri: Uri;
 	uri: Uri;
 }
-
-interface ChangedFileChangeStoreEvent {
-	type: 'changed';
-	rootUri: Uri;
-	uri: Uri;
-}
-
-interface DeletedFileChangeStoreEvent {
-	type: 'deleted';
-	rootUri: Uri;
-	uri: Uri;
-}
-
-type ChangeStoreEvent = CreatedFileChangeStoreEvent | ChangedFileChangeStoreEvent | DeletedFileChangeStoreEvent;
 
 function toChangeStoreEvent(operation: Operation | StoredOperation, rootUri: Uri, uri?: Uri): ChangeStoreEvent {
 	return {
 		type: operation.type,
 		rootUri: rootUri,
-		uri: uri ?? (typeof operation.uri === 'string' ? Uri.parse(operation.uri) : operation.uri)
+		uri: uri ?? (typeof operation.uri === 'string' ? Uri.parse(operation.uri) : operation.uri),
 	};
 }
 
@@ -81,6 +67,8 @@ export interface IChangeStore {
 	acceptAll(rootUri: Uri): Promise<void>;
 	discard(uri: Uri): Promise<void>;
 	discardAll(rootUri: Uri): Promise<void>;
+
+	hasChanges(rootUri: Uri): boolean;
 
 	getChanges(rootUri: Uri): Operation[];
 	getContent(uri: Uri): string | undefined;
@@ -116,9 +104,15 @@ export class ChangeStore implements IChangeStore, IWritableChangeStore {
 
 		await this.saveWorkingOperations(rootUri, undefined);
 
+		const events: ChangeStoreEvent[] = [];
+
 		for (const operation of operations) {
 			await this.discardWorkingContent(operation.uri);
-			this._onDidChange.fire(toChangeStoreEvent(operation, rootUri));
+			events.push(toChangeStoreEvent(operation, rootUri));
+		}
+
+		for (const e of events) {
+			this._onDidChange.fire(e);
 		}
 	}
 
@@ -143,7 +137,7 @@ export class ChangeStore implements IChangeStore, IWritableChangeStore {
 		this._onDidChange.fire({
 			type: operation.type === 'created' ? 'deleted' : operation.type === 'deleted' ? 'created' : 'changed',
 			rootUri: rootUri,
-			uri: uri
+			uri: uri,
 		});
 	}
 
@@ -152,9 +146,15 @@ export class ChangeStore implements IChangeStore, IWritableChangeStore {
 
 		await this.saveWorkingOperations(rootUri, undefined);
 
+		const events: ChangeStoreEvent[] = [];
+
 		for (const operation of operations) {
 			await this.discardWorkingContent(operation.uri);
-			this._onDidChange.fire(toChangeStoreEvent(operation, rootUri));
+			events.push(toChangeStoreEvent(operation, rootUri));
+		}
+
+		for (const e of events) {
+			this._onDidChange.fire(e);
 		}
 	}
 

@@ -22,7 +22,7 @@ const localize = nls.loadMessageBundle();
 
 namespace Experimental {
 	export interface RefactorActionInfo extends Proto.RefactorActionInfo {
-		readonly error?: string
+		readonly notApplicableReason?: string;
 	}
 
 	export type RefactorTriggerReason = 'implicit' | 'invoked';
@@ -312,16 +312,16 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		const codeAction = new vscode.CodeAction(action.description, TypeScriptRefactorProvider.getKind(action));
 
 		// https://github.com/microsoft/TypeScript/pull/37871
-		if (action.error) {
-			codeAction.disabled = { reason: action.error };
-			return codeAction;
+		if (action.notApplicableReason) {
+			codeAction.disabled = { reason: action.notApplicableReason };
+		} else {
+			codeAction.command = {
+				title: action.description,
+				command: ApplyRefactoringCommand.ID,
+				arguments: [document, info.name, action.name, rangeOrSelection],
+			};
 		}
 
-		codeAction.command = {
-			title: action.description,
-			command: ApplyRefactoringCommand.ID,
-			arguments: [document, info.name, action.name, rangeOrSelection],
-		};
 		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);
 		return codeAction;
 	}

@@ -9,6 +9,7 @@ import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/termin
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
 import { ITerminalExternalLinkProvider, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 
 /**
  * An adapter to convert a simple external link provider into an internal link provider that
@@ -20,6 +21,7 @@ export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvide
 		private readonly _xterm: Terminal,
 		private readonly _instance: ITerminalInstance,
 		private readonly _externalLinkProvider: ITerminalExternalLinkProvider,
+		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
@@ -45,6 +47,10 @@ export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvide
 		}
 
 		const lineContent = getXtermLineContent(this._xterm.buffer.active, startLine, endLine, this._xterm.cols);
+		if (lineContent.trim().length === 0) {
+			return [];
+		}
+
 		const externalLinks = await this._externalLinkProvider.provideLinks(this._instance, lineContent);
 		if (!externalLinks) {
 			return [];
@@ -58,7 +64,8 @@ export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvide
 				endLineNumber: 1
 			}, startLine);
 			const matchingText = lineContent.substr(link.startIndex, link.length) || '';
-			return this._instantiationService.createInstance(TerminalLink, bufferRange, matchingText, this._xterm.buffer.active.viewportY, (_, text) => link.activate(text), this._tooltipCallback, true, link.label);
+			const activateLink = this._wrapLinkHandler((_, text) => link.activate(text));
+			return this._instantiationService.createInstance(TerminalLink, bufferRange, matchingText, this._xterm.buffer.active.viewportY, activateLink, this._tooltipCallback, true, link.label);
 		});
 	}
 }

@@ -299,7 +299,7 @@ function typenameToFileType(typename: string | undefined | null) {
 	}
 }
 
-type RepoInfo = { owner: string; repo: string; path: string | undefined; ref?: string };
+type RepoInfo = { owner: string; repo: string; path: string | undefined; ref: string };
 export function fromGitHubUri(uri: Uri): RepoInfo {
 	const [, owner, repo, ...rest] = uri.path.split('/');
 
@@ -311,7 +311,7 @@ export function fromGitHubUri(uri: Uri): RepoInfo {
 			ref = 'HEAD';
 		}
 	}
-	return { owner: owner, repo: repo, path: rest.join('/'), ref: ref };
+	return { owner: owner, repo: repo, path: rest.join('/'), ref: ref ?? 'HEAD' };
 }
 
 function getHashCode(s: string): number {

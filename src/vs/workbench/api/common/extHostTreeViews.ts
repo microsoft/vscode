@@ -360,7 +360,7 @@ class ExtHostTreeView<T> extends Disposable {
 			if (node) {
 				const resolve = await this.dataProvider.resolveTreeItem(element, node.extensionItem);
 				// Resolvable elements. Currently only tooltip.
-				node.item.tooltip = resolve.tooltip;
+				node.item.tooltip = this.getTooltip(resolve.tooltip);
 				return node.item;
 			}
 		}

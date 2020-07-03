@@ -533,7 +533,7 @@
 				"git": {
 					"name": "ripgrep",
 					"repositoryUrl": "https://github.com/BurntSushi/ripgrep",
-					"commitHash": "8a7db1a918e969b85cd933d8ed9fa5285b281ba4"
+					"commitHash": "973de50c9ef451da2cfcdfa86f2b2711d8d6ff48"
 				}
 			},
 			"isOnlyProductionDependency": true,

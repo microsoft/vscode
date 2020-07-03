@@ -858,7 +858,7 @@ export interface IStartDebuggingOptions {
 	parentSessionID?: DebugSessionUUID;
 	repl?: IDebugSessionReplMode;
 	noDebug?: boolean;
-	noCompact?: boolean;
+	compact?: boolean;
 }
 
 export interface MainThreadDebugServiceShape extends IDisposable {

@@ -217,7 +217,7 @@ export class CallStackView extends ViewPane {
 
 		this.dataSource = new CallStackDataSource(this.debugService);
 		const sessionsRenderer = this.instantiationService.createInstance(SessionsRenderer, this.menu);
-		this.tree = <WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), new CallStackCompressionDelegate(), [
+		this.tree = <WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), new CallStackCompressionDelegate(this.debugService), [
 			sessionsRenderer,
 			new ThreadsRenderer(this.instantiationService),
 			this.instantiationService.createInstance(StackFramesRenderer),
@@ -355,6 +355,10 @@ export class CallStackView extends ViewPane {
 			const sessionListeners: IDisposable[] = [];
 			sessionListeners.push(s.onDidChangeName(() => this.tree.rerender(s)));
 			sessionListeners.push(s.onDidEndAdapter(() => dispose(sessionListeners)));
+			if (s.parentSession) {
+				// A session we already expanded has a new child session, allow to expand it again.
+				this.autoExpandedSessions.delete(s.parentSession);
+			}
 		}));
 	}
 
@@ -517,18 +521,18 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 	}
 
 	renderElement(element: ITreeNode<IDebugSession, FuzzyScore>, _: number, data: ISessionTemplateData): void {
-		this.doRenderElement(element.element, element.element.getLabel(), createMatches(element.filterData), data);
+		this.doRenderElement(element.element, createMatches(element.filterData), data);
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IDebugSession>, FuzzyScore>, index: number, templateData: ISessionTemplateData, height: number | undefined): void {
 		const lastElement = node.element.elements[node.element.elements.length - 1];
 		const matches = createMatches(node.filterData);
-		this.doRenderElement(lastElement, node.element.elements[0].getLabel(), matches, templateData);
+		this.doRenderElement(lastElement, matches, templateData);
 	}
 
-	private doRenderElement(session: IDebugSession, label: string, matches: IMatch[], data: ISessionTemplateData): void {
+	private doRenderElement(session: IDebugSession, matches: IMatch[], data: ISessionTemplateData): void {
 		data.session.title = nls.localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
-		data.label.set(label, matches);
+		data.label.set(session.getLabel(), matches);
 		const thread = session.getAllThreads().find(t => t.stopped);
 
 		const setActionBar = () => {
@@ -1100,9 +1104,20 @@ class ContinueAction extends Action {
 }
 
 class CallStackCompressionDelegate implements ITreeCompressionDelegate<CallStackItem> {
+
+	constructor(private readonly debugService: IDebugService) { }
+
 	isIncompressible(stat: CallStackItem): boolean {
 		if (isDebugSession(stat)) {
-			return stat.noCompact;
+			if (stat.compact) {
+				return false;
+			}
+			const sessions = this.debugService.getModel().getSessions();
+			if (sessions.some(s => s.parentSession === stat && s.compact)) {
+				return false;
+			}
+
+			return true;
 		}
 
 		return true;

@@ -117,6 +117,11 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this.update();
 	}
 
+	public set accessibilityInformation(accessibilityInformation: vscode.AccessibilityInformation | undefined) {
+		this._accessibilityInformation = accessibilityInformation;
+		this.update();
+	}
+
 	public show(): void {
 		this._visible = true;
 		this.update();
