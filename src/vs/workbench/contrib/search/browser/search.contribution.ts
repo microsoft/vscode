@@ -777,7 +777,7 @@ configurationRegistry.registerConfiguration({
 			enum: ['sidebar', 'panel'],
 			default: 'sidebar',
 			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
-			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. Please use the search view's context menu instead.")
+			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. Please use drag and drop instead by dragging the search icon.")
 		},
 		'search.collapseResults': {
 			type: 'string',
@@ -850,7 +850,7 @@ configurationRegistry.registerConfiguration({
 		'search.searchEditor.reusePriorSearchConfiguration': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('search.searchEditor.reusePriorSearchConfiguration', "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor")
+			markdownDescription: nls.localize({ key: 'search.searchEditor.reusePriorSearchConfiguration', comment: ['"Search Editor" is a type that editor that can display search results. "includes, excludes, and flags" just refers to settings that affect search. For example, the "search.exclude" setting.'] }, "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor")
 		},
 		'search.searchEditor.defaultNumberOfContextLines': {
 			type: ['number', 'null'],

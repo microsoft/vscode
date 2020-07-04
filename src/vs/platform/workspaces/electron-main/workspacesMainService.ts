@@ -185,8 +185,8 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		};
 	}
 
-	getWorkspaceIdentifier(configPath: URI): Promise<IWorkspaceIdentifier> {
-		return Promise.resolve(getWorkspaceIdentifier(configPath));
+	async getWorkspaceIdentifier(configPath: URI): Promise<IWorkspaceIdentifier> {
+		return getWorkspaceIdentifier(configPath);
 	}
 
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean {
@@ -205,9 +205,8 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		this._onUntitledWorkspaceDeleted.fire(workspace);
 	}
 
-	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
+	async deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
 		this.deleteUntitledWorkspaceSync(workspace);
-		return Promise.resolve();
 	}
 
 	private doDeleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void {

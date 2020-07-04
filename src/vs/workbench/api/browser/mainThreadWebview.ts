@@ -141,7 +141,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 		this._register(_editorService.onDidActiveEditorChange(() => {
 			const activeInput = this._editorService.activeEditor;
-			if (activeInput instanceof DiffEditorInput && activeInput.master instanceof WebviewInput && activeInput.details instanceof WebviewInput) {
+			if (activeInput instanceof DiffEditorInput && activeInput.primary instanceof WebviewInput && activeInput.secondary instanceof WebviewInput) {
 				this.registerWebviewFromDiffEditorListeners(activeInput);
 			}
 
@@ -183,6 +183,15 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			return matchedWorkingCopies;
 
 		});
+	}
+
+	dispose() {
+		super.dispose();
+
+		for (const disposable of this._editorProviders.values()) {
+			disposable.dispose();
+		}
+		this._editorProviders.clear();
 	}
 
 	public $createWebviewPanel(
@@ -320,7 +329,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		options: modes.IWebviewPanelOptions,
 		capabilities: extHostProtocol.CustomTextEditorCapabilities,
 		supportsMultipleEditorsPerDocument: boolean,
-	): DisposableStore {
+	): void {
 		if (this._editorProviders.has(viewType)) {
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
@@ -396,8 +405,6 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		}));
 
 		this._editorProviders.set(viewType, disposables);
-
-		return disposables;
 	}
 
 	public $unregisterEditorProvider(viewType: string): void {
@@ -468,22 +475,22 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	}
 
 	private registerWebviewFromDiffEditorListeners(diffEditorInput: DiffEditorInput): void {
-		const master = diffEditorInput.master as WebviewInput;
-		const details = diffEditorInput.details as WebviewInput;
+		const primary = diffEditorInput.primary as WebviewInput;
+		const secondary = diffEditorInput.secondary as WebviewInput;
 
-		if (this._webviewFromDiffEditorHandles.has(master.id) || this._webviewFromDiffEditorHandles.has(details.id)) {
+		if (this._webviewFromDiffEditorHandles.has(primary.id) || this._webviewFromDiffEditorHandles.has(secondary.id)) {
 			return;
 		}
 
-		this._webviewFromDiffEditorHandles.add(master.id);
-		this._webviewFromDiffEditorHandles.add(details.id);
+		this._webviewFromDiffEditorHandles.add(primary.id);
+		this._webviewFromDiffEditorHandles.add(secondary.id);
 
 		const disposables = new DisposableStore();
-		disposables.add(master.webview.onDidFocus(() => this.updateWebviewViewStates(master)));
-		disposables.add(details.webview.onDidFocus(() => this.updateWebviewViewStates(details)));
+		disposables.add(primary.webview.onDidFocus(() => this.updateWebviewViewStates(primary)));
+		disposables.add(secondary.webview.onDidFocus(() => this.updateWebviewViewStates(secondary)));
 		disposables.add(diffEditorInput.onDispose(() => {
-			this._webviewFromDiffEditorHandles.delete(master.id);
-			this._webviewFromDiffEditorHandles.delete(details.id);
+			this._webviewFromDiffEditorHandles.delete(primary.id);
+			this._webviewFromDiffEditorHandles.delete(secondary.id);
 			dispose(disposables);
 		}));
 	}
@@ -515,8 +522,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		for (const group of this._editorGroupService.groups) {
 			for (const input of group.editors) {
 				if (input instanceof DiffEditorInput) {
-					updateViewStatesForInput(group, input, input.master);
-					updateViewStatesForInput(group, input, input.details);
+					updateViewStatesForInput(group, input, input.primary);
+					updateViewStatesForInput(group, input, input.secondary);
 				} else {
 					updateViewStatesForInput(group, input, input);
 				}

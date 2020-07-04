@@ -88,9 +88,13 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		if (href) {
 			({ href, dimensions } = parseHrefAndDimensions(href));
 			href = _href(href, true);
-			if (options.baseUrl) {
-				href = resolvePath(options.baseUrl, href).toString();
-			}
+			try {
+				const hrefAsUri = URI.parse(href);
+				if (options.baseUrl && hrefAsUri.scheme === Schemas.file) { // absolute or relative local path, or file: uri
+					href = resolvePath(options.baseUrl, href).toString();
+				}
+			} catch (err) { }
+
 			attributes.push(`src="${href}"`);
 		}
 		if (text) {

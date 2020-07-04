@@ -81,6 +81,7 @@ import { find } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -255,7 +256,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IPathService private readonly pathService: IPathService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -1062,9 +1064,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const eol = model.getEOL();
 			const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
 			let stringified = applyEdits(JSON.stringify(task), edits);
-			const regex = new RegExp(eol + '\\t', 'g');
-			stringified = stringified.replace(regex, eol + '\t\t\t');
-			const twoTabs = '\t\t';
+			const regex = new RegExp(eol + (insertSpaces ? strings.repeat(' ', tabSize) : '\\t'), 'g');
+			stringified = stringified.replace(regex, eol + (insertSpaces ? strings.repeat(' ', tabSize * 3) : '\t\t\t'));
+			const twoTabs = insertSpaces ? strings.repeat(' ', tabSize * 2) : '\t\t';
 			stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
 		} finally {
 			if (reference) {
@@ -1087,7 +1089,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const contentValue = content.toString();
 				let stringValue: string | undefined;
 				if (configIndex !== -1) {
-					const json: TaskConfig.ExternalTaskRunnerConfiguration = JSON.parse(contentValue);
+					const json: TaskConfig.ExternalTaskRunnerConfiguration = this.configurationService.getValue<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource });
 					if (json.tasks && (json.tasks.length > configIndex)) {
 						stringValue = await this.formatTaskForJson(resource, json.tasks[configIndex]);
 					}
@@ -1547,7 +1549,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
-			this.pathService, this.viewDescriptorService,
+			this.pathService, this.viewDescriptorService, this.logService,
 			(workspaceFolder: IWorkspaceFolder) => {
 				if (!workspaceFolder) {
 					return undefined;
@@ -1872,7 +1874,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 			if (isAffected) {
-				this._outputChannel.append(nls.localize('TaskSystem.invalidTaskJsonOther', 'Error: The content of the tasks json in {0} has syntax errors. Please correct them before executing a task.\n', location));
+				this._outputChannel.append(nls.localize({ key: 'TaskSystem.invalidTaskJsonOther', comment: ['Message notifies of an error in one of several places there is tasks related json, not necessarily in a file named tasks.json'] }, 'Error: The content of the tasks json in {0} has syntax errors. Please correct them before executing a task.\n', location));
 				this.showOutput();
 				return { config, hasParseErrors: true };
 			}

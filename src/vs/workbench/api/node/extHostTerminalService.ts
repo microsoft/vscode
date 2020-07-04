@@ -12,7 +12,7 @@ import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/termi
 import { IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration, ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalEnvironment, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -129,7 +129,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider, process.env as platform.IProcessEnvironment);
 	}
 
-	public async $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
+	public async $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name: shellLaunchConfigDto.name,
 			executable: shellLaunchConfigDto.executable,
@@ -209,7 +209,15 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		// TODO: Support conpty on remote, it doesn't seem to work for some reason?
 		// TODO: When conpty is enabled, only enable it when accessibilityMode is off
 		const enableConpty = false; //terminalConfig.get('windowsEnableConpty') as boolean;
-		this._setupExtHostProcessListeners(id, new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService));
+
+		const terminalProcess = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService);
+		this._setupExtHostProcessListeners(id, terminalProcess);
+		const error = await terminalProcess.start();
+		if (error) {
+			// TODO: Teardown?
+			return error;
+		}
+		return undefined;
 	}
 
 	public $getAvailableShells(): Promise<IShellDefinitionDto[]> {

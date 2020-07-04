@@ -9,7 +9,7 @@ import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType
 import { IEditorInput, IEditorPane, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -19,7 +19,7 @@ import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { createResourceExcludeMatcher } from 'vs/workbench/services/search/common/search';
+import { getExcludes, ISearchConfiguration, SEARCH_EXCLUDE_CONFIG } from 'vs/workbench/services/search/common/search';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
@@ -32,6 +32,9 @@ import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/d
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { extUri } from 'vs/base/common/resources';
+import { IdleValue } from 'vs/base/common/async';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -127,7 +130,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this._register(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
 		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 		this._register(this.fileService.onDidFilesChange(event => this.onDidFilesChange(event)));
-		this._register(this.resourceExcludeMatcher.onExpressionChange(() => this.removeExcludedFromHistory()));
 		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
 
 		// if the service is created late enough that an editor is already opened
@@ -577,7 +579,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const resourceEditorInputA = arg1 as IResourceEditorInput;
 		const resourceEditorInputB = inputB as IResourceEditorInput;
 
-		return resourceEditorInputA && resourceEditorInputB && resourceEditorInputA.resource.toString() === resourceEditorInputB.resource.toString();
+		return resourceEditorInputA && resourceEditorInputB && extUri.isEqual(resourceEditorInputA.resource, resourceEditorInputB.resource);
 	}
 
 	private matchesFile(resource: URI, arg2: IEditorInput | IResourceEditorInput | FileChangesEvent): boolean {
@@ -595,12 +597,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 				return false; // make sure to only check this when workbench has restored (for https://github.com/Microsoft/vscode/issues/48275)
 			}
 
-			return inputResource.toString() === resource.toString();
+			return extUri.isEqual(inputResource, resource);
 		}
 
 		const resourceEditorInput = arg2 as IResourceEditorInput;
 
-		return resourceEditorInput?.resource.toString() === resource.toString();
+		return extUri.isEqual(resourceEditorInput?.resource, resource);
 	}
 
 	//#endregion
@@ -632,7 +634,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (URI.isUri(editorResource)) {
 			associatedResources.push(editorResource);
 		} else if (editorResource) {
-			associatedResources.push(...coalesce([editorResource.master, editorResource.detail]));
+			associatedResources.push(...coalesce([editorResource.primary, editorResource.secondary]));
 		}
 
 		// Remove from list of recently closed before...
@@ -768,7 +770,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private history: Array<IEditorInput | IResourceEditorInput> | undefined = undefined;
 
-	private readonly resourceExcludeMatcher = this._register(createResourceExcludeMatcher(this.instantiationService, this.configurationService));
+	private readonly resourceExcludeMatcher = this._register(new IdleValue(() => {
+		const matcher = this._register(this.instantiationService.createInstance(
+			ResourceGlobMatcher,
+			root => getExcludes(root ? this.configurationService.getValue<ISearchConfiguration>({ resource: root }) : this.configurationService.getValue<ISearchConfiguration>()) || Object.create(null),
+			event => event.affectsConfiguration(FILES_EXCLUDE_CONFIG) || event.affectsConfiguration(SEARCH_EXCLUDE_CONFIG)
+		));
+
+		this._register(matcher.onExpressionChange(() => this.removeExcludedFromHistory()));
+
+		return matcher;
+	}));
 
 	private handleEditorEventInHistory(editor?: IEditorPane): void {
 
@@ -804,7 +816,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const resourceEditorInput = input as IResourceEditorInput;
 
-		return !this.resourceExcludeMatcher.matches(resourceEditorInput.resource);
+		return !this.resourceExcludeMatcher.value.matches(resourceEditorInput.resource);
 	}
 
 	private removeExcludedFromHistory(): void {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { Event, IWaitUntil } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, IModeSupport, ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -20,10 +20,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
-
-export interface TextFileCreateEvent extends IWaitUntil {
-	readonly resource: URI;
-}
 
 export interface ITextFileService extends IDisposable {
 
@@ -96,11 +92,6 @@ export interface ITextFileService extends IDisposable {
 	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
-	 * An event that is fired after a text file has been created.
-	 */
-	readonly onDidCreateTextFile: Event<TextFileCreateEvent>;
-
-	/**
 	 * Create a file. If the file exists it will be overwritten with the contents if
 	 * the options enable to overwrite.
 	 */
@@ -171,7 +162,7 @@ export class TextFileOperationError extends FileOperationError {
 }
 
 export interface IResourceEncodings {
-	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding;
+	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): Promise<IResourceEncoding>;
 }
 
 export interface IResourceEncoding {

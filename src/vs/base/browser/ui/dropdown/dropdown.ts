@@ -11,7 +11,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextViewProvider, IAnchor, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { EventHelper, EventType, removeClass, addClass, append, $, addDisposableListener, addClasses } from 'vs/base/browser/dom';
+import { EventHelper, EventType, removeClass, addClass, append, $, addDisposableListener, addClasses, DOMEvent } from 'vs/base/browser/dom';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter } from 'vs/base/common/event';
@@ -122,7 +122,7 @@ export class BaseDropdown extends ActionRunner {
 		return !!this.visible;
 	}
 
-	protected onEvent(e: Event, activeElement: HTMLElement): void {
+	protected onEvent(e: DOMEvent, activeElement: HTMLElement): void {
 		this.hide();
 	}
 
@@ -294,6 +294,9 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 	private anchorAlignmentProvider: (() => AnchorAlignment) | undefined;
 	private menuAsChild?: boolean;
 
+	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+
 	constructor(action: IAction, menuActions: ReadonlyArray<IAction>, contextMenuProvider: IContextMenuProvider, actionViewItemProvider: IActionViewItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding | undefined) | undefined, clazz: string | undefined, anchorAlignmentProvider?: () => AnchorAlignment, menuAsChild?: boolean);
 	constructor(action: IAction, actionProvider: IActionProvider, contextMenuProvider: IContextMenuProvider, actionViewItemProvider: IActionViewItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding) | undefined, clazz: string | undefined, anchorAlignmentProvider?: () => AnchorAlignment, menuAsChild?: boolean);
 	constructor(action: IAction, menuActionsOrProvider: ReadonlyArray<IAction> | IActionProvider, contextMenuProvider: IContextMenuProvider, actionViewItemProvider: IActionViewItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding | undefined) | undefined, clazz: string | undefined, anchorAlignmentProvider?: () => AnchorAlignment, menuAsChild?: boolean) {
@@ -339,7 +342,10 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		}
 
 		this.dropdownMenu = this._register(new DropdownMenu(container, options));
-		this._register(this.dropdownMenu.onDidChangeVisibility(visible => this.element?.setAttribute('aria-expanded', `${visible}`)));
+		this._register(this.dropdownMenu.onDidChangeVisibility(visible => {
+			this.element?.setAttribute('aria-expanded', `${visible}`);
+			this._onDidChangeVisibility.fire(visible);
+		}));
 
 		this.dropdownMenu.menuOptions = {
 			actionViewItemProvider: this.actionViewItemProvider,

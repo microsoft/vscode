@@ -210,7 +210,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		const editorInput = this.getActiveSettingsEditorInput() || this.lastOpenedSettingsInput;
-		const resource = editorInput ? editorInput.master.resource! : this.userSettingsResource;
+		const resource = editorInput ? editorInput.primary.resource! : this.userSettingsResource;
 		const target = this.getConfigurationTargetFromSettingsResource(resource);
 		return this.openOrSwitchSettings(target, resource, { query: query });
 	}
@@ -317,7 +317,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private async openOrSwitchSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): Promise<IEditorPane | undefined> {
 		const editorInput = this.getActiveSettingsEditorInput(group);
 		if (editorInput) {
-			const editorInputResource = editorInput.master.resource;
+			const editorInputResource = editorInput.primary.resource;
 			if (editorInputResource && editorInputResource.fsPath !== resource.fsPath) {
 				return this.doSwitchSettings(configurationTarget, resource, editorInput, group, options);
 			}

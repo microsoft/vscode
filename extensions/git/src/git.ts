@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as cp from 'child_process';
 import * as which from 'which';
 import { EventEmitter } from 'events';
-import iconv = require('iconv-lite');
+import * as iconv from 'iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
 import { CancellationToken, Progress, Uri } from 'vscode';
@@ -1937,6 +1937,17 @@ export class Repository {
 	// TODO: Support core.commentChar
 	stripCommitMessageComments(message: string): string {
 		return message.replace(/^\s*#.*$\n?/gm, '').trim();
+	}
+
+	async getSquashMessage(): Promise<string | undefined> {
+		const squashMsgPath = path.join(this.repositoryRoot, '.git', 'SQUASH_MSG');
+
+		try {
+			const raw = await fs.readFile(squashMsgPath, 'utf8');
+			return this.stripCommitMessageComments(raw);
+		} catch {
+			return undefined;
+		}
 	}
 
 	async getMergeMessage(): Promise<string | undefined> {

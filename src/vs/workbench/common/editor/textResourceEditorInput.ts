@@ -22,7 +22,8 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 
 	private static readonly MEMOIZER = createMemoizer();
 
-	private label: URI;
+	private _label: URI;
+	get label(): URI { return this._label; }
 
 	constructor(
 		public readonly resource: URI,
@@ -36,7 +37,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 	) {
 		super();
 
-		this.label = preferredLabel || resource;
+		this._label = preferredLabel || resource;
 
 		this.registerListeners();
 	}
@@ -50,7 +51,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 	}
 
 	private onLabelEvent(scheme: string): void {
-		if (scheme === this.label.scheme) {
+		if (scheme === this._label.scheme) {
 			this.updateLabel();
 		}
 	}
@@ -65,15 +66,15 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 	}
 
 	setLabel(label: URI): void {
-		if (!extUri.isEqual(label, this.label)) {
-			this.label = label;
+		if (!extUri.isEqual(label, this._label)) {
+			this._label = label;
 
 			this.updateLabel();
 		}
 	}
 
 	getLabel(): URI {
-		return this.label;
+		return this._label;
 	}
 
 	getName(): string {
@@ -82,7 +83,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get basename(): string {
-		return this.labelService.getUriBasenameLabel(this.label);
+		return this.labelService.getUriBasenameLabel(this._label);
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
@@ -99,17 +100,17 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get shortDescription(): string {
-		return this.labelService.getUriBasenameLabel(dirname(this.label));
+		return this.labelService.getUriBasenameLabel(dirname(this._label));
 	}
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get mediumDescription(): string {
-		return this.labelService.getUriLabel(dirname(this.label), { relative: true });
+		return this.labelService.getUriLabel(dirname(this._label), { relative: true });
 	}
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get longDescription(): string {
-		return this.labelService.getUriLabel(dirname(this.label));
+		return this.labelService.getUriLabel(dirname(this._label));
 	}
 
 	@AbstractTextResourceEditorInput.MEMOIZER
@@ -119,12 +120,12 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get mediumTitle(): string {
-		return this.labelService.getUriLabel(this.label, { relative: true });
+		return this.labelService.getUriLabel(this._label, { relative: true });
 	}
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get longTitle(): string {
-		return this.labelService.getUriLabel(this.label);
+		return this.labelService.getUriLabel(this._label);
 	}
 
 	getTitle(verbosity: Verbosity): string {
@@ -163,7 +164,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 		return false;
 	}
 
-	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+	save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		return this.doSave(group, options, false);
 	}
 
@@ -185,7 +186,12 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 			return undefined; // save cancelled
 		}
 
-		return this.editorService.createEditorInput({ resource: target });
+		// If the target is a different resource, return with a new editor input
+		if (!extUri.isEqual(target, this.resource)) {
+			return this.editorService.createEditorInput({ resource: target });
+		}
+
+		return this;
 	}
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {

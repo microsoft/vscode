@@ -1132,7 +1132,7 @@ begin
   end;
 end;
 
-// http://stackoverflow.com/a/23838239/261019
+// https://stackoverflow.com/a/23838239/261019
 procedure Explode(var Dest: TArrayOfString; Text: String; Separator: String);
 var
   i, p: Integer;

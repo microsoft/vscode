@@ -126,8 +126,12 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		}));
 
 		this._toDispose.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			if (e.source && (e.operation === FileOperation.MOVE || e.operation === FileOperation.DELETE)) {
-				this._modelReferenceCollection.remove(e.source);
+			if (e.operation === FileOperation.MOVE || e.operation === FileOperation.DELETE) {
+				for (const { source } of e.files) {
+					if (source) {
+						this._modelReferenceCollection.remove(source);
+					}
+				}
 			}
 		}));
 

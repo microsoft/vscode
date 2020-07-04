@@ -28,7 +28,11 @@ export interface IWorkspaceUndoRedoElement {
 	readonly label: string;
 	undo(): Promise<void> | void;
 	redo(): Promise<void> | void;
-	split(): IResourceUndoRedoElement[];
+
+	/**
+	 * If implemented, indicates that this undo/redo element can be split into multiple per resource elements.
+	 */
+	split?(): IResourceUndoRedoElement[];
 
 	/**
 	 * If implemented, will be invoked before calling `undo()` or `redo()`.
@@ -46,17 +50,29 @@ export interface IPastFutureElements {
 }
 
 export interface UriComparisonKeyComputer {
-	/**
-	 * Return `null` if you don't own this URI.
-	 */
-	getComparisonKey(uri: URI): string | null;
+	getComparisonKey(uri: URI): string;
+}
+
+export class ResourceEditStackSnapshot {
+	constructor(
+		public readonly resource: URI,
+		public readonly elements: number[]
+	) { }
 }
 
 export interface IUndoRedoService {
 	readonly _serviceBrand: undefined;
 
-	registerUriComparisonKeyComputer(uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable;
+	/**
+	 * Register an URI -> string hasher.
+	 * This is useful for making multiple URIs share the same undo-redo stack.
+	 */
+	registerUriComparisonKeyComputer(scheme: string, uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable;
 
+	/**
+	 * Get the hash used internally for a certain URI.
+	 * This uses any registered `UriComparisonKeyComputer`.
+	 */
 	getUriComparisonKey(resource: URI): string;
 
 	/**
@@ -66,20 +82,35 @@ export interface IUndoRedoService {
 	pushElement(element: IUndoRedoElement): void;
 
 	/**
-	 * Get the last pushed element. If the last pushed element has been undone, returns null.
+	 * Get the last pushed element for a resource.
+	 * If the last pushed element has been undone, returns null.
 	 */
 	getLastElement(resource: URI): IUndoRedoElement | null;
 
+	/**
+	 * Get all the elements associated with a resource.
+	 * This includes the past and the future.
+	 */
 	getElements(resource: URI): IPastFutureElements;
 
-	hasElements(resource: URI): boolean;
-
+	/**
+	 * Validate or invalidate stack elements associated with a resource.
+	 */
 	setElementsValidFlag(resource: URI, isValid: boolean, filter: (element: IUndoRedoElement) => boolean): void;
 
 	/**
 	 * Remove elements that target `resource`.
 	 */
 	removeElements(resource: URI): void;
+
+	/**
+	 * Create a snapshot of the current elements on the undo-redo stack for a resource.
+	 */
+	createSnapshot(resource: URI): ResourceEditStackSnapshot;
+	/**
+	 * Attempt (as best as possible) to restore a certain snapshot previously created with `createSnapshot` for a resource.
+	 */
+	restoreSnapshot(snapshot: ResourceEditStackSnapshot): void;
 
 	canUndo(resource: URI): boolean;
 	undo(resource: URI): Promise<void> | void;

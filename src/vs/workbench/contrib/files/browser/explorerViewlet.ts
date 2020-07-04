@@ -114,6 +114,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			when: OpenEditorsVisibleContext,
 			canToggleVisibility: true,
 			canMoveView: true,
+			collapsed: true,
 			focusCommand: {
 				id: 'workbench.files.action.focusOpenEditorsView',
 				keybindings: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_E) }
@@ -219,7 +220,6 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 				} catch (error) {
 					return null; // ignore
 				} finally {
-					const openEditorsView = this.getOpenEditorsView();
 					if (openEditorsView) {
 						openEditorsView.setStructuralRefreshDelay(0);
 					}

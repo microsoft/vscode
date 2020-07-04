@@ -9,7 +9,7 @@ import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_HAS_OUTPUTS, CellViewModelStateChangeEvent, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 export class CellContextKeyManager extends Disposable {
 
@@ -22,10 +22,12 @@ export class CellContextKeyManager extends Disposable {
 
 	private markdownEditMode: IContextKey<boolean>;
 
+	private elementDisposables = new DisposableStore();
+
 	constructor(
 		private readonly contextKeyService: IContextKeyService,
 		private readonly notebookTextModel: INotebookTextModel,
-		private readonly element: BaseCellViewModel
+		private element: BaseCellViewModel
 	) {
 		super();
 
@@ -37,16 +39,18 @@ export class CellContextKeyManager extends Disposable {
 		this.cellRunState = NOTEBOOK_CELL_RUN_STATE.bindTo(this.contextKeyService);
 		this.cellHasOutputs = NOTEBOOK_CELL_HAS_OUTPUTS.bindTo(this.contextKeyService);
 
-		this._register(element.onDidChangeState(e => this.onDidChangeState(e)));
-
-		if (element instanceof CodeCellViewModel) {
-			this._register(element.onDidChangeOutputs(() => this.updateForOutputs()));
-		}
-
-		this.initialize();
+		this.updateForElement(element);
 	}
 
-	private initialize() {
+	public updateForElement(element: BaseCellViewModel) {
+		this.elementDisposables.clear();
+		this.elementDisposables.add(element.onDidChangeState(e => this.onDidChangeState(e)));
+
+		if (element instanceof CodeCellViewModel) {
+			this.elementDisposables.add(element.onDidChangeOutputs(() => this.updateForOutputs()));
+		}
+
+		this.element = element;
 		if (this.element instanceof MarkdownCellViewModel) {
 			this.cellType.set('markdown');
 		} else if (this.element instanceof CodeCellViewModel) {

@@ -697,7 +697,7 @@ export class MoveFocusedViewAction extends Action {
 		if (!(isViewSolo && currentLocation === ViewContainerLocation.Panel)) {
 			items.push({
 				id: '_.panel.newcontainer',
-				label: nls.localize('moveFocusedView.newContainerInPanel', "New Panel Entry"),
+				label: nls.localize({ key: 'moveFocusedView.newContainerInPanel', comment: ['Creates a new top-level tab in the panel.'] }, "New Panel Entry"),
 			});
 		}
 

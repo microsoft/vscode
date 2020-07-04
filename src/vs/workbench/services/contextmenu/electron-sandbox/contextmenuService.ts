@@ -118,8 +118,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				x: Math.floor(x),
 				y: Math.floor(y),
 				positioningItem: delegate.autoSelectFirstItem ? 0 : undefined,
-				onHide: () => onHide()
-			});
+			}, () => onHide());
 		}
 	}
 

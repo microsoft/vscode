@@ -45,18 +45,14 @@ export class VersionDependentRegistration extends Disposable {
 		register: () => vscode.Disposable,
 	) {
 		super();
-		this._registration = new ConditionalRegistration(register);
+
+		this._registration = this._register(new ConditionalRegistration(register));
+
+		this._register(this.client.onTsServerStarted(() => {
+			this.update(this.client.apiVersion);
+		}));
 
 		this.update(client.apiVersion);
-
-		this.client.onTsServerStarted(() => {
-			this.update(this.client.apiVersion);
-		}, null, this._disposables);
-	}
-
-	public dispose() {
-		super.dispose();
-		this._registration.dispose();
 	}
 
 	private update(api: API) {
@@ -74,14 +70,11 @@ export class ConfigurationDependentRegistration extends Disposable {
 		register: () => vscode.Disposable,
 	) {
 		super();
-		this._registration = new ConditionalRegistration(register);
-		this.update();
-		vscode.workspace.onDidChangeConfiguration(this.update, this, this._disposables);
-	}
+		this._registration = this._register(new ConditionalRegistration(register));
 
-	public dispose() {
-		super.dispose();
-		this._registration.dispose();
+		this._register(vscode.workspace.onDidChangeConfiguration(this.update, this));
+
+		this.update();
 	}
 
 	private update() {

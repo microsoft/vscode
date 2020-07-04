@@ -376,6 +376,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	updateElementHeight(index: number, size: number, anchorIndex: number | null): void {
+		if (index < 0 || index >= this.items.length) {
+			return;
+		}
+
 		if (this.items[index].size === size) {
 			return;
 		}

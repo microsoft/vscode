@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
@@ -11,6 +10,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -18,18 +18,18 @@ import { EditorActivation, IEditorOptions, ITextEditorOptions } from 'vs/platfor
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput, EditorOptions, GroupIdentifier, IEditorInput, IEditorPane, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
-import { defaultEditorOverrideEntry } from 'vs/workbench/contrib/files/common/openWith';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
-import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId, defaultEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { ICustomEditorInfo, ICustomEditorViewTypesHandler, IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { ContributedCustomEditors, defaultCustomEditor } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
@@ -67,7 +67,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
 		this._webviewHasOwnEditFunctions = webviewHasOwnEditFunctionsContext.bindTo(contextKeyService);
 
-
 		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
 		this._register(this._contributedEditors.onChange(() => {
 			this.updateContexts();
@@ -82,11 +81,28 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			}
 		}));
 
+		const PRIORITY = 105;
+		this._register(UndoCommand.addImplementation(PRIORITY, () => {
+			return this.withActiveCustomEditor(editor => editor.undo());
+		}));
+		this._register(RedoCommand.addImplementation(PRIORITY, () => {
+			return this.withActiveCustomEditor(editor => editor.redo());
+		}));
+
 		this.updateContexts();
 	}
 
 	getViewTypes(): ICustomEditorInfo[] {
 		return [...this._contributedEditors];
+	}
+
+	private withActiveCustomEditor(f: (editor: CustomEditorInput) => void): boolean {
+		const activeEditor = this.editorService.activeEditor;
+		if (activeEditor instanceof CustomEditorInput) {
+			f(activeEditor);
+			return true;
+		}
+		return false;
 	}
 
 	public get models() { return this._models; }
@@ -432,43 +448,49 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		this._register(this.editorService.overrideOpenEditor({
-			open: (editor, options, group, context, id) => {
-				return this.onEditorOpening(editor, options, group, id);
+			open: (editor, options, group) => {
+				return this.onEditorOpening(editor, options, group);
 			},
-			getEditorOverrides: (resource: URI, _options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {
+			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {
 				const currentEditor = group?.editors.find(editor => isEqual(editor.resource, resource));
 
+				const defaultEditorOverride: IOpenEditorOverrideEntry = {
+					...defaultEditorOverrideEntry,
+					active: this._fileEditorInputFactory.isFileEditorInput(currentEditor),
+				};
+
+				const toOverride = (entry: CustomEditorInfo): IOpenEditorOverrideEntry => {
+					return {
+						id: entry.id,
+						active: currentEditor instanceof CustomEditorInput && currentEditor.viewType === entry.id,
+						label: entry.displayName,
+						detail: entry.providerDisplayName,
+					};
+				};
+
+				if (typeof options?.override === 'string') {
+					// A specific override was requested. Only return it.
+
+					if (options.override === defaultEditorOverride.id) {
+						return [defaultEditorOverride];
+					}
+
+					const matchingEditor = this.customEditorService.getCustomEditor(options.override);
+					return matchingEditor ? [toOverride(matchingEditor)] : [];
+				}
+
+				// Otherwise, return all potential overrides.
 				const customEditors = this.customEditorService.getAllCustomEditors(resource);
 				if (!customEditors.length) {
 					return [];
 				}
 
 				return [
-					{
-						...defaultEditorOverrideEntry,
-						active: this._fileEditorInputFactory.isFileEditorInput(currentEditor),
-					},
+					defaultEditorOverride,
 					...customEditors.allEditors
 						.filter(entry => entry.id !== defaultCustomEditor.id)
-						.map(entry => {
-							return {
-								id: entry.id,
-								active: currentEditor instanceof CustomEditorInput && currentEditor.viewType === entry.id,
-								label: entry.displayName,
-								detail: entry.providerDisplayName,
-							};
-						})
+						.map(toOverride)
 				];
-			}
-		}));
-
-		this._register(this.editorService.onDidCloseEditor(({ editor }) => {
-			if (!(editor instanceof CustomEditorInput)) {
-				return;
-			}
-
-			if (!this.editorService.editors.some(other => other === editor)) {
-				editor.dispose();
 			}
 		}));
 	}
@@ -476,9 +498,9 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 	private onEditorOpening(
 		editor: IEditorInput,
 		options: ITextEditorOptions | undefined,
-		group: IEditorGroup,
-		id?: string,
+		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
+		const id = typeof options?.override === 'string' ? options.override : undefined;
 		if (editor instanceof CustomEditorInput) {
 			if (editor.group === group.id && (editor.viewType === id || typeof id !== 'string')) {
 				// No need to do anything

@@ -38,7 +38,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { ViewMenuActions, ViewContainerMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop } from 'vs/workbench/browser/dnd';
+import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 
 interface ICachedPanel {
@@ -434,6 +434,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.emptyPanelMessageElement, {
 			onDragOver: (e) => {
 				EventHelper.stop(e.eventData, true);
+				const validDropTarget = this.dndHandler.onDragEnter(e.dragAndDropData, undefined, e.eventData);
+				toggleDropEffect(e.eventData.dataTransfer, 'move', validDropTarget);
 			},
 			onDragEnter: (e) => {
 				EventHelper.stop(e.eventData, true);

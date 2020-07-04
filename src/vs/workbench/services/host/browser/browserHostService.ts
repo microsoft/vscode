@@ -174,8 +174,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 				// New Window: open into empty window
 				else {
 					const environment = new Map<string, string>();
-					environment.set('diffFileDetail', editors[0].resource.toString());
-					environment.set('diffFileMaster', editors[1].resource.toString());
+					environment.set('diffFileSecondary', editors[0].resource.toString());
+					environment.set('diffFilePrimary', editors[1].resource.toString());
 
 					this.workspaceProvider.open(undefined, { payload: Array.from(environment.entries()) });
 				}
@@ -283,7 +283,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.workspaceProvider.open(undefined, { reuse: options?.forceReuseWindow });
+		return this.workspaceProvider.open(undefined, { reuse: options?.forceReuseWindow });
 	}
 
 	async toggleFullScreen(): Promise<void> {
