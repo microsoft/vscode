@@ -483,10 +483,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private updateEncodingElement(text: string | undefined): void {
-		if (!this.encodingElement) {
-			return; // return early if encoding should not show (e.g. in Web we only support utf8)
-		}
-
 		if (!text) {
 			this.encodingElement.clear();
 			return;
