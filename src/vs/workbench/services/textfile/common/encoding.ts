@@ -242,11 +242,7 @@ async function guessEncodingByBuffer(buffer: VSBuffer): Promise<string | null> {
 	// https://github.com/aadsm/jschardet/blob/v2.1.1/src/index.js#L36-L40
 	const binaryString = encodeLatin1(limitedBuffer.buffer);
 
-	// override type since jschardet expects Buffer even though can accept string
-	// can be fixed once https://github.com/aadsm/jschardet/pull/58 is merged
-	const jschardetTypingsWorkaround = binaryString as any;
-
-	const guessed = jschardet.detect(jschardetTypingsWorkaround);
+	const guessed = jschardet.detect(binaryString);
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}
