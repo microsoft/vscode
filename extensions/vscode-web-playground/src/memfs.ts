@@ -29,7 +29,7 @@ import {
 	Uri,
 	workspace,
 } from 'vscode';
-import { largeTSFile, getImageFile, debuggableFile } from './exampleFiles';
+import { largeTSFile, getImageFile, debuggableFile, windows1251File, gbkFile } from './exampleFiles';
 
 export class File implements FileStat {
 
@@ -123,6 +123,19 @@ export class MemFS implements FileSystemProvider, FileSearchProvider, TextSearch
 		this.writeFile(Uri.parse(`memfs:/sample-folder/xyz/UPPER.txt`), textEncoder.encode('UPPER'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/xyz/upper.txt`), textEncoder.encode('upper'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/xyz/def/foo.md`), textEncoder.encode('*MemFS*'), { create: true, overwrite: true });
+
+		// some files in different encodings
+		this.createDirectory(Uri.parse(`memfs:/sample-folder/encodings/`));
+		this.writeFile(
+			Uri.parse(`memfs:/sample-folder/encodings/windows1251.txt`),
+			windows1251File,
+			{ create: true, overwrite: true }
+		);
+		this.writeFile(
+			Uri.parse(`memfs:/sample-folder/encodings/gbk.txt`),
+			gbkFile,
+			{ create: true, overwrite: true }
+		);
 	}
 
 	root = new Directory(Uri.parse('memfs:/'), '');
