@@ -1017,6 +1017,11 @@ export class SearchView extends ViewPane {
 			this.searchWidget.searchInput.getValue() === '';
 	}
 
+	allFilePatternFieldsClear(): boolean {
+		return this.searchExcludePattern.getValue() === '' &&
+			this.searchIncludePattern.getValue() === '';
+	}
+
 	hasSearchResults(): boolean {
 		return !this.viewModel.searchResult.isEmpty();
 	}
@@ -1032,6 +1037,9 @@ export class SearchView extends ViewPane {
 			this.showSearchWithoutFolderMessage();
 		}
 		if (clearInput) {
+			if (this.allSearchFieldsClear()) {
+				this.clearFilePatternFields();
+			}
 			this.searchWidget.clear();
 		}
 		this.viewModel.cancelSearch();
@@ -1039,6 +1047,11 @@ export class SearchView extends ViewPane {
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
 		aria.status(nls.localize('ariaSearchResultsClearStatus', "The search results have been cleared"));
+	}
+
+	clearFilePatternFields(): void {
+		this.searchExcludePattern.clear();
+		this.searchIncludePattern.clear();
 	}
 
 	cancelSearch(focus: boolean = true): boolean {
