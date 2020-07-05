@@ -29,7 +29,7 @@ interface IStaticExtension {
 	isBuiltin?: boolean;
 }
 
-interface ICommontTelemetryPropertiesResolver {
+interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
 }
 
@@ -278,7 +278,7 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * Support adding additional properties to telemetry.
 	 */
-	readonly resolveCommonTelemetryProperties?: ICommontTelemetryPropertiesResolver;
+	readonly resolveCommonTelemetryProperties?: ICommonTelemetryPropertiesResolver;
 
 	/**
 	 * A set of optional commands that should be registered with the commands
@@ -436,7 +436,7 @@ export {
 	IUpdate,
 
 	// Telemetry
-	ICommontTelemetryPropertiesResolver,
+	ICommonTelemetryPropertiesResolver,
 
 	// External Uris
 	IExternalUriResolver,
