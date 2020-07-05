@@ -105,9 +105,17 @@ function getObjectValueType(schema: IJSONSchema): ObjectValue['type'] {
 }
 
 function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectDataItem[] {
+	const elementDefaultValue: Record<string, unknown> = typeof element.defaultValue === 'object'
+		? element.defaultValue ?? {}
+		: {};
+
+	const elementScopeValue: Record<string, unknown> = typeof element.scopeValue === 'object'
+		? element.scopeValue ?? {}
+		: {};
+
 	const data = element.isConfigured ?
-		{ ...element.defaultValue, ...element.scopeValue } :
-		element.defaultValue;
+		{ ...elementDefaultValue, ...elementScopeValue } :
+		elementDefaultValue;
 
 	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
 	const patternsAndSchemas = Object
@@ -129,7 +137,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 
 	return Object.keys(data).map(key => {
 		if (isDefined(objectProperties) && key in objectProperties) {
-			const defaultValue = element.defaultValue[key];
+			const defaultValue = elementDefaultValue[key];
 			const valueEnumOptions = getEnumOptionsFromSchema(objectProperties[key]);
 
 			return {
@@ -144,7 +152,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					options: valueEnumOptions,
 				},
 				removable: isUndefinedOrNull(defaultValue),
-			};
+			} as IObjectDataItem;
 		}
 
 		const schema = patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
@@ -159,7 +167,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					options: valueEnumOptions,
 				},
 				removable: true,
-			};
+			} as IObjectDataItem;
 		}
 
 		return {
@@ -170,7 +178,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				options: additionalValueEnums,
 			},
 			removable: true,
-		};
+		} as IObjectDataItem;
 	});
 }
 
@@ -1055,8 +1063,14 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 
 	private onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
 		if (template.context) {
-			const defaultValue: Record<string, unknown> = template.context.defaultValue;
-			const scopeValue: Record<string, unknown> = template.context.scopeValue;
+			const defaultValue: Record<string, unknown> = typeof template.context.defaultValue === 'object'
+				? template.context.defaultValue ?? {}
+				: {};
+
+			const scopeValue: Record<string, unknown> = typeof template.context.scopeValue === 'object'
+				? template.context.scopeValue ?? {}
+				: {};
+
 			const newValue: Record<string, unknown> = {};
 			let newItems: IObjectDataItem[] = [];
 
