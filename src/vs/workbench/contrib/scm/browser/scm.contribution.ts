@@ -136,22 +136,22 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			enum: ['all', 'focused', 'off'],
 			enumDescriptions: [
-				localize('scm.countBadge.all', "Show the sum of all Source Control Providers count badges."),
+				localize('scm.countBadge.all', "Show the sum of all Source Control Provider count badges."),
 				localize('scm.countBadge.focused', "Show the count badge of the focused Source Control Provider."),
 				localize('scm.countBadge.off', "Disable the Source Control count badge.")
 			],
-			description: localize('scm.countBadge', "Controls the Source Control count badge."),
+			description: localize('scm.countBadge', "Controls the count badge on the Source Control icon on the Activity Bar."),
 			default: 'all'
 		},
 		'scm.providerCountBadge': {
 			type: 'string',
 			enum: ['hidden', 'auto', 'visible'],
 			enumDescriptions: [
-				localize('scm.providerCountBadge.hidden', "Hide Source Control Providers count badges."),
-				localize('scm.providerCountBadge.auto', "Show Source Control Providers count badges if there are any changes."),
-				localize('scm.providerCountBadge.visible', "Show Source Control Providers count badges.")
+				localize('scm.providerCountBadge.hidden', "Hide Source Control Provider count badges."),
+				localize('scm.providerCountBadge.auto', "Only show count badge for Source Control Provider when non-zero."),
+				localize('scm.providerCountBadge.visible', "Show Source Control Provider count badges.")
 			],
-			description: localize('scm.providerCountBadge', "Controls the Source Control Providers count badge."),
+			description: localize('scm.providerCountBadge', "Controls the count badges on Source Control Provider headers. These headers only appear when there is more than one provider."),
 			default: 'hidden'
 		},
 		'scm.defaultViewMode': {
