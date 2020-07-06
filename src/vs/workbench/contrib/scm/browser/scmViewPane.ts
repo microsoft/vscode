@@ -1021,7 +1021,7 @@ class ViewModel {
 				children.push(...item.groupItems.map(i => this.render(i)));
 			}
 
-			const collapsed = this.repositoryCollapseStates?.get(item.element) ?? false;
+			const collapsed = this.repositoryCollapseStates?.get(item.element);
 			return { element: item.element, children, incompressible: true, collapsed, collapsible: hasSomeChanges };
 		} else {
 			const children = this.mode === ViewModelMode.List
