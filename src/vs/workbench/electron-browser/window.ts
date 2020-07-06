@@ -230,10 +230,10 @@ export class NativeWindow extends Disposable {
 		});
 
 		// Zoom level changes
-		this.updateWindowZoomLevel();
+		this.updateWindowZoomLevel(false);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.zoomLevel')) {
-				this.updateWindowZoomLevel();
+				this.updateWindowZoomLevel(true);
 			} else if (e.affectsConfiguration('keyboard.touchbar.enabled') || e.affectsConfiguration('keyboard.touchbar.ignored')) {
 				this.updateTouchbarMenu();
 			}
@@ -326,28 +326,28 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private updateWindowZoomLevel(): void {
-		const windowConfig: IWindowsConfiguration = this.configurationService.getValue<IWindowsConfiguration>();
+	private updateWindowZoomLevel(fromEvent: boolean): void {
+		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
 
-		let newZoomLevel = 0;
+		let configuredZoomLevel = 0;
 		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-			newZoomLevel = windowConfig.window.zoomLevel;
+			configuredZoomLevel = windowConfig.window.zoomLevel;
 
 			// Leave early if the configured zoom level did not change (https://github.com/Microsoft/vscode/issues/1536)
-			if (this.previousConfiguredZoomLevel === newZoomLevel) {
+			if (this.previousConfiguredZoomLevel === configuredZoomLevel) {
 				return;
 			}
 
-			this.previousConfiguredZoomLevel = newZoomLevel;
+			this.previousConfiguredZoomLevel = configuredZoomLevel;
 		}
 
-		if (webFrame.getZoomLevel() !== newZoomLevel) {
-			webFrame.setZoomLevel(newZoomLevel);
+		if (fromEvent && webFrame.getZoomLevel() !== configuredZoomLevel) {
+			webFrame.setZoomLevel(configuredZoomLevel);
 			browser.setZoomFactor(webFrame.getZoomFactor());
-			// See https://github.com/Microsoft/vscode/issues/26151
 			// Cannot be trusted because the webFrame might take some time
 			// until it really applies the new zoom level
-			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
+			// See https://github.com/Microsoft/vscode/issues/26151
+			browser.setZoomLevel(webFrame.getZoomLevel(), false /* isTrusted */);
 		}
 	}
 

@@ -65,10 +65,10 @@ export abstract class BaseZoomAction extends Action {
 		const applyZoom = () => {
 			webFrame.setZoomLevel(level);
 			browser.setZoomFactor(webFrame.getZoomFactor());
-			// See https://github.com/Microsoft/vscode/issues/26151
 			// Cannot be trusted because the webFrame might take some time
 			// until it really applies the new zoom level
-			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
+			// See https://github.com/Microsoft/vscode/issues/26151
+			browser.setZoomLevel(webFrame.getZoomLevel(), false /* isTrusted */);
 		};
 
 		await this.configurationService.updateValue(BaseZoomAction.SETTING_KEY, level);
