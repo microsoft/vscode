@@ -194,6 +194,7 @@ export class StatefullMarkdownCell extends Disposable {
 		this.renderedEditors.delete(this.viewCell);
 
 		this.markdownContainer.innerHTML = '';
+		this.viewCell.clearHTML();
 		let markdownRenderer = this.viewCell.getMarkdownRenderer();
 		let renderedHTML = this.viewCell.getHTML();
 		if (renderedHTML) {
