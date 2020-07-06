@@ -41,6 +41,9 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
+import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { exists } from 'vs/base/node/pfs';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -75,6 +78,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IHostService private readonly _hostService: IHostService,
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 	) {
 		super(
 			instantiationService,
@@ -308,6 +312,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		let shouldActivate = false;
 		let shouldActivateReason: string | null = null;
+		let hasWorkspaceContains = false;
 		if (Array.isArray(extensionDescription.activationEvents)) {
 			for (let activationEvent of extensionDescription.activationEvents) {
 				// TODO@joao: there's no easy way to contribute this
@@ -329,10 +334,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				}
 
 				if (/^workspaceContains/.test(activationEvent)) {
-					// do not trigger a search, just activate in this case...
-					shouldActivate = true;
-					shouldActivateReason = activationEvent;
-					break;
+					hasWorkspaceContains = true;
 				}
 
 				if (activationEvent === 'onStartupFinished') {
@@ -346,6 +348,24 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		if (shouldActivate) {
 			await Promise.all(
 				this._extensionHostManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, { startup: false, extensionId: extensionDescription.identifier, activationEvent: shouldActivateReason! }))
+			).then(() => { });
+		} else if (hasWorkspaceContains) {
+			const workspace = await this._contextService.getCompleteWorkspace();
+			const forceUsingSearch = !!this._environmentService.configuration.remoteAuthority;
+			const host: IWorkspaceContainsActivationHost = {
+				folders: workspace.folders.map(folder => folder.uri),
+				forceUsingSearch: forceUsingSearch,
+				exists: (path) => exists(path),
+				checkExists: (folders, includes, token) => this._instantiationService.invokeFunction((accessor) => checkGlobFileExists(accessor, folders, includes, token))
+			};
+
+			const result = await checkActivateWorkspaceContainsExtension(host, extensionDescription);
+			if (!result) {
+				return;
+			}
+
+			await Promise.all(
+				this._extensionHostManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, { startup: false, extensionId: extensionDescription.identifier, activationEvent: result.activationEvent }))
 			).then(() => { });
 		}
 	}

@@ -24,6 +24,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IRequestService } from 'vs/platform/request/common/request';
+import { checkGlobFileExists } from 'vs/workbench/api/common/shared/workspaceContains';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -189,25 +190,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean> {
-		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
-		const query = queryBuilder.file(folders.map(folder => toWorkspaceFolder(URI.revive(folder))), {
-			_reason: 'checkExists',
-			includePattern: includes.join(', '),
-			expandPatterns: true,
-			exists: true
-		});
-
-		return this._searchService.fileSearch(query, token).then(
-			result => {
-				return !!result.limitHit;
-			},
-			err => {
-				if (!isPromiseCanceledError(err)) {
-					return Promise.reject(err);
-				}
-
-				return false;
-			});
+		return this._instantiationService.invokeFunction((accessor) => checkGlobFileExists(accessor, folders, includes, token));
 	}
 
 	// --- save & edit resources ---
