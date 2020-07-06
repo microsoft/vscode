@@ -188,7 +188,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return search;
 	}
 
-	$checkExists(folders: UriComponents[], includes: string[], token: CancellationToken): Promise<boolean> {
+	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean> {
 		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		const query = queryBuilder.file(folders.map(folder => toWorkspaceFolder(URI.revive(folder))), {
 			_reason: 'checkExists',
