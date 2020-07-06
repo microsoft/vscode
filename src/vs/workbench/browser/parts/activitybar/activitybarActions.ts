@@ -151,7 +151,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		const result = await Promise.all(allSessions);
 		let menus: (IAction | ContextSubMenu)[] = [];
 		result.forEach(sessionInfo => {
-			const providerDisplayName = this.authenticationService.getDisplayName(sessionInfo.providerId);
+			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
 			sessionInfo.sessions.forEach(session => {
 				const accountName = session.account.displayName;
 				const menu = new ContextSubMenu(`${accountName} (${providerDisplayName})`, [

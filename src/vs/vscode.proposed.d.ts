@@ -34,25 +34,30 @@ declare module 'vscode' {
 		/**
 		 * The account associated with the session.
 		 */
-		readonly account: {
-			/**
-			 * The human-readable name of the account.
-			 */
-			readonly displayName: string;
-
-			/**
-			 * The unique identifier of the account.
-			 */
-			readonly id: string;
-		};
+		readonly account: AuthenticationSessionAccountInformation;
 
 		/**
 		 * The permissions granted by the session's access token. Available scopes
 		 * are defined by the authentication provider.
 		 */
-		readonly scopes: string[];
+		readonly scopes: ReadonlyArray<string>;
 
-		constructor(id: string, accessToken: string, account: { displayName: string, id: string }, scopes: string[]);
+		constructor(id: string, accessToken: string, account: AuthenticationSessionAccountInformation, scopes: string[]);
+	}
+
+	/**
+	 * The information of an account associated with an authentication session.
+	 */
+	export interface AuthenticationSessionAccountInformation {
+		/**
+		 * The human-readable name of the account.
+		 */
+		readonly displayName: string;
+
+		/**
+		 * The unique identifier of the account.
+		 */
+		readonly id: string;
 	}
 
 	/**
@@ -62,12 +67,12 @@ declare module 'vscode' {
 		/**
 		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been added.
 		 */
-		readonly added: string[];
+		readonly added: ReadonlyArray<string>;
 
 		/**
 		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed.
 		 */
-		readonly removed: string[];
+		readonly removed: ReadonlyArray<string>;
 	}
 
 	/**
@@ -93,17 +98,17 @@ declare module 'vscode' {
 		/**
 		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been added.
 		*/
-		readonly added: string[];
+		readonly added: ReadonlyArray<string>;
 
 		/**
 		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been removed.
 		 */
-		readonly removed: string[];
+		readonly removed: ReadonlyArray<string>;
 
 		/**
 		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been changed.
 		 */
-		readonly changed: string[];
+		readonly changed: ReadonlyArray<string>;
 	}
 
 	/**
@@ -122,7 +127,7 @@ declare module 'vscode' {
 		/**
 		 * The human-readable name of the provider.
 		 */
-		readonly displayName: string;
+		readonly label: string;
 
 		/**
 		 * Whether it is possible to be signed into multiple accounts at once with this provider
@@ -179,7 +184,7 @@ declare module 'vscode' {
 		 * @deprecated
 		 * An array of the ids of authentication providers that are currently registered.
 		 */
-		export const providerIds: string[];
+		export const providerIds: ReadonlyArray<string>;
 
 		/**
 		 * Returns whether a provider has any sessions matching the requested scopes. This request

@@ -5,21 +5,18 @@
 
 import { localize } from 'vs/nls';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
-import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, IWriteTextFileOptions, stringToSnapshot, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, IWriteTextFileOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IFileStatWithMetadata, FileOperationError, FileOperationResult, IFileStreamContent, IFileService } from 'vs/platform/files/common/files';
+import { IFileStatWithMetadata, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { stat, chmod, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { UTF8, UTF8_with_bom, toDecodeStream, toEncodeReadable, IDecodeStreamResult } from 'vs/workbench/services/textfile/common/encoding';
-import { bufferToStream, VSBufferReadable, VSBuffer } from 'vs/base/common/buffer';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { UTF8, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
 import { ITextSnapshot } from 'vs/editor/common/model';
-import { consumeStream } from 'vs/base/common/stream';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -60,62 +57,19 @@ export class NativeTextFileService extends AbstractTextFileService {
 	}
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
-		const [bufferStream, decoder] = await this.doRead(resource, {
-			...options,
-			// optimization: since we know that the caller does not
-			// care about buffering, we indicate this to the reader.
-			// this reduces all the overhead the buffered reading
-			// has (open, read, close) if the provider supports
-			// unbuffered reading.
-			preferUnbuffered: true
-		});
 
-		return {
-			...bufferStream,
-			encoding: decoder.detected.encoding || UTF8,
-			value: await consumeStream(decoder.stream, strings => strings.join(''))
-		};
+		// ensure size & memory limits
+		options = this.ensureLimits(options);
+
+		return super.read(resource, options);
 	}
 
 	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
-		const [bufferStream, decoder] = await this.doRead(resource, options);
 
-		return {
-			...bufferStream,
-			encoding: decoder.detected.encoding || UTF8,
-			value: await createTextBufferFactoryFromStream(decoder.stream)
-		};
-	}
-
-	private async doRead(resource: URI, options?: IReadTextFileOptions & { preferUnbuffered?: boolean }): Promise<[IFileStreamContent, IDecodeStreamResult]> {
-
-		// ensure limits
+		// ensure size & memory limits
 		options = this.ensureLimits(options);
 
-		// read stream raw (either buffered or unbuffered)
-		let bufferStream: IFileStreamContent;
-		if (options.preferUnbuffered) {
-			const content = await this.fileService.readFile(resource, options);
-			bufferStream = {
-				...content,
-				value: bufferToStream(content.value)
-			};
-		} else {
-			bufferStream = await this.fileService.readFileStream(resource, options);
-		}
-
-		// read through encoding library
-		const decoder = await toDecodeStream(bufferStream.value, {
-			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
-			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
-		});
-
-		// validate binary
-		if (options?.acceptTextOnly && decoder.detected.seemsBinary) {
-			throw new TextFileOperationError(localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), TextFileOperationResult.FILE_IS_BINARY, options);
-		}
-
-		return [bufferStream, decoder];
+		return super.readStream(resource, options);
 	}
 
 	private ensureLimits(options?: IReadTextFileOptions): IReadTextFileOptions {
@@ -139,26 +93,15 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 
 		if (typeof ensuredLimits.memory !== 'number') {
-			ensuredLimits.memory = Math.max(typeof this.environmentService.args['max-memory'] === 'string' ? parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0 : 0, MAX_HEAP_SIZE);
+			const maxMemory = this.environmentService.args['max-memory'];
+			ensuredLimits.memory = Math.max(
+				typeof maxMemory === 'string'
+					? parseInt(maxMemory) * 1024 * 1024 || 0
+					: 0, MAX_HEAP_SIZE
+			);
 		}
 
 		return ensuredOptions;
-	}
-
-	protected async doEncodeText(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined> {
-
-		// check for encoding
-		const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource);
-
-		// return to parent when encoding is standard
-		if (encoding === UTF8 && !addBOM) {
-			return super.doEncodeText(resource, value);
-		}
-
-		// otherwise create with encoding
-		const encodedReadable = await this.getEncodedReadable(value || '', encoding, addBOM);
-
-		return encodedReadable;
 	}
 
 	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
@@ -181,20 +124,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 
 		try {
-
-			// check for encoding
-			const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource, options);
-
-			// return to parent when encoding is standard
-			if (encoding === UTF8 && !addBOM) {
-				return await super.write(resource, value, options);
-			}
-
-			// otherwise save with encoding
-			else {
-				const encodedReadable = await this.getEncodedReadable(value, encoding, addBOM);
-				return await this.fileService.writeFile(resource, encodedReadable, options);
-			}
+			return super.write(resource, value, options);
 		} catch (error) {
 
 			// In case of permission denied, we need to check for readonly
@@ -216,11 +146,6 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 			throw error;
 		}
-	}
-
-	private getEncodedReadable(value: string | ITextSnapshot, encoding: string, addBOM: boolean): Promise<VSBufferReadable> {
-		const snapshot = typeof value === 'string' ? stringToSnapshot(value) : value;
-		return toEncodeReadable(snapshot, encoding, { addBOM });
 	}
 
 	private async writeElevated(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {

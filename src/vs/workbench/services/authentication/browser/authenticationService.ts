@@ -33,7 +33,7 @@ export interface IAuthenticationService {
 
 	readonly onDidChangeSessions: Event<{ providerId: string, event: AuthenticationSessionsChangeEvent }>;
 	getSessions(providerId: string): Promise<ReadonlyArray<AuthenticationSession>>;
-	getDisplayName(providerId: string): string;
+	getLabel(providerId: string): string;
 	supportsMultipleAccounts(providerId: string): boolean;
 	login(providerId: string, scopes: string[]): Promise<AuthenticationSession>;
 	logout(providerId: string, sessionId: string): Promise<void>;
@@ -187,7 +187,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		let changed = false;
 
 		Object.keys(existingRequestsForProvider).forEach(requestedScopes => {
-			if (sessions.some(session => session.scopes.sort().join('') === requestedScopes)) {
+			if (sessions.some(session => session.scopes.slice().sort().join('') === requestedScopes)) {
 				// Request has been completed
 				changed = true;
 				const sessionRequest = existingRequestsForProvider[requestedScopes];
@@ -295,10 +295,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			this._badgeDisposable = this.activityService.showAccountsActivity({ badge });
 		}
 	}
-	getDisplayName(id: string): string {
+	getLabel(id: string): string {
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
-			return authProvider.displayName;
+			return authProvider.label;
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}

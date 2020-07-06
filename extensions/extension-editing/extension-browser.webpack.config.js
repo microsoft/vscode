@@ -7,15 +7,15 @@
 
 'use strict';
 
-const withDefaults = require('../shared.webpack.config');
+const withBrowserDefaults = require('../shared.webpack.config').browser;
 
-module.exports = withDefaults({
+module.exports = withBrowserDefaults({
 	context: __dirname,
 	entry: {
-		extension: './src/extensionEditingMain.ts',
+		extension: './src/extensionEditingBrowserMain.ts'
 	},
-	externals: {
-		'../../../product.json': 'commonjs ../../../product.json',
-		'typescript': 'commonjs typescript'
+	output: {
+		filename: 'extensionEditingBrowserMain.js'
 	}
 });
+

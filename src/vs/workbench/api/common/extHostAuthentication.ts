@@ -53,7 +53,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async hasSessions(providerId: string, scopes: string[]): Promise<boolean> {
 		const orderedScopes = scopes.sort().join(' ');
 		const sessions = await this.resolveSessions(providerId);
-		return !!(sessions.filter(session => session.scopes.sort().join(' ') === orderedScopes).length);
+		return !!(sessions.filter(session => session.scopes.slice().sort().join(' ') === orderedScopes).length);
 	}
 
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions & { createIfNone: true }): Promise<vscode.AuthenticationSession>;
@@ -67,12 +67,12 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		}
 
 		const orderedScopes = scopes.sort().join(' ');
-		const sessions = (await provider.getSessions()).filter(session => session.scopes.sort().join(' ') === orderedScopes);
+		const sessions = (await provider.getSessions()).filter(session => session.scopes.slice().sort().join(' ') === orderedScopes);
 
 		if (sessions.length) {
 			if (!provider.supportsMultipleAccounts) {
 				const session = sessions[0];
-				const allowed = await this._proxy.$getSessionsPrompt(providerId, session.account.displayName, provider.displayName, extensionId, extensionName);
+				const allowed = await this._proxy.$getSessionsPrompt(providerId, session.account.displayName, provider.label, extensionId, extensionName);
 				if (allowed) {
 					return session;
 				} else {
@@ -81,11 +81,11 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			}
 
 			// On renderer side, confirm consent, ask user to choose between accounts if multiple sessions are valid
-			const selected = await this._proxy.$selectSession(providerId, provider.displayName, extensionId, extensionName, sessions, scopes, !!options.clearSessionPreference);
+			const selected = await this._proxy.$selectSession(providerId, provider.label, extensionId, extensionName, sessions, scopes, !!options.clearSessionPreference);
 			return sessions.find(session => session.id === selected.id);
 		} else {
 			if (options.createIfNone) {
-				const isAllowed = await this._proxy.$loginPrompt(provider.displayName, extensionName);
+				const isAllowed = await this._proxy.$loginPrompt(provider.label, extensionName);
 				if (!isAllowed) {
 					throw new Error('User did not consent to login.');
 				}
@@ -120,7 +120,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			this._proxy.$sendDidChangeSessions(provider.id, e);
 		});
 
-		this._proxy.$registerAuthenticationProvider(provider.id, provider.displayName, provider.supportsMultipleAccounts);
+		this._proxy.$registerAuthenticationProvider(provider.id, provider.label, provider.supportsMultipleAccounts);
 
 		return new Disposable(() => {
 			listener.dispose();

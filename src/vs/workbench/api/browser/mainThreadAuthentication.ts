@@ -75,7 +75,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
 		public readonly id: string,
-		public readonly displayName: string,
+		public readonly label: string,
 		public readonly supportsMultipleAccounts: boolean,
 		private readonly notificationService: INotificationService,
 		private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
@@ -235,8 +235,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return Promise.resolve(this.authenticationService.getProviderIds());
 	}
 
-	async $registerAuthenticationProvider(id: string, displayName: string, supportsMultipleAccounts: boolean): Promise<void> {
-		const provider = new MainThreadAuthenticationProvider(this._proxy, id, displayName, supportsMultipleAccounts, this.notificationService, this.storageKeysSyncRegistryService, this.storageService, this.quickInputService, this.dialogService);
+	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): Promise<void> {
+		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, this.notificationService, this.storageKeysSyncRegistryService, this.storageService, this.quickInputService, this.dialogService);
 		await provider.initialize();
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
@@ -267,13 +267,13 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone: boolean, clearSessionPreference: boolean }): Promise<modes.AuthenticationSession | undefined> {
 		const orderedScopes = scopes.sort().join(' ');
-		const sessions = (await this.$getSessions(providerId)).filter(session => session.scopes.sort().join(' ') === orderedScopes);
-		const displayName = this.authenticationService.getDisplayName(providerId);
+		const sessions = (await this.$getSessions(providerId)).filter(session => session.scopes.slice().sort().join(' ') === orderedScopes);
+		const label = this.authenticationService.getLabel(providerId);
 
 		if (sessions.length) {
 			if (!this.authenticationService.supportsMultipleAccounts(providerId)) {
 				const session = sessions[0];
-				const allowed = await this.$getSessionsPrompt(providerId, session.account.displayName, displayName, extensionId, extensionName);
+				const allowed = await this.$getSessionsPrompt(providerId, session.account.displayName, label, extensionId, extensionName);
 				if (allowed) {
 					return session;
 				} else {
@@ -282,11 +282,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			}
 
 			// On renderer side, confirm consent, ask user to choose between accounts if multiple sessions are valid
-			const selected = await this.$selectSession(providerId, displayName, extensionId, extensionName, sessions, scopes, !!options.clearSessionPreference);
+			const selected = await this.$selectSession(providerId, label, extensionId, extensionName, sessions, scopes, !!options.clearSessionPreference);
 			return sessions.find(session => session.id === selected.id);
 		} else {
 			if (options.createIfNone) {
-				const isAllowed = await this.$loginPrompt(displayName, extensionName);
+				const isAllowed = await this.$loginPrompt(label, extensionName);
 				if (!isAllowed) {
 					throw new Error('User did not consent to login.');
 				}

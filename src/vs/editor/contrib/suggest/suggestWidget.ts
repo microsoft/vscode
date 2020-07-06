@@ -380,7 +380,7 @@ class SuggestionDetails {
 
 		// --- details
 		if (detail) {
-			this.type.innerText = detail;
+			this.type.innerText = detail.length > 100_000 ? `${detail.substr(0, 100_000)}…` : detail;
 			show(this.type);
 		} else {
 			this.type.innerText = '';

@@ -53,7 +53,7 @@ export class DiskSearch implements ISearchResultProvider {
 		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
 		const timeout = this.configService.getValue<ISearchConfiguration>().search.maintainFileSearchCache ?
-			Number.MAX_VALUE :
+			100 * 60 * 60 * 1000 :
 			60 * 60 * 1000;
 
 		const opts: IIPCOptions = {

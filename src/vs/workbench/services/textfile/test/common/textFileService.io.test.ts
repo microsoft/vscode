@@ -4,79 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ITextFileService, snapshotToString, TextFileOperationError, TextFileOperationResult, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
-import { ITextFileService, snapshotToString, TextFileOperationResult, TextFileOperationError, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { Schemas } from 'vs/base/common/network';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { rimraf, RimRafMode, copy, readFile, exists } from 'vs/base/node/pfs';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { tmpdir } from 'os';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename } from 'vs/base/common/path';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/workbench/services/textfile/common/encoding';
-import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
+import { UTF16le, UTF8_with_bom, UTF16be, UTF8 } from 'vs/workbench/services/textfile/common/encoding';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { ITextSnapshot, DefaultEndOfLine } from 'vs/editor/common/model';
 import { isWindows } from 'vs/base/common/platform';
-import { readFileSync, statSync } from 'fs';
-import { detectEncodingByBOM } from 'vs/workbench/services/textfile/test/node/encoding/encoding.test';
-import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { WorkingCopyFileService, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 
-suite('Files - TextFileService i/o', function () {
-	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
+export interface Params {
+	setup(): Promise<{
+		service: ITextFileService,
+		testDir: string
+	}>
+	teardown(): Promise<void>
 
-	const disposables = new DisposableStore();
+	exists(fsPath: string): Promise<boolean>;
+	stat(fsPath: string): Promise<{ size: number }>;
+	readFile(fsPath: string): Promise<VSBuffer | Buffer>;
+	readFile(fsPath: string, encoding: string): Promise<string>;
+	readFile(fsPath: string, encoding?: string): Promise<VSBuffer | Buffer | string>;
+	detectEncodingByBOM(fsPath: string): Promise<typeof UTF16be | typeof UTF16le | typeof UTF8_with_bom | null>;
+}
 
+/**
+ * Allows us to reuse test suite across different environments.
+ *
+ * It introduces a bit of complexity with setup and teardown, however
+ * it helps us to ensure that tests are added for all environments at once,
+ * hence helps us catch bugs better.
+ */
+export default function createSuite(params: Params) {
 	let service: ITextFileService;
-	let testDir: string;
-
-	// Given issues such as https://github.com/microsoft/vscode/issues/78602
-	// and https://github.com/microsoft/vscode/issues/92334 we see random test
-	// failures when accessing the native file system. To diagnose further, we
-	// retry node.js file access tests up to 3 times to rule out any random disk
-	// issue and increase the timeout.
-	this.retries(3);
-	this.timeout(1000 * 10);
+	let testDir = '';
+	const { exists, stat, readFile, detectEncodingByBOM } = params;
 
 	setup(async () => {
-		const instantiationService = workbenchInstantiationService();
-
-		const logService = new NullLogService();
-		const fileService = new FileService(logService);
-
-		const fileProvider = new DiskFileSystemProvider(logService);
-		disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
-		disposables.add(fileProvider);
-
-		const collection = new ServiceCollection();
-		collection.set(IFileService, fileService);
-
-		collection.set(IWorkingCopyFileService, new WorkingCopyFileService(fileService, new TestWorkingCopyService(), instantiationService, new UriIdentityService(fileService)));
-
-		service = instantiationService.createChild(collection).createInstance(TestNativeTextFileServiceWithEncodingOverrides);
-
-		const id = generateUuid();
-		testDir = join(parentDir, id);
-		const sourceDir = getPathFromAmdModule(require, './fixtures');
-
-		await copy(sourceDir, testDir);
+		const result = await params.setup();
+		service = result.service;
+		testDir = result.testDir;
 	});
 
 	teardown(async () => {
-		(<TextFileEditorModelManager>service.files).dispose();
-
-		disposables.clear();
-
-		await rimraf(parentDir, RimRafMode.MOVE);
+		await params.teardown();
 	});
 
 	test('create - no encoding - content empty', async () => {
@@ -229,7 +200,7 @@ suite('Files - TextFileService i/o', function () {
 	});
 
 	test('write - use encoding (shiftjis)', async () => {
-		await testEncodingKeepsData(URI.file(join(testDir, 'some_shiftjs.txt')), 'shiftjis', '中文abc');
+		await testEncodingKeepsData(URI.file(join(testDir, 'some_shiftjis.txt')), 'shiftjis', '中文abc');
 	});
 
 	test('write - use encoding (gbk)', async () => {
@@ -401,8 +372,12 @@ suite('Files - TextFileService i/o', function () {
 		const result = await service.readStream(resource);
 
 		assert.equal(result.name, basename(resource.fsPath));
-		assert.equal(result.size, statSync(resource.fsPath).size);
-		assert.equal(snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false)), snapshotToString(createTextModel(readFileSync(resource.fsPath).toString()).createSnapshot(false)));
+		assert.equal(result.size, (await stat(resource.fsPath)).size);
+
+		const content = (await readFile(resource.fsPath)).toString();
+		assert.equal(
+			snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false)),
+			snapshotToString(createTextModel(content).createSnapshot(false)));
 	}
 
 	test('read - small text', async () => {
@@ -421,8 +396,8 @@ suite('Files - TextFileService i/o', function () {
 		const result = await service.read(resource);
 
 		assert.equal(result.name, basename(resource.fsPath));
-		assert.equal(result.size, statSync(resource.fsPath).size);
-		assert.equal(result.value, readFileSync(resource.fsPath).toString());
+		assert.equal(result.size, (await stat(resource.fsPath)).size);
+		assert.equal(result.value, (await readFile(resource.fsPath)).toString());
 	}
 
 	test('readStream - encoding picked up (CP1252)', async () => {
@@ -506,7 +481,7 @@ suite('Files - TextFileService i/o', function () {
 		await testLargeEncoding('gbk', '中国abc');
 	});
 
-	test('readStream - large ShiftJS', async () => {
+	test('readStream - large ShiftJIS', async () => {
 		await testLargeEncoding('shiftjis', '中文abc');
 	});
 
@@ -588,4 +563,4 @@ suite('Files - TextFileService i/o', function () {
 		const result = await service.read(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
 		assert.equal(result.name, 'small.txt');
 	});
-});
+}
