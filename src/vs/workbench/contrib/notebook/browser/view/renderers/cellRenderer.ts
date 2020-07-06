@@ -139,10 +139,16 @@ export class CellEditorOptions {
 
 		const computeEditorOptions = () => {
 			const editorOptions = deepClone(configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
-			return {
+			const computed = {
 				...editorOptions,
 				...CellEditorOptions.fixedEditorOptions
 			};
+
+			if (!computed.folding) {
+				computed.lineDecorationsWidth = 16;
+			}
+
+			return computed;
 		};
 
 		this._value = computeEditorOptions();
