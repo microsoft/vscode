@@ -1110,6 +1110,11 @@ registerAction2(class extends NotebookAction {
 				order: CellToolbarOrder.ClearCellOutput,
 				group: CELL_TITLE_GROUP_ID
 			},
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey), NOTEBOOK_CELL_HAS_OUTPUTS),
+				primary: KeyMod.Alt | KeyCode.Delete,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
 			icon: { id: 'codicon/clear-all' },
 		});
 	}
@@ -1271,6 +1276,11 @@ registerAction2(class extends NotebookAction {
 					group: CELL_TITLE_GROUP_ID
 				},
 				icon: { id: 'codicon/split-vertical' },
+				keybinding: {
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, InputFocusedContext),
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_BACKSLASH,
+					weight: KeybindingWeight.WorkbenchContrib
+				},
 			});
 	}
 
@@ -1293,6 +1303,11 @@ registerAction2(class extends NotebookAction {
 			{
 				id: JOIN_CELL_ABOVE_COMMAND_ID,
 				title: localize('notebookActions.joinCellAbove', "Join with Previous Cell"),
+				keybinding: {
+					when: NOTEBOOK_EDITOR_FOCUSED,
+					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.KEY_J,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			});
 	}
 
@@ -1307,6 +1322,11 @@ registerAction2(class extends NotebookAction {
 			{
 				id: JOIN_CELL_BELOW_COMMAND_ID,
 				title: localize('notebookActions.joinCellBelow', "Join with Next Cell"),
+				keybinding: {
+					when: NOTEBOOK_EDITOR_FOCUSED,
+					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KEY_J,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			});
 	}
 

@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { join } from 'path';
 import * as vscode from 'vscode';
 import { disposeAll } from '../utils/dispose';
 import { createTestEditor, joinLines, wait } from './testUtils';
@@ -123,6 +122,25 @@ suite('TypeScript Quick Fix', () => {
 		assert.strictEqual(fixes![1].title, `Remove unused declaration for: 'Foo'`);
 	});
 
+	test('Should prioritize implement abstract class over remove unused #101486', async () => {
+		const testDocumentUri = workspaceFile('foo.ts');
+		const editor = await createTestEditor(testDocumentUri,
+			`export abstract class Foo { abstract foo(): number; }`,
+			`class ConcreteFoo extends Foo { }`,
+		);
+
+		await wait(3000);
+
+		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
+			testDocumentUri,
+			editor.document.lineAt(1).range
+		);
+
+		assert.strictEqual(fixes?.length, 2);
+		assert.strictEqual(fixes![0].title, `Implement inherited abstract class`);
+		assert.strictEqual(fixes![1].title, `Remove unused declaration for: 'ConcreteFoo'`);
+	});
+
 	test('Add all missing imports should come after other add import fixes #98613', async () => {
 		await createTestEditor(workspaceFile('foo.ts'),
 			`export const foo = 1;`);
@@ -152,6 +170,6 @@ suite('TypeScript Quick Fix', () => {
 
 
 function workspaceFile(fileName: string) {
-	return vscode.Uri.file(join(vscode.workspace.rootPath!, fileName));
+	return vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, fileName);
 }
 
