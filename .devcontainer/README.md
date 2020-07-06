@@ -6,9 +6,9 @@ This repository includes configuration for a development container for working w
 
 ## Quick start - local
 
-1. Install Docker Desktop or Docker on your local machine. (See [docs](https://aka.ms/vscode-remote/containers/getting-started) for additional details.)
+1. Install Docker Desktop or Docker for Linux on your local machine. (See [docs](https://aka.ms/vscode-remote/containers/getting-started) for additional details.)
 
-2. [Docker Desktop] If you are not using the new WSL2 Docker Desktop engine, increase the resources allocated to Docker Desktop to at least **4 Cores and 4 GB of RAM (8 GB recommended)**. Right-click on the Docker status bar item, go to **Preferences/Settings > Resources > Advanced** to do so.
+2. **Important**: Docker needs at least **4 Cores and 6 GB of RAM (8 GB recommended)** to run full build. If you on macOS, or using the old Hyper-V engine for Windows, update these values for Docker Desktop by right-clicking on the Docker status bar item, going to **Preferences/Settings > Resources > Advanced**.
 
     > **Note:** The [Resource Monitor](https://marketplace.visualstudio.com/items?itemName=mutantdino.resourcemonitor) extension is included in the container so you can keep an eye on CPU/Memory in the status bar.
 
@@ -44,7 +44,7 @@ Next: **[Try it out!](#try-it)**
 
 3. Press <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> and select **Codespaces: Create New Codespace**.
 
-4. Use default settings, select a plan, and then enter the repository URL `https://github.com/microsoft/vscode` (or a branch or PR URL) in the input box when prompted.
+4. Use default settings (which should include **Standard** 4 core, 8 GB RAM Codespace), select a plan, and then enter the repository URL `https://github.com/microsoft/vscode` (or a branch or PR URL) in the input box when prompted.
 
 5. After the container is running, open a web browser and go to [http://localhost:6080](http://localhost:6080) or use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901` and enter `vscode` as the password.
 
