@@ -78,7 +78,7 @@
 			"editor/title": [
 				{
 					"command": "markdown.showPreviewToSide",
-					"when": "editorLangId == markdown",
+					"when": "editorLangId == markdown && !notebookEditorFocused",
 					"alt": "markdown.showPreview",
 					"group": "navigation"
 				},
@@ -120,17 +120,17 @@
 			"commandPalette": [
 				{
 					"command": "markdown.showPreview",
-					"when": "editorLangId == markdown",
+					"when": "editorLangId == markdown && !notebookEditorFocused",
 					"group": "navigation"
 				},
 				{
 					"command": "markdown.showPreviewToSide",
-					"when": "editorLangId == markdown",
+					"when": "editorLangId == markdown && !notebookEditorFocused",
 					"group": "navigation"
 				},
 				{
 					"command": "markdown.showLockedPreviewToSide",
-					"when": "editorLangId == markdown",
+					"when": "editorLangId == markdown && !notebookEditorFocused",
 					"group": "navigation"
 				},
 				{
@@ -140,7 +140,7 @@
 				},
 				{
 					"command": "markdown.showPreviewSecuritySelector",
-					"when": "editorLangId == markdown"
+					"when": "editorLangId == markdown && !notebookEditorFocused"
 				},
 				{
 					"command": "markdown.showPreviewSecuritySelector",
@@ -152,7 +152,7 @@
 				},
 				{
 					"command": "markdown.preview.refresh",
-					"when": "editorLangId == markdown"
+					"when": "editorLangId == markdown && !notebookEditorFocused"
 				},
 				{
 					"command": "markdown.preview.refresh",
@@ -165,13 +165,13 @@
 				"command": "markdown.showPreview",
 				"key": "shift+ctrl+v",
 				"mac": "shift+cmd+v",
-				"when": "editorLangId == markdown"
+				"when": "editorLangId == markdown && !notebookEditorFocused"
 			},
 			{
 				"command": "markdown.showPreviewToSide",
 				"key": "ctrl+k v",
 				"mac": "cmd+k v",
-				"when": "editorLangId == markdown"
+				"when": "editorLangId == markdown && !notebookEditorFocused"
 			}
 		],
 		"configuration": {
