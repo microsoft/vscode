@@ -240,18 +240,16 @@ registerAction2(class extends NotebookAction {
 			return;
 		}
 
-		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
-
 		const executionP = runCell(accessor, context);
 
 		// Try to select below, fall back on inserting
 		const nextCell = context.notebookEditor.viewModel?.viewCells[idx + 1];
 		if (nextCell) {
-			context.notebookEditor.focusNotebookCell(nextCell, newFocusMode);
+			context.notebookEditor.focusNotebookCell(nextCell, 'container');
 		} else {
 			const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
 			if (newCell) {
-				context.notebookEditor.focusNotebookCell(newCell, newFocusMode);
+				context.notebookEditor.focusNotebookCell(newCell, 'editor');
 			}
 		}
 
@@ -924,7 +922,8 @@ registerAction2(class extends NotebookAction {
 			return;
 		}
 
-		await editor.focusNotebookCell(newCell, 'editor');
+		const newFocusMode = newCell.cellKind === CellKind.Markdown && newCell.editState === CellEditState.Preview ? 'container' : 'editor';
+		editor.focusNotebookCell(newCell, newFocusMode);
 	}
 });
 
@@ -966,7 +965,8 @@ registerAction2(class extends NotebookAction {
 			return;
 		}
 
-		await editor.focusNotebookCell(newCell, 'editor');
+		const newFocusMode = newCell.cellKind === CellKind.Markdown && newCell.editState === CellEditState.Preview ? 'container' : 'editor';
+		editor.focusNotebookCell(newCell, newFocusMode);
 	}
 });
 
