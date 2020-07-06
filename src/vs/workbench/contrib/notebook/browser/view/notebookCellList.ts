@@ -356,6 +356,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	splice2(start: number, deleteCount: number, elements: CellViewModel[] = []): void {
 		// we need to convert start and delete count based on hidden ranges
+		if (start < 0 || start > this.view.length) {
+			return;
+		}
+
 		super.splice(start, deleteCount, elements);
 
 		const selectionsLeft = [];
