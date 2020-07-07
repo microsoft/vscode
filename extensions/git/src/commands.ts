@@ -845,7 +845,7 @@ export class CommandCenter {
 			try {
 				document = await workspace.openTextDocument(uri);
 			} catch (error) {
-				await commands.executeCommand<void>('vscode.open', uri, opts);
+				await commands.executeCommand('vscode.open', uri, opts);
 				continue;
 			}
 
@@ -858,7 +858,7 @@ export class CommandCenter {
 				const editor = await window.showTextDocument(document, opts);
 				editor.revealRange(previousVisibleRanges[0]);
 			} else {
-				await window.showTextDocument(document, opts);
+				await commands.executeCommand('vscode.open', uri, opts);
 			}
 		}
 	}

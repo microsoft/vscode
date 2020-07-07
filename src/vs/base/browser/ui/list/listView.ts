@@ -411,7 +411,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		if (this.supportDynamicHeights) {
 			this._rerender(this.lastRenderTop, this.lastRenderHeight);
 		}
-		return;
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): T[] {

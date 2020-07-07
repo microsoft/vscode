@@ -12,7 +12,7 @@ import { ILifecycleService, LifecyclePhase, StartupKindToString } from 'vs/platf
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/electron-browser/timerService';
+import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/browser/timerService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import * as perf from 'vs/base/common/performance';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -421,6 +421,5 @@ class MarkdownBuilder {
 			});
 			this.value += '|\n';
 		});
-
 	}
 }

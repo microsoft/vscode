@@ -39,7 +39,6 @@ export interface IRemoteExtensionHostInitData {
 	readonly appSettingsHome: URI;
 	readonly extensionHostLogsPath: URI;
 	readonly globalStorageHome: URI;
-	readonly userHome: URI;
 	readonly extensions: IExtensionDescription[];
 	readonly allExtensions: IExtensionDescription[];
 }
@@ -222,7 +221,6 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: remoteInitData.globalStorageHome,
-				userHome: remoteInitData.userHome,
 				webviewResourceRoot: this._environmentService.webviewResourceRoot,
 				webviewCspSource: this._environmentService.webviewCspSource,
 			},

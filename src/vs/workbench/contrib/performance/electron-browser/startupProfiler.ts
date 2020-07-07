@@ -12,7 +12,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { PerfviewInput } from 'vs/workbench/contrib/performance/electron-browser/perfviewEditor';
+import { PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';

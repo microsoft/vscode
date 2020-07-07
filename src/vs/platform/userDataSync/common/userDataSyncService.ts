@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle, IUserDataManifest, ISyncTask } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle, IUserDataManifest, ISyncTask, Change } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -297,8 +297,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 
 		for (const synchroniser of synchronizers) {
-			const preview = await synchroniser.generateSyncPreview();
-			if (preview && !preview.isLastSyncFromCurrentMachine && (preview.hasLocalChanged || preview.hasRemoteChanged)) {
+			const preview = await synchroniser.generateSyncResourcePreview();
+			if (preview && !preview.isLastSyncFromCurrentMachine
+				&& (preview.resourcePreviews.some(({ localChange }) => localChange !== Change.None) || preview.resourcePreviews.some(({ remoteChange }) => remoteChange !== Change.None))) {
 				return true;
 			}
 		}

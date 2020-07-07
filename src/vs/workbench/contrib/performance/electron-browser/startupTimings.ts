@@ -19,9 +19,10 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as files from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { didUseCachedData, ITimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
+import { didUseCachedData } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { getEntries } from 'vs/base/common/performance';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 export class StartupTimings implements IWorkbenchContribution {
 
