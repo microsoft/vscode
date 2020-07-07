@@ -11,6 +11,7 @@ import * as streams from 'vs/base/common/stream';
 import * as iconv from 'iconv-lite-umd';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from 'vs/base/common/buffer';
+import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 
 export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
 	try {
@@ -398,5 +399,19 @@ suite('Encoding', () => {
 
 			assert.equal(actual, expected);
 		});
+	});
+
+	test('encodingExists', async function () {
+		for (const enc in SUPPORTED_ENCODINGS) {
+			if (enc === encoding.UTF8_with_bom) {
+				continue; // skip over encodings from us
+			}
+
+			if (enc === 'euckr') {
+				continue; // TODO@ben failing test for https://github.com/microsoft/vscode/issues/101847
+			}
+
+			assert.equal(iconv.encodingExists(enc), true, enc);
+		}
 	});
 });
