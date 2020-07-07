@@ -2,10 +2,10 @@
 # yarn lockfile v1
 
 
-iconv-lite-umd@0.6.5:
-  version "0.6.5"
-  resolved "https://registry.yarnpkg.com/iconv-lite-umd/-/iconv-lite-umd-0.6.5.tgz#6a1f621a3b4d125f72feff813a9839e1ebd6c722"
-  integrity sha512-WDegH4al+e3n3jTOStRvm+jzDA3JMUQGgzdAsMxAgcgB0Oi72HjfdsoX08ieKsy3rKexXVjWZr41aOIUaCZnMg==
+iconv-lite-umd@0.6.6:
+  version "0.6.6"
+  resolved "https://registry.yarnpkg.com/iconv-lite-umd/-/iconv-lite-umd-0.6.6.tgz#d00c8a822a248066d22b1e90635d8506a469f357"
+  integrity sha512-I4CCm48Jh10a8ETkgqfu2RofZd9gIcQwAcEI2x9MjgvdrbKxk8DdGpyq3WB7064mJXBgGniZgWky435ropCpmw==
 
 jschardet@2.2.1:
   version "2.2.1"

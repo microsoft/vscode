@@ -407,10 +407,6 @@ suite('Encoding', () => {
 				continue; // skip over encodings from us
 			}
 
-			if (enc === 'euckr') {
-				continue; // TODO@ben failing test for https://github.com/microsoft/vscode/issues/101847
-			}
-
 			assert.equal(iconv.encodingExists(enc), true, enc);
 		}
 	});
