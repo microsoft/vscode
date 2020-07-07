@@ -1,7 +1,7 @@
-; *** Inno Setup version 5.5.3+ English messages ***
+; *** Inno Setup version 6.0.3+ English messages ***
 ;
 ; To download user-contributed translations of this file, go to:
-;   http://www.jrsoftware.org/files/istrans/
+;   https://jrsoftware.org/files/istrans/
 ;
 ; Note: When translating this text, do not add periods (.) to the end of
 ; messages that didn't have them already, because on those messages Inno
@@ -42,6 +42,7 @@ ErrorTitle=Error
 SetupLdrStartupMessage=This will install %1. Do you wish to continue?
 LdrCannotCreateTemp=Unable to create a temporary file. Setup aborted
 LdrCannotExecTemp=Unable to execute file in the temporary directory. Setup aborted
+HelpTextNote=
 
 ; *** Startup error messages
 LastErrorMessage=%1.%n%nError %2: %3
@@ -55,13 +56,22 @@ WindowsServicePackRequired=This program requires %1 Service Pack %2 or later.
 NotOnThisPlatform=This program will not run on %1.
 OnlyOnThisPlatform=This program must be run on %1.
 OnlyOnTheseArchitectures=This program can only be installed on versions of Windows designed for the following processor architectures:%n%n%1
-MissingWOW64APIs=The version of Windows you are running does not include functionality required by Setup to perform a 64-bit installation. To correct this problem, please install Service Pack %1.
 WinVersionTooLowError=This program requires %1 version %2 or later.
 WinVersionTooHighError=This program cannot be installed on %1 version %2 or later.
 AdminPrivilegesRequired=You must be logged in as an administrator when installing this program.
 PowerUserPrivilegesRequired=You must be logged in as an administrator or as a member of the Power Users group when installing this program.
 SetupAppRunningError=Setup has detected that %1 is currently running.%n%nPlease close all instances of it now, then click OK to continue, or Cancel to exit.
 UninstallAppRunningError=Uninstall has detected that %1 is currently running.%n%nPlease close all instances of it now, then click OK to continue, or Cancel to exit.
+
+; *** Startup questions
+PrivilegesRequiredOverrideTitle=Select Setup Install Mode
+PrivilegesRequiredOverrideInstruction=Select install mode
+PrivilegesRequiredOverrideText1=%1 can be installed for all users (requires administrative privileges), or for you only.
+PrivilegesRequiredOverrideText2=%1 can be installed for you only, or for all users (requires administrative privileges).
+PrivilegesRequiredOverrideAllUsers=Install for &all users
+PrivilegesRequiredOverrideAllUsersRecommended=Install for &all users (recommended)
+PrivilegesRequiredOverrideCurrentUser=Install for &me only
+PrivilegesRequiredOverrideCurrentUserRecommended=Install for &me only (recommended)
 
 ; *** Misc. errors
 ErrorCreatingDir=Setup was unable to create the directory "%1"
@@ -93,7 +103,7 @@ ButtonNewFolder=&Make New Folder
 
 ; *** "Select Language" dialog messages
 SelectLanguageTitle=Select Setup Language
-SelectLanguageLabel=Select the language to use during the installation:
+SelectLanguageLabel=Select the language to use during the installation.
 
 ; *** Common wizard text
 ClickNext=Click Next to continue, or Cancel to exit Setup.
@@ -141,6 +151,7 @@ WizardSelectDir=Select Destination Location
 SelectDirDesc=Where should [name] be installed?
 SelectDirLabel3=Setup will install [name] into the following folder.
 SelectDirBrowseLabel=To continue, click Next. If you would like to select a different folder, click Browse.
+DiskSpaceGBLabel=At least [gb] GB of free disk space is required.
 DiskSpaceMBLabel=At least [mb] MB of free disk space is required.
 CannotInstallToNetworkDrive=Setup cannot install to a network drive.
 CannotInstallToUNCPath=Setup cannot install to a UNC path.
@@ -168,6 +179,7 @@ NoUninstallWarningTitle=Components Exist
 NoUninstallWarning=Setup has detected that the following components are already installed on your computer:%n%n%1%n%nDeselecting these components will not uninstall them.%n%nWould you like to continue anyway?
 ComponentSize1=%1 KB
 ComponentSize2=%1 MB
+ComponentsDiskSpaceGBLabel=Current selection requires at least [gb] GB of disk space.
 ComponentsDiskSpaceMBLabel=Current selection requires at least [mb] MB of disk space.
 
 ; *** "Select Additional Tasks" wizard page
@@ -208,6 +220,7 @@ ApplicationsFound2=The following applications are using files that need to be up
 CloseApplications=&Automatically close the applications
 DontCloseApplications=&Do not close the applications
 ErrorCloseApplications=Setup was unable to automatically close all applications. It is recommended that you close all applications using files that need to be updated by Setup before continuing.
+PrepareToInstallNeedsRestart=Setup must restart your computer. After restarting your computer, run Setup again to complete the installation of [name].%n%nWould you like to restart now?
 
 ; *** "Installing" wizard page
 WizardInstalling=Installing
@@ -216,7 +229,7 @@ InstallingLabel=Please wait while Setup installs [name] on your computer.
 ; *** "Setup Completed" wizard page
 FinishedHeadingLabel=Completing the [name] Setup Wizard
 FinishedLabelNoIcons=Setup has finished installing [name] on your computer.
-FinishedLabel=Setup has finished installing [name] on your computer. The application may be launched by selecting the installed icons.
+FinishedLabel=Setup has finished installing [name] on your computer. The application may be launched by selecting the installed shortcuts.
 ClickFinish=Click Finish to exit Setup.
 FinishedRestartLabel=To complete the installation of [name], Setup must restart your computer. Would you like to restart now?
 FinishedRestartMessage=To complete the installation of [name], Setup must restart your computer.%n%nWould you like to restart now?
@@ -237,7 +250,10 @@ SelectDirectoryLabel=Please specify the location of the next disk.
 
 ; *** Installation phase messages
 SetupAborted=Setup was not completed.%n%nPlease correct the problem and run Setup again.
-EntryAbortRetryIgnore=Click Retry to try again, Ignore to proceed anyway, or Abort to cancel installation.
+AbortRetryIgnoreSelectAction=Select action
+AbortRetryIgnoreRetry=&Try again
+AbortRetryIgnoreIgnore=&Ignore the error and continue
+AbortRetryIgnoreCancel=Cancel installation
 
 ; *** Installation status messages
 StatusClosingApplications=Closing applications...
@@ -268,11 +284,13 @@ ErrorRegWriteKey=Error writing to registry key:%n%1\%2
 ErrorIniEntry=Error creating INI entry in file "%1".
 
 ; *** File copying errors
-FileAbortRetryIgnore=Click Retry to try again, Ignore to skip this file (not recommended), or Abort to cancel installation.
-FileAbortRetryIgnore2=Click Retry to try again, Ignore to proceed anyway (not recommended), or Abort to cancel installation.
+FileAbortRetryIgnoreSkipNotRecommended=&Skip this file (not recommended)
+FileAbortRetryIgnoreIgnoreNotRecommended=&Ignore the error and continue (not recommended)
 SourceIsCorrupted=The source file is corrupted
 SourceDoesntExist=The source file "%1" does not exist
-ExistingFileReadOnly=The existing file is marked as read-only.%n%nClick Retry to remove the read-only attribute and try again, Ignore to skip this file, or Abort to cancel installation.
+ExistingFileReadOnly2=The existing file could not be replaced because it is marked read-only.
+ExistingFileReadOnlyRetry=&Remove the read-only attribute and try again
+ExistingFileReadOnlyKeepExisting=&Keep the existing file
 ErrorReadingExistingDest=An error occurred while trying to read the existing file:
 FileExists=The file already exists.%n%nWould you like Setup to overwrite it?
 ExistingFileNewer=The existing file is newer than the one Setup is trying to install. It is recommended that you keep the existing file.%n%nDo you want to keep the existing file?
@@ -287,6 +305,16 @@ ErrorRegisterServer=Unable to register the DLL/OCX: %1
 ErrorRegSvr32Failed=RegSvr32 failed with exit code %1
 ErrorRegisterTypeLib=Unable to register the type library: %1
 
+; *** Uninstall display name markings
+; used for example as 'My Program (32-bit)'
+UninstallDisplayNameMark=%1 (%2)
+; used for example as 'My Program (32-bit, All users)'
+UninstallDisplayNameMarks=%1 (%2, %3)
+UninstallDisplayNameMark32Bit=32-bit
+UninstallDisplayNameMark64Bit=64-bit
+UninstallDisplayNameMarkAllUsers=All users
+UninstallDisplayNameMarkCurrentUser=Current user
+
 ; *** Post-installation errors
 ErrorOpeningReadme=An error occurred while trying to open the README file.
 ErrorRestartingComputer=Setup was unable to restart the computer. Please do this manually.
@@ -296,7 +324,7 @@ UninstallNotFound=File "%1" does not exist. Cannot uninstall.
 UninstallOpenError=File "%1" could not be opened. Cannot uninstall
 UninstallUnsupportedVer=The uninstall log file "%1" is in a format not recognized by this version of the uninstaller. Cannot uninstall
 UninstallUnknownEntry=An unknown entry (%1) was encountered in the uninstall log
-ConfirmUninstall=Are you sure you want to completely remove %1? Extensions and settings will not be removed.
+ConfirmUninstall=Are you sure you want to completely remove %1 and all of its components?
 UninstallOnlyOnWin64=This installation can only be uninstalled on 64-bit Windows.
 OnlyAdminCanUninstall=This installation can only be uninstalled by a user with administrative privileges.
 UninstallStatusLabel=Please wait while %1 is removed from your computer.
@@ -323,9 +351,9 @@ ShutdownBlockReasonUninstallingApp=Uninstalling %1.
 [CustomMessages]
 
 NameAndVersion=%1 version %2
-AdditionalIcons=Additional icons:
-CreateDesktopIcon=Create a &desktop icon
-CreateQuickLaunchIcon=Create a &Quick Launch icon
+AdditionalIcons=Additional shortcuts:
+CreateDesktopIcon=Create a &desktop shortcut
+CreateQuickLaunchIcon=Create a &Quick Launch shortcut
 ProgramOnTheWeb=%1 on the Web
 UninstallProgram=Uninstall %1
 LaunchProgram=Launch %1
