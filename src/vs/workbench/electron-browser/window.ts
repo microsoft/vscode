@@ -18,12 +18,13 @@ import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, getTitleBarSt
 import { IRunActionInWindowRequest, IRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/node/window';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import * as browser from 'vs/base/browser/browser';
+import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
+import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/common/electronTypes';
-import { crashReporter, ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { crashReporter, ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -194,12 +195,12 @@ export class NativeWindow extends Disposable {
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => {
 			await this.lifecycleService.when(LifecyclePhase.Ready);
-			browser.setFullscreen(true);
+			setFullscreen(true);
 		});
 
 		ipcRenderer.on('vscode:leaveFullScreen', async () => {
 			await this.lifecycleService.when(LifecyclePhase.Ready);
-			browser.setFullscreen(false);
+			setFullscreen(false);
 		});
 
 		// High Contrast Events
@@ -230,10 +231,10 @@ export class NativeWindow extends Disposable {
 		});
 
 		// Zoom level changes
-		this.updateWindowZoomLevel(false);
+		this.updateWindowZoomLevel();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.zoomLevel')) {
-				this.updateWindowZoomLevel(true);
+				this.updateWindowZoomLevel();
 			} else if (e.affectsConfiguration('keyboard.touchbar.enabled') || e.affectsConfiguration('keyboard.touchbar.ignored')) {
 				this.updateTouchbarMenu();
 			}
@@ -326,7 +327,7 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private updateWindowZoomLevel(fromEvent: boolean): void {
+	private updateWindowZoomLevel(): void {
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
 
 		let configuredZoomLevel = 0;
@@ -341,13 +342,8 @@ export class NativeWindow extends Disposable {
 			this.previousConfiguredZoomLevel = configuredZoomLevel;
 		}
 
-		if (fromEvent && webFrame.getZoomLevel() !== configuredZoomLevel) {
-			webFrame.setZoomLevel(configuredZoomLevel);
-			browser.setZoomFactor(webFrame.getZoomFactor());
-			// Cannot be trusted because the webFrame might take some time
-			// until it really applies the new zoom level
-			// See https://github.com/Microsoft/vscode/issues/26151
-			browser.setZoomLevel(webFrame.getZoomLevel(), false /* isTrusted */);
+		if (getZoomLevel() !== configuredZoomLevel) {
+			applyZoom(configuredZoomLevel);
 		}
 	}
 

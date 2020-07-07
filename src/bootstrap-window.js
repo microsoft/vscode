@@ -22,7 +22,6 @@
 	}
 }(this, function () {
 	const path = require.__$__nodeRequire('path');
-	const webFrame = require.__$__nodeRequire('electron').webFrame;
 	const ipc = require.__$__nodeRequire('electron').ipcRenderer;
 	const bootstrap = globalThis.MonacoBootstrap;
 
@@ -36,7 +35,6 @@
 		/**
 		 * // configuration: INativeWindowConfiguration
 		 * @type {{
-		 * zoomLevel?: number,
 		 * extensionDevelopmentPath?: string[],
 		 * extensionTestsPath?: string,
 		 * userEnv?: { [key: string]: string | undefined },
@@ -44,12 +42,6 @@
 		 * nodeCachedDataDir?: string
 		 * }} */
 		const configuration = JSON.parse(args['config'] || '{}') || {};
-
-		// Apply zoom level early to avoid glitches
-		const zoomLevel = configuration.zoomLevel;
-		if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-			webFrame.setZoomLevel(zoomLevel);
-		}
 
 		// Error handler
 		process.on('uncaughtException', function (error) {
