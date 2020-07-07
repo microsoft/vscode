@@ -342,7 +342,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
 		const toolbar = disposables.add(this.createToolbar(container));
-		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side'));
+		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		focusIndicator.setAttribute('draggable', 'true');
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
@@ -871,7 +871,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			DOM.append(focusIndicatorTop, $('.cell-shadow-container.cell-shadow-container-top')),
 			$('.cell-shadow.cell-shadow-top'));
 		const toolbar = disposables.add(this.createToolbar(container));
-		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side'));
+		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		focusIndicator.setAttribute('draggable', 'true');
 
 		const cellContainer = DOM.append(container, $('.cell.code'));
