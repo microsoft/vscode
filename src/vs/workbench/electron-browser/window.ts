@@ -34,7 +34,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { isRootUser, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IProductService, IAppCenterConfiguration } from 'vs/platform/product/common/productService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -404,12 +404,7 @@ export class NativeWindow extends Disposable {
 
 		// Root warning
 		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
-			let isAdmin: boolean;
-			if (isWindows) {
-				isAdmin = (await import('native-is-elevated'))();
-			} else {
-				isAdmin = isRootUser();
-			}
+			const isAdmin = await this.electronService.isAdmin();
 
 			// Update title
 			this.titleService.updateProperties({ isAdmin });

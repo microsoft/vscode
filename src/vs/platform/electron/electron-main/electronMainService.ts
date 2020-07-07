@@ -10,7 +10,7 @@ import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isRootUser } from 'vs/base/common/platform';
 import { ICommonElectronService } from 'vs/platform/electron/common/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -300,6 +300,17 @@ export class ElectronMainService implements IElectronMainService {
 
 	async moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<boolean> {
 		return shell.moveItemToTrash(fullPath);
+	}
+
+	async isAdmin(): Promise<boolean> {
+		let isAdmin: boolean;
+		if (isWindows) {
+			isAdmin = (await import('native-is-elevated'))();
+		} else {
+			isAdmin = isRootUser();
+		}
+
+		return isAdmin;
 	}
 
 	//#endregion
