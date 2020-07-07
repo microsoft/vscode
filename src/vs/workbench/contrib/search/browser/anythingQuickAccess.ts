@@ -66,6 +66,7 @@ function isEditorSymbolQuickPickItem(pick?: IAnythingQuickPickItem): pick is IEd
 export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnythingQuickPickItem> {
 
 	static PREFIX = '';
+	static NO_RESULTS_ID = 'noAnythingResults';
 
 	private static readonly MAX_RESULTS = 512;
 
@@ -174,6 +175,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
 			noResultsPick: {
+				id: AnythingQuickAccessProvider.NO_RESULTS_ID,
 				label: localize('noAnythingResults', "No matching results")
 			}
 		});
@@ -278,13 +280,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		this.pickState.lastFilter = filter;
 
 		// Remember our pick state before returning new picks
-		// unless an editor symbol is selected. We can use this
-		// state to return back to the global pick when the
-		// user is narrowing back out of editor symbols.
+		// unless an editor symbol or noResultsPick is selected.
+		// We can use this state to return back to the global pick
+		// when the user is narrowing back out of editor symbols.
 		const picks = this.pickState.picker?.items;
 		const activePick = this.pickState.picker?.activeItems[0];
 		if (picks && activePick) {
-			if (!isEditorSymbolQuickPickItem(activePick)) {
+			if (!isEditorSymbolQuickPickItem(activePick) && activePick?.id !== AnythingQuickAccessProvider.NO_RESULTS_ID) {
 				this.pickState.lastGlobalPicks = {
 					items: picks,
 					active: activePick
