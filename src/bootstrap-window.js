@@ -22,7 +22,6 @@
 	}
 }(this, function () {
 	const path = require.__$__nodeRequire('path');
-	const ipc = require.__$__nodeRequire('electron').ipcRenderer;
 	const bootstrap = globalThis.MonacoBootstrap;
 
 	/**
@@ -151,6 +150,8 @@
 	 * @returns {() => void}
 	 */
 	function registerDeveloperKeybindings(disallowReloadKeybinding) {
+		const ipcRenderer = globals().ipcRenderer;
+
 		const extractKey = function (e) {
 			return [
 				e.ctrlKey ? 'ctrl-' : '',
@@ -169,9 +170,9 @@
 		let listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {
-				ipc.send('vscode:toggleDevTools');
+				ipcRenderer.send('vscode:toggleDevTools');
 			} else if (key === RELOAD_KB && !disallowReloadKeybinding) {
-				ipc.send('vscode:reloadWindow');
+				ipcRenderer.send('vscode:reloadWindow');
 			}
 		};
 
@@ -191,7 +192,8 @@
 	 */
 	function onUnexpectedError(error, enableDeveloperTools) {
 		if (enableDeveloperTools) {
-			ipc.send('vscode:openDevTools');
+			const ipcRenderer = globals().ipcRenderer;
+			ipcRenderer.send('vscode:openDevTools');
 		}
 
 		console.error(`[uncaught exception]: ${error}`);
@@ -201,7 +203,16 @@
 		}
 	}
 
+	/**
+	 * @return {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals')}
+	 */
+	function globals() {
+		// @ts-ignore (defined in globals.js)
+		return window.vscode;
+	}
+
 	return {
-		load
+		load,
+		globals
 	};
 }));
