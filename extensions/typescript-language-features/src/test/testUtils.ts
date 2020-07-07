@@ -70,7 +70,7 @@ export function withRandomFileEditor(
 
 export const wait = (ms: number) => new Promise<undefined>(resolve => setTimeout(() => resolve(), ms));
 
-export const joinLines = (...args: string[]) => args.join('\n');
+export const joinLines = (...args: string[]) => args.join(os.platform() === 'win32' ? '\r\n' : '\n');
 
 export async function createTestEditor(uri: vscode.Uri, ...lines: string[]) {
 	const document = await vscode.workspace.openTextDocument(uri);
