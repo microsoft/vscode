@@ -4,18 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncResourceEnablementService, IRemoteUserData, ISyncData } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncResourceEnablementService, IRemoteUserData, ISyncData, Change, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { AbstractSynchroniser, ISyncResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { AbstractSynchroniser, ISyncResourcePreview, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 
-interface ITestSyncPreview extends ISyncResourcePreview {
+interface ITestResourcePreview extends IResourcePreview {
 	ref?: string;
 }
+
+const resource = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'testResource', path: `/current.json` });
 
 class TestSynchroniser extends AbstractSynchroniser {
 
@@ -40,32 +42,32 @@ class TestSynchroniser extends AbstractSynchroniser {
 		return super.doSync(remoteUserData, lastSyncUserData);
 	}
 
-	protected async generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestSyncPreview> {
-		return { hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData, resourcePreviews: [] };
+	protected async generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestResourcePreview[]> {
+		return [{ localContent: null, localResource: resource, remoteContent: null, remoteResource: resource, previewContent: null, previewResource: resource, localChange: Change.None, remoteChange: Change.None, hasConflicts: this.syncResult.hasConflicts }];
 	}
 
-	protected async generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestSyncPreview> {
-		return { hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData, resourcePreviews: [] };
+	protected async generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestResourcePreview[]> {
+		return [{ localContent: null, localResource: resource, remoteContent: null, remoteResource: resource, previewContent: null, previewResource: resource, localChange: Change.None, remoteChange: Change.None, hasConflicts: this.syncResult.hasConflicts }];
 	}
 
-	protected async generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ITestSyncPreview> {
-		return { hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData, resourcePreviews: [] };
+	protected async generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ITestResourcePreview[]> {
+		return [{ localContent: null, localResource: resource, remoteContent: null, remoteResource: resource, previewContent: null, previewResource: resource, localChange: Change.None, remoteChange: Change.None, hasConflicts: this.syncResult.hasConflicts }];
 	}
 
-	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestSyncPreview> {
+	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestResourcePreview[]> {
 		if (this.syncResult.hasError) {
 			throw new Error('failed');
 		}
-		return { ref: remoteUserData.ref, hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false, hasConflicts: this.syncResult.hasConflicts, remoteUserData, lastSyncUserData, resourcePreviews: [] };
+		return [{ localContent: null, localResource: resource, remoteContent: null, remoteResource: resource, previewContent: null, previewResource: resource, localChange: Change.None, remoteChange: Change.None, hasConflicts: this.syncResult.hasConflicts, ref: remoteUserData.ref }];
 	}
 
 	protected async updatePreviewWithConflict(preview: ISyncResourcePreview, conflictResource: URI, conflictContent: string): Promise<ISyncResourcePreview> {
 		return preview;
 	}
 
-	protected async applyPreview({ ref }: ITestSyncPreview, forcePush: boolean): Promise<void> {
-		if (ref) {
-			await this.apply(ref);
+	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, preview: ITestResourcePreview[], forcePush: boolean): Promise<void> {
+		if (preview[0]?.ref) {
+			await this.apply(preview[0].ref);
 		}
 	}
 

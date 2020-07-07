@@ -402,7 +402,7 @@ abstract class UserDataSyncActivityViewDataProvider implements ITreeViewDataProv
 				handle,
 				collapsibleState: TreeItemCollapsibleState.None,
 				resourceUri: resource,
-				command: { id: `workbench.actions.sync.commpareWithLocal`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: handle }] },
+				command: { id: `workbench.actions.sync.compareWithLocal`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: handle }] },
 				contextValue: `sync-associatedResource-${(<SyncResourceHandleTreeItem>element).syncResourceHandle.syncResource}`
 			};
 		});

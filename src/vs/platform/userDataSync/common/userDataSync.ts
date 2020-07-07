@@ -212,6 +212,7 @@ export enum UserDataSyncErrorCode {
 	LocalInvalidContent = 'LocalInvalidContent',
 	LocalError = 'LocalError',
 	Incompatible = 'Incompatible',
+	UnresolvedConflicts = 'UnresolvedConflicts',
 
 	Unknown = 'Unknown',
 }
@@ -293,20 +294,24 @@ export interface ISyncData {
 	content: string;
 }
 
+export const enum Change {
+	None,
+	Added,
+	Modified,
+	Deleted,
+}
+
 export interface IResourcePreview {
-	readonly remoteResource?: URI;
-	readonly localResouce?: URI;
-	readonly previewResource?: URI;
-	readonly hasLocalChanged: boolean;
-	readonly hasRemoteChanged: boolean;
+	readonly remoteResource: URI;
+	readonly localResource: URI;
+	readonly previewResource: URI;
+	readonly localChange: Change;
+	readonly remoteChange: Change;
 	readonly hasConflicts: boolean;
 }
 
 export interface ISyncResourcePreview {
 	readonly isLastSyncFromCurrentMachine: boolean;
-	readonly hasLocalChanged: boolean;
-	readonly hasRemoteChanged: boolean;
-	readonly hasConflicts: boolean;
 	readonly resourcePreviews: IResourcePreview[];
 }
 
@@ -325,7 +330,7 @@ export interface IUserDataSynchroniser {
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
-	generateSyncPreview(): Promise<ISyncResourcePreview | null>
+	generateSyncResourcePreview(): Promise<ISyncResourcePreview | null>
 	hasPreviouslySynced(): Promise<boolean>
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;
