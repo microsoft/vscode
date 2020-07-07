@@ -24,7 +24,7 @@ registerAction2(class extends Action2 {
 			icon: { id: 'codicon/server-environment' },
 			menu: {
 				id: MenuId.EditorTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_MULTIPLE_KERNELS),
+				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_HAS_MULTIPLE_KERNELS),
 				group: 'navigation',
 				order: -2,
 			},
