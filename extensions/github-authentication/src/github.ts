@@ -14,7 +14,8 @@ export const onDidChangeSessions = new vscode.EventEmitter<vscode.Authentication
 interface SessionData {
 	id: string;
 	account?: {
-		displayName: string;
+		label?: string;
+		displayName?: string;
 		id: string;
 	}
 	scopes: string[];
@@ -95,7 +96,9 @@ export class GitHubAuthenticationProvider {
 					return {
 						id: session.id,
 						account: {
-							displayName: session.account?.displayName ?? userInfo!.accountName,
+							label: session.account
+								? session.account.label || session.account.displayName!
+								: userInfo!.accountName,
 							id: session.account?.id ?? userInfo!.id
 						},
 						scopes: session.scopes,
@@ -138,7 +141,7 @@ export class GitHubAuthenticationProvider {
 
 	private async tokenToSession(token: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
 		const userInfo = await this._githubServer.getUserInfo(token);
-		return new vscode.AuthenticationSession(uuid(), token, { displayName: userInfo.accountName, id: userInfo.id }, scopes);
+		return new vscode.AuthenticationSession(uuid(), token, { label: userInfo.accountName, id: userInfo.id }, scopes);
 	}
 
 	private async setToken(session: vscode.AuthenticationSession): Promise<void> {

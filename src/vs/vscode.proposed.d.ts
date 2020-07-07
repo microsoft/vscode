@@ -52,7 +52,7 @@ declare module 'vscode' {
 		/**
 		 * The human-readable name of the account.
 		 */
-		readonly displayName: string;
+		readonly label: string;
 
 		/**
 		 * The unique identifier of the account.
@@ -175,13 +175,13 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
+		 * @deprecated
 		 * The ids of the currently registered authentication providers.
 		 * @returns An array of the ids of authentication providers that are currently registered.
 		 */
 		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
 
 		/**
-		 * @deprecated
 		 * An array of the ids of authentication providers that are currently registered.
 		 */
 		export const providerIds: ReadonlyArray<string>;

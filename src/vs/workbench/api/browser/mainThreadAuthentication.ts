@@ -135,17 +135,17 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	private registerSession(session: modes.AuthenticationSession) {
-		this._sessions.set(session.id, session.account.displayName);
+		this._sessions.set(session.id, session.account.label);
 
-		const existingSessionsForAccount = this._accounts.get(session.account.displayName);
+		const existingSessionsForAccount = this._accounts.get(session.account.label);
 		if (existingSessionsForAccount) {
-			this._accounts.set(session.account.displayName, existingSessionsForAccount.concat(session.id));
+			this._accounts.set(session.account.label, existingSessionsForAccount.concat(session.id));
 			return;
 		} else {
-			this._accounts.set(session.account.displayName, [session.id]);
+			this._accounts.set(session.account.label, [session.id]);
 		}
 
-		this.storageKeysSyncRegistryService.registerStorageKey({ key: `${this.id}-${session.account.displayName}`, version: 1 });
+		this.storageKeysSyncRegistryService.registerStorageKey({ key: `${this.id}-${session.account.label}`, version: 1 });
 	}
 
 	async signOut(accountName: string): Promise<void> {
@@ -273,7 +273,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (sessions.length) {
 			if (!this.authenticationService.supportsMultipleAccounts(providerId)) {
 				const session = sessions[0];
-				const allowed = await this.$getSessionsPrompt(providerId, session.account.displayName, label, extensionId, extensionName);
+				const allowed = await this.$getSessionsPrompt(providerId, session.account.label, label, extensionId, extensionName);
 				if (allowed) {
 					return session;
 				} else {
@@ -292,7 +292,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				}
 
 				const session = await this.authenticationService.login(providerId, scopes);
-				await this.$setTrustedExtension(providerId, session.account.displayName, extensionId, extensionName);
+				await this.$setTrustedExtension(providerId, session.account.label, extensionId, extensionName);
 				return session;
 			} else {
 				await this.$requestNewSession(providerId, scopes, extensionId, extensionName);
@@ -313,7 +313,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			if (existingSessionPreference) {
 				const matchingSession = potentialSessions.find(session => session.id === existingSessionPreference);
 				if (matchingSession) {
-					const allowed = await this.$getSessionsPrompt(providerId, matchingSession.account.displayName, providerName, extensionId, extensionName);
+					const allowed = await this.$getSessionsPrompt(providerId, matchingSession.account.label, providerName, extensionId, extensionName);
 					if (allowed) {
 						return matchingSession;
 					}
@@ -326,7 +326,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			quickPick.ignoreFocusOut = true;
 			const items: { label: string, session?: modes.AuthenticationSession }[] = potentialSessions.map(session => {
 				return {
-					label: session.account.displayName,
+					label: session.account.label,
 					session
 				};
 			});
@@ -351,7 +351,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 				const session = selected.session ?? await this.authenticationService.login(providerId, scopes);
 
-				const accountName = session.account.displayName;
+				const accountName = session.account.label;
 
 				const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 				if (!allowList.find(allowed => allowed.id === extensionId)) {

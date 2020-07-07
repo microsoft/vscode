@@ -141,7 +141,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		const providers = this.authenticationService.getProviderIds();
 		const allSessions = providers.map(async id => {
 			const sessions = await this.authenticationService.getSessions(id);
-			const uniqueSessions = distinct(sessions, session => session.account.displayName);
+			const uniqueSessions = distinct(sessions, session => session.account.label);
 			return {
 				providerId: id,
 				sessions: uniqueSessions
@@ -153,7 +153,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		result.forEach(sessionInfo => {
 			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
 			sessionInfo.sessions.forEach(session => {
-				const accountName = session.account.displayName;
+				const accountName = session.account.label;
 				const menu = new ContextSubMenu(`${accountName} (${providerDisplayName})`, [
 					new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
 						return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);

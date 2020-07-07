@@ -2770,7 +2770,7 @@ export enum ExtensionMode {
 
 //#region Authentication
 export class AuthenticationSession implements vscode.AuthenticationSession {
-	constructor(public id: string, public accessToken: string, public account: { displayName: string, id: string }, public scopes: string[]) { }
+	constructor(public id: string, public accessToken: string, public account: { label: string, id: string }, public scopes: string[]) { }
 }
 
 //#endregion Authentication

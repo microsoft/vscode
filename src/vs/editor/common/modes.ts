@@ -1413,7 +1413,7 @@ export interface AuthenticationSession {
 	id: string;
 	accessToken: string;
 	account: {
-		displayName: string;
+		label: string;
 		id: string;
 	}
 	scopes: ReadonlyArray<string>;
