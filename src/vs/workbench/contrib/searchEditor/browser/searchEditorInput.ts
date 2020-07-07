@@ -110,7 +110,7 @@ export class SearchEditorInput extends EditorInput {
 
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
-			readonly resource = input.backingUri ?? input.modelUri;
+			readonly resource = input.modelUri;
 			get name() { return input.getName(); }
 			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : 0;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
@@ -280,7 +280,7 @@ export class SearchEditorInput extends EditorInput {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? network.Schemas.vscodeRemote : network.Schemas.file;
 
-		return joinPath(this.fileDialogService.defaultFilePath(schemeFilter) || (await this.pathService.userHome), searchFileName);
+		return joinPath(this.fileDialogService.defaultFilePath(schemeFilter) || (await this.pathService.userHome()), searchFileName);
 	}
 }
 
@@ -308,7 +308,7 @@ export const getOrMakeSearchEditorInput = (
 	let config = { ...defaultConfig, ...priorConfig, ...existingData.config };
 
 	if (defaultNumberOfContextLines !== null && defaultNumberOfContextLines !== undefined) {
-		config.contextLines = defaultNumberOfContextLines;
+		config.contextLines = existingData.config.contextLines ?? defaultNumberOfContextLines;
 	}
 
 	if (existingData.text) {

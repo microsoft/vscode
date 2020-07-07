@@ -8,9 +8,9 @@ import 'vs/css!./media/actions';
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
-import * as browser from 'vs/base/browser/browser';
+import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { getZoomLevel } from 'vs/base/browser/browser';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -62,18 +62,9 @@ export abstract class BaseZoomAction extends Action {
 			return; // https://github.com/microsoft/vscode/issues/48357
 		}
 
-		const applyZoom = () => {
-			webFrame.setZoomLevel(level);
-			browser.setZoomFactor(webFrame.getZoomFactor());
-			// See https://github.com/Microsoft/vscode/issues/26151
-			// Cannot be trusted because the webFrame might take some time
-			// until it really applies the new zoom level
-			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
-		};
-
 		await this.configurationService.updateValue(BaseZoomAction.SETTING_KEY, level);
 
-		applyZoom();
+		applyZoom(level);
 	}
 }
 
@@ -91,7 +82,7 @@ export class ZoomInAction extends BaseZoomAction {
 	}
 
 	async run(): Promise<void> {
-		this.setConfiguredZoomLevel(webFrame.getZoomLevel() + 1);
+		this.setConfiguredZoomLevel(getZoomLevel() + 1);
 	}
 }
 
@@ -109,7 +100,7 @@ export class ZoomOutAction extends BaseZoomAction {
 	}
 
 	async run(): Promise<void> {
-		this.setConfiguredZoomLevel(webFrame.getZoomLevel() - 1);
+		this.setConfiguredZoomLevel(getZoomLevel() - 1);
 	}
 }
 

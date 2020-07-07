@@ -22,8 +22,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders } from 'vs/base/parts/request/common/request';
 import { generateUuid } from 'vs/base/common/uuid';
 
-type SyncClassification = {
+type SyncErrorClassification = {
 	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	executionId?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
 const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
@@ -38,6 +39,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	get status(): SyncStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
+
+	private _onSynchronizeResource: Emitter<SyncResource> = this._register(new Emitter<SyncResource>());
+	readonly onSynchronizeResource: Event<SyncResource> = this._onSynchronizeResource.event;
 
 	readonly onDidChangeLocal: Event<SyncResource>;
 
@@ -91,6 +95,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		try {
 			for (const synchroniser of this.synchronisers) {
 				try {
+					this._onSynchronizeResource.fire(synchroniser.resource);
 					await synchroniser.pull();
 				} catch (e) {
 					this.handleSynchronizerError(e, synchroniser.resource);
@@ -99,7 +104,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.updateLastSyncTime();
 		} catch (error) {
 			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${error.code}`, { resource: error.resource });
+				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource });
 			}
 			throw error;
 		}
@@ -118,7 +123,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.updateLastSyncTime();
 		} catch (error) {
 			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${error.code}`, { resource: error.resource });
+				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource });
 			}
 			throw error;
 		}
@@ -132,8 +137,16 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async createSyncTask(): Promise<ISyncTask> {
 		this.telemetryService.publicLog2('sync/getmanifest');
-		const syncHeaders: IHeaders = { 'X-Execution-Id': generateUuid() };
-		const manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
+		const executionId = generateUuid();
+		let manifest: IUserDataManifest | null;
+		try {
+			manifest = await this.userDataSyncStoreService.manifest({ 'X-Execution-Id': executionId });
+		} catch (error) {
+			if (error instanceof UserDataSyncError) {
+				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource, executionId });
+			}
+			throw error;
+		}
 
 		let executed = false;
 		const that = this;
@@ -143,12 +156,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				if (executed) {
 					throw new Error('Can run a task only once');
 				}
-				return that.doSync(manifest, syncHeaders, token);
+				return that.doSync(manifest, executionId, token);
 			}
 		};
 	}
 
-	private async doSync(manifest: IUserDataManifest | null, syncHeaders: IHeaders, token: CancellationToken): Promise<void> {
+	private async doSync(manifest: IUserDataManifest | null, executionId: string, token: CancellationToken): Promise<void> {
 		await this.checkEnablement();
 
 		if (!this.recoveredSettings) {
@@ -169,12 +182,15 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.setStatus(SyncStatus.Syncing);
 			}
 
+			const syncHeaders: IHeaders = { 'X-Execution-Id': executionId };
+
 			for (const synchroniser of this.synchronisers) {
 				// Return if cancellation is requested
 				if (token.isCancellationRequested) {
 					return;
 				}
 				try {
+					this._onSynchronizeResource.fire(synchroniser.resource);
 					await synchroniser.sync(manifest, syncHeaders);
 				} catch (e) {
 					this.handleSynchronizerError(e, synchroniser.resource);
@@ -186,7 +202,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.updateLastSyncTime();
 		} catch (error) {
 			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${error.code}`, { resource: error.resource });
+				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource, executionId });
 			}
 			throw error;
 		} finally {

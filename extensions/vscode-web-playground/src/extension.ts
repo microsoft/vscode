@@ -15,10 +15,10 @@
 import * as vscode from 'vscode';
 import { MemFS } from './memfs';
 
-declare const window: unknown;
+declare const navigator: unknown;
 
 export function activate(context: vscode.ExtensionContext) {
-	if (typeof window !== 'undefined') {	// do not run under node.js
+	if (typeof navigator === 'object') {	// do not run under node.js
 		const memFs = enableFs(context);
 
 		if (vscode.workspace.workspaceFolders?.some(f => f.uri.scheme === MemFS.scheme)) {

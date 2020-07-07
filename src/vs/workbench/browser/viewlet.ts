@@ -27,6 +27,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ContextSubMenu } from 'vs/base/browser/contextmenu';
+import { Event } from 'vs/base/common/event';
 
 export abstract class Viewlet extends PaneComposite implements IViewlet {
 
@@ -43,6 +45,10 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 		@IConfigurationService protected configurationService: IConfigurationService
 	) {
 		super(id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		this._register(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews)(() => {
+			// Update title area since there is no better way to update secondary actions
+			this.updateTitleArea();
+		}));
 	}
 
 	getContextMenuActions(): IAction[] {
@@ -59,6 +65,24 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 			enabled: true,
 			run: () => this.layoutService.setSideBarHidden(true)
 		}];
+	}
+
+	getSecondaryActions(): IAction[] {
+		const viewSecondaryActions = this.viewPaneContainer.getViewsVisibilityActions();
+		const secondaryActions = this.viewPaneContainer.getSecondaryActions();
+		if (viewSecondaryActions.length <= 1) {
+			return secondaryActions;
+		}
+
+		if (secondaryActions.length === 0) {
+			return viewSecondaryActions;
+		}
+
+		return [
+			new ContextSubMenu(nls.localize('views', "Views"), viewSecondaryActions),
+			new Separator(),
+			...secondaryActions
+		];
 	}
 }
 

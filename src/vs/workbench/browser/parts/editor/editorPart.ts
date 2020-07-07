@@ -21,7 +21,8 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorDropTarget, EditorDropTargetDelegate } from 'vs/workbench/browser/parts/editor/editorDropTarget';
+import { EditorDropTarget, IEditorDropTargetDelegate } from 'vs/workbench/browser/parts/editor/editorDropTarget';
+import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -80,7 +81,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 }
 
-export class EditorPart extends Part implements IEditorGroupsService, IEditorGroupsAccessor {
+export class EditorPart extends Part implements IEditorGroupsService, IEditorGroupsAccessor, IEditorDropService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -780,6 +781,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	//#endregion
 
+	//#region IEditorDropService
+
+	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable {
+		return this.instantiationService.createInstance(EditorDropTarget, this, container, delegate);
+	}
+
+	//#endregion
+
 	//#region Part
 
 	// TODO @sbatten @joao find something better to prevent editor taking over #79897
@@ -820,7 +829,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
 
 		// Drop support
-		this._register(this.createEditorDropTarget(this.container, {}));
+		this._register(this.createEditorDropTarget(this.container, Object.create(null)));
 
 		// No drop in the editor
 		const overlay = document.createElement('div');
@@ -1097,14 +1106,22 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		}
 
 		// Persist centered view state
-		const centeredLayoutState = this.centeredLayoutWidget.state;
-		if (this.centeredLayoutWidget.isDefault(centeredLayoutState)) {
-			delete this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY];
-		} else {
-			this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = centeredLayoutState;
+		if (this.centeredLayoutWidget) {
+			const centeredLayoutState = this.centeredLayoutWidget.state;
+			if (this.centeredLayoutWidget.isDefault(centeredLayoutState)) {
+				delete this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY];
+			} else {
+				this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = centeredLayoutState;
+			}
 		}
 
 		super.saveState();
+	}
+
+	toJSON(): object {
+		return {
+			type: Parts.EDITOR_PART
+		};
 	}
 
 	dispose(): void {
@@ -1122,20 +1139,18 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	//#endregion
+}
 
-	toJSON(): object {
-		return {
-			type: Parts.EDITOR_PART
-		};
+class EditorDropService implements IEditorDropService {
+
+	declare readonly _serviceBrand: undefined;
+
+	constructor(@IEditorGroupsService private readonly editorPart: EditorPart) { }
+
+	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable {
+		return this.editorPart.createEditorDropTarget(container, delegate);
 	}
-
-	//#region TODO@matt this should move into some kind of service
-
-	createEditorDropTarget(container: HTMLElement, delegate: EditorDropTargetDelegate): IDisposable {
-		return this.instantiationService.createInstance(EditorDropTarget, this, container, delegate);
-	}
-
-	//#endregion
 }
 
 registerSingleton(IEditorGroupsService, EditorPart);
+registerSingleton(IEditorDropService, EditorDropService);

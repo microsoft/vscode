@@ -21,7 +21,6 @@ import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } 
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
-import { basename } from 'vs/base/common/resources';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_TITLE = 'Comments';
@@ -182,30 +181,7 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 			renderers,
 			dataSource,
 			{
-				accessibilityProvider: {
-					getAriaLabel(element: any): string {
-						if (element instanceof CommentsModel) {
-							return nls.localize('rootCommentsLabel', "Comments for current workspace");
-						}
-						if (element instanceof ResourceWithCommentThreads) {
-							return nls.localize('resourceWithCommentThreadsLabel', "Comments in {0}, full path {1}", basename(element.resource), element.resource.fsPath);
-						}
-						if (element instanceof CommentNode) {
-							return nls.localize('resourceWithCommentLabel',
-								"Comment from ${0} at line {1} column {2} in {3}, source: {4}",
-								element.comment.userName,
-								element.range.startLineNumber,
-								element.range.startColumn,
-								basename(element.resource),
-								element.comment.body.value
-							);
-						}
-						return '';
-					},
-					getWidgetAriaLabel(): string {
-						return COMMENTS_VIEW_TITLE;
-					}
-				},
+				accessibilityProvider: options.accessibilityProvider,
 				keyboardSupport: true,
 				identityProvider: {
 					getId: (element: any) => {

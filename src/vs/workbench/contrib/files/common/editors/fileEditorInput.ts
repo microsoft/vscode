@@ -314,12 +314,12 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	matches(otherInput: unknown): boolean {
-		if (super.matches(otherInput) === true) {
+		if (otherInput === this) {
 			return true;
 		}
 
-		if (otherInput) {
-			return otherInput instanceof FileEditorInput && otherInput.resource.toString() === this.resource.toString();
+		if (otherInput instanceof FileEditorInput) {
+			return extUri.isEqual(otherInput.resource, this.resource);
 		}
 
 		return false;

@@ -62,12 +62,12 @@ export class BrowserEnvironmentConfiguration implements IEnvironmentConfiguratio
 	@memoize
 	get filesToDiff(): IPath[] | undefined {
 		if (this.payload) {
-			const fileToDiffDetail = this.payload.get('diffFileDetail');
-			const fileToDiffMaster = this.payload.get('diffFileMaster');
-			if (fileToDiffDetail && fileToDiffMaster) {
+			const fileToDiffPrimary = this.payload.get('diffFilePrimary');
+			const fileToDiffSecondary = this.payload.get('diffFileSecondary');
+			if (fileToDiffPrimary && fileToDiffSecondary) {
 				return [
-					{ fileUri: URI.parse(fileToDiffDetail) },
-					{ fileUri: URI.parse(fileToDiffMaster) }
+					{ fileUri: URI.parse(fileToDiffSecondary) },
+					{ fileUri: URI.parse(fileToDiffPrimary) }
 				];
 			}
 		}
@@ -208,10 +208,14 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
+	private get webviewEndpoint(): string {
+		// TODO@matt: get fallback from product.json
+		return this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}';
+	}
+
 	@memoize
 	get webviewExternalEndpoint(): string {
-		// TODO@matt: get fallback from product.json
-		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}').replace('{{commit}}', product.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
+		return (this.webviewEndpoint).replace('{{commit}}', product.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
 	}
 
 	@memoize
@@ -221,7 +225,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	@memoize
 	get webviewCspSource(): string {
-		return this.webviewExternalEndpoint.replace('{{uuid}}', '*');
+		const uri = URI.parse(this.webviewEndpoint.replace('{{uuid}}', '*'));
+		return `${uri.scheme}://${uri.authority}`;
 	}
 
 	get disableTelemetry(): boolean { return false; }

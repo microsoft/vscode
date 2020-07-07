@@ -9,9 +9,8 @@ import * as dom from 'vs/base/browser/dom';
 import { IAction, Action } from 'vs/base/common/actions';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IRemoteExplorerService, REMOTE_EXPLORER_TYPE_KEY } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IViewDescriptor } from 'vs/workbench/common/views';
@@ -30,7 +29,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	constructor(
 		action: IAction,
 		private readonly optionsItems: IRemoteSelectItem[],
-		@IThemeService private readonly themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
@@ -75,9 +74,6 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		if (this.optionsItems.length > 1) {
 			super.render(container);
 			dom.addClass(container, 'switch-remote');
-			this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-				container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
-			}));
 		}
 	}
 

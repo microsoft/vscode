@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/issueReporter';
-import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
-import { ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import * as os from 'os';
-import * as browser from 'vs/base/browser/browser';
+import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import { $, windowOpenNoOpener, addClass } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import * as collections from 'vs/base/common/collections';
 import { debounce } from 'vs/base/common/decorators';
@@ -152,7 +152,7 @@ export class IssueReporter extends Disposable {
 
 		this.setUpTypes();
 		this.setEventHandlers();
-		this.applyZoom(configuration.data.zoomLevel);
+		applyZoom(configuration.data.zoomLevel);
 		this.applyStyles(configuration.data.styles);
 		this.handleExtensionData(configuration.data.enabledExtensions);
 
@@ -178,15 +178,6 @@ export class IssueReporter extends Disposable {
 				issueType.focus();
 			}
 		}
-	}
-
-	private applyZoom(zoomLevel: number) {
-		webFrame.setZoomLevel(zoomLevel);
-		browser.setZoomFactor(webFrame.getZoomFactor());
-		// See https://github.com/Microsoft/vscode/issues/26151
-		// Cannot be trusted because the webFrame might take some time
-		// until it really applies the new zoom level
-		browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 	}
 
 	private applyStyles(styles: IssueReporterStyles) {
@@ -505,12 +496,12 @@ export class IssueReporter extends Disposable {
 
 			// Cmd/Ctrl + zooms in
 			if (cmdOrCtrlKey && e.keyCode === 187) {
-				this.applyZoom(webFrame.getZoomLevel() + 1);
+				zoomIn();
 			}
 
 			// Cmd/Ctrl - zooms out
 			if (cmdOrCtrlKey && e.keyCode === 189) {
-				this.applyZoom(webFrame.getZoomLevel() - 1);
+				zoomOut();
 			}
 
 			// With latest electron upgrade, cmd+a is no longer propagating correctly for inputs in this window on mac

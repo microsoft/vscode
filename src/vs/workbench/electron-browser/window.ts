@@ -18,12 +18,13 @@ import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, getTitleBarSt
 import { IRunActionInWindowRequest, IRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/node/window';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import * as browser from 'vs/base/browser/browser';
+import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
+import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/common/electronTypes';
-import { crashReporter, ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { crashReporter, ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -64,6 +65,8 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 import { Event } from 'vs/base/common/event';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
 
 export class NativeWindow extends Disposable {
 
@@ -107,7 +110,8 @@ export class NativeWindow extends Disposable {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
 		super();
 
@@ -136,7 +140,7 @@ export class NativeWindow extends Disposable {
 			if (request.from === 'touchbar') {
 				const activeEditor = this.editorService.activeEditor;
 				if (activeEditor) {
-					const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+					const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 					if (resource) {
 						args.push(resource);
 					}
@@ -191,12 +195,12 @@ export class NativeWindow extends Disposable {
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => {
 			await this.lifecycleService.when(LifecyclePhase.Ready);
-			browser.setFullscreen(true);
+			setFullscreen(true);
 		});
 
 		ipcRenderer.on('vscode:leaveFullScreen', async () => {
 			await this.lifecycleService.when(LifecyclePhase.Ready);
-			browser.setFullscreen(false);
+			setFullscreen(false);
 		});
 
 		// High Contrast Events
@@ -248,7 +252,7 @@ export class NativeWindow extends Disposable {
 		// macOS OS integration
 		if (isMacintosh) {
 			this._register(this.editorService.onDidActiveEditorChange(() => {
-				const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.file });
+				const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
 
 				// Represented Filename
 				this.updateRepresentedFilename(file?.fsPath);
@@ -324,27 +328,22 @@ export class NativeWindow extends Disposable {
 	}
 
 	private updateWindowZoomLevel(): void {
-		const windowConfig: IWindowsConfiguration = this.configurationService.getValue<IWindowsConfiguration>();
+		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
 
-		let newZoomLevel = 0;
+		let configuredZoomLevel = 0;
 		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-			newZoomLevel = windowConfig.window.zoomLevel;
+			configuredZoomLevel = windowConfig.window.zoomLevel;
 
 			// Leave early if the configured zoom level did not change (https://github.com/Microsoft/vscode/issues/1536)
-			if (this.previousConfiguredZoomLevel === newZoomLevel) {
+			if (this.previousConfiguredZoomLevel === configuredZoomLevel) {
 				return;
 			}
 
-			this.previousConfiguredZoomLevel = newZoomLevel;
+			this.previousConfiguredZoomLevel = configuredZoomLevel;
 		}
 
-		if (webFrame.getZoomLevel() !== newZoomLevel) {
-			webFrame.setZoomLevel(newZoomLevel);
-			browser.setZoomFactor(webFrame.getZoomFactor());
-			// See https://github.com/Microsoft/vscode/issues/26151
-			// Cannot be trusted because the webFrame might take some time
-			// until it really applies the new zoom level
-			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
+		if (getZoomLevel() !== configuredZoomLevel) {
+			applyZoom(configuredZoomLevel);
 		}
 	}
 
@@ -471,7 +470,13 @@ export class NativeWindow extends Disposable {
 				if (options?.allowTunneling) {
 					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
 					if (portMappingRequest) {
-						const tunnel = await this.tunnelService.openTunnel(undefined, portMappingRequest.port);
+						const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+						const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
+							getAddress: async (): Promise<IAddress> => {
+								return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
+							}
+						} : undefined;
+						const tunnel = await this.tunnelService.openTunnel(addressProvider, undefined, portMappingRequest.port);
 						if (tunnel) {
 							return {
 								resolved: uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` }),

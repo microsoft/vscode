@@ -279,11 +279,12 @@ export enum EditorOption {
 	wordWrapMinified = 109,
 	wrappingIndent = 110,
 	wrappingStrategy = 111,
-	editorClassName = 112,
-	pixelRatio = 113,
-	tabFocusMode = 114,
-	layoutInfo = 115,
-	wrappingInfo = 116
+	showDeprecated = 112,
+	editorClassName = 113,
+	pixelRatio = 114,
+	tabFocusMode = 115,
+	layoutInfo = 116,
+	wrappingInfo = 117
 }
 
 /**

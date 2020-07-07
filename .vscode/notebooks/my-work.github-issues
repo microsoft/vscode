@@ -20,7 +20,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repos $milestone assignee:@me is:open\n",
+    "value": "$repos $milestone assignee:@me is:open",
     "editable": false
   },
   {

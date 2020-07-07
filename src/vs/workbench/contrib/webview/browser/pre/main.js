@@ -135,13 +135,14 @@
 	 * @return {string}
 	 */
 	function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
+		const encodedState = state ? encodeURIComponent(JSON.stringify(state)) : undefined;
 		return `
 			const acquireVsCodeApi = (function() {
 				const originalPostMessage = window.parent.postMessage.bind(window.parent);
 				const targetOrigin = '*';
 				let acquired = false;
 
-				let state = ${state ? `JSON.parse(${JSON.stringify(state)})` : undefined};
+				let state = ${state ? `JSON.parse(decodeURIComponent("${encodedState}"))` : undefined};
 
 				return () => {
 					if (acquired && !${allowMultipleAPIAcquire}) {
@@ -367,7 +368,7 @@
 				try {
 					csp.setAttribute('content', host.rewriteCSP(csp.getAttribute('content'), data.endpoint));
 				} catch (e) {
-					console.error('Could not rewrite csp');
+					console.error(`Could not rewrite csp: ${e}`);
 				}
 			}
 

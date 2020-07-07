@@ -271,7 +271,7 @@ export class OpenEditorsView extends ViewPane {
 		}));
 		const resourceNavigator = this._register(new ListResourceNavigator(this.list, { configurationService: this.configurationService }));
 		this._register(resourceNavigator.onDidOpen(e => {
-			if (!e.element) {
+			if (typeof e.element !== 'number') {
 				return;
 			}
 

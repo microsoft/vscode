@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { getZoomFactor } from 'vs/base/browser/browser';
 import { unmnemonicLabel } from 'vs/base/common/labels';
 import { Event, Emitter } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -90,11 +90,13 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 			const menu = this.createMenu(delegate, actions, onHide);
 			const anchor = delegate.getAnchor();
-			let x: number, y: number;
 
-			let zoom = webFrame.getZoomFactor();
+			let x: number;
+			let y: number;
+
+			const zoom = getZoomFactor();
 			if (dom.isHTMLElement(anchor)) {
-				let elementPosition = dom.getDomNodePagePosition(anchor);
+				const elementPosition = dom.getDomNodePagePosition(anchor);
 
 				x = elementPosition.left;
 				y = elementPosition.top + elementPosition.height;
@@ -118,8 +120,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				x: Math.floor(x),
 				y: Math.floor(y),
 				positioningItem: delegate.autoSelectFirstItem ? 0 : undefined,
-				onHide: () => onHide()
-			});
+			}, () => onHide());
 		}
 	}
 

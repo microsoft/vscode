@@ -379,75 +379,6 @@ class RequestRouter {
 	}
 }
 
-
-const syntaxAlwaysCommands: ReadonlySet<keyof TypeScriptRequests> = new Set<keyof TypeScriptRequests>([
-	'navtree',
-	'getOutliningSpans',
-	'jsxClosingTag',
-	'selectionRange',
-	'format',
-	'formatonkey',
-	'docCommentTemplate',
-]);
-
-export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServer {
-
-	private readonly syntaxServer: ITypeScriptServer;
-	private readonly semanticServer: ITypeScriptServer;
-	private readonly router: RequestRouter;
-
-	public constructor(
-		servers: { syntax: ITypeScriptServer, semantic: ITypeScriptServer },
-		delegate: TsServerDelegate,
-	) {
-		super();
-
-		this.syntaxServer = servers.syntax;
-		this.semanticServer = servers.semantic;
-
-		this.router = new RequestRouter(
-			[
-				{ server: this.syntaxServer, canRun: (command) => syntaxAlwaysCommands.has(command) },
-				{ server: this.semanticServer, canRun: undefined /* gets all other commands */ }
-			],
-			delegate);
-
-		this._register(this.syntaxServer.onEvent(e => this._onEvent.fire(e)));
-		this._register(this.semanticServer.onEvent(e => this._onEvent.fire(e)));
-
-		this._register(this.semanticServer.onExit(e => {
-			this._onExit.fire(e);
-			this.syntaxServer.kill();
-		}));
-		this._register(this.semanticServer.onError(e => this._onError.fire(e)));
-	}
-
-	private readonly _onEvent = this._register(new vscode.EventEmitter<Proto.Event>());
-	public readonly onEvent = this._onEvent.event;
-
-	private readonly _onExit = this._register(new vscode.EventEmitter<any>());
-	public readonly onExit = this._onExit.event;
-
-	private readonly _onError = this._register(new vscode.EventEmitter<any>());
-	public readonly onError = this._onError.event;
-
-	public get onReaderError() { return this.semanticServer.onReaderError; }
-
-	public get tsServerLogFile() { return this.semanticServer.tsServerLogFile; }
-
-	public kill(): void {
-		this.syntaxServer.kill();
-		this.semanticServer.kill();
-	}
-
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
-		return this.router.execute(command, args, executeInfo);
-	}
-}
-
-
 export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServer {
 
 	private static readonly diagnosticEvents = new Set<string>([
@@ -525,7 +456,20 @@ export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServ
 }
 
 
-export class ProjectLoadingRoutingSyntaxTsServer extends Disposable implements ITypeScriptServer {
+export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServer {
+
+	/**
+	 * Commands that should always be run on the syntax server.
+	 */
+	private static readonly syntaxAlwaysCommands = new Set<keyof TypeScriptRequests>([
+		'navtree',
+		'getOutliningSpans',
+		'jsxClosingTag',
+		'selectionRange',
+		'format',
+		'formatonkey',
+		'docCommentTemplate',
+	]);
 
 	/**
 	 * Commands that should always be run on the semantic server.
@@ -539,7 +483,7 @@ export class ProjectLoadingRoutingSyntaxTsServer extends Disposable implements I
 	/**
 	 * Commands that can be run on the syntax server but would benefit from being upgraded to the semantic server.
 	 */
-	private syntaxAllowedCommands = new Set<keyof TypeScriptRequests>([
+	private static readonly syntaxAllowedCommands = new Set<keyof TypeScriptRequests>([
 		'completions',
 		'completionEntryDetails',
 		'completionInfo',
@@ -563,6 +507,7 @@ export class ProjectLoadingRoutingSyntaxTsServer extends Disposable implements I
 	public constructor(
 		servers: { syntax: ITypeScriptServer, semantic: ITypeScriptServer },
 		delegate: TsServerDelegate,
+		enableDynamicRouting: boolean,
 	) {
 		super();
 
@@ -574,13 +519,13 @@ export class ProjectLoadingRoutingSyntaxTsServer extends Disposable implements I
 				{
 					server: this.syntaxServer,
 					canRun: (command) => {
-						if (syntaxAlwaysCommands.has(command)) {
+						if (SyntaxRoutingTsServer.syntaxAlwaysCommands.has(command)) {
 							return true;
 						}
-						if (ProjectLoadingRoutingSyntaxTsServer.semanticCommands.has(command)) {
+						if (SyntaxRoutingTsServer.semanticCommands.has(command)) {
 							return false;
 						}
-						if (this.projectLoading && this.syntaxAllowedCommands.has(command)) {
+						if (enableDynamicRouting && this.projectLoading && SyntaxRoutingTsServer.syntaxAllowedCommands.has(command)) {
 							return true;
 						}
 						return false;

@@ -271,7 +271,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			folder = workspace.folders[0];
 		} else {
-			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 			if (resource) {
 				folder = this.contextService.getWorkspaceFolder(resource);
 			}

@@ -59,7 +59,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 				throw new Error('Task from execution DTO is undefined');
 			}
 			const execution = await this.getTaskExecution(executionDTO, task);
-			this._proxy.$executeTask(executionDTO.task).catch(error => { throw new Error(error); });
+			this._proxy.$executeTask(executionDTO.task).catch(() => { /* The error here isn't actionable. */ });
 			return execution;
 		} else {
 			const dto = TaskDTO.from(task, extension);
@@ -75,7 +75,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 			}
 			// Always get the task execution first to prevent timing issues when retrieving it later
 			const execution = await this.getTaskExecution(await this._proxy.$getTaskExecution(dto), task);
-			this._proxy.$executeTask(dto).catch(error => { throw new Error(error); });
+			this._proxy.$executeTask(dto).catch(() => { /* The error here isn't actionable. */ });
 			return execution;
 		}
 	}

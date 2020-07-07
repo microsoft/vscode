@@ -347,7 +347,7 @@ export class TimelinePane extends ViewPane {
 
 		const editor = this.editorService.activeEditor;
 		if (editor) {
-			uri = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+			uri = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		}
 
 		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
@@ -884,6 +884,12 @@ export class TimelinePane extends ViewPane {
 						return element.ariaLabel;
 					}
 					return element.accessibilityInformation ? element.accessibilityInformation.label : localize('timeline.aria.item', "{0}: {1}", element.relativeTime ?? '', element.label);
+				},
+				getRole(element: TreeElement): string {
+					if (isLoadMoreCommand(element)) {
+						return 'treeitem';
+					}
+					return element.accessibilityInformation && element.accessibilityInformation.role ? element.accessibilityInformation.role : 'treeitem';
 				},
 				getWidgetAriaLabel(): string {
 					return localize('timeline', "Timeline");

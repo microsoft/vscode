@@ -50,7 +50,7 @@ class UserDataSyncReportIssueContribution extends Disposable implements IWorkben
 			case UserDataSyncErrorCode.TooManyRequests:
 				this.notificationService.notify({
 					severity: Severity.Error,
-					message: localize('too many requests', "Turned off syncing preferences on this device because it is making too many requests. Please report an issue by providing the sync logs."),
+					message: localize({ key: 'too many requests', comment: ['Preferences Sync is the name of the feature'] }, "Preferences sync is disabled because the current device is making too many requests. Please report an issue by providing the sync logs."),
 					actions: {
 						primary: [
 							new Action('Show Sync Logs', localize('show sync logs', "Show Log"), undefined, true, () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)),

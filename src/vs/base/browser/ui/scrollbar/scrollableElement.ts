@@ -17,6 +17,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { getZoomFactor } from 'vs/base/browser/browser';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
@@ -130,12 +131,17 @@ export class MouseWheelClassifier {
 			// }
 		}
 
-		if (Math.abs(item.deltaX - Math.round(item.deltaX)) > 0 || Math.abs(item.deltaY - Math.round(item.deltaY)) > 0) {
+		if (!this._isAlmostInt(item.deltaX) || !this._isAlmostInt(item.deltaY)) {
 			// non-integer deltas => indicator that this is not a physical mouse wheel
 			score += 0.25;
 		}
 
 		return Math.min(Math.max(score, 0), 1);
+	}
+
+	private _isAlmostInt(value: number): boolean {
+		const delta = Math.abs(Math.round(value) - value);
+		return (delta < 0.01);
 	}
 }
 
@@ -343,10 +349,11 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		const classifier = MouseWheelClassifier.INSTANCE;
 		if (SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED) {
-			if (platform.isWindows) {
-				// On Windows, the incoming delta events are multiplied with the device pixel ratio,
-				// so to get a better classification, simply undo that.
-				classifier.accept(Date.now(), e.deltaX / window.devicePixelRatio, e.deltaY / window.devicePixelRatio);
+			const osZoomFactor = window.devicePixelRatio / getZoomFactor();
+			if (platform.isWindows || platform.isLinux) {
+				// On Windows and Linux, the incoming delta events are multiplied with the OS zoom factor.
+				// The OS zoom factor can be reverse engineered by using the device pixel ratio and the configured zoom factor into account.
+				classifier.accept(Date.now(), e.deltaX / osZoomFactor, e.deltaY / osZoomFactor);
 			} else {
 				classifier.accept(Date.now(), e.deltaX, e.deltaY);
 			}

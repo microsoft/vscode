@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import * as pty from 'node-pty';
@@ -53,7 +52,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	) {
 		super();
 		let name: string;
-		if (os.platform() === 'win32') {
+		if (platform.isWindows) {
 			name = path.basename(this._shellLaunchConfig.executable || '');
 		} else {
 			// Using 'xterm-256color' here helps ensure that the majority of Linux distributions will use a
@@ -112,7 +111,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		try {
 			const result = await stat(slc.executable);
 			if (!result.isFile() && !result.isSymbolicLink()) {
-				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Shell path \"{0}\" is not a file of a symlink", slc.executable) };
+				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file of a symlink", slc.executable) };
 			}
 		} catch (err) {
 			if (err?.code === 'ENOENT') {
@@ -121,7 +120,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
 				const executable = await findExecutable(slc.executable!, cwd, envPaths);
 				if (!executable) {
-					return { message: localize('launchFail.executableDoesNotExist', "Shell path \"{0}\" does not exist", slc.executable) };
+					return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
 				}
 			}
 		}

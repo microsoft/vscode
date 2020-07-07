@@ -81,6 +81,12 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 	private readonly _onError: Emitter<UserDataSyncError> = this._register(new Emitter<UserDataSyncError>());
 	readonly onError: Event<UserDataSyncError> = this._onError.event;
 
+	private readonly _onTurnOnSync: Emitter<void> = this._register(new Emitter<void>());
+	readonly onTurnOnSync: Event<void> = this._onTurnOnSync.event;
+
+	private readonly _onDidTurnOnSync: Emitter<UserDataSyncError | undefined> = this._register(new Emitter<UserDataSyncError | undefined>());
+	readonly onDidTurnOnSync: Event<UserDataSyncError | undefined> = this._onDidTurnOnSync.event;
+
 	constructor(
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
@@ -140,22 +146,30 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 	}
 
 	async turnOn(pullFirst: boolean): Promise<void> {
-		this.stopDisableMachineEventually();
+		this._onTurnOnSync.fire();
 
-		if (pullFirst) {
-			await this.userDataSyncService.pull();
-		} else {
-			await this.userDataSyncService.sync();
+		try {
+			this.stopDisableMachineEventually();
+
+			if (pullFirst) {
+				await this.userDataSyncService.pull();
+			} else {
+				await this.userDataSyncService.sync();
+			}
+
+			this.setEnablement(true);
+			this._onDidTurnOnSync.fire(undefined);
+		} catch (error) {
+			this._onDidTurnOnSync.fire(error);
+			throw error;
 		}
-
-		this.setEnablement(true);
 	}
 
 	async turnOff(everywhere: boolean, softTurnOffOnError?: boolean, donotRemoveMachine?: boolean): Promise<void> {
 		try {
 
 			// Remove machine
-			if (!donotRemoveMachine) {
+			if (this.userDataSyncAccountService.account && !donotRemoveMachine) {
 				await this.userDataSyncMachinesService.removeCurrentMachine();
 			}
 
@@ -205,8 +219,14 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 			this.telemetryService.publicLog2<{ code: string }, AutoSyncErrorClassification>(`autosync/error`, { code: userDataSyncError.code });
 		}
 
-		// Turned off from another device or session got expired
-		if (userDataSyncError.code === UserDataSyncErrorCode.TurnedOff || userDataSyncError.code === UserDataSyncErrorCode.SessionExpired) {
+		// Session got expired
+		if (userDataSyncError.code === UserDataSyncErrorCode.SessionExpired) {
+			await this.turnOff(false, true /* force soft turnoff on error */);
+			this.logService.info('Auto Sync: Turned off sync because current session is expired');
+		}
+
+		// Turned off from another device
+		if (userDataSyncError.code === UserDataSyncErrorCode.TurnedOff) {
 			await this.turnOff(false, true /* force soft turnoff on error */);
 			this.logService.info('Auto Sync: Turned off sync because sync is turned off in the cloud');
 		}

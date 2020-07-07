@@ -7,27 +7,15 @@
 
 'use strict';
 
-const withDefaults = require('../shared.webpack.config');
-const path = require('path');
+const withBrowserDefaults = require('../shared.webpack.config').browser;
 
-const clientConfig = withDefaults({
-	target: 'webworker',
+module.exports = withBrowserDefaults({
 	context: __dirname,
 	entry: {
 		extension: './src/configurationEditingMain.ts'
 	},
 	output: {
 		filename: 'configurationEditingMain.js'
-	},
-	performance: {
-		hints: false
-	},
-	resolve: {
-		alias: {
-			'vscode-nls': path.resolve(__dirname, '../../build/polyfills/vscode-nls.js')
-		}
 	}
 });
-clientConfig.module.rules[0].use.shift(); // remove nls loader
 
-module.exports = clientConfig;

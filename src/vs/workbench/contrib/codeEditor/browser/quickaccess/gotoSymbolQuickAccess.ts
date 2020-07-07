@@ -137,7 +137,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 		picker.busy = true;
 
-		provider.provideTableOfContents(pane, cts.token).then(entries => {
+		provider.provideTableOfContents(pane, { disposables }, cts.token).then(entries => {
 
 			picker.busy = false;
 
@@ -256,7 +256,8 @@ export interface ITableOfContentsEntry {
 }
 
 export interface ITableOfContentsProvider<T extends IEditorPane = IEditorPane> {
-	provideTableOfContents(editor: T, token: CancellationToken): Promise<ITableOfContentsEntry[] | undefined | null>;
+
+	provideTableOfContents(editor: T, context: { disposables: DisposableStore }, token: CancellationToken): Promise<ITableOfContentsEntry[] | undefined | null>;
 }
 
 class ProviderRegistry {

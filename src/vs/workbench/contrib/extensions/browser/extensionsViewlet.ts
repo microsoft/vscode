@@ -195,19 +195,19 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		const getOutdatedViewName = (): string => getViewName(localize('outdated', "Outdated"), server);
 		const onDidChangeServerLabel: EventOf<void> = EventOf.map(this.labelService.onDidChangeFormatters, () => undefined);
 		return [{
-			id: `extensions.${server.authority}.installed`,
+			id: `extensions.${server.id}.installed`,
 			get name() { return getInstalledViewName(); },
 			ctorDescriptor: new SyncDescriptor(ServerExtensionsView, [server, EventOf.map<void, string>(onDidChangeServerLabel, () => getInstalledViewName())]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchInstalledExtensions')),
 			weight: 100
 		}, {
-			id: `extensions.${server.authority}.outdated`,
+			id: `extensions.${server.id}.outdated`,
 			get name() { return getOutdatedViewName(); },
 			ctorDescriptor: new SyncDescriptor(ServerExtensionsView, [server, EventOf.map<void, string>(onDidChangeServerLabel, () => getOutdatedViewName())]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchOutdatedExtensions')),
 			weight: 100
 		}, {
-			id: `extensions.${server.authority}.default`,
+			id: `extensions.${server.id}.default`,
 			get name() { return getInstalledViewName(); },
 			ctorDescriptor: new SyncDescriptor(ServerExtensionsView, [server, EventOf.map<void, string>(onDidChangeServerLabel, () => getInstalledViewName())]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions'), RemoteNameContext.notEqualsTo('')),

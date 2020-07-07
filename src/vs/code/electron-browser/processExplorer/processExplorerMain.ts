@@ -5,13 +5,12 @@
 
 import 'vs/css!./media/processExplorer';
 import { clipboard } from 'electron';
-import { webFrame, ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import product from 'vs/platform/product/common/product';
 import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
-import * as browser from 'vs/base/browser/browser';
+import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import * as platform from 'vs/base/common/platform';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
@@ -63,7 +62,7 @@ function getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, in
 	}
 
 	// Format name with indent
-	const formattedName = isRoot ? name : `${repeat('    ', indent)} ${name}`;
+	const formattedName = isRoot ? name : `${'    '.repeat(indent)} ${name}`;
 	const memory = process.platform === 'win32' ? item.mem : (totalmem() * (item.mem / 100));
 	processes.push({
 		cpu: item.load,
@@ -291,15 +290,6 @@ function applyStyles(styles: ProcessExplorerStyles): void {
 	}
 }
 
-function applyZoom(zoomLevel: number): void {
-	webFrame.setZoomLevel(zoomLevel);
-	browser.setZoomFactor(webFrame.getZoomFactor());
-	// See https://github.com/Microsoft/vscode/issues/26151
-	// Cannot be trusted because the webFrame might take some time
-	// until it really applies the new zoom level
-	browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
-}
-
 function showContextMenu(e: MouseEvent, item: FormattedProcessItem, isLocal: boolean) {
 	e.preventDefault();
 
@@ -416,12 +406,12 @@ export function startup(data: ProcessExplorerData): void {
 
 		// Cmd/Ctrl + zooms in
 		if (cmdOrCtrlKey && e.keyCode === 187) {
-			applyZoom(webFrame.getZoomLevel() + 1);
+			zoomIn();
 		}
 
 		// Cmd/Ctrl - zooms out
 		if (cmdOrCtrlKey && e.keyCode === 189) {
-			applyZoom(webFrame.getZoomLevel() - 1);
+			zoomOut();
 		}
 	};
 }

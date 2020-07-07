@@ -70,7 +70,7 @@ export interface NotebookDocumentMetadata {
 	cellRunnable: boolean;
 	cellHasExecutionOrder: boolean;
 	displayOrder?: GlobPattern[];
-	custom?: { [key: string]: any };
+	custom?: { [key: string]: unknown };
 }
 
 export enum NotebookCellRunState {
@@ -90,7 +90,7 @@ export interface NotebookCellMetadata {
 	runState?: NotebookCellRunState;
 	runStartTime?: number;
 	lastRunDuration?: number;
-	custom?: { [key: string]: any };
+	custom?: { [key: string]: unknown };
 }
 
 export interface INotebookDisplayOrder {
@@ -157,7 +157,7 @@ export interface NotebookCellOutputMetadata {
 	/**
 	 * Additional attributes of a cell metadata.
 	 */
-	custom?: { [key: string]: any };
+	custom?: { [key: string]: unknown };
 }
 
 export interface IDisplayOutput {
@@ -165,7 +165,7 @@ export interface IDisplayOutput {
 	/**
 	 * { mime_type: value }
 	 */
-	data: { [key: string]: any; }
+	data: { [key: string]: unknown; }
 
 	metadata?: NotebookCellOutputMetadata;
 }
@@ -186,7 +186,7 @@ export interface IOrderedMimeType {
 export interface ITransformedDisplayOutputDto {
 	outputKind: CellOutputKind.Rich;
 	outputId: string;
-	data: { [key: string]: any; }
+	data: { [key: string]: unknown; }
 	metadata?: NotebookCellOutputMetadata;
 
 	orderedMimeTypes?: IOrderedMimeType[];
@@ -269,9 +269,8 @@ export interface INotebookTextModel {
 	languages: string[];
 	cells: ICell[];
 	renderers: Set<string>;
-	onDidChangeCells?: Event<NotebookCellTextModelSplice[]>;
+	onDidChangeCells?: Event<{ synchronous: boolean, splices: NotebookCellTextModelSplice[] }>;
 	onDidChangeContent: Event<void>;
-	onDidChangeUnknown: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }
 
@@ -567,6 +566,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly viewType: string;
 	readonly notebook: NotebookTextModel;
 	isDirty(): boolean;
+	isUntitled(): boolean;
 	save(): Promise<boolean>;
 	saveAs(target: URI): Promise<boolean>;
 	revert(options?: IRevertOptions | undefined): Promise<void>;

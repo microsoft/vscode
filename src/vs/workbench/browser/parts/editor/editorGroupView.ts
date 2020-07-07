@@ -275,9 +275,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}));
 
 		// Close empty editor group via middle mouse click
-		this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
+		this._register(addDisposableListener(this.element, EventType.AUXCLICK, e => {
 			if (this.isEmpty && e.button === 1 /* Middle Button */) {
-				EventHelper.stop(e);
+				EventHelper.stop(e, true);
 
 				this.accessor.removeGroup(this);
 			}
@@ -527,7 +527,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Include both sides of side by side editors when being closed
 		if (editor instanceof SideBySideEditorInput) {
-			editorsToClose.push(editor.master, editor.details);
+			editorsToClose.push(editor.primary, editor.secondary);
 		}
 
 		// For each editor to close, we call dispose() to free up any resources.
@@ -537,7 +537,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		for (const editor of editorsToClose) {
 			if (!this.accessor.groups.some(groupView => groupView.group.contains(editor, {
 				strictEquals: true,		// only if this input is not shared across editor groups
-				supportSideBySide: true // include side by side editor master & details
+				supportSideBySide: true // include side by side editor primary & secondary
 			}))) {
 				editor.dispose();
 			}
@@ -1359,8 +1359,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return false; // editor must be dirty and not saving
 		}
 
-		if (editor instanceof SideBySideEditorInput && this._group.contains(editor.master)) {
-			return false; // master-side of editor is still opened somewhere else
+		if (editor instanceof SideBySideEditorInput && this._group.contains(editor.primary)) {
+			return false; // primary-side of editor is still opened somewhere else
 		}
 
 		// Note: we explicitly decide to ask for confirm if closing a normal editor even
@@ -1378,8 +1378,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				return true; // exact editor still opened
 			}
 
-			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.master)) {
-				return true; // master side of side by side editor still opened
+			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.primary)) {
+				return true; // primary side of side by side editor still opened
 			}
 
 			return false;
@@ -1404,7 +1404,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			let name: string;
 			if (editor instanceof SideBySideEditorInput) {
-				name = editor.master.getName(); // prefer shorter names by using master's name in this case
+				name = editor.primary.getName(); // prefer shorter names by using primary's name in this case
 			} else {
 				name = editor.getName();
 			}

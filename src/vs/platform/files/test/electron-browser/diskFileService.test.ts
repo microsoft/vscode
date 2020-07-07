@@ -1611,6 +1611,8 @@ suite('Disk File Service', function () {
 
 		const contents = 'Hello World';
 		const resource = URI.file(join(testDir, 'test.txt'));
+
+		assert.equal(await service.canCreateFile(resource), true);
 		const fileStat = await service.createFile(resource, converter(contents));
 		assert.equal(fileStat.name, 'test.txt');
 		assert.equal(existsSync(fileStat.resource.fsPath), true);
@@ -1627,6 +1629,8 @@ suite('Disk File Service', function () {
 		const resource = URI.file(join(testDir, 'test.txt'));
 
 		writeFileSync(resource.fsPath, ''); // create file
+
+		assert.ok((await service.canCreateFile(resource)) instanceof Error);
 
 		let error;
 		try {
@@ -1647,6 +1651,7 @@ suite('Disk File Service', function () {
 
 		writeFileSync(resource.fsPath, ''); // create file
 
+		assert.equal(await service.canCreateFile(resource, { overwrite: true }), true);
 		const fileStat = await service.createFile(resource, VSBuffer.fromString(contents), { overwrite: true });
 		assert.equal(fileStat.name, 'test.txt');
 		assert.equal(existsSync(fileStat.resource.fsPath), true);

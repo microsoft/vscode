@@ -5,22 +5,22 @@
 
 import {
 	IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSynchroniser, SyncResource, IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService,
-	Conflict, USER_DATA_SYNC_SCHEME, PREVIEW_DIR_NAME, ISyncResourceHandle, IRemoteUserData, ISyncData, ISyncPreview
+	Conflict, USER_DATA_SYNC_SCHEME, ISyncResourceHandle, IRemoteUserData, ISyncData, IResourcePreview
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService, FileChangesEvent, IFileStat, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AbstractSynchroniser } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { AbstractSynchroniser, ISyncResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, extname, relativePath, isEqualOrParent, isEqual, basename, dirname } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { merge } from 'vs/platform/userDataSync/common/snippetsMerge';
+import { merge, IMergeResult } from 'vs/platform/userDataSync/common/snippetsMerge';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
-interface ISinppetsSyncPreview extends ISyncPreview {
+interface ISinppetsSyncPreview extends ISyncResourcePreview {
 	readonly local: IStringDictionary<IFileContent>;
 	readonly added: IStringDictionary<string>;
 	readonly updated: IStringDictionary<string>;
@@ -34,7 +34,6 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 
 	protected readonly version: number = 1;
 	private readonly snippetsFolder: URI;
-	private readonly snippetsPreviewFolder: URI;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -49,7 +48,6 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	) {
 		super(SyncResource.Snippets, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
 		this.snippetsFolder = environmentService.snippetsHome;
-		this.snippetsPreviewFolder = joinPath(this.syncFolder, PREVIEW_DIR_NAME);
 		this._register(this.fileService.watch(environmentService.userRoamingDataHome));
 		this._register(this.fileService.watch(this.snippetsFolder));
 		this._register(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
@@ -67,7 +65,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 			const local = await this.getSnippetsFileContents();
 			const localSnippets = this.toSnippetsContents(local);
 			const remoteSnippets = this.parseSnippets(remoteUserData.syncData);
-			const { added, updated, remote, removed } = merge(localSnippets, remoteSnippets, localSnippets);
+			const mergeResult = merge(localSnippets, remoteSnippets, localSnippets);
+			const { added, updated, remote, removed } = mergeResult;
 			return {
 				remoteUserData, lastSyncUserData,
 				added, removed, updated, remote, local,
@@ -75,6 +74,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				hasRemoteChanged: remote !== null,
 				conflicts: [], resolvedConflicts: {}, hasConflicts: false,
 				isLastSyncFromCurrentMachine: false,
+				resourcePreviews: this.getResourcePreviews(mergeResult)
 			};
 		} else {
 			return {
@@ -84,6 +84,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				hasRemoteChanged: false,
 				conflicts: [], resolvedConflicts: {}, hasConflicts: false,
 				isLastSyncFromCurrentMachine: false,
+				resourcePreviews: []
 			};
 		}
 	}
@@ -91,13 +92,15 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	protected async generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISinppetsSyncPreview> {
 		const local = await this.getSnippetsFileContents();
 		const localSnippets = this.toSnippetsContents(local);
-		const { added, removed, updated, remote } = merge(localSnippets, null, null);
+		const mergeResult = merge(localSnippets, null, null);
+		const { added, updated, remote, removed } = mergeResult;
 		return {
 			added, removed, updated, remote, remoteUserData, local, lastSyncUserData, conflicts: [], resolvedConflicts: {},
 			hasLocalChanged: Object.keys(added).length > 0 || removed.length > 0 || Object.keys(updated).length > 0,
 			hasRemoteChanged: remote !== null,
 			isLastSyncFromCurrentMachine: false,
 			hasConflicts: false,
+			resourcePreviews: this.getResourcePreviews(mergeResult)
 		};
 	}
 
@@ -105,12 +108,14 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		const local = await this.getSnippetsFileContents();
 		const localSnippets = this.toSnippetsContents(local);
 		const snippets = this.parseSnippets(syncData);
-		const { added, updated, removed } = merge(localSnippets, snippets, localSnippets);
+		const mergeResult = merge(localSnippets, snippets, localSnippets);
+		const { added, updated, removed } = mergeResult;
 		return {
 			added, removed, updated, remote: snippets, remoteUserData, local, lastSyncUserData, conflicts: [], resolvedConflicts: {}, hasConflicts: false,
 			hasLocalChanged: Object.keys(added).length > 0 || removed.length > 0 || Object.keys(updated).length > 0,
 			hasRemoteChanged: true,
 			isLastSyncFromCurrentMachine: false,
+			resourcePreviews: this.getResourcePreviews(mergeResult)
 		};
 	}
 
@@ -140,10 +145,11 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		}
 
 		const mergeResult = merge(localSnippets, remoteSnippets, lastSyncSnippets, resolvedConflicts);
+		const resourcePreviews = this.getResourcePreviews(mergeResult);
 
 		const conflicts: Conflict[] = [];
 		for (const key of mergeResult.conflicts) {
-			const localPreview = joinPath(this.snippetsPreviewFolder, key);
+			const localPreview = joinPath(this.syncPreviewFolder, key);
 			conflicts.push({ local: localPreview, remote: localPreview.with({ scheme: USER_DATA_SYNC_SCHEME }) });
 			const content = local[key];
 			if (!token.isCancellationRequested) {
@@ -177,14 +183,15 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 			resolvedConflicts,
 			hasLocalChanged: Object.keys(mergeResult.added).length > 0 || mergeResult.removed.length > 0 || Object.keys(mergeResult.updated).length > 0,
 			hasRemoteChanged: mergeResult.remote !== null,
-			isLastSyncFromCurrentMachine
+			isLastSyncFromCurrentMachine,
+			resourcePreviews
 		};
 	}
 
 	protected async updatePreviewWithConflict(preview: ISinppetsSyncPreview, conflictResource: URI, content: string, token: CancellationToken): Promise<ISinppetsSyncPreview> {
 		const conflict = this.conflicts.filter(({ local, remote }) => isEqual(local, conflictResource) || isEqual(remote, conflictResource))[0];
 		if (conflict) {
-			const key = relativePath(this.snippetsPreviewFolder, conflict.local)!;
+			const key = relativePath(this.syncPreviewFolder, conflict.local)!;
 			preview.resolvedConflicts[key] = content || null;
 			preview = await this.doGeneratePreview(preview.local, preview.remoteUserData, preview.lastSyncUserData, preview.resolvedConflicts, token);
 		}
@@ -221,6 +228,47 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 
 	}
 
+	private getResourcePreviews(mergeResult: IMergeResult): IResourcePreview[] {
+		const resourcePreviews: IResourcePreview[] = [];
+		for (const key of Object.keys(mergeResult.added)) {
+			resourcePreviews.push({
+				remoteResource: joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME }),
+				hasConflicts: false,
+				hasLocalChanged: true,
+				hasRemoteChanged: false
+			});
+		}
+		for (const key of Object.keys(mergeResult.updated)) {
+			resourcePreviews.push({
+				remoteResource: joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME }),
+				localResouce: joinPath(this.snippetsFolder, key),
+				hasConflicts: false,
+				hasLocalChanged: true,
+				hasRemoteChanged: true
+			});
+		}
+		for (const key of mergeResult.removed) {
+			resourcePreviews.push({
+				localResouce: joinPath(this.snippetsFolder, key),
+				hasConflicts: false,
+				hasLocalChanged: true,
+				hasRemoteChanged: false
+			});
+		}
+		for (const key of mergeResult.conflicts) {
+			resourcePreviews.push({
+				localResouce: joinPath(this.snippetsFolder, key),
+				remoteResource: joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME }),
+				previewResource: joinPath(this.syncPreviewFolder, key),
+				hasConflicts: true,
+				hasLocalChanged: true,
+				hasRemoteChanged: true
+			});
+		}
+
+		return resourcePreviews;
+	}
+
 	async stop(): Promise<void> {
 		await this.clearConflicts();
 		return super.stop();
@@ -246,8 +294,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
-		if (isEqualOrParent(uri.with({ scheme: this.syncFolder.scheme }), this.snippetsPreviewFolder)) {
-			return this.getConflictContent(uri);
+		if (isEqualOrParent(uri.with({ scheme: this.syncFolder.scheme }), this.syncPreviewFolder)) {
+			return this.resolvePreviewContent(uri);
 		}
 		let content = await super.resolveContent(uri);
 		if (content) {
@@ -264,11 +312,11 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		return null;
 	}
 
-	private async getConflictContent(conflictResource: URI): Promise<string | null> {
+	private async resolvePreviewContent(conflictResource: URI): Promise<string | null> {
 		const syncPreview = await this.getSyncPreviewInProgress();
 		if (syncPreview) {
-			const key = relativePath(this.snippetsPreviewFolder, conflictResource.with({ scheme: this.snippetsPreviewFolder.scheme }))!;
-			if (conflictResource.scheme === this.snippetsPreviewFolder.scheme) {
+			const key = relativePath(this.syncPreviewFolder, conflictResource.with({ scheme: this.syncPreviewFolder.scheme }))!;
+			if (conflictResource.scheme === this.syncPreviewFolder.scheme) {
 				return (syncPreview as ISinppetsSyncPreview).local[key] ? (syncPreview as ISinppetsSyncPreview).local[key].value.toString() : null;
 			} else if (syncPreview.remoteUserData && syncPreview.remoteUserData.syncData) {
 				const snippets = this.parseSnippets(syncPreview.remoteUserData.syncData);

@@ -1807,7 +1807,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		return promise;
 	});
 
-	test('update remote settings', async () => {
+	test.skip('update remote settings', async () => {
 		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();
 		await initialize();

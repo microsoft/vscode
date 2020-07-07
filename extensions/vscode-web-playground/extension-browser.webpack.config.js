@@ -7,11 +7,10 @@
 
 'use strict';
 const path = require('path');
-const withDefaults = require('../shared.webpack.config');
+const withBrowserDefaults = require('../shared.webpack.config').browser;
 
-module.exports = withDefaults({
+module.exports = withBrowserDefaults({
 	context: __dirname,
-	target: 'webworker',
 	node: false,
 	entry: {
 		extension: './src/extension.ts',

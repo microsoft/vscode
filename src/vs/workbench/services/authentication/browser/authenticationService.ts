@@ -33,7 +33,7 @@ export interface IAuthenticationService {
 
 	readonly onDidChangeSessions: Event<{ providerId: string, event: AuthenticationSessionsChangeEvent }>;
 	getSessions(providerId: string): Promise<ReadonlyArray<AuthenticationSession>>;
-	getDisplayName(providerId: string): string;
+	getLabel(providerId: string): string;
 	supportsMultipleAccounts(providerId: string): boolean;
 	login(providerId: string, scopes: string[]): Promise<AuthenticationSession>;
 	logout(providerId: string, sessionId: string): Promise<void>;
@@ -187,7 +187,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		let changed = false;
 
 		Object.keys(existingRequestsForProvider).forEach(requestedScopes => {
-			if (sessions.some(session => session.scopes.sort().join('') === requestedScopes)) {
+			if (sessions.some(session => session.scopes.slice().sort().join('') === requestedScopes)) {
 				// Request has been completed
 				changed = true;
 				const sessionRequest = existingRequestsForProvider[requestedScopes];
@@ -237,7 +237,13 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				group: '2_signInRequests',
 				command: {
 					id: `${extensionId}signIn`,
-					title: nls.localize('signInRequest', "Sign in to use {0} (1)", extensionName)
+					title: nls.localize(
+						{
+							key: 'signInRequest',
+							comment: ['The placeholder {0} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count.']
+						},
+						"Sign in to use {0} (1)",
+						extensionName)
 				}
 			});
 
@@ -249,10 +255,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 					const session = await authenticationService.login(providerId, scopes);
 
 					// Add extension to allow list since user explicitly signed in on behalf of it
-					const allowList = readAllowedExtensions(storageService, providerId, session.account.displayName);
+					const allowList = readAllowedExtensions(storageService, providerId, session.account.label);
 					if (!allowList.find(allowed => allowed.id === extensionId)) {
 						allowList.push({ id: extensionId, name: extensionName });
-						storageService.store(`${providerId}-${session.account.displayName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
+						storageService.store(`${providerId}-${session.account.label}`, JSON.stringify(allowList), StorageScope.GLOBAL);
 					}
 
 					// And also set it as the preferred account for the extension
@@ -289,10 +295,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			this._badgeDisposable = this.activityService.showAccountsActivity({ badge });
 		}
 	}
-	getDisplayName(id: string): string {
+	getLabel(id: string): string {
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
-			return authProvider.displayName;
+			return authProvider.label;
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
