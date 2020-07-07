@@ -87,7 +87,7 @@
 		const loaderConfig = {
 			baseUrl: `${bootstrap.uriFromPath(configuration.appRoot)}/out`,
 			'vs/nls': nlsConfig,
-			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
+			amdModulesPattern: /^vs\//,
 		};
 
 		// cached data config
