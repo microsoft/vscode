@@ -99,9 +99,6 @@ export interface WebviewResolver {
 }
 
 function canRevive(reviver: WebviewResolver, webview: WebviewInput): boolean {
-	if (webview.isDisposed()) {
-		return false;
-	}
 	return reviver.canResolve(webview);
 }
 
