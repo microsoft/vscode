@@ -19,13 +19,13 @@ suite('Editor Contrib - Line Comment Command', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 		let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, false), expectedLines, expectedSelection);
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true), expectedLines, expectedSelection);
 		mode.dispose();
 	}
 
 	function testAddLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 		let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd, true, false), expectedLines, expectedSelection);
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd, true, true), expectedLines, expectedSelection);
 		mode.dispose();
 	}
 
@@ -47,7 +47,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	test('case insensitive', function () {
 		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 			let mode = new CommentMode({ lineComment: 'rem' });
-			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, false), expectedLines, expectedSelection);
+			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true), expectedLines, expectedSelection);
 			mode.dispose();
 		}
 
@@ -631,7 +631,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	test('insertSpace false', () => {
 		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 			let mode = new CommentMode({ lineComment: '!@#' });
-			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, false, false), expectedLines, expectedSelection);
+			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, false, true), expectedLines, expectedSelection);
 			mode.dispose();
 		}
 
@@ -650,7 +650,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	test('insertSpace false does not remove space', () => {
 		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 			let mode = new CommentMode({ lineComment: '!@#' });
-			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, false, false), expectedLines, expectedSelection);
+			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, false, true), expectedLines, expectedSelection);
 			mode.dispose();
 		}
 
@@ -666,10 +666,10 @@ suite('Editor Contrib - Line Comment Command', () => {
 		);
 	});
 
-	suite('includeEmptyLines true', () => {
+	suite('ignoreEmptyLines false', () => {
 		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 			let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
-			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true), expectedLines, expectedSelection);
+			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, false), expectedLines, expectedSelection);
 			mode.dispose();
 		}
 
@@ -762,7 +762,7 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 		let mode = new CommentMode({ lineComment: '', blockComment: ['(', ')'] });
-		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, false), expectedLines, expectedSelection);
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true), expectedLines, expectedSelection);
 		mode.dispose();
 	}
 
@@ -873,7 +873,7 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 		let mode = new CommentMode({ lineComment: null, blockComment: ['<!@#', '#@!>'] });
-		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, false), expectedLines, expectedSelection);
+		testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true), expectedLines, expectedSelection);
 		mode.dispose();
 	}
 
@@ -1114,7 +1114,7 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 			lines,
 			outerMode.getLanguageIdentifier(),
 			selection,
-			(sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, false),
+			(sel) => new LineCommentCommand(sel, 4, Type.Toggle, true, true),
 			expectedLines,
 			expectedSelection,
 			true

@@ -41,7 +41,7 @@ abstract class CommentLineAction extends EditorAction {
 				modelOptions.tabSize,
 				this._type,
 				commentsOptions.insertSpace,
-				commentsOptions.includeEmptyLines
+				commentsOptions.ignoreEmptyLines
 			));
 		}
 

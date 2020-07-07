@@ -53,7 +53,7 @@ export class LineCommentCommand implements ICommand {
 	private readonly _tabSize: number;
 	private readonly _type: Type;
 	private readonly _insertSpace: boolean;
-	private readonly _includeEmptyLines: boolean;
+	private readonly _ignoreEmptyLines: boolean;
 	private _selectionId: string | null;
 	private _deltaColumn: number;
 	private _moveEndPositionDown: boolean;
@@ -63,7 +63,7 @@ export class LineCommentCommand implements ICommand {
 		tabSize: number,
 		type: Type,
 		insertSpace: boolean,
-		includeEmptyLines: boolean,
+		ignoreEmptyLines: boolean
 	) {
 		this._selection = selection;
 		this._tabSize = tabSize;
@@ -72,7 +72,7 @@ export class LineCommentCommand implements ICommand {
 		this._selectionId = null;
 		this._deltaColumn = 0;
 		this._moveEndPositionDown = false;
-		this._includeEmptyLines = includeEmptyLines;
+		this._ignoreEmptyLines = ignoreEmptyLines;
 	}
 
 	/**
@@ -108,7 +108,7 @@ export class LineCommentCommand implements ICommand {
 	 * Analyze lines and decide which lines are relevant and what the toggle should do.
 	 * Also, build up several offsets and lengths useful in the generation of editor operations.
 	 */
-	public static _analyzeLines(type: Type, insertSpace: boolean, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number, includeEmptyLines: boolean): IPreflightData {
+	public static _analyzeLines(type: Type, insertSpace: boolean, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number, ignoreEmptyLines: boolean): IPreflightData {
 		let onlyWhitespaceLines = true;
 
 		let shouldRemoveComments: boolean;
@@ -129,13 +129,7 @@ export class LineCommentCommand implements ICommand {
 
 			if (lineContentStartOffset === -1) {
 				// Empty or whitespace only line
-				if (type === Type.Toggle) {
-					lineData.ignore = !includeEmptyLines;
-				} else if (type === Type.ForceAdd) {
-					lineData.ignore = !includeEmptyLines;
-				} else {
-					lineData.ignore = !includeEmptyLines;
-				}
+				lineData.ignore = ignoreEmptyLines;
 				lineData.commentStrOffset = lineContent.length;
 				continue;
 			}
@@ -184,7 +178,7 @@ export class LineCommentCommand implements ICommand {
 	/**
 	 * Analyze all lines and decide exactly what to do => not supported | insert line comments | remove line comments
 	 */
-	public static _gatherPreflightData(type: Type, insertSpace: boolean, model: ITextModel, startLineNumber: number, endLineNumber: number, includeEmptyLines: boolean): IPreflightData {
+	public static _gatherPreflightData(type: Type, insertSpace: boolean, model: ITextModel, startLineNumber: number, endLineNumber: number, ignoreEmptyLines: boolean): IPreflightData {
 		const lines = LineCommentCommand._gatherPreflightCommentStrings(model, startLineNumber, endLineNumber);
 		if (lines === null) {
 			return {
@@ -192,7 +186,7 @@ export class LineCommentCommand implements ICommand {
 			};
 		}
 
-		return LineCommentCommand._analyzeLines(type, insertSpace, model, lines, startLineNumber, includeEmptyLines);
+		return LineCommentCommand._analyzeLines(type, insertSpace, model, lines, startLineNumber, ignoreEmptyLines);
 	}
 
 	/**
@@ -340,7 +334,7 @@ export class LineCommentCommand implements ICommand {
 			model,
 			s.startLineNumber,
 			s.endLineNumber,
-			this._includeEmptyLines
+			this._ignoreEmptyLines
 		);
 
 		if (data.supported) {
