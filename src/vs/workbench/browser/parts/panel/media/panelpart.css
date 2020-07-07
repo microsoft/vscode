@@ -50,8 +50,13 @@
 	outline-offset: -2px;
 }
 
-.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.clicked:focus .action-label {
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.clicked:not(.checked):focus .action-label {
 	border-bottom-color: transparent !important; /* hides border on clicked state */
+}
+
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked.clicked:focus .action-label,
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked.active:focus .action-label {
+	border-bottom-color: currentColor !important;
 }
 
 /** Panel Switcher */

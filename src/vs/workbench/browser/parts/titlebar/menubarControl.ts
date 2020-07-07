@@ -429,7 +429,8 @@ export class CustomMenubarControl extends MenubarControl {
 							primary: KeyCode.F10,
 							weight: KeybindingWeight.WorkbenchContrib,
 							when: IsWebContext
-						}
+						},
+						f1: true
 					});
 				}
 

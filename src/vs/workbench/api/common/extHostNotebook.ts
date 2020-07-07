@@ -1151,12 +1151,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		if (this._notebookContentProviders.has(viewType)) {
-			try {
-				await this._notebookContentProviders.get(viewType)!.provider.saveNotebook(document, token);
-			} catch (e) {
-				return false;
-			}
-
+			await this._notebookContentProviders.get(viewType)!.provider.saveNotebook(document, token);
 			return true;
 		}
 
@@ -1170,12 +1165,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		if (this._notebookContentProviders.has(viewType)) {
-			try {
-				await this._notebookContentProviders.get(viewType)!.provider.saveNotebookAs(URI.revive(target), document, token);
-			} catch (e) {
-				return false;
-			}
-
+			await this._notebookContentProviders.get(viewType)!.provider.saveNotebookAs(URI.revive(target), document, token);
 			return true;
 		}
 

@@ -11,7 +11,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IWebviewService, webviewDeveloperCategory, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { getFocusedWebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewCommands';
+import { getActiveWebview } from 'vs/workbench/contrib/webview/browser/webviewCommands';
 import * as webviewCommands from 'vs/workbench/contrib/webview/electron-browser/webviewCommands';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { ElectronWebviewService } from 'vs/workbench/contrib/webview/electron-browser/webviewService';
@@ -26,8 +26,13 @@ actionRegistry.registerWorkbenchAction(
 	webviewDeveloperCategory);
 
 function getActiveElectronBasedWebview(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
-	const webview = getFocusedWebviewEditor(accessor);
+	const webview = getActiveWebview(accessor);
 	if (!webview) {
+		return undefined;
+	}
+
+	// Make sure we are really focused on the webview
+	if (!['WEBVIEW', 'IFRAME'].includes(document.activeElement?.tagName ?? '')) {
 		return undefined;
 	}
 

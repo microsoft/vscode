@@ -26,7 +26,7 @@ interface IToken {
 	refreshToken: string;
 
 	account: {
-		displayName: string;
+		label: string;
 		id: string;
 	};
 	scope: string;
@@ -48,7 +48,8 @@ interface IStoredSession {
 	refreshToken: string;
 	scope: string; // Scopes are alphabetized and joined with a space
 	account: {
-		displayName: string,
+		label?: string;
+		displayName?: string,
 		id: string
 	}
 }
@@ -101,7 +102,7 @@ export class AzureActiveDirectoryService {
 									accessToken: undefined,
 									refreshToken: session.refreshToken,
 									account: {
-										displayName: session.account.displayName,
+										label: session.account.label ?? session.account.displayName!,
 										id: session.account.id
 									},
 									scope: session.scope,
@@ -437,7 +438,7 @@ export class AzureActiveDirectoryService {
 			scope,
 			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
 			account: {
-				displayName: claims.email || claims.unique_name || 'user@example.com',
+				label: claims.email || claims.unique_name || 'user@example.com',
 				id: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}`
 			}
 		};

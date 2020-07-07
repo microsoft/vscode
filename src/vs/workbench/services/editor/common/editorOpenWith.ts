@@ -42,14 +42,16 @@ export async function openEditorWith(
 		return;
 	}
 
-	const allEditorOverrides = getAllAvailableEditors(resource, options, group, editorService);
+	const overrideOptions = { ...options, override: id };
+
+	const allEditorOverrides = getAllAvailableEditors(resource, id, overrideOptions, group, editorService);
 	if (!allEditorOverrides.length) {
 		return;
 	}
 
 	const overrideToUse = typeof id === 'string' && allEditorOverrides.find(([_, entry]) => entry.id === id);
 	if (overrideToUse) {
-		return overrideToUse[0].open(input, { ...options, override: id }, group, OpenEditorContext.NEW_EDITOR)?.override;
+		return overrideToUse[0].open(input, overrideOptions, group, OpenEditorContext.NEW_EDITOR)?.override;
 	}
 
 	// Prompt
@@ -128,6 +130,7 @@ export const defaultEditorOverrideEntry = Object.freeze({
  */
 export function getAllAvailableEditors(
 	resource: URI,
+	id: string | undefined,
 	options: IEditorOptions | ITextEditorOptions | undefined,
 	group: IEditorGroup,
 	editorService: IEditorService

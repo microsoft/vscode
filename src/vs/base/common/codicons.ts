@@ -471,6 +471,8 @@ export namespace Codicon {
 	export const stopCircle = new Codicon('stop-circle', { character: '\\eba5' });
 	export const playCircle = new Codicon('play-circle', { character: '\\eba6' });
 	export const record = new Codicon('record', { character: '\\eba7' });
+	export const debugAltSmall = new Codicon('debug-alt-small', { character: '\\eba8' });
+	export const vmConnect = new Codicon('vm-connect', { character: '\\eba9' });
 }
 
 

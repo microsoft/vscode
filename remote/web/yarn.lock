@@ -2,15 +2,15 @@
 # yarn lockfile v1
 
 
-iconv-lite-umd@0.6.3:
-  version "0.6.3"
-  resolved "https://registry.yarnpkg.com/iconv-lite-umd/-/iconv-lite-umd-0.6.3.tgz#61307cab8ac29939992d0724d3ab8799467f0e97"
-  integrity sha512-fQ/8XE8reiCZ6t+SX4tX6/tQdV4tThJZv5qtMe5Sk+IWsExz0S2Zd+GiBS5IEPgDxnsmiJSpH67+qzN3FT4lKw==
+iconv-lite-umd@0.6.5:
+  version "0.6.5"
+  resolved "https://registry.yarnpkg.com/iconv-lite-umd/-/iconv-lite-umd-0.6.5.tgz#6a1f621a3b4d125f72feff813a9839e1ebd6c722"
+  integrity sha512-WDegH4al+e3n3jTOStRvm+jzDA3JMUQGgzdAsMxAgcgB0Oi72HjfdsoX08ieKsy3rKexXVjWZr41aOIUaCZnMg==
 
-jschardet@2.1.1:
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-2.1.1.tgz#af6f8fd0b3b0f5d46a8fd9614a4fce490575c184"
-  integrity sha512-pA5qG9Zwm8CBpGlK/lo2GE9jPxwqRgMV7Lzc/1iaPccw6v4Rhj8Zg2BTyrdmHmxlJojnbLupLeRnaPLsq03x6Q==
+jschardet@2.2.1:
+  version "2.2.1"
+  resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-2.2.1.tgz#03b0264669a90c7a5c436a68c5a7d4e4cb0c9823"
+  integrity sha512-Ks2JNuUJoc7PGaZ7bVFtSEvOcr0rBq6Q1J5/7+zKWLT+g+4zziL63O0jg7y2jxhzIa1LVsHUbPXrbaWmz9iwDw==
 
 semver-umd@^5.5.7:
   version "5.5.7"
@@ -22,10 +22,10 @@ vscode-oniguruma@1.3.1:
   resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.3.1.tgz#e2383879c3485b19f533ec34efea9d7a2b14be8f"
   integrity sha512-gz6ZBofA7UXafVA+m2Yt2zHKgXC2qedArprIsHAPKByTkwq9l5y/izAGckqxYml7mSbYxTRTfdRwsFq3cwF4LQ==
 
-vscode-textmate@5.1.2:
-  version "5.1.2"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.1.2.tgz#289cdeb181d3baa411c6910ee509120fef7731d1"
-  integrity sha512-N/xYFVCaFxheV9ic8dUVoijYpF4Mpdmc6WYJlgD+geKfmCaAKN0Vwf0+o2fULEomtXL4dfxhUrITt+6j09MKEw==
+vscode-textmate@5.2.0:
+  version "5.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.2.0.tgz#01f01760a391e8222fe4f33fbccbd1ad71aed74e"
+  integrity sha512-Uw5ooOQxRASHgu6C7GVvUxisKXfSgW4oFlO+aa+PAkgmH89O3CXxEEzNRNtHSqtXFTl0nAC1uYj0GMSH27uwtQ==
 
 xterm-addon-search@0.7.0:
   version "0.7.0"

@@ -139,10 +139,16 @@ export class CellEditorOptions {
 
 		const computeEditorOptions = () => {
 			const editorOptions = deepClone(configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
-			return {
+			const computed = {
 				...editorOptions,
 				...CellEditorOptions.fixedEditorOptions
 			};
+
+			if (!computed.folding) {
+				computed.lineDecorationsWidth = 16;
+			}
+
+			return computed;
 		};
 
 		this._value = computeEditorOptions();
@@ -268,19 +274,17 @@ abstract class AbstractCellRenderer {
 				this.notebookEditor.focus();
 			}
 
-			if (templateData.focusIndicator) {
-				if (actions.primary.length || actions.secondary.length) {
-					templateData.container.classList.add('cell-has-toolbar-actions');
+			if (actions.primary.length || actions.secondary.length) {
+				templateData.container.classList.add('cell-has-toolbar-actions');
+				if (isCodeCellRenderTemplate(templateData)) {
 					templateData.focusIndicator.style.top = `${EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN}px`;
-					if (isCodeCellRenderTemplate(templateData)) {
-						templateData.focusIndicatorRight.style.top = `${EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN}px`;
-					}
-				} else {
-					templateData.container.classList.remove('cell-has-toolbar-actions');
+					templateData.focusIndicatorRight.style.top = `${EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN}px`;
+				}
+			} else {
+				templateData.container.classList.remove('cell-has-toolbar-actions');
+				if (isCodeCellRenderTemplate(templateData)) {
 					templateData.focusIndicator.style.top = `${EDITOR_TOP_MARGIN}px`;
-					if (isCodeCellRenderTemplate(templateData)) {
-						templateData.focusIndicatorRight.style.top = `${EDITOR_TOP_MARGIN}px`;
-					}
+					templateData.focusIndicatorRight.style.top = `${EDITOR_TOP_MARGIN}px`;
 				}
 			}
 		};
@@ -338,7 +342,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
 		const toolbar = disposables.add(this.createToolbar(container));
-		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side'));
+		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		focusIndicator.setAttribute('draggable', 'true');
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
@@ -667,10 +671,8 @@ export class CellDragAndDropController extends Disposable {
 		}));
 	}
 
-	private moveCell(draggedCell: ICellViewModel, ontoCell: ICellViewModel, direction: 'above' | 'below') {
-		const editState = draggedCell.editState;
-		this.notebookEditor.moveCell(draggedCell, ontoCell, direction);
-		this.notebookEditor.focusNotebookCell(draggedCell, editState === CellEditState.Editing ? 'editor' : 'container');
+	private async moveCell(draggedCell: ICellViewModel, ontoCell: ICellViewModel, direction: 'above' | 'below') {
+		await this.notebookEditor.moveCell(draggedCell, ontoCell, direction);
 	}
 
 	private copyCell(draggedCell: ICellViewModel, ontoCell: ICellViewModel, direction: 'above' | 'below') {
@@ -869,7 +871,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			DOM.append(focusIndicatorTop, $('.cell-shadow-container.cell-shadow-container-top')),
 			$('.cell-shadow.cell-shadow-top'));
 		const toolbar = disposables.add(this.createToolbar(container));
-		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side'));
+		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		focusIndicator.setAttribute('draggable', 'true');
 
 		const cellContainer = DOM.append(container, $('.cell.code'));

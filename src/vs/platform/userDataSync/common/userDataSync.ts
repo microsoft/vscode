@@ -293,13 +293,21 @@ export interface ISyncData {
 	content: string;
 }
 
-export interface ISyncPreview {
-	readonly remoteUserData: IRemoteUserData;
-	readonly lastSyncUserData: IRemoteUserData | null;
+export interface IResourcePreview {
+	readonly remoteResource?: URI;
+	readonly localResouce?: URI;
+	readonly previewResource?: URI;
+	readonly hasLocalChanged: boolean;
+	readonly hasRemoteChanged: boolean;
+	readonly hasConflicts: boolean;
+}
+
+export interface ISyncResourcePreview {
 	readonly isLastSyncFromCurrentMachine: boolean;
 	readonly hasLocalChanged: boolean;
 	readonly hasRemoteChanged: boolean;
 	readonly hasConflicts: boolean;
+	readonly resourcePreviews: IResourcePreview[];
 }
 
 export interface IUserDataSynchroniser {
@@ -317,7 +325,7 @@ export interface IUserDataSynchroniser {
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
-	generateSyncPreview(): Promise<ISyncPreview | null>
+	generateSyncPreview(): Promise<ISyncResourcePreview | null>
 	hasPreviouslySynced(): Promise<boolean>
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;

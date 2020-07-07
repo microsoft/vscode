@@ -262,6 +262,13 @@ export class FindModelBoundToEditorModel {
 
 	private _moveToPrevMatch(before: Position, isRecursed: boolean = false): void {
 		if (!this._state.canNavigateBack()) {
+			// we are beyond the first matched find result
+			// instead of doing nothing, we should refocus the first item
+			const nextMatchRange = this._decorations.matchAfterPosition(before);
+
+			if (nextMatchRange) {
+				this._setCurrentFindMatch(nextMatchRange);
+			}
 			return;
 		}
 		if (this._decorations.getCount() < MATCHES_LIMIT) {
@@ -350,6 +357,13 @@ export class FindModelBoundToEditorModel {
 
 	private _moveToNextMatch(after: Position): void {
 		if (!this._state.canNavigateForward()) {
+			// we are beyond the last matched find result
+			// instead of doing nothing, we should refocus the last item
+			const prevMatchRange = this._decorations.matchBeforePosition(after);
+
+			if (prevMatchRange) {
+				this._setCurrentFindMatch(prevMatchRange);
+			}
 			return;
 		}
 		if (this._decorations.getCount() < MATCHES_LIMIT) {

@@ -10,8 +10,7 @@ import { textLinkForeground, inputBackground, inputBorder, inputForeground, butt
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { assign } from 'vs/base/common/objects';
+import { getZoomLevel } from 'vs/base/browser/browser';
 import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-browser/issue';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
@@ -49,9 +48,9 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			};
 		});
 		const theme = this.themeService.getColorTheme();
-		const issueReporterData: IssueReporterData = assign({
+		const issueReporterData: IssueReporterData = Object.assign({
 			styles: getIssueReporterStyles(theme),
-			zoomLevel: webFrame.getZoomLevel(),
+			zoomLevel: getZoomLevel(),
 			enabledExtensions: extensionData,
 		}, dataOverrides);
 		return this.issueService.openReporter(issueReporterData);
@@ -61,7 +60,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		const theme = this.themeService.getColorTheme();
 		const data: ProcessExplorerData = {
 			pid: this.environmentService.configuration.mainPid,
-			zoomLevel: webFrame.getZoomLevel(),
+			zoomLevel: getZoomLevel(),
 			styles: {
 				backgroundColor: getColor(theme, editorBackground),
 				color: getColor(theme, editorForeground),

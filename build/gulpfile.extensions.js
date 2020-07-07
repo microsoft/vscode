@@ -205,7 +205,7 @@ async function buildWebExtensions(isWatch) {
 			for (const stats of fullStats.children) {
 				const outputPath = stats.outputPath;
 				if (outputPath) {
-					const relativePath = path.relative(extensionsPath, outputPath);
+					const relativePath = path.relative(extensionsPath, outputPath).replace(/\\/g, '/');
 					const match = relativePath.match(/[^\/]+(\/server|\/client)?/);
 					fancyLog(`Finished ${ansiColors.green('packaging web extension')} ${ansiColors.cyan(match[0])} with ${stats.errors.length} errors.`);
 				}

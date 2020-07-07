@@ -158,7 +158,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				constructor() {
 					super({
 						id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-						title: { original: `Focus on ${viewDescriptor.name} View`, value: localize('focus view', "Focus on {0} View", viewDescriptor.name) },
+						title: { original: `Focus on ${viewDescriptor.name} View`, value: localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name) },
 						category: composite ? composite.name : localize('view category', "View"),
 						menu: [{
 							id: MenuId.CommandPalette,
@@ -273,6 +273,11 @@ export class ViewsService extends Disposable implements IViewsService {
 				break;
 		}
 		return viewContainerId ? this.viewDescriptorService.getViewContainerById(viewContainerId) : null;
+	}
+
+	getActiveViewPaneContainerWithId(viewContainerId: string): IViewPaneContainer | null {
+		const viewContainer = this.viewDescriptorService.getViewContainerById(viewContainerId);
+		return viewContainer ? this.getActiveViewPaneContainer(viewContainer) : null;
 	}
 
 	async openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null> {

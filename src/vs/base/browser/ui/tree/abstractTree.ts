@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IListOptions, List, IListStyles, MouseController, DefaultKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List, IListStyles, MouseController, DefaultKeyboardNavigationDelegate, isInputElement, isMonacoEditor } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider, IKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, hasParentWithClass, createStyleSheet, clearNode, addClasses, removeClasses } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
@@ -917,10 +917,6 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	}
 }
 
-function isInputElement(e: HTMLElement): boolean {
-	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
-}
-
 function asTreeMouseEvent<T>(event: IListMouseEvent<ITreeNode<T, any>>): ITreeMouseEvent<T> {
 	let target: TreeMouseEventTarget = TreeMouseEventTarget.Unknown;
 
@@ -955,6 +951,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly filterOnType?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly expandOnlyOnDoubleClick?: boolean;
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
@@ -1084,7 +1081,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 	}
 
 	protected onViewPointer(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
-		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 
@@ -1098,7 +1095,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return super.onViewPointer(e);
 		}
 
-		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
+		const target = e.browserEvent.target as HTMLElement;
+		const onTwistie = hasClass(target, 'monaco-tl-twistie')
+			|| (hasClass(target, 'monaco-icon-label') && hasClass(target, 'folder-icon') && e.browserEvent.offsetX < 16);
+
 		let expandOnlyOnTwistieClick = false;
 
 		if (typeof this.tree.expandOnlyOnTwistieClick === 'function') {
@@ -1108,6 +1108,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		}
 
 		if (expandOnlyOnTwistieClick && !onTwistie) {
+			return super.onViewPointer(e);
+		}
+
+		if (this.tree.expandOnlyOnDoubleClick && e.browserEvent.detail !== 2 && !onTwistie) {
 			return super.onViewPointer(e);
 		}
 
@@ -1248,6 +1252,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get filterOnType(): boolean { return !!this._options.filterOnType; }
 	get onDidChangeTypeFilterPattern(): Event<string> { return this.typeFilterController ? this.typeFilterController.onDidChangePattern : Event.None; }
 
+	get expandOnlyOnDoubleClick(): boolean { return this._options.expandOnlyOnDoubleClick ?? false; }
 	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
 
 	private readonly _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();

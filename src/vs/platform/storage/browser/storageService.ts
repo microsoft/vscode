@@ -5,7 +5,7 @@
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage, WorkspaceStorageSettings } from 'vs/platform/storage/common/storage';
+import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -19,6 +19,8 @@ import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 export class BrowserStorageService extends Disposable implements IStorageService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private static readonly WORKSPACE_IS_NEW_KEY = '__$__isNewStorageMarker';
 
 	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
@@ -81,12 +83,11 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		]);
 
 		// Check to see if this is the first time we are "opening" this workspace
-		const firstOpen = this.workspaceStorage.getBoolean(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN);
+		const firstOpen = this.workspaceStorage.getBoolean(BrowserStorageService.WORKSPACE_IS_NEW_KEY);
 		if (firstOpen === undefined) {
-			// NOTE@eamodio We can't reliably check to see if a workspace was added before this setting was introduced, so just pretend it is the first time
-			this.workspaceStorage.set(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, true);
+			this.workspaceStorage.set(BrowserStorageService.WORKSPACE_IS_NEW_KEY, true);
 		} else if (firstOpen) {
-			this.workspaceStorage.set(WorkspaceStorageSettings.WORKSPACE_FIRST_OPEN, false);
+			this.workspaceStorage.set(BrowserStorageService.WORKSPACE_IS_NEW_KEY, false);
 		}
 
 		// In the browser we do not have support for long running unload sequences. As such,
@@ -186,6 +187,10 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		// Instead we trigger dispose() to ensure that no timeouts or callbacks
 		// get triggered in this phase.
 		this.dispose();
+	}
+
+	isNew(scope: StorageScope.WORKSPACE): boolean {
+		return this.getBoolean(BrowserStorageService.WORKSPACE_IS_NEW_KEY, scope) === true;
 	}
 
 	dispose(): void {

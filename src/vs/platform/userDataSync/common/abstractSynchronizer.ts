@@ -9,7 +9,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import {
 	SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService,
-	IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, Conflict, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncPreview, IUserDataManifest, ISyncData, IRemoteUserData
+	IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, Conflict, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncResourcePreview as IBaseSyncResourcePreview, IUserDataManifest, ISyncData, IRemoteUserData, PREVIEW_DIR_NAME
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname, isEqual, basename } from 'vs/base/common/resources';
@@ -52,11 +52,17 @@ function isSyncData(thing: any): thing is ISyncData {
 	return false;
 }
 
+export interface ISyncResourcePreview extends IBaseSyncResourcePreview {
+	readonly remoteUserData: IRemoteUserData;
+	readonly lastSyncUserData: IRemoteUserData | null;
+}
+
 export abstract class AbstractSynchroniser extends Disposable {
 
-	private syncPreviewPromise: CancelablePromise<ISyncPreview> | null = null;
+	private syncPreviewPromise: CancelablePromise<ISyncResourcePreview> | null = null;
 
 	protected readonly syncFolder: URI;
+	protected readonly syncPreviewFolder: URI;
 	private readonly currentMachineIdPromise: Promise<string>;
 
 	private _status: SyncStatus = SyncStatus.Idle;
@@ -93,6 +99,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		super();
 		this.syncResourceLogLabel = uppercaseFirstLetter(this.resource);
 		this.syncFolder = joinPath(environmentService.userDataSyncHome, resource);
+		this.syncPreviewFolder = joinPath(this.syncFolder, PREVIEW_DIR_NAME);
 		this.lastSyncResource = joinPath(this.syncFolder, `lastSync${this.resource}.json`);
 		this.currentMachineIdPromise = getServiceMachineId(environmentService, fileService, storageService);
 	}
@@ -287,7 +294,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		return this.getRemoteUserData(lastSyncUserData);
 	}
 
-	async generateSyncPreview(): Promise<ISyncPreview | null> {
+	async generateSyncPreview(): Promise<ISyncResourcePreview | null> {
 		if (this.isEnabled()) {
 			const lastSyncUserData = await this.getLastSyncUserData();
 			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
@@ -360,7 +367,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
-	protected async getSyncPreviewInProgress(): Promise<ISyncPreview | null> {
+	protected async getSyncPreviewInProgress(): Promise<ISyncResourcePreview | null> {
 		return this.syncPreviewPromise ? this.syncPreviewPromise : null;
 	}
 
@@ -528,15 +535,15 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected abstract readonly version: number;
-	protected abstract generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncPreview>;
-	protected abstract generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncPreview>;
-	protected abstract generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreview>;
-	protected abstract generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncPreview>;
-	protected abstract updatePreviewWithConflict(preview: ISyncPreview, conflictResource: URI, content: string, token: CancellationToken): Promise<ISyncPreview>;
-	protected abstract applyPreview(preview: ISyncPreview, forcePush: boolean): Promise<void>;
+	protected abstract generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncResourcePreview>;
+	protected abstract generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncResourcePreview>;
+	protected abstract generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncResourcePreview>;
+	protected abstract generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncResourcePreview>;
+	protected abstract updatePreviewWithConflict(preview: ISyncResourcePreview, conflictResource: URI, content: string, token: CancellationToken): Promise<ISyncResourcePreview>;
+	protected abstract applyPreview(preview: ISyncResourcePreview, forcePush: boolean): Promise<void>;
 }
 
-export interface IFileSyncPreview extends ISyncPreview {
+export interface IFileSyncPreview extends ISyncResourcePreview {
 	readonly fileContent: IFileContent | null;
 	readonly content: string | null;
 }
@@ -568,7 +575,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		} catch (e) { /* ignore */ }
 	}
 
-	protected async getConflictContent(conflictResource: URI): Promise<string | null> {
+	protected async resolvePreviewContent(conflictResource: URI): Promise<string | null> {
 		if (isEqual(this.remotePreviewResource, conflictResource) || isEqual(this.localPreviewResource, conflictResource)) {
 			const syncPreview = await this.getSyncPreviewInProgress();
 			if (syncPreview) {

@@ -638,7 +638,8 @@ var AMDLoader;
                 }
                 moduleManager.enqueueDefineAnonymousModule([], function () { return moduleExports_1; });
                 callback();
-            } else {
+            }
+            else {
                 var script = document.createElement('script');
                 script.setAttribute('async', 'async');
                 script.setAttribute('type', 'text/javascript');
@@ -758,15 +759,15 @@ var AMDLoader;
             var recorder = moduleManager.getRecorder();
             if (/^node\|/.test(scriptSrc)) {
                 var pieces = scriptSrc.split('|');
-                var moduleExports_1 = null;
+                var moduleExports_2 = null;
                 try {
-                    moduleExports_1 = nodeRequire(pieces[1]);
+                    moduleExports_2 = nodeRequire(pieces[1]);
                 }
                 catch (err) {
                     errorback(err);
                     return;
                 }
-                moduleManager.enqueueDefineAnonymousModule([], function () { return moduleExports_1; });
+                moduleManager.enqueueDefineAnonymousModule([], function () { return moduleExports_2; });
                 callback();
             }
             else {
@@ -869,6 +870,12 @@ var AMDLoader;
                     }
                     var cachedData = script.createCachedData();
                     if (cachedData.length === 0 || cachedData.length === lastSize || iteration >= 5) {
+                        // done
+                        return;
+                    }
+                    if (cachedData.length < lastSize) {
+                        // less data than before: skip, try again next round
+                        createLoop();
                         return;
                     }
                     lastSize = cachedData.length;

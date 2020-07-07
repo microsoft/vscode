@@ -1033,7 +1033,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 				defaultUri
 			});
 			if (destination) {
-				await workingCopyFileService.copy([{ source: s.resource, target: destination }], true);
+				await workingCopyFileService.copy([{ source: s.resource, target: destination }], { overwrite: true });
 			} else {
 				// User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
 				canceled = true;

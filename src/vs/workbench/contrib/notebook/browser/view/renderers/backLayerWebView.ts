@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN, CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellOutputKind, IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -86,18 +86,14 @@ export interface IClearMessage {
 	type: 'clear';
 }
 
-export interface IFocusOutputMessage {
-	type: 'focus-output';
-	id: string;
-}
-
 export interface ICreationRequestMessage {
 	type: 'html';
 	content: string;
-	id: string;
+	cellId: string;
 	outputId: string;
 	top: number;
 	left: number;
+	requiredPreloads: IPreloadResource[];
 	initiallyHidden?: boolean;
 	apiNamespace?: string | undefined;
 }
@@ -125,25 +121,28 @@ export interface IScrollRequestMessage {
 
 export interface IClearOutputRequestMessage {
 	type: 'clearOutput';
-	id: string;
+	cellId: string;
+	outputId: string;
 	cellUri: string;
 	apiNamespace: string | undefined;
 }
 
 export interface IHideOutputMessage {
 	type: 'hideOutput';
-	id: string;
+	outputId: string;
+	cellId: string;
 }
 
 export interface IShowOutputMessage {
 	type: 'showOutput';
-	id: string;
+	cellId: string;
+	outputId: string;
 	top: number;
 }
 
 export interface IFocusOutputMessage {
 	type: 'focus-output';
-	id: string;
+	cellId: string;
 }
 
 export interface IPreloadResource {
@@ -243,7 +242,7 @@ export class BackLayerWebView extends Disposable {
 
 		this.element = document.createElement('div');
 
-		this.element.style.width = `calc(100% - ${CODE_CELL_LEFT_MARGIN + CELL_MARGIN + CELL_RUN_GUTTER}px)`;
+		this.element.style.width = `calc(100% - ${CODE_CELL_LEFT_MARGIN + (CELL_MARGIN * 2) + CELL_RUN_GUTTER}px)`;
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
 		this.element.style.margin = `0px 0 0px ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px`;
@@ -313,7 +312,7 @@ export class BackLayerWebView extends Disposable {
 
 		if (!isWeb) {
 			coreDependencies = `<script src="${loader}"></script>`;
-			const htmlContent = this.generateContent(8, coreDependencies, baseUrl.toString());
+			const htmlContent = this.generateContent(CELL_OUTPUT_PADDING, coreDependencies, baseUrl.toString());
 			this.initialize(htmlContent);
 			resolveFunc!();
 		} else {
@@ -330,7 +329,7 @@ ${loaderJs}
 </script>
 `;
 
-				const htmlContent = this.generateContent(8, coreDependencies, baseUrl.toString());
+				const htmlContent = this.generateContent(CELL_OUTPUT_PADDING, coreDependencies, baseUrl.toString());
 				this.initialize(htmlContent);
 				resolveFunc!();
 			});
@@ -340,11 +339,19 @@ ${loaderJs}
 	}
 
 	async initialize(content: string) {
+		if (!document.body.contains(this.element)) {
+			throw new Error('Element is already detached from the DOM tree');
+		}
+
 		this.webview = this._createInset(this.webviewService, content);
 		this.webview.mountTo(this.element);
 		this._register(this.webview);
 
 		this._register(this.webview.onDidClickLink(link => {
+			if (this._disposed) {
+				return;
+			}
+
 			if (!link) {
 				return;
 			}
@@ -356,6 +363,10 @@ ${loaderJs}
 		}));
 
 		this._register(this.webview.onDidReload(() => {
+			if (this._disposed) {
+				return;
+			}
+
 			this.preloadsCache.clear();
 			for (const [output, inset] of this.insetMapping.entries()) {
 				this.updateRendererPreloads(inset.preloads);
@@ -364,6 +375,10 @@ ${loaderJs}
 		}));
 
 		this._register(this.webview.onMessage((data: FromWebviewMessage) => {
+			if (this._disposed) {
+				return;
+			}
+
 			if (data.__vscode_notebook_message) {
 				if (data.type === 'dimension') {
 					let height = data.data.height;
@@ -544,12 +559,12 @@ ${loaderJs}
 		});
 	}
 
-	createInset(cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<string>) {
+	async createInset(cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<string>) {
 		if (this._disposed) {
 			return;
 		}
 
-		this.updateRendererPreloads(preloads);
+		const requiredPreloads = await this.updateRendererPreloads(preloads);
 		let initialTop = cellTop + offset;
 
 		if (this.insetMapping.has(output)) {
@@ -559,7 +574,8 @@ ${loaderJs}
 				this.hiddenInsetMapping.delete(output);
 				this._sendMessageToWebview({
 					type: 'showOutput',
-					id: outputCache.outputId,
+					cellId: outputCache.cell.id,
+					outputId: outputCache.outputId,
 					top: initialTop
 				});
 				return;
@@ -578,10 +594,11 @@ ${loaderJs}
 		let message: ICreationRequestMessage = {
 			type: 'html',
 			content: shadowContent,
-			id: cell.id,
+			cellId: cell.id,
 			apiNamespace,
 			outputId: outputId,
 			top: initialTop,
+			requiredPreloads,
 			left: 0
 		};
 
@@ -607,7 +624,8 @@ ${loaderJs}
 			type: 'clearOutput',
 			apiNamespace: outputCache.cachedCreation.apiNamespace,
 			cellUri: outputCache.cell.uri.toString(),
-			id: id
+			outputId: id,
+			cellId: outputCache.cell.id
 		});
 		this.insetMapping.delete(output);
 		this.reversedInsetMapping.delete(id);
@@ -623,12 +641,12 @@ ${loaderJs}
 			return;
 		}
 
-		let id = outputCache.outputId;
 		this.hiddenInsetMapping.add(output);
 
 		this._sendMessageToWebview({
 			type: 'hideOutput',
-			id: id
+			outputId: outputCache.outputId,
+			cellId: outputCache.cell.id,
 		});
 	}
 
@@ -645,6 +663,14 @@ ${loaderJs}
 		this.reversedInsetMapping = new Map();
 	}
 
+	focusWebview() {
+		if (this._disposed) {
+			return;
+		}
+
+		this.webview.focus();
+	}
+
 	focusOutput(cellId: string) {
 		if (this._disposed) {
 			return;
@@ -654,7 +680,7 @@ ${loaderJs}
 		setTimeout(() => { // Need this, or focus decoration is not shown. No clue.
 			this._sendMessageToWebview({
 				type: 'focus-output',
-				id: cellId
+				cellId,
 			});
 		}, 50);
 	}
@@ -691,11 +717,12 @@ ${loaderJs}
 
 	async updateRendererPreloads(preloads: ReadonlySet<string>) {
 		if (this._disposed) {
-			return;
+			return [];
 		}
 
 		await this._loaded;
 
+		let requiredPreloads: IPreloadResource[] = [];
 		let resources: IPreloadResource[] = [];
 		let extensionLocations: URI[] = [];
 		preloads.forEach(preload => {
@@ -710,8 +737,11 @@ ${loaderJs}
 				});
 				extensionLocations.push(rendererInfo.extensionLocation);
 				preloadResources.forEach(e => {
+					const resource: IPreloadResource = { uri: e.toString() };
+					requiredPreloads.push(resource);
+
 					if (!this.preloadsCache.has(e.toString())) {
-						resources.push({ uri: e.toString() });
+						resources.push(resource);
 						this.preloadsCache.set(e.toString(), true);
 					}
 				});
@@ -719,11 +749,12 @@ ${loaderJs}
 		});
 
 		if (!resources.length) {
-			return;
+			return requiredPreloads;
 		}
 
 		this.rendererRootsCache = extensionLocations;
 		this._updatePreloads(resources, 'renderer');
+		return requiredPreloads;
 	}
 
 	private _updatePreloads(resources: IPreloadResource[], source: 'renderer' | 'kernel') {
@@ -739,6 +770,10 @@ ${loaderJs}
 	}
 
 	private _sendMessageToWebview(message: ToWebviewMessage) {
+		if (this._disposed) {
+			return;
+		}
+
 		this.webview.postMessage(message);
 	}
 
@@ -748,6 +783,7 @@ ${loaderJs}
 
 	dispose() {
 		this._disposed = true;
+		this.webview.dispose();
 		super.dispose();
 	}
 }

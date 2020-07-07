@@ -158,7 +158,7 @@ export interface MainThreadCommentsShape extends IDisposable {
 }
 
 export interface MainThreadAuthenticationShape extends IDisposable {
-	$registerAuthenticationProvider(id: string, displayName: string, supportsMultipleAccounts: boolean): void;
+	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): void;
 	$unregisterAuthenticationProvider(id: string): void;
 	$getProviderIds(): Promise<string[]>;
 	$sendDidChangeSessions(providerId: string, event: modes.AuthenticationSessionsChangeEvent): void;
@@ -734,7 +734,7 @@ export interface ITextSearchComplete {
 export interface MainThreadWorkspaceShape extends IDisposable {
 	$startFileSearch(includePattern: string | null, includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false | null, maxResults: number | null, token: CancellationToken): Promise<UriComponents[] | null>;
 	$startTextSearch(query: search.IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null>;
-	$checkExists(folders: UriComponents[], includes: string[], token: CancellationToken): Promise<boolean>;
+	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean>;
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string; }[]): Promise<void>;
 	$resolveProxy(url: string): Promise<string | undefined>;
@@ -858,7 +858,7 @@ export interface IStartDebuggingOptions {
 	parentSessionID?: DebugSessionUUID;
 	repl?: IDebugSessionReplMode;
 	noDebug?: boolean;
-	noCompact?: boolean;
+	compact?: boolean;
 }
 
 export interface MainThreadDebugServiceShape extends IDisposable {
@@ -1437,7 +1437,7 @@ export interface ExtHostSCMShape {
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number, preserveFocus: boolean): Promise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string, number] | undefined>;
-	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Promise<void>;
+	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void>;
 }
 
 export interface ExtHostTaskShape {

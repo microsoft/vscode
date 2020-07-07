@@ -185,7 +185,7 @@ export async function readTrustedDomains(accessor: ServicesAccessor) {
 	const userDomains =
 		authenticationService.isAuthenticationProviderRegistered('github')
 			? ((await authenticationService.getSessions('github')) ?? [])
-				.map(session => session.account.displayName)
+				.map(session => session.account.label)
 				.filter((v, i, a) => a.indexOf(v) === i)
 				.map(username => `https://github.com/${username}/`)
 			: [];

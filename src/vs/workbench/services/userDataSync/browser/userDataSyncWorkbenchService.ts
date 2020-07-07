@@ -49,7 +49,7 @@ class UserDataSyncAccount implements IUserDataSyncAccount {
 	constructor(readonly authenticationProviderId: string, private readonly session: AuthenticationSession) { }
 
 	get sessionId(): string { return this.session.id; }
-	get accountName(): string { return this.session.account.displayName; }
+	get accountName(): string { return this.session.account.label; }
 	get accountId(): string { return this.session.account.id; }
 	get token(): string { return this.session.accessToken; }
 }
@@ -305,7 +305,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (isAuthenticationProvider(result)) {
 			const session = await this.authenticationService.login(result.id, result.scopes);
 			sessionId = session.id;
-			accountName = session.account.displayName;
+			accountName = session.account.label;
 			accountId = session.account.id;
 		} else {
 			sessionId = result.sessionId;
@@ -361,7 +361,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			quickPickItems.push({ type: 'separator', label: localize('signed in', "Signed in") });
 			for (const authenticationProvider of authenticationProviders) {
 				const accounts = (this._all.get(authenticationProvider.id) || []).sort(({ sessionId }) => sessionId === this.current?.sessionId ? -1 : 1);
-				const providerName = this.authenticationService.getDisplayName(authenticationProvider.id);
+				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
 				for (const account of accounts) {
 					quickPickItems.push({
 						label: `${account.accountName} (${providerName})`,
@@ -378,7 +378,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		for (const authenticationProvider of this.authenticationProviders) {
 			const signedInForProvider = this.all.some(account => account.authenticationProviderId === authenticationProvider.id);
 			if (!signedInForProvider || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {
-				const providerName = this.authenticationService.getDisplayName(authenticationProvider.id);
+				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
 				quickPickItems.push({ label: localize('sign in using account', "Sign in with {0}", providerName), authenticationProvider });
 			}
 		}

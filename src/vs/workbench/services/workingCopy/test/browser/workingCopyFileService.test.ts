@@ -12,6 +12,7 @@ import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorM
 import { URI } from 'vs/base/common/uri';
 import { FileOperation } from 'vs/platform/files/common/files';
 import { TestWorkingCopy } from 'vs/workbench/services/workingCopy/test/common/workingCopyService.test';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 suite('WorkingCopyFileService', () => {
 
@@ -25,6 +26,10 @@ suite('WorkingCopyFileService', () => {
 
 	teardown(() => {
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
+	});
+
+	test('create - dirty file', async function () {
+		await testCreate(toResource.call(this, '/path/file.txt'), VSBuffer.fromString('Hello World'));
 	});
 
 	test('delete - dirty file', async function () {
@@ -202,9 +207,9 @@ suite('WorkingCopyFileService', () => {
 		});
 
 		if (move) {
-			await accessor.workingCopyFileService.move(files, true);
+			await accessor.workingCopyFileService.move(files, { overwrite: true });
 		} else {
-			await accessor.workingCopyFileService.copy(files, true);
+			await accessor.workingCopyFileService.copy(files, { overwrite: true });
 		}
 
 		participant.dispose();
@@ -282,9 +287,9 @@ suite('WorkingCopyFileService', () => {
 		});
 
 		if (move) {
-			await accessor.workingCopyFileService.move(models.map(m => ({ source: m.sourceModel.resource, target: m.targetModel.resource })), true);
+			await accessor.workingCopyFileService.move(models.map(model => ({ source: model.sourceModel.resource, target: model.targetModel.resource })), { overwrite: true });
 		} else {
-			await accessor.workingCopyFileService.copy(models.map(m => ({ source: m.sourceModel.resource, target: m.targetModel.resource })), true);
+			await accessor.workingCopyFileService.copy(models.map(model => ({ source: model.sourceModel.resource, target: model.targetModel.resource })), { overwrite: true });
 		}
 
 		for (let i = 0; i < models.length; i++) {
@@ -363,6 +368,56 @@ suite('WorkingCopyFileService', () => {
 			assert.ok(!accessor.workingCopyService.isDirty(model.resource));
 			model.dispose();
 		}
+
+		assert.equal(eventCounter, 3);
+
+		participant.dispose();
+		listener1.dispose();
+		listener2.dispose();
+	}
+
+	async function testCreate(resource: URI, contents: VSBuffer) {
+		const model = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8', undefined);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+
+		await model.load();
+		model!.textEditorModel!.setValue('foo');
+		assert.ok(accessor.workingCopyService.isDirty(model.resource));
+
+		let eventCounter = 0;
+		let correlationId: number | undefined = undefined;
+
+		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
+			participate: async (files, operation) => {
+				assert.equal(files.length, 1);
+				const file = files[0];
+				assert.equal(file.target.toString(), model.resource.toString());
+				assert.equal(operation, FileOperation.CREATE);
+				eventCounter++;
+			}
+		});
+
+		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
+			assert.equal(e.files.length, 1);
+			const file = e.files[0];
+			assert.equal(file.target.toString(), model.resource.toString());
+			assert.equal(e.operation, FileOperation.CREATE);
+			correlationId = e.correlationId;
+			eventCounter++;
+		});
+
+		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
+			assert.equal(e.files.length, 1);
+			const file = e.files[0];
+			assert.equal(file.target.toString(), model.resource.toString());
+			assert.equal(e.operation, FileOperation.CREATE);
+			assert.equal(e.correlationId, correlationId);
+			eventCounter++;
+		});
+
+		await accessor.workingCopyFileService.create(resource, contents);
+		assert.ok(!accessor.workingCopyService.isDirty(model.resource));
+		model.dispose();
 
 		assert.equal(eventCounter, 3);
 

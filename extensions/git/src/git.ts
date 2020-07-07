@@ -419,7 +419,7 @@ export class Git {
 	}
 
 	async getRepositoryRoot(repositoryPath: string): Promise<string> {
-		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel']);
+		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel'], { log: false });
 
 		// Keep trailing spaces which are part of the directory name
 		const repoPath = path.normalize(result.stdout.trimLeft().replace(/[\r\n]+$/, ''));
@@ -1937,6 +1937,17 @@ export class Repository {
 	// TODO: Support core.commentChar
 	stripCommitMessageComments(message: string): string {
 		return message.replace(/^\s*#.*$\n?/gm, '').trim();
+	}
+
+	async getSquashMessage(): Promise<string | undefined> {
+		const squashMsgPath = path.join(this.repositoryRoot, '.git', 'SQUASH_MSG');
+
+		try {
+			const raw = await fs.readFile(squashMsgPath, 'utf8');
+			return this.stripCommitMessageComments(raw);
+		} catch {
+			return undefined;
+		}
 	}
 
 	async getMergeMessage(): Promise<string | undefined> {

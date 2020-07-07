@@ -40,7 +40,6 @@ export const CutAction = supportsCut ? registerCommand(new MultiCommand({
 		// Do not bind cut keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
 		platform.isNative ? {
-			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] },
 			weight: KeybindingWeight.EditorContrib
@@ -72,7 +71,6 @@ export const CopyAction = supportsCopy ? registerCommand(new MultiCommand({
 		// Do not bind copy keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
 		platform.isNative ? {
-			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] },
 			weight: KeybindingWeight.EditorContrib
@@ -103,7 +101,6 @@ export const PasteAction = supportsPaste ? registerCommand(new MultiCommand({
 		// Do not bind paste keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
 		platform.isNative ? {
-			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
 			linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },

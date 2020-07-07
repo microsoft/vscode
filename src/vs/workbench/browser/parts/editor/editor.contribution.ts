@@ -15,7 +15,6 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -276,10 +275,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeModeAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Language Mode');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeEOLAction), 'Change End of Line Sequence');
-
-if (Object.keys(SUPPORTED_ENCODINGS).length > 1) {
-	registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeEncodingAction), 'Change File Encoding');
-}
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeEncodingAction), 'Change File Encoding');
 
 // Register Editor Quick Access
 const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);
@@ -460,9 +456,9 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCo
 
 // Editor Title Menu
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.TOGGLE_DIFF_SIDE_BY_SIDE, title: nls.localize('toggleInlineView', "Toggle Inline View") }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.SHOW_EDITORS_IN_GROUP, title: nls.localize('showOpenedEditors', "Show Opened Editors") }, group: '3_open', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.SHOW_EDITORS_IN_GROUP, title: nls.localize('showOpenedEditors', "Show Opened Editors") }, group: '3_open', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: ReopenResourcesAction.ID, title: ReopenResourcesAction.LABEL }, group: '6_reopen', order: 20, when: ActiveEditorAvailableEditorIdsContext });
 
 interface IEditorToolItem { id: string; title: string; icon?: { dark?: URI; light?: URI; } | ThemeIcon; }

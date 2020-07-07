@@ -364,6 +364,8 @@ export class CodeCell extends Disposable {
 		let hasDynamicHeight = result.hasDynamicHeight;
 
 		if (hasDynamicHeight) {
+			this.viewCell.selfSizeMonitoring = true;
+
 			let clientHeight = outputItemDiv.clientHeight;
 			let dimension = {
 				width: this.viewCell.layoutInfo.editorWidth,

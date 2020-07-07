@@ -26,7 +26,8 @@ import {
 	Uri,
 	workspace,
 } from 'vscode';
-import { IChangeStore, ContextStore } from './stores';
+import { IWritableChangeStore } from './changeStore';
+import { ContextStore } from './contextStore';
 import { GitHubApiContext } from './github/api';
 
 const emptyDisposable = { dispose: () => { /* noop */ } };
@@ -42,26 +43,22 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 
 	constructor(
 		readonly scheme: string,
-		private readonly originalScheme: string,
-		contextStore: ContextStore<GitHubApiContext>,
-		private readonly changeStore: IChangeStore,
+		private readonly contextStore: ContextStore<GitHubApiContext>,
+		private readonly changeStore: IWritableChangeStore,
 		private readonly fs: FileSystemProvider & FileSearchProvider & TextSearchProvider
 	) {
 		// TODO@eamodio listen for workspace folder changes
-		for (const folder of workspace.workspaceFolders ?? []) {
-			const uri = this.getOriginalResource(folder.uri);
-
+		for (const context of contextStore.getForWorkspace()) {
 			// If we have a saved context, but no longer have any changes, reset the context
 			// We only do this on startup/reload to keep things consistent
-			if (contextStore.get(uri) !== undefined && !changeStore.hasChanges(folder.uri)) {
-				contextStore.delete(uri);
+			if (!changeStore.hasChanges(context.folderUri)) {
+				console.log('Clear context', context.folderUri.toString());
+				contextStore.delete(context.folderUri);
 			}
 		}
 
 		this.disposable = Disposable.from(
-			workspace.registerFileSystemProvider(scheme, this, {
-				isCaseSensitive: true,
-			}),
+			workspace.registerFileSystemProvider(scheme, this, { isCaseSensitive: true }),
 			workspace.registerFileSearchProvider(scheme, this),
 			workspace.registerTextSearchProvider(scheme, this),
 			changeStore.onDidChange(e => {
@@ -85,7 +82,11 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 	}
 
 	private getOriginalResource(uri: Uri): Uri {
-		return uri.with({ scheme: this.originalScheme });
+		return this.contextStore.getOriginalResource(uri);
+	}
+
+	private getWorkspaceResource(uri: Uri): Uri {
+		return this.contextStore.getWorkspaceResource(uri);
 	}
 
 	//#region FileSystemProvider
@@ -100,21 +101,19 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 			return stat;
 		}
 
-		if (uri.path === '' || uri.path.lastIndexOf('/') === 0) {
-			return { type: FileType.Directory, size: 0, ctime: 0, mtime: 0 };
-		}
-
 		stat = await this.fs.stat(this.getOriginalResource(uri));
 		return stat;
 	}
 
 	async readDirectory(uri: Uri): Promise<[string, FileType][]> {
-		const entries = await this.fs.readDirectory(this.getOriginalResource(uri));
+		let entries = await this.fs.readDirectory(this.getOriginalResource(uri));
+		entries = this.changeStore.updateDirectoryEntries(uri, entries);
 		return entries;
 	}
 
 	createDirectory(_uri: Uri): void | Thenable<void> {
-		throw FileSystemError.NoPermissions;
+		// TODO@eamodio only support files for now
+		throw FileSystemError.NoPermissions();
 	}
 
 	async readFile(uri: Uri): Promise<Uint8Array> {
@@ -127,20 +126,60 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 		return data;
 	}
 
-	async writeFile(uri: Uri, content: Uint8Array, _options: { create: boolean, overwrite: boolean }): Promise<void> {
-		await this.changeStore.recordFileChange(uri, content, () => this.fs.readFile(this.getOriginalResource(uri)));
+	async writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): Promise<void> {
+		let stat;
+		try {
+			stat = await this.stat(uri);
+			if (!options.overwrite) {
+				throw FileSystemError.FileExists();
+			}
+		} catch (ex) {
+			if (ex instanceof FileSystemError && ex.code === 'FileNotFound') {
+				if (!options.create) {
+					throw FileSystemError.FileNotFound();
+				}
+			} else {
+				throw ex;
+			}
+		}
+
+		if (stat === undefined) {
+			await this.changeStore.onFileCreated(uri, content);
+		} else {
+			await this.changeStore.onFileChanged(uri, content, () => this.fs.readFile(this.getOriginalResource(uri)));
+		}
 	}
 
-	delete(_uri: Uri, _options: { recursive: boolean }): void | Thenable<void> {
-		throw FileSystemError.NoPermissions;
+	async delete(uri: Uri, _options: { recursive: boolean }): Promise<void> {
+		const stat = await this.stat(uri);
+		if (stat.type !== FileType.File) {
+			throw FileSystemError.NoPermissions();
+		}
+
+		await this.changeStore.onFileDeleted(uri);
 	}
 
-	rename(_oldUri: Uri, _newUri: Uri, _options: { overwrite: boolean }): void | Thenable<void> {
-		throw FileSystemError.NoPermissions;
+	async rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): Promise<void> {
+		const stat = await this.stat(oldUri);
+		// TODO@eamodio only support files for now
+		if (stat.type !== FileType.File) {
+			throw FileSystemError.NoPermissions();
+		}
+
+		const content = await this.readFile(oldUri);
+		await this.writeFile(newUri, content, { create: true, overwrite: options.overwrite });
+		await this.delete(oldUri, { recursive: false });
 	}
 
-	copy(_source: Uri, _destination: Uri, _options: { overwrite: boolean }): void | Thenable<void> {
-		throw FileSystemError.NoPermissions;
+	async copy(source: Uri, destination: Uri, options: { overwrite: boolean }): Promise<void> {
+		const stat = await this.stat(source);
+		// TODO@eamodio only support files for now
+		if (stat.type !== FileType.File) {
+			throw FileSystemError.NoPermissions();
+		}
+
+		const content = await this.readFile(source);
+		await this.writeFile(destination, content, { create: true, overwrite: options.overwrite });
 	}
 
 	//#endregion
@@ -165,7 +204,12 @@ export class VirtualFS implements FileSystemProvider, FileSearchProvider, TextSe
 		progress: Progress<TextSearchResult>,
 		token: CancellationToken,
 	) {
-		return this.fs.provideTextSearchResults(query, { ...options, folder: this.getOriginalResource(options.folder) }, progress, token);
+		return this.fs.provideTextSearchResults(
+			query,
+			{ ...options, folder: this.getOriginalResource(options.folder) },
+			{ report: (result: TextSearchResult) => progress.report({ ...result, uri: this.getWorkspaceResource(result.uri) }) },
+			token
+		);
 	}
 
 	//#endregion

@@ -34,25 +34,30 @@ declare module 'vscode' {
 		/**
 		 * The account associated with the session.
 		 */
-		readonly account: {
-			/**
-			 * The human-readable name of the account.
-			 */
-			readonly displayName: string;
-
-			/**
-			 * The unique identifier of the account.
-			 */
-			readonly id: string;
-		};
+		readonly account: AuthenticationSessionAccountInformation;
 
 		/**
 		 * The permissions granted by the session's access token. Available scopes
 		 * are defined by the authentication provider.
 		 */
-		readonly scopes: string[];
+		readonly scopes: ReadonlyArray<string>;
 
-		constructor(id: string, accessToken: string, account: { displayName: string, id: string }, scopes: string[]);
+		constructor(id: string, accessToken: string, account: AuthenticationSessionAccountInformation, scopes: string[]);
+	}
+
+	/**
+	 * The information of an account associated with an authentication session.
+	 */
+	export interface AuthenticationSessionAccountInformation {
+		/**
+		 * The human-readable name of the account.
+		 */
+		readonly label: string;
+
+		/**
+		 * The unique identifier of the account.
+		 */
+		readonly id: string;
 	}
 
 	/**
@@ -62,12 +67,12 @@ declare module 'vscode' {
 		/**
 		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been added.
 		 */
-		readonly added: string[];
+		readonly added: ReadonlyArray<string>;
 
 		/**
 		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed.
 		 */
-		readonly removed: string[];
+		readonly removed: ReadonlyArray<string>;
 	}
 
 	/**
@@ -93,17 +98,17 @@ declare module 'vscode' {
 		/**
 		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been added.
 		*/
-		readonly added: string[];
+		readonly added: ReadonlyArray<string>;
 
 		/**
 		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been removed.
 		 */
-		readonly removed: string[];
+		readonly removed: ReadonlyArray<string>;
 
 		/**
 		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been changed.
 		 */
-		readonly changed: string[];
+		readonly changed: ReadonlyArray<string>;
 	}
 
 	/**
@@ -122,7 +127,7 @@ declare module 'vscode' {
 		/**
 		 * The human-readable name of the provider.
 		 */
-		readonly displayName: string;
+		readonly label: string;
 
 		/**
 		 * Whether it is possible to be signed into multiple accounts at once with this provider
@@ -170,16 +175,16 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
+		 * @deprecated
 		 * The ids of the currently registered authentication providers.
 		 * @returns An array of the ids of authentication providers that are currently registered.
 		 */
 		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
 
 		/**
-		 * @deprecated
 		 * An array of the ids of authentication providers that are currently registered.
 		 */
-		export const providerIds: string[];
+		export const providerIds: ReadonlyArray<string>;
 
 		/**
 		 * Returns whether a provider has any sessions matching the requested scopes. This request
@@ -830,12 +835,11 @@ declare module 'vscode' {
 		noDebug?: boolean;
 
 		/**
-		 * Controls if the debug session created will be compacted with the parent in the CALL STACK view.
-		 * Compact with the parent is only done if the session is the only child of it's parent session.
-		 * Default is to compact.
-		 *
+		 * Controls if the debug session's parent session is shown in the CALL STACK view even if it has only a single child.
+		 * By default, the debug session will never hide its parent.
+		 * If compact is true, debug sessions with a single child are hidden in the CALL STACK view to make the tree more compact.
 		 */
-		noCompact?: boolean;
+		compact?: boolean;
 	}
 
 	// deprecated debug API
@@ -1053,7 +1057,9 @@ declare module 'vscode' {
 
 	export interface TerminalLinkProvider<T extends TerminalLink = TerminalLink> {
 		/**
-		 * Provide terminal links for the given context.
+		 * Provide terminal links for the given context. Note that this can be called multiple times
+		 * even before previous calls resolve, make sure to not share global objects (eg. `RegExp`)
+		 * that could have problems when asynchronous usage may overlap.
 		 * @param context Information about what links are being provided for.
 		 */
 		provideTerminalLinks(context: TerminalLinkContext): ProviderResult<T[]>
@@ -1762,7 +1768,7 @@ declare module 'vscode' {
 		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent>;
+		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent | NotebookDocumentEditEvent>;
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
 
 		kernel?: NotebookKernel;

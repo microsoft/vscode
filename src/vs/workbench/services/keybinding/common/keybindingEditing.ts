@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { Queue } from 'vs/base/common/async';
 import * as json from 'vs/base/common/json';
+import * as objects from 'vs/base/common/objects';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { Edit } from 'vs/base/common/jsonFormatter';
 import { Disposable, IReference } from 'vs/base/common/lifecycle';
@@ -143,7 +144,11 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		const eol = model.getEOL();
 		const key = keybindingItem.resolvedKeybinding ? keybindingItem.resolvedKeybinding.getUserSettingsLabel() : null;
 		if (key) {
-			this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(key, keybindingItem.command, keybindingItem.when ? keybindingItem.when.serialize() : undefined, true), { tabSize, insertSpaces, eol })[0], model);
+			const entry: IUserFriendlyKeybinding = this.asObject(key, keybindingItem.command, keybindingItem.when ? keybindingItem.when.serialize() : undefined, true);
+			const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
+			if (userKeybindingEntries.every(e => !this.areSame(e, entry))) {
+				this.applyEditsToBuffer(setProperty(model.getValue(), [-1], entry, { tabSize, insertSpaces, eol })[0], model);
+			}
 		}
 	}
 
@@ -196,6 +201,26 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		return object;
 	}
 
+	private areSame(a: IUserFriendlyKeybinding, b: IUserFriendlyKeybinding): boolean {
+		if (a.command !== b.command) {
+			return false;
+		}
+		if (a.key !== b.key) {
+			return false;
+		}
+		const whenA = ContextKeyExpr.deserialize(a.when);
+		const whenB = ContextKeyExpr.deserialize(b.when);
+		if ((whenA && !whenB) || (!whenA && whenB)) {
+			return false;
+		}
+		if (whenA && whenB && !whenA.equals(whenB)) {
+			return false;
+		}
+		if (!objects.equals(a.args, b.args)) {
+			return false;
+		}
+		return true;
+	}
 
 	private applyEditsToBuffer(edit: Edit, model: ITextModel): void {
 		const startPosition = model.getPositionAt(edit.offset);
@@ -205,7 +230,6 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		const editOperation = currentText ? EditOperation.replace(range, edit.content) : EditOperation.insert(startPosition, edit.content);
 		model.pushEditOperations([new Selection(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column)], [editOperation], () => []);
 	}
-
 
 	private resolveModelReference(): Promise<IReference<IResolvedTextEditorModel>> {
 		return this.fileService.exists(this.resource)

@@ -12,7 +12,7 @@ import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/c
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
-import { values } from 'vs/base/common/map';
+import { toArray } from 'vs/base/common/arrays';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 export type ExtensionKind = 'workspace' | 'ui' | undefined;
@@ -271,7 +271,7 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onStartupFinished',
-						description: nls.localize('vscode.extension.activationEvents.onStartupFinished', 'An activation event emitted after the start-up finished (after all eager activated extensions have finished activating).'),
+						description: nls.localize('vscode.extension.activationEvents.onStartupFinished', 'An activation event emitted after the start-up finished (after all `*` activated extensions have finished activating).'),
 						body: 'onStartupFinished'
 					},
 					{
@@ -444,7 +444,7 @@ export class ExtensionsRegistryImpl {
 	}
 
 	public getExtensionPoints(): ExtensionPoint<any>[] {
-		return values(this._extensionPoints);
+		return toArray(this._extensionPoints.values());
 	}
 }
 

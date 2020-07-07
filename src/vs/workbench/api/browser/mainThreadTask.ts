@@ -368,7 +368,7 @@ namespace TaskDTO {
 
 		const label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		const definition = TaskDefinitionDTO.to(task.definition, executeOnly)!;
-		const id = `${task.source.extensionId}.${definition._key}`;
+		const id = (CustomExecutionDTO.is(task.execution!) && task._id) ? task._id : `${task.source.extensionId}.${definition._key}`;
 		const result: ContributedTask = new ContributedTask(
 			id, // uuidMap.getUUID(identifier)
 			source,

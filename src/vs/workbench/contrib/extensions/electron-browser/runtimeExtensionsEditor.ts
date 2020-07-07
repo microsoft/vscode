@@ -374,7 +374,12 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 						]
 					}, "Activated by {1} because searching for {0} took too long", glob, activationId);
 				} else if (activationEvent === 'onStartupFinished') {
-					title = nls.localize('startupFinishedActivation', "Activated by {0} after start-up finished", activationId);
+					title = nls.localize({
+						key: 'startupFinishedActivation',
+						comment: [
+							'This refers to an extension. {0} will be an activation event.'
+						]
+					}, "Activated by {0} after start-up finished", activationId);
 				} else if (/^onLanguage:/.test(activationEvent)) {
 					let language = activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);

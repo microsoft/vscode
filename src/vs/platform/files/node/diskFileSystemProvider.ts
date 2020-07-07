@@ -46,7 +46,10 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	private readonly BUFFER_SIZE = this.options?.bufferSize || 64 * 1024;
 
-	constructor(private logService: ILogService, private options?: IDiskFileSystemProviderOptions) {
+	constructor(
+		private readonly logService: ILogService,
+		private readonly options?: IDiskFileSystemProviderOptions
+	) {
 		super();
 	}
 
@@ -198,9 +201,9 @@ export class DiskFileSystemProvider extends Disposable implements
 		}
 	}
 
-	private mapHandleToPos: Map<number, number> = new Map();
+	private readonly mapHandleToPos: Map<number, number> = new Map();
 
-	private writeHandles: Set<number> = new Set();
+	private readonly writeHandles: Set<number> = new Set();
 	private canFlush: boolean = true;
 
 	async open(resource: URI, opts: FileOpenOptions): Promise<number> {
@@ -502,14 +505,14 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	//#region File Watching
 
-	private _onDidWatchErrorOccur = this._register(new Emitter<string>());
+	private readonly _onDidWatchErrorOccur = this._register(new Emitter<string>());
 	readonly onDidErrorOccur = this._onDidWatchErrorOccur.event;
 
-	private _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
+	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
 	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService | undefined;
-	private recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
+	private readonly recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
 	private recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
 	private recursiveWatcherLogLevelListener: IDisposable | undefined;

@@ -62,6 +62,14 @@ export namespace Schemas {
 
 	export const webviewPanel = 'webview-panel';
 
+	/**
+	 * Scheme used for loading the wrapper html and script in webviews.
+	 */
+	export const vscodeWebview = 'vscode-webview';
+
+	/**
+	 * Scheme used for loading resources inside of webviews.
+	 */
 	export const vscodeWebviewResource = 'vscode-webview-resource';
 
 	/**

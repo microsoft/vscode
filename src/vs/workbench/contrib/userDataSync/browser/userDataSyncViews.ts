@@ -304,7 +304,7 @@ export class UserDataSyncDataViews extends Disposable {
 				const userDataSyncService = accessor.get(IUserDataSyncService);
 				const { resource, syncResource } = <{ resource: string, syncResource: SyncResource }>JSON.parse(handle.$treeItemHandle);
 				const result = await dialogService.confirm({
-					message: localize('confirm replace', "Would you like to replace your current {0} with selected?", getSyncAreaLabel(syncResource)),
+					message: localize({ key: 'confirm replace', comment: ['A confirmation message to replace current user data (settings, extensions, keybindings, snippets) with selected version'] }, "Would you like to replace your current {0} with selected?", getSyncAreaLabel(syncResource)),
 					type: 'info',
 					title: localize('preferences sync', "Preferences Sync")
 				});
@@ -317,8 +317,8 @@ export class UserDataSyncDataViews extends Disposable {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.actions.sync.commpareWithLocal`,
-					title: localize('workbench.actions.sync.commpareWithLocal', "Open Changes"),
+					id: `workbench.actions.sync.compareWithLocal`,
+					title: localize({ key: 'workbench.actions.sync.compareWithLocal', comment: ['This is an action title to show the changes between local and remote version of resources'] }, "Open Changes"),
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
@@ -465,7 +465,7 @@ class RemoteUserDataSyncActivityViewDataProvider extends UserDataSyncActivityVie
 		if (machineId) {
 			const machines = await this.getMachines();
 			const machine = machines.find(({ id }) => id === machineId);
-			children[0].description = machine?.isCurrent ? localize('current', "Current") : machine?.name;
+			children[0].description = machine?.isCurrent ? localize({ key: 'current', comment: ['Represents current machine'] }, "Current") : machine?.name;
 		}
 		return children;
 	}

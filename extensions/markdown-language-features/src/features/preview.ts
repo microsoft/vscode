@@ -612,7 +612,12 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 		}));
 
 		this._register(vscode.window.onDidChangeActiveTextEditor(editor => {
-			if (editor && isMarkdownFile(editor.document) && !this._locked && !this._preview.isPreviewOf(editor.document.uri)) {
+			// Only allow previewing normal text editors which have a viewColumn: See #101514
+			if (typeof editor?.viewColumn === 'undefined') {
+				return;
+			}
+
+			if (isMarkdownFile(editor.document) && !this._locked && !this._preview.isPreviewOf(editor.document.uri)) {
 				const line = getVisibleLine(editor);
 				this.update(editor.document.uri, line ? new StartingScrollLine(line) : undefined);
 			}

@@ -42,7 +42,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { TerminalLaunchTroubleshootAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -997,21 +997,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 				if (this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
 					if (commandLine) {
-						exitCodeMessage = nls.localize('launchFailed.exitCodeAndCommandLine', "The terminal process \"{0}\" failed to launch (exit code: {1})", commandLine, this._exitCode);
+						exitCodeMessage = nls.localize('launchFailed.exitCodeAndCommandLine', "The terminal process \"{0}\" failed to launch (exit code: {1}).", commandLine, this._exitCode);
 						break;
 					}
-					exitCodeMessage = nls.localize('launchFailed.exitCodeOnly', "The terminal process failed to launch (exit code: {0})", this._exitCode);
+					exitCodeMessage = nls.localize('launchFailed.exitCodeOnly', "The terminal process failed to launch (exit code: {0}).", this._exitCode);
 					break;
 				}
 				if (commandLine) {
-					exitCodeMessage = nls.localize('terminated.exitCodeAndCommandLine', "The terminal process \"{0}\" terminated with exit code: {1}", commandLine, this._exitCode);
+					exitCodeMessage = nls.localize('terminated.exitCodeAndCommandLine', "The terminal process \"{0}\" terminated with exit code: {1}.", commandLine, this._exitCode);
 					break;
 				}
-				exitCodeMessage = nls.localize('terminated.exitCodeOnly', "The terminal process terminated with exit code: {0}", this._exitCode);
+				exitCodeMessage = nls.localize('terminated.exitCodeOnly', "The terminal process terminated with exit code: {0}.", this._exitCode);
 				break;
 			case 'object':
 				this._exitCode = exitCodeOrError.code;
-				exitCodeMessage = nls.localize('launchFailed.errorMessage', "The terminal process failed to launch: {0}", exitCodeOrError.message);
+				exitCodeMessage = nls.localize('launchFailed.errorMessage', "The terminal process failed to launch: {0}.", exitCodeOrError.message);
 				break;
 		}
 
@@ -1045,7 +1045,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._notificationService.notify({
 						message: exitCodeMessage,
 						severity: Severity.Error,
-						actions: { primary: [this._instantiationService.createInstance(TerminalLaunchTroubleshootAction)] }
+						actions: { primary: [this._instantiationService.createInstance(TerminalLaunchHelpAction)] }
 					});
 				} else {
 					// Log to help surface the error in case users report issues with showExitAlert

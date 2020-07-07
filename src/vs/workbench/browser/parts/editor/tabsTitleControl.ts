@@ -601,7 +601,7 @@ export class TabsTitleControl extends TitleControl {
 		const disposables = new DisposableStore();
 
 		const handleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
-			tab.blur();
+			tab.blur(); // prevent flicker of focus outline on tab until editor got focus
 
 			if (e instanceof MouseEvent && e.button !== 0) {
 				if (e.button === 1) {
@@ -642,14 +642,17 @@ export class TabsTitleControl extends TitleControl {
 			tabsScrollbar.setScrollPosition({ scrollLeft: tabsScrollbar.getScrollPosition().scrollLeft - e.translationX });
 		}));
 
-		// Close on mouse middle click
+		// Prevent flicker of focus outline on tab until editor got focus
 		disposables.add(addDisposableListener(tab, EventType.MOUSE_UP, (e: MouseEvent) => {
 			EventHelper.stop(e);
 
 			tab.blur();
+		}));
 
+		// Close on mouse middle click
+		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, (e: MouseEvent) => {
 			if (e.button === 1 /* Middle Button*/) {
-				e.stopPropagation(); // for https://github.com/Microsoft/vscode/issues/56715
+				EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
 
 				this.blockRevealActiveTabOnce();
 				this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index });

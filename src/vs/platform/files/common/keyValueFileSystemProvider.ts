@@ -27,6 +27,8 @@ export abstract class KeyValueFileSystemProvider extends Disposable implements I
 
 	constructor(private readonly scheme: string) {
 		super();
+		// Add root directory by default
+		this.dirs.add('/');
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
@@ -34,17 +36,16 @@ export abstract class KeyValueFileSystemProvider extends Disposable implements I
 	}
 
 	async mkdir(resource: URI): Promise<void> {
-		const parentDir = dirname(resource).path;
-		if (parentDir !== '/' && !this.dirs.has(parentDir)) {
-			throw createFileSystemProviderError(localize('fileNotFound', "File not found"), FileSystemProviderErrorCode.FileNotFound);
-		}
-		const hasKey = await this.hasKey(resource.path);
-		if (hasKey) {
-			throw createFileSystemProviderError(localize('fileNotDirectory', "File is not a directory"), FileSystemProviderErrorCode.FileNotADirectory);
-		}
-		if (this.dirs.has(resource.path)) {
-			throw createFileSystemProviderError(localize('flieExists', "File exists"), FileSystemProviderErrorCode.FileExists);
-		}
+		try {
+			const resourceStat = await this.stat(resource);
+			if (resourceStat.type === FileType.File) {
+				throw createFileSystemProviderError(localize('fileNotDirectory', "File is not a directory"), FileSystemProviderErrorCode.FileNotADirectory);
+			}
+		} catch (error) { /* Ignore */ }
+
+		// Make sure parent dir exists
+		await this.stat(dirname(resource));
+
 		this.dirs.add(resource.path);
 	}
 

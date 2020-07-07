@@ -175,7 +175,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 			} else if (canHandlePermissionOrReadonlyErrors && isPermissionDenied) {
 				message = isWindows ? nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", basename(resource)) : nls.localize('permissionDeniedSaveErrorSudo', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Sudo' to retry as superuser.", basename(resource));
 			} else {
-				message = nls.localize('genericSaveError', "Failed to save '{0}': {1}", basename(resource), toErrorMessage(error, false));
+				message = nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", basename(resource), toErrorMessage(error, false));
 			}
 		}
 

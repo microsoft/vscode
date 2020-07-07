@@ -17,10 +17,15 @@
     "onFileSystem:github",
     "onCommand:githubBrowser.openRepository"
   ],
-  "browser": "./dist/extension.js",
+  "browser": "./dist/browser/extension.js",
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "githubBrowser.openRepository",
+        "title": "Open GitHub Repository...",
+        "category": "GitHub Browser"
+      },
       {
         "command": "githubBrowser.commit",
         "title": "Commit",
@@ -48,6 +53,10 @@
     ],
     "menus": {
       "commandPalette": [
+        {
+          "command": "githubBrowser.openRepository",
+          "when": "config.githubBrowser.openRepository"
+        },
         {
           "command": "githubBrowser.commit",
           "when": "false"
@@ -147,14 +156,13 @@
     "vscode:prepublish": "npm run compile"
   },
   "dependencies": {
-    "@octokit/graphql": "4.5.0",
-    "@octokit/rest": "17.11.0",
+    "@octokit/graphql": "4.5.1",
+    "@octokit/rest": "18.0.0",
     "fuzzysort": "1.1.4",
-    "node-fetch": "2.6.0"
+    "node-fetch": "2.6.0",
+    "vscode-nls": "4.1.2"
   },
   "devDependencies": {
-    "@types/node-fetch": "2.5.7",
-    "webpack": "4.43.0",
-    "webpack-cli": "3.3.11"
+    "@types/node-fetch": "2.5.7"
   }
 }

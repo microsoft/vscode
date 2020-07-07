@@ -6,18 +6,43 @@
 import { authentication, AuthenticationSession, Disposable, Event, EventEmitter, Range, Uri } from 'vscode';
 import { graphql } from '@octokit/graphql';
 import { Octokit } from '@octokit/rest';
+import { ContextStore } from '../contextStore';
 import { fromGitHubUri } from './fs';
+import { isSha } from '../extension';
 import { Iterables } from '../iterables';
-import { ContextStore } from '../stores';
-
-export const shaRegex = /^[0-9a-f]{40}$/;
 
 export interface GitHubApiContext {
-	sha: string;
+	requestRef: string;
+
+	branch: string;
+	sha: string | undefined;
 	timestamp: number;
 }
 
-function getRootUri(uri: Uri) {
+interface CreateCommitOperation {
+	type: 'created';
+	path: string;
+	content: string
+}
+
+interface ChangeCommitOperation {
+	type: 'changed';
+	path: string;
+	content: string
+}
+
+interface DeleteCommitOperation {
+	type: 'deleted';
+	path: string;
+	content: undefined
+}
+
+export type CommitOperation = CreateCommitOperation | ChangeCommitOperation | DeleteCommitOperation;
+
+type ArrayElement<T extends Array<unknown>> = T extends (infer U)[] ? U : never;
+type GitCreateTreeParamsTree = ArrayElement<NonNullable<Parameters<Octokit['git']['createTree']>[0]>['tree']>;
+
+function getGitHubRootUri(uri: Uri) {
 	const rootIndex = uri.path.indexOf('/', uri.path.indexOf('/', 1) + 1);
 	return uri.with({
 		path: uri.path.substring(0, rootIndex === -1 ? undefined : rootIndex),
@@ -86,41 +111,75 @@ export class GitHubApi implements Disposable {
 		return new this._octokit(options);
 	}
 
-	async commit(rootUri: Uri, message: string, files: { path: string; content: string }[]): Promise<string | undefined> {
-		let { owner, repo, ref } = fromGitHubUri(rootUri);
+	async commit(rootUri: Uri, message: string, operations: CommitOperation[]): Promise<string | undefined> {
+		const { owner, repo } = fromGitHubUri(rootUri);
 
 		try {
-			if (ref === undefined || ref === 'HEAD') {
-				ref = await this.defaultBranchQuery(rootUri);
-				if (ref === undefined) {
-					throw new Error('Cannot commit — invalid ref');
-				}
-			}
-
 			const context = await this.getContext(rootUri);
 			if (context.sha === undefined) {
-				throw new Error('Cannot commit — invalid context');
+				throw new Error(`Cannot commit to Uri(${rootUri.toString(true)}); Invalid context sha`);
 			}
+
+			const hasDeletes = operations.some(op => op.type === 'deleted');
 
 			const github = await this.octokit();
 			const treeResp = await github.git.getTree({
 				owner: owner,
 				repo: repo,
-				tree_sha: context.sha
+				tree_sha: context.sha,
+				recursive: hasDeletes ? 'true' : undefined,
 			});
 
-			const updatedTreeItems: {
-				path: string;
-				mode?: '100644' | '100755' | '040000' | '160000' | '120000',
-				type?: 'blob' | 'tree' | 'commit',
-				sha?: string | undefined;
-				content: string;
-			}[] = [];
+			// 0100000000000000 (040000): Directory
+			// 1000000110100100 (100644): Regular non-executable file
+			// 1000000110110100 (100664): Regular non-executable group-writeable file
+			// 1000000111101101 (100755): Regular executable file
+			// 1010000000000000 (120000): Symbolic link
+			// 1110000000000000 (160000): Gitlink
+			let updatedTree: GitCreateTreeParamsTree[];
 
-			for (const file of files) {
-				for (const { path, mode, type } of treeResp.data.tree) {
-					if (path === file.path) {
-						updatedTreeItems.push({ path: path, mode: mode as any, type: type as any, content: file.content });
+			if (hasDeletes) {
+				updatedTree = treeResp.data.tree as GitCreateTreeParamsTree[];
+
+				for (const operation of operations) {
+					switch (operation.type) {
+						case 'created':
+							updatedTree.push({ path: operation.path, mode: '100644', type: 'blob', content: operation.content });
+							break;
+
+						case 'changed': {
+							const index = updatedTree.findIndex(item => item.path === operation.path);
+							if (index !== -1) {
+								const { path, mode, type } = updatedTree[index];
+								updatedTree.splice(index, 1, { path: path, mode: mode, type: type, content: operation.content });
+							}
+							break;
+						}
+						case 'deleted': {
+							const index = updatedTree.findIndex(item => item.path === operation.path);
+							if (index !== -1) {
+								updatedTree.splice(index, 1);
+							}
+							break;
+						}
+					}
+				}
+			} else {
+				updatedTree = [];
+
+				for (const operation of operations) {
+					switch (operation.type) {
+						case 'created':
+							updatedTree.push({ path: operation.path, mode: '100644', type: 'blob', content: operation.content });
+							break;
+
+						case 'changed':
+							const item = treeResp.data.tree.find(item => item.path === operation.path) as GitCreateTreeParamsTree;
+							if (item !== undefined) {
+								const { path, mode, type } = item;
+								updatedTree.push({ path: path, mode: mode, type: type, content: operation.content });
+							}
+							break;
 					}
 				}
 			}
@@ -128,8 +187,8 @@ export class GitHubApi implements Disposable {
 			const updatedTreeResp = await github.git.createTree({
 				owner: owner,
 				repo: repo,
-				base_tree: treeResp.data.sha,
-				tree: updatedTreeItems
+				base_tree: hasDeletes ? undefined : treeResp.data.sha,
+				tree: updatedTree
 			});
 
 			const resp = await github.git.createCommit({
@@ -140,14 +199,14 @@ export class GitHubApi implements Disposable {
 				parents: [context.sha]
 			});
 
-			this.updateContext(rootUri, { sha: resp.data.sha, timestamp: Date.now() });
+			this.updateContext(rootUri, { ...context, sha: resp.data.sha, timestamp: Date.now() });
 
 			// TODO@eamodio need to send a file change for any open files
 
 			await github.git.updateRef({
 				owner: owner,
 				repo: repo,
-				ref: `heads/${ref}`,
+				ref: `heads/${context.branch}`,
 				sha: resp.data.sha
 			});
 
@@ -192,7 +251,7 @@ export class GitHubApi implements Disposable {
 				owner: owner,
 				repo: repo,
 				recursive: '1',
-				tree_sha: context?.sha ?? ref ?? 'HEAD',
+				tree_sha: context?.sha ?? ref,
 			});
 			return Iterables.filterMap(resp.data.tree, p => p.type === 'blob' ? p.path : undefined);
 		} catch (ex) {
@@ -219,7 +278,7 @@ export class GitHubApi implements Disposable {
 			}>(query, {
 				owner: owner,
 				repo: repo,
-				path: `${context.sha ?? ref ?? 'HEAD'}:${path}`,
+				path: `${context.sha ?? ref}:${path}`,
 			});
 			return rsp?.repository?.object ?? undefined;
 		} catch (ex) {
@@ -231,7 +290,7 @@ export class GitHubApi implements Disposable {
 		const { owner, repo, ref } = fromGitHubUri(uri);
 
 		try {
-			if (ref === undefined || ref === 'HEAD') {
+			if (ref === 'HEAD') {
 				const query = `query latest($owner: String!, $repo: String!) {
 	repository(owner: $owner, name: $repo) {
 		defaultBranchRef {
@@ -258,6 +317,7 @@ export class GitHubApi implements Disposable {
 				oid
 			}
 		}
+	}
 }`;
 
 			const rsp = await this.gqlQuery<{
@@ -281,7 +341,7 @@ export class GitHubApi implements Disposable {
 		const { owner, repo, ref } = fromGitHubUri(uri);
 
 		// If we have a specific ref, don't try to search, because GitHub search only works against the default branch
-		if (ref === undefined) {
+		if (ref !== 'HEAD') {
 			return { matches: [], limitHit: true };
 		}
 
@@ -353,8 +413,8 @@ export class GitHubApi implements Disposable {
 	}
 
 	private readonly pendingContextRequests = new Map<string, Promise<GitHubApiContext>>();
-	private async getContext(uri: Uri): Promise<GitHubApiContext> {
-		const rootUri = getRootUri(uri);
+	async getContext(uri: Uri): Promise<GitHubApiContext> {
+		const rootUri = getGitHubRootUri(uri);
 
 		let pending = this.pendingContextRequests.get(rootUri.toString());
 		if (pending === undefined) {
@@ -372,29 +432,46 @@ export class GitHubApi implements Disposable {
 	private readonly rootUriToContextMap = new Map<string, GitHubApiContext>();
 
 	private async getContextCore(rootUri: Uri): Promise<GitHubApiContext> {
-		let context = this.rootUriToContextMap.get(rootUri.toString());
-		if (context === undefined) {
-			const { ref } = fromGitHubUri(rootUri);
-			if (ref !== undefined && shaRegex.test(ref)) {
-				context = { sha: ref, timestamp: Date.now() };
-			} else {
-				context = this.context.get(rootUri);
-				if (context?.sha === undefined) {
-					const sha = await this.latestCommitQuery(rootUri);
-					if (sha !== undefined) {
-						context = { sha: sha, timestamp: Date.now() };
-					} else {
-						context = undefined;
-					}
-				}
-			}
+		const key = rootUri.toString();
+		let context = this.rootUriToContextMap.get(key);
 
-			if (context !== undefined) {
-				this.updateContext(rootUri, context);
-			}
+		// Check if we have a cached a context
+		if (context?.sha !== undefined) {
+			return context;
 		}
 
-		return context ?? { sha: rootUri.authority, timestamp: Date.now() };
+		// Check if we have a saved context
+		context = this.context.get(rootUri);
+		if (context?.sha !== undefined) {
+			this.rootUriToContextMap.set(key, context);
+
+			return context;
+		}
+
+		const { ref } = fromGitHubUri(rootUri);
+
+		// If the requested ref looks like a sha, then use it
+		if (isSha(ref)) {
+			context = { requestRef: ref, branch: ref, sha: ref, timestamp: Date.now() };
+		} else {
+			let branch;
+			if (ref === 'HEAD') {
+				branch = await this.defaultBranchQuery(rootUri);
+				if (branch === undefined) {
+					throw new Error(`Cannot get context for Uri(${rootUri.toString(true)}); unable to get default branch`);
+				}
+			} else {
+				branch = ref;
+			}
+
+			// Query for the latest sha for the give ref
+			const sha = await this.latestCommitQuery(rootUri);
+			context = { requestRef: ref, branch: branch, sha: sha, timestamp: Date.now() };
+		}
+
+		this.updateContext(rootUri, context);
+
+		return context;
 	}
 
 	private updateContext(rootUri: Uri, context: GitHubApiContext) {

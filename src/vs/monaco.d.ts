@@ -1117,9 +1117,12 @@ declare namespace monaco.editor {
 		wordBasedSuggestions?: boolean;
 		/**
 		 * Controls whether the semanticHighlighting is shown for the languages that support it.
-		 * Defaults to true.
+		 * true: semanticHighlighting is enabled for all themes
+		 * false: semanticHighlighting is disabled for all themes
+		 * 'configuredByTheme': semanticHighlighting is controlled by the current color theme's semanticHighlighting setting.
+		 * Defaults to 'byTheme'.
 		 */
-		'semanticHighlighting.enabled'?: boolean;
+		'semanticHighlighting.enabled'?: true | false | 'configuredByTheme';
 		/**
 		 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
 		 * Defaults to false.
@@ -3207,6 +3210,11 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		insertSpace?: boolean;
+		/**
+		 * Ignore empty lines when inserting line comments.
+		 * Defaults to true.
+		 */
+		ignoreEmptyLines?: boolean;
 	}
 
 	export type EditorCommentsOptions = Readonly<Required<IEditorCommentsOptions>>;

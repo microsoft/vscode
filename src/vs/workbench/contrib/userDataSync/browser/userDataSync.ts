@@ -75,10 +75,10 @@ const syncNowCommand = {
 	title: localize('sync now', "Preferences Sync: Sync Now"),
 	description(userDataSyncService: IUserDataSyncService): string | undefined {
 		if (userDataSyncService.status === SyncStatus.Syncing) {
-			return localize('sync is on with syncing', "syncing");
+			return localize('syncing', "syncing");
 		}
 		if (userDataSyncService.lastSyncTime) {
-			return localize('sync is on with time', "synced {0}", fromNow(userDataSyncService.lastSyncTime, true));
+			return localize('synced with time', "synced {0}", fromNow(userDataSyncService.lastSyncTime, true));
 		}
 		return undefined;
 	}
@@ -270,11 +270,19 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onAutoSyncError(error: UserDataSyncError): void {
 		switch (error.code) {
-			case UserDataSyncErrorCode.TurnedOff:
 			case UserDataSyncErrorCode.SessionExpired:
 				this.notificationService.notify({
 					severity: Severity.Info,
-					message: localize('turned off', "Preferences sync was turned off from another device."),
+					message: localize('session expired', "Preferences sync was turned off because current session is expired, please sign in again to turn on sync."),
+					actions: {
+						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Preferences Sync..."), undefined, true, () => this.turnOn())]
+					}
+				});
+				break;
+			case UserDataSyncErrorCode.TurnedOff:
+				this.notificationService.notify({
+					severity: Severity.Info,
+					message: localize('turned off', "Preferences sync was turned off from another device, please sign in again to turn on sync."),
 					actions: {
 						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Preferences Sync..."), undefined, true, () => this.turnOn())]
 					}
@@ -475,8 +483,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			} else {
 				const orTerm = localize({ key: 'or', comment: ['Here is the context where it is used - Sign in with your A or B or C account to synchronize your data across devices.'] }, "or");
 				const displayName = this.userDataSyncWorkbenchService.authenticationProviders.length === 1
-					? this.authenticationService.getDisplayName(this.userDataSyncWorkbenchService.authenticationProviders[0].id)
-					: this.userDataSyncWorkbenchService.authenticationProviders.map(({ id }) => this.authenticationService.getDisplayName(id)).join(` ${orTerm} `);
+					? this.authenticationService.getLabel(this.userDataSyncWorkbenchService.authenticationProviders[0].id)
+					: this.userDataSyncWorkbenchService.authenticationProviders.map(({ id }) => this.authenticationService.getLabel(id)).join(` ${orTerm} `);
 				quickPick.description = localize('sign in and turn on sync detail', "Sign in with your {0} account to synchronize your data across devices.", displayName);
 				quickPick.customLabel = localize('sign in and turn on sync', "Sign in & Turn on");
 			}
@@ -569,9 +577,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			message: localize('turn off sync confirmation', "Do you want to turn off sync?"),
 			detail: localize('turn off sync detail', "Your settings, keybindings, extensions and UI State will no longer be synced."),
 			primaryButton: localize('turn off', "Turn Off"),
-			checkbox: {
+			checkbox: this.userDataSyncWorkbenchService.accountStatus === AccountStatus.Available ? {
 				label: localize('turn off sync everywhere', "Turn off sync on all your devices and clear the data from the cloud.")
-			}
+			} : undefined
 		});
 		if (result.confirmed) {
 			return this.userDataSyncWorkbenchService.turnoff(!!result.checkboxChecked);
@@ -892,7 +900,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					items.push({ id: syncNowCommand.id, label: syncNowCommand.title, description: syncNowCommand.description(that.userDataSyncService) });
 					if (that.userDataAutoSyncService.canToggleEnablement()) {
 						const account = that.userDataSyncWorkbenchService.current;
-						items.push({ id: turnOffSyncCommand.id, label: turnOffSyncCommand.title, description: account ? `${account.accountName} (${that.authenticationService.getDisplayName(account.authenticationProviderId)})` : undefined });
+						items.push({ id: turnOffSyncCommand.id, label: turnOffSyncCommand.title, description: account ? `${account.accountName} (${that.authenticationService.getLabel(account.authenticationProviderId)})` : undefined });
 					}
 					quickPick.items = items;
 					disposables.add(quickPick.onDidAccept(() => {

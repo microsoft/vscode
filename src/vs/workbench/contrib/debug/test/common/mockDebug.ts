@@ -157,7 +157,7 @@ export class MockSession implements IDebugSession {
 
 	subId: string | undefined;
 
-	get noCompact(): boolean {
+	get compact(): boolean {
 		return false;
 	}
 

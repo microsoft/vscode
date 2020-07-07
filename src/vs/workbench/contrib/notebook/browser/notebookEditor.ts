@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -30,7 +30,7 @@ export class NotebookEditor extends BaseEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 
 	private readonly _editorMemento: IEditorMemento<INotebookEditorViewState>;
-	private readonly _groupListener = this._register(new MutableDisposable());
+	private readonly _groupListener = this._register(new DisposableStore());
 	private readonly _widgetDisposableStore: DisposableStore = new DisposableStore();
 	private _widget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
 	private _rootElement!: HTMLElement;
@@ -49,13 +49,13 @@ export class NotebookEditor extends BaseEditor {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@INotebookEditorWidgetService private readonly _notebookWidgetService: INotebookEditorWidgetService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
-		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
 	set viewModel(newModel: NotebookViewModel | undefined) {
@@ -100,7 +100,14 @@ export class NotebookEditor extends BaseEditor {
 
 	setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
-		this._groupListener.value = group?.onWillCloseEditor(e => this._saveEditorViewState(e.editor));
+		if (group) {
+			this._groupListener.add(group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
+			this._groupListener.add(group.onDidGroupChange(() => {
+				if (this._editorGroupService.activeGroup !== group) {
+					this._widget?.value?.updateEditorFocus();
+				}
+			}));
+		}
 
 		if (!visible) {
 			this._saveEditorViewState(this.input);
@@ -197,6 +204,10 @@ export class NotebookEditor extends BaseEditor {
 
 	private _saveEditorViewState(input: IEditorInput | undefined): void {
 		if (this.group && this._widget.value && input instanceof NotebookEditorInput) {
+			if (this._widget.value.isDisposed) {
+				return;
+			}
+
 			const state = this._widget.value.getEditorViewState();
 			this._editorMemento.saveEditorState(this.group, input.resource, state);
 		}

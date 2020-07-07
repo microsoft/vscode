@@ -61,7 +61,12 @@ class RichRenderer implements IOutputTransformContribution {
 
 			let mimeTypesMessage = mimeTypes.join(', ');
 
-			contentNode.innerText = `No renderer could be found for output. It has the following MIME types: ${mimeTypesMessage}`;
+			if (preferredMimeType) {
+				contentNode.innerText = `No renderer could be found for MIME type: ${preferredMimeType}`;
+			} else {
+				contentNode.innerText = `No renderer could be found for output. It has the following MIME types: ${mimeTypesMessage}`;
+			}
+
 			container.appendChild(contentNode);
 
 			return {
@@ -176,7 +181,7 @@ class RichRenderer implements IOutputTransformContribution {
 		let data = output.data['text/markdown'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		const mdOutput = document.createElement('div');
-		mdOutput.appendChild(this._mdRenderer.render({ value: str, isTrusted: false, supportThemeIcons: true }).element);
+		mdOutput.appendChild(this._mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }).element);
 		container.appendChild(mdOutput);
 
 		return {

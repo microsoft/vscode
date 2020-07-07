@@ -393,7 +393,7 @@ registerAction2(class MeasureExtHostLatencyAction extends Action2 {
 				value: nls.localize('measureExtHostLatency', "Measure Extension Host Latency"),
 				original: 'Measure Extension Host Latency'
 			},
-			category: nls.localize('developer', "Developer"),
+			category: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"),
 			f1: true
 		});
 	}

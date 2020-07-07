@@ -92,8 +92,9 @@ class NotebookEditorWidgetService implements INotebookEditorWidgetService {
 
 	private _disposeWidget(widget: NotebookEditorWidget): void {
 		widget.onWillHide();
-		widget.getDomNode().remove();
+		const domNode = widget.getDomNode();
 		widget.dispose();
+		domNode.remove();
 	}
 
 	private _freeWidget(input: NotebookEditorInput, source: IEditorGroup, target: IEditorGroup): void {

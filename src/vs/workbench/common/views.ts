@@ -484,6 +484,7 @@ export interface IViewsService {
 	openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null>;
 	closeViewContainer(id: string): void;
 	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null;
+	getActiveViewPaneContainerWithId(viewContainerId: string): IViewPaneContainer | null;
 
 	// View APIs
 	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }>;

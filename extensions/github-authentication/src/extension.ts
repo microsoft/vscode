@@ -24,7 +24,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	vscode.authentication.registerAuthenticationProvider({
 		id: 'github',
-		displayName: 'GitHub',
+		label: 'GitHub',
 		supportsMultipleAccounts: false,
 		onDidChangeSessions: onDidChangeSessions.event,
 		getSessions: () => Promise.resolve(loginService.sessions),

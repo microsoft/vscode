@@ -7,37 +7,26 @@
 
 'use strict';
 
-const withDefaults = require('../../shared.webpack.config');
+const withBrowserDefaults = require('../../shared.webpack.config').browser;
 const path = require('path');
 
-const serverConfig = withDefaults({
-	target: 'webworker',
+const serverConfig = withBrowserDefaults({
 	context: __dirname,
 	entry: {
 		extension: './src/browser/htmlServerMain.ts',
-
 	},
 	output: {
 		filename: 'htmlServerMain.js',
 		path: path.join(__dirname, 'dist', 'browser'),
 		libraryTarget: 'var'
 	},
-	performance: {
-		hints: false
-	},
 	optimization: {
 		splitChunks: {
-			chunks: "async"
-		}
-	},
-	resolve: {
-		alias: {
-			'vscode-nls': path.resolve(__dirname, '../../../build/polyfills/vscode-nls.js')
+			chunks: 'async'
 		}
 	}
 });
-serverConfig.module.rules[0].use.shift(); // remove nls loader
-serverConfig.module.noParse =  /typescript\/lib\/typescript\.js/;
+serverConfig.module.noParse =  /typescript[\/\\]lib[\/\\]typescript\.js/;
 serverConfig.module.rules.push({
 	test: /javascriptLibs.ts$/,
 	use: [

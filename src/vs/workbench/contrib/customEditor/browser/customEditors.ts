@@ -451,29 +451,45 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 			open: (editor, options, group) => {
 				return this.onEditorOpening(editor, options, group);
 			},
-			getEditorOverrides: (resource: URI, _options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {
+			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {
 				const currentEditor = group?.editors.find(editor => isEqual(editor.resource, resource));
 
+				const defaultEditorOverride: IOpenEditorOverrideEntry = {
+					...defaultEditorOverrideEntry,
+					active: this._fileEditorInputFactory.isFileEditorInput(currentEditor),
+				};
+
+				const toOverride = (entry: CustomEditorInfo): IOpenEditorOverrideEntry => {
+					return {
+						id: entry.id,
+						active: currentEditor instanceof CustomEditorInput && currentEditor.viewType === entry.id,
+						label: entry.displayName,
+						detail: entry.providerDisplayName,
+					};
+				};
+
+				if (typeof options?.override === 'string') {
+					// A specific override was requested. Only return it.
+
+					if (options.override === defaultEditorOverride.id) {
+						return [defaultEditorOverride];
+					}
+
+					const matchingEditor = this.customEditorService.getCustomEditor(options.override);
+					return matchingEditor ? [toOverride(matchingEditor)] : [];
+				}
+
+				// Otherwise, return all potential overrides.
 				const customEditors = this.customEditorService.getAllCustomEditors(resource);
 				if (!customEditors.length) {
 					return [];
 				}
 
 				return [
-					{
-						...defaultEditorOverrideEntry,
-						active: this._fileEditorInputFactory.isFileEditorInput(currentEditor),
-					},
+					defaultEditorOverride,
 					...customEditors.allEditors
 						.filter(entry => entry.id !== defaultCustomEditor.id)
-						.map(entry => {
-							return {
-								id: entry.id,
-								active: currentEditor instanceof CustomEditorInput && currentEditor.viewType === entry.id,
-								label: entry.displayName,
-								detail: entry.providerDisplayName,
-							};
-						})
+						.map(toOverride)
 				];
 			}
 		}));

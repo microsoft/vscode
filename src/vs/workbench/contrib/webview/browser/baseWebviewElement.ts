@@ -86,7 +86,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IEnvironmentService private readonly _environementService: IEnvironmentService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -226,7 +226,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._hasAlertedAboutMissingCsp = true;
 
 		if (this.extension && this.extension.id) {
-			if (this._environementService.isExtensionDevelopment) {
+			if (this._environmentService.isExtensionDevelopment) {
 				this._onMissingCsp.fire(this.extension.id);
 			}
 

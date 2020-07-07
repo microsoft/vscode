@@ -16,7 +16,7 @@ export interface IHoverService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Shows a hover.
+	 * Shows a hover, provided a hover with the same options object is not already visible.
 	 * @param options A set of options defining the characteristics of the hover.
 	 * @param focus Whether to focus the hover (useful for keyboard accessibility).
 	 *

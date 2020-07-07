@@ -130,7 +130,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 	}
 }
 
-registerSingleton(IExtensionHostDebugService, BrowserExtensionHostDebugService);
+registerSingleton(IExtensionHostDebugService, BrowserExtensionHostDebugService, true);
 
 class BrowserDebugHelperService implements IDebugHelperService {
 
@@ -141,4 +141,4 @@ class BrowserDebugHelperService implements IDebugHelperService {
 	}
 }
 
-registerSingleton(IDebugHelperService, BrowserDebugHelperService);
+registerSingleton(IDebugHelperService, BrowserDebugHelperService, true);
