@@ -3,12 +3,8 @@
 	"tasks": [
 		{
 			"type": "npm",
-			"script": "watchd",
-			"label": "Build VS Code",
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			},
+			"script": "watch-clientd",
+			"label": "Build VS Code Core",
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never"
@@ -26,9 +22,46 @@
 					"message": 3
 				},
 				"background": {
-					"beginsPattern": "\\[watch-client\\].*Starting compilation",
-					"endsPattern": "\\[watch-client\\].*Finished compilation"
+					"beginsPattern": "Starting compilation",
+					"endsPattern": "Finished compilation"
 				}
+			}
+		},
+		{
+			"type": "npm",
+			"script": "watch-extensionsd",
+			"label": "Build VS Code Extensions",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never"
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"absolute"
+				],
+				"pattern": {
+					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"beginsPattern": "Starting compilation",
+					"endsPattern": "Finished compilation"
+				}
+			}
+		},
+		{
+			"label": "Build VS Code",
+			"dependsOn": [
+				"Build VS Code Core",
+				"Build VS Code Extensions"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
 			}
 		},
 		{
