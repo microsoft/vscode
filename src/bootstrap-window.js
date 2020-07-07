@@ -85,6 +85,7 @@
 			baseUrl: 'vscode-file://localhost/' + `${bootstrap.uriFromPath(configuration.appRoot)}/out`.substr(8),
 			'vs/nls': nlsConfig,
 			amdModulesPattern: /^vs\//,
+			preferScriptTags: true,
 		};
 
 		// cached data config
