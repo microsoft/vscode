@@ -421,6 +421,5 @@ class MarkdownBuilder {
 			});
 			this.value += '|\n';
 		});
-
 	}
 }

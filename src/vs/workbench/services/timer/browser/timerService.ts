@@ -399,5 +399,9 @@ export class TimerService extends AbstractTimerService {
 	protected async _getWindowCount(): Promise<number> {
 		return 1;
 	}
-	protected async _extendStartupInfo(_info: Writeable<IStartupMetrics>): Promise<void> { }
+	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> {
+		info.isVMLikelyhood = 0;
+		info.platform = navigator.userAgent;
+		info.release = navigator.appVersion;
+	}
 }
