@@ -3210,6 +3210,11 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		insertSpace?: boolean;
+		/**
+		 * Ignore empty lines when inserting line comments.
+		 * Defaults to true.
+		 */
+		ignoreEmptyLines?: boolean;
 	}
 
 	export type EditorCommentsOptions = Readonly<Required<IEditorCommentsOptions>>;
