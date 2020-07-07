@@ -448,6 +448,19 @@ function webviewPreloads() {
 			case 'focus-output':
 				focusFirstFocusableInCell(event.data.cellId);
 				break;
+			case 'decorations':
+				{
+					let outputContainer = document.getElementById(event.data.cellId);
+					event.data.addedClassNames.forEach(n => {
+						outputContainer?.classList.add(n);
+					});
+
+					event.data.removedClassNames.forEach(n => {
+						outputContainer?.classList.remove(n);
+					});
+				}
+
+				break;
 			case 'customRendererMessage':
 				onDidReceiveMessage.fire([event.data.rendererId, event.data.message]);
 				break;

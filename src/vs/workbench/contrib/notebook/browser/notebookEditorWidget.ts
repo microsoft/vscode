@@ -28,7 +28,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_BOTTOM_PADDING, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, SCROLLABLE_ELEMENT_PADDING_TOP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED, INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -843,8 +843,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._list?.setCellSelection(cell, range);
 	}
 
-	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
-		return this._notebookViewModel?.changeDecorations<T>(callback) || null;
+	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
+		return this._notebookViewModel?.changeModelDecorations<T>(callback) || null;
 	}
 
 	setHiddenAreas(_ranges: ICellRange[]): boolean {
@@ -1190,6 +1190,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	//#region MISC
 
+	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[] {
+		return this._notebookViewModel?.deltaCellDecorations(oldDecorations, newDecorations) || [];
+	}
+
+	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
+		this._webview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+	}
+
 	getLayoutInfo(): NotebookLayoutInfo {
 		if (!this._list) {
 			throw new Error('Editor is not initalized successfully');
@@ -1402,7 +1410,11 @@ export const listScrollbarSliderActiveBackground = registerColor('notebookScroll
 	hc: scrollbarSliderActiveBackground
 }, nls.localize('notebookScrollbarSliderActiveBackground', "Notebook scrollbar slider background color when clicked on."));
 
-
+export const cellSymbolHighlight = registerColor('notebook.symbolHighlightBackground', {
+	dark: Color.fromHex('#ffffff0b'),
+	light: Color.fromHex('#fdff0033'),
+	hc: null
+}, nls.localize('notebook.symbolHighlightBackground', "Background color of highlighted cell"));
 
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element {
@@ -1486,6 +1498,14 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:after {
 				border-color: ${focusedCellBorderColor} !important;
 			}`);
+
+	const cellSymbolHighlightColor = theme.getColor(cellSymbolHighlight);
+	if (cellSymbolHighlightColor) {
+		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-symbolHighlight .cell-focus-indicator,
+		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.nb-symbolHighlight.markdown-cell-row {
+			background-color: ${cellSymbolHighlightColor} !important;
+		}`);
+	}
 
 	const focusedEditorBorderColorColor = theme.getColor(focusedEditorBorderColor);
 	if (focusedEditorBorderColorColor) {

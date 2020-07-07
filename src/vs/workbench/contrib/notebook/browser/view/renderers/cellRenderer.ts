@@ -454,6 +454,11 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	disposeElement(element: ICellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
 		if (height) {
 			templateData.elementDisposables.clear();
+			element.getCellDecorations().forEach(e => {
+				if (e.className) {
+					templateData.container.classList.remove(e.className);
+				}
+			});
 		}
 	}
 }
@@ -1048,6 +1053,17 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
+		const removedClassNames: string[] = [];
+		templateData.container.classList.forEach(className => {
+			if (/^nb\-.*$/.test(className)) {
+				removedClassNames.push(className);
+			}
+		});
+
+		removedClassNames.forEach(className => {
+			templateData.container.classList.remove(className);
+		});
+
 		this.commonRenderElement(element, index, templateData);
 
 		templateData.currentRenderedCell = element;

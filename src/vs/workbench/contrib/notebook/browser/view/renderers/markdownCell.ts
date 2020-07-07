@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hide, IDimension, show, toggleClass } from 'vs/base/browser/dom';
+import { hide, IDimension, show, toggleClass, addClass, removeClass } from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { renderCodicons } from 'vs/base/common/codicons';
@@ -101,6 +101,28 @@ export class StatefullMarkdownCell extends Disposable {
 				this.relayoutCell();
 			}
 		}));
+
+		this._register(viewCell.onCellDecorationsChanged((e) => {
+			e.added.forEach(options => {
+				if (options.className) {
+					addClass(templateData.container, options.className);
+				}
+			});
+
+			e.removed.forEach(options => {
+				if (options.className) {
+					removeClass(templateData.container, options.className);
+				}
+			});
+		}));
+
+		// apply decorations
+
+		viewCell.getCellDecorations().forEach(options => {
+			if (options.className) {
+				addClass(templateData.container, options.className);
+			}
+		});
 
 		this.viewUpdate();
 	}

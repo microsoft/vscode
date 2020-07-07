@@ -198,7 +198,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 	}
 
 	private setCurrentFindMatchDecoration(cellIndex: number, matchIndex: number) {
-		this._notebookEditor.changeDecorations(accessor => {
+		this._notebookEditor.changeModelDecorations(accessor => {
 			const findMatchesOptions: ModelDecorationOptions = FindDecorations._CURRENT_FIND_MATCH_DECORATION;
 
 			const cell = this._findMatches[cellIndex].cell;
@@ -216,13 +216,13 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 	}
 
 	private clearCurrentFindMatchDecoration() {
-		this._notebookEditor.changeDecorations(accessor => {
+		this._notebookEditor.changeModelDecorations(accessor => {
 			this._currentMatchDecorations = accessor.deltaDecorations(this._currentMatchDecorations, []);
 		});
 	}
 
 	private setAllFindMatchesDecorations(cellFindMatches: CellFindMatch[]) {
-		this._notebookEditor.changeDecorations((accessor) => {
+		this._notebookEditor.changeModelDecorations((accessor) => {
 
 			let findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;
 

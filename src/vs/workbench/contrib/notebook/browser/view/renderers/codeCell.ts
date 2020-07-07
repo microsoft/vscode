@@ -211,6 +211,39 @@ export class CodeCell extends Disposable {
 
 		}));
 
+		this._register(viewCell.onCellDecorationsChanged((e) => {
+			e.added.forEach(options => {
+				if (options.className) {
+					DOM.addClass(templateData.container, options.className);
+				}
+
+				if (options.outputClassName) {
+					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.outputClassName], []);
+				}
+			});
+
+			e.removed.forEach(options => {
+				if (options.className) {
+					DOM.removeClass(templateData.container, options.className);
+				}
+
+				if (options.outputClassName) {
+					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [], [options.outputClassName]);
+				}
+			});
+		}));
+		// apply decorations
+
+		viewCell.getCellDecorations().forEach(options => {
+			if (options.className) {
+				DOM.addClass(templateData.container, options.className);
+			}
+
+			if (options.outputClassName) {
+				this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.outputClassName], []);
+			}
+		});
+
 		const updateFocusMode = () => viewCell.focusMode = templateData.editor!.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
 		this._register(templateData.editor!.onDidFocusEditorWidget(() => {
 			updateFocusMode();

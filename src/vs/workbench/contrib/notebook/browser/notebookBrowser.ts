@@ -117,6 +117,7 @@ export interface ICellViewModel {
 	resolveTextModel(): Promise<ITextModel>;
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
 	getSelectionsStartPosition(): IPosition[] | undefined;
+	getCellDecorations(): INotebookCellDecorationOptions[];
 }
 
 export interface IEditableCellViewModel extends ICellViewModel {
@@ -141,6 +142,16 @@ export interface INotebookEditorContribution {
 	 * Restore view state.
 	 */
 	restoreViewState?(state: unknown): void;
+}
+
+export interface INotebookCellDecorationOptions {
+	className?: string;
+	outputClassName?: string;
+}
+
+export interface INotebookDeltaDecoration {
+	handle: number;
+	options: INotebookCellDecorationOptions;
 }
 
 export interface INotebookEditor extends IEditor {
@@ -287,6 +298,8 @@ export interface INotebookEditor extends IEditor {
 	 */
 	removeClassName(className: string): void;
 
+	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]): void;
+
 	/**
 	 * Trigger the editor to scroll from scroll event programmatically
 	 */
@@ -348,7 +361,7 @@ export interface INotebookEditor extends IEditor {
 	 * Change the decorations on cells.
 	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
 	 */
-	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
+	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 
 	/**
 	 * An event emitted on a "mouseup".

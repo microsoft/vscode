@@ -245,7 +245,11 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
+	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
+		throw new Error('Method not implemented.');
+	}
+
+	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]): void {
 		throw new Error('Method not implemented.');
 	}
 
