@@ -166,7 +166,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 			});
 		});
 
-		if (menus.length) {
+		if (menus.length && otherCommands.length) {
 			menus.push(new Separator());
 		}
 
