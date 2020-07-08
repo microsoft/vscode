@@ -136,7 +136,7 @@
     "gulp-untar": "^0.0.7",
     "gulp-vinyl-zip": "^2.1.2",
     "husky": "^0.13.1",
-    "innosetup": "5.6.1",
+    "innosetup": "6.0.5",
     "is": "^3.1.0",
     "istanbul-lib-coverage": "^3.0.0",
     "istanbul-lib-instrument": "^4.0.0",

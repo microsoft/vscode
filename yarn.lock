@@ -4716,10 +4716,10 @@ ini@^1.3.5:
   resolved "https://registry.yarnpkg.com/ini/-/ini-1.3.5.tgz#eee25f56db1c9ec6085e0c22778083f596abf927"
   integrity sha512-RZY5huIKCMRWDUqZlEi72f/lmXKMvuszcMBduliQ3nnWbx9X/ZBQO7DijMEYS9EhHBb2qacRUMtC7svLwe0lcw==
 
-innosetup@5.6.1:
-  version "5.6.1"
-  resolved "https://registry.yarnpkg.com/innosetup/-/innosetup-5.6.1.tgz#6e7031ba35b23e716e4f29686bc994052e0c278c"
-  integrity sha512-Eit24N3JR8O0Wpuq/dMWCl2r550eiNP2124SbdbwOob43x89WPGL/SGpZG5EPHu20kV2N+4TwvHwFIM8pFUJ0g==
+innosetup@6.0.5:
+  version "6.0.5"
+  resolved "https://registry.yarnpkg.com/innosetup/-/innosetup-6.0.5.tgz#3001e54c638e4e19edd9ebdc6b1855b9ba8b0bbf"
+  integrity sha512-XRvidEN0dcxe7NrGXBjl/clfNRfmyakSDtgKaJgvZ3ciKE5ArQOVGqUJcLyPhllqHhMzYGpbUF3ZTZvtKVDP2g==
 
 inquirer@^6.1.0:
   version "6.2.2"
