@@ -160,12 +160,12 @@ suite('Decoration Render Options', () => {
 		if (platform.isWindows) {
 			// windows file path (used as string)
 			s.registerDecorationType('example', { gutterIconPath: URI.file('c:\\files\\miles\\more.png') });
-			assertBackground('file:///c:/files/miles/more.png', 'vscode-file:///c:/files/miles/more.png');
+			assertBackground('file:///c:/files/miles/more.png', 'vscode-file:/c:/files/miles/more.png');
 			s.removeDecorationType('example');
 
 			// single quote must always be escaped/encoded
 			s.registerDecorationType('example', { gutterIconPath: URI.file('c:\\files\\foo\\b\'ar.png') });
-			assertBackground('file:///c:/files/foo/b%27ar.png', 'vscode-file:///c:/files/foo/b%27ar.png');
+			assertBackground('file:///c:/files/foo/b%27ar.png', 'vscode-file:/c:/files/foo/b%27ar.png');
 			s.removeDecorationType('example');
 		} else {
 			// unix file path (used as string)
