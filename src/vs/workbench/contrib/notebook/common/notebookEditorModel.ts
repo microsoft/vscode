@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { EditorModel, IRevertOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebookEditorModel, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -15,6 +16,8 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { DefaultEndOfLine, ITextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
+import { IFileStatWithMetadata, IFileService } from 'vs/platform/files/common/files';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export interface INotebookEditorModelManager {
 	models: NotebookEditorModel[];
@@ -40,6 +43,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 	private _notebook!: NotebookTextModel;
+	private _lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
 	get notebook() {
 		return this._notebook;
@@ -58,7 +62,9 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		public readonly viewType: string,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
-		@IBackupFileService private readonly _backupFileService: IBackupFileService
+		@IBackupFileService private readonly _backupFileService: IBackupFileService,
+		@IFileService private readonly _fileService: IFileService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super();
 
@@ -85,9 +91,11 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		if (this._notebook.supportBackup) {
 			const tokenSource = new CancellationTokenSource();
 			const backupId = await this._notebookService.backup(this.viewType, this.resource, tokenSource.token);
+			const stats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
 
 			return {
 				meta: {
+					mtime: stats.mtime || new Date().getTime(),
 					name: this._name,
 					viewType: this._notebook.viewType,
 					backupId: backupId
@@ -96,6 +104,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		} else {
 			return {
 				meta: {
+					mtime: new Date().getTime(),
 					name: this._name,
 					viewType: this._notebook.viewType
 				},
@@ -111,6 +120,8 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		}
 
 		await this.load({ forceReadFromDisk: true });
+		const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+		this._lastResolvedFileStat = newStats;
 
 		this._notebook.setDirty(false);
 		this._onDidChangeDirty.fire();
@@ -148,6 +159,8 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 		const notebook = await this._notebookService.createNotebookFromBackup(this.viewType!, this.resource, data.metadata, data.languages, data.cells, editorId);
 		this._notebook = notebook!;
+		const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+		this._lastResolvedFileStat = newStats;
 		this._register(this._notebook);
 
 		this._name = basename(this._notebook!.uri);
@@ -168,6 +181,9 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	private async loadFromProvider(forceReloadFromDisk: boolean, editorId: string | undefined, backupId: string | undefined) {
 		const notebook = await this._notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, editorId, backupId);
 		this._notebook = notebook!;
+		const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+		this._lastResolvedFileStat = newStats;
+
 		this._register(this._notebook);
 
 		this._name = basename(this._notebook!.uri);
@@ -199,16 +215,71 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		return this.resource.scheme === Schemas.untitled;
 	}
 
+	private async _assertStat() {
+		const stats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+		if (this._lastResolvedFileStat && stats.mtime > this._lastResolvedFileStat.mtime) {
+			return new Promise<'override' | 'revert' | 'none'>(resolve => {
+				const handle = this._notificationService.prompt(
+					Severity.Info,
+					nls.localize('notebook.staleSaveError', "The content of the file is newer. Please revert your version with the file contents or overwrite the content of the file with your changes"),
+					[{
+						label: nls.localize('notebook.staleSaveError.revert', "Revert"),
+						run: () => {
+							resolve('revert');
+						}
+					}, {
+						label: nls.localize('notebook.staleSaveError.override.', "Override"),
+						run: () => {
+							resolve('override');
+						}
+					}],
+					{ sticky: true }
+				);
+
+				Event.once(handle.onDidClose)(() => {
+					resolve('none');
+				});
+			});
+		}
+
+		return 'override';
+	}
+
 	async save(): Promise<boolean> {
+		const result = await this._assertStat();
+		if (result === 'none') {
+			return false;
+		}
+
+		if (result === 'revert') {
+			await this.revert();
+			return true;
+		}
+
 		const tokenSource = new CancellationTokenSource();
 		await this._notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
+		const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+		this._lastResolvedFileStat = newStats;
 		this._notebook.setDirty(false);
 		return true;
 	}
 
 	async saveAs(targetResource: URI): Promise<boolean> {
+		const result = await this._assertStat();
+
+		if (result === 'none') {
+			return false;
+		}
+
+		if (result === 'revert') {
+			await this.revert();
+			return true;
+		}
+
 		const tokenSource = new CancellationTokenSource();
 		await this._notebookService.saveAs(this.notebook.viewType, this.notebook.uri, targetResource, tokenSource.token);
+		const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+		this._lastResolvedFileStat = newStats;
 		this._notebook.setDirty(false);
 		return true;
 	}

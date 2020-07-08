@@ -582,6 +582,7 @@ export interface NotebookDocumentBackupData {
 	readonly viewType: string;
 	readonly name: string;
 	readonly backupId?: string;
+	readonly mtime?: number;
 }
 
 export interface IEditor extends editorCommon.ICompositeCodeEditor {
