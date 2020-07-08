@@ -60,15 +60,4 @@ suite('OnEnter', () => {
 					`    x`));
 		});
 	});
-
-	test('should indent after simple jsx tag with attributes', () => {
-		return withRandomFileEditor(`const a = <div onclick={bla}>${CURSOR}`, 'jsx', async (_editor, document) => {
-			await type(document, '\nx');
-			assert.strictEqual(
-				document.getText(),
-				joinLines(
-					`const a = <div onclick={bla}>`,
-					`    x`));
-		});
-	});
 });
