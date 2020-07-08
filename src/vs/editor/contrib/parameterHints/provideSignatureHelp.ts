@@ -17,6 +17,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 export const Context = {
 	Visible: new RawContextKey<boolean>('parameterHintsVisible', false),
 	MultipleSignatures: new RawContextKey<boolean>('parameterHintsMultipleSignatures', false),
+	ShowMultipleSignaturesAsList: new RawContextKey<boolean>('parameterHintsShowMultipleSignaturesAsList', false)
 };
 
 export async function provideSignatureHelp(

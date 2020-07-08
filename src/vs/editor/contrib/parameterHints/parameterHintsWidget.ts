@@ -43,6 +43,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	private readonly model: ParameterHintsModel;
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
+	private readonly keyShowMultipleSignaturesAsList: IContextKey<boolean>;
 
 	private domNodes?: {
 		readonly element: HTMLElement;
@@ -69,11 +70,16 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.model = this._register(new ParameterHintsModel(editor));
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
+		this.keyShowMultipleSignaturesAsList = Context.ShowMultipleSignaturesAsList.bindTo(contextKeyService);
 
 		this._register(this.model.onChangedHints(newParameterHints => {
 			if (newParameterHints) {
 				this.show();
-				this.render(newParameterHints);
+				if (this.keyShowMultipleSignaturesAsList.get()) {
+					this.renderAsList(newParameterHints);
+				} else {
+					this.render(newParameterHints);
+				}
 			} else {
 				this.hide();
 			}
@@ -101,7 +107,9 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this._register(scrollbar);
 		wrapper.appendChild(scrollbar.getDomNode());
 
-		const signature = dom.append(body, $('.signature'));
+		const signatureClass = this.keyShowMultipleSignaturesAsList.get() ? '.signature.signature-list' : '.signature';
+		const signature = dom.append(body, $(signatureClass));
+
 		const docs = dom.append(body, $('.docs'));
 
 		element.style.userSelect = 'text';
@@ -186,6 +194,46 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		return null;
 	}
 
+	private renderSignature(node: HTMLElement, signature: modes.SignatureInformation, activeParameterIndex: number): void {
+		const code = dom.append(node, $('.code'));
+		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+		code.style.fontSize = `${fontInfo.fontSize}px`;
+		code.style.fontFamily = fontInfo.fontFamily;
+
+		const hasParameters = signature.parameters.length > 0;
+
+		if (!hasParameters) {
+			const label = dom.append(code, $('span'));
+			label.textContent = signature.label;
+		} else {
+			this.renderParameters(code, signature, activeParameterIndex);
+		}
+	}
+
+	private renderAsList(hints: modes.SignatureHelp): void {
+		this.renderDisposeables.clear();
+
+		const domNodes = this.domNodes;
+
+		if (!domNodes) {
+			return;
+		}
+
+		domNodes.signature.innerHTML = '';
+		domNodes.docs.innerHTML = '';
+
+		hints.signatures.forEach((signature, index) => {
+			if (index !== 0) {
+				dom.append(domNodes.signature, $('hr'));
+			}
+			const activeParameterIndex = signature.activeParameter ?? hints.activeParameter;
+			this.renderSignature(domNodes.signature, signature, activeParameterIndex);
+		});
+
+		this.editor.layoutContentWidget(this);
+		domNodes.scrollbar.scanDomNode();
+	}
+
 	private render(hints: modes.SignatureHelp): void {
 		this.renderDisposeables.clear();
 
@@ -205,20 +253,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			return;
 		}
 
-		const code = dom.append(this.domNodes.signature, $('.code'));
-		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-		code.style.fontSize = `${fontInfo.fontSize}px`;
-		code.style.fontFamily = fontInfo.fontFamily;
-
-		const hasParameters = signature.parameters.length > 0;
 		const activeParameterIndex = signature.activeParameter ?? hints.activeParameter;
-
-		if (!hasParameters) {
-			const label = dom.append(code, $('span'));
-			label.textContent = signature.label;
-		} else {
-			this.renderParameters(code, signature, activeParameterIndex);
-		}
+		this.renderSignature(this.domNodes.signature, signature, activeParameterIndex);
 
 		const activeParameter: modes.ParameterInformation | undefined = signature.parameters[activeParameterIndex];
 		if (activeParameter?.documentation) {
