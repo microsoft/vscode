@@ -9,22 +9,22 @@
 
 function _factory(sharedObj) {
 
-	sharedObj._performanceEntries = sharedObj._performanceEntries || [];
+	sharedObj.MonacoPerformanceMarks = sharedObj.MonacoPerformanceMarks || [];
 
 	const _dataLen = 2;
 	const _timeStamp = typeof console.timeStamp === 'function' ? console.timeStamp.bind(console) : () => { };
 
 	function importEntries(entries) {
-		sharedObj._performanceEntries.splice(0, 0, ...entries);
+		sharedObj.MonacoPerformanceMarks.splice(0, 0, ...entries);
 	}
 
 	function exportEntries() {
-		return sharedObj._performanceEntries.slice(0);
+		return sharedObj.MonacoPerformanceMarks.slice(0);
 	}
 
 	function getEntries() {
 		const result = [];
-		const entries = sharedObj._performanceEntries;
+		const entries = sharedObj.MonacoPerformanceMarks;
 		for (let i = 0; i < entries.length; i += _dataLen) {
 			result.push({
 				name: entries[i],
@@ -35,7 +35,7 @@ function _factory(sharedObj) {
 	}
 
 	function getDuration(from, to) {
-		const entries = sharedObj._performanceEntries;
+		const entries = sharedObj.MonacoPerformanceMarks;
 		let target = to;
 		let endIndex = 0;
 		for (let i = entries.length - _dataLen; i >= 0; i -= _dataLen) {
@@ -54,7 +54,7 @@ function _factory(sharedObj) {
 	}
 
 	function mark(name) {
-		sharedObj._performanceEntries.push(name, Date.now());
+		sharedObj.MonacoPerformanceMarks.push(name, Date.now());
 		_timeStamp(name);
 	}
 

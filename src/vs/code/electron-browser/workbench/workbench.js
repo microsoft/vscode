@@ -9,24 +9,13 @@
 'use strict';
 
 const perf = (function () {
-	let sharedObj;
-	if (typeof global === 'object') {
-		// nodejs
-		sharedObj = global;
-	} else if (typeof self === 'object') {
-		// browser
-		sharedObj = self;
-	} else {
-		sharedObj = {};
-	}
-	// @ts-ignore
-	sharedObj._performanceEntries = sharedObj._performanceEntries || [];
+	globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
 	return {
 		/**
 		 * @param {string} name
 		 */
 		mark(name) {
-			sharedObj._performanceEntries.push(name, Date.now());
+			globalThis.MonacoPerformanceMarks.push(name, Date.now());
 		}
 	};
 })();
