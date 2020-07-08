@@ -58,6 +58,10 @@ class BaseTreeItem {
 		this._showedMoreThanOne = false;
 	}
 
+	updateLabel(label: string) {
+		this._label = label;
+	}
+
 	isLeaf(): boolean {
 		return this._children.size === 0;
 	}
@@ -528,9 +532,11 @@ export class LoadedScriptsView extends ViewPane {
 
 		const registerSessionListeners = (session: IDebugSession) => {
 			this._register(session.onDidChangeName(async () => {
-				// Re-add session, this will trigger proper sorting and id recalculation.
-				root.remove(session.getId());
-				await addSourcePathsToSession(session);
+				const sessionRoot = root.find(session);
+				if (sessionRoot) {
+					sessionRoot.updateLabel(session.getLabel());
+					scheduleRefreshOnVisible();
+				}
 			}));
 			this._register(session.onDidLoadedSource(async event => {
 				let sessionRoot: SessionTreeItem;
