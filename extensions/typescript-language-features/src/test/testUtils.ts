@@ -70,7 +70,7 @@ export function withRandomFileEditor(
 
 export const wait = (ms: number) => new Promise<undefined>(resolve => setTimeout(() => resolve(), ms));
 
-export const joinLines = (...args: string[]) => args.join('\n');
+export const joinLines = (...args: string[]) => args.join(os.platform() === 'win32' ? '\r\n' : '\n');
 
 export async function createTestEditor(uri: vscode.Uri, ...lines: string[]) {
 	const document = await vscode.workspace.openTextDocument(uri);
@@ -102,6 +102,7 @@ export type VsCodeConfiguration = { [key: string]: any };
 export async function updateConfig(documentUri: vscode.Uri, newConfig: VsCodeConfiguration): Promise<VsCodeConfiguration> {
 	const oldConfig: VsCodeConfiguration = {};
 	const config = vscode.workspace.getConfiguration(undefined, documentUri);
+
 	for (const configKey of Object.keys(newConfig)) {
 		oldConfig[configKey] = config.get(configKey);
 		await new Promise((resolve, reject) =>
@@ -113,10 +114,12 @@ export async function updateConfig(documentUri: vscode.Uri, newConfig: VsCodeCon
 
 export const Config = Object.freeze({
 	autoClosingBrackets: 'editor.autoClosingBrackets',
-	completeFunctionCalls: 'typescript.suggest.completeFunctionCalls',
+	typescriptCompleteFunctionCalls: 'typescript.suggest.completeFunctionCalls',
 	insertMode: 'editor.suggest.insertMode',
 	snippetSuggestions: 'editor.snippetSuggestions',
 	suggestSelection: 'editor.suggestSelection',
+	javascriptQuoteStyle: 'javascript.preferences.quoteStyle',
+	typescriptQuoteStyle: 'typescript.preferences.quoteStyle',
 } as const);
 
 export const insertModesValues = Object.freeze(['insert', 'replace']);
