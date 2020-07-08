@@ -171,7 +171,7 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 			if (arg instanceof constraint) {
 				return;
 			}
-		} catch{
+		} catch {
 			// ignore
 		}
 		if (!isUndefinedOrNull(arg) && arg.constructor === constraint) {
