@@ -73,7 +73,8 @@ function _factory(sharedObj) {
 // Because we want both instances to use the same perf-data
 // we store them globally
 
-let sharedObj;
+// eslint-disable-next-line no-var
+var sharedObj;
 if (typeof global === 'object') {
 	// nodejs
 	sharedObj = global;
@@ -91,5 +92,5 @@ if (typeof define === 'function') {
 	// commonjs
 	module.exports = _factory(sharedObj);
 } else {
-	// invalid context...
+	sharedObj.perf = _factory(sharedObj);
 }
