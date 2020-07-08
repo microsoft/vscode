@@ -261,7 +261,7 @@ export class UserDataSyncDataViews extends Disposable {
 			treeView,
 			collapsed: false,
 			order: 300,
-			hideByDefault: true,
+			hideByDefault: !remote,
 		}], container);
 
 		this.registerDataViewActions(id);
