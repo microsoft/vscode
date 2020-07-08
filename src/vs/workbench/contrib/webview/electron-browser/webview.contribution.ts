@@ -15,6 +15,8 @@ import { getActiveWebview } from 'vs/workbench/contrib/webview/browser/webviewCo
 import * as webviewCommands from 'vs/workbench/contrib/webview/electron-browser/webviewCommands';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { ElectronWebviewService } from 'vs/workbench/contrib/webview/electron-browser/webviewService';
+import { isMacintosh } from 'vs/base/common/platform';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 registerSingleton(IWebviewService, ElectronWebviewService, true);
 
@@ -52,6 +54,10 @@ const PRIORITY = 100;
 
 function overrideCommandForWebview(command: MultiCommand | undefined, f: (webview: ElectronWebviewBasedWebview) => void) {
 	command?.addImplementation(PRIORITY, accessor => {
+		if (!isMacintosh || accessor.get(IConfigurationService).getValue<string>('window.titleBarStyle') !== 'native') {
+			return false;
+		}
+
 		const webview = getActiveElectronBasedWebview(accessor);
 		if (webview) {
 			f(webview);
