@@ -7912,7 +7912,7 @@ declare module 'vscode' {
 		 * @param options Options that control the dialog.
 		 * @returns A promise that resolves to the selected resources or `undefined`.
 		 */
-		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[] | undefined>;
+		export function showOpenDialog(options?: OpenDialogOptions): Thenable<Uri[] | undefined>;
 
 		/**
 		 * Shows a file save dialog to the user which allows to select a file
@@ -7921,7 +7921,7 @@ declare module 'vscode' {
 		 * @param options Options that control the dialog.
 		 * @returns A promise that resolves to the selected resource or `undefined`.
 		 */
-		export function showSaveDialog(options: SaveDialogOptions): Thenable<Uri | undefined>;
+		export function showSaveDialog(options?: SaveDialogOptions): Thenable<Uri | undefined>;
 
 		/**
 		 * Opens an input box to ask the user for input.
