@@ -31,6 +31,8 @@ const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args);
 app.setPath('userData', userDataPath);
 
+app.allowRendererProcessReuse = false;
+
 // Set temp directory based on crash-reporter-directory CLI argument
 // The crash reporter will store crashes in temp folder so we need
 // to change that location accordingly.
