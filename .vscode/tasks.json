@@ -66,13 +66,31 @@
 		},
 		{
 			"type": "npm",
-			"script": "kill-watchd",
-			"label": "Kill Build VS Code",
+			"script": "kill-watch-clientd",
+			"label": "Kill Build VS Code Core",
 			"group": "build",
 			"presentation": {
 				"reveal": "never"
 			},
 			"problemMatcher": "$tsc"
+		},
+		{
+			"type": "npm",
+			"script": "kill-watch-extensionsd",
+			"label": "Kill Build VS Code Extensions",
+			"group": "build",
+			"presentation": {
+				"reveal": "never"
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "Kill Build VS Code",
+			"dependsOn": [
+				"Kill Build VS Code Core",
+				"Kill Build VS Code Extensions"
+			],
+			"group": "build"
 		},
 		{
 			"type": "npm",
