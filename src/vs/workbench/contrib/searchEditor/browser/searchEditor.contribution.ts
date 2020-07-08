@@ -239,6 +239,30 @@ const openArgDescription = {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			id: 'search.searchEditor.action.deleteFileResults',
+			title: localize('searchEditor.deleteResultBlock', "Delete File Results"),
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib,
+				when: SearchEditorConstants.InSearchEditor,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
+			},
+			precondition: SearchEditorConstants.InSearchEditor,
+			category,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
+		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
+			(accessor.get(IEditorService).activeEditorPane as SearchEditor).deleteResultBlock();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
 			id: SearchEditorConstants.OpenNewEditorCommandId,
 			title: localize('search.openNewSearchEditor', "Open new Search Editor"),
 			category,

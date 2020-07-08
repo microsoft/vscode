@@ -82,19 +82,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.searchEditor.deleteResultBlock',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: SearchEditorConstants.InSearchEditor,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
-	handler: accessor => {
-		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
-		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
-			(accessor.get(IEditorService).activeEditorPane as SearchEditor).deleteResultBlock();
-		}
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.FocusSearchFromResults,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.FirstMatchFocusKey),
