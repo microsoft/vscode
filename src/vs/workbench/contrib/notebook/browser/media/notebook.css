@@ -417,23 +417,6 @@
 	outline: none !important;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-shadow-container {
-	height: 10px;
-	left: 0px;
-	right: 0px;
-	overflow: hidden;
-	position: absolute;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-shadow-container-top {
-	top: -10px;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-shadow-top {
-	margin-top: 10px;
-	width: 100%;
-}
-
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator {
 	display: block;
 	content: ' ';

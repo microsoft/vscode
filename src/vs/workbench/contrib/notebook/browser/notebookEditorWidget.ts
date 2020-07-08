@@ -23,7 +23,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { contrastBorder, editorBackground, focusBorder, foreground, registerColor, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, errorForeground, transparent, widgetShadow, listFocusBackground, listInactiveSelectionBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorBackground, focusBorder, foreground, registerColor, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, errorForeground, transparent, listFocusBackground, listInactiveSelectionBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
@@ -1373,12 +1373,6 @@ export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
 	hc: focusBorder
 }, nls.localize('notebook.focusedCellBorder', "The color of the cell's top and bottom border when the cell is focused."));
 
-export const focusedCellShadow = registerColor('notebook.focusedCellShadow', {
-	dark: transparent(widgetShadow, 0.6),
-	light: transparent(widgetShadow, 0.4),
-	hc: Color.transparent
-}, nls.localize('notebook.focusedCellShadow', "The color of the cell shadow when cells are focused."));
-
 export const cellStatusBarItemHover = registerColor('notebook.cellStatusBarItemHoverBackground', {
 	light: new Color(new RGBA(0, 0, 0, 0.08)),
 	dark: new Color(new RGBA(255, 255, 255, 0.15)),
@@ -1540,15 +1534,6 @@ registerThemingParticipant((theme, collector) => {
 	const cellStatusBarHoverBg = theme.getColor(cellStatusBarItemHover);
 	if (cellStatusBarHoverBg) {
 		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-language-picker:hover { background-color: ${cellStatusBarHoverBg}; }`);
-	}
-
-	const cellShadowColor = theme.getColor(focusedCellShadow);
-	if (cellShadowColor) {
-		// Code cells
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-shadow { box-shadow: 0px 0px 4px 2px ${cellShadowColor} }`);
-
-		// Markdown cells
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused { box-shadow: 0px 0px 4px 2px ${cellShadowColor} }`);
 	}
 
 	const cellInsertionIndicatorColor = theme.getColor(cellInsertionIndicator);
