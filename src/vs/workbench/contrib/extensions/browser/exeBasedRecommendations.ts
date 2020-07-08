@@ -85,10 +85,11 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		const extensionId = recommendations[0];
-		const tip = importantExeBasedRecommendations[extensionId];
-		const message = localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.friendlyName!, tip.exeFriendlyName || basename(tip.windowsPath!));
-		this.promptImportantExtensionInstallNotification(extensionId, message);
+		for (const extensionId of recommendations) {
+			const tip = importantExeBasedRecommendations[extensionId];
+			const message = localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.friendlyName!, tip.exeFriendlyName || basename(tip.windowsPath!));
+			this.promptImportantExtensionInstallNotification(extensionId, message);
+		}
 	}
 
 	private groupByInstalled(recommendationsToSuggest: string[], local: ILocalExtension[]): { installed: string[], uninstalled: string[] } {
