@@ -704,7 +704,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	stopSession(session: IDebugSession): Promise<any> {
+	stopSession(session: IDebugSession | undefined): Promise<any> {
 		if (session) {
 			return session.terminate();
 		}

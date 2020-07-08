@@ -868,7 +868,7 @@ export interface IDebugService {
 	restartSession(session: IDebugSession, restartData?: any): Promise<any>;
 
 	/**
-	 * Stops the session. If the session does not exist then stops all sessions.
+	 * Stops the session. If no session is specified then all sessions are stopped.
 	 */
 	stopSession(session: IDebugSession | undefined): Promise<any>;
 
