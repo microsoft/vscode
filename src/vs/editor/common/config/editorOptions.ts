@@ -629,6 +629,11 @@ export interface IEditorOptions {
 	 * Control the behavior and rendering of the inline hints.
 	 */
 	inlineHints?: IEditorInlineHintsOptions;
+	/**
+	 * Controls whether to show parameter signature as single list, not switchable element.
+	 * Defaults to false.
+	 */
+	showMultipleSignaturesAsList?: boolean;
 }
 
 /**
@@ -3814,6 +3819,7 @@ export const enum EditorOption {
 	selectionHighlight,
 	selectOnLineNumbers,
 	showFoldingControls,
+	showMultipleSignaturesAsList,
 	showUnused,
 	snippetSuggestions,
 	smartSelect,
@@ -4334,6 +4340,10 @@ export const EditorOptions = {
 			],
 			description: nls.localize('showFoldingControls', "Controls when the folding controls on the gutter are shown.")
 		}
+	)),
+	showMultipleSignaturesAsList: register(new EditorBooleanOption(
+		EditorOption.showMultipleSignaturesAsList, 'showMultipleSignaturesAsList', false,
+		{ description: nls.localize('showMultipleSignaturesAsList', "Show overloaded signatures as a single list.") }
 	)),
 	showUnused: register(new EditorBooleanOption(
 		EditorOption.showUnused, 'showUnused', true,

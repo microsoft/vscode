@@ -3192,6 +3192,11 @@ declare namespace monaco.editor {
 		 * Control the behavior and rendering of the inline hints.
 		 */
 		inlineHints?: IEditorInlineHintsOptions;
+		/**
+		 * Controls whether to show parameter signature as single list, not switchable element.
+		 * Defaults to false.
+		 */
+		showMultipleSignaturesAsList?: boolean;
 	}
 
 	/**
@@ -4050,37 +4055,38 @@ declare namespace monaco.editor {
 		selectionHighlight = 92,
 		selectOnLineNumbers = 93,
 		showFoldingControls = 94,
-		showUnused = 95,
-		snippetSuggestions = 96,
-		smartSelect = 97,
-		smoothScrolling = 98,
-		stickyTabStops = 99,
-		stopRenderingLineAfter = 100,
-		suggest = 101,
-		suggestFontSize = 102,
-		suggestLineHeight = 103,
-		suggestOnTriggerCharacters = 104,
-		suggestSelection = 105,
-		tabCompletion = 106,
-		tabIndex = 107,
-		unusualLineTerminators = 108,
-		useTabStops = 109,
-		wordSeparators = 110,
-		wordWrap = 111,
-		wordWrapBreakAfterCharacters = 112,
-		wordWrapBreakBeforeCharacters = 113,
-		wordWrapColumn = 114,
-		wordWrapOverride1 = 115,
-		wordWrapOverride2 = 116,
-		wrappingIndent = 117,
-		wrappingStrategy = 118,
-		showDeprecated = 119,
-		inlineHints = 120,
-		editorClassName = 121,
-		pixelRatio = 122,
-		tabFocusMode = 123,
-		layoutInfo = 124,
-		wrappingInfo = 125
+		showMultipleSignaturesAsList = 95,
+		showUnused = 96,
+		snippetSuggestions = 97,
+		smartSelect = 98,
+		smoothScrolling = 99,
+		stickyTabStops = 100,
+		stopRenderingLineAfter = 101,
+		suggest = 102,
+		suggestFontSize = 103,
+		suggestLineHeight = 104,
+		suggestOnTriggerCharacters = 105,
+		suggestSelection = 106,
+		tabCompletion = 107,
+		tabIndex = 108,
+		unusualLineTerminators = 109,
+		useTabStops = 110,
+		wordSeparators = 111,
+		wordWrap = 112,
+		wordWrapBreakAfterCharacters = 113,
+		wordWrapBreakBeforeCharacters = 114,
+		wordWrapColumn = 115,
+		wordWrapOverride1 = 116,
+		wordWrapOverride2 = 117,
+		wrappingIndent = 118,
+		wrappingStrategy = 119,
+		showDeprecated = 120,
+		inlineHints = 121,
+		editorClassName = 122,
+		pixelRatio = 123,
+		tabFocusMode = 124,
+		layoutInfo = 125,
+		wrappingInfo = 126
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4179,6 +4185,7 @@ declare namespace monaco.editor {
 		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, boolean>;
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'mouseover'>;
+		showMultipleSignaturesAsList: IEditorOption<EditorOption.showMultipleSignaturesAsList, boolean>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
 		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
 		inlineHints: IEditorOption<EditorOption.inlineHints, any>;
