@@ -6,7 +6,6 @@
 import * as objects from 'vs/base/common/objects';
 import { parse, JSONVisitor, visit } from 'vs/base/common/json';
 import { setProperty, withFormatting, applyEdits } from 'vs/base/common/jsonEdit';
-import { values } from 'vs/base/common/map';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions, Edit, getEOL } from 'vs/base/common/jsonFormatter';
 import * as contentUtil from 'vs/platform/userDataSync/common/content';
@@ -223,7 +222,7 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 	const hasConflicts = conflicts.size > 0 || !areSame(localContent, remoteContent, ignoredSettings);
 	const hasLocalChanged = hasConflicts || !areSame(localContent, originalLocalContent, []);
 	const hasRemoteChanged = hasConflicts || !areSame(remoteContent, originalRemoteContent, []);
-	return { localContent: hasLocalChanged ? localContent : null, remoteContent: hasRemoteChanged ? remoteContent : null, conflictsSettings: values(conflicts), hasConflicts };
+	return { localContent: hasLocalChanged ? localContent : null, remoteContent: hasRemoteChanged ? remoteContent : null, conflictsSettings: [...conflicts.values()], hasConflicts };
 }
 
 export function areSame(localContent: string, remoteContent: string, ignoredSettings: string[]): boolean {

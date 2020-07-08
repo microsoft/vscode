@@ -14,7 +14,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { URI } from 'vs/base/common/uri';
 import { firstIndex, move } from 'vs/base/common/arrays';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { values } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 
 class CounterSet<T> implements IReadableSet<T> {
@@ -229,7 +228,7 @@ class ViewDescriptorsState extends Disposable {
 	}
 
 	private setStoredGlobalState(storedGlobalState: Map<string, IStoredGlobalViewState>): void {
-		this.globalViewsStatesValue = JSON.stringify(values(storedGlobalState));
+		this.globalViewsStatesValue = JSON.stringify([...storedGlobalState.values()]);
 	}
 
 	private parseStoredGlobalState(value: string): { state: Map<string, IStoredGlobalViewState>, hasDuplicates: boolean } {

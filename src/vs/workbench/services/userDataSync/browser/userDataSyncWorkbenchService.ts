@@ -11,7 +11,6 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/edi
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { flatten } from 'vs/base/common/arrays';
-import { values } from 'vs/base/common/map';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
@@ -69,7 +68,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	readonly onDidChangeAccountStatus = this._onDidChangeAccountStatus.event;
 
 	private _all: Map<string, UserDataSyncAccount[]> = new Map<string, UserDataSyncAccount[]>();
-	get all(): UserDataSyncAccount[] { return flatten(values(this._all)); }
+	get all(): UserDataSyncAccount[] { return flatten([...this._all.values()]); }
 
 	get current(): UserDataSyncAccount | undefined { return this.all.filter(account => this.isCurrentAccount(account))[0]; }
 
@@ -178,7 +177,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			accounts.set(currentAccount.accountName, currentAccount);
 		}
 
-		return values(accounts);
+		return [...accounts.values()];
 	}
 
 	private async updateToken(current: UserDataSyncAccount | undefined): Promise<void> {

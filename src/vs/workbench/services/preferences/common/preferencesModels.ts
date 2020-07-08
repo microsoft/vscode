@@ -171,7 +171,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	}
 
 	protected update(): IFilterResult | undefined {
-		const resultGroups = map.values(this._currentResultGroups);
+		const resultGroups = [...this._currentResultGroups.values()];
 		if (!resultGroups.length) {
 			return undefined;
 		}

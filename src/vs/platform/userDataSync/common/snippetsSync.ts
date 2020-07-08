@@ -21,7 +21,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { deepClone } from 'vs/base/common/objects';
 import { localize } from 'vs/nls';
-import { values } from 'vs/base/common/map';
 
 export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
@@ -286,7 +285,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 			}
 		}
 
-		return values(resourcePreviews);
+		return [...resourcePreviews.values()];
 	}
 
 	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {

@@ -11,7 +11,7 @@ import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { values, keys, getOrSet } from 'vs/base/common/map';
+import { getOrSet } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IAction, IActionViewItem } from 'vs/base/common/actions';
@@ -140,7 +140,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 	private readonly defaultViewContainers: ViewContainer[] = [];
 
 	get all(): ViewContainer[] {
-		return flatten(values(this.viewContainers));
+		return flatten([...this.viewContainers.values()]);
 	}
 
 	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, isDefault?: boolean): ViewContainer {
@@ -160,7 +160,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 	}
 
 	deregisterViewContainer(viewContainer: ViewContainer): void {
-		for (const viewContainerLocation of keys(this.viewContainers)) {
+		for (const viewContainerLocation of this.viewContainers.keys()) {
 			const viewContainers = this.viewContainers.get(viewContainerLocation)!;
 			const index = viewContainers?.indexOf(viewContainer);
 			if (index !== -1) {
@@ -183,7 +183,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 	}
 
 	getViewContainerLocation(container: ViewContainer): ViewContainerLocation {
-		return keys(this.viewContainers).filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer.id === container.id).length > 0)[0];
+		return [...this.viewContainers.keys()].filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer.id === container.id).length > 0)[0];
 	}
 
 	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
@@ -365,7 +365,7 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 	}
 
 	moveViews(viewsToMove: IViewDescriptor[], viewContainer: ViewContainer): void {
-		keys(this._views).forEach(container => {
+		for (const container of this._views.keys()) {
 			if (container !== viewContainer) {
 				const views = this.removeViews(viewsToMove, container);
 				if (views.length) {
@@ -373,7 +373,7 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 					this._onDidChangeContainer.fire({ views, from: container, to: viewContainer });
 				}
 			}
-		});
+		}
 	}
 
 	getViews(loc: ViewContainer): IViewDescriptor[] {

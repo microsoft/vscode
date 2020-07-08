@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { values } from 'vs/base/common/map';
 import { IStringDictionary } from 'vs/base/common/collections';
 
 export interface IMergeResult {
@@ -27,7 +26,7 @@ export function merge(local: IStringDictionary<string>, remote: IStringDictionar
 
 	if (!remote) {
 		return {
-			local: { added: localAdded, updated: localUpdated, removed: values(localRemoved) },
+			local: { added: localAdded, updated: localUpdated, removed: [...localRemoved.values()] },
 			remote: { added: local, updated: {}, removed: [] },
 			conflicts: []
 		};
@@ -37,7 +36,7 @@ export function merge(local: IStringDictionary<string>, remote: IStringDictionar
 	if (localToRemote.added.size === 0 && localToRemote.removed.size === 0 && localToRemote.updated.size === 0) {
 		// No changes found between local and remote.
 		return {
-			local: { added: localAdded, updated: localUpdated, removed: values(localRemoved) },
+			local: { added: localAdded, updated: localUpdated, removed: [...localRemoved.values()] },
 			remote: { added: {}, updated: {}, removed: [] },
 			conflicts: []
 		};
@@ -145,9 +144,9 @@ export function merge(local: IStringDictionary<string>, remote: IStringDictionar
 	}
 
 	return {
-		local: { added: localAdded, removed: values(localRemoved), updated: localUpdated },
-		remote: { added: remoteAdded, removed: values(remoteRemoved), updated: remoteUpdated },
-		conflicts: values(conflicts),
+		local: { added: localAdded, removed: [...localRemoved.values()], updated: localUpdated },
+		remote: { added: remoteAdded, removed: [...remoteRemoved.values()], updated: remoteUpdated },
+		conflicts: [...conflicts.values()],
 	};
 }
 
