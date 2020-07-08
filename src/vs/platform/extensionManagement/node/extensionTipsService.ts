@@ -21,7 +21,7 @@ import { ExtensionTipsService as BaseExtensionTipsService } from 'vs/platform/ex
 type IExeBasedExtensionTips = {
 	readonly exeFriendlyName: string,
 	readonly windowsPath?: string,
-	readonly recommendations: { extensionId: string, extensionName: string }[];
+	readonly recommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[];
 };
 
 export class ExtensionTipsService extends BaseExtensionTipsService {
@@ -41,13 +41,13 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		super(fileService, productService, requestService, logService);
 		if (productService.exeBasedExtensionTips) {
 			forEach(productService.exeBasedExtensionTips, ({ key, value }) => {
-				const importantRecommendations: { extensionId: string, extensionName: string }[] = [];
-				const otherRecommendations: { extensionId: string, extensionName: string }[] = [];
+				const importantRecommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[] = [];
+				const otherRecommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[] = [];
 				forEach(value.recommendations, ({ key: extensionId, value }) => {
 					if (value.important) {
-						importantRecommendations.push({ extensionId, extensionName: value.name });
+						importantRecommendations.push({ extensionId, extensionName: value.name, isExtensionPack: !!value.isExtensionPack });
 					} else {
-						otherRecommendations.push({ extensionId, extensionName: value.name });
+						otherRecommendations.push({ extensionId, extensionName: value.name, isExtensionPack: !!value.isExtensionPack });
 					}
 				});
 				if (importantRecommendations.length) {
@@ -99,10 +99,11 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 					checkedExecutables.set(exePath, exists);
 				}
 				if (exists) {
-					for (const { extensionId, extensionName: friendlyName } of extensionTip.recommendations) {
+					for (const { extensionId, extensionName, isExtensionPack } of extensionTip.recommendations) {
 						result.push({
 							extensionId,
-							friendlyName,
+							extensionName,
+							isExtensionPack,
 							exeFriendlyName: extensionTip.exeFriendlyName,
 							windowsPath: extensionTip.windowsPath,
 						});

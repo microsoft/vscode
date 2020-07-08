@@ -131,7 +131,7 @@ export interface IConfigBasedExtensionTip {
 export interface IExeBasedExtensionTip {
 	friendlyName: string;
 	windowsPath?: string;
-	recommendations: IStringDictionary<{ name: string, important?: boolean }>;
+	recommendations: IStringDictionary<{ name: string, important?: boolean, isExtensionPack?: boolean }>;
 }
 
 export interface IRemoteExtensionTip {

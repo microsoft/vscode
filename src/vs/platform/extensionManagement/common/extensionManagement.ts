@@ -237,7 +237,8 @@ export type IConfigBasedExtensionTip = {
 
 export type IExecutableBasedExtensionTip = {
 	readonly extensionId: string,
-	readonly friendlyName: string,
+	readonly extensionName: string,
+	readonly isExtensionPack: boolean,
 	readonly exeFriendlyName: string,
 	readonly windowsPath?: string,
 };

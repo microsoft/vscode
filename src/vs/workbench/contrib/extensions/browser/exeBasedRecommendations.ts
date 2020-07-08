@@ -87,7 +87,8 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 
 		for (const extensionId of recommendations) {
 			const tip = importantExeBasedRecommendations[extensionId];
-			const message = localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.friendlyName!, tip.exeFriendlyName || basename(tip.windowsPath!));
+			const message = tip.isExtensionPack ? localize('extensionPackRecommended', "The '{0}' extension pack is recommended as you have {1} installed on your system.", tip.extensionName!, tip.exeFriendlyName || basename(tip.windowsPath!))
+				: localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.extensionName!, tip.exeFriendlyName || basename(tip.windowsPath!));
 			this.promptImportantExtensionInstallNotification(extensionId, message);
 		}
 	}
@@ -111,7 +112,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 			source: 'executable',
 			reason: {
 				reasonId: ExtensionRecommendationReason.Executable,
-				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.friendlyName)
+				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.extensionName)
 			}
 		};
 	}
