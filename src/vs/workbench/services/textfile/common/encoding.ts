@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecoderStream } from 'iconv-lite-umd';
 import { Readable, ReadableStream, newWriteableStream } from 'vs/base/common/stream';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
@@ -39,6 +38,43 @@ export interface IDecodeStreamResult {
 	detected: IDetectedEncodingResult;
 }
 
+export interface IDecoderStream {
+	write(buffer: Uint8Array): string;
+	end(): string | undefined;
+}
+
+class DecoderStream implements IDecoderStream {
+
+	/**
+	 * This stream will only load iconv-lite lazily if the encoding
+	 * is not UTF-8. This ensures that for most common cases we do
+	 * not pay the price of loading the module from disk.
+	 */
+	static async create(encoding: string): Promise<DecoderStream> {
+		let decoder: IDecoderStream | undefined = undefined;
+		if (encoding !== UTF8) {
+			const iconv = await import('iconv-lite-umd');
+			decoder = iconv.getDecoder(toNodeEncoding(encoding));
+		}
+
+		return new DecoderStream(decoder);
+	}
+
+	private constructor(private iconvLiteDecoder: IDecoderStream | undefined) { }
+
+	write(buffer: Uint8Array): string {
+		if (this.iconvLiteDecoder) {
+			return this.iconvLiteDecoder.write(buffer);
+		}
+
+		return VSBuffer.wrap(buffer).toString();
+	}
+
+	end(): string | undefined {
+		return this.iconvLiteDecoder?.end();
+	}
+}
+
 export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeStreamOptions): Promise<IDecodeStreamResult> {
 	const minBytesRequiredForDetection = options.minBytesRequiredForDetection ?? options.guessEncoding ? AUTO_ENCODING_GUESS_MIN_BYTES : NO_ENCODING_GUESS_MIN_BYTES;
 
@@ -48,7 +84,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 		const bufferedChunks: VSBuffer[] = [];
 		let bytesBuffered = 0;
 
-		let decoder: DecoderStream | undefined = undefined;
+		let decoder: IDecoderStream | undefined = undefined;
 
 		const createDecoder = async () => {
 			try {
@@ -63,8 +99,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 				detected.encoding = await options.overwriteEncoding(detected.encoding);
 
 				// decode and write buffered content
-				const iconv = await import('iconv-lite-umd');
-				decoder = iconv.getDecoder(toNodeEncoding(detected.encoding));
+				decoder = await DecoderStream.create(detected.encoding);
 				const decoded = decoder.write(VSBuffer.concat(bufferedChunks).buffer);
 				target.write(decoded);
 

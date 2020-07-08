@@ -619,8 +619,10 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 			fileEncoding = this.textResourceConfigurationService.getValue(resource, 'files.encoding'); // and last we check for settings
 		}
 
-		if (!fileEncoding || !(await encodingExists(fileEncoding))) {
-			fileEncoding = UTF8; // the default is UTF 8
+		if (fileEncoding !== UTF8) {
+			if (!fileEncoding || !(await encodingExists(fileEncoding))) {
+				fileEncoding = UTF8; // the default is UTF-8
+			}
 		}
 
 		return fileEncoding;
