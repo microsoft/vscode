@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { keys } from 'vs/base/common/map';
 import { ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
 import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { startsWith } from 'vs/base/common/strings';
@@ -156,8 +155,8 @@ export function merge(localExtensions: ISyncExtension[], remoteExtensions: ISync
 }
 
 function compare(from: Map<string, ISyncExtension> | null, to: Map<string, ISyncExtension>, ignoredExtensions: Set<string>, { checkInstalledProperty }: { checkInstalledProperty: boolean } = { checkInstalledProperty: false }): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
-	const fromKeys = from ? keys(from).filter(key => !ignoredExtensions.has(key)) : [];
-	const toKeys = keys(to).filter(key => !ignoredExtensions.has(key));
+	const fromKeys = from ? [...from.keys()].filter(key => !ignoredExtensions.has(key)) : [];
+	const toKeys = [...to.keys()].filter(key => !ignoredExtensions.has(key));
 	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const updated: Set<string> = new Set<string>();
