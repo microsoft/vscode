@@ -873,6 +873,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean>;
 	$setDebugSessionName(id: DebugSessionUUID, name: string): void;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
+	$terminateDebugSession(id: DebugSessionUUID): Promise<void>;
 	$appendDebugConsole(value: string): void;
 	$startBreakpointEvents(): void;
 	$registerBreakpoints(breakpoints: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void>;

@@ -852,6 +852,14 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
+	export interface DebugSession {
+
+		/**
+		 * Terminates the session.
+		 */
+		terminate(): Thenable<void>;
+	}
+
 	//#endregion
 
 	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
