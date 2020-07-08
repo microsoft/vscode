@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, AuthenticationProviderInformation } from 'vs/editor/common/modes';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadAuthenticationProvider } from 'vs/workbench/api/browser/mainThreadAuthentication';
@@ -28,10 +28,10 @@ export interface IAuthenticationService {
 	requestNewSession(id: string, scopes: string[], extensionId: string, extensionName: string): void;
 	sessionsUpdate(providerId: string, event: AuthenticationSessionsChangeEvent): void;
 
-	readonly onDidRegisterAuthenticationProvider: Event<string>;
-	readonly onDidUnregisterAuthenticationProvider: Event<string>;
+	readonly onDidRegisterAuthenticationProvider: Event<AuthenticationProviderInformation>;
+	readonly onDidUnregisterAuthenticationProvider: Event<AuthenticationProviderInformation>;
 
-	readonly onDidChangeSessions: Event<{ providerId: string, event: AuthenticationSessionsChangeEvent }>;
+	readonly onDidChangeSessions: Event<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }>;
 	getSessions(providerId: string): Promise<ReadonlyArray<AuthenticationSession>>;
 	getLabel(providerId: string): string;
 	supportsMultipleAccounts(providerId: string): boolean;
@@ -77,14 +77,14 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	private _authenticationProviders: Map<string, MainThreadAuthenticationProvider> = new Map<string, MainThreadAuthenticationProvider>();
 
-	private _onDidRegisterAuthenticationProvider: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidRegisterAuthenticationProvider: Event<string> = this._onDidRegisterAuthenticationProvider.event;
+	private _onDidRegisterAuthenticationProvider: Emitter<AuthenticationProviderInformation> = this._register(new Emitter<AuthenticationProviderInformation>());
+	readonly onDidRegisterAuthenticationProvider: Event<AuthenticationProviderInformation> = this._onDidRegisterAuthenticationProvider.event;
 
-	private _onDidUnregisterAuthenticationProvider: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidUnregisterAuthenticationProvider: Event<string> = this._onDidUnregisterAuthenticationProvider.event;
+	private _onDidUnregisterAuthenticationProvider: Emitter<AuthenticationProviderInformation> = this._register(new Emitter<AuthenticationProviderInformation>());
+	readonly onDidUnregisterAuthenticationProvider: Event<AuthenticationProviderInformation> = this._onDidUnregisterAuthenticationProvider.event;
 
-	private _onDidChangeSessions: Emitter<{ providerId: string, event: AuthenticationSessionsChangeEvent }> = this._register(new Emitter<{ providerId: string, event: AuthenticationSessionsChangeEvent }>());
-	readonly onDidChangeSessions: Event<{ providerId: string, event: AuthenticationSessionsChangeEvent }> = this._onDidChangeSessions.event;
+	private _onDidChangeSessions: Emitter<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }> = this._register(new Emitter<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }>());
+	readonly onDidChangeSessions: Event<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }> = this._onDidChangeSessions.event;
 
 	constructor(@IActivityService private readonly activityService: IActivityService) {
 		super();
@@ -134,7 +134,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	registerAuthenticationProvider(id: string, authenticationProvider: MainThreadAuthenticationProvider): void {
 		this._authenticationProviders.set(id, authenticationProvider);
-		this._onDidRegisterAuthenticationProvider.fire(id);
+		this._onDidRegisterAuthenticationProvider.fire({ id, label: authenticationProvider.label });
 
 		if (this._placeholderMenuItem) {
 			this._placeholderMenuItem.dispose();
@@ -149,7 +149,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		if (provider) {
 			provider.dispose();
 			this._authenticationProviders.delete(id);
-			this._onDidUnregisterAuthenticationProvider.fire(id);
+			this._onDidUnregisterAuthenticationProvider.fire({ id, label: provider.label });
 			this.updateAccountsMenuItem();
 		}
 
@@ -165,9 +165,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async sessionsUpdate(id: string, event: AuthenticationSessionsChangeEvent): Promise<void> {
-		this._onDidChangeSessions.fire({ providerId: id, event: event });
 		const provider = this._authenticationProviders.get(id);
 		if (provider) {
+			this._onDidChangeSessions.fire({ providerId: id, label: provider.label, event: event });
 			await provider.updateSessionItems(event);
 			this.updateAccountsMenuItem();
 

@@ -50,14 +50,29 @@ declare module 'vscode' {
 	 */
 	export interface AuthenticationSessionAccountInformation {
 		/**
-		 * The human-readable name of the account.
-		 */
-		readonly label: string;
-
-		/**
 		 * The unique identifier of the account.
 		 */
 		readonly id: string;
+
+		/**
+		 * The human-readable name of the account.
+		 */
+		readonly label: string;
+	}
+
+	/**
+	 * Basic information about an[authenticationProvider](#AuthenticationProvider)
+	 */
+	export interface AuthenticationProviderInformation {
+		/**
+		 * The unique identifier of the authentication provider.
+		 */
+		readonly id: string;
+
+		/**
+		 * The human-readable name of the authentication provider.
+		 */
+		readonly label: string;
 	}
 
 	/**
@@ -67,12 +82,12 @@ declare module 'vscode' {
 		/**
 		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been added.
 		 */
-		readonly added: ReadonlyArray<string>;
+		readonly added: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
 		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed.
 		 */
-		readonly removed: ReadonlyArray<string>;
+		readonly removed: ReadonlyArray<AuthenticationProviderInformation>;
 	}
 
 	/**
@@ -89,6 +104,13 @@ declare module 'vscode' {
 		 * Defaults to false.
 		 */
 		clearSessionPreference?: boolean;
+	}
+
+	export interface AuthenticationProviderAuthenticationSessionsChangeEvent extends AuthenticationSessionsChangeEvent {
+		/**
+		 * The [authenticationProvider](#AuthenticationProvider) that has had its sessions change.
+		 */
+		readonly provider: AuthenticationProviderInformation;
 	}
 
 	/**
@@ -182,9 +204,15 @@ declare module 'vscode' {
 		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
 
 		/**
+		 * @deprecated
 		 * An array of the ids of authentication providers that are currently registered.
 		 */
 		export const providerIds: ReadonlyArray<string>;
+
+		/**
+		 * An array of the information of authentication providers that are currently registered.
+		 */
+		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
 		 * Returns whether a provider has any sessions matching the requested scopes. This request
@@ -235,7 +263,7 @@ declare module 'vscode' {
 		* within a session has changed for a provider. Fires with the ids of the providers
 		* that have had session data change.
 		*/
-		export const onDidChangeSessions: Event<{ [providerId: string]: AuthenticationSessionsChangeEvent; }>;
+		export const onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
 	}
 
 	//#endregion

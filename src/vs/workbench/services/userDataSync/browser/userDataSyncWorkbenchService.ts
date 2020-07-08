@@ -137,7 +137,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 					Event.any(
 						this.authenticationService.onDidRegisterAuthenticationProvider,
 						this.authenticationService.onDidUnregisterAuthenticationProvider,
-					), authenticationProviderId => this.isSupportedAuthenticationProviderId(authenticationProviderId)),
+					), info => this.isSupportedAuthenticationProviderId(info.id)),
 				Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => !isSuccessive))
 				(() => this.update()));
 
