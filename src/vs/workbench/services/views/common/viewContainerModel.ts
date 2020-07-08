@@ -181,7 +181,7 @@ class ViewDescriptorsState extends Disposable {
 		const value = this.storageService.get(this.globalViewsStateStorageId, StorageScope.WORKSPACE, '[]');
 		const { state: workspaceVisibilityStates } = this.parseStoredGlobalState(value);
 		if (workspaceVisibilityStates.size > 0) {
-			for (const { id, isHidden } of values(workspaceVisibilityStates)) {
+			for (const { id, isHidden } of workspaceVisibilityStates.values()) {
 				let viewState = viewStates.get(id);
 				// Not migrated to `viewletStateStorageId`
 				if (viewState) {
@@ -204,7 +204,7 @@ class ViewDescriptorsState extends Disposable {
 		if (hasDuplicates) {
 			this.setStoredGlobalState(state);
 		}
-		for (const { id, isHidden, order } of values(state)) {
+		for (const { id, isHidden, order } of state.values()) {
 			let viewState = viewStates.get(id);
 			if (viewState) {
 				viewState.visibleGlobal = !isHidden;

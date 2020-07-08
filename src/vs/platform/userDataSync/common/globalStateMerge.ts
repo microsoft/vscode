@@ -6,7 +6,6 @@
 import * as objects from 'vs/base/common/objects';
 import { IStorageValue } from 'vs/platform/userDataSync/common/userDataSync';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { values } from 'vs/base/common/map';
 import { IStorageKey } from 'vs/platform/userDataSync/common/storageKeys';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -35,7 +34,7 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 	const skipped: string[] = [];
 
 	// Added in remote
-	for (const key of values(baseToRemote.added)) {
+	for (const key of baseToRemote.added.values()) {
 		const remoteValue = remoteStorage[key];
 		const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
 		if (!storageKey) {
@@ -59,7 +58,7 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 	}
 
 	// Updated in Remote
-	for (const key of values(baseToRemote.updated)) {
+	for (const key of baseToRemote.updated.values()) {
 		const remoteValue = remoteStorage[key];
 		const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
 		if (!storageKey) {
@@ -79,7 +78,7 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 	}
 
 	// Removed in remote
-	for (const key of values(baseToRemote.removed)) {
+	for (const key of baseToRemote.removed.values()) {
 		const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
 		if (!storageKey) {
 			logService.trace(`GlobalState: Skipped removing ${key} in local storage. It is not registered to sync.`);
@@ -89,14 +88,14 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 	}
 
 	// Added in local
-	for (const key of values(baseToLocal.added)) {
+	for (const key of baseToLocal.added.values()) {
 		if (!baseToRemote.added.has(key)) {
 			remote[key] = localStorage[key];
 		}
 	}
 
 	// Updated in local
-	for (const key of values(baseToLocal.updated)) {
+	for (const key of baseToLocal.updated.values()) {
 		if (baseToRemote.updated.has(key) || baseToRemote.removed.has(key)) {
 			continue;
 		}
@@ -110,7 +109,7 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 	}
 
 	// Removed in local
-	for (const key of values(baseToLocal.removed)) {
+	for (const key of baseToLocal.removed.values()) {
 		// do not remove from remote if it is updated in remote
 		if (baseToRemote.updated.has(key)) {
 			continue;

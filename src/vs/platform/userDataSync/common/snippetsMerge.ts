@@ -53,7 +53,7 @@ export function merge(local: IStringDictionary<string>, remote: IStringDictionar
 	const conflicts: Set<string> = new Set<string>();
 
 	// Removed snippets in Local
-	for (const key of values(baseToLocal.removed)) {
+	for (const key of baseToLocal.removed.values()) {
 		// Conflict - Got updated in remote.
 		if (baseToRemote.updated.has(key)) {
 			// Add to local
@@ -66,7 +66,7 @@ export function merge(local: IStringDictionary<string>, remote: IStringDictionar
 	}
 
 	// Removed snippets in Remote
-	for (const key of values(baseToRemote.removed)) {
+	for (const key of baseToRemote.removed.values()) {
 		if (conflicts.has(key)) {
 			continue;
 		}
@@ -81,7 +81,7 @@ export function merge(local: IStringDictionary<string>, remote: IStringDictionar
 	}
 
 	// Updated snippets in Local
-	for (const key of values(baseToLocal.updated)) {
+	for (const key of baseToLocal.updated.values()) {
 		if (conflicts.has(key)) {
 			continue;
 		}
@@ -97,7 +97,7 @@ export function merge(local: IStringDictionary<string>, remote: IStringDictionar
 	}
 
 	// Updated snippets in Remote
-	for (const key of values(baseToRemote.updated)) {
+	for (const key of baseToRemote.updated.values()) {
 		if (conflicts.has(key)) {
 			continue;
 		}
@@ -113,7 +113,7 @@ export function merge(local: IStringDictionary<string>, remote: IStringDictionar
 	}
 
 	// Added snippets in Local
-	for (const key of values(baseToLocal.added)) {
+	for (const key of baseToLocal.added.values()) {
 		if (conflicts.has(key)) {
 			continue;
 		}
@@ -129,7 +129,7 @@ export function merge(local: IStringDictionary<string>, remote: IStringDictionar
 	}
 
 	// Added snippets in remote
-	for (const key of values(baseToRemote.added)) {
+	for (const key of baseToRemote.added.values()) {
 		if (conflicts.has(key)) {
 			continue;
 		}

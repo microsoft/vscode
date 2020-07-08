@@ -130,7 +130,7 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 	};
 
 	// Removed settings in Local
-	for (const key of values(baseToLocal.removed)) {
+	for (const key of baseToLocal.removed.values()) {
 		// Conflict - Got updated in remote.
 		if (baseToRemote.updated.has(key)) {
 			handleConflict(key);
@@ -142,7 +142,7 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 	}
 
 	// Removed settings in Remote
-	for (const key of values(baseToRemote.removed)) {
+	for (const key of baseToRemote.removed.values()) {
 		if (handledConflicts.has(key)) {
 			continue;
 		}
@@ -157,7 +157,7 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 	}
 
 	// Updated settings in Local
-	for (const key of values(baseToLocal.updated)) {
+	for (const key of baseToLocal.updated.values()) {
 		if (handledConflicts.has(key)) {
 			continue;
 		}
@@ -173,7 +173,7 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 	}
 
 	// Updated settings in Remote
-	for (const key of values(baseToRemote.updated)) {
+	for (const key of baseToRemote.updated.values()) {
 		if (handledConflicts.has(key)) {
 			continue;
 		}
@@ -189,7 +189,7 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 	}
 
 	// Added settings in Local
-	for (const key of values(baseToLocal.added)) {
+	for (const key of baseToLocal.added.values()) {
 		if (handledConflicts.has(key)) {
 			continue;
 		}
@@ -205,7 +205,7 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 	}
 
 	// Added settings in remote
-	for (const key of values(baseToRemote.added)) {
+	for (const key of baseToRemote.added.values()) {
 		if (handledConflicts.has(key)) {
 			continue;
 		}

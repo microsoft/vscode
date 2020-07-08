@@ -5,7 +5,7 @@
 
 import * as objects from 'vs/base/common/objects';
 import { parse } from 'vs/base/common/json';
-import { values, keys } from 'vs/base/common/map';
+import { keys } from 'vs/base/common/map';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { firstIndex as findFirstIndex, equals } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -64,7 +64,7 @@ export async function merge(localContent: string, remoteContent: string, baseCon
 	let mergeContent = localContent;
 
 	// Removed commands in Remote
-	for (const command of values(commandsMergeResult.removed)) {
+	for (const command of commandsMergeResult.removed.values()) {
 		if (commandsMergeResult.conflicts.has(command)) {
 			continue;
 		}
@@ -72,7 +72,7 @@ export async function merge(localContent: string, remoteContent: string, baseCon
 	}
 
 	// Added commands in remote
-	for (const command of values(commandsMergeResult.added)) {
+	for (const command of commandsMergeResult.added.values()) {
 		if (commandsMergeResult.conflicts.has(command)) {
 			continue;
 		}
@@ -86,7 +86,7 @@ export async function merge(localContent: string, remoteContent: string, baseCon
 	}
 
 	// Updated commands in Remote
-	for (const command of values(commandsMergeResult.updated)) {
+	for (const command of commandsMergeResult.updated.values()) {
 		if (commandsMergeResult.conflicts.has(command)) {
 			continue;
 		}
@@ -109,7 +109,7 @@ function computeMergeResult(localToRemote: ICompareResult, baseToLocal: ICompare
 	const conflicts: Set<string> = new Set<string>();
 
 	// Removed keys in Local
-	for (const key of values(baseToLocal.removed)) {
+	for (const key of baseToLocal.removed.values()) {
 		// Got updated in remote
 		if (baseToRemote.updated.has(key)) {
 			conflicts.add(key);
@@ -117,7 +117,7 @@ function computeMergeResult(localToRemote: ICompareResult, baseToLocal: ICompare
 	}
 
 	// Removed keys in Remote
-	for (const key of values(baseToRemote.removed)) {
+	for (const key of baseToRemote.removed.values()) {
 		if (conflicts.has(key)) {
 			continue;
 		}
@@ -131,7 +131,7 @@ function computeMergeResult(localToRemote: ICompareResult, baseToLocal: ICompare
 	}
 
 	// Added keys in Local
-	for (const key of values(baseToLocal.added)) {
+	for (const key of baseToLocal.added.values()) {
 		if (conflicts.has(key)) {
 			continue;
 		}
@@ -145,7 +145,7 @@ function computeMergeResult(localToRemote: ICompareResult, baseToLocal: ICompare
 	}
 
 	// Added keys in remote
-	for (const key of values(baseToRemote.added)) {
+	for (const key of baseToRemote.added.values()) {
 		if (conflicts.has(key)) {
 			continue;
 		}
@@ -161,7 +161,7 @@ function computeMergeResult(localToRemote: ICompareResult, baseToLocal: ICompare
 	}
 
 	// Updated keys in Local
-	for (const key of values(baseToLocal.updated)) {
+	for (const key of baseToLocal.updated.values()) {
 		if (conflicts.has(key)) {
 			continue;
 		}
@@ -175,7 +175,7 @@ function computeMergeResult(localToRemote: ICompareResult, baseToLocal: ICompare
 	}
 
 	// Updated keys in Remote
-	for (const key of values(baseToRemote.updated)) {
+	for (const key of baseToRemote.updated.values()) {
 		if (conflicts.has(key)) {
 			continue;
 		}
