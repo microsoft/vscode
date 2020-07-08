@@ -2,7 +2,7 @@
 	"name": "vscode-web",
 	"version": "0.0.0",
 	"dependencies": {
-		"iconv-lite-umd": "0.6.6",
+		"iconv-lite-umd": "0.6.8",
 		"jschardet": "2.2.1",
 		"semver-umd": "^5.5.7",
 		"vscode-oniguruma": "1.3.1",
