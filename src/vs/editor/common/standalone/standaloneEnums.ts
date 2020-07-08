@@ -68,7 +68,8 @@ export enum CompletionItemTag {
 export enum CompletionTriggerKind {
 	Invoke = 0,
 	TriggerCharacter = 1,
-	TriggerForIncompleteCompletions = 2
+	TriggerForIncompleteCompletions = 2,
+	UpdateSuggestions = 3
 }
 
 /**

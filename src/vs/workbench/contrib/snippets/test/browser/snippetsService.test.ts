@@ -37,7 +37,7 @@ class SimpleSnippetService implements ISnippetsService {
 
 suite('SnippetsService', function () {
 	const disposableStore: DisposableStore = new DisposableStore();
-	const context: CompletionContext = { triggerKind: CompletionTriggerKind.Invoke };
+	const context: CompletionContext = { triggerKind: CompletionTriggerKind.Invoke, auto: false };
 
 	suiteSetup(function () {
 		ModesRegistry.registerLanguage({
