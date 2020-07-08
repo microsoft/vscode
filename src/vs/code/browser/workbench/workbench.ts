@@ -12,6 +12,7 @@ import { request } from 'vs/base/parts/request/browser/request';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
+import { mark } from 'vs/base/common/performance';
 
 interface ICredential {
 	service: string;
@@ -278,6 +279,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 (function () {
 
 	// Mark start of workbench
+	mark('didLoadWorkbenchMain');
 	performance.mark('workbench-start');
 
 	// Find config by checking for DOM
