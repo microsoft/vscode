@@ -7,7 +7,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithOpenReadWriteCloseCapability, FileOpenOptions, hasReadWriteCapability, hasOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, hasFileReadStreamCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { startsWith } from 'vs/base/common/strings';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -141,7 +140,7 @@ export class FileUserDataProvider extends Disposable implements
 
 	private toFileSystemResource(userDataResource: URI): URI {
 		const relativePath = this.extUri.relativePath(this.userDataHome, userDataResource)!;
-		if (startsWith(relativePath, BACKUPS)) {
+		if (relativePath.startsWith(BACKUPS)) {
 			return this.extUri.joinPath(this.extUri.dirname(this.fileSystemBackupsHome), relativePath);
 		}
 		return this.extUri.joinPath(this.fileSystemUserDataHome, relativePath);

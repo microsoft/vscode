@@ -12,7 +12,6 @@ import * as contentUtil from 'vs/platform/userDataSync/common/content';
 import { IConflictSetting, getDisallowedIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 import { firstIndex, distinct } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { startsWith } from 'vs/base/common/strings';
 
 export interface IMergeResult {
 	localContent: string | null;
@@ -34,7 +33,7 @@ export function getIgnoredSettings(defaultIgnoredSettings: string[], configurati
 	const added: string[] = [], removed: string[] = [...getDisallowedIgnoredSettings()];
 	if (Array.isArray(value)) {
 		for (const key of value) {
-			if (startsWith(key, '-')) {
+			if (key.startsWith('-')) {
 				removed.push(key.substring(1));
 			} else {
 				added.push(key);

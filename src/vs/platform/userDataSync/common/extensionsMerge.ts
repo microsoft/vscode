@@ -5,7 +5,6 @@
 
 import { ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
 import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { startsWith } from 'vs/base/common/strings';
 import { deepClone } from 'vs/base/common/objects';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -189,7 +188,7 @@ function massageOutgoingExtension(extension: ISyncExtension, key: string): ISync
 	const massagedExtension: ISyncExtension = {
 		identifier: {
 			id: extension.identifier.id,
-			uuid: startsWith(key, 'uuid:') ? key.substring('uuid:'.length) : undefined
+			uuid: key.startsWith('uuid:') ? key.substring('uuid:'.length) : undefined
 		},
 	};
 	if (extension.disabled) {
@@ -210,7 +209,7 @@ export function getIgnoredExtensions(installed: ILocalExtension[], configuration
 	const added: string[] = [], removed: string[] = [];
 	if (Array.isArray(value)) {
 		for (const key of value) {
-			if (startsWith(key, '-')) {
+			if (key.startsWith('-')) {
 				removed.push(key.substring(1));
 			} else {
 				added.push(key);
