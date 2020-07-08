@@ -239,7 +239,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._createBody(this._overlayContainer);
 		this._generateFontInfo();
 		this._editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.contextKeyService);
-		// this._editorFocus.set(true);
 		this._isVisible = true;
 		this._outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.contextKeyService);
 		this._editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
@@ -682,7 +681,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		if (viewState?.editorFocused) {
-			// this._list?.focusView();
 			const cell = this._notebookViewModel?.viewCells[focusIdx];
 			if (cell) {
 				cell.focusMode = CellFocusMode.Editor;
