@@ -68,7 +68,7 @@ export function withRandomFileEditor(
 	});
 }
 
-export const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+export const wait = (ms: number) => new Promise<undefined>(resolve => setTimeout(() => resolve(), ms));
 
 export const joinLines = (...args: string[]) => args.join('\n');
 
@@ -132,4 +132,39 @@ export async function enumerateConfig(
 		await updateConfig(documentUri, newConfig);
 		await f(JSON.stringify(newConfig));
 	}
+}
+
+
+export function onChangedDocument(documentUri: vscode.Uri, disposables: vscode.Disposable[]) {
+	return new Promise<vscode.TextDocument>(resolve => vscode.workspace.onDidChangeTextDocument(e => {
+		if (e.document.uri.toString() === documentUri.toString()) {
+			resolve(e.document);
+		}
+	}, undefined, disposables));
+}
+
+export async function retryUntilDocumentChanges(
+	documentUri: vscode.Uri,
+	options: { retries: number, timeout: number },
+	disposables: vscode.Disposable[],
+	exec: () => Thenable<unknown>,
+) {
+	const didChangeDocument = onChangedDocument(documentUri, disposables);
+
+	let done = false;
+
+	const result = await Promise.race([
+		didChangeDocument,
+		(async () => {
+			for (let i = 0; i < options.retries; ++i) {
+				await wait(options.timeout);
+				if (done) {
+					return;
+				}
+				await exec();
+			}
+		})(),
+	]);
+	done = true;
+	return result;
 }

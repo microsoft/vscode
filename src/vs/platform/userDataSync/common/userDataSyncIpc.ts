@@ -13,6 +13,7 @@ import { IStorageKeysSyncRegistryService, IStorageKey } from 'vs/platform/userDa
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 
 export class UserDataSyncChannel implements IServerChannel {
 
@@ -21,6 +22,7 @@ export class UserDataSyncChannel implements IServerChannel {
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onDidChangeStatus': return this.service.onDidChangeStatus;
+			case 'onSynchronizeResource': return this.service.onSynchronizeResource;
 			case 'onDidChangeConflicts': return this.service.onDidChangeConflicts;
 			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
 			case 'onDidChangeLastSyncTime': return this.service.onDidChangeLastSyncTime;
@@ -48,7 +50,8 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'replace': return this.service.replace(URI.revive(args[0]));
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
-			case 'isFirstTimeSyncWithMerge': return this.service.isFirstTimeSyncWithMerge();
+			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
+			case 'isFirstTimeSyncingWithAnotherMachine': return this.service.isFirstTimeSyncingWithAnotherMachine();
 			case 'acceptConflict': return this.service.acceptConflict(URI.revive(args[0]), args[1]);
 			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
 			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0]);
@@ -66,6 +69,8 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
+			case 'onTurnOnSync': return this.service.onTurnOnSync;
+			case 'onDidTurnOnSync': return this.service.onDidTurnOnSync;
 			case 'onError': return this.service.onError;
 		}
 		throw new Error(`Event not found: ${event}`);
@@ -73,7 +78,9 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case 'triggerAutoSync': return this.service.triggerAutoSync(args[0]);
+			case 'triggerSync': return this.service.triggerSync(args[0], args[1]);
+			case 'turnOn': return this.service.turnOn(args[0]);
+			case 'turnOff': return this.service.turnOff(args[0]);
 		}
 		throw new Error('Invalid call');
 	}
@@ -99,7 +106,7 @@ export class UserDataSycnUtilServiceChannel implements IServerChannel {
 
 export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(private readonly channel: IChannel) {
 	}
@@ -140,7 +147,7 @@ export class StorageKeysSyncRegistryChannel implements IServerChannel {
 
 export class StorageKeysSyncRegistryChannelClient extends Disposable implements IStorageKeysSyncRegistryService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _storageKeys: ReadonlyArray<IStorageKey> = [];
 	get storageKeys(): ReadonlyArray<IStorageKey> { return this._storageKeys; }
@@ -177,12 +184,33 @@ export class UserDataSyncMachinesServiceChannel implements IServerChannel {
 	async call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'getMachines': return this.service.getMachines();
-			case 'addCurrentMachine': return this.service.addCurrentMachine(args[0]);
+			case 'addCurrentMachine': return this.service.addCurrentMachine();
 			case 'removeCurrentMachine': return this.service.removeCurrentMachine();
 			case 'renameMachine': return this.service.renameMachine(args[0], args[1]);
-			case 'disableMachine': return this.service.disableMachine(args[0]);
+			case 'setEnablement': return this.service.setEnablement(args[0], args[1]);
 		}
 		throw new Error('Invalid call');
 	}
 
 }
+
+export class UserDataSyncAccountServiceChannel implements IServerChannel {
+	constructor(private readonly service: IUserDataSyncAccountService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onDidChangeAccount': return this.service.onDidChangeAccount;
+			case 'onTokenFailed': return this.service.onTokenFailed;
+		}
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case '_getInitialData': return Promise.resolve(this.service.account);
+			case 'updateAccount': return this.service.updateAccount(args);
+		}
+		throw new Error('Invalid call');
+	}
+}
+

@@ -14,6 +14,7 @@
 	"command.stageAll": "Stage All Changes",
 	"command.stageAllTracked": "Stage All Tracked Changes",
 	"command.stageAllUntracked": "Stage All Untracked Changes",
+	"command.stageAllMerge": "Stage All Merge Changes",
 	"command.stageSelectedRanges": "Stage Selected Ranges",
 	"command.revertSelectedRanges": "Revert Selected Ranges",
 	"command.stageChange": "Stage Change",

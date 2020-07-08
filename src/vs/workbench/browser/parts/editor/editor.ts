@@ -5,16 +5,16 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPane, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorInput } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
-import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
-import { localize } from 'vs/nls';
 
 export const EDITOR_TITLE_HEIGHT = 35;
 
@@ -33,49 +33,27 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	titleScrollbarSizing: 'default',
 	focusRecentEditorAfterClose: true,
 	showIcons: true,
+	hasIcons: true, // 'vs-seti' is our default icon theme
 	enablePreview: true,
 	openPositioning: 'right',
 	openSideBySideDirection: 'right',
 	closeEmptyGroups: true,
 	labelFormat: 'default',
-	iconTheme: 'vs-seti',
 	splitSizing: 'distribute'
 };
-
-export function computeEditorAriaLabel(input: IEditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
-	let ariaLabel = input.getAriaLabel();
-	if (group && !group.isPinned(input)) {
-		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
-	}
-
-	if (group && group.isSticky(index ?? input)) {
-		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
-	}
-
-	// Apply group information to help identify in
-	// which group we are (only if more than one group
-	// is actually opened)
-	if (group && groupCount > 1) {
-		ariaLabel = `${ariaLabel}, ${group.ariaLabel}`;
-	}
-
-	return ariaLabel;
-}
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
 	return event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme');
 }
 
-export function getEditorPartOptions(config: IWorkbenchEditorConfiguration): IEditorPartOptions {
-	const options = { ...DEFAULT_EDITOR_PART_OPTIONS };
+export function getEditorPartOptions(configurationService: IConfigurationService, themeService: IThemeService): IEditorPartOptions {
+	const options = {
+		...DEFAULT_EDITOR_PART_OPTIONS,
+		hasIcons: themeService.getFileIconTheme().hasFileIcons
+	};
 
-	if (!config || !config.workbench) {
-		return options;
-	}
-
-	options.iconTheme = config.workbench.iconTheme;
-
-	if (config.workbench.editor) {
+	const config = configurationService.getValue<IWorkbenchEditorConfiguration>();
+	if (config?.workbench?.editor) {
 		Object.assign(options, config.workbench.editor);
 	}
 
@@ -90,13 +68,18 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 	options?: IEditorOptions;
 
 	/**
+	 * Context indicates how the editor open event is initialized.
+	 */
+	context?: OpenEditorContext;
+
+	/**
 	 * Allows to prevent the opening of an editor by providing a callback
 	 * that will be executed instead. By returning another editor promise
 	 * it is possible to override the opening with another editor. It is ok
 	 * to return a promise that resolves to `undefined` to prevent the opening
 	 * alltogether.
 	 */
-	prevent(callback: () => undefined | Promise<IEditorPane | undefined>): void;
+	prevent(callback: () => Promise<IEditorPane | undefined> | undefined): void;
 }
 
 export interface IEditorGroupsAccessor {
@@ -164,11 +147,6 @@ export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEd
  * events from clients.
  */
 export interface EditorServiceImpl extends IEditorService {
-
-	/**
-	 * Emitted when an editor is closed.
-	 */
-	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
 	 * Emitted when an editor failed to open.

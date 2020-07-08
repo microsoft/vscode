@@ -26,6 +26,7 @@ class UserDataSyncReportIssueContribution extends Disposable implements IWorkben
 	private onAutoSyncError(error: UserDataSyncError): void {
 		switch (error.code) {
 			case UserDataSyncErrorCode.LocalTooManyRequests:
+			case UserDataSyncErrorCode.TooManyRequests:
 				this.notificationService.notify({
 					severity: Severity.Error,
 					message: localize('too many requests', "Turned off syncing preferences on this device because it is making too many requests."),

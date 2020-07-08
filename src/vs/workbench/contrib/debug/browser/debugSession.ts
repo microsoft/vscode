@@ -129,6 +129,10 @@ export class DebugSession implements IDebugSession {
 		return this._options.parentSession;
 	}
 
+	get compact(): boolean {
+		return !!this._options.compact;
+	}
+
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
 		this._configuration = configuration;
 	}

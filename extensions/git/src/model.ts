@@ -6,7 +6,7 @@
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals, toDisposable } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -75,6 +75,15 @@ export class Model implements IRemoteSourceProviderRegistry {
 		this._state = state;
 		this._onDidChangeState.fire(state);
 		commands.executeCommand('setContext', 'git.state', state);
+	}
+
+	@memoize
+	get isInitialized(): Promise<void> {
+		if (this._state === 'initialized') {
+			return Promise.resolve();
+		}
+
+		return eventToPromise(filterEvent(this.onDidChangeState, s => s === 'initialized')) as Promise<any>;
 	}
 
 	private remoteSourceProviders = new Set<RemoteSourceProvider>();
@@ -148,6 +157,13 @@ export class Model implements IRemoteSourceProviderRegistry {
 	}
 
 	private onPossibleGitRepositoryChange(uri: Uri): void {
+		const config = workspace.getConfiguration('git');
+		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+
+		if (autoRepositoryDetection === false) {
+			return;
+		}
+
 		this.eventuallyScanPossibleGitRepository(uri.fsPath.replace(/\.git.*$/, ''));
 	}
 

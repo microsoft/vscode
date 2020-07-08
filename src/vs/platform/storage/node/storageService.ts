@@ -20,10 +20,12 @@ import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 export class NativeStorageService extends Disposable implements IStorageService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static readonly WORKSPACE_META_NAME = 'workspace.json';
+
+	private static readonly WORKSPACE_IS_NEW_KEY = '__$__isNewStorageMarker';
 
 	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
@@ -104,6 +106,14 @@ export class NativeStorageService extends Disposable implements IStorageService 
 					result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined
 				);
 				await workspaceStorage.init();
+
+				// Check to see if this is the first time we are "opening" this workspace
+				const firstOpen = workspaceStorage.getBoolean(NativeStorageService.WORKSPACE_IS_NEW_KEY);
+				if (firstOpen === undefined) {
+					workspaceStorage.set(NativeStorageService.WORKSPACE_IS_NEW_KEY, result.wasCreated);
+				} else if (firstOpen) {
+					workspaceStorage.set(NativeStorageService.WORKSPACE_IS_NEW_KEY, false);
+				}
 			} finally {
 				mark('didInitWorkspaceStorage');
 			}
@@ -253,7 +263,7 @@ export class NativeStorageService extends Disposable implements IStorageService 
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		if (this.workspaceStoragePath === SQLiteStorageDatabase.IN_MEMORY_PATH) {
-			return Promise.resolve(); // no migration needed if running in memory
+			return; // no migration needed if running in memory
 		}
 
 		// Close workspace DB to be able to copy
@@ -269,5 +279,9 @@ export class NativeStorageService extends Disposable implements IStorageService 
 
 		// Recreate and init workspace storage
 		return this.createWorkspaceStorage(newWorkspaceStoragePath).init();
+	}
+
+	isNew(scope: StorageScope.WORKSPACE): boolean {
+		return this.getBoolean(NativeStorageService.WORKSPACE_IS_NEW_KEY, scope) === true;
 	}
 }

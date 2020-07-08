@@ -5,10 +5,10 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as path from 'path';
-import { promises as fs } from 'fs';
 import { API as GitAPI, Repository } from './typings/git';
 import { getOctokit } from './auth';
+import { TextEncoder } from 'util';
+import { basename } from 'path';
 
 const localize = nls.loadMessageBundle();
 
@@ -28,10 +28,12 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		return;
 	}
 
-	let folder: vscode.WorkspaceFolder;
+	let folder: vscode.Uri;
 
-	if (vscode.workspace.workspaceFolders.length === 1) {
-		folder = vscode.workspace.workspaceFolders[0];
+	if (repository) {
+		folder = repository.rootUri;
+	} else if (vscode.workspace.workspaceFolders.length === 1) {
+		folder = vscode.workspace.workspaceFolders[0].uri;
 	} else {
 		const picks = vscode.workspace.workspaceFolders.map(folder => ({ label: folder.name, folder }));
 		const placeHolder = localize('pick folder', "Pick a folder to publish to GitHub");
@@ -41,14 +43,14 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 			return;
 		}
 
-		folder = pick.folder;
+		folder = pick.folder.uri;
 	}
 
 	let quickpick = vscode.window.createQuickPick<vscode.QuickPickItem & { repo?: string, auth?: 'https' | 'ssh' }>();
 	quickpick.ignoreFocusOut = true;
 
 	quickpick.placeholder = 'Repository Name';
-	quickpick.value = folder.name;
+	quickpick.value = basename(folder.fsPath);
 	quickpick.show();
 	quickpick.busy = true;
 
@@ -97,37 +99,49 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		return;
 	}
 
-	quickpick = vscode.window.createQuickPick();
-	quickpick.placeholder = localize('ignore', "Select which files should be included in the repository.");
-	quickpick.canSelectMany = true;
-	quickpick.show();
+	if (!repository) {
+		const gitignore = vscode.Uri.joinPath(folder, '.gitignore');
+		let shouldGenerateGitignore = false;
 
-	try {
-		quickpick.busy = true;
-
-		const repositoryPath = folder.uri.fsPath;
-		const currentPath = path.join(repositoryPath);
-		const children = await fs.readdir(currentPath);
-		quickpick.items = children.map(name => ({ label: name }));
-		quickpick.selectedItems = quickpick.items;
-		quickpick.busy = false;
-
-		const result = await Promise.race([
-			new Promise<readonly vscode.QuickPickItem[]>(c => quickpick.onDidAccept(() => c(quickpick.selectedItems))),
-			new Promise<undefined>(c => quickpick.onDidHide(() => c(undefined)))
-		]);
-
-		if (!result) {
-			return;
+		try {
+			await vscode.workspace.fs.stat(gitignore);
+		} catch (err) {
+			shouldGenerateGitignore = true;
 		}
 
-		const ignored = new Set(children);
-		result.forEach(c => ignored.delete(c.label));
+		if (shouldGenerateGitignore) {
+			quickpick = vscode.window.createQuickPick();
+			quickpick.placeholder = localize('ignore', "Select which files should be included in the repository.");
+			quickpick.canSelectMany = true;
+			quickpick.show();
 
-		const raw = [...ignored].map(i => `/${i}`).join('\n');
-		await fs.writeFile(path.join(repositoryPath, '.gitignore'), raw, 'utf8');
-	} finally {
-		quickpick.dispose();
+			try {
+				quickpick.busy = true;
+
+				const children = (await vscode.workspace.fs.readDirectory(folder)).map(([name]) => name);
+				quickpick.items = children.map(name => ({ label: name }));
+				quickpick.selectedItems = quickpick.items;
+				quickpick.busy = false;
+
+				const result = await Promise.race([
+					new Promise<readonly vscode.QuickPickItem[]>(c => quickpick.onDidAccept(() => c(quickpick.selectedItems))),
+					new Promise<undefined>(c => quickpick.onDidHide(() => c(undefined)))
+				]);
+
+				if (!result) {
+					return;
+				}
+
+				const ignored = new Set(children);
+				result.forEach(c => ignored.delete(c.label));
+
+				const raw = [...ignored].map(i => `/${i}`).join('\n');
+				const encoder = new TextEncoder();
+				await vscode.workspace.fs.writeFile(gitignore, encoder.encode(raw));
+			} finally {
+				quickpick.dispose();
+			}
+		}
 	}
 
 	const githubRepository = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, cancellable: false, title: 'Publish to GitHub' }, async progress => {
@@ -143,7 +157,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		progress.report({ message: 'Creating first commit', increment: 25 });
 
 		if (!repository) {
-			repository = await gitAPI.init(folder.uri) || undefined;
+			repository = await gitAPI.init(folder) || undefined;
 
 			if (!repository) {
 				return;

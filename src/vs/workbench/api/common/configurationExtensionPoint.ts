@@ -93,12 +93,14 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 		description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
 		type: 'object',
 		patternProperties: {
-			'\\[.*\\]$': {
+			'^\\[.*\\]$': {
 				type: 'object',
 				default: {},
 				$ref: resourceLanguageSettingsSchemaId,
 			}
-		}
+		},
+		errorMessage: nls.localize('config.property.defaultConfiguration.languageExpected', "Language selector expected (e.g. [\"java\"])"),
+		additionalProperties: false
 	}
 });
 defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {

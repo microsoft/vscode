@@ -11,17 +11,18 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { ILifecycleService, StartupKind, StartupKindToString } from 'vs/platform/lifecycle/common/lifecycle';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as files from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { didUseCachedData, ITimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
+import { didUseCachedData } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { getEntries } from 'vs/base/common/performance';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 export class StartupTimings implements IWorkbenchContribution {
 
@@ -34,7 +35,8 @@ export class StartupTimings implements IWorkbenchContribution {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IUpdateService private readonly _updateService: IUpdateService,
-		@IWorkbenchEnvironmentService private readonly _envService: INativeWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly _envService: INativeWorkbenchEnvironmentService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		//
 		this._report().catch(onUnexpectedError);
@@ -73,7 +75,7 @@ export class StartupTimings implements IWorkbenchContribution {
 			this._timerService.startupMetrics,
 			timeout(15000), // wait: cached data creation, telemetry sending
 		]).then(([startupMetrics]) => {
-			return promisify(appendFile)(appendTo, `${startupMetrics.ellapsed}\t${product.nameShort}\t${(product.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`);
+			return promisify(appendFile)(appendTo, `${startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`);
 		}).then(() => {
 			this._electronService.quit();
 		}).catch(err => {
@@ -123,7 +125,7 @@ export class StartupTimings implements IWorkbenchContribution {
 	private _reportPerfTicks(): void {
 		const entries: Record<string, number> = Object.create(null);
 		for (const entry of getEntries()) {
-			entries[entry.name] = entry.timestamp;
+			entries[entry.name] = entry.startTime;
 		}
 		/* __GDPR__
 			"startupRawTimers" : {
@@ -133,4 +135,3 @@ export class StartupTimings implements IWorkbenchContribution {
 		this._telemetryService.publicLog('startupRawTimers', { entries });
 	}
 }
-

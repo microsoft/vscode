@@ -64,7 +64,7 @@ exports.config = {
         darwinBundleDocumentType(["vue"], 'resources/darwin/vue.icns'),
         darwinBundleDocumentType(["ascx", "csproj", "dtd", "wxi", "wxl", "wxs", "xml", "xaml"], 'resources/darwin/xml.icns'),
         darwinBundleDocumentType(["eyaml", "eyml", "yaml", "yml"], 'resources/darwin/yaml.icns'),
-        darwinBundleDocumentType(["clj", "cljs", "cljx", "clojure", "code-workspace", "coffee", "ctp", "dockerfile", "dot", "edn", "fs", "fsi", "fsscript", "fsx", "handlebars", "hbs", "lua", "m", "makefile", "ml", "mli", "pl", "pl6", "pm", "pm6", "pod", "pp", "properties", "psgi", "pug", "r", "rs", "rt", "svg", "svgz", "t", "txt", "vb", "xcodeproj", "xcworkspace"], 'resources/darwin/default.icns')
+        darwinBundleDocumentType(["clj", "cljs", "cljx", "clojure", "code-workspace", "coffee", "containerfile", "ctp", "dockerfile", "dot", "edn", "fs", "fsi", "fsscript", "fsx", "handlebars", "hbs", "lua", "m", "makefile", "ml", "mli", "pl", "pl6", "pm", "pm6", "pod", "pp", "properties", "psgi", "pug", "r", "rs", "rt", "svg", "svgz", "t", "txt", "vb", "xcodeproj", "xcworkspace"], 'resources/darwin/default.icns')
     ],
     darwinBundleURLTypes: [{
             role: 'Viewer',

@@ -36,10 +36,6 @@ steps:
     yarn electron
   displayName: Download Electron
 
-- script: |
-    yarn gulp hygiene
-  displayName: Run Hygiene Checks
-
 - powershell: |
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks

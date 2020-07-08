@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
 import { CursorCollection } from 'vs/editor/common/controller/cursorCollection';
 import { CursorColumns, CursorConfiguration, CursorContext, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
@@ -17,51 +16,10 @@ import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
 import { RawContentChangedType, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { ViewEventsCollector, VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/view/viewEvents';
+import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/view/viewEvents';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
-
-export class CursorStateChangedEvent {
-	/**
-	 * The new selections.
-	 * The primary selection is always at index 0.
-	 */
-	readonly selections: Selection[];
-	/**
-	 * The new model version id that `selections` apply to.
-	 */
-	readonly modelVersionId: number;
-	/**
-	 * The old selections.
-	 */
-	readonly oldSelections: Selection[] | null;
-	/**
-	 * The model version id the that `oldSelections` apply to.
-	 */
-	readonly oldModelVersionId: number;
-	/**
-	 * Source of the call that caused the event.
-	 */
-	readonly source: string;
-	/**
-	 * Reason.
-	 */
-	readonly reason: CursorChangeReason;
-	/**
-	 * The number of cursors was limited because it has reached the maximum cursor count.
-	 */
-	readonly reachedMaxCursorCount: boolean;
-
-	constructor(selections: Selection[], modelVersionId: number, oldSelections: Selection[] | null, oldModelVersionId: number, source: string, reason: CursorChangeReason, reachedMaxCursorCount: boolean) {
-		this.selections = selections;
-		this.modelVersionId = modelVersionId;
-		this.oldSelections = oldSelections;
-		this.oldModelVersionId = oldModelVersionId;
-		this.source = source;
-		this.reason = reason;
-		this.reachedMaxCursorCount = reachedMaxCursorCount;
-	}
-}
+import { CursorStateChangedEvent, ViewModelEventsCollector } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 
 /**
  * A snapshot of the cursor and the model state
@@ -165,12 +123,6 @@ export class Cursor extends Disposable {
 
 	public static readonly MAX_CURSOR_COUNT = 10000;
 
-	private readonly _onDidAttemptReadOnlyEdit: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidAttemptReadOnlyEdit: Event<void> = this._onDidAttemptReadOnlyEdit.event;
-
-	private readonly _onDidChange: Emitter<CursorStateChangedEvent> = this._register(new Emitter<CursorStateChangedEvent>());
-	public readonly onDidChange: Event<CursorStateChangedEvent> = this._onDidChange.event;
-
 	private readonly _model: ITextModel;
 	private _knownModelVersionId: number;
 	private readonly _viewModel: ICursorSimpleModel;
@@ -215,7 +167,7 @@ export class Cursor extends Disposable {
 		this._cursors.updateContext(this.context);
 	}
 
-	public onLineMappingChanged(eventsCollector: ViewEventsCollector): void {
+	public onLineMappingChanged(eventsCollector: ViewModelEventsCollector): void {
 		if (this._knownModelVersionId !== this._model.getVersionId()) {
 			// There are model change events that I didn't yet receive.
 			//
@@ -262,7 +214,7 @@ export class Cursor extends Disposable {
 		return this._cursors.getAll();
 	}
 
-	public setStates(eventsCollector: ViewEventsCollector, source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean {
+	public setStates(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean {
 		let reachedMaxCursorCount = false;
 		if (states !== null && states.length > Cursor.MAX_CURSOR_COUNT) {
 			states = states.slice(0, Cursor.MAX_CURSOR_COUNT);
@@ -284,7 +236,7 @@ export class Cursor extends Disposable {
 		this._columnSelectData = columnSelectData;
 	}
 
-	public revealPrimary(eventsCollector: ViewEventsCollector, source: string | null | undefined, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
+	public revealPrimary(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
 		const viewPositions = this._cursors.getViewPositions();
 		if (viewPositions.length > 1) {
 			this._emitCursorRevealRange(eventsCollector, source, null, this._cursors.getViewSelections(), VerticalRevealType.Simple, revealHorizontal, scrollType);
@@ -296,7 +248,7 @@ export class Cursor extends Disposable {
 		}
 	}
 
-	private _revealPrimaryCursor(eventsCollector: ViewEventsCollector, source: string | null | undefined, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
+	private _revealPrimaryCursor(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
 		const viewPositions = this._cursors.getViewPositions();
 		if (viewPositions.length > 1) {
 			this._emitCursorRevealRange(eventsCollector, source, null, this._cursors.getViewSelections(), verticalType, revealHorizontal, scrollType);
@@ -307,8 +259,8 @@ export class Cursor extends Disposable {
 		}
 	}
 
-	private _emitCursorRevealRange(eventsCollector: ViewEventsCollector, source: string | null | undefined, viewRange: Range | null, viewSelections: Selection[] | null, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
-		eventsCollector.emit(new ViewRevealRangeRequestEvent(source, viewRange, viewSelections, verticalType, revealHorizontal, scrollType));
+	private _emitCursorRevealRange(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, viewRange: Range | null, viewSelections: Selection[] | null, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
+		eventsCollector.emitViewEvent(new ViewRevealRangeRequestEvent(source, viewRange, viewSelections, verticalType, revealHorizontal, scrollType));
 	}
 
 	public saveState(): editorCommon.ICursorState[] {
@@ -335,7 +287,7 @@ export class Cursor extends Disposable {
 		return result;
 	}
 
-	public restoreState(eventsCollector: ViewEventsCollector, states: editorCommon.ICursorState[]): void {
+	public restoreState(eventsCollector: ViewModelEventsCollector, states: editorCommon.ICursorState[]): void {
 
 		let desiredSelections: ISelection[] = [];
 
@@ -376,7 +328,7 @@ export class Cursor extends Disposable {
 		this.revealPrimary(eventsCollector, 'restoreState', true, editorCommon.ScrollType.Immediate);
 	}
 
-	public onModelContentChanged(eventsCollector: ViewEventsCollector, e: ModelRawContentChangedEvent): void {
+	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent): void {
 
 		this._knownModelVersionId = e.versionId;
 		if (this._isHandling) {
@@ -441,7 +393,7 @@ export class Cursor extends Disposable {
 		return this._cursors.getPrimaryCursor().modelState.position;
 	}
 
-	public setSelections(eventsCollector: ViewEventsCollector, source: string | null | undefined, selections: readonly ISelection[]): void {
+	public setSelections(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, selections: readonly ISelection[]): void {
 		this.setStates(eventsCollector, source, CursorChangeReason.NotSet, CursorState.fromModelSelections(selections));
 	}
 
@@ -533,7 +485,7 @@ export class Cursor extends Disposable {
 	// -----------------------------------------------------------------------------------------------------------
 	// ----- emitting events
 
-	private _emitStateChangedIfNecessary(eventsCollector: ViewEventsCollector, source: string | null | undefined, reason: CursorChangeReason, oldState: CursorModelState | null, reachedMaxCursorCount: boolean): boolean {
+	private _emitStateChangedIfNecessary(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, reason: CursorChangeReason, oldState: CursorModelState | null, reachedMaxCursorCount: boolean): boolean {
 		const newState = new CursorModelState(this._model, this);
 		if (newState.equals(oldState)) {
 			return false;
@@ -543,7 +495,7 @@ export class Cursor extends Disposable {
 		const viewSelections = this._cursors.getViewSelections();
 
 		// Let the view get the event first.
-		eventsCollector.emit(new ViewCursorStateChangedEvent(viewSelections, selections));
+		eventsCollector.emitViewEvent(new ViewCursorStateChangedEvent(viewSelections, selections));
 
 		// Only after the view has been notified, let the rest of the world know...
 		if (!oldState
@@ -552,7 +504,7 @@ export class Cursor extends Disposable {
 		) {
 			const oldSelections = oldState ? oldState.cursorState.map(s => s.modelState.selection) : null;
 			const oldModelVersionId = oldState ? oldState.modelVersionId : 0;
-			this._onDidChange.fire(new CursorStateChangedEvent(selections, newState.modelVersionId, oldSelections, oldModelVersionId, source || 'keyboard', reason, reachedMaxCursorCount));
+			eventsCollector.emitOutgoingEvent(new CursorStateChangedEvent(oldSelections, selections, oldModelVersionId, newState.modelVersionId, source || 'keyboard', reason, reachedMaxCursorCount));
 		}
 
 		return true;
@@ -597,7 +549,7 @@ export class Cursor extends Disposable {
 		return indices;
 	}
 
-	public executeEdits(eventsCollector: ViewEventsCollector, source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): void {
+	public executeEdits(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): void {
 		let autoClosingIndices: [number, number][] | null = null;
 		if (source === 'snippet') {
 			autoClosingIndices = this._findAutoClosingPairs(edits);
@@ -639,10 +591,9 @@ export class Cursor extends Disposable {
 		}
 	}
 
-	private _executeEdit(callback: () => void, eventsCollector: ViewEventsCollector, source: string | null | undefined, cursorChangeReason: CursorChangeReason = CursorChangeReason.NotSet): void {
+	private _executeEdit(callback: () => void, eventsCollector: ViewModelEventsCollector, source: string | null | undefined, cursorChangeReason: CursorChangeReason = CursorChangeReason.NotSet): void {
 		if (this.context.cursorConfig.readOnly) {
 			// we cannot edit when read only...
-			this._onDidAttemptReadOnlyEdit.fire(undefined);
 			return;
 		}
 
@@ -665,15 +616,17 @@ export class Cursor extends Disposable {
 		}
 	}
 
-	public startComposition(eventsCollector: ViewEventsCollector): void {
-		this._isDoingComposition = true;
+	public setIsDoingComposition(isDoingComposition: boolean): void {
+		this._isDoingComposition = isDoingComposition;
+	}
+
+	public startComposition(eventsCollector: ViewModelEventsCollector): void {
 		this._selectionsWhenCompositionStarted = this.getSelections().slice(0);
 	}
 
-	public endComposition(eventsCollector: ViewEventsCollector, source?: string | null | undefined): void {
-		this._isDoingComposition = false;
+	public endComposition(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
 		this._executeEdit(() => {
-			if (!this._isDoingComposition && source === 'keyboard') {
+			if (source === 'keyboard') {
 				// composition finishes, let's check if we need to auto complete if necessary.
 				const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
 				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this._selectionsWhenCompositionStarted, this.getSelections(), autoClosedCharacters));
@@ -682,7 +635,7 @@ export class Cursor extends Disposable {
 		}, eventsCollector, source);
 	}
 
-	public type(eventsCollector: ViewEventsCollector, text: string, source?: string | null | undefined): void {
+	public type(eventsCollector: ViewModelEventsCollector, text: string, source?: string | null | undefined): void {
 		this._executeEdit(() => {
 			if (source === 'keyboard') {
 				// If this event is coming straight from the keyboard, look for electric characters and enter
@@ -706,25 +659,25 @@ export class Cursor extends Disposable {
 		}, eventsCollector, source);
 	}
 
-	public replacePreviousChar(eventsCollector: ViewEventsCollector, text: string, replaceCharCnt: number, source?: string | null | undefined): void {
+	public replacePreviousChar(eventsCollector: ViewModelEventsCollector, text: string, replaceCharCnt: number, source?: string | null | undefined): void {
 		this._executeEdit(() => {
 			this._executeEditOperation(TypeOperations.replacePreviousChar(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text, replaceCharCnt));
 		}, eventsCollector, source);
 	}
 
-	public paste(eventsCollector: ViewEventsCollector, text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
+	public paste(eventsCollector: ViewModelEventsCollector, text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
 		this._executeEdit(() => {
 			this._executeEditOperation(TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelections(), text, pasteOnNewLine, multicursorText || []));
 		}, eventsCollector, source, CursorChangeReason.Paste);
 	}
 
-	public cut(eventsCollector: ViewEventsCollector, source?: string | null | undefined): void {
+	public cut(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
 		this._executeEdit(() => {
 			this._executeEditOperation(DeleteOperations.cut(this.context.cursorConfig, this._model, this.getSelections()));
 		}, eventsCollector, source);
 	}
 
-	public executeCommand(eventsCollector: ViewEventsCollector, command: editorCommon.ICommand, source?: string | null | undefined): void {
+	public executeCommand(eventsCollector: ViewModelEventsCollector, command: editorCommon.ICommand, source?: string | null | undefined): void {
 		this._executeEdit(() => {
 			this._cursors.killSecondaryCursors();
 
@@ -735,7 +688,7 @@ export class Cursor extends Disposable {
 		}, eventsCollector, source);
 	}
 
-	public executeCommands(eventsCollector: ViewEventsCollector, commands: editorCommon.ICommand[], source?: string | null | undefined): void {
+	public executeCommands(eventsCollector: ViewModelEventsCollector, commands: editorCommon.ICommand[], source?: string | null | undefined): void {
 		this._executeEdit(() => {
 			this._executeEditOperation(new EditOperationResult(EditOperationType.Other, commands, {
 				shouldPushStackElementBefore: false,

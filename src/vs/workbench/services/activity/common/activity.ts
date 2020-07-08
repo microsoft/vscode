@@ -18,7 +18,7 @@ export const IActivityService = createDecorator<IActivityService>('activityServi
 
 export interface IActivityService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Show activity for the given view container

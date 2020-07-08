@@ -40,7 +40,7 @@ import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';
-import { CompositeDragAndDropObserver, DragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { CompositeDragAndDropObserver, DragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
@@ -49,7 +49,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export interface IPaneColors extends IColorMapping {
@@ -178,7 +178,11 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private _isVisible: boolean = false;
 	readonly id: string;
-	title: string;
+
+	private _title: string;
+	public get title(): string {
+		return this._title;
+	}
 
 	private readonly menuActions: ViewMenuActions;
 	private progressBar!: ProgressBar;
@@ -211,7 +215,7 @@ export abstract class ViewPane extends Pane implements IView {
 		super({ ...options, ...{ orientation: viewDescriptorService.getViewLocationById(options.id) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL } });
 
 		this.id = options.id;
-		this.title = options.title;
+		this._title = options.title;
 		this.showActionsAlways = !!options.showActionsAlways;
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 
@@ -370,17 +374,17 @@ export abstract class ViewPane extends Pane implements IView {
 			this.iconContainer.setAttribute('aria-label', calculatedTitle);
 		}
 
-		this.title = title;
+		this._title = title;
 		this._onDidChangeTitleArea.fire();
 	}
 
 	private calculateTitle(title: string): string {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(this.id)!;
 		const model = this.viewDescriptorService.getViewContainerModel(viewContainer);
-		const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(this.id)!;
+		const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(this.id);
 		const isDefault = this.viewDescriptorService.getDefaultContainerById(this.id) === viewContainer;
 
-		if (!isDefault && viewDescriptor.containerTitle && model.title !== viewDescriptor.containerTitle) {
+		if (!isDefault && viewDescriptor?.containerTitle && model.title !== viewDescriptor.containerTitle) {
 			return `${viewDescriptor.containerTitle}: ${title}`;
 		}
 
@@ -446,7 +450,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private setActions(): void {
 		if (this.toolbar) {
-			this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
+			this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()));
 			this.toolbar.context = this.getActionsContext();
 		}
 	}
@@ -913,11 +917,16 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 						const container = this.viewDescriptorService.getViewContainerById(dropData.id)!;
 						const viewsToMove = this.viewDescriptorService.getViewContainerModel(container).allViewDescriptors;
 
-						if (!viewsToMove.some(v => !v.canMoveView)) {
+						if (!viewsToMove.some(v => !v.canMoveView) && viewsToMove.length > 0) {
 							overlay = new ViewPaneDropOverlay(parent, undefined, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
 						}
 					}
 
+				}
+			},
+			onDragOver: (e) => {
+				if (this.panes.length === 0) {
+					toggleDropEffect(e.eventData.dataTransfer, 'move', overlay !== undefined);
 				}
 			},
 			onDragLeave: (e) => {
@@ -1031,14 +1040,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			}
 		}
 
-		const viewToggleActions = this.viewContainerModel.activeViewDescriptors.map(viewDescriptor => (<IAction>{
-			id: `${viewDescriptor.id}.toggleVisibility`,
-			label: viewDescriptor.name,
-			checked: this.viewContainerModel.isVisible(viewDescriptor.id),
-			enabled: viewDescriptor.canToggleVisibility && (!this.viewContainerModel.isVisible(viewDescriptor.id) || this.viewContainerModel.visibleViewDescriptors.length > 1),
-			run: () => this.toggleViewVisibility(viewDescriptor.id)
-		}));
-
+		const viewToggleActions = this.getViewsVisibilityActions();
 		if (result.length && viewToggleActions.length) {
 			result.push(new Separator());
 		}
@@ -1062,6 +1064,16 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 
 		return [];
+	}
+
+	getViewsVisibilityActions(): IAction[] {
+		return this.viewContainerModel.activeViewDescriptors.map(viewDescriptor => (<IAction>{
+			id: `${viewDescriptor.id}.toggleVisibility`,
+			label: viewDescriptor.name,
+			checked: this.viewContainerModel.isVisible(viewDescriptor.id),
+			enabled: viewDescriptor.canToggleVisibility && (!this.viewContainerModel.isVisible(viewDescriptor.id) || this.viewContainerModel.visibleViewDescriptors.length > 1),
+			run: () => this.toggleViewVisibility(viewDescriptor.id)
+		}));
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -1281,6 +1293,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			panesToRemove.push(this.panes[index]);
 		}
 		this.removePanes(panesToRemove);
+
+		for (const pane of panesToRemove) {
+			pane.setVisible(false);
+		}
 	}
 
 	protected toggleViewVisibility(viewId: string): void {
@@ -1311,7 +1327,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			}
 		});
 
-		const isPanel = this.viewDescriptorService.getViewLocationById(this.viewContainer.id) === ViewContainerLocation.Panel;
+		const isPanel = this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel;
 		const paneStyler = attachStyler<IPaneColors>(this.themeService, {
 			headerForeground: isPanel ? PANEL_SECTION_HEADER_FOREGROUND : SIDE_BAR_SECTION_HEADER_FOREGROUND,
 			headerBackground: isPanel ? PANEL_SECTION_HEADER_BACKGROUND : SIDE_BAR_SECTION_HEADER_BACKGROUND,
@@ -1349,11 +1365,14 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 						const container = this.viewDescriptorService.getViewContainerById(dropData.id)!;
 						const viewsToMove = this.viewDescriptorService.getViewContainerModel(container).allViewDescriptors;
 
-						if (!viewsToMove.some(v => !v.canMoveView)) {
+						if (!viewsToMove.some(v => !v.canMoveView) && viewsToMove.length > 0) {
 							overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
 						}
 					}
 				}
+			},
+			onDragOver: (e) => {
+				toggleDropEffect(e.eventData.dataTransfer, 'move', overlay !== undefined);
 			},
 			onDragLeave: (e) => {
 				overlay?.dispose();
@@ -1580,8 +1599,8 @@ registerAction2(
 				id: 'views.moveViewUp',
 				title: nls.localize('viewMoveUp', "Move View Up"),
 				keybinding: {
-					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.UpArrow,
-					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KEY_K, KeyCode.UpArrow),
+					weight: KeybindingWeight.WorkbenchContrib + 1,
 					when: FocusedViewContext.notEqualsTo('')
 				}
 			}, -1);
@@ -1596,8 +1615,8 @@ registerAction2(
 				id: 'views.moveViewLeft',
 				title: nls.localize('viewMoveLeft', "Move View Left"),
 				keybinding: {
-					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.LeftArrow,
-					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KEY_K, KeyCode.LeftArrow),
+					weight: KeybindingWeight.WorkbenchContrib + 1,
 					when: FocusedViewContext.notEqualsTo('')
 				}
 			}, -1);
@@ -1612,8 +1631,8 @@ registerAction2(
 				id: 'views.moveViewDown',
 				title: nls.localize('viewMoveDown', "Move View Down"),
 				keybinding: {
-					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.DownArrow,
-					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KEY_K, KeyCode.DownArrow),
+					weight: KeybindingWeight.WorkbenchContrib + 1,
 					when: FocusedViewContext.notEqualsTo('')
 				}
 			}, 1);
@@ -1628,8 +1647,8 @@ registerAction2(
 				id: 'views.moveViewRight',
 				title: nls.localize('viewMoveRight', "Move View Right"),
 				keybinding: {
-					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.RightArrow,
-					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KEY_K, KeyCode.RightArrow),
+					weight: KeybindingWeight.WorkbenchContrib + 1,
 					when: FocusedViewContext.notEqualsTo('')
 				}
 			}, 1);

@@ -12,7 +12,6 @@ import { ExtensionRecommendationSource, ExtensionRecommendationReason } from 'vs
 import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -181,7 +180,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const installed = await this.extensionManagementService.getInstalled();
 		if (await this.promptRecommendedExtensionForFileType(recommendationsToPrompt, installed)) {
 			return;
 		}

@@ -96,6 +96,24 @@ export function withTestCodeEditor(text: string | string[] | null, options: Test
 	editor.dispose();
 }
 
+export async function withAsyncTestCodeEditor(text: string | string[] | null, options: TestCodeEditorCreationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel) => Promise<void>): Promise<void> {
+	// create a model if necessary and remember it in order to dispose it.
+	if (!options.model) {
+		if (typeof text === 'string') {
+			options.model = createTextModel(text);
+		} else if (text) {
+			options.model = createTextModel(text.join('\n'));
+		}
+	}
+
+	const editor = createTestCodeEditor(options);
+	const viewModel = editor.getViewModel()!;
+	viewModel.setHasFocus(true);
+	await callback(<ITestCodeEditor>editor, editor.getViewModel()!);
+
+	editor.dispose();
+}
+
 export function createTestCodeEditor(options: TestCodeEditorCreationOptions): ITestCodeEditor {
 
 	const model = options.model;

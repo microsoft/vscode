@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
+import { FileOperation } from 'vs/platform/files/common/files';
 
 suite('Files - TextFileService', () => {
 
@@ -23,12 +23,12 @@ suite('Files - TextFileService', () => {
 
 	teardown(() => {
 		model?.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).dispose();
 	});
 
 	test('isDirty/getDirty - files and untitled', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.load();
 
@@ -50,7 +50,7 @@ suite('Files - TextFileService', () => {
 
 	test('save - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
@@ -63,7 +63,7 @@ suite('Files - TextFileService', () => {
 
 	test('saveAll - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
@@ -76,7 +76,7 @@ suite('Files - TextFileService', () => {
 
 	test('saveAs - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 		accessor.fileDialogService.setPickFileToSave(model.resource);
 
 		await model.load();
@@ -90,7 +90,7 @@ suite('Files - TextFileService', () => {
 
 	test('revert - file', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 		accessor.fileDialogService.setPickFileToSave(model.resource);
 
 		await model.load();
@@ -101,9 +101,9 @@ suite('Files - TextFileService', () => {
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
-	test('create', async function () {
+	test('create does not overwrite existing model', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.load();
 		model!.textEditorModel!.setValue('foo');
@@ -112,14 +112,15 @@ suite('Files - TextFileService', () => {
 		let eventCounter = 0;
 
 		const disposable1 = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async target => {
-				assert.equal(target.toString(), model.resource.toString());
+			participate: async files => {
+				assert.equal(files[0].target, model.resource.toString());
 				eventCounter++;
 			}
 		});
 
-		const disposable2 = accessor.textFileService.onDidCreateTextFile(e => {
-			assert.equal(e.resource.toString(), model.resource.toString());
+		const disposable2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
+			assert.equal(e.operation, FileOperation.CREATE);
+			assert.equal(e.files[0].target.toString(), model.resource.toString());
 			eventCounter++;
 		});
 

@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/processExplorer';
-import { webFrame, ipcRenderer, clipboard } from 'electron';
-import { repeat } from 'vs/base/common/strings';
+import { clipboard } from 'electron';
 import { totalmem } from 'os';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import product from 'vs/platform/product/common/product';
 import { localize } from 'vs/nls';
-import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/node/issue';
-import * as browser from 'vs/base/browser/browser';
+import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
+import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import * as platform from 'vs/base/common/platform';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
-import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
+import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
-import { addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 
@@ -62,7 +62,7 @@ function getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, in
 	}
 
 	// Format name with indent
-	const formattedName = isRoot ? name : `${repeat('    ', indent)} ${name}`;
+	const formattedName = isRoot ? name : `${'    '.repeat(indent)} ${name}`;
 	const memory = process.platform === 'win32' ? item.mem : (totalmem() * (item.mem / 100));
 	processes.push({
 		cpu: item.load,
@@ -290,15 +290,6 @@ function applyStyles(styles: ProcessExplorerStyles): void {
 	}
 }
 
-function applyZoom(zoomLevel: number): void {
-	webFrame.setZoomLevel(zoomLevel);
-	browser.setZoomFactor(webFrame.getZoomFactor());
-	// See https://github.com/Microsoft/vscode/issues/26151
-	// Cannot be trusted because the webFrame might take some time
-	// until it really applies the new zoom level
-	browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
-}
-
 function showContextMenu(e: MouseEvent, item: FormattedProcessItem, isLocal: boolean) {
 	e.preventDefault();
 
@@ -369,7 +360,7 @@ function requestProcessList(totalWaitTime: number): void {
 
 		// Wait at least a second between requests.
 		if (waited > 1000) {
-			ipcRenderer.send('windowsInfoRequest');
+			ipcRenderer.send('vscode:windowsInfoRequest');
 			ipcRenderer.send('vscode:listProcesses');
 		} else {
 			requestProcessList(waited);
@@ -388,23 +379,26 @@ function createCloseListener(): void {
 }
 
 export function startup(data: ProcessExplorerData): void {
+	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
+	addClass(document.body, platformClass); // used by our fonts
+
 	applyStyles(data.styles);
 	applyZoom(data.zoomLevel);
 	createCloseListener();
 
 	// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
-	ipcRenderer.on('vscode:windowsInfoResponse', (_event: unknown, windows: any[]) => {
+	ipcRenderer.on('vscode:windowsInfoResponse', (event: unknown, windows: any[]) => {
 		mapPidToWindowTitle = new Map<number, string>();
 		windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
 	});
 
-	ipcRenderer.on('vscode:listProcessesResponse', (_event: Event, processRoots: [{ name: string, rootProcess: ProcessItem | IRemoteDiagnosticError }]) => {
+	ipcRenderer.on('vscode:listProcessesResponse', (event: unknown, processRoots: [{ name: string, rootProcess: ProcessItem | IRemoteDiagnosticError }]) => {
 		updateProcessInfo(processRoots);
 		requestProcessList(0);
 	});
 
 	lastRequestTime = Date.now();
-	ipcRenderer.send('windowsInfoRequest');
+	ipcRenderer.send('vscode:windowsInfoRequest');
 	ipcRenderer.send('vscode:listProcesses');
 
 	document.onkeydown = (e: KeyboardEvent) => {
@@ -412,12 +406,12 @@ export function startup(data: ProcessExplorerData): void {
 
 		// Cmd/Ctrl + zooms in
 		if (cmdOrCtrlKey && e.keyCode === 187) {
-			applyZoom(webFrame.getZoomLevel() + 1);
+			zoomIn();
 		}
 
 		// Cmd/Ctrl - zooms out
 		if (cmdOrCtrlKey && e.keyCode === 189) {
-			applyZoom(webFrame.getZoomLevel() - 1);
+			zoomOut();
 		}
 	};
 }

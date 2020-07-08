@@ -24,7 +24,7 @@ registerAction2(class extends Action2 {
 			icon: { id: 'codicon/server-environment' },
 			menu: {
 				id: MenuId.EditorTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_MULTIPLE_KERNELS),
+				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_HAS_MULTIPLE_KERNELS),
 				group: 'navigation',
 				order: -2,
 			},
@@ -37,11 +37,11 @@ registerAction2(class extends Action2 {
 		const notebookService = accessor.get<INotebookService>(INotebookService);
 		const quickInputService = accessor.get<IQuickInputService>(IQuickInputService);
 
-		const activeEditorPane = editorService.activeEditorPane as any | undefined;
+		const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
 		if (!activeEditorPane?.isNotebookEditor) {
 			return;
 		}
-		const editor = activeEditorPane.getControl() as INotebookEditor;
+		const editor = editorService.activeEditorPane?.getControl() as INotebookEditor;
 		const activeKernel = editor.activeKernel;
 
 		const availableKernels = notebookService.getContributedNotebookKernels(editor.viewModel!.viewType, editor.viewModel!.uri);

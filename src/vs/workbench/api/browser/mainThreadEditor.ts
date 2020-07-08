@@ -17,6 +17,9 @@ import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorCon
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { equals } from 'vs/base/common/arrays';
+import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 
 export interface IFocusTracker {
 	onGainedFocus(): void;
@@ -159,6 +162,7 @@ export class MainThreadTextEditor {
 	private readonly _id: string;
 	private _model: ITextModel;
 	private readonly _modelService: IModelService;
+	private readonly _clipboardService: IClipboardService;
 	private readonly _modelListeners = new DisposableStore();
 	private _codeEditor: ICodeEditor | null;
 	private readonly _focusTracker: IFocusTracker;
@@ -172,7 +176,8 @@ export class MainThreadTextEditor {
 		model: ITextModel,
 		codeEditor: ICodeEditor,
 		focusTracker: IFocusTracker,
-		modelService: IModelService
+		modelService: IModelService,
+		clipboardService: IClipboardService,
 	) {
 		this._id = id;
 		this._model = model;
@@ -180,6 +185,7 @@ export class MainThreadTextEditor {
 		this._properties = null;
 		this._focusTracker = focusTracker;
 		this._modelService = modelService;
+		this._clipboardService = clipboardService;
 
 		this._onPropertiesChanged = new Emitter<IEditorPropertiesChangeData>();
 
@@ -454,10 +460,21 @@ export class MainThreadTextEditor {
 		return true;
 	}
 
-	insertSnippet(template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
+	async insertSnippet(template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
 
-		if (!this._codeEditor) {
+		if (!this._codeEditor || !this._codeEditor.hasModel()) {
 			return false;
+		}
+
+		// check if clipboard is required and only iff read it (async)
+		let clipboardText: string | undefined;
+		const needsTemplate = SnippetParser.guessNeedsClipboard(template);
+		if (needsTemplate) {
+			const state = new EditorState(this._codeEditor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
+			clipboardText = await this._clipboardService.readText();
+			if (!state.validate(this._codeEditor)) {
+				return false;
+			}
 		}
 
 		const snippetController = SnippetController2.get(this._codeEditor);
@@ -471,7 +488,11 @@ export class MainThreadTextEditor {
 		this._codeEditor.focus();
 
 		// make modifications
-		snippetController.insert(template, { overwriteBefore: 0, overwriteAfter: 0, undoStopBefore: opts.undoStopBefore, undoStopAfter: opts.undoStopAfter });
+		snippetController.insert(template, {
+			overwriteBefore: 0, overwriteAfter: 0,
+			undoStopBefore: opts.undoStopBefore, undoStopAfter: opts.undoStopAfter,
+			clipboardText
+		});
 
 		return true;
 	}

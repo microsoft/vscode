@@ -17,7 +17,7 @@ export const IStorageMainService = createDecorator<IStorageMainService>('storage
 
 export interface IStorageMainService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -86,7 +86,7 @@ export interface IStorageChangeEvent {
 
 export class StorageMainService extends Disposable implements IStorageMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly STORAGE_NAME = 'state.vscdb';
 

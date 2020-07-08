@@ -26,7 +26,7 @@ suite('TypeScript Completions', () => {
 	let oldConfig: { [key: string]: any } = {};
 
 	setup(async () => {
-		await wait(100);
+		await wait(500);
 
 		// Save off config and apply defaults
 		oldConfig = await updateConfig(testDocumentUri, configDefaults);

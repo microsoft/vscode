@@ -7,6 +7,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -112,7 +113,11 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 			const webview = this._webviewService.createWebviewElement(this.id, this._options, this._contentOptions, this.extension);
 			this._webview.value = webview;
 			webview.state = this._state;
-			webview.html = this._html;
+
+			if (this._html) {
+				webview.html = this._html;
+			}
+
 			if (this._options.tryRestoreScrollPosition) {
 				webview.initialScrollProgress = this._initialScrollProgress;
 			}
@@ -141,7 +146,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 				this._onDidUpdateState.fire(state);
 			}));
 
-			this._pendingMessages.forEach(msg => webview.sendMessage(msg));
+			this._pendingMessages.forEach(msg => webview.postMessage(msg));
 			this._pendingMessages.clear();
 		}
 		this.container.style.visibility = 'visible';
@@ -174,6 +179,10 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		this.withWebview(webview => webview.contentOptions = value);
 	}
 
+	public set localResourcesRoot(resources: URI[]) {
+		this.withWebview(webview => webview.localResourcesRoot = resources);
+	}
+
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
@@ -198,9 +207,9 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
 	public readonly onMissingCsp: Event<any> = this._onMissingCsp.event;
 
-	sendMessage(data: any): void {
+	postMessage(data: any): void {
 		if (this._webview.value) {
-			this._webview.value.sendMessage(data);
+			this._webview.value.postMessage(data);
 		} else {
 			this._pendingMessages.add(data);
 		}

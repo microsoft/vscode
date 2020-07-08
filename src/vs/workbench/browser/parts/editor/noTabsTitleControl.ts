@@ -67,10 +67,10 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(addDisposableListener(titleContainer, EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
 
 		// Detect mouse click
-		this._register(addDisposableListener(titleContainer, EventType.MOUSE_UP, (e: MouseEvent) => this.onTitleClick(e)));
+		this._register(addDisposableListener(titleContainer, EventType.AUXCLICK, (e: MouseEvent) => this.onTitleAuxClick(e)));
 
 		// Detect touch
-		this._register(addDisposableListener(titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleClick(e)));
+		this._register(addDisposableListener(titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleTap(e)));
 
 		// Context Menu
 		this._register(addDisposableListener(titleContainer, EventType.CONTEXT_MENU, (e: Event) => {
@@ -98,23 +98,19 @@ export class NoTabsTitleControl extends TitleControl {
 		this.group.pinEditor();
 	}
 
-	private onTitleClick(e: MouseEvent | GestureEvent): void {
-		if (e instanceof MouseEvent) {
-			// Close editor on middle mouse click
-			if (e.button === 1 /* Middle Button */) {
-				EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
+	private onTitleAuxClick(e: MouseEvent): void {
+		if (e.button === 1 /* Middle Button */ && this.group.activeEditor) {
+			EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
 
-				if (this.group.activeEditor) {
-					this.group.closeEditor(this.group.activeEditor);
-				}
-			}
-		} else {
-			// TODO@rebornix
-			// gesture tap should open the quick access
-			// editorGroupView will focus on the editor again when there are mouse/pointer/touch down events
-			// we need to wait a bit as `GesureEvent.Tap` is generated from `touchstart` and then `touchend` evnets, which are not an atom event.
-			setTimeout(() => this.quickInputService.quickAccess.show(), 50);
+			this.group.closeEditor(this.group.activeEditor);
 		}
+	}
+
+	private onTitleTap(e: GestureEvent): void {
+		// TODO@rebornix gesture tap should open the quick access
+		// editorGroupView will focus on the editor again when there are mouse/pointer/touch down events
+		// we need to wait a bit as `GesureEvent.Tap` is generated from `touchstart` and then `touchend` evnets, which are not an atom event.
+		setTimeout(() => this.quickInputService.quickAccess.show(), 50);
 	}
 
 	getPreferredHeight(): number {

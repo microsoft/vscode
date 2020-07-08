@@ -20,7 +20,7 @@ const webviewMimeTypes = new Map([
 	['.xml', 'application/xml'],
 ]);
 
-export function getWebviewContentMimeType(normalizedPath: URI): string {
-	const ext = extname(normalizedPath.fsPath).toLowerCase();
-	return webviewMimeTypes.get(ext) || getMediaMime(normalizedPath.fsPath) || MIME_UNKNOWN;
+export function getWebviewContentMimeType(resource: URI): string {
+	const ext = extname(resource.fsPath).toLowerCase();
+	return webviewMimeTypes.get(ext) || getMediaMime(resource.fsPath) || MIME_UNKNOWN;
 }

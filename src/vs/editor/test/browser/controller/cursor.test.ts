@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -24,6 +23,7 @@ import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/tes
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 
 // --------- utils
 
@@ -782,7 +782,7 @@ suite('Editor Controller - Cursor', () => {
 
 	test('no move doesn\'t trigger event', () => {
 		runTest((editor, viewModel) => {
-			viewModel.cursor.onDidChange((e) => {
+			viewModel.onEvent((e) => {
 				assert.ok(false, 'was not expecting event');
 			});
 			moveTo(editor, viewModel, 1, 1);
@@ -792,9 +792,11 @@ suite('Editor Controller - Cursor', () => {
 	test('move eventing', () => {
 		runTest((editor, viewModel) => {
 			let events = 0;
-			viewModel.cursor.onDidChange((e: CursorStateChangedEvent) => {
-				events++;
-				assert.deepEqual(e.selections, [new Selection(1, 2, 1, 2)]);
+			viewModel.onEvent((e) => {
+				if (e.kind === OutgoingViewModelEventKind.CursorStateChanged) {
+					events++;
+					assert.deepEqual(e.selections, [new Selection(1, 2, 1, 2)]);
+				}
 			});
 			moveTo(editor, viewModel, 1, 2);
 			assert.equal(events, 1, 'receives 1 event');
@@ -804,9 +806,11 @@ suite('Editor Controller - Cursor', () => {
 	test('move in selection mode eventing', () => {
 		runTest((editor, viewModel) => {
 			let events = 0;
-			viewModel.cursor.onDidChange((e: CursorStateChangedEvent) => {
-				events++;
-				assert.deepEqual(e.selections, [new Selection(1, 1, 1, 2)]);
+			viewModel.onEvent((e) => {
+				if (e.kind === OutgoingViewModelEventKind.CursorStateChanged) {
+					events++;
+					assert.deepEqual(e.selections, [new Selection(1, 1, 1, 2)]);
+				}
 			});
 			moveTo(editor, viewModel, 1, 2, true);
 			assert.equal(events, 1, 'receives 1 event');
@@ -2201,6 +2205,70 @@ suite('Editor Controller - Regression tests', () => {
 			// moving back to view line 1
 			moveLeft(editor, viewModel);
 			assertCursor(viewModel, new Selection(1, 12, 1, 12));
+		});
+	});
+
+	test('issue #98320: Multi-Cursor, Wrap lines and cursorSelectRight ==> cursors out of sync', () => {
+		// a single model line => 4 view lines
+		withTestCodeEditor([
+			[
+				'lorem_ipsum-1993x11x13',
+				'dolor_sit_amet-1998x04x27',
+				'consectetur-2007x10x08',
+				'adipiscing-2012x07x27',
+				'elit-2015x02x27',
+			].join('\n')
+		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 16 }, (editor, viewModel) => {
+			viewModel.setSelections('test', [
+				new Selection(1, 13, 1, 13),
+				new Selection(2, 16, 2, 16),
+				new Selection(3, 13, 3, 13),
+				new Selection(4, 12, 4, 12),
+				new Selection(5, 6, 5, 6),
+			]);
+			assertCursor(viewModel, [
+				new Selection(1, 13, 1, 13),
+				new Selection(2, 16, 2, 16),
+				new Selection(3, 13, 3, 13),
+				new Selection(4, 12, 4, 12),
+				new Selection(5, 6, 5, 6),
+			]);
+
+			moveRight(editor, viewModel, true);
+			assertCursor(viewModel, [
+				new Selection(1, 13, 1, 14),
+				new Selection(2, 16, 2, 17),
+				new Selection(3, 13, 3, 14),
+				new Selection(4, 12, 4, 13),
+				new Selection(5, 6, 5, 7),
+			]);
+
+			moveRight(editor, viewModel, true);
+			assertCursor(viewModel, [
+				new Selection(1, 13, 1, 15),
+				new Selection(2, 16, 2, 18),
+				new Selection(3, 13, 3, 15),
+				new Selection(4, 12, 4, 14),
+				new Selection(5, 6, 5, 8),
+			]);
+
+			moveRight(editor, viewModel, true);
+			assertCursor(viewModel, [
+				new Selection(1, 13, 1, 16),
+				new Selection(2, 16, 2, 19),
+				new Selection(3, 13, 3, 16),
+				new Selection(4, 12, 4, 15),
+				new Selection(5, 6, 5, 9),
+			]);
+
+			moveRight(editor, viewModel, true);
+			assertCursor(viewModel, [
+				new Selection(1, 13, 1, 17),
+				new Selection(2, 16, 2, 20),
+				new Selection(3, 13, 3, 17),
+				new Selection(4, 12, 4, 16),
+				new Selection(5, 6, 5, 10),
+			]);
 		});
 	});
 

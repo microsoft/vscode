@@ -7,7 +7,6 @@ import { IExtensionTipsService, IExtensionManagementService, ILocalExtension, IC
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { localize } from 'vs/nls';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -75,7 +74,7 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		const local = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const local = await this.extensionManagementService.getInstalled();
 		const { uninstalled } = this.groupByInstalled(distinct(this.importantTips.map(({ extensionId }) => extensionId)), local);
 		if (uninstalled.length === 0) {
 			return;

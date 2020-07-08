@@ -38,7 +38,7 @@ import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/comm
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 

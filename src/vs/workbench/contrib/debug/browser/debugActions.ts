@@ -13,6 +13,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { deepClone } from 'vs/base/common/objects';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -97,7 +98,10 @@ export class ConfigureAction extends AbstractDebugAction {
 				launch = launches[0];
 			} else {
 				const picks = launches.map(l => ({ label: l.name, launch: l }));
-				const picked = await this.quickInputService.pick<{ label: string, launch: ILaunch }>(picks, { activeItem: picks[0], placeHolder: nls.localize('selectWorkspaceFolder', "Select a workspace folder to create a launch.json file in or add it to the workspace config file") });
+				const picked = await this.quickInputService.pick<{ label: string, launch: ILaunch }>(picks, {
+					activeItem: picks[0],
+					placeHolder: nls.localize({ key: 'selectWorkspaceFolder', comment: ['User picks a workspace folder or a workspace configuration file here. Workspace configuration files can contain settings and thus a launch.json configuration can be written into one.'] }, "Select a workspace folder to create a launch.json file in or add it to the workspace config file")
+				});
 				if (picked) {
 					launch = picked.launch;
 				}
@@ -129,7 +133,8 @@ export class StartAction extends AbstractDebugAction {
 
 	async run(): Promise<boolean> {
 		let { launch, name, config } = this.debugService.getConfigurationManager().selectedConfiguration;
-		return this.debugService.startDebugging(launch, config || name, { noDebug: this.isNoDebug() });
+		const clonedConfig = deepClone(config);
+		return this.debugService.startDebugging(launch, clonedConfig || name, { noDebug: this.isNoDebug() });
 	}
 
 	protected isNoDebug(): boolean {

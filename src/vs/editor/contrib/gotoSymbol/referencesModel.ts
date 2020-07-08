@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { basename, exturi } from 'vs/base/common/resources';
+import { basename, extUri } from 'vs/base/common/resources';
 import { IDisposable, dispose, IReference, DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -151,7 +151,7 @@ export class ReferencesModel implements IDisposable {
 
 		let current: FileReferences | undefined;
 		for (let link of links) {
-			if (!current || !exturi.isEqual(current.uri, link.uri, true)) {
+			if (!current || !extUri.isEqual(current.uri, link.uri, true)) {
 				// new group
 				current = new FileReferences(this, link.uri);
 				this.groups.push(current);
@@ -281,6 +281,6 @@ export class ReferencesModel implements IDisposable {
 	}
 
 	private static _compareReferences(a: Location, b: Location): number {
-		return exturi.compare(a.uri, b.uri) || Range.compareRangesUsingStarts(a.range, b.range);
+		return extUri.compare(a.uri, b.uri) || Range.compareRangesUsingStarts(a.range, b.range);
 	}
 }

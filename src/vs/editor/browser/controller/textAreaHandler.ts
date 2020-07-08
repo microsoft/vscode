@@ -258,14 +258,13 @@ export class TextAreaHandler extends ViewPart {
 			const lineNumber = this._selections[0].startLineNumber;
 			const column = this._selections[0].startColumn - (e.moveOneCharacterLeft ? 1 : 0);
 
-			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
+			this._context.model.revealRange(
 				'keyboard',
-				new Range(lineNumber, column, lineNumber, column),
-				null,
-				viewEvents.VerticalRevealType.Simple,
 				true,
+				new Range(lineNumber, column, lineNumber, column),
+				viewEvents.VerticalRevealType.Simple,
 				ScrollType.Immediate
-			));
+			);
 
 			// Find range pixel position
 			const visibleRange = this._viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
@@ -308,12 +307,10 @@ export class TextAreaHandler extends ViewPart {
 
 		this._register(this._textAreaInput.onFocus(() => {
 			this._context.model.setHasFocus(true);
-			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(true));
 		}));
 
 		this._register(this._textAreaInput.onBlur(() => {
 			this._context.model.setHasFocus(false);
-			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(false));
 		}));
 	}
 

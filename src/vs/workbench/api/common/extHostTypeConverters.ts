@@ -646,7 +646,7 @@ export namespace DocumentSymbol {
 			range: Range.from(info.range),
 			selectionRange: Range.from(info.selectionRange),
 			kind: SymbolKind.from(info.kind),
-			tags: info.tags ? info.tags.map(SymbolTag.from) : []
+			tags: info.tags?.map(SymbolTag.from) ?? []
 		};
 		if (info.children) {
 			result.children = info.children.map(from);
@@ -911,7 +911,7 @@ export namespace CompletionItem {
 
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
-		result.tags = suggestion.tags && suggestion.tags.map(CompletionItemTag.to);
+		result.tags = suggestion.tags?.map(CompletionItemTag.to);
 		result.detail = suggestion.detail;
 		result.documentation = htmlContent.isMarkdownString(suggestion.documentation) ? MarkdownString.to(suggestion.documentation) : suggestion.documentation;
 		result.sortText = suggestion.sortText;
@@ -1164,15 +1164,20 @@ export namespace FoldingRangeKind {
 	}
 }
 
-export namespace TextEditorOptions {
+export interface TextEditorOpenOptions extends vscode.TextDocumentShowOptions {
+	background?: boolean;
+}
 
-	export function from(options?: vscode.TextDocumentShowOptions): ITextEditorOptions | undefined {
+export namespace TextEditorOpenOptions {
+
+	export function from(options?: TextEditorOpenOptions): ITextEditorOptions | undefined {
 		if (options) {
 			return {
 				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
+				inactive: options.background,
 				preserveFocus: options.preserveFocus,
-				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined
-			} as ITextEditorOptions;
+				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined,
+			};
 		}
 
 		return undefined;

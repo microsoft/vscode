@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { LogsDataCleaner } from 'vs/workbench/contrib/logs/common/logsDataCleaner';
 
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-const devCategory = nls.localize('developer', "Developer");
+const devCategory = nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer");
 workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SetLogLevelAction), 'Developer: Set Log Level...', devCategory);
 
 class LogOutputChannels extends Disposable implements IWorkbenchContribution {
@@ -53,7 +53,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		this.instantiationService.createInstance(LogsDataCleaner);
 
 		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-		const devCategory = nls.localize('developer', "Developer");
+		const devCategory = nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer");
 		workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenWindowSessionLogFileAction), 'Developer: Open Window Log File (Session)...', devCategory);
 	}
 

@@ -80,17 +80,17 @@ export class CursorMoveCommands {
 		);
 	}
 
-	public static moveToEndOfLine(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
+	public static moveToEndOfLine(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, sticky: boolean): PartialCursorState[] {
 		let result: PartialCursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-			result[i] = this._moveToLineEnd(viewModel, cursor, inSelectionMode);
+			result[i] = this._moveToLineEnd(viewModel, cursor, inSelectionMode, sticky);
 		}
 
 		return result;
 	}
 
-	private static _moveToLineEnd(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean): PartialCursorState {
+	private static _moveToLineEnd(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, sticky: boolean): PartialCursorState {
 		const viewStatePosition = cursor.viewState.position;
 		const viewModelMaxColumn = viewModel.getLineMaxColumn(viewStatePosition.lineNumber);
 		const isEndOfViewLine = viewStatePosition.column === viewModelMaxColumn;
@@ -100,21 +100,21 @@ export class CursorMoveCommands {
 		const isEndLineOfWrappedLine = viewModelMaxColumn - viewStatePosition.column === modelMaxColumn - modelStatePosition.column;
 
 		if (isEndOfViewLine || isEndLineOfWrappedLine) {
-			return this._moveToLineEndByModel(viewModel, cursor, inSelectionMode);
+			return this._moveToLineEndByModel(viewModel, cursor, inSelectionMode, sticky);
 		} else {
-			return this._moveToLineEndByView(viewModel, cursor, inSelectionMode);
+			return this._moveToLineEndByView(viewModel, cursor, inSelectionMode, sticky);
 		}
 	}
 
-	private static _moveToLineEndByView(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean): PartialCursorState {
+	private static _moveToLineEndByView(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, sticky: boolean): PartialCursorState {
 		return CursorState.fromViewState(
-			MoveOperations.moveToEndOfLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode)
+			MoveOperations.moveToEndOfLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, sticky)
 		);
 	}
 
-	private static _moveToLineEndByModel(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean): PartialCursorState {
+	private static _moveToLineEndByModel(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, sticky: boolean): PartialCursorState {
 		return CursorState.fromModelState(
-			MoveOperations.moveToEndOfLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode)
+			MoveOperations.moveToEndOfLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode, sticky)
 		);
 	}
 
@@ -404,13 +404,14 @@ export class CursorMoveCommands {
 	}
 
 	private static _moveLeft(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
+		const hasMultipleCursors = (cursors.length > 1);
 		let result: PartialCursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-
+			const skipWrappingPointStop = hasMultipleCursors || !cursor.viewState.hasSelection();
 			let newViewState = MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns);
 
-			if (!cursor.viewState.hasSelection() && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
+			if (skipWrappingPointStop && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
 				// moved over to the previous view line
 				const newViewModelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
 				if (newViewModelPosition.lineNumber === cursor.modelState.position.lineNumber) {
@@ -436,12 +437,14 @@ export class CursorMoveCommands {
 	}
 
 	private static _moveRight(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
+		const hasMultipleCursors = (cursors.length > 1);
 		let result: PartialCursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
+			const skipWrappingPointStop = hasMultipleCursors || !cursor.viewState.hasSelection();
 			let newViewState = MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns);
 
-			if (!cursor.viewState.hasSelection() && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
+			if (skipWrappingPointStop && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
 				// moved over to the next view line
 				const newViewModelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
 				if (newViewModelPosition.lineNumber === cursor.modelState.position.lineNumber) {

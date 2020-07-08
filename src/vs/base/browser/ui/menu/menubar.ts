@@ -446,6 +446,16 @@ export class MenuBar extends Disposable {
 		return this.container.clientHeight;
 	}
 
+	toggleFocus(): void {
+		if (!this.isFocused && this.options.visibility !== 'hidden') {
+			this.mnemonicsInUse = true;
+			this.focusedMenu = { index: this.numMenusShown > 0 ? 0 : MenuBar.OVERFLOW_INDEX };
+			this.focusState = MenubarState.FOCUSED;
+		} else if (!this.isOpen) {
+			this.setUnfocusedState();
+		}
+	}
+
 	private updateOverflowAction(): void {
 		if (!this.menuCache || !this.menuCache.length) {
 			return;
@@ -932,7 +942,6 @@ export class MenuBar extends Disposable {
 			menuHolder.style.top = `0px`;
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
-			console.log(customMenu.buttonElement.getBoundingClientRect().right - this.container.clientWidth);
 		} else {
 			menuHolder.style.top = `${this.container.clientHeight}px`;
 			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left}px`;
@@ -945,7 +954,8 @@ export class MenuBar extends Disposable {
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
 			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label')),
-			expandDirection: this.options.compactMode !== undefined ? this.options.compactMode : Direction.Right
+			expandDirection: this.options.compactMode !== undefined ? this.options.compactMode : Direction.Right,
+			useEventAsContext: true
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));

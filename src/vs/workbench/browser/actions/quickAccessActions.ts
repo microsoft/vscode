@@ -138,7 +138,7 @@ CommandsRegistry.registerCommand({
 	handler: async function (accessor: ServicesAccessor, prefix: unknown) {
 		const quickInputService = accessor.get(IQuickInputService);
 
-		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined);
+		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
 	},
 	description: {
 		description: `Quick access`,

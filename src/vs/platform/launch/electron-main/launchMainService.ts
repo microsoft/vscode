@@ -51,7 +51,7 @@ function parseOpenUrl(args: ParsedArgs): URI[] {
 }
 
 export interface ILaunchMainService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
 	getMainProcessId(): Promise<number>;
 	getMainProcessInfo(): Promise<IMainProcessInfo>;
@@ -60,7 +60,7 @@ export interface ILaunchMainService {
 
 export class LaunchMainService implements ILaunchMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -156,6 +156,8 @@ export class LaunchMainService implements ILaunchMainService {
 			else {
 				const lastActive = this.windowsMainService.getLastActiveWindow();
 				if (lastActive) {
+					// Force focus the app before requesting window focus
+					app.focus({ steal: true });
 					lastActive.focus();
 
 					usedWindows = [lastActive];
