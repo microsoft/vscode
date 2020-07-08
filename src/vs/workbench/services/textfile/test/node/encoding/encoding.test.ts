@@ -341,6 +341,19 @@ suite('Encoding', () => {
 		assert.equal(actual, expected);
 	});
 
+	// TODO@ben enable test once fix is in
+	// test('toDecodeStream - some stream (GBK issue #101856)', async function () {
+	// 	const path = getPathFromAmdModule(require, './fixtures/some-gbk.txt');
+	// 	const source = streamToBufferReadableStream(fs.createReadStream(path));
+
+	// 	const { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async () => 'gbk' });
+	// 	assert.ok(detected);
+	// 	assert.ok(stream);
+
+	// 	const content = await readAllAsString(stream);
+	// 	assert.equal(content.length > 60000, true);
+	// });
+
 	test('toEncodeReadable - encoding, utf16be', async function () {
 		const path = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
 		const source = await readAndDecodeFromDisk(path, encoding.UTF16be);
