@@ -43,13 +43,13 @@
 			}
 		};
 	</script>
-	<script src="./static/out/vs/base/common/performance.js"></script>
 	<script src="./static/out/vs/loader.js"></script>
 	<script>
+		globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
+		globalThis.MonacoPerformanceMarks.push('willLoadWorkbenchMain', Date.now());
+	</script>
+	<script>
 		// NOTE: Changes to inline scripts require update of content security policy
-		perf.mark('willLoadWorkbenchMain');
-		require(['vs/code/browser/workbench/workbench'], function() {
-			perf.mark('didLoadWorkbenchMain');
-		});
+		require(['vs/code/browser/workbench/workbench'], function() {});
 	</script>
 </html>

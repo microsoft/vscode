@@ -14,6 +14,10 @@ import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 
+// perf mark
+import * as perf from 'vs/base/common/performance';
+perf.mark('didLoadWorkbenchMain');
+
 interface ICredential {
 	service: string;
 	account: string;
