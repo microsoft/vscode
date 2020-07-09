@@ -700,6 +700,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return types;
 	}
 
+	public async getPossibleTaskTypes(): Promise<string[]> {
+		const types: string[] = this.taskTypes();
+		if (this.isProvideTasksEnabled()) {
+			await TaskDefinitionRegistry.onReady();
+			for (const task of TaskDefinitionRegistry.all()) {
+				if (!types.includes(task.taskType)) {
+					types.push(task.taskType);
+				}
+			}
+		}
+		return types;
+	}
+
 	public createSorter(): TaskSorter {
 		return new TaskSorter(this.contextService.getWorkspace() ? this.contextService.getWorkspace().folders : []);
 	}
