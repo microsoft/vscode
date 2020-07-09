@@ -237,11 +237,10 @@ export abstract class AbstractSynchroniser extends Disposable {
 			this.logService.trace(`${this.syncResourceLogLabel}: Started synchronizing ${this.resource.toLowerCase()}...`);
 			this.setStatus(SyncStatus.Syncing);
 
-			const lastSyncUserData = await this.getLastSyncUserData();
-			const remoteUserData = await this.getLatestRemoteUserData(manifest, lastSyncUserData);
-
 			let status: SyncStatus = SyncStatus.Idle;
 			try {
+				const lastSyncUserData = await this.getLastSyncUserData();
+				const remoteUserData = await this.getLatestRemoteUserData(manifest, lastSyncUserData);
 				status = await this.performSync(remoteUserData, lastSyncUserData);
 				if (status === SyncStatus.HasConflicts) {
 					this.logService.info(`${this.syncResourceLogLabel}: Detected conflicts while synchronizing ${this.resource.toLowerCase()}.`);
