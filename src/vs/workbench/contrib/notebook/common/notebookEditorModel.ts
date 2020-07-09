@@ -218,7 +218,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	private async _assertStat() {
 		const stats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
 		if (this._lastResolvedFileStat && stats.mtime > this._lastResolvedFileStat.mtime) {
-			return new Promise<'override' | 'revert' | 'none'>(resolve => {
+			return new Promise<'overwrite' | 'revert' | 'none'>(resolve => {
 				const handle = this._notificationService.prompt(
 					Severity.Info,
 					nls.localize('notebook.staleSaveError', "The content of the file is newer. Please revert your version with the file contents or overwrite the content of the file with your changes"),
@@ -228,9 +228,9 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 							resolve('revert');
 						}
 					}, {
-						label: nls.localize('notebook.staleSaveError.override.', "Override"),
+						label: nls.localize('notebook.staleSaveError.overwrite.', "Overwrite"),
 						run: () => {
-							resolve('override');
+							resolve('overwrite');
 						}
 					}],
 					{ sticky: true }
@@ -242,7 +242,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			});
 		}
 
-		return 'override';
+		return 'overwrite';
 	}
 
 	async save(): Promise<boolean> {
