@@ -43,19 +43,21 @@ export class OpenDocumentLinkCommand implements Command {
 		private readonly engine: MarkdownEngine
 	) { }
 
-	public execute(args: OpenDocumentLinkArgs) {
+	public async execute(args: OpenDocumentLinkArgs) {
 		const fromResource = vscode.Uri.parse(decodeURIComponent(args.fromResource));
 		const targetPath = decodeURIComponent(args.path);
 		const column = this.getViewColumn(fromResource);
-		return this.tryOpen(targetPath, args, column).catch(() => {
+		try {
+			return await this.tryOpen(targetPath, args, column);
+		} catch {
 			if (targetPath && extname(targetPath) === '') {
 				return this.tryOpen(targetPath + '.md', args, column);
 			}
 			const targetResource = vscode.Uri.file(targetPath);
-			return Promise.resolve(undefined)
-				.then(() => vscode.commands.executeCommand('vscode.open', targetResource, column))
-				.then(() => undefined);
-		});
+			await Promise.resolve(undefined);
+			await vscode.commands.executeCommand('vscode.open', targetResource, column);
+			return undefined;
+		}
 	}
 
 	private async tryOpen(path: string, args: OpenDocumentLinkArgs, column: vscode.ViewColumn) {
