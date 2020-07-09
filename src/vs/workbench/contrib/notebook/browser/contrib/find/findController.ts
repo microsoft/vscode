@@ -266,6 +266,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 
 	show(initialInput?: string): void {
 		super.show(initialInput);
+		this._findInput.select();
 
 		if (this._showTimeout === null) {
 			if (this._hideTimeout !== null) {
