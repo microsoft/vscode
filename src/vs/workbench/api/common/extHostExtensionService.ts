@@ -386,14 +386,22 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				subscriptions: [],
 				get extensionUri() { return extensionDescription.extensionLocation; },
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
-				get storagePath() { return that._storagePath.workspaceValue(extensionDescription); },
-				get globalStoragePath() { return that._storagePath.globalValue(extensionDescription); },
 				asAbsolutePath(relativePath: string) { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
+				get storagePath() { return that._storagePath.workspaceValue(extensionDescription)?.fsPath; },
+				get globalStoragePath() { return that._storagePath.globalValue(extensionDescription).fsPath; },
+				get logPath() { return path.join(that._initData.logsLocation.fsPath, extensionDescription.identifier.value); },
 				get logUri() {
 					checkProposedApiEnabled(extensionDescription);
 					return URI.joinPath(that._initData.logsLocation, extensionDescription.identifier.value);
 				},
-				get logPath() { return path.join(that._initData.logsLocation.fsPath, extensionDescription.identifier.value); },
+				get storageUri() {
+					checkProposedApiEnabled(extensionDescription);
+					return that._storagePath.workspaceValue(extensionDescription);
+				},
+				get globalStorageUri() {
+					checkProposedApiEnabled(extensionDescription);
+					return that._storagePath.globalValue(extensionDescription);
+				},
 				get extensionMode() { return extensionMode; },
 				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); }
 			});

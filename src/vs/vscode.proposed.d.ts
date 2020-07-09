@@ -2082,9 +2082,23 @@ declare module 'vscode' {
 		readonly logUri: Uri;
 
 		/**
-		 * Short-hand for [`logUri.fsPath`](#ExtensionContext#logUri)
+		 * The uri of a workspace specific directory in which the extension
+		 * can store private state. The directory might not exist on disk and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 *
+		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
+		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 */
-		readonly logPath: string;
+		readonly storageUri: Uri | undefined;
+
+		/**
+		 * The uri of a directory in which the extension can store global state.
+		 * The directory might not exist on disk and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 *
+		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 */
+		readonly globalStorageUri: Uri;
 	}
 
 	//#endregion
