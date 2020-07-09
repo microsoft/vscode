@@ -600,3 +600,10 @@ export enum NotebookEditorPriority {
 	default = 'default',
 	option = 'option',
 }
+
+export interface INotebookSearchOptions {
+	regex?: boolean;
+	wholeWord?: boolean;
+	caseSensitive?: boolean
+	wordSeparators?: string;
+}

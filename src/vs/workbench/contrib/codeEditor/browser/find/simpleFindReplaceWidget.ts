@@ -62,7 +62,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
-		private readonly _state: FindReplaceState = new FindReplaceState(),
+		protected readonly _state: FindReplaceState = new FindReplaceState(),
 		showOptionButtons?: boolean
 	) {
 		super();
