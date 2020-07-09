@@ -53,6 +53,9 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
 		this.updateTheme(themeService.getColorTheme());
+		this._register(themeService.onDidColorThemeChange(() => {
+			this.updateTheme(themeService.getColorTheme());
+		}));
 	}
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
