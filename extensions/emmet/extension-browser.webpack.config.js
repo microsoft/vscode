@@ -7,20 +7,16 @@
 
 'use strict';
 
-const path = require('path');
+const withBrowserDefaults
+		= require('../shared.webpack.config').browser;
 
-const withDefaults = require('../shared.webpack.config');
-
-module.exports = withDefaults({
+module.exports = withBrowserDefaults({
 	context: __dirname,
 	entry: {
-		extension: './src/node/emmetNodeMain.ts',
+		extension: './src/browser/emmetBrowserMain.ts'
 	},
 	output: {
-		path: path.join(__dirname, 'dist', 'node'),
-		filename: 'emmetNodeMain.js'
-	},
-	externals: {
-		'vscode-emmet-helper2': 'commonjs vscode-emmet-helper2',
-	},
+		filename: 'emmetBrowserMain.js'
+	}
 });
+
