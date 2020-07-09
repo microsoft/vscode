@@ -266,9 +266,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
 
-	// TODO@Deepak Electron 7 workaround for https://github.com/microsoft/vscode/issues/88873
-	app.commandLine.appendSwitch('disable-features', 'LayoutNG');
-
 	return argvConfig;
 }
 
