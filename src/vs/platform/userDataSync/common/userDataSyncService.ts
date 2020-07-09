@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle, IUserDataManifest, ISyncTask, Change } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle, IUserDataManifest, ISyncTask, Change, IResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -239,12 +239,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	}
 
-	async acceptConflict(conflict: URI, content: string): Promise<void> {
+	async acceptPreviewContent(resource: URI, content: string): Promise<void> {
 		await this.checkEnablement();
-		const syncResourceConflict = this.conflicts.filter(({ conflicts }) => conflicts.some(({ local, remote }) => isEqual(conflict, local) || isEqual(conflict, remote)))[0];
-		if (syncResourceConflict) {
-			const synchroniser = this.getSynchroniser(syncResourceConflict.syncResource);
-			await synchroniser.acceptConflict(conflict, content);
+		const synchroniser = this.synchronisers.find(synchroniser => synchroniser.resourcePreviews.some(({ localResource, previewResource, remoteResource }) =>
+			isEqual(resource, localResource) || isEqual(resource, previewResource) || isEqual(resource, remoteResource)));
+		if (synchroniser) {
+			await synchroniser.acceptPreviewContent(resource, content);
 		}
 	}
 
@@ -365,7 +365,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	private updateConflicts(): void {
 		const conflicts = this.computeConflicts();
-		if (!equals(this._conflicts, conflicts, (a, b) => a.syncResource === b.syncResource && equals(a.conflicts, b.conflicts, (a, b) => isEqual(a.local, b.local) && isEqual(a.remote, b.remote)))) {
+		if (!equals(this._conflicts, conflicts, (a, b) => a.syncResource === b.syncResource && equals(a.conflicts, b.conflicts, (a, b) => isEqual(a.previewResource, b.previewResource)))) {
 			this._conflicts = this.computeConflicts();
 			this._onDidChangeConflicts.fire(conflicts);
 		}
@@ -412,7 +412,18 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	private computeConflicts(): SyncResourceConflicts[] {
 		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)
-			.map(s => ({ syncResource: s.resource, conflicts: s.conflicts }));
+			.map(s => ({ syncResource: s.resource, conflicts: s.conflicts.map(r => this.toStrictResourcePreview(r)) }));
+	}
+
+	private toStrictResourcePreview(resourcePreview: IResourcePreview): IResourcePreview {
+		return {
+			localResource: resourcePreview.localResource,
+			previewResource: resourcePreview.previewResource,
+			remoteResource: resourcePreview.remoteResource,
+			localChange: resourcePreview.localChange,
+			remoteChange: resourcePreview.remoteChange,
+			hasConflicts: resourcePreview.hasConflicts,
+		};
 	}
 
 	getSynchroniser(source: SyncResource): IUserDataSynchroniser {

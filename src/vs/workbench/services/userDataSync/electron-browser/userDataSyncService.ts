@@ -103,8 +103,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('isFirstTimeSyncingWithAnotherMachine');
 	}
 
-	acceptConflict(conflict: URI, content: string): Promise<void> {
-		return this.channel.call('acceptConflict', [conflict, content]);
+	acceptPreviewContent(resource: URI, content: string): Promise<void> {
+		return this.channel.call('acceptPreviewContent', [resource, content]);
 	}
 
 	resolveContent(resource: URI): Promise<string | null> {
@@ -140,8 +140,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this._conflicts = conflicts.map(c =>
 			({
 				syncResource: c.syncResource,
-				conflicts: c.conflicts.map(({ local, remote }) =>
-					({ local: URI.revive(local), remote: URI.revive(remote) }))
+				conflicts: c.conflicts.map(r =>
+					({
+						...r,
+						localResource: URI.revive(r.localResource),
+						remoteResource: URI.revive(r.remoteResource),
+						previewResource: URI.revive(r.previewResource),
+					}))
 			}));
 		this._onDidChangeConflicts.fire(conflicts);
 	}

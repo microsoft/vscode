@@ -281,8 +281,6 @@ export interface ISyncResourceHandle {
 	uri: URI;
 }
 
-export type Conflict = { remote: URI, local: URI };
-
 export interface IRemoteUserData {
 	ref: string;
 	syncData: ISyncData | null;
@@ -320,8 +318,9 @@ export interface IUserDataSynchroniser {
 	readonly resource: SyncResource;
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
-	readonly conflicts: Conflict[];
-	readonly onDidChangeConflicts: Event<Conflict[]>;
+	readonly resourcePreviews: IResourcePreview[];
+	readonly conflicts: IResourcePreview[];
+	readonly onDidChangeConflicts: Event<IResourcePreview[]>;
 	readonly onDidChangeLocal: Event<void>;
 
 	pull(): Promise<void>;
@@ -336,7 +335,7 @@ export interface IUserDataSynchroniser {
 	resetLocal(): Promise<void>;
 
 	resolveContent(resource: URI): Promise<string | null>;
-	acceptConflict(conflictResource: URI, content: string): Promise<void>;
+	acceptPreviewContent(resource: URI, content: string): Promise<void>;
 
 	getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
 	getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
@@ -357,7 +356,7 @@ export interface IUserDataSyncResourceEnablementService {
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
 }
 
-export type SyncResourceConflicts = { syncResource: SyncResource, conflicts: Conflict[] };
+export type SyncResourceConflicts = { syncResource: SyncResource, conflicts: IResourcePreview[] };
 
 export interface ISyncTask {
 	manifest: IUserDataManifest | null;
@@ -393,7 +392,7 @@ export interface IUserDataSyncService {
 	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
-	acceptConflict(conflictResource: URI, content: string): Promise<void>;
+	acceptPreviewContent(conflictResource: URI, content: string): Promise<void>;
 
 	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
 	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;

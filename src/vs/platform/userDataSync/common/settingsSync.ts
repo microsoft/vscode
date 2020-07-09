@@ -144,6 +144,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		const formattingOptions = await this.getFormattingOptions();
 		const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
 		const lastSettingsSyncContent: ISettingsSyncContent | null = lastSyncUserData ? this.getSettingsSyncContent(lastSyncUserData) : null;
+		const ignoredSettings = await this.getIgnoredSettings();
 
 		let previewContent: string | null = null;
 		let hasLocalChanged: boolean = false;
@@ -154,7 +155,6 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
 			this.validateContent(localContent);
 			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote settings with local settings...`);
-			const ignoredSettings = await this.getIgnoredSettings();
 			const result = merge(localContent, remoteSettingsSyncContent.settings, lastSettingsSyncContent ? lastSettingsSyncContent.settings : null, ignoredSettings, [], formattingOptions);
 			previewContent = result.localContent || result.remoteContent;
 			hasLocalChanged = result.localContent !== null;
@@ -171,7 +171,6 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 		if (previewContent && !token.isCancellationRequested) {
 			// Remove the ignored settings from the preview.
-			const ignoredSettings = await this.getIgnoredSettings();
 			const content = updateIgnoredSettings(previewContent, '{}', ignoredSettings, formattingOptions);
 			await this.fileService.writeFile(this.localPreviewResource, VSBuffer.fromString(content));
 		}
