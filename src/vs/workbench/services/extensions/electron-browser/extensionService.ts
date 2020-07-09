@@ -575,9 +575,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				connectionData: this._remoteAuthorityResolverService.getConnectionData(remoteAuthority),
 				pid: remoteEnv.pid,
 				appRoot: remoteEnv.appRoot,
-				appSettingsHome: remoteEnv.appSettingsHome,
 				extensionHostLogsPath: remoteEnv.extensionHostLogsPath,
 				globalStorageHome: remoteEnv.globalStorageHome,
+				workspaceStorageHome: remoteEnv.workspaceStorageHome,
 				extensions: remoteExtensions,
 				allExtensions: this._registry.getAllExtensionDescriptions(),
 			});
