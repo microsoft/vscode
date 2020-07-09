@@ -146,6 +146,7 @@ export interface ICompositeBarOptions {
 	readonly compositeSize: number;
 	readonly overflowActionSize: number;
 	readonly dndHandler: ICompositeDragAndDrop;
+	readonly preventLoopNavigation?: boolean;
 
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => Action;
@@ -225,6 +226,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			orientation: this.options.orientation,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
 			animated: false,
+			preventLoopNavigation: this.options.preventLoopNavigation
 		}));
 
 		// Contextmenu for composites
@@ -293,9 +295,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		return { verticallyBefore: front, horizontallyBefore: front };
 	}
 
-	focus(): void {
+	focus(index?: number): void {
 		if (this.compositeSwitcherBar) {
-			this.compositeSwitcherBar.focus();
+			this.compositeSwitcherBar.focus(index);
 		}
 	}
 
