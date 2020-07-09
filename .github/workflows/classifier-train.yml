@@ -1,7 +1,6 @@
 name: "Classifier: Trainer"
-on:
-  schedule:
-    - cron: 0 0 12 * *
+on
+
 
 jobs:
   main:
