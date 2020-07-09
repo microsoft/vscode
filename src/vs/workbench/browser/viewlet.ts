@@ -169,8 +169,6 @@ export class ShowViewletAction extends Action {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, name);
-
-		this.enabled = !!this.viewletService && !!this.editorGroupService;
 	}
 
 	async run(): Promise<void> {

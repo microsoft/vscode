@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
-import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
@@ -34,57 +34,54 @@ const viewCategory = nls.localize('view', "View");
 
 // --- Close Side Bar
 
-export class CloseSidebarAction extends Action {
+class CloseSidebarAction extends Action2 {
 
-	static readonly ID = 'workbench.action.closeSidebar';
-	static readonly LABEL = nls.localize('closeSidebar', "Close Side Bar");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label);
-
-		this.enabled = !!this.layoutService;
+	constructor() {
+		super({
+			id: 'workbench.action.closeSidebar',
+			title: { value: nls.localize('closeSidebar', "Close Side Bar"), original: 'View: Close Side Bar' },
+			category: viewCategory,
+			f1: true
+		});
 	}
 
-	async run(): Promise<void> {
-		this.layoutService.setSideBarHidden(true);
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IWorkbenchLayoutService).setSideBarHidden(true);
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseSidebarAction), 'View: Close Side Bar', viewCategory);
+registerAction2(CloseSidebarAction);
 
 // --- Toggle Activity Bar
 
-export class ToggleActivityBarVisibilityAction extends Action {
+export class ToggleActivityBarVisibilityAction extends Action2 {
 
 	static readonly ID = 'workbench.action.toggleActivityBarVisibility';
 	static readonly LABEL = nls.localize('toggleActivityBar', "Toggle Activity Bar Visibility");
 
 	private static readonly activityBarVisibleKey = 'workbench.activityBar.visible';
 
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
-	) {
-		super(id, label);
-
-		this.enabled = !!this.layoutService;
+	constructor() {
+		super({
+			id: ToggleActivityBarVisibilityAction.ID,
+			title: { value: ToggleActivityBarVisibilityAction.LABEL, original: 'View: Toggle Activity Bar Visibility' },
+			category: viewCategory,
+			f1: true
+		});
 	}
 
-	run(): Promise<void> {
-		const visibility = this.layoutService.isVisible(Parts.ACTIVITYBAR_PART);
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const visibility = layoutService.isVisible(Parts.ACTIVITYBAR_PART);
 		const newVisibilityValue = !visibility;
 
-		return this.configurationService.updateValue(ToggleActivityBarVisibilityAction.activityBarVisibleKey, newVisibilityValue, ConfigurationTarget.USER);
+		configurationService.updateValue(ToggleActivityBarVisibilityAction.activityBarVisibleKey, newVisibilityValue, ConfigurationTarget.USER);
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleActivityBarVisibilityAction), 'View: Toggle Activity Bar Visibility', viewCategory);
+registerAction2(ToggleActivityBarVisibilityAction);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
@@ -98,32 +95,33 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 // --- Toggle Centered Layout
 
-class ToggleCenteredLayout extends Action {
+class ToggleCenteredLayout extends Action2 {
 
 	static readonly ID = 'workbench.action.toggleCenteredLayout';
-	static readonly LABEL = nls.localize('toggleCenteredLayout', "Toggle Centered Layout");
 
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label);
-		this.enabled = !!this.layoutService;
+	constructor() {
+		super({
+			id: ToggleCenteredLayout.ID,
+			title: { value: nls.localize('toggleCenteredLayout', "Toggle Centered Layout"), original: 'View: Toggle Centered Layout' },
+			category: viewCategory,
+			f1: true
+		});
 	}
 
-	async run(): Promise<void> {
-		this.layoutService.centerEditorLayout(!this.layoutService.isEditorLayoutCentered());
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+
+		layoutService.centerEditorLayout(!layoutService.isEditorLayoutCentered());
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleCenteredLayout), 'View: Toggle Centered Layout', viewCategory);
+registerAction2(ToggleCenteredLayout);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
 	command: {
 		id: ToggleCenteredLayout.ID,
-		title: nls.localize('miToggleCenteredLayout', "Centered Layout"),
+		title: nls.localize({ key: 'miToggleCenteredLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered Layout"),
 		toggled: IsCenteredLayoutContext
 	},
 	order: 3
@@ -194,8 +192,6 @@ export class ToggleSidebarPositionAction extends Action {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
-
-		this.enabled = !!this.layoutService && !!this.configurationService;
 	}
 
 	run(): Promise<void> {
@@ -244,8 +240,6 @@ export class ToggleEditorVisibilityAction extends Action {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
-
-		this.enabled = !!this.layoutService;
 	}
 
 	async run(): Promise<void> {
@@ -276,8 +270,6 @@ export class ToggleSidebarVisibilityAction extends Action {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
-
-		this.enabled = !!this.layoutService;
 	}
 
 	async run(): Promise<void> {
@@ -321,8 +313,6 @@ export class ToggleStatusbarVisibilityAction extends Action {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
-
-		this.enabled = !!this.layoutService;
 	}
 
 	run(): Promise<void> {
@@ -389,7 +379,6 @@ class ToggleZenMode extends Action {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
-		this.enabled = !!this.layoutService;
 	}
 
 	async run(): Promise<void> {

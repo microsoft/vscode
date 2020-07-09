@@ -144,18 +144,27 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				const menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService);
 				const actions = [];
 				if (this.homeBarContainer) {
-					actions.push(new Action('toggleHomeBarAction',
+					actions.push(new Action(
+						'toggleHomeBarAction',
 						this.homeBarVisibilityPreference ? nls.localize('hideHomeBar', "Hide Home Button") : nls.localize('showHomeBar', "Show Home Button"),
 						undefined,
 						true,
-						async () => { this.homeBarVisibilityPreference = !this.homeBarVisibilityPreference; }));
+						async () => { this.homeBarVisibilityPreference = !this.homeBarVisibilityPreference; }
+					));
 				}
 
 				if (menuBarVisibility === 'compact' || (menuBarVisibility === 'hidden' && isWeb)) {
 					actions.push(this.instantiationService.createInstance(ToggleMenuBarAction, ToggleMenuBarAction.ID, menuBarVisibility === 'compact' ? nls.localize('hideMenu', "Hide Menu") : nls.localize('showMenu', "Show Menu")));
 				}
 
-				actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
+				actions.push(new Action(
+					ToggleActivityBarVisibilityAction.ID,
+					nls.localize('hideActivitBar', "Hide Activity Bar"),
+					undefined,
+					true,
+					async () => { this.instantiationService.invokeFunction(accessor => new ToggleActivityBarVisibilityAction().run(accessor)); }
+				));
+
 				return actions;
 			},
 			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
