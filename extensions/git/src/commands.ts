@@ -2533,8 +2533,7 @@ export class CommandCenter {
 
 	@command('git.timeline.openDiff', { repository: false })
 	async timelineOpenDiff(item: TimelineItem, uri: Uri | undefined, _source: string) {
-		// eslint-disable-next-line eqeqeq
-		if (uri == null || !GitTimelineItem.is(item)) {
+		if (uri === undefined || uri === null || !GitTimelineItem.is(item)) {
 			return undefined;
 		}
 
