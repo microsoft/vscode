@@ -269,6 +269,14 @@ export interface IStartupMetrics {
 		 */
 		readonly ellapsedWorkbench: number;
 
+		/**
+		 * This time it took inside the renderer to start the workbench.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `renderer/started` and `didStartWorkbench` performance marks
+		 */
+		readonly ellapsedRenderer: number;
+
 		// the time it took to generate this object.
 		// remove?
 		readonly ellapsedTimersToTimersComputed: number;
@@ -386,6 +394,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedPanelRestore: perf.getDuration('willRestorePanel', 'didRestorePanel'),
 				ellapsedWorkbench: perf.getDuration('willStartWorkbench', 'didStartWorkbench'),
 				ellapsedExtensionsReady: perf.getDuration(startMark, 'didLoadExtensions'),
+				ellapsedRenderer: perf.getDuration('renderer/started', 'didStartWorkbench'),
 				ellapsedTimersToTimersComputed: Date.now() - now,
 			},
 
