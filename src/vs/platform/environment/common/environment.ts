@@ -40,6 +40,9 @@ export interface IEnvironmentService {
 	backupHome: URI;
 	untitledWorkspacesHome: URI;
 
+	globalStorageHome: URI;
+	workspaceStorageHome: URI;
+
 	// --- settings sync
 	userDataSyncLogResource: URI;
 	userDataSyncHome: URI;
