@@ -190,14 +190,10 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 			updatePickerItems();
 			disposables.add(picker.onDidChangeValue(updatePickerItems));
 
-			let ignoreFirstActiveEvent = true;
 			disposables.add(picker.onDidChangeActive(() => {
 				const [entry] = picker.activeItems;
-				if (entry && entries[entry.index]) {
-					if (!ignoreFirstActiveEvent) {
-						entries[entry.index]?.preview();
-					}
-					ignoreFirstActiveEvent = false;
+				if (entry) {
+					entries[entry.index]?.preview();
 				}
 			}));
 
