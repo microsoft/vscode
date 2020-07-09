@@ -407,6 +407,7 @@ declare namespace monaco {
 		uris?: {
 			[href: string]: UriComponents;
 		};
+		readonly sanitized?: boolean;
 	}
 
 	export interface IKeyboardEvent {

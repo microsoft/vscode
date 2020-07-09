@@ -221,9 +221,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		const match = markdown.isTrusted ? html.match(/^(<span[^>]+>)|(<\/\s*span>)$/) : undefined;
 		return match ? html : '';
 	};
-	markedOptions.sanitize = true;
+	markedOptions.sanitize = !markdown.sanitized;
 	markedOptions.silent = true;
-
 	markedOptions.renderer = renderer;
 
 	// values that are too long will freeze the UI
