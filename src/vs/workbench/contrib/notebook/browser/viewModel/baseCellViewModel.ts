@@ -104,7 +104,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	hasModel(): this is IEditableCellViewModel {
-		return !!this.model.textModel;
+		return !!this._textModel;
 	}
 
 	private _dragging: boolean = false;

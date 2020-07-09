@@ -559,13 +559,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	async splitNotebookCell(index: number, newLinesContents: string[], endSelections: number[]) {
 		const cell = this.cells[index];
 
-		if (!cell.textModel) {
-			return;
-		}
+		const ref = await cell.resolveTextModelRef();
+		const textModel = ref.object.textEditorModel;
 
-		cell.textModel.applyEdits([
-			{ range: cell.textModel.getFullModelRange(), text: newLinesContents[0] }
+		textModel.applyEdits([
+			{ range: textModel.getFullModelRange(), text: newLinesContents[0] }
 		], false);
+
+		ref.dispose();
 
 		// create new cells based on the new text models
 		const language = cell.language;
