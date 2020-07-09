@@ -28,7 +28,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_BOTTOM_PADDING, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, SCROLLABLE_ELEMENT_PADDING_TOP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED, INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED, INotebookDeltaDecoration, NOTEBOOK_CELL_LIST_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -83,7 +83,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _fontInfo: BareFontInfo | undefined;
 	private _dimension: DOM.Dimension | null = null;
 	private _shadowElementViewInfo: { height: number, width: number, top: number; left: number; } | null = null;
+
+	private _cellListFocusTracker: DOM.IFocusTracker;
 	private _editorFocus: IContextKey<boolean> | null = null;
+	private _cellListFocus: IContextKey<boolean> | null = null;
 	private _outputFocus: IContextKey<boolean> | null = null;
 	private _editorEditable: IContextKey<boolean> | null = null;
 	private _editorRunnable: IContextKey<boolean> | null = null;
@@ -219,6 +222,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// Note - focus going to the webview will fire 'blur', but the webview element will be
 		// a descendent of the notebook editor root.
 		const focused = DOM.isAncestor(document.activeElement, this._overlayContainer);
+		if (focused) {
+			const cellListFocused = DOM.isAncestor(document.activeElement, this._body);
+			this._cellListFocus?.set(cellListFocused);
+		} else {
+			this._cellListFocus?.set(false);
+		}
 		this._editorFocus?.set(focused);
 		this._notebookViewModel?.setFocus(focused);
 	}
@@ -239,6 +248,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._createBody(this._overlayContainer);
 		this._generateFontInfo();
 		this._editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.contextKeyService);
+		this._cellListFocus = NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService);
 		this._isVisible = true;
 		this._outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.contextKeyService);
 		this._editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
@@ -368,6 +378,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const widgetFocusTracker = DOM.trackFocus(this.getDomNode());
 		this._register(widgetFocusTracker);
 		this._register(widgetFocusTracker.onDidFocus(() => this._onDidFocusEmitter.fire()));
+
+		this._cellListFocusTracker = this._register(DOM.trackFocus(this._body));
+		this._register(this._cellListFocusTracker.onDidFocus(() => {
+			this.updateEditorFocus();
+		}));
+		this._register(this._cellListFocusTracker.onDidBlur(() => {
+			this.updateEditorFocus();
+		}));
 	}
 
 	getDomNode() {

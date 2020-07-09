@@ -94,12 +94,13 @@ export abstract class BaseCellViewModel extends Disposable {
 	}>();
 	private _lastDecorationId: number = 0;
 
+	private _textModel: model.ITextModel | undefined = undefined;
 	get textModel(): model.ITextModel | undefined {
-		return this.model.textModel;
+		return this._textModel;
 	}
 
 	set textModel(m: model.ITextModel | undefined) {
-		this.model.textModel = m;
+		this._textModel = m;
 	}
 
 	hasModel(): this is IEditableCellViewModel {
