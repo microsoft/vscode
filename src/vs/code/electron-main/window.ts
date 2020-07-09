@@ -215,6 +215,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._win = new BrowserWindow(options);
 			this._id = this._win.id;
 
+			// Open devtools if instructed from command line args
+			if (this.environmentService.args['open-devtools'] === true) {
+				this._win.webContents.openDevTools();
+			}
+
 			if (isMacintosh && useCustomTitleStyle) {
 				this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 			}
