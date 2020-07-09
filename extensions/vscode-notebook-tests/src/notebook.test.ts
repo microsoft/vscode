@@ -438,6 +438,27 @@ suite('notebook workflow', () => {
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 
+	test('notebook join cells', async function () {
+		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.document.getText(), 'test');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
+
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.document.getText(), '');
+		await vscode.commands.executeCommand('default:type', { text: 'var abc = 0;' });
+
+		const cellsChangeEvent = getEventOncePromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
+		await vscode.commands.executeCommand('notebook.cell.joinAbove');
+		await cellsChangeEvent;
+
+		assert.deepEqual(vscode.notebook.activeNotebookEditor!.selection?.document.getText().split(/\r|\n|\r\n/), ['test', 'var abc = 0;']);
+
+		await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	});
+
 	test('move cells will not recreate cells in ExtHost', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
