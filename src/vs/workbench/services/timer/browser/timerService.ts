@@ -13,6 +13,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -308,16 +309,45 @@ export abstract class AbstractTimerService implements ITimerService {
 		@IViewletService private readonly _viewletService: IViewletService,
 		@IPanelService private readonly _panelService: IPanelService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
 	get startupMetrics(): Promise<IStartupMetrics> {
 		if (!this._startupMetrics) {
-			this._startupMetrics = Promise
-				.resolve(this._extensionService.whenInstalledExtensionsRegistered())
-				.then(() => this._computeStartupMetrics());
+			this._startupMetrics = this._extensionService.whenInstalledExtensionsRegistered()
+				.then(() => this._computeStartupMetrics())
+				.then(metrics => {
+					this._reportStartupTimes(metrics);
+					return metrics;
+				});
 		}
 		return this._startupMetrics;
+	}
+
+	private _reportStartupTimes(metrics: IStartupMetrics): void {
+
+		// report IStartupMetrics as telemetry
+		/* __GDPR__
+			"startupTimeVaried" : {
+				"${include}": [
+					"${IStartupMetrics}"
+				]
+			}
+		*/
+		this._telemetryService.publicLog('startupTimeVaried', metrics);
+
+		// report raw timers as telemetry
+		const entries: Record<string, number> = Object.create(null);
+		for (const entry of perf.getEntries()) {
+			entries[entry.name] = entry.startTime;
+		}
+		/* __GDPR__
+			"startupRawTimers" : {
+				"entries": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
+		this._telemetryService.publicLog('startupRawTimers', { entries });
 	}
 
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
@@ -337,7 +367,7 @@ export abstract class AbstractTimerService implements ITimerService {
 			didUseCachedData: this._didUseCachedData(),
 			windowKind: this._lifecycleService.startupKind,
 			windowCount: await this._getWindowCount(),
-			viewletId: activeViewlet ? activeViewlet.getId() : undefined,
+			viewletId: activeViewlet?.getId(),
 			editorIds: this._editorService.visibleEditors.map(input => input.getTypeId()),
 			panelId: activePanel ? activePanel.getId() : undefined,
 
