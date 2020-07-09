@@ -35,7 +35,10 @@ function buildDriver(browser: playwright.Browser, page: playwright.Page): IDrive
 		getWindowIds: () => {
 			return Promise.resolve([1]);
 		},
-		capturePage: () => Promise.resolve(''),
+		capturePage: async () => {
+			const buffer = await page.screenshot();
+			return buffer.toString('base64');
+		},
 		reloadWindow: (windowId) => Promise.resolve(),
 		exitApplication: () => browser.close(),
 		dispatchKeybinding: async (windowId, keybinding) => {
