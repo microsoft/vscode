@@ -283,7 +283,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		return true;
 	}
 
-	private async getLatestRemoteUserData(manifest: IUserDataManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
+	protected async getLatestRemoteUserData(manifest: IUserDataManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
 		if (lastSyncUserData) {
 
 			const latestRef = manifest && manifest.latest ? manifest.latest[this.resource] : undefined;

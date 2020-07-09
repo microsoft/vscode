@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncResourceEnablementService, IRemoteUserData, ISyncData, Change, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncResourceEnablementService, IRemoteUserData, ISyncData, Change, USER_DATA_SYNC_SCHEME, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { AbstractSynchroniser, ISyncResourcePreview, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
@@ -24,11 +24,19 @@ class TestSynchroniser extends AbstractSynchroniser {
 	syncBarrier: Barrier = new Barrier();
 	syncResult: { hasConflicts: boolean, hasError: boolean } = { hasConflicts: false, hasError: false };
 	onDoSyncCall: Emitter<void> = this._register(new Emitter<void>());
+	failWhenGettingLatestRemoteUserData: boolean = false;
 
 	readonly resource: SyncResource = SyncResource.Settings;
 	protected readonly version: number = 1;
 
 	private cancelled: boolean = false;
+
+	protected getLatestRemoteUserData(manifest: IUserDataManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
+		if (this.failWhenGettingLatestRemoteUserData) {
+			throw new Error();
+		}
+		return super.getLatestRemoteUserData(manifest, lastSyncUserData);
+	}
 
 	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus> {
 		this.cancelled = false;
@@ -251,6 +259,19 @@ suite('TestSynchronizer', () => {
 
 		await promise;
 		assert.deepEqual(server.requests, []);
+	});
+
+	test('status is reset when getting latest remote data fails', async () => {
+		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		testObject.failWhenGettingLatestRemoteUserData = true;
+
+		try {
+			await testObject.sync(await client.manifest());
+			assert.fail('Should throw an error');
+		} catch (error) {
+		}
+
+		assert.equal(testObject.status, SyncStatus.Idle);
 	});
 
 
