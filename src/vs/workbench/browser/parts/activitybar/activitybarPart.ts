@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GLOBAL_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIIVTY_ID } from 'vs/workbench/common/activity';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActionViewItem, HomeAction, HomeActionViewItem, DeprecatedHomeAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActionViewItem, HomeAction, HomeActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -400,7 +400,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				console.warn(`Unknown home indicator icon ${homeIndicator.icon}`);
 				codicon = Codicon.code;
 			}
-			this.createHomeBar(homeIndicator.href, homeIndicator.command, homeIndicator.title, codicon);
+
+			this.createHomeBar(homeIndicator.href, homeIndicator.title, codicon);
 			this.onDidChangeHomeBarVisibility();
 		}
 
@@ -422,7 +423,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return this.content;
 	}
 
-	private createHomeBar(href: string, command: string | undefined, title: string, icon: Codicon): void {
+	private createHomeBar(href: string, title: string, icon: Codicon): void {
 		this.homeBarContainer = document.createElement('div');
 		this.homeBarContainer.setAttribute('aria-label', nls.localize('homeIndicator', "Home"));
 		this.homeBarContainer.setAttribute('role', 'toolbar');
@@ -432,19 +433,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			orientation: ActionsOrientation.VERTICAL,
 			animated: false,
 			ariaLabel: nls.localize('home', "Home"),
-			actionViewItemProvider: command ? undefined : action => new HomeActionViewItem(action),
+			actionViewItemProvider: action => new HomeActionViewItem(action),
 			allowContextMenu: true
 		}));
 
 		const homeBarIconBadge = document.createElement('div');
 		addClass(homeBarIconBadge, 'home-bar-icon-badge');
 		this.homeBarContainer.appendChild(homeBarIconBadge);
-
-		if (command) {
-			this.homeBar.push(this._register(this.instantiationService.createInstance(DeprecatedHomeAction, command, title, icon)), { icon: true, label: false });
-		} else {
-			this.homeBar.push(this._register(this.instantiationService.createInstance(HomeAction, href, title, icon)));
-		}
+		this.homeBar.push(this._register(this.instantiationService.createInstance(HomeAction, href, title, icon)));
 
 		const content = assertIsDefined(this.content);
 		content.prepend(this.homeBarContainer);

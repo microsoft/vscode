@@ -107,11 +107,6 @@ interface IHomeIndicator {
 	href: string;
 
 	/**
-	 * @deprecated use `href` instead.
-	 */
-	command?: string;
-
-	/**
 	 * The icon name for the home indicator. This needs to be one of the existing
 	 * icons from our Codicon icon set. For example `sync`.
 	 */

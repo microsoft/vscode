@@ -26,7 +26,6 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -367,25 +366,6 @@ export class HomeActionViewItem extends ActionViewItem {
 
 	constructor(action: IAction) {
 		super(undefined, action, { icon: true, label: false, useEventAsContext: true });
-	}
-}
-
-/**
- * @deprecated TODO@ben remove me eventually
- */
-export class DeprecatedHomeAction extends Action {
-
-	constructor(
-		private readonly command: string,
-		name: string,
-		icon: Codicon,
-		@ICommandService private readonly commandService: ICommandService
-	) {
-		super('workbench.action.home', name, icon.classNames);
-	}
-
-	async run(): Promise<void> {
-		this.commandService.executeCommand(this.command);
 	}
 }
 
