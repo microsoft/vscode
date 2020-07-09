@@ -860,6 +860,24 @@ declare module 'vscode' {
 		terminate(): Thenable<void>;
 	}
 
+	export interface DebugSession {
+
+		/**
+		 * Terminates the session.
+		 */
+		terminate(): Thenable<void>;
+	}
+
+	export namespace debug {
+
+		/**
+		 * Stop the given debug session or stop all debug sessions if no session is specified.
+		 * @param session The [debug session](#DebugSession) to stop or `undefined` for stopping all sessions.
+		 * @return A thenable that resolves when the sessions could be stopped successfully.
+		 */
+		export function stopDebugging(session: DebugSession | undefined): Thenable<void>;
+	}
+
 	//#endregion
 
 	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
