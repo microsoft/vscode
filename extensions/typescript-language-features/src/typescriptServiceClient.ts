@@ -130,11 +130,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();
 
-		// eslint-disable-next-line no-var
-		var p = new Promise<void>((resolve, reject) => {
-			this._onReady = { promise: p, resolve, reject };
+		let resolve: () => void;
+		let reject: () => void;
+		const p = new Promise<void>((res, rej) => {
+			resolve = res;
+			reject = rej;
 		});
-		this._onReady!.promise = p;
+		this._onReady = { promise: p, resolve: resolve!, reject: reject! };
 
 		this.numberRestarts = 0;
 
