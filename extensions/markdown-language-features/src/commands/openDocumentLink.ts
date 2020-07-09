@@ -46,24 +46,22 @@ export class OpenDocumentLinkCommand implements Command {
 	public async execute(args: OpenDocumentLinkArgs) {
 		const fromResource = vscode.Uri.parse(decodeURIComponent(args.fromResource));
 		const targetPath = decodeURIComponent(args.path);
+		const targetResource = vscode.Uri.file(targetPath);
 		const column = this.getViewColumn(fromResource);
 		try {
-			return await this.tryOpen(targetPath, args, column);
+			return await this.tryOpen(targetResource, args, column);
 		} catch {
-			if (targetPath && extname(targetPath) === '') {
-				return this.tryOpen(targetPath + '.md', args, column);
+			if (extname(targetResource.path) === '') {
+				return this.tryOpen(targetResource.with({ path: targetResource.path + '.md' }), args, column);
 			}
-			const targetResource = vscode.Uri.file(targetPath);
-			await Promise.resolve(undefined);
 			await vscode.commands.executeCommand('vscode.open', targetResource, column);
 			return undefined;
 		}
 	}
 
-	private async tryOpen(path: string, args: OpenDocumentLinkArgs, column: vscode.ViewColumn) {
-		const resource = vscode.Uri.file(path);
+	private async tryOpen(resource: vscode.Uri, args: OpenDocumentLinkArgs, column: vscode.ViewColumn) {
 		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
-			if (!path || vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
+			if (vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
 				return this.tryRevealLine(vscode.window.activeTextEditor, args.fragment);
 			}
 		}
