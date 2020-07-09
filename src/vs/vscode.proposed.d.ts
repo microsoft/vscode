@@ -2067,4 +2067,25 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/101857
+
+	export interface ExtensionContext {
+
+		/**
+		 * The uri of a directory in which the extension can create log files.
+		 * The directory might not exist on disk and creation is up to the extension. However,
+		 * the parent directory is guaranteed to be existent.
+		 *
+		 * @see vscode.workspace.fs
+		 */
+		readonly logUri: Uri;
+
+		/**
+		 * Short-hand for [`logUri.fsPath`](#ExtensionContext#logUri)
+		 */
+		readonly logPath: string;
+	}
+
+	//#endregion
 }
