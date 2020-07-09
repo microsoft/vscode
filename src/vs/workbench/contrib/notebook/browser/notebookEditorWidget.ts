@@ -84,7 +84,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _dimension: DOM.Dimension | null = null;
 	private _shadowElementViewInfo: { height: number, width: number, top: number; left: number; } | null = null;
 
-	private _cellListFocusTracker: DOM.IFocusTracker;
+	private _cellListFocusTracker: DOM.IFocusTracker | null = null;
 	private _editorFocus: IContextKey<boolean> | null = null;
 	private _cellListFocus: IContextKey<boolean> | null = null;
 	private _outputFocus: IContextKey<boolean> | null = null;
