@@ -3143,6 +3143,11 @@ declare namespace monaco.editor {
 		 * The initial editor dimension (to avoid measuring the container).
 		 */
 		dimension?: IDimension;
+		/**
+		 * Place overflow widgets inside an external DOM node.
+		 * Defaults to an internal DOM node.
+		 */
+		overflowWidgetsDomNode?: HTMLElement;
 	}
 
 	/**
