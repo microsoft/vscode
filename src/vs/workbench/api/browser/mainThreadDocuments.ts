@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IDisposable, IReference, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IReference, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
@@ -19,6 +19,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { Emitter } from 'vs/base/common/event';
 
 export class BoundModelReferenceCollection {
 
@@ -73,7 +74,36 @@ export class BoundModelReferenceCollection {
 	}
 }
 
-export class MainThreadDocuments implements MainThreadDocumentsShape {
+class ModelTracker extends Disposable {
+
+	private _knownVersionId: number;
+
+	constructor(
+		private readonly _model: ITextModel,
+		private readonly _onIsCaughtUpWithContentChanges: Emitter<URI>,
+		private readonly _proxy: ExtHostDocumentsShape,
+		private readonly _textFileService: ITextFileService,
+	) {
+		super();
+		this._knownVersionId = this._model.getVersionId();
+		this._register(this._model.onDidChangeContent((e) => {
+			this._knownVersionId = e.versionId;
+			this._proxy.$acceptModelChanged(this._model.uri, e, this._textFileService.isDirty(this._model.uri));
+			if (this.isCaughtUpWithContentChanges()) {
+				this._onIsCaughtUpWithContentChanges.fire(this._model.uri);
+			}
+		}));
+	}
+
+	public isCaughtUpWithContentChanges(): boolean {
+		return (this._model.getVersionId() === this._knownVersionId);
+	}
+}
+
+export class MainThreadDocuments extends Disposable implements MainThreadDocumentsShape {
+
+	private _onIsCaughtUpWithContentChanges = this._register(new Emitter<URI>());
+	public readonly onIsCaughtUpWithContentChanges = this._onIsCaughtUpWithContentChanges.event;
 
 	private readonly _modelService: IModelService;
 	private readonly _textModelResolverService: ITextModelService;
@@ -82,8 +112,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	private readonly _environmentService: IWorkbenchEnvironmentService;
 	private readonly _uriIdentityService: IUriIdentityService;
 
-	private readonly _toDispose = new DisposableStore();
-	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
+	private _modelTrackers: { [modelUrl: string]: ModelTracker; };
 	private readonly _proxy: ExtHostDocumentsShape;
 	private readonly _modelIsSynced = new Set<string>();
 	private readonly _modelReferenceCollection: BoundModelReferenceCollection;
@@ -99,6 +128,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
 	) {
+		super();
 		this._modelService = modelService;
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
@@ -106,26 +136,26 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._environmentService = environmentService;
 		this._uriIdentityService = uriIdentityService;
 
-		this._modelReferenceCollection = this._toDispose.add(new BoundModelReferenceCollection(uriIdentityService.extUri));
+		this._modelReferenceCollection = this._register(new BoundModelReferenceCollection(uriIdentityService.extUri));
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
 
-		this._toDispose.add(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
-		this._toDispose.add(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
-		this._toDispose.add(modelService.onModelModeChanged(this._onModelModeChanged, this));
+		this._register(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
+		this._register(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
+		this._register(modelService.onModelModeChanged(this._onModelModeChanged, this));
 
-		this._toDispose.add(textFileService.files.onDidSave(e => {
+		this._register(textFileService.files.onDidSave(e => {
 			if (this._shouldHandleFileEvent(e.model.resource)) {
 				this._proxy.$acceptModelSaved(e.model.resource);
 			}
 		}));
-		this._toDispose.add(textFileService.files.onDidChangeDirty(m => {
+		this._register(textFileService.files.onDidChangeDirty(m => {
 			if (this._shouldHandleFileEvent(m.resource)) {
 				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
 			}
 		}));
 
-		this._toDispose.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
+		this._register(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
 			if (e.operation === FileOperation.MOVE || e.operation === FileOperation.DELETE) {
 				for (const { source } of e.files) {
 					if (source) {
@@ -135,15 +165,23 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 			}
 		}));
 
-		this._modelToDisposeMap = Object.create(null);
+		this._modelTrackers = Object.create(null);
 	}
 
 	public dispose(): void {
-		Object.keys(this._modelToDisposeMap).forEach((modelUrl) => {
-			this._modelToDisposeMap[modelUrl].dispose();
+		Object.keys(this._modelTrackers).forEach((modelUrl) => {
+			this._modelTrackers[modelUrl].dispose();
 		});
-		this._modelToDisposeMap = Object.create(null);
-		this._toDispose.dispose();
+		this._modelTrackers = Object.create(null);
+		super.dispose();
+	}
+
+	public isCaughtUpWithContentChanges(resource: URI): boolean {
+		const modelUrl = resource.toString();
+		if (this._modelTrackers[modelUrl]) {
+			return this._modelTrackers[modelUrl].isCaughtUpWithContentChanges();
+		}
+		return true;
 	}
 
 	private _shouldHandleFileEvent(resource: URI): boolean {
@@ -159,9 +197,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		}
 		const modelUrl = model.uri;
 		this._modelIsSynced.add(modelUrl.toString());
-		this._modelToDisposeMap[modelUrl.toString()] = model.onDidChangeContent((e) => {
-			this._proxy.$acceptModelChanged(modelUrl, e, this._textFileService.isDirty(modelUrl));
-		});
+		this._modelTrackers[modelUrl.toString()] = new ModelTracker(model, this._onIsCaughtUpWithContentChanges, this._proxy, this._textFileService);
 	}
 
 	private _onModelModeChanged(event: { model: ITextModel; oldModeId: string; }): void {
@@ -179,8 +215,8 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 			return;
 		}
 		this._modelIsSynced.delete(strModelUrl);
-		this._modelToDisposeMap[strModelUrl].dispose();
-		delete this._modelToDisposeMap[strModelUrl];
+		this._modelTrackers[strModelUrl].dispose();
+		delete this._modelTrackers[strModelUrl];
 	}
 
 	// --- from extension host process
