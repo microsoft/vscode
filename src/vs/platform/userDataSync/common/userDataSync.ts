@@ -325,6 +325,7 @@ export interface IUserDataSynchroniser {
 	pull(): Promise<void>;
 	push(): Promise<void>;
 	sync(manifest: IUserDataManifest | null, headers: IHeaders): Promise<void>;
+	preview(manifest: IUserDataManifest | null, headers: IHeaders): Promise<ISyncResourcePreview | null>;
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
@@ -363,6 +364,16 @@ export interface ISyncTask {
 	stop(): Promise<void>;
 }
 
+export interface IManualSyncTask {
+	readonly manifest: IUserDataManifest | null;
+	preview(): Promise<[SyncResource, ISyncResourcePreview][]>;
+	merge(): Promise<[SyncResource, ISyncResourcePreview][]>;
+	pull(): Promise<void>;
+	push(): Promise<void>;
+	accept(uri: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]>;
+	stop(): Promise<void>;
+}
+
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 export interface IUserDataSyncService {
 	_serviceBrand: any;
@@ -381,12 +392,14 @@ export interface IUserDataSyncService {
 	readonly onDidChangeLastSyncTime: Event<number>;
 
 	createSyncTask(): Promise<ISyncTask>;
+	createManualSyncTask(): Promise<IManualSyncTask>;
 
 	pull(): Promise<void>;
 	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
 
+	hasLocalData(): Promise<boolean>;
 	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;

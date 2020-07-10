@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle, IUserDataManifest, ISyncTask, Change, IResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle, IUserDataManifest, ISyncTask, Change, IResourcePreview, IManualSyncTask, ISyncResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -22,6 +22,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders } from 'vs/base/parts/request/common/request';
 import { generateUuid } from 'vs/base/common/uuid';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 type SyncErrorClassification = {
 	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -131,7 +132,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async createSyncTask(): Promise<ISyncTask> {
-		this.telemetryService.publicLog2('sync/getmanifest');
+		await this.checkEnablement();
+
 		const executionId = generateUuid();
 		let manifest: IUserDataManifest | null;
 		try {
@@ -164,10 +166,26 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		};
 	}
 
-	private recoveredSettings: boolean = false;
-	private async sync(manifest: IUserDataManifest | null, executionId: string, token: CancellationToken): Promise<void> {
+	async createManualSyncTask(): Promise<IManualSyncTask> {
 		await this.checkEnablement();
 
+		const executionId = generateUuid();
+		const syncHeaders: IHeaders = { 'X-Execution-Id': executionId };
+		let manifest: IUserDataManifest | null;
+		try {
+			manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
+		} catch (error) {
+			if (error instanceof UserDataSyncError) {
+				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource, executionId });
+			}
+			throw error;
+		}
+
+		return new ManualSyncTask(manifest, syncHeaders, this.synchronisers, this.logService);
+	}
+
+	private recoveredSettings: boolean = false;
+	private async sync(manifest: IUserDataManifest | null, executionId: string, token: CancellationToken): Promise<void> {
 		if (!this.recoveredSettings) {
 			await this.settingsSynchroniser.recoverSettings();
 			this.recoveredSettings = true;
@@ -274,6 +292,17 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
 		return this.getSynchroniser(resource).getMachineId(syncResourceHandle);
+	}
+
+	async hasLocalData(): Promise<boolean> {
+		// skip global state synchronizer
+		const synchronizers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.snippetsSynchroniser, this.extensionsSynchroniser];
+		for (const synchroniser of synchronizers) {
+			if (await synchroniser.hasLocalData()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	async isFirstTimeSyncingWithAnotherMachine(): Promise<boolean> {
@@ -414,22 +443,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	private computeConflicts(): SyncResourceConflicts[] {
 		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)
-			.map(s => ({ syncResource: s.resource, conflicts: s.conflicts.map(r => this.toStrictResourcePreview(r)) }));
-	}
-
-	private toStrictResourcePreview(resourcePreview: IResourcePreview): IResourcePreview {
-		return {
-			localResource: resourcePreview.localResource,
-			previewResource: resourcePreview.previewResource,
-			remoteResource: resourcePreview.remoteResource,
-			localChange: resourcePreview.localChange,
-			remoteChange: resourcePreview.remoteChange,
-			hasConflicts: resourcePreview.hasConflicts,
-		};
+			.map(s => ({ syncResource: s.resource, conflicts: s.conflicts.map(toStrictResourcePreview) }));
 	}
 
 	getSynchroniser(source: SyncResource): IUserDataSynchroniser {
-		return this.synchronisers.filter(s => s.resource === source)[0];
+		return this.synchronisers.find(s => s.resource === source)!;
 	}
 
 	private async checkEnablement(): Promise<void> {
@@ -438,4 +456,144 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
+}
+
+class ManualSyncTask implements IManualSyncTask {
+
+	private previewsPromise: CancelablePromise<[SyncResource, ISyncResourcePreview][]> | undefined;
+	private previews: [SyncResource, ISyncResourcePreview][] | undefined;
+
+	constructor(readonly manifest: IUserDataManifest | null,
+		private readonly syncHeaders: IHeaders,
+		private readonly synchronisers: IUserDataSynchroniser[],
+		private readonly logService: IUserDataSyncLogService,
+	) { }
+
+	async preview(): Promise<[SyncResource, ISyncResourcePreview][]> {
+		if (!this.previewsPromise) {
+			this.previewsPromise = createCancelablePromise(token => this.getPreviews(token));
+		}
+		this.previews = await this.previewsPromise;
+		return this.previews;
+	}
+
+	async accept(resource: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]> {
+		if (!this.previews) {
+			throw new Error('You need to create preview before applying');
+		}
+		const index = this.previews.findIndex(([, preview]) => preview.resourcePreviews.some(({ localResource, previewResource, remoteResource }) =>
+			isEqual(resource, localResource) || isEqual(resource, previewResource) || isEqual(resource, remoteResource)));
+		if (index !== -1) {
+			const synchroniser = this.synchronisers.find(s => s.resource === this.previews![index][0])!;
+			/* force only if the resource is local or remote resource */
+			const force = this.previews![index][1].resourcePreviews.some(({ localResource, remoteResource }) => isEqual(resource, localResource) || isEqual(resource, remoteResource));
+			const preview = await synchroniser.acceptPreviewContent(resource, content, force, this.syncHeaders);
+			preview ? this.previews.splice(index, 1, this.toSyncResourcePreview(synchroniser.resource, preview)) : this.previews.splice(index, 1);
+		}
+		return this.previews;
+	}
+
+	async merge(): Promise<[SyncResource, ISyncResourcePreview][]> {
+		if (!this.previews) {
+			throw new Error('You need to create preview before applying');
+		}
+		const previews: [SyncResource, ISyncResourcePreview][] = [];
+		for (const [syncResource, preview] of this.previews) {
+			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
+			let newPreview: ISyncResourcePreview | null = null;
+			for (const resourcePreview of preview.resourcePreviews) {
+				/* merge only if there are no conflicts */
+				if (!resourcePreview.hasConflicts) {
+					const content = await synchroniser.resolveContent(resourcePreview.previewResource) || '';
+					newPreview = await synchroniser.acceptPreviewContent(resourcePreview.previewResource, content, false, this.syncHeaders);
+				}
+			}
+			if (newPreview) {
+				previews.push(this.toSyncResourcePreview(syncResource, newPreview));
+			}
+		}
+		this.previews = previews;
+		return this.previews;
+	}
+
+	async pull(): Promise<void> {
+		if (!this.previews) {
+			throw new Error('You need to create preview before applying');
+		}
+		for (const [syncResource, preview] of this.previews) {
+			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
+			for (const resourcePreview of preview.resourcePreviews) {
+				const content = await synchroniser.resolveContent(resourcePreview.remoteResource) || '';
+				await synchroniser.acceptPreviewContent(resourcePreview.remoteResource, content, true, this.syncHeaders);
+			}
+		}
+		this.previews = [];
+	}
+
+	async push(): Promise<void> {
+		if (!this.previews) {
+			throw new Error('You need to create preview before applying');
+		}
+		for (const [syncResource, preview] of this.previews) {
+			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
+			for (const resourcePreview of preview.resourcePreviews) {
+				const content = await synchroniser.resolveContent(resourcePreview.localResource) || '';
+				await synchroniser.acceptPreviewContent(resourcePreview.localResource, content, true, this.syncHeaders);
+			}
+		}
+		this.previews = [];
+	}
+
+	async stop(): Promise<void> {
+		if (this.previewsPromise) {
+			this.previewsPromise.cancel();
+			this.previewsPromise = undefined;
+		}
+		this.previews = undefined;
+		for (const synchroniser of this.synchronisers) {
+			try {
+				await synchroniser.stop();
+			} catch (error) {
+				if (!isPromiseCanceledError(error)) {
+					this.logService.error(error);
+				}
+			}
+		}
+	}
+
+	private async getPreviews(token: CancellationToken): Promise<[SyncResource, ISyncResourcePreview][]> {
+		const result: [SyncResource, ISyncResourcePreview][] = [];
+		for (const synchroniser of this.synchronisers) {
+			if (token.isCancellationRequested) {
+				return [];
+			}
+			const preview = await synchroniser.preview(this.manifest, this.syncHeaders);
+			if (preview) {
+				result.push(this.toSyncResourcePreview(synchroniser.resource, preview));
+			}
+		}
+		return result;
+	}
+
+	private toSyncResourcePreview(syncResource: SyncResource, preview: ISyncResourcePreview): [SyncResource, ISyncResourcePreview] {
+		return [
+			syncResource,
+			{
+				isLastSyncFromCurrentMachine: preview.isLastSyncFromCurrentMachine,
+				resourcePreviews: preview.resourcePreviews.map(toStrictResourcePreview)
+			}
+		];
+	}
+
+}
+
+function toStrictResourcePreview(resourcePreview: IResourcePreview): IResourcePreview {
+	return {
+		localResource: resourcePreview.localResource,
+		previewResource: resourcePreview.previewResource,
+		remoteResource: resourcePreview.remoteResource,
+		localChange: resourcePreview.localChange,
+		remoteChange: resourcePreview.remoteChange,
+		hasConflicts: resourcePreview.hasConflicts,
+	};
 }

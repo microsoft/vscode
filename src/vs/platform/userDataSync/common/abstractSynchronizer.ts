@@ -210,6 +210,10 @@ export abstract class AbstractSynchroniser extends Disposable {
 		await this._sync(manifest, true, headers);
 	}
 
+	async preview(manifest: IUserDataManifest | null, headers: IHeaders = {}): Promise<ISyncResourcePreview | null> {
+		return this._sync(manifest, false, headers);
+	}
+
 	private async _sync(manifest: IUserDataManifest | null, apply: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null> {
 		try {
 			this.syncHeaders = { ...headers };

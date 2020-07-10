@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, SyncResource, IUserDataSyncService, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle, ISyncTask } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, SyncResource, IUserDataSyncService, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle, ISyncTask, IManualSyncTask, IUserDataManifest, ISyncResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -41,7 +41,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	get onSynchronizeResource(): Event<SyncResource> { return this.channel.listen<SyncResource>('onSynchronizeResource'); }
 
 	constructor(
-		@ISharedProcessService sharedProcessService: ISharedProcessService
+		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService
 	) {
 		super();
 		const userDataSyncChannel = sharedProcessService.getChannel('userDataSync');
@@ -75,6 +75,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		throw new Error('not supported');
 	}
 
+	async createManualSyncTask(): Promise<IManualSyncTask> {
+		const { initialData, channelName } = await this.channel.call<{ initialData: { manifest: IUserDataManifest | null }, channelName: string }>('createManualSyncTask');
+		return new ManualSyncTask(this.sharedProcessService.getChannel(channelName), initialData.manifest);
+	}
+
 	replace(uri: URI): Promise<void> {
 		return this.channel.call('replace', [uri]);
 	}
@@ -89,6 +94,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	hasPreviouslySynced(): Promise<boolean> {
 		return this.channel.call('hasPreviouslySynced');
+	}
+
+	hasLocalData(): Promise<boolean> {
+		return this.channel.call('hasLocalData');
 	}
 
 	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean> {
@@ -148,6 +157,48 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this._lastSyncTime = lastSyncTime;
 			this._onDidChangeLastSyncTime.fire(lastSyncTime);
 		}
+	}
+}
+
+class ManualSyncTask implements IManualSyncTask {
+
+	constructor(private readonly channel: IChannel, readonly manifest: IUserDataManifest | null) { }
+
+	async preview(): Promise<[SyncResource, ISyncResourcePreview][]> {
+		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('preview');
+		return previews.map(([syncResource, preview]) =>
+			([
+				syncResource,
+				{
+					isLastSyncFromCurrentMachine: preview.isLastSyncFromCurrentMachine,
+					resourcePreviews: preview.resourcePreviews.map(r => ({
+						...r,
+						localResource: URI.revive(r.localResource),
+						remoteResource: URI.revive(r.remoteResource),
+						previewResource: URI.revive(r.previewResource),
+					}))
+				}
+			]));
+	}
+
+	accept(uri: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]> {
+		return this.channel.call('accept', [uri, content]);
+	}
+
+	merge(): Promise<[SyncResource, ISyncResourcePreview][]> {
+		return this.channel.call('merge');
+	}
+
+	pull(): Promise<void> {
+		return this.channel.call('pull');
+	}
+
+	push(): Promise<void> {
+		return this.channel.call('push');
+	}
+
+	stop(): Promise<void> {
+		return this.channel.call('stop');
 	}
 }
 
