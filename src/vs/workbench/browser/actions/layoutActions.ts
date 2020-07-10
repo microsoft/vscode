@@ -30,7 +30,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { Codicon } from 'vs/base/common/codicons';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-const viewCategory = nls.localize('view', "View");
+const viewCategory = { value: nls.localize('view', "View"), original: 'View' };
 
 // --- Close Side Bar
 
@@ -39,7 +39,7 @@ class CloseSidebarAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closeSidebar',
-			title: { value: nls.localize('closeSidebar', "Close Side Bar"), original: 'View: Close Side Bar' },
+			title: { value: nls.localize('closeSidebar', "Close Side Bar"), original: 'Close Side Bar' },
 			category: viewCategory,
 			f1: true
 		});
@@ -64,7 +64,7 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleActivityBarVisibilityAction.ID,
-			title: { value: ToggleActivityBarVisibilityAction.LABEL, original: 'View: Toggle Activity Bar Visibility' },
+			title: { value: ToggleActivityBarVisibilityAction.LABEL, original: 'Toggle Activity Bar Visibility' },
 			category: viewCategory,
 			f1: true
 		});
@@ -102,7 +102,7 @@ class ToggleCenteredLayout extends Action2 {
 	constructor() {
 		super({
 			id: ToggleCenteredLayout.ID,
-			title: { value: nls.localize('toggleCenteredLayout', "Toggle Centered Layout"), original: 'View: Toggle Centered Layout' },
+			title: { value: nls.localize('toggleCenteredLayout', "Toggle Centered Layout"), original: 'Toggle Centered Layout' },
 			category: viewCategory,
 			f1: true
 		});
@@ -164,8 +164,7 @@ export class ToggleEditorLayoutAction extends Action {
 	}
 }
 
-const group = viewCategory;
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleEditorLayoutAction, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Toggle Vertical/Horizontal Editor Layout', group);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleEditorLayoutAction, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Toggle Vertical/Horizontal Editor Layout', viewCategory.value);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: 'z_flip',
@@ -206,7 +205,7 @@ export class ToggleSidebarPositionAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSidebarPositionAction), 'View: Toggle Side Bar Position', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSidebarPositionAction), 'View: Toggle Side Bar Position', viewCategory.value);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '3_workbench_layout_move',
@@ -247,7 +246,7 @@ export class ToggleEditorVisibilityAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleEditorVisibilityAction), 'View: Toggle Editor Area Visibility', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleEditorVisibilityAction), 'View: Toggle Editor Area Visibility', viewCategory.value);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
@@ -278,7 +277,7 @@ export class ToggleSidebarVisibilityAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSidebarVisibilityAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_B }), 'View: Toggle Side Bar Visibility', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSidebarVisibilityAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_B }), 'View: Toggle Side Bar Visibility', viewCategory.value);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
@@ -323,7 +322,7 @@ export class ToggleStatusbarVisibilityAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleStatusbarVisibilityAction), 'View: Toggle Status Bar Visibility', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleStatusbarVisibilityAction), 'View: Toggle Status Bar Visibility', viewCategory.value);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
@@ -364,7 +363,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleTabsVisibilityA
 	primary: undefined,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, },
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, }
-}), 'View: Toggle Tab Visibility', viewCategory);
+}), 'View: Toggle Tab Visibility', viewCategory.value);
 
 // --- Toggle Zen Mode
 
@@ -386,7 +385,7 @@ class ToggleZenMode extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleZenMode, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_Z) }), 'View: Toggle Zen Mode', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleZenMode, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_Z) }), 'View: Toggle Zen Mode', viewCategory.value);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
@@ -447,7 +446,7 @@ export class ToggleMenuBarAction extends Action {
 }
 
 if (isWindows || isLinux || isWeb) {
-	registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleMenuBarAction), 'View: Toggle Menu Bar', viewCategory);
+	registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleMenuBarAction), 'View: Toggle Menu Bar', viewCategory.value);
 }
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
@@ -497,7 +496,7 @@ export class ResetViewLocationsAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ResetViewLocationsAction), 'View: Reset View Locations', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ResetViewLocationsAction), 'View: Reset View Locations', viewCategory.value);
 
 // --- Toggle View with Command
 export abstract class ToggleViewAction extends Action {
@@ -639,7 +638,7 @@ export class MoveViewAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveViewAction), 'View: Move View', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveViewAction), 'View: Move View', viewCategory.value);
 
 // --- Move Focused View with Command
 export class MoveFocusedViewAction extends Action {
@@ -762,7 +761,7 @@ export class MoveFocusedViewAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveFocusedViewAction), 'View: Move Focused View', viewCategory, FocusedViewContext.notEqualsTo(''));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveFocusedViewAction), 'View: Move Focused View', viewCategory.value, FocusedViewContext.notEqualsTo(''));
 
 
 // --- Reset View Location with Command
@@ -805,7 +804,7 @@ export class ResetFocusedViewLocationAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ResetFocusedViewLocationAction), 'View: Reset Focused View Location', viewCategory, FocusedViewContext.notEqualsTo(''));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ResetFocusedViewLocationAction), 'View: Reset Focused View Location', viewCategory.value, FocusedViewContext.notEqualsTo(''));
 
 
 // --- Resize View
@@ -879,5 +878,5 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(IncreaseViewSizeAction, undefined), 'View: Increase Current View Size', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(DecreaseViewSizeAction, undefined), 'View: Decrease Current View Size', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(IncreaseViewSizeAction, undefined), 'View: Increase Current View Size', viewCategory.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(DecreaseViewSizeAction, undefined), 'View: Decrease Current View Size', viewCategory.value);

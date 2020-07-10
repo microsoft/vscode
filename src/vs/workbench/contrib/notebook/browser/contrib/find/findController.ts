@@ -323,7 +323,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.hideFind',
-			title: localize('notebookActions.hideFind', "Hide Find in Notebook"),
+			title: { value: localize('notebookActions.hideFind', "Hide Find in Notebook"), original: 'Hide Find in Notebook' },
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED),
 				primary: KeyCode.Escape,
@@ -350,7 +350,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.find',
-			title: localize('notebookActions.findInNotebook', "Find in Notebook"),
+			title: { value: localize('notebookActions.findInNotebook', "Find in Notebook"), original: 'Find in Notebook' },
 			keybinding: {
 				when: NOTEBOOK_EDITOR_FOCUSED,
 				primary: KeyCode.KEY_F | KeyMod.CtrlCmd,

@@ -71,7 +71,7 @@ const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
 const FOCUS_IN_OUTPUT_COMMAND_ID = 'notebook.cell.focusInOutput';
 const FOCUS_OUT_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutOutput';
 
-export const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
+export const NOTEBOOK_ACTIONS_CATEGORY = { value: localize('notebookActions.category', "Notebook"), original: 'Notebook' };
 
 export const CELL_TITLE_GROUP_ID = 'inline';
 

@@ -5,12 +5,10 @@
 
 import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { IWebviewService, webviewDeveloperCategory, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { getActiveWebview } from 'vs/workbench/contrib/webview/browser/webviewCommands';
 import * as webviewCommands from 'vs/workbench/contrib/webview/electron-browser/webviewCommands';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
@@ -20,12 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 registerSingleton(IWebviewService, ElectronWebviewService, true);
 
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-
-actionRegistry.registerWorkbenchAction(
-	SyncActionDescriptor.from(webviewCommands.OpenWebviewDeveloperToolsAction),
-	webviewCommands.OpenWebviewDeveloperToolsAction.ALIAS,
-	webviewDeveloperCategory);
+registerAction2(webviewCommands.OpenWebviewDeveloperToolsAction);
 
 function getActiveElectronBasedWebview(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
 	const webview = getActiveWebview(accessor);

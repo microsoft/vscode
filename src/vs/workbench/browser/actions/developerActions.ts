@@ -27,14 +27,14 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-const developerCategory = nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer");
+const developerCategory = { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' };
 
 class InspectContextKeysAction extends Action2 {
 
 	constructor() {
 		super({
 			id: 'workbench.action.inspectContextKeys',
-			title: { value: nls.localize('inspect context keys', "Inspect Context Keys"), original: 'Developer: Inspect Context Keys' },
+			title: { value: nls.localize('inspect context keys', "Inspect Context Keys"), original: 'Inspect Context Keys' },
 			category: developerCategory,
 			f1: true
 		});
@@ -89,7 +89,6 @@ class InspectContextKeysAction extends Action2 {
 	}
 }
 
-
 class ToggleScreencastModeAction extends Action2 {
 
 	static disposable: IDisposable | undefined;
@@ -97,7 +96,7 @@ class ToggleScreencastModeAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleScreencastMode',
-			title: { value: nls.localize('toggle screencast mode', "Toggle Screencast Mode"), original: 'Developer: Toggle Screencast Mode' },
+			title: { value: nls.localize('toggle screencast mode', "Toggle Screencast Mode"), original: 'Toggle Screencast Mode' },
 			category: developerCategory,
 			f1: true
 		});
@@ -225,7 +224,7 @@ class LogWorkingCopiesAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.logWorkingCopies',
-			title: { value: nls.localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies"), original: 'Developer: Log Working Copies' },
+			title: { value: nls.localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies"), original: 'Log Working Copies' },
 			category: developerCategory,
 			f1: true
 		});
