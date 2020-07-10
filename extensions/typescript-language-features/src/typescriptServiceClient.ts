@@ -596,7 +596,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public normalizedPath(resource: vscode.Uri): string | undefined {
-		if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
+		if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled || resource.scheme === fileSchemes.notebookCell) {
 			const dirName = path.dirname(resource.path);
 			const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
 			return resource.with({ path: path.posix.join(dirName, fileName), query: '' }).toString(true);
@@ -986,4 +986,3 @@ class ServerInitializingIndicator extends Disposable {
 		}
 	}
 }
-

@@ -61,6 +61,8 @@ interface StandardTsServerRequests {
 	'prepareCallHierarchy': [Proto.FileLocationRequestArgs, Proto.PrepareCallHierarchyResponse];
 	'provideCallHierarchyIncomingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyIncomingCallsResponse];
 	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
+	'openExternalProject': [Proto.OpenExternalProjectArgs, Proto.OpenExternalProjectResponse]
+	'closeExternalProject': [Proto.CloseExternalProjectRequestArgs, Proto.CloseExternalProjectResponse]
 }
 
 interface NoResponseTsServerRequests {

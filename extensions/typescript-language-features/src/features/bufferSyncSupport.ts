@@ -14,6 +14,7 @@ import { Disposable } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
 import { ResourceMap } from '../utils/resourceMap';
 import * as typeConverters from '../utils/typeConverters';
+import { OpenExternalProjectArgs } from 'typescript/lib/protocol';
 
 const enum BufferKind {
 	TypeScript = 1,
@@ -387,6 +388,32 @@ export default class BufferSyncSupport extends Disposable {
 			}
 		}, this, this._disposables);
 		vscode.workspace.textDocuments.forEach(this.openTextDocument, this);
+
+		// notebooks
+		const openNotebook = (notebook: vscode.NotebookDocument) => {
+			const args: OpenExternalProjectArgs = {
+				projectFileName: this.client.normalizedPath(notebook.uri)!,
+				rootFiles: notebook.cells
+					.filter(cell => cell.cellKind === vscode.CellKind.Code && this.modeIds.has(cell.language))
+					.map(cell => {
+						return {
+							fileName: this.client.normalizedPath(cell.uri)!,
+							content: cell.document.getText(),
+							hasMixedContent: false,
+							scriptKind: 'TS'
+						};
+					}),
+				options: {}
+			};
+			// if (args.rootFiles.length > 0) {
+			this.client.execute('openExternalProject', args, nulToken);
+			// }
+		};
+		vscode.notebook.onDidOpenNotebookDocument(openNotebook, this, this._disposables);
+		vscode.notebook.notebookDocuments.forEach(openNotebook);
+		vscode.notebook.onDidCloseNotebookDocument(notebook => {
+			this.client.execute('closeExternalProject', { projectFileName: this.client.normalizedPath(notebook.uri)! }, nulToken);
+		});
 	}
 
 	public handles(resource: vscode.Uri): boolean {

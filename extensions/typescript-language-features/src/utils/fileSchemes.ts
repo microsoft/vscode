@@ -7,11 +7,13 @@ export const file = 'file';
 export const untitled = 'untitled';
 export const git = 'git';
 export const walkThroughSnippet = 'walkThroughSnippet';
+export const notebookCell = 'vscode-notebook-cell';
 
 export const supportedSchemes = [
 	file,
 	untitled,
-	walkThroughSnippet
+	walkThroughSnippet,
+	notebookCell
 ];
 
 export function isSupportedScheme(scheme: string): boolean {
