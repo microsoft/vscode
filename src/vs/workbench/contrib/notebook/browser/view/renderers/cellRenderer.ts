@@ -451,15 +451,13 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		templateData.disposables.clear();
 	}
 
-	disposeElement(element: ICellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
-		if (height) {
-			templateData.elementDisposables.clear();
-			element.getCellDecorations().forEach(e => {
-				if (e.className) {
-					templateData.container.classList.remove(e.className);
-				}
-			});
-		}
+	disposeElement(element: ICellViewModel, _index: number, templateData: MarkdownCellRenderTemplate): void {
+		templateData.elementDisposables.clear();
+		element.getCellDecorations().forEach(e => {
+			if (e.className) {
+				templateData.container.classList.remove(e.className);
+			}
+		});
 	}
 }
 
