@@ -54,13 +54,12 @@ export class ExtHostTask extends ExtHostTaskBase {
 		// We have a preserved ID. So the task didn't change.
 		if (tTask._id !== undefined) {
 			// Always get the task execution first to prevent timing issues when retrieving it later
-			const handleDto = TaskHandleDTO.from(tTask);
-			const executionDTO = await this._proxy.$getTaskExecution(handleDto);
+			const executionDTO = await this._proxy.$getTaskExecution(TaskHandleDTO.from(tTask));
 			if (executionDTO.task === undefined) {
 				throw new Error('Task from execution DTO is undefined');
 			}
 			const execution = await this.getTaskExecution(executionDTO, task);
-			this._proxy.$executeTask(handleDto).catch(() => { /* The error here isn't actionable. */ });
+			this._proxy.$executeTask(executionDTO.task).catch(() => { /* The error here isn't actionable. */ });
 			return execution;
 		} else {
 			const dto = TaskDTO.from(task, extension);
