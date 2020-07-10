@@ -130,7 +130,7 @@ export class ReloadWebviewAction extends Action2 {
 	public constructor() {
 		super({
 			id: ReloadWebviewAction.ID,
-			title: { value: ReloadWebviewAction.LABEL, original: 'Reload Webview' },
+			title: { value: ReloadWebviewAction.LABEL, original: 'Reload Webviews' },
 			category: webviewDeveloperCategory,
 			menu: [{
 				id: MenuId.CommandPalette

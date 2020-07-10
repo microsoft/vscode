@@ -208,7 +208,7 @@ class LogStorageAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.logStorage',
-			title: { value: nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents"), original: 'Developer: Log Storage Database Contents' },
+			title: { value: nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents"), original: 'Log Storage Database Contents' },
 			category: developerCategory,
 			f1: true
 		});

@@ -63,7 +63,7 @@ registerSingleton(ISearchHistoryService, SearchHistoryService, true);
 replaceContributions();
 searchWidgetContributions();
 
-const category = nls.localize('search', "Search");
+const category = { value: nls.localize('search', "Search"), original: 'Search' };
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.search.toggleQueryDetails',
@@ -368,10 +368,9 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	order: 1
 });
 
-const clearSearchHistoryLabel = nls.localize('clearSearchHistoryLabel', "Clear Search History");
 const ClearSearchHistoryCommand: ICommandAction = {
 	id: Constants.ClearSearchHistoryCommandId,
-	title: clearSearchHistoryLabel,
+	title: { value: nls.localize('clearSearchHistoryLabel', "Clear Search History"), original: 'Clear Search History' },
 	category
 };
 MenuRegistry.addCommand(ClearSearchHistoryCommand);
@@ -381,10 +380,9 @@ CommandsRegistry.registerCommand({
 	handler: focusSearchListCommand
 });
 
-const focusSearchListCommandLabel = nls.localize('focusSearchListCommandLabel', "Focus List");
 const FocusSearchListCommand: ICommandAction = {
 	id: Constants.FocusSearchListCommandID,
-	title: focusSearchListCommandLabel,
+	title: { value: nls.localize('focusSearchListCommandLabel', "Focus List"), original: 'Focus List' },
 	category
 };
 MenuRegistry.addCommand(FocusSearchListCommand);
@@ -583,10 +581,10 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	order: 1
 });
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextSearchResultAction, { primary: KeyCode.F4 }), 'Focus Next Search Result', category, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor));
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousSearchResultAction, { primary: KeyMod.Shift | KeyCode.F4 }), 'Focus Previous Search Result', category, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextSearchResultAction, { primary: KeyCode.F4 }), 'Search: Focus Next Search Result', category.value, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousSearchResultAction, { primary: KeyMod.Shift | KeyCode.F4 }), 'Search: Focus Previous Search Result', category.value, ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor));
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ReplaceInFilesAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H }), 'Replace in Files', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ReplaceInFilesAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H }), 'Search: Replace in Files', category.value);
 MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	group: '4_find_global',
 	command: {
@@ -641,12 +639,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CollapseDeepestExpandedLevelAction), 'Search: Collapse All', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ExpandAllAction), 'Search: Expand All', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(CollapseDeepestExpandedLevelAction), 'Search: Collapse All', category.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ExpandAllAction), 'Search: Expand All', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAllSymbolsAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_T }), 'Go to Symbol in Workspace...');
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSearchOnTypeAction), 'Search: Toggle Search on Type', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(RefreshAction), 'Search: Refresh', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ClearSearchResultsAction), 'Search: Clear Search Results', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSearchOnTypeAction), 'Search: Toggle Search on Type', category.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(RefreshAction), 'Search: Refresh', category.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ClearSearchResultsAction), 'Search: Clear Search Results', category.value);
 
 // Register Quick Access Handler
 const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);
