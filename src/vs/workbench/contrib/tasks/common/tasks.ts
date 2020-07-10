@@ -601,7 +601,7 @@ export abstract class CommonTask {
 	}
 
 	public clone(): Task {
-		return this.fromObject(Objects.assign({}, <any>this));
+		return this.fromObject(Object.assign({}, <any>this));
 	}
 
 	protected abstract fromObject(object: any): Task;
@@ -1124,7 +1124,7 @@ export namespace KeyedTaskIdentifier {
 	export function create(value: TaskIdentifier): KeyedTaskIdentifier {
 		const resultKey = sortedStringify(value);
 		let result = { _key: resultKey, type: value.taskType };
-		Objects.assign(result, value);
+		Object.assign(result, value);
 		return result;
 	}
 }

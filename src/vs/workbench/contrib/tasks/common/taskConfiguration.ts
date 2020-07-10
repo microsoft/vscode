@@ -1433,15 +1433,15 @@ namespace ConfiguringTask {
 		let taskSource: Tasks.FileBasedTaskSource;
 		switch (source) {
 			case TaskConfigSource.User: {
-				taskSource = Objects.assign({} as Tasks.UserTaskSource, partialSource, { kind: Tasks.TaskSourceKind.User, config: configElement });
+				taskSource = Object.assign({} as Tasks.UserTaskSource, partialSource, { kind: Tasks.TaskSourceKind.User, config: configElement });
 				break;
 			}
 			case TaskConfigSource.WorkspaceFile: {
-				taskSource = Objects.assign({} as Tasks.WorkspaceFileTaskSource, partialSource, { kind: Tasks.TaskSourceKind.WorkspaceFile, config: configElement });
+				taskSource = Object.assign({} as Tasks.WorkspaceFileTaskSource, partialSource, { kind: Tasks.TaskSourceKind.WorkspaceFile, config: configElement });
 				break;
 			}
 			default: {
-				taskSource = Objects.assign({} as Tasks.WorkspaceTaskSource, partialSource, { kind: Tasks.TaskSourceKind.Workspace, config: configElement });
+				taskSource = Object.assign({} as Tasks.WorkspaceTaskSource, partialSource, { kind: Tasks.TaskSourceKind.Workspace, config: configElement });
 				break;
 			}
 		}
@@ -1456,7 +1456,7 @@ namespace ConfiguringTask {
 		);
 		let configuration = ConfigurationProperties.from(external, context, true, source, typeDeclaration.properties);
 		if (configuration) {
-			result.configurationProperties = Objects.assign(result.configurationProperties, configuration);
+			result.configurationProperties = Object.assign(result.configurationProperties, configuration);
 			if (result.configurationProperties.name) {
 				result._label = result.configurationProperties.name;
 			} else {
@@ -1505,15 +1505,15 @@ namespace CustomTask {
 		let taskSource: Tasks.FileBasedTaskSource;
 		switch (source) {
 			case TaskConfigSource.User: {
-				taskSource = Objects.assign({} as Tasks.UserTaskSource, partialSource, { kind: Tasks.TaskSourceKind.User, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder } });
+				taskSource = Object.assign({} as Tasks.UserTaskSource, partialSource, { kind: Tasks.TaskSourceKind.User, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder } });
 				break;
 			}
 			case TaskConfigSource.WorkspaceFile: {
-				taskSource = Objects.assign({} as Tasks.WorkspaceFileTaskSource, partialSource, { kind: Tasks.TaskSourceKind.WorkspaceFile, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder, workspace: context.workspace } });
+				taskSource = Object.assign({} as Tasks.WorkspaceFileTaskSource, partialSource, { kind: Tasks.TaskSourceKind.WorkspaceFile, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder, workspace: context.workspace } });
 				break;
 			}
 			default: {
-				taskSource = Objects.assign({} as Tasks.WorkspaceTaskSource, partialSource, { kind: Tasks.TaskSourceKind.Workspace, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder } });
+				taskSource = Object.assign({} as Tasks.WorkspaceTaskSource, partialSource, { kind: Tasks.TaskSourceKind.Workspace, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder } });
 				break;
 			}
 		}
@@ -1533,7 +1533,7 @@ namespace CustomTask {
 		);
 		let configuration = ConfigurationProperties.from(external, context, false, source);
 		if (configuration) {
-			result.configurationProperties = Objects.assign(result.configurationProperties, configuration);
+			result.configurationProperties = Object.assign(result.configurationProperties, configuration);
 		}
 		let supportLegacy: boolean = true; //context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0;
 		if (supportLegacy) {
@@ -1596,7 +1596,7 @@ namespace CustomTask {
 	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask): Tasks.CustomTask {
 		let result: Tasks.CustomTask = new Tasks.CustomTask(
 			configuredProps._id,
-			Objects.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
+			Object.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
 			configuredProps.configurationProperties.name || contributedTask._label,
 			Tasks.CUSTOMIZED_TASK_TYPE,
 			contributedTask.command,
@@ -2043,7 +2043,7 @@ class ConfigurationParser {
 			let name = Tasks.CommandString.value(globals.command.name);
 			let task: Tasks.CustomTask = new Tasks.CustomTask(
 				context.uuidMap.getUUID(name),
-				Objects.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
+				Object.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
 				name,
 				Tasks.CUSTOMIZED_TASK_TYPE,
 				{
