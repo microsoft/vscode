@@ -58,7 +58,7 @@
           "name": "%view.name%",
           "when": "npm:showScriptExplorer",
           "icon": "images/code.svg",
-          "initialState": "collapsed"
+          "initialState": "hidden"
         }
       ]
     },
