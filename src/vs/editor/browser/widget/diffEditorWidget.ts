@@ -674,6 +674,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (typeof newOptions.originalEditable !== 'undefined') {
 			this._originalIsEditable = Boolean(newOptions.originalEditable);
 		}
+		if (typeof newOptions.originalCodeLens !== 'undefined') {
+			this._originalCodeLens = Boolean(newOptions.originalCodeLens);
+		}
+		if (typeof newOptions.modifiedCodeLens !== 'undefined') {
+			this._modifiedCodeLens = Boolean(newOptions.modifiedCodeLens);
+		}
 
 		this.modifiedEditor.updateOptions(this._adjustOptionsForRightHandSide(newOptions, this._modifiedCodeLens));
 		this.originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(newOptions, this._originalIsEditable, this._originalCodeLens));
