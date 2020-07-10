@@ -14,7 +14,7 @@ import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/ren
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEventDispatcher, NotebookCellStateChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
@@ -179,8 +179,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());
 	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
 
-	startFind(value: string): CellFindMatch | null {
-		const matches = super.cellStartFind(value);
+	startFind(value: string, options: INotebookSearchOptions): CellFindMatch | null {
+		const matches = super.cellStartFind(value, options);
 
 		if (matches === null) {
 			return null;

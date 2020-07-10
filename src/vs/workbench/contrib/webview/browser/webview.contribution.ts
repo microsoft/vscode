@@ -4,17 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { webviewDeveloperCategory } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
-import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand, SelectAllWebviewEditorCommand } from '../browser/webviewCommands';
+import { HideWebViewEditorFindCommand, ReloadWebviewAction, SelectAllWebviewEditorCommand, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from '../browser/webviewCommands';
 import { WebviewEditor } from './webviewEditor';
 import { WebviewInput } from './webviewEditorInput';
 import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
@@ -31,32 +28,10 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 
 registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
 
+registerAction2(ShowWebViewEditorFindWidgetAction);
+registerAction2(HideWebViewEditorFindCommand);
+registerAction2(WebViewEditorFindNextCommand);
+registerAction2(WebViewEditorFindPreviousCommand);
+registerAction2(SelectAllWebviewEditorCommand);
+registerAction2(ReloadWebviewAction);
 
-const webviewActiveContextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', WebviewEditor.ID), ContextKeyExpr.not('editorFocus') /* https://github.com/Microsoft/vscode/issues/58668 */)!;
-
-registerAction2(class extends ShowWebViewEditorFindWidgetAction {
-	constructor() { super(webviewActiveContextKeyExpr); }
-});
-
-registerAction2(class extends HideWebViewEditorFindCommand {
-	constructor() { super(webviewActiveContextKeyExpr); }
-});
-
-registerAction2(class extends WebViewEditorFindNextCommand {
-	constructor() { super(webviewActiveContextKeyExpr); }
-});
-
-registerAction2(class extends WebViewEditorFindPreviousCommand {
-	constructor() { super(webviewActiveContextKeyExpr); }
-});
-
-registerAction2(class extends SelectAllWebviewEditorCommand {
-	constructor() { super(webviewActiveContextKeyExpr); }
-});
-
-
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(
-	SyncActionDescriptor.from(ReloadWebviewAction),
-	'Reload Webviews',
-	webviewDeveloperCategory);

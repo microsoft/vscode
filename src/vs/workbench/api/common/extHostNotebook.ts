@@ -1020,7 +1020,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		if (provider) {
 			let storageRoot: URI | undefined;
 			if (this._extensionStoragePaths) {
-				storageRoot = URI.file(this._extensionStoragePaths.workspaceValue(provider.extension) ?? this._extensionStoragePaths.globalValue(provider.extension));
+				storageRoot = this._extensionStoragePaths.workspaceValue(provider.extension) ?? this._extensionStoragePaths.globalValue(provider.extension);
 			}
 
 			let document = this._documents.get(URI.revive(uri).toString());
@@ -1330,7 +1330,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				const entry = this._notebookContentProviders.get(viewType);
 				let storageRoot: URI | undefined;
 				if (entry && this._extensionStoragePaths) {
-					storageRoot = URI.file(this._extensionStoragePaths.workspaceValue(entry.extension) ?? this._extensionStoragePaths.globalValue(entry.extension));
+					storageRoot = this._extensionStoragePaths.workspaceValue(entry.extension) ?? this._extensionStoragePaths.globalValue(entry.extension);
 				}
 
 				if (!this._documents.has(revivedUriStr)) {

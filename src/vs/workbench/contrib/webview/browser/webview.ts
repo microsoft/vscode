@@ -142,4 +142,4 @@ export interface WebviewOverlay extends Webview {
 	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension): void;
 }
 
-export const webviewDeveloperCategory = nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer");
+export const webviewDeveloperCategory = { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' };

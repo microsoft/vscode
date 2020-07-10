@@ -2,6 +2,10 @@
 <!DOCTYPE html>
 <html>
 	<head>
+		<script>
+			globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
+			globalThis.MonacoPerformanceMarks.push('renderer/started', Date.now());
+		</script>
 		<meta charset="utf-8" />
 
 		<!-- Disable pinch zooming -->
@@ -46,7 +50,6 @@
 	</script>
 	<script src="./static/out/vs/loader.js"></script>
 	<script>
-		globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
 		globalThis.MonacoPerformanceMarks.push('willLoadWorkbenchMain', Date.now());
 	</script>
 	<script src="./static/out/vs/workbench/workbench.web.api.nls.js"></script>

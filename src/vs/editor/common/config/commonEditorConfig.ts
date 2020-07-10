@@ -541,6 +541,11 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('renderIndicators', "Controls whether the diff editor shows +/- indicators for added/removed changes.")
+		},
+		'diffEditor.codeLens': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('codeLens', "Controls whether the editor shows CodeLens.")
 		}
 	}
 };

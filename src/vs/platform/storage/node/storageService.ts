@@ -143,7 +143,7 @@ export class NativeStorageService extends Disposable implements IStorageService 
 	}
 
 	private getWorkspaceStorageFolderPath(payload: IWorkspaceInitializationPayload): string {
-		return join(this.environmentService.workspaceStorageHome, payload.id); // workspace home + workspace id;
+		return join(this.environmentService.workspaceStorageHome.fsPath, payload.id); // workspace home + workspace id;
 	}
 
 	private async prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload): Promise<{ path: string, wasCreated: boolean }> {
@@ -257,7 +257,7 @@ export class NativeStorageService extends Disposable implements IStorageService 
 		return logStorage(
 			this.globalStorage.items,
 			this.workspaceStorage ? this.workspaceStorage.items : new Map<string, string>(), // Shared process storage does not has workspace storage
-			this.environmentService.globalStorageHome,
+			this.environmentService.globalStorageHome.fsPath,
 			this.workspaceStoragePath || '');
 	}
 

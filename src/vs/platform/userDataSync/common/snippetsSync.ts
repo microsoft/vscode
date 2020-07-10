@@ -117,7 +117,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		};
 	}
 
-	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: IFileResourcePreview[], forcePush: boolean): Promise<void> {
+	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: IFileResourcePreview[], force: boolean): Promise<void> {
 		if (resourcePreviews.some(({ hasConflicts }) => hasConflicts)) {
 			throw new UserDataSyncError(localize('unresolved conflicts', "Error while syncing {0}. Please resolve conflicts first.", this.syncResourceLogLabel), UserDataSyncErrorCode.UnresolvedConflicts, this.resource);
 		}
@@ -129,11 +129,11 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		if (resourcePreviews.some(({ localChange }) => localChange !== Change.None)) {
 			// back up all snippets
 			await this.updateLocalBackup(resourcePreviews);
-			await this.updateLocalSnippets(resourcePreviews);
+			await this.updateLocalSnippets(resourcePreviews, force);
 		}
 
 		if (resourcePreviews.some(({ remoteChange }) => remoteChange !== Change.None)) {
-			remoteUserData = await this.updateRemoteSnippets(resourcePreviews, remoteUserData, forcePush);
+			remoteUserData = await this.updateRemoteSnippets(resourcePreviews, remoteUserData, force);
 		}
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {
@@ -308,6 +308,15 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
+		if (isEqualOrParent(uri, this.snippetsFolder)) {
+			try {
+				const content = await this.fileService.readFile(uri);
+				return content ? content.value.toString() : null;
+			} catch (error) {
+				return '';
+			}
+		}
+
 		if (isEqualOrParent(uri.with({ scheme: this.syncPreviewFolder.scheme }), this.syncPreviewFolder)
 			|| isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME }))) {
 			return this.resolvePreviewContent(uri);
@@ -352,7 +361,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		await this.backupLocal(JSON.stringify(this.toSnippetsContents(local)));
 	}
 
-	private async updateLocalSnippets(resourcePreviews: IFileResourcePreview[]): Promise<void> {
+	private async updateLocalSnippets(resourcePreviews: IFileResourcePreview[], force: boolean): Promise<void> {
 		if (resourcePreviews.some(({ hasConflicts }) => hasConflicts)) {
 			// Do not update if there are conflicts
 			return;
@@ -373,14 +382,14 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				// Added
 				else if (localChange === Change.Added) {
 					this.logService.trace(`${this.syncResourceLogLabel}: Creating snippet...`, basename(resource));
-					await this.fileService.createFile(resource, VSBuffer.fromString(content!), { overwrite: false });
+					await this.fileService.createFile(resource, VSBuffer.fromString(content!), { overwrite: force });
 					this.logService.info(`${this.syncResourceLogLabel}: Created snippet`, basename(resource));
 				}
 
 				// Updated
 				else {
 					this.logService.trace(`${this.syncResourceLogLabel}: Updating snippet...`, basename(resource));
-					await this.fileService.writeFile(resource, VSBuffer.fromString(content!), fileContent!);
+					await this.fileService.writeFile(resource, VSBuffer.fromString(content!), force ? undefined : fileContent!);
 					this.logService.info(`${this.syncResourceLogLabel}: Updated snippet`, basename(resource));
 				}
 			}

@@ -871,10 +871,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
 
-		const focusIndicatorTop = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
-		DOM.append(
-			DOM.append(focusIndicatorTop, $('.cell-shadow-container.cell-shadow-container-top')),
-			$('.cell-shadow.cell-shadow-top'));
+		DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
 		const toolbar = disposables.add(this.createToolbar(container));
 		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		focusIndicator.setAttribute('draggable', 'true');
@@ -923,9 +920,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		DOM.append(bottomCellContainer, $('.separator'));
 
 		const focusIndicatorBottom = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom'));
-		DOM.append(
-			DOM.append(focusIndicatorBottom, $('.cell-shadow-container.cell-shadow-container-bottom')),
-			$('.cell-shadow.cell-shadow-bottom'));
 
 		const templateData: CodeCellRenderTemplate = {
 			contextKeyService,

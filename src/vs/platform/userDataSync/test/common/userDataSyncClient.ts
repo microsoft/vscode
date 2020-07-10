@@ -120,8 +120,8 @@ export class UserDataSyncClient extends Disposable {
 		await configurationService.reloadConfiguration();
 	}
 
-	sync(): Promise<void> {
-		return this.instantiationService.get(IUserDataSyncService).sync();
+	async sync(): Promise<void> {
+		await (await this.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
 	}
 
 	read(resource: SyncResource): Promise<IUserData> {

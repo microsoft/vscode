@@ -6,7 +6,7 @@
 import { Delayer, disposableTimeout, CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IUserDataSyncLogService, IUserDataSyncService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, UserDataAutoSyncError } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLogService, IUserDataSyncService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, UserDataAutoSyncError, ISyncTask } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -154,7 +154,7 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 			if (pullFirst) {
 				await this.userDataSyncService.pull();
 			} else {
-				await this.userDataSyncService.sync();
+				await (await this.userDataSyncService.createSyncTask()).run();
 			}
 
 			this.setEnablement(true);
@@ -316,6 +316,7 @@ class AutoSync extends Disposable {
 	private readonly _onDidFinishSync = this._register(new Emitter<Error | undefined>());
 	readonly onDidFinishSync = this._onDidFinishSync.event;
 
+	private syncTask: ISyncTask | undefined;
 	private syncPromise: CancelablePromise<void> | undefined;
 
 	constructor(
@@ -337,7 +338,9 @@ class AutoSync extends Disposable {
 				this.logService.info('Auto sync: Canelled sync that is in progress');
 				this.syncPromise = undefined;
 			}
-			this.userDataSyncService.stop();
+			if (this.syncTask) {
+				this.syncTask.stop();
+			}
 			this.logService.info('Auto Sync: Stopped');
 		}));
 		this.logService.info('Auto Sync: Started');
@@ -374,8 +377,11 @@ class AutoSync extends Disposable {
 		this._onDidStartSync.fire();
 		let error: Error | undefined;
 		try {
-			const syncTask = await this.userDataSyncService.createSyncTask();
-			let manifest = syncTask.manifest;
+			this.syncTask = await this.userDataSyncService.createSyncTask();
+			if (token.isCancellationRequested) {
+				return;
+			}
+			let manifest = this.syncTask.manifest;
 
 			// Server has no data but this machine was synced before
 			if (manifest === null && await this.userDataSyncService.hasPreviouslySynced()) {
@@ -402,7 +408,7 @@ class AutoSync extends Disposable {
 				throw new UserDataAutoSyncError(localize('turned off machine', "Cannot sync because syncing is turned off on this machine from another machine."), UserDataSyncErrorCode.TurnedOff);
 			}
 
-			await syncTask.run(token);
+			await this.syncTask.run();
 
 			// After syncing, get the manifest if it was not available before
 			if (manifest === null) {

@@ -647,7 +647,10 @@ export class SettingsEditor2 extends BaseEditor {
 		this.tocTreeContainer = DOM.append(parent, $('.settings-toc-container'));
 
 		this.tocTree = this._register(this.instantiationService.createInstance(TOCTree,
-			DOM.append(this.tocTreeContainer, $('.settings-toc-wrapper')),
+			DOM.append(this.tocTreeContainer, $('.settings-toc-wrapper', {
+				'role': 'navigation',
+				'aria-label': localize('settings', "Settings"),
+			})),
 			this.viewState));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {

@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import { IStringDictionary, forEach } from 'vs/base/common/collections';
@@ -64,7 +63,7 @@ namespace TaskProcessEndedDTO {
 
 namespace TaskDefinitionDTO {
 	export function from(value: KeyedTaskIdentifier): TaskDefinitionDTO {
-		const result = Objects.assign(Object.create(null), value);
+		const result = Object.assign(Object.create(null), value);
 		delete result._key;
 		return result;
 	}
@@ -85,13 +84,13 @@ namespace TaskPresentationOptionsDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		return Objects.assign(Object.create(null), value);
+		return Object.assign(Object.create(null), value);
 	}
 	export function to(value: TaskPresentationOptionsDTO | undefined): PresentationOptions {
 		if (value === undefined || value === null) {
 			return PresentationOptions.defaults;
 		}
-		return Objects.assign(Object.create(null), PresentationOptions.defaults, value);
+		return Object.assign(Object.create(null), PresentationOptions.defaults, value);
 	}
 }
 
@@ -100,13 +99,13 @@ namespace RunOptionsDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		return Objects.assign(Object.create(null), value);
+		return Object.assign(Object.create(null), value);
 	}
 	export function to(value: RunOptionsDTO | undefined): RunOptions {
 		if (value === undefined || value === null) {
 			return RunOptions.defaults;
 		}
-		return Objects.assign(Object.create(null), RunOptions.defaults, value);
+		return Object.assign(Object.create(null), RunOptions.defaults, value);
 	}
 }
 

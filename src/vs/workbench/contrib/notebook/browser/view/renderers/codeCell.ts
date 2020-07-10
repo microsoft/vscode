@@ -293,28 +293,27 @@ export class CodeCell extends Disposable {
 
 	private onCellWidthChange(): void {
 		const realContentHeight = this.templateData.editor!.getContentHeight();
+		this.viewCell.editorHeight = realContentHeight;
+		this.relayoutCell();
+
 		this.layoutEditor(
 			{
 				width: this.viewCell.layoutInfo.editorWidth,
 				height: realContentHeight
 			}
 		);
-
-		this.viewCell.editorHeight = realContentHeight;
-		this.relayoutCell();
 	}
 
 	private onCellHeightChange(newHeight: number): void {
 		const viewLayout = this.templateData.editor!.getLayoutInfo();
+		this.viewCell.editorHeight = newHeight;
+		this.relayoutCell();
 		this.layoutEditor(
 			{
 				width: viewLayout.width,
 				height: newHeight
 			}
 		);
-
-		this.viewCell.editorHeight = newHeight;
-		this.relayoutCell();
 	}
 
 	renderOutput(currOutput: IProcessedOutput, index: number, beforeElement?: HTMLElement) {

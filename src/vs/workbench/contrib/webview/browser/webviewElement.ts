@@ -178,7 +178,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 					data: buffer,
 				});
 			}
-		} catch  {
+		} catch {
 			// noop
 		}
 

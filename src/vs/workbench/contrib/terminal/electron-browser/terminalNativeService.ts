@@ -17,14 +17,15 @@ import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/elect
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { INativeOpenFileRequest } from 'vs/platform/windows/node/window';
 
 export class TerminalNativeService extends Disposable implements ITerminalNativeService {
 	public _serviceBrand: undefined;
 
 	public get linuxDistro(): LinuxDistro { return linuxDistro; }
 
-	private readonly _onOpenFileRequest = this._register(new Emitter<IOpenFileRequest>());
-	public get onOpenFileRequest(): Event<IOpenFileRequest> { return this._onOpenFileRequest.event; }
+	private readonly _onRequestFocusActiveInstance = this._register(new Emitter<void>());
+	public get onRequestFocusActiveInstance(): Event<void> { return this._onRequestFocusActiveInstance.event; }
 	private readonly _onOsResume = this._register(new Emitter<void>());
 	public get onOsResume(): Event<void> { return this._onOsResume.event; }
 
@@ -36,12 +37,23 @@ export class TerminalNativeService extends Disposable implements ITerminalNative
 	) {
 		super();
 
-		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => this._onOpenFileRequest.fire(request));
+		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => this._onOpenFileRequest(request));
 		this._register(electronService.onOSResume(() => this._onOsResume.fire()));
 
 		const connection = remoteAgentService.getConnection();
 		if (connection && connection.remoteAuthority) {
 			registerRemoteContributions();
+		}
+	}
+
+	private async _onOpenFileRequest(request: INativeOpenFileRequest): Promise<void> {
+		// if the request to open files is coming in from the integrated terminal (identified though
+		// the termProgram variable) and we are instructed to wait for editors close, wait for the
+		// marker file to get deleted and then focus back to the integrated terminal.
+		if (request.termProgram === 'vscode' && request.filesToWait) {
+			const waitMarkerFileUri = URI.revive(request.filesToWait.waitMarkerFileUri);
+			await this.whenFileDeleted(waitMarkerFileUri);
+			this._onRequestFocusActiveInstance.fire();
 		}
 	}
 

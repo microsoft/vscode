@@ -44,7 +44,6 @@ import { Action, IActionViewItem, IAction } from 'vs/base/common/actions';
 import { isStringArray } from 'vs/base/common/types';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { startsWith } from 'vs/base/common/strings';
 import { TunnelPanelDescriptor, TunnelViewModel, forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -116,7 +115,7 @@ class HelpTreeRenderer implements ITreeRenderer<HelpModel | IHelpItem, IHelpItem
 	templateId: string = 'HelpItemTemplate';
 
 	renderTemplate(container: HTMLElement): IHelpItemTemplateData {
-		dom.addClass(container, 'remote-help-tree-node-item');
+		container.classList.add('remote-help-tree-node-item');
 		const icon = dom.append(container, dom.$('.remote-help-tree-node-item-icon'));
 		const data = <IHelpItemTemplateData>Object.create(null);
 		data.parent = container;
@@ -127,7 +126,7 @@ class HelpTreeRenderer implements ITreeRenderer<HelpModel | IHelpItem, IHelpItem
 	renderElement(element: ITreeNode<IHelpItem, IHelpItem>, index: number, templateData: IHelpItemTemplateData, height: number | undefined): void {
 		const container = templateData.parent;
 		dom.append(container, templateData.icon);
-		dom.addClasses(templateData.icon, ...element.element.iconClasses);
+		templateData.icon.classList.add(...element.element.iconClasses);
 		const labelContainer = dom.append(container, dom.$('.help-item-label'));
 		labelContainer.innerText = element.element.label;
 	}
@@ -302,7 +301,7 @@ abstract class HelpItemBase implements IHelpItem {
 		private environmentService: IWorkbenchEnvironmentService,
 		private remoteExplorerService: IRemoteExplorerService
 	) {
-		this.iconClasses.push(icon.classNames);
+		this.iconClasses.push(...icon.classNamesArray);
 		this.iconClasses.push('remote-help-tree-node-item-icon');
 	}
 
@@ -310,11 +309,11 @@ abstract class HelpItemBase implements IHelpItem {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		if (remoteAuthority) {
 			for (let i = 0; i < this.remoteExplorerService.targetType.length; i++) {
-				if (startsWith(remoteAuthority, this.remoteExplorerService.targetType[i])) {
+				if (remoteAuthority.startsWith(this.remoteExplorerService.targetType[i])) {
 					for (let value of this.values) {
 						if (value.remoteAuthority) {
 							for (let authority of value.remoteAuthority) {
-								if (startsWith(remoteAuthority, authority)) {
+								if (remoteAuthority.startsWith(authority)) {
 									await this.takeAction(value.extensionDescription, await value.url);
 									return;
 								}
@@ -411,9 +410,9 @@ class HelpPanel extends ViewPane {
 	protected renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(container, 'remote-help');
+		container.classList.add('remote-help');
 		const treeContainer = document.createElement('div');
-		dom.addClass(treeContainer, 'remote-help-content');
+		treeContainer.classList.add('remote-help-content');
 		container.appendChild(treeContainer);
 
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree,

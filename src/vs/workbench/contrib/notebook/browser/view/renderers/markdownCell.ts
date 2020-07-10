@@ -149,6 +149,11 @@ export class StatefullMarkdownCell extends Disposable {
 			this.focusEditorIfNeeded();
 
 			this.bindEditorListeners();
+
+			this.editor.layout({
+				width: this.viewCell.layoutInfo.editorWidth,
+				height: editorHeight
+			});
 		} else {
 			const width = this.viewCell.layoutInfo.editorWidth;
 			const lineNum = this.viewCell.lineCount;
@@ -305,13 +310,13 @@ export class StatefullMarkdownCell extends Disposable {
 			let viewLayout = this.editor!.getLayoutInfo();
 
 			if (e.contentHeightChanged) {
+				this.viewCell.editorHeight = e.contentHeight;
 				this.editor!.layout(
 					{
 						width: viewLayout.width,
 						height: e.contentHeight
 					}
 				);
-				this.viewCell.editorHeight = e.contentHeight;
 			}
 		}));
 

@@ -130,6 +130,6 @@ export class ExtensionsLifecycle extends Disposable {
 	}
 
 	private getExtensionStoragePath(extension: ILocalExtension): string {
-		return join(this.environmentService.globalStorageHome, extension.identifier.id.toLowerCase());
+		return join(this.environmentService.globalStorageHome.fsPath, extension.identifier.id.toLowerCase());
 	}
 }

@@ -18,10 +18,9 @@ import { fetchSelectItem } from './selectItem';
 import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
 import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath } from './util';
-import { updateImageSize } from './updateImageSize';
 import { reflectCssValue } from './reflectCssValue';
 
-export function activate(context: vscode.ExtensionContext) {
+export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	registerCompletionProviders(context);
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.wrapWithAbbreviation', (args) => {
@@ -119,10 +118,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.decrementNumberByTen', () => {
 		return incrementDecrement(-10);
-	}));
-
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.updateImageSize', () => {
-		return updateImageSize();
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.reflectCSSValue', () => {

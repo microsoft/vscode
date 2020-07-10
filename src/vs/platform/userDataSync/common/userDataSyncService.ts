@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle, IUserDataManifest, ISyncTask, Change } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle, IUserDataManifest, ISyncTask, Change, IResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -21,6 +21,7 @@ import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSy
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders } from 'vs/base/parts/request/common/request';
 import { generateUuid } from 'vs/base/common/uuid';
+import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 
 type SyncErrorClassification = {
 	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -129,12 +130,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
-	private recoveredSettings: boolean = false;
-	async sync(): Promise<void> {
-		const syncTask = await this.createSyncTask();
-		return syncTask.run(CancellationToken.None);
-	}
-
 	async createSyncTask(): Promise<ISyncTask> {
 		this.telemetryService.publicLog2('sync/getmanifest');
 		const executionId = generateUuid();
@@ -150,18 +145,27 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 		let executed = false;
 		const that = this;
+		let cancellablePromise: CancelablePromise<void> | undefined;
 		return {
 			manifest,
-			run(token: CancellationToken): Promise<void> {
+			run(): Promise<void> {
 				if (executed) {
 					throw new Error('Can run a task only once');
 				}
-				return that.doSync(manifest, executionId, token);
+				cancellablePromise = createCancelablePromise(token => that.sync(manifest, executionId, token));
+				return cancellablePromise.finally(() => cancellablePromise = undefined);
+			},
+			async stop(): Promise<void> {
+				if (cancellablePromise) {
+					cancellablePromise.cancel();
+					return that.stop();
+				}
 			}
 		};
 	}
 
-	private async doSync(manifest: IUserDataManifest | null, executionId: string, token: CancellationToken): Promise<void> {
+	private recoveredSettings: boolean = false;
+	private async sync(manifest: IUserDataManifest | null, executionId: string, token: CancellationToken): Promise<void> {
 		await this.checkEnablement();
 
 		if (!this.recoveredSettings) {
@@ -211,18 +215,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
-	async replace(uri: URI): Promise<void> {
-		await this.checkEnablement();
-		for (const synchroniser of this.synchronisers) {
-			if (await synchroniser.replace(uri)) {
-				return;
-			}
-		}
-	}
-
-	async stop(): Promise<void> {
-		await this.checkEnablement();
-
+	private async stop(): Promise<void> {
 		if (this.status === SyncStatus.Idle) {
 			return;
 		}
@@ -239,12 +232,21 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	}
 
-	async acceptConflict(conflict: URI, content: string): Promise<void> {
+	async replace(uri: URI): Promise<void> {
 		await this.checkEnablement();
-		const syncResourceConflict = this.conflicts.filter(({ conflicts }) => conflicts.some(({ local, remote }) => isEqual(conflict, local) || isEqual(conflict, remote)))[0];
-		if (syncResourceConflict) {
-			const synchroniser = this.getSynchroniser(syncResourceConflict.syncResource);
-			await synchroniser.acceptConflict(conflict, content);
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.replace(uri)) {
+				return;
+			}
+		}
+	}
+
+	async acceptPreviewContent(resource: URI, content: string, executionId: string = generateUuid()): Promise<void> {
+		await this.checkEnablement();
+		const synchroniser = this.synchronisers.find(synchroniser => synchroniser.resourcePreviews.some(({ localResource, previewResource, remoteResource }) =>
+			isEqual(resource, localResource) || isEqual(resource, previewResource) || isEqual(resource, remoteResource)));
+		if (synchroniser) {
+			await synchroniser.acceptPreviewContent(resource, content, false, { 'X-Execution-Id': executionId });
 		}
 	}
 
@@ -365,7 +367,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	private updateConflicts(): void {
 		const conflicts = this.computeConflicts();
-		if (!equals(this._conflicts, conflicts, (a, b) => a.syncResource === b.syncResource && equals(a.conflicts, b.conflicts, (a, b) => isEqual(a.local, b.local) && isEqual(a.remote, b.remote)))) {
+		if (!equals(this._conflicts, conflicts, (a, b) => a.syncResource === b.syncResource && equals(a.conflicts, b.conflicts, (a, b) => isEqual(a.previewResource, b.previewResource)))) {
 			this._conflicts = this.computeConflicts();
 			this._onDidChangeConflicts.fire(conflicts);
 		}
@@ -412,7 +414,18 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	private computeConflicts(): SyncResourceConflicts[] {
 		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)
-			.map(s => ({ syncResource: s.resource, conflicts: s.conflicts }));
+			.map(s => ({ syncResource: s.resource, conflicts: s.conflicts.map(r => this.toStrictResourcePreview(r)) }));
+	}
+
+	private toStrictResourcePreview(resourcePreview: IResourcePreview): IResourcePreview {
+		return {
+			localResource: resourcePreview.localResource,
+			previewResource: resourcePreview.previewResource,
+			remoteResource: resourcePreview.remoteResource,
+			localChange: resourcePreview.localChange,
+			remoteChange: resourcePreview.remoteChange,
+			hasConflicts: resourcePreview.hasConflicts,
+		};
 	}
 
 	getSynchroniser(source: SyncResource): IUserDataSynchroniser {

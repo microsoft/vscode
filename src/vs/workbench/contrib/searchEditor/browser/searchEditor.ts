@@ -543,8 +543,10 @@ export class SearchEditor extends BaseTextEditor {
 		this.saveViewState();
 
 		await super.setInput(newInput, options, token);
+		if (token.isCancellationRequested) { return; }
 
 		const { body, config } = await newInput.getModels();
+		if (token.isCancellationRequested) { return; }
 
 		this.searchResultEditor.setModel(body);
 		this.pauseSearching = true;
