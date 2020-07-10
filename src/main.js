@@ -35,9 +35,8 @@ const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args);
 app.setPath('userData', userDataPath);
 
-// Set temp directory based on crash-reporter-directory CLI argument
-// The crash reporter will store crashes in temp folder so we need
-// to change that location accordingly.
+// Configure static command line arguments
+const argvConfig = configureCommandlineSwitchesSync(args);
 
 // If a crash-reporter-directory is specified we setup the crash reporter
 // right from the beginning as early as possible to monitor all processes.
@@ -61,16 +60,16 @@ if (crashReporterDirectory) {
 
 	// Crashes are stored in the crashDumps directory by default, so we
 	// need to change that directory to the provided one
-	console.log(`Found --crash-reporter-directory argument. Setting temp directory to be '${crashReporterDirectory}'`);
+	console.log(`Found --crash-reporter-directory argument. Setting crashDumps directory to be '${crashReporterDirectory}'`);
 	app.setPath('crashDumps', crashReporterDirectory);
 }
 
 // Start crash reporter for all processes
-const productName = (product.crashReporter && product.crashReporter.productName) || product.nameShort;
-const companyName = (product.crashReporter && product.crashReporter.companyName) || 'Microsoft';
+const productName = product.crashReporter?.productName || product.nameShort;
+const companyName = product.crashReporter?.companyName || 'Microsoft';
 const appCenter = product.appCenter;
 let submitURL = '';
-if (appCenter) {
+if (appCenter && (argvConfig['disable-crash-reporter'] !== false || argvConfig['disable-crash-reporter'] !== 'false')) {
 	const isWindows = (process.platform === 'win32');
 	const isMacintosh = (process.platform === 'darwin');
 	const isLinux = (process.platform === 'linux');
@@ -121,9 +120,6 @@ registerListeners();
 
 // Cached data
 const nodeCachedDataDir = getNodeCachedDir();
-
-// Configure static command line arguments
-const argvConfig = configureCommandlineSwitchesSync(args);
 
 // Remove env set by snap https://github.com/microsoft/vscode/issues/85344
 if (process.env['SNAP']) {
@@ -207,7 +203,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'disable-color-correct-rendering',
 
 		// override for the color profile to use
-		'force-color-profile'
+		'force-color-profile',
+
+		// disable crash reporting to Appcenter
+		'disable-crash-reporter'
 	];
 
 	if (process.platform === 'linux') {
@@ -333,7 +332,10 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 			'',
 			'	// Enabled by default by VS Code to resolve color issues in the renderer',
 			'	// See https://github.com/Microsoft/vscode/issues/51791 for details',
-			'	"disable-color-correct-rendering": true'
+			'	"disable-color-correct-rendering": true,',
+			'',
+			'	// Enabled by default to record and send crash reports to Appcenter from all processes',
+			'	"disable-crash-reporter": false'
 		];
 
 		if (legacyLocale) {
