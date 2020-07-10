@@ -55,7 +55,7 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 			const uri = URI.parse(this.productService.releaseNotesUrl);
 			await this.openerService.open(uri);
 		} else {
-			throw new Error('This version of Visual Studio Code does not have release notes online');
+			throw new Error(nls.localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", this.productService.nameLong));
 		}
 	}
 }
