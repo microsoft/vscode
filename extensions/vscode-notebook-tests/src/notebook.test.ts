@@ -438,7 +438,7 @@ suite('notebook workflow', () => {
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 
-	test('notebook join cells', async function () {
+	test.skip('notebook join cells', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
