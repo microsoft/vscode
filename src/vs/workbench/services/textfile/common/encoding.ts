@@ -167,7 +167,7 @@ export async function toEncodeReadable(readable: Readable<string>, encoding: str
 	const iconv = await import('iconv-lite-umd');
 	const encoder = iconv.getEncoder(toNodeEncoding(encoding), options);
 
-	let bytesRead = 0;
+	let bytesWritten = false;
 	let done = false;
 
 	return {
@@ -181,9 +181,9 @@ export async function toEncodeReadable(readable: Readable<string>, encoding: str
 				done = true;
 
 				// If we are instructed to add a BOM but we detect that no
-				// bytes have been read, we must ensure to return the BOM
+				// bytes have been written, we must ensure to return the BOM
 				// ourselves so that we comply with the contract.
-				if (bytesRead === 0 && options?.addBOM) {
+				if (!bytesWritten && options?.addBOM) {
 					switch (encoding) {
 						case UTF8:
 						case UTF8_with_bom:
@@ -197,13 +197,15 @@ export async function toEncodeReadable(readable: Readable<string>, encoding: str
 
 				const leftovers = encoder.end();
 				if (leftovers && leftovers.length > 0) {
+					bytesWritten = true;
+
 					return VSBuffer.wrap(leftovers);
 				}
 
 				return null;
 			}
 
-			bytesRead += chunk.length;
+			bytesWritten = true;
 
 			return VSBuffer.wrap(encoder.write(chunk));
 		}
