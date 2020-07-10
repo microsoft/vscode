@@ -49,6 +49,28 @@ export const webFrame = (window as any).vscode.webFrame as {
 	setZoomLevel(level: number): void;
 };
 
+export const crashReporter = (window as any).vscode.crashReporter as {
+
+	/**
+	 * Set an extra parameter to be sent with the crash report. The values specified
+	 * here will be sent in addition to any values set via the `extra` option when
+	 * `start` was called.
+	 *
+	 * Parameters added in this fashion (or via the `extra` parameter to
+	 * `crashReporter.start`) are specific to the calling process. Adding extra
+	 * parameters in the main process will not cause those parameters to be sent along
+	 * with crashes from renderer or other child processes. Similarly, adding extra
+	 * parameters in a renderer process will not result in those parameters being sent
+	 * with crashes that occur in other renderer processes or in the main process.
+	 *
+	 * **Note:** Parameters have limits on the length of the keys and values. Key names
+	 * must be no longer than 39 bytes, and values must be no longer than 127 bytes.
+	 * Keys with names longer than the maximum will be silently ignored. Key values
+	 * longer than the maximum length will be truncated.
+	 */
+	addExtraParameter(key: string, value: string): void;
+};
+
 export const process = (window as any).vscode.process as {
 
 	/**

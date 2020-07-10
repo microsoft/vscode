@@ -17,6 +17,8 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 
 	readonly configuration: INativeEnvironmentConfiguration;
 
+	readonly disableCrashReporter: boolean;
+
 	readonly cliPath: string;
 
 	readonly log?: string;

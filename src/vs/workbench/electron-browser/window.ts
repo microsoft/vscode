@@ -13,7 +13,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, crashReporterIdStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest } from 'vs/platform/windows/common/windows';
 import { IRunActionInWindowRequest, IRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/node/window';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
@@ -23,7 +23,7 @@ import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { crashReporter, ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -46,7 +46,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { MenubarControl } from '../browser/parts/titlebar/menubarControl';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IPreferencesService } from '../services/preferences/common/preferences';
 import { IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
@@ -108,6 +108,7 @@ export class NativeWindow extends Disposable {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
@@ -415,6 +416,17 @@ export class NativeWindow extends Disposable {
 
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
+
+		// Add extra parameters to crash reporter (if enabled)
+		if (!this.environmentService.disableCrashReporter) {
+			this.telemetryService.getTelemetryInfo().then(info => {
+				const { sessionId } = info;
+				const crashReporterId = this.storageService.get(crashReporterIdStorageKey, StorageScope.GLOBAL)!;
+				crashReporter.addExtraParameter('uid', crashReporterId);
+				crashReporter.addExtraParameter('iid', crashReporterId);
+				crashReporter.addExtraParameter('sid', sessionId);
+			});
+		}
 	}
 
 	private setupOpenHandlers(): void {

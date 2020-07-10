@@ -7,7 +7,7 @@
 (function () {
 	'use strict';
 
-	const { ipcRenderer, webFrame, contextBridge } = require('electron');
+	const { ipcRenderer, webFrame, crashReporter, contextBridge } = require('electron');
 
 	const globals = {
 
@@ -70,6 +70,22 @@
 				if (typeof level === 'number') {
 					webFrame.setZoomLevel(level);
 				}
+			}
+		},
+
+		/**
+		 * Support for methods of crashReporter type.
+		 *
+		 * @type {typeof import('../electron-sandbox/globals').crashReporter}
+		 */
+		crashReporter: {
+
+			/**
+			 * @param {string} key
+			 * @param {string} value
+			 */
+			addExtraParameter(key, value) {
+				crashReporter.addExtraParameter(key, value);
 			}
 		},
 
