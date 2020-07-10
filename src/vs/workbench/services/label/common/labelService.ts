@@ -21,7 +21,6 @@ import { match } from 'vs/base/common/glob';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { trim } from 'vs/base/common/strings';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
