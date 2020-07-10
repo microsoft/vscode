@@ -202,7 +202,16 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 		// Handle diff editor specially by merging in diffEditor configuration
 		if (isObject(configuration.diffEditor)) {
-			objects.mixin(editorConfiguration, configuration.diffEditor);
+			// User settings defines `diffEditor.codeLens`, but there is also `editor.codeLens`.
+			// Due to the mixin, the two settings cannot be distinguished anymore.
+			//
+			// So we map `diffEditor.codeLens` to `diffEditor.originalCodeLens` and `diffEditor.modifiedCodeLens`.
+			const diffEditorConfiguration = <IDiffEditorOptions>objects.deepClone(configuration.diffEditor);
+			diffEditorConfiguration.originalCodeLens = diffEditorConfiguration.codeLens;
+			diffEditorConfiguration.modifiedCodeLens = diffEditorConfiguration.codeLens;
+			delete diffEditorConfiguration.codeLens;
+
+			objects.mixin(editorConfiguration, diffEditorConfiguration);
 		}
 
 		return editorConfiguration;
