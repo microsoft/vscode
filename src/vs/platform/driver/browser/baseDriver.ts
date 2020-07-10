@@ -30,6 +30,9 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 
 	const { left, top } = getTopLeftOffset(element as HTMLElement);
 
+	const height = element.clientHeight;
+	const width = element.clientWidth;
+
 	return {
 		tagName: element.tagName,
 		className: element.className,
@@ -37,7 +40,9 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 		attributes,
 		children,
 		left,
-		top
+		top,
+		height,
+		width
 	};
 }
 

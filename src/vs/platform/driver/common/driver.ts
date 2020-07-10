@@ -16,6 +16,8 @@ export interface IElement {
 	children: IElement[];
 	top: number;
 	left: number;
+	height: number;
+	width: number;
 }
 
 export interface IDriver {

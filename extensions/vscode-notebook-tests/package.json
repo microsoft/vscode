@@ -36,6 +36,10 @@
         "command": "vscode-notebook-tests.debugAction",
         "title": "Debug Notebook Test Cell Action",
         "icon": "$(debug)"
+      },
+      {
+        "command": "vscode-notebook-tests.createRealNotebook",
+        "title": "Create Real Notebook"
       }
     ],
     "notebookProvider": [

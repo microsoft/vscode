@@ -6,11 +6,6 @@
 import * as cp from 'child_process';
 import { Application } from '../../../../automation';
 
-// function wait(ms: number): Promise<void> {
-// 	return new Promise(r => setTimeout(r, ms));
-// }
-
-
 export function setup() {
 	describe('Notebooks', () => {
 		after(async function () {
@@ -27,7 +22,7 @@ export function setup() {
 
 		it('inserts/edits code cell', async function () {
 			const app = this.app as Application;
-			await app.workbench.notebook.openNotebook();
+			await app.workbench.notebook.createNewNotebook();
 			await app.workbench.notebook.focusNextCell();
 			await app.workbench.notebook.insertNotebookCell('code');
 			await app.workbench.notebook.waitForTypeInEditor('// some code');
@@ -36,7 +31,7 @@ export function setup() {
 
 		it('inserts/edits markdown cell', async function () {
 			const app = this.app as Application;
-			await app.workbench.notebook.openNotebook();
+			await app.workbench.notebook.createNewNotebook();
 			await app.workbench.notebook.focusNextCell();
 			await app.workbench.notebook.insertNotebookCell('markdown');
 			await app.workbench.notebook.waitForTypeInEditor('## hello2! ');
@@ -46,7 +41,7 @@ export function setup() {
 
 		it('moves focus as it inserts/deletes a cell', async function () {
 			const app = this.app as Application;
-			await app.workbench.notebook.openNotebook();
+			await app.workbench.notebook.createNewNotebook();
 			await app.workbench.notebook.insertNotebookCell('code');
 			await app.workbench.notebook.waitForActiveCellEditorContents(' ');
 			await app.workbench.notebook.stopEditingCell();
@@ -56,7 +51,7 @@ export function setup() {
 
 		it('moves focus in and out of output', async function () {
 			const app = this.app as Application;
-			await app.workbench.notebook.openNotebook();
+			await app.workbench.notebook.createNewNotebook();
 			await app.workbench.notebook.executeActiveCell();
 			await app.workbench.notebook.focusInCellOutput();
 			await app.workbench.notebook.focusOutCellOutput();

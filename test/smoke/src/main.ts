@@ -26,6 +26,7 @@ import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
 import { setup as setupDataSearchTests } from './areas/search/search.test';
 import { setup as setupDataNotebookTests } from './areas/notebook/notebook.test';
+import { setup as setupDataNotebookRandomTests } from './areas/notebook/notebook-random.test';
 import { setup as setupDataLanguagesTests } from './areas/languages/languages.test';
 import { setup as setupDataEditorTests } from './areas/editor/editor.test';
 import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
@@ -240,6 +241,9 @@ function createOptions(): ApplicationOptions {
 		log = 'trace';
 	}
 	return {
+		notebookRandom: opts.notebookRandom,
+		notebookActionList: opts.notebookActionList,
+		pauseAtEnd: opts.pauseAtEnd,
 		quality,
 		codePath: opts.build,
 		workspacePath,
@@ -280,10 +284,10 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 			if (this.currentTest.state !== 'failed') {
 				return;
 			}
-			const app = this.app as Application;
-			const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
+			// const app = this.app as Application;
+			// const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
 
-			await app.captureScreenshot(name);
+			// await app.captureScreenshot(name);
 		});
 	}
 
@@ -312,6 +316,11 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 		after(async function () {
 			await this.app.stop();
 		});
+
+		if (opts.notebookRandom) {
+			setupDataNotebookRandomTests();
+			return;
+		}
 
 		if (!opts.web) { setupDataLossTests(); }
 		if (!opts.web) { setupDataPreferencesTests(); }

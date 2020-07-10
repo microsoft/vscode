@@ -5,6 +5,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as util from 'util';
+import * as mkdirp from 'mkdirp';
 import { Workbench } from './workbench';
 import { Code, spawn, SpawnOptions } from './code';
 import { Logger } from './logger';
@@ -20,6 +22,10 @@ export interface ApplicationOptions extends SpawnOptions {
 	workspacePath: string;
 	waitTime: number;
 	screenshotsPath: string | null;
+
+	notebookRandom?: boolean;
+	notebookActionList?: string;
+	pauseAtEnd?: boolean;
 }
 
 export class Application {
@@ -29,6 +35,22 @@ export class Application {
 
 	constructor(private options: ApplicationOptions) {
 		this._workspacePathOrFolder = options.workspacePath;
+	}
+
+	get pauseAtEnd(): boolean {
+		return !!this.options.pauseAtEnd;
+	}
+
+	get notebookRandom(): boolean {
+		return !!this.options.notebookRandom;
+	}
+
+	get notebookActionList(): string | undefined {
+		return this.options.notebookActionList;
+	}
+
+	get screenshotsPath(): string | null {
+		return this.options.screenshotsPath;
 	}
 
 	get quality(): Quality {
@@ -110,6 +132,8 @@ export class Application {
 			if (this.options.log) {
 				this.logger.log('*** Screenshot recorded:', screenshotPath);
 			}
+
+			await util.promisify(mkdirp)(path.dirname(screenshotPath));
 			fs.writeFileSync(screenshotPath, buffer);
 		}
 	}

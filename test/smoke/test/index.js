@@ -18,7 +18,8 @@ const options = {
 	color: true,
 	timeout: 60000,
 	slow: 30000,
-	grep: opts['f'] || opts['g']
+	grep: opts['f'] || opts['g'],
+	bail: true
 };
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {

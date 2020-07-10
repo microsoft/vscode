@@ -134,6 +134,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	const args = [
 		options.workspacePath,
+		// '--verbose',
 		'--skip-release-notes',
 		'--disable-telemetry',
 		'--no-cached-data',
@@ -183,6 +184,13 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	child = cp.spawn(electronPath, args, spawnOptions);
 	instances.add(child);
 	child.once('exit', () => instances.delete(child!));
+
+	// child.stdout!.on('data', () => { });
+	// child.stderr!.on('data', () => { });
+
+	child.stdout!.pipe(fs.createWriteStream('/tmp/smoke/code_stdout.txt'));
+	child.stderr!.pipe(fs.createWriteStream('/tmp/smoke/code_stderr.txt'));
+
 	connectDriver = connectElectronDriver;
 	return connect(connectDriver, child, outPath, handle, options.logger);
 }
@@ -310,6 +318,11 @@ export class Code {
 	}
 
 	async waitForElements(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0): Promise<IElement[]> {
+		const windowId = await this.getActiveWindowId();
+		return await poll(() => this.driver.getElements(windowId, selector, recursive), accept, `get elements '${selector}'`);
+	}
+
+	async waitForNotebookCells(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0): Promise<IElement[]> {
 		const windowId = await this.getActiveWindowId();
 		return await poll(() => this.driver.getElements(windowId, selector, recursive), accept, `get elements '${selector}'`);
 	}

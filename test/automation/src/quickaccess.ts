@@ -39,13 +39,15 @@ export class QuickAccess {
 		}
 	}
 
-	async openFile(fileName: string): Promise<void> {
+	async openFile(fileName: string, isTextEditor = true): Promise<void> {
 		await this.openQuickAccess(fileName);
 
 		await this.quickInput.waitForQuickInputElements(names => names[0] === fileName);
 		await this.code.dispatchKeybinding('enter');
 		await this.editors.waitForActiveTab(fileName);
-		await this.editors.waitForEditorFocus(fileName);
+		if (isTextEditor) {
+			await this.editors.waitForEditorFocus(fileName);
+		}
 	}
 
 	async runCommand(commandId: string): Promise<void> {
