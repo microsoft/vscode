@@ -157,6 +157,8 @@ export interface INotebookDeltaDecoration {
 
 export interface INotebookEditor extends IEditor {
 
+	cursorNavigationMode: boolean;
+
 	/**
 	 * Notebook view model attached to the current editor
 	 */

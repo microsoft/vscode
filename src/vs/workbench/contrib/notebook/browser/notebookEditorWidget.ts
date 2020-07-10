@@ -161,6 +161,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._renderedEditors.get(focused);
 	}
 
+	private _cursorNavigationMode: boolean = false;
+	get cursorNavigationMode(): boolean {
+		return this._cursorNavigationMode;
+	}
+
+	set cursorNavigationMode(v: boolean) {
+		this._cursorNavigationMode = v;
+	}
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -334,6 +343,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					getWidgetAriaLabel() {
 						return nls.localize('notebookTreeAriaLabel', "Notebook");
 					}
+				},
+				focusNextPreviousDelegate: {
+					onFocusNext: (applyFocusNext: () => void) => this._updateForCursorNavigationMode(applyFocusNext),
+					onFocusPrevious: (applyFocusPrevious: () => void) => this._updateForCursorNavigationMode(applyFocusPrevious),
 				}
 			},
 		);
@@ -373,7 +386,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 		}));
 
-		this._register(this._list.onDidChangeFocus(_e => this._onDidChangeActiveEditor.fire(this)));
+		this._register(this._list.onDidChangeFocus(_e => {
+			this._onDidChangeActiveEditor.fire(this);
+			this._cursorNavigationMode = false;
+		}));
 
 		const widgetFocusTracker = DOM.trackFocus(this.getDomNode());
 		this._register(widgetFocusTracker);
@@ -386,6 +402,23 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._register(this._cellListFocusTracker.onDidBlur(() => {
 			this.updateEditorFocus();
 		}));
+	}
+
+	private _updateForCursorNavigationMode(applyFocusChange: () => void): void {
+		if (this._cursorNavigationMode) {
+			// Will fire onDidChangeFocus, resetting the state to Container
+			applyFocusChange();
+
+			const newFocusedCell = this._list!.getFocusedElements()[0];
+			if (newFocusedCell.cellKind === CellKind.Code || newFocusedCell.editState === CellEditState.Editing) {
+				this.focusNotebookCell(newFocusedCell, 'editor');
+			} else {
+				// Reset to "Editor", the state has not been consumed
+				this._cursorNavigationMode = true;
+			}
+		} else {
+			applyFocusChange();
+		}
 	}
 
 	getDomNode() {

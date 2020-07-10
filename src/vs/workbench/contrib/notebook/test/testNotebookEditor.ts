@@ -77,6 +77,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		return 'notebook.testEditor';
 	}
 
+	cursorNavigationMode = false;
 	activeKernel: INotebookKernelInfo | undefined;
 	onDidChangeKernel: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveEditor: Event<ICompositeCodeEditor> = new Emitter<ICompositeCodeEditor>().event;
