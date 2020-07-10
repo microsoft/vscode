@@ -159,7 +159,7 @@ suite('URI Label', () => {
 });
 
 
-suite.only('multi-root worksapce', () => {
+suite('multi-root worksapce', () => {
 	let labelService: LabelService;
 
 	setup(() => {
@@ -176,7 +176,9 @@ suite.only('multi-root worksapce', () => {
 					new WorkspaceFolder({ uri: other, index: 2, name: resources.basename(other) }, { uri: other.toString() }),
 				])),
 			new TestPathService());
+	});
 
+	test('labels of files in multiroot workspaces are the foldername folloed by offset from the folder', () => {
 		labelService.registerFormatter({
 			scheme: 'file',
 			formatting: {
@@ -188,9 +190,7 @@ suite.only('multi-root worksapce', () => {
 				workspaceSuffix: ''
 			}
 		});
-	});
 
-	test('labels of files in multiroot workspaces are the foldername folloed by offset from the folder', () => {
 		const tests = {
 			'folder1/src/file': 'Sources • file',
 			'folder1/src/folder/file': 'Sources • folder/file',
@@ -201,8 +201,31 @@ suite.only('multi-root worksapce', () => {
 		};
 
 		Object.entries(tests).forEach(([path, label]) => {
-			const generated = labelService.getUriLabel(URI.parse(path), { relative: true });
+			const generated = labelService.getUriLabel(URI.file(path), { relative: true });
 			assert.equal(generated, label);
 		});
+	});
+
+	test('labels with context after path', () => {
+		labelService.registerFormatter({
+			scheme: 'file',
+			formatting: {
+				label: '${path} (${scheme})',
+				separator: '/',
+			}
+		});
+
+		const tests = {
+			'folder1/src/file': 'Sources • file (file)',
+			'folder1/src/folder/file': 'Sources • folder/file (file)',
+			'folder1/other': '/folder1/other (file)',
+			'folder2/other': 'folder2 • other (file)',
+		};
+
+		Object.entries(tests).forEach(([path, label]) => {
+			const generated = labelService.getUriLabel(URI.file(path), { relative: true });
+			assert.equal(generated, label, path);
+		});
+
 	});
 });

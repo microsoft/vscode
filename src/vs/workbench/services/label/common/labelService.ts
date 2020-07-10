@@ -12,7 +12,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWo
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { isEqual, basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
+import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
@@ -21,6 +21,7 @@ import { match } from 'vs/base/common/glob';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { trim } from 'vs/base/common/strings';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -143,8 +144,11 @@ export class LabelService extends Disposable implements ILabelService {
 		if (options.relative && baseResource) {
 			const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
 			let relativeLabel = this.formatUri(resource, formatting, options.noPrefix);
-			if (relativeLabel.startsWith(baseResourceLabel)) {
-				relativeLabel = relativeLabel.substring(1 + baseResourceLabel.length);
+
+			let overlap = 0;
+			while (relativeLabel[overlap] && relativeLabel[overlap] === baseResourceLabel[overlap]) { overlap++; }
+			if (!relativeLabel[overlap] || relativeLabel[overlap] === formatting.separator) {
+				relativeLabel = relativeLabel.substring(1 + overlap);
 			}
 
 			const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
