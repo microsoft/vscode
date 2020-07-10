@@ -194,7 +194,6 @@ suite('multi-root worksapce', () => {
 		const tests = {
 			'folder1/src/file': 'Sources • file',
 			'folder1/src/folder/file': 'Sources • folder/file',
-			'folder1/src/': 'Sources',
 			'folder1/src': 'Sources',
 			'folder1/other': '/folder1/other',
 			'folder2/other': 'folder2 • other',
@@ -218,6 +217,7 @@ suite('multi-root worksapce', () => {
 		const tests = {
 			'folder1/src/file': 'Sources • file (file)',
 			'folder1/src/folder/file': 'Sources • folder/file (file)',
+			'folder1/src': 'Sources',
 			'folder1/other': '/folder1/other (file)',
 			'folder2/other': 'folder2 • other (file)',
 		};
