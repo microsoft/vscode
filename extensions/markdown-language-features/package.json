@@ -114,7 +114,7 @@
 				{
 					"command": "markdown.showPreview",
 					"when": "resourceLangId == markdown",
-					"group": "navigation"
+					"group": "1_open"
 				}
 			],
 			"commandPalette": [
