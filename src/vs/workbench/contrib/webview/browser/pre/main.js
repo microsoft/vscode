@@ -135,7 +135,7 @@
 	 * @return {string}
 	 */
 	function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
-		const encodedState = state ? encodeURIComponent(JSON.stringify(state)) : undefined;
+		const encodedState = state ? encodeURIComponent(state) : undefined;
 		return `
 			const acquireVsCodeApi = (function() {
 				const originalPostMessage = window.parent.postMessage.bind(window.parent);
