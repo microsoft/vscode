@@ -71,16 +71,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('pull');
 	}
 
-	sync(): Promise<void> {
-		return this.channel.call('sync');
-	}
-
 	createSyncTask(): Promise<ISyncTask> {
 		throw new Error('not supported');
-	}
-
-	stop(): Promise<void> {
-		return this.channel.call('stop');
 	}
 
 	replace(uri: URI): Promise<void> {

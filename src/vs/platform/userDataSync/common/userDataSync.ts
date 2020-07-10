@@ -23,7 +23,6 @@ import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/com
 import { distinct } from 'vs/base/common/arrays';
 import { isArray, isString, isObject } from 'vs/base/common/types';
 import { IHeaders } from 'vs/base/parts/request/common/request';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -360,7 +359,8 @@ export type SyncResourceConflicts = { syncResource: SyncResource, conflicts: IRe
 
 export interface ISyncTask {
 	manifest: IUserDataManifest | null;
-	run(token: CancellationToken): Promise<void>;
+	run(): Promise<void>;
+	stop(): Promise<void>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
@@ -380,14 +380,12 @@ export interface IUserDataSyncService {
 	readonly lastSyncTime: number | undefined;
 	readonly onDidChangeLastSyncTime: Event<number>;
 
+	createSyncTask(): Promise<ISyncTask>;
+
 	pull(): Promise<void>;
-	sync(): Promise<void>;
-	stop(): Promise<void>;
 	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
-
-	createSyncTask(): Promise<ISyncTask>
 
 	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
