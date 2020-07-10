@@ -15,5 +15,5 @@ const bootstrapWindow = (() => {
 })();
 
 bootstrapWindow.load(['vs/code/electron-browser/processExplorer/processExplorerMain'], function (processExplorer, configuration) {
-	processExplorer.startup(configuration.data);
+	processExplorer.startup(configuration.windowId, configuration.data);
 }, { forceEnableDeveloperKeybindings: true });

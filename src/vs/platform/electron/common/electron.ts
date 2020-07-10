@@ -64,6 +64,7 @@ export interface ICommonElectronService {
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
 	isAdmin(): Promise<boolean>;
+	getTotalMem(): Promise<number>;
 
 	// clipboard
 	readClipboardText(type?: 'selection' | 'clipboard'): Promise<string>;

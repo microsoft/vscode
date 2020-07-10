@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/processExplorer';
-import { clipboard } from 'electron';
+import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { totalmem } from 'os';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import product from 'vs/platform/product/common/product';
@@ -18,6 +18,7 @@ import { ProcessItem } from 'vs/base/common/processes';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
+import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
@@ -40,7 +41,12 @@ class ProcessExplorer {
 
 	private listeners = new DisposableStore();
 
-	constructor(data: ProcessExplorerData) {
+	private electronService: IElectronService;
+
+	constructor(windowId: number, data: ProcessExplorerData) {
+		const mainProcessService = new MainProcessService(windowId);
+		this.electronService = new ElectronService(windowId, mainProcessService) as IElectronService;
+
 		this.applyStyles(data.styles);
 
 		// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
@@ -341,20 +347,20 @@ class ProcessExplorer {
 
 		items.push({
 			label: localize('copy', "Copy"),
-			click() {
+			click: () => {
 				const row = document.getElementById(pid.toString());
 				if (row) {
-					clipboard.writeText(row.innerText);
+					this.electronService.writeClipboardText(row.innerText);
 				}
 			}
 		});
 
 		items.push({
 			label: localize('copyAll', "Copy All"),
-			click() {
+			click: () => {
 				const processList = document.getElementById('process-list');
 				if (processList) {
-					clipboard.writeText(processList.innerText);
+					this.electronService.writeClipboardText(processList.innerText);
 				}
 			}
 		});
@@ -398,12 +404,12 @@ class ProcessExplorer {
 
 
 
-export function startup(data: ProcessExplorerData): void {
+export function startup(windowId: number, data: ProcessExplorerData): void {
 	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
 	addClass(document.body, platformClass); // used by our fonts
 	applyZoom(data.zoomLevel);
 
-	const processExplorer = new ProcessExplorer(data);
+	const processExplorer = new ProcessExplorer(windowId, data);
 
 	document.onkeydown = (e: KeyboardEvent) => {
 		const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
