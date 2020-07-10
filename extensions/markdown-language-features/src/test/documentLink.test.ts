@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
+import { joinLines } from './util';
 
 const testFileA = workspaceFile('a.md');
 
@@ -75,7 +76,7 @@ suite('Markdown Document links', () => {
 		await executeLink(link);
 
 		assertActiveDocumentUri(workspaceFile('sub', 'c.md'));
-		assert.strictEqual( vscode.window.activeTextEditor!.selection.start.line, 1);
+		assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 1);
 	});
 
 	test('Should navigate to fragment by line', async () => {
@@ -85,7 +86,39 @@ suite('Markdown Document links', () => {
 		await executeLink(link);
 
 		assertActiveDocumentUri(workspaceFile('sub', 'c.md'));
-		assert.strictEqual( vscode.window.activeTextEditor!.selection.start.line, 1);
+		assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 1);
+	});
+
+	test('Should navigate to fragment within current file', async () => {
+		await withFileContents(testFileA, joinLines(
+			'[](a#header)',
+			'[](#header)',
+			'# Header'));
+
+		const links = await getLinksForFile(testFileA);
+		{
+			await executeLink(links[0]);
+			assertActiveDocumentUri(workspaceFile('a.md'));
+			assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 2);
+		}
+		{
+			await executeLink(links[1]);
+			assertActiveDocumentUri(workspaceFile('a.md'));
+			assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 2);
+		}
+	});
+
+	test('Should navigate to fragment within current untitled file', async () => {
+		const testFile = workspaceFile('x.md').with({ scheme: 'untitled' });
+		await withFileContents(testFile, joinLines(
+			'[](#second)',
+			'# Second'));
+
+		const [link] = await getLinksForFile(testFile);
+		await executeLink(link);
+
+		assertActiveDocumentUri(testFile);
+		assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 1);
 	});
 });
 
