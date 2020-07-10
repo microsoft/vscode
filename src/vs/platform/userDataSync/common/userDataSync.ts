@@ -324,7 +324,7 @@ export interface IUserDataSynchroniser {
 
 	pull(): Promise<void>;
 	push(): Promise<void>;
-	sync(manifest: IUserDataManifest | null, headers?: IHeaders): Promise<void>;
+	sync(manifest: IUserDataManifest | null, headers: IHeaders): Promise<void>;
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
