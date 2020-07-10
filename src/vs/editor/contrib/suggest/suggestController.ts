@@ -40,6 +40,9 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as platform from 'vs/base/common/platform';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 let _sticky = false;
@@ -117,9 +120,11 @@ export class SuggestController implements IEditorContribution {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
+		@IClipboardService clipboardService: IClipboardService,
 	) {
 		this.editor = editor;
-		this.model = new SuggestModel(this.editor, editorWorker);
+		this.model = new SuggestModel(this.editor, editorWorker, clipboardService);
 
 		this.widget = this._toDispose.add(new IdleValue(() => {
 
@@ -290,6 +295,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else if (!item.isResolved) {
 			// async additional edits
+			const sw = new StopWatch(true);
 			let position: IPosition | undefined;
 
 			const docListener = model.onDidChangeContent(e => {
@@ -319,22 +325,26 @@ export class SuggestController implements IEditorContribution {
 
 			tasks.push(item.resolve(cts.token).then(() => {
 				if (!item.completion.additionalTextEdits || cts.token.isCancellationRequested) {
-					return;
+					return false;
 				}
 				if (position && item.completion.additionalTextEdits.some(edit => Position.isBefore(position!, Range.getStartPosition(edit.range)))) {
-					return;
+					return false;
 				}
 				if (didType) {
 					this.editor.pushUndoStop();
 				}
+				const scrollState = StableEditorScrollState.capture(this.editor);
 				this.editor.executeEdits(
 					'suggestController.additionalTextEdits.async',
 					item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text))
 				);
+				scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 				if (didType || !(oldFlags & InsertFlags.NoAfterUndoStop)) {
 					this.editor.pushUndoStop();
 				}
-			}).finally(() => {
+				return true;
+			}).then(applied => {
+				this._logService.trace('[suggest] async resolving of edits DONE (ms, applied?)', sw.elapsed(), applied);
 				docListener.dispose();
 				typeListener.dispose();
 			}));
@@ -350,7 +360,8 @@ export class SuggestController implements IEditorContribution {
 			overwriteAfter: info.overwriteAfter,
 			undoStopBefore: false,
 			undoStopAfter: false,
-			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
+			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace),
+			clipboardText: event.model.clipboardText
 		});
 
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {

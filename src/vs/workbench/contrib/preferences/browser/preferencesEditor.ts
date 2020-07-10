@@ -80,7 +80,7 @@ export class PreferencesEditor extends BaseEditor {
 	set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
-	readonly minimumHeight = 260;
+	get minimumHeight() { return 260; }
 
 	private _onDidCreateWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = this._onDidCreateWidget.event;
@@ -206,7 +206,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private updateInput(newInput: PreferencesEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options, token).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
+		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.secondary, <EditorInput>newInput.primary, options, token).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			if (token.isCancellationRequested) {
 				return;
 			}

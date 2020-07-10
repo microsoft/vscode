@@ -36,7 +36,7 @@ export interface NodeRequestOptions extends IRequestOptions {
  */
 export class RequestService extends Disposable implements IRequestService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private proxyUrl?: string;
 	private strictSSL: boolean | undefined;

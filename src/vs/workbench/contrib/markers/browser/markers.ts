@@ -19,12 +19,12 @@ import { ResourceMap } from 'vs/base/common/map';
 export const IMarkersWorkbenchService = createDecorator<IMarkersWorkbenchService>('markersWorkbenchService');
 
 export interface IMarkersWorkbenchService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	readonly markersModel: MarkersModel;
 }
 
 export class MarkersWorkbenchService extends Disposable implements IMarkersWorkbenchService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	readonly markersModel: MarkersModel;
 

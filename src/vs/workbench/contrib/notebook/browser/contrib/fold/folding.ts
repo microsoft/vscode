@@ -12,7 +12,7 @@ import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/brow
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -56,7 +56,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 		}));
 	}
 
-	saveViewState(): any {
+	saveViewState(): ICellRange[] {
 		return this._foldingModel?.getMemento() || [];
 	}
 
@@ -134,11 +134,15 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.fold',
-			title: localize('fold.cell', 'Fold Cell'),
+			title: { value: localize('fold.cell', "Fold Cell"), original: 'Fold Cell' },
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyCode.LeftArrow,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET
+				},
+				secondary: [KeyCode.LeftArrow],
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
@@ -173,11 +177,15 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.unfold',
-			title: localize('unfold.cell', 'Unfold Cell'),
+			title: { value: localize('unfold.cell', "Unfold Cell"), original: 'Unfold Cell' },
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyCode.RightArrow,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET
+				},
+				secondary: [KeyCode.RightArrow],
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,

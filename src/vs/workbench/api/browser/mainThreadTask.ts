@@ -328,10 +328,10 @@ namespace TaskDTO {
 			result.detail = task.configurationProperties.detail;
 		}
 		if (!ConfiguringTask.is(task) && task.command) {
-			if (task.command.runtime === RuntimeType.Process) {
-				result.execution = ProcessExecutionDTO.from(task.command);
-			} else if (task.command.runtime === RuntimeType.Shell) {
-				result.execution = ShellExecutionDTO.from(task.command);
+			switch (task.command.runtime) {
+				case RuntimeType.Process: result.execution = ProcessExecutionDTO.from(task.command); break;
+				case RuntimeType.Shell: result.execution = ShellExecutionDTO.from(task.command); break;
+				case RuntimeType.CustomExecution: result.execution = CustomExecutionDTO.from(task.command); break;
 			}
 		}
 		if (task.configurationProperties.problemMatchers) {
@@ -368,7 +368,7 @@ namespace TaskDTO {
 
 		const label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		const definition = TaskDefinitionDTO.to(task.definition, executeOnly)!;
-		const id = `${task.source.extensionId}.${definition._key}`;
+		const id = (CustomExecutionDTO.is(task.execution!) && task._id) ? task._id : `${task.source.extensionId}.${definition._key}`;
 		const result: ContributedTask = new ContributedTask(
 			id, // uuidMap.getUUID(identifier)
 			source,
@@ -510,6 +510,32 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
+	public async $getTaskExecution(value: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO> {
+		if (TaskHandleDTO.is(value)) {
+			const workspaceFolder = typeof value.workspaceFolder === 'string' ? value.workspaceFolder : this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
+			if (workspaceFolder) {
+				const task = await this._taskService.getTask(workspaceFolder, value.id, true);
+				if (task) {
+					return {
+						id: task._id,
+						task: TaskDTO.from(task)
+					};
+				}
+				throw new Error('Task not found');
+			} else {
+				throw new Error('No workspace folder');
+			}
+		} else {
+			const task = TaskDTO.to(value, this._workspaceContextServer, true)!;
+			return {
+				id: task._id,
+				task: TaskDTO.from(task)
+			};
+		}
+	}
+
+	// Passing in a TaskHandleDTO will cause the task to get re-resolved, which is important for tasks are coming from the core,
+	// such as those gotten from a fetchTasks, since they can have missing configuration properties.
 	public $executeTask(value: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO> {
 		return new Promise<TaskExecutionDTO>((resolve, reject) => {
 			if (TaskHandleDTO.is(value)) {
@@ -547,6 +573,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 			}
 		});
 	}
+
 
 	public $customExecutionComplete(id: string, result?: number): Promise<void> {
 		return new Promise<void>((resolve, reject) => {

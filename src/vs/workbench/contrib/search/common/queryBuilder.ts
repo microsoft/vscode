@@ -7,7 +7,6 @@ import * as arrays from 'vs/base/common/arrays';
 import * as collections from 'vs/base/common/collections';
 import * as glob from 'vs/base/common/glob';
 import { untildify } from 'vs/base/common/labels';
-import { values } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
@@ -324,7 +323,7 @@ export class QueryBuilder {
 			}
 		});
 
-		return values(searchPathPatternMap);
+		return Array.from(searchPathPatternMap.values());
 	}
 
 	/**

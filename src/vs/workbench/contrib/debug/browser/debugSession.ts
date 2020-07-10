@@ -98,6 +98,11 @@ export class DebugSession implements IDebugSession {
 				dispose(toDispose);
 			}));
 		}
+
+		const compoundRoot = this._options.compoundRoot;
+		if (compoundRoot) {
+			toDispose.push(compoundRoot.onDidSessionStop(() => this.terminate()));
+		}
 	}
 
 	getId(): string {
@@ -122,6 +127,10 @@ export class DebugSession implements IDebugSession {
 
 	get parentSession(): IDebugSession | undefined {
 		return this._options.parentSession;
+	}
+
+	get compact(): boolean {
+		return !!this._options.compact;
 	}
 
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
@@ -280,6 +289,10 @@ export class DebugSession implements IDebugSession {
 		} else {
 			await this.raw.disconnect(restart);
 		}
+
+		if (!restart) {
+			this._options.compoundRoot?.sessionStopped();
+		}
 	}
 
 	/**
@@ -292,6 +305,10 @@ export class DebugSession implements IDebugSession {
 
 		this.cancelAllRequests();
 		await this.raw.disconnect(restart);
+
+		if (!restart) {
+			this._options.compoundRoot?.sessionStopped();
+		}
 	}
 
 	/**
@@ -489,12 +506,12 @@ export class DebugSession implements IDebugSession {
 		await this.raw.next({ threadId });
 	}
 
-	async stepIn(threadId: number): Promise<void> {
+	async stepIn(threadId: number, targetId?: number): Promise<void> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'stepIn'));
 		}
 
-		await this.raw.stepIn({ threadId });
+		await this.raw.stepIn({ threadId, targetId });
 	}
 
 	async stepOut(threadId: number): Promise<void> {
@@ -611,6 +628,15 @@ export class DebugSession implements IDebugSession {
 			column: position.column,
 			line: position.lineNumber,
 		}, token);
+	}
+
+	async stepInTargets(frameId: number): Promise<{ id: number, label: string }[]> {
+		if (!this.raw) {
+			return Promise.reject(new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'stepInTargets')));
+		}
+
+		const response = await this.raw.stepInTargets({ frameId });
+		return response.body.targets;
 	}
 
 	async cancel(progressId: string): Promise<DebugProtocol.CancelResponse> {

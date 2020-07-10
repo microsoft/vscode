@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, SyncResource, IUserDataSyncService, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, SyncResource, IUserDataSyncService, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle, ISyncTask } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly channel: IChannel;
 
@@ -37,6 +37,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	private _onSyncErrors: Emitter<[SyncResource, UserDataSyncError][]> = this._register(new Emitter<[SyncResource, UserDataSyncError][]>());
 	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]> = this._onSyncErrors.event;
+
+	get onSynchronizeResource(): Event<SyncResource> { return this.channel.listen<SyncResource>('onSynchronizeResource'); }
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService
@@ -69,12 +71,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('pull');
 	}
 
-	sync(): Promise<void> {
-		return this.channel.call('sync');
-	}
-
-	stop(): Promise<void> {
-		return this.channel.call('stop');
+	createSyncTask(): Promise<ISyncTask> {
+		throw new Error('not supported');
 	}
 
 	replace(uri: URI): Promise<void> {
@@ -89,12 +87,16 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('resetLocal');
 	}
 
-	isFirstTimeSyncWithMerge(): Promise<boolean> {
-		return this.channel.call('isFirstTimeSyncWithMerge');
+	hasPreviouslySynced(): Promise<boolean> {
+		return this.channel.call('hasPreviouslySynced');
 	}
 
-	acceptConflict(conflict: URI, content: string): Promise<void> {
-		return this.channel.call('acceptConflict', [conflict, content]);
+	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean> {
+		return this.channel.call('isFirstTimeSyncingWithAnotherMachine');
+	}
+
+	acceptPreviewContent(resource: URI, content: string): Promise<void> {
+		return this.channel.call('acceptPreviewContent', [resource, content]);
 	}
 
 	resolveContent(resource: URI): Promise<string | null> {
@@ -116,6 +118,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return result.map(({ resource, comparableResource }) => ({ resource: URI.revive(resource), comparableResource: URI.revive(comparableResource) }));
 	}
 
+	async getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
+		return this.channel.call<string | undefined>('getMachineId', [resource, syncResourceHandle]);
+	}
+
 	private async updateStatus(status: SyncStatus): Promise<void> {
 		this._status = status;
 		this._onDidChangeStatus.fire(status);
@@ -126,8 +132,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this._conflicts = conflicts.map(c =>
 			({
 				syncResource: c.syncResource,
-				conflicts: c.conflicts.map(({ local, remote }) =>
-					({ local: URI.revive(local), remote: URI.revive(remote) }))
+				conflicts: c.conflicts.map(r =>
+					({
+						...r,
+						localResource: URI.revive(r.localResource),
+						remoteResource: URI.revive(r.remoteResource),
+						previewResource: URI.revive(r.previewResource),
+					}))
 			}));
 		this._onDidChangeConflicts.fire(conflicts);
 	}

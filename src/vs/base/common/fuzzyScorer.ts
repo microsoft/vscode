@@ -833,7 +833,7 @@ export interface IPreparedQuery extends IPreparedQueryPiece {
 	values: IPreparedQueryPiece[] | undefined;
 
 	/**
-	 * Wether the query contains path separator(s) or not.
+	 * Whether the query contains path separator(s) or not.
 	 */
 	containsPathSeparator: boolean;
 }

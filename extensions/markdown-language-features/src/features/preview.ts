@@ -227,10 +227,10 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	}
 
 	private get iconPath() {
-		const root = path.join(this._contributionProvider.extensionPath, 'media');
+		const root = vscode.Uri.joinPath(this._contributionProvider.extensionUri, 'media');
 		return {
-			light: vscode.Uri.file(path.join(root, 'preview-light.svg')),
-			dark: vscode.Uri.file(path.join(root, 'preview-dark.svg'))
+			light: vscode.Uri.joinPath(root, 'preview-light.svg'),
+			dark: vscode.Uri.joinPath(root, 'preview-dark.svg'),
 		};
 	}
 
@@ -612,7 +612,12 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 		}));
 
 		this._register(vscode.window.onDidChangeActiveTextEditor(editor => {
-			if (editor && isMarkdownFile(editor.document) && !this._locked && !this._preview.isPreviewOf(editor.document.uri)) {
+			// Only allow previewing normal text editors which have a viewColumn: See #101514
+			if (typeof editor?.viewColumn === 'undefined') {
+				return;
+			}
+
+			if (isMarkdownFile(editor.document) && !this._locked && !this._preview.isPreviewOf(editor.document.uri)) {
 				const line = getVisibleLine(editor);
 				this.update(editor.document.uri, line ? new StartingScrollLine(line) : undefined);
 			}

@@ -90,7 +90,7 @@ export class SearchEditor extends BaseTextEditor {
 		@IModelService private readonly modelService: IModelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
@@ -410,7 +410,7 @@ export class SearchEditor extends BaseTextEditor {
 		this.searchResultEditor.focus();
 	}
 
-	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; }) {
+	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; focusResults?: boolean }) {
 		const options = { resetCursor: true, delay: 0, ..._options };
 
 		if (!this.pauseSearching) {
@@ -420,6 +420,9 @@ export class SearchEditor extends BaseTextEditor {
 				if (options.resetCursor) {
 					this.searchResultEditor.setPosition(new Position(1, 1));
 					this.searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
+				}
+				if (options.focusResults) {
+					this.searchResultEditor.focus();
 				}
 			}, options.delay);
 		}
@@ -540,8 +543,10 @@ export class SearchEditor extends BaseTextEditor {
 		this.saveViewState();
 
 		await super.setInput(newInput, options, token);
+		if (token.isCancellationRequested) { return; }
 
 		const { body, config } = await newInput.getModels();
+		if (token.isCancellationRequested) { return; }
 
 		this.searchResultEditor.setModel(body);
 		this.pauseSearching = true;

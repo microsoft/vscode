@@ -2024,7 +2024,7 @@ class ConfigurationParser {
 			}
 			context.problemReporter.error(
 				nls.localize(
-					'TaskParse.noOsSpecificGlobalTasks',
+					{ key: 'TaskParse.noOsSpecificGlobalTasks', comment: ['\"Task version 2.0.0\" refers to the 2.0.0 version of the task system. The \"version 2.0.0\" is not localizable as it is a json key and value.'] },
 					'Task version 2.0.0 doesn\'t support global OS specific tasks. Convert them to a task with a OS specific command. Affected tasks are:\n{0}', taskContent.join('\n'))
 			);
 		}

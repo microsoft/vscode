@@ -16,7 +16,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
 import * as semver from 'semver-umd';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
@@ -51,12 +50,12 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), undefined, true);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		if (this.productService.releaseNotesUrl) {
 			const uri = URI.parse(this.productService.releaseNotesUrl);
-			return this.openerService.open(uri);
+			await this.openerService.open(uri);
 		}
-		return Promise.resolve(false);
+		throw new Error('This version of Visual Studio Code does not have release notes online');
 	}
 }
 
@@ -71,18 +70,22 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		super(id, label, undefined, true);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		if (!this.enabled) {
-			return Promise.resolve(false);
+			return;
 		}
-
 		this.enabled = false;
 
-		return showReleaseNotes(this.instantiationService, this.version)
-			.then(undefined, () => {
-				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
-				return action.run().then(() => false);
-			});
+		try {
+			await showReleaseNotes(this.instantiationService, this.version);
+		} catch (err) {
+			const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
+			try {
+				await action.run();
+			} catch (err2) {
+				throw new Error(`${err.message} and ${err2.message}`);
+			}
+		}
 	}
 }
 
@@ -174,7 +177,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -273,11 +275,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private onUpdateNotAvailable(): void {
-		this.dialogService.show(
-			severity.Info,
-			nls.localize('noUpdatesAvailable', "There are currently no updates available."),
-			[nls.localize('ok', "OK")]
-		);
+		this.notificationService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
 	}
 
 	// linux
