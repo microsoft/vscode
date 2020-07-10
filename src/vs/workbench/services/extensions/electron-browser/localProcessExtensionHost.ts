@@ -26,7 +26,7 @@ import { ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/comm
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, crashReporterIdStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
@@ -43,6 +43,8 @@ import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -95,7 +97,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
 		@IHostService private readonly _hostService: IHostService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -148,10 +151,12 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		if (!this._messageProtocol) {
 			this._messageProtocol = Promise.all([
 				this._tryListenOnPipe(),
-				this._tryFindDebugPort()
+				this._tryFindDebugPort(),
+				this._telemetryService.getTelemetryInfo()
 			]).then(data => {
 				const pipeName = data[0];
 				const portNumber = data[1];
+				const telemetryInfo = data[2];
 
 				const opts = {
 					env: objects.mixin(objects.deepClone(process.env), {
@@ -179,6 +184,34 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					];
 				} else {
 					opts.execArgv = ['--inspect-port=0'];
+				}
+
+				// On linux crash reporter needs to be started on child processes explicitly
+				if (platform.isLinux) {
+					const crashesDirectory = this._environmentService.crashReporterDirectory;
+					const appcenter = this._productService.appCenter;
+					const crashReporterStartOptions: CrashReporterStartOptions = {
+						companyName: this._productService.crashReporter?.companyName || 'Microsoft',
+						productName: this._productService.crashReporter?.productName || this._productService.nameShort,
+						submitURL: '',
+						uploadToServer: false
+					};
+					if (!crashesDirectory && appcenter && !this._environmentService.disableCrashReporter) {
+						crashReporterStartOptions.submitURL = appcenter[`linux-x64`];
+						crashReporterStartOptions.uploadToServer = true;
+					}
+					opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
+				}
+				// Add extra parameters to crash reporter (if enabled)
+				if (!this._environmentService.disableCrashReporter) {
+					const { sessionId } = telemetryInfo;
+					const crashReporterId = this.storageService.get(crashReporterIdStorageKey, StorageScope.GLOBAL)!;
+					const crashReporterExtraParameters = {
+						'uid': crashReporterId,
+						'iid': crashReporterId,
+						'sid': sessionId
+					};
+					opts.env.CRASH_REPORTER_EXTRA_PARAMETERS = JSON.stringify(crashReporterExtraParameters);
 				}
 
 				// Run Extension Host as fork of current process
