@@ -197,7 +197,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return super.updateResourcePreviewContent(resourcePreview, resource, previewContent, token) as Promise<IFileResourcePreview>;
 	}
 
-	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: IFileResourcePreview[], forcePush: boolean): Promise<void> {
+	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: IFileResourcePreview[], force: boolean): Promise<void> {
 		let { fileContent, previewContent: content, localChange, remoteChange } = resourcePreviews[0];
 
 		if (content !== null) {
@@ -209,7 +209,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 				if (fileContent) {
 					await this.backupLocal(JSON.stringify(this.toSettingsSyncContent(fileContent.value.toString())));
 				}
-				await this.updateLocalFileContent(content, fileContent);
+				await this.updateLocalFileContent(content, fileContent, force);
 				this.logService.info(`${this.syncResourceLogLabel}: Updated local settings`);
 			}
 			if (remoteChange !== Change.None) {
@@ -219,7 +219,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 				const ignoredSettings = await this.getIgnoredSettings(content);
 				content = updateIgnoredSettings(content, remoteSettingsSyncContent ? remoteSettingsSyncContent.settings : '{}', ignoredSettings, formatUtils);
 				this.logService.trace(`${this.syncResourceLogLabel}: Updating remote settings...`);
-				remoteUserData = await this.updateRemoteUserData(JSON.stringify(this.toSettingsSyncContent(content)), forcePush ? null : remoteUserData.ref);
+				remoteUserData = await this.updateRemoteUserData(JSON.stringify(this.toSettingsSyncContent(content)), force ? null : remoteUserData.ref);
 				this.logService.info(`${this.syncResourceLogLabel}: Updated remote settings`);
 			}
 
@@ -260,6 +260,10 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
+		if (isEqual(this.file, uri)) {
+			const fileContent = await this.getLocalFileContent();
+			return fileContent ? fileContent.value.toString() : '';
+		}
 		if (isEqual(this.remotePreviewResource, uri) || isEqual(this.localPreviewResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}
@@ -283,8 +287,8 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return null;
 	}
 
-	protected async resolvePreviewContent(conflictResource: URI): Promise<string | null> {
-		let content = await super.resolvePreviewContent(conflictResource);
+	protected async resolvePreviewContent(resource: URI): Promise<string | null> {
+		let content = await super.resolvePreviewContent(resource);
 		if (content !== null) {
 			const formatUtils = await this.getFormattingOptions();
 			// remove ignored settings from the preview content

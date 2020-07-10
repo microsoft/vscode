@@ -167,7 +167,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		}];
 	}
 
-	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: IFileResourcePreview[], forcePush: boolean): Promise<void> {
+	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: IFileResourcePreview[], force: boolean): Promise<void> {
 		let { fileContent, previewContent: content, localChange, remoteChange } = resourcePreviews[0];
 
 		if (content !== null) {
@@ -180,14 +180,14 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 				if (fileContent) {
 					await this.backupLocal(this.toSyncContent(fileContent.value.toString(), null));
 				}
-				await this.updateLocalFileContent(content, fileContent);
+				await this.updateLocalFileContent(content, fileContent, force);
 				this.logService.info(`${this.syncResourceLogLabel}: Updated local keybindings`);
 			}
 
 			if (remoteChange !== Change.None) {
 				this.logService.trace(`${this.syncResourceLogLabel}: Updating remote keybindings...`);
 				const remoteContents = this.toSyncContent(content, remoteUserData.syncData ? remoteUserData.syncData.content : null);
-				remoteUserData = await this.updateRemoteUserData(remoteContents, forcePush ? null : remoteUserData.ref);
+				remoteUserData = await this.updateRemoteUserData(remoteContents, force ? null : remoteUserData.ref);
 				this.logService.info(`${this.syncResourceLogLabel}: Updated remote keybindings`);
 			}
 
@@ -230,6 +230,10 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
+		if (isEqual(this.file, uri)) {
+			const fileContent = await this.getLocalFileContent();
+			return fileContent ? fileContent.value.toString() : '';
+		}
 		if (isEqual(this.remotePreviewResource, uri) || isEqual(this.localPreviewResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}

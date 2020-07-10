@@ -287,7 +287,7 @@ suite('SnippetsSync', () => {
 		await updateSnippet('html.json', htmlSnippet2, testClient);
 		await testObject.sync(await testClient.manifest());
 		const conflicts = testObject.conflicts;
-		await testObject.acceptPreviewContent(conflicts[0].previewResource, htmlSnippet1);
+		await testObject.acceptPreviewContent(conflicts[0].previewResource, htmlSnippet1, false);
 
 		assert.equal(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
@@ -329,7 +329,7 @@ suite('SnippetsSync', () => {
 		await testObject.sync(await testClient.manifest());
 
 		let conflicts = testObject.conflicts;
-		await testObject.acceptPreviewContent(conflicts[0].previewResource, htmlSnippet2);
+		await testObject.acceptPreviewContent(conflicts[0].previewResource, htmlSnippet2, false);
 
 		conflicts = testObject.conflicts;
 		assert.equal(testObject.status, SyncStatus.HasConflicts);
@@ -348,8 +348,8 @@ suite('SnippetsSync', () => {
 		await testObject.sync(await testClient.manifest());
 
 		const conflicts = testObject.conflicts;
-		await testObject.acceptPreviewContent(conflicts[0].previewResource, htmlSnippet2);
-		await testObject.acceptPreviewContent(conflicts[1].previewResource, tsSnippet1);
+		await testObject.acceptPreviewContent(conflicts[0].previewResource, htmlSnippet2, false);
+		await testObject.acceptPreviewContent(conflicts[1].previewResource, tsSnippet1, false);
 
 		assert.equal(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
@@ -466,7 +466,7 @@ suite('SnippetsSync', () => {
 
 		await updateSnippet('html.json', htmlSnippet3, testClient);
 		await testObject.sync(await testClient.manifest());
-		await testObject.acceptPreviewContent(testObject.conflicts[0].previewResource, htmlSnippet2);
+		await testObject.acceptPreviewContent(testObject.conflicts[0].previewResource, htmlSnippet2, false);
 
 		assert.equal(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
@@ -570,7 +570,7 @@ suite('SnippetsSync', () => {
 
 		await updateSnippet('html.json', htmlSnippet2, testClient);
 		await testObject.sync(await testClient.manifest());
-		await testObject.acceptPreviewContent(testObject.conflicts[0].previewResource, htmlSnippet3);
+		await testObject.acceptPreviewContent(testObject.conflicts[0].previewResource, htmlSnippet3, false);
 
 		assert.equal(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
@@ -597,7 +597,7 @@ suite('SnippetsSync', () => {
 
 		await updateSnippet('html.json', htmlSnippet2, testClient);
 		await testObject.sync(await testClient.manifest());
-		await testObject.acceptPreviewContent(testObject.conflicts[0].previewResource, '');
+		await testObject.acceptPreviewContent(testObject.conflicts[0].previewResource, '', false);
 
 		assert.equal(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
@@ -694,7 +694,7 @@ suite('SnippetsSync', () => {
 		await testObject.sync(await testClient.manifest());
 
 		let conflicts = testObject.conflicts;
-		await testObject.acceptPreviewContent(conflicts[0].previewResource, htmlSnippet2);
+		await testObject.acceptPreviewContent(conflicts[0].previewResource, htmlSnippet2, false);
 
 		assert.deepEqual(testObject.resourcePreviews, []);
 		const fileService = testClient.instantiationService.get(IFileService);

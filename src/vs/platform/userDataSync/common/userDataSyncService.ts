@@ -241,12 +241,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
-	async acceptPreviewContent(resource: URI, content: string): Promise<void> {
+	async acceptPreviewContent(resource: URI, content: string, executionId: string = generateUuid()): Promise<void> {
 		await this.checkEnablement();
 		const synchroniser = this.synchronisers.find(synchroniser => synchroniser.resourcePreviews.some(({ localResource, previewResource, remoteResource }) =>
 			isEqual(resource, localResource) || isEqual(resource, previewResource) || isEqual(resource, remoteResource)));
 		if (synchroniser) {
-			await synchroniser.acceptPreviewContent(resource, content);
+			await synchroniser.acceptPreviewContent(resource, content, false, { 'X-Execution-Id': executionId });
 		}
 	}
 

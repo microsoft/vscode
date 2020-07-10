@@ -38,7 +38,7 @@ class TestSynchroniser extends AbstractSynchroniser {
 		return super.getLatestRemoteUserData(manifest, lastSyncUserData);
 	}
 
-	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus> {
+	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean): Promise<SyncStatus> {
 		this.cancelled = false;
 		this.onDoSyncCall.fire();
 		await this.syncBarrier.wait();
@@ -47,7 +47,7 @@ class TestSynchroniser extends AbstractSynchroniser {
 			return SyncStatus.Idle;
 		}
 
-		return super.doSync(remoteUserData, lastSyncUserData);
+		return super.doSync(remoteUserData, lastSyncUserData, apply);
 	}
 
 	protected async generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestResourcePreview[]> {
@@ -75,11 +75,11 @@ class TestSynchroniser extends AbstractSynchroniser {
 
 	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, preview: ITestResourcePreview[], forcePush: boolean): Promise<void> {
 		if (preview[0]?.ref) {
-			await this.apply(preview[0].ref);
+			await this.applyRef(preview[0].ref);
 		}
 	}
 
-	async apply(ref: string): Promise<void> {
+	async applyRef(ref: string): Promise<void> {
 		const remoteUserData = await this.updateRemoteUserData('', ref);
 		await this.updateLastSyncUserData(remoteUserData);
 	}
@@ -191,7 +191,7 @@ suite('TestSynchronizer', () => {
 		assert.deepEqual(actual, []);
 		assert.deepEqual(testObject.status, SyncStatus.Syncing);
 
-		testObject.stop();
+		await testObject.stop();
 	});
 
 	test('sync should not run if disabled', async () => {
@@ -231,7 +231,7 @@ suite('TestSynchronizer', () => {
 		// update remote data before syncing so that 412 is thrown by server
 		const disposable = testObject.onDoSyncCall.event(async () => {
 			disposable.dispose();
-			await testObject.apply(ref);
+			await testObject.applyRef(ref);
 			server.reset();
 			testObject.syncBarrier.open();
 		});

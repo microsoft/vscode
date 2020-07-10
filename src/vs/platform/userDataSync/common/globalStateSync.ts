@@ -75,70 +75,15 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	protected async generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, token: CancellationToken): Promise<IGlobalStateResourcePreview[]> {
-		const localGlobalState = await this.getLocalGlobalState();
-		const resourcePreviews: IGlobalStateResourcePreview[] = [];
-		const localResource = GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI;
-		const localContent = this.format(localGlobalState);
-		const remoteResource = this.remotePreviewResource;
-		const previewResource = this.localPreviewResource;
-		const previewContent = null;
-		if (remoteUserData.syncData !== null) {
-			const remoteGlobalState: IGlobalState = JSON.parse(remoteUserData.syncData.content);
-			const mergeResult = merge(localGlobalState.storage, remoteGlobalState.storage, null, this.getSyncStorageKeys(), lastSyncUserData?.skippedStorageKeys || [], this.logService);
-			const { local, remote, skipped } = mergeResult;
-			resourcePreviews.push({
-				localResource,
-				localContent,
-				remoteResource,
-				remoteContent: this.format(remoteGlobalState),
-				previewResource,
-				previewContent,
-				local,
-				remote,
-				localUserData: localGlobalState,
-				skippedStorageKeys: skipped,
-				localChange: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0 ? Change.Modified : Change.None,
-				remoteChange: remote !== null ? Change.Modified : Change.None,
-				hasConflicts: false,
-			});
-		} else {
-			resourcePreviews.push({
-				localResource,
-				localContent,
-				remoteResource,
-				remoteContent: null,
-				previewResource,
-				previewContent,
-				local: { added: {}, removed: [], updated: {} },
-				remote: null,
-				localUserData: localGlobalState,
-				skippedStorageKeys: [],
-				localChange: Change.None,
-				remoteChange: Change.None,
-				hasConflicts: false,
-			});
-		}
-		return resourcePreviews;
+		const remoteContent = remoteUserData.syncData !== null ? remoteUserData.syncData.content : null;
+		const pullPreview = await this.getPullPreview(remoteContent, lastSyncUserData?.skippedStorageKeys || []);
+		return [pullPreview];
 	}
 
 	protected async generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, token: CancellationToken): Promise<IGlobalStateResourcePreview[]> {
-		const localUserData = await this.getLocalGlobalState();
-		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
-		return [{
-			localResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI,
-			localContent: this.format(localUserData),
-			remoteResource: this.remotePreviewResource,
-			remoteContent: remoteGlobalState ? this.format(remoteGlobalState) : null,
-			previewResource: this.localPreviewResource,
-			previewContent: null,
-			local: { added: {}, removed: [], updated: {} },
-			remote: localUserData.storage,
-			localUserData,
-			skippedStorageKeys: [],
-			localChange: Change.None,
-			remoteChange: Change.Modified,
-			hasConflicts: false,
-		}];
+		const remoteContent = remoteUserData.syncData !== null ? remoteUserData.syncData.content : null;
+		const pushPreview = await this.getPushPreview(remoteContent);
+		return [pushPreview];
 	}
 
 	protected async generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IGlobalStateResourcePreview[]> {
@@ -196,7 +141,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}];
 	}
 
-	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, resourcePreviews: IGlobalStateResourcePreview[], forcePush: boolean): Promise<void> {
+	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, resourcePreviews: IGlobalStateResourcePreview[], force: boolean): Promise<void> {
 		let { local, remote, localUserData, localChange, remoteChange, skippedStorageKeys } = resourcePreviews[0];
 
 		if (localChange === Change.None && remoteChange === Change.None) {
@@ -215,7 +160,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			// update remote
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote ui state...`);
 			const content = JSON.stringify(<IGlobalState>{ storage: remote });
-			remoteUserData = await this.updateRemoteUserData(content, forcePush ? null : remoteUserData.ref);
+			remoteUserData = await this.updateRemoteUserData(content, force ? null : remoteUserData.ref);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated remote ui state`);
 		}
 
@@ -225,6 +170,81 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			await this.updateLastSyncUserData(remoteUserData, { skippedStorageKeys });
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized ui state`);
 		}
+	}
+
+	protected async updateResourcePreviewContent(resourcePreview: IGlobalStateResourcePreview, resource: URI, previewContent: string, token: CancellationToken): Promise<IGlobalStateResourcePreview> {
+		if (GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI, resource) {
+			return this.getPushPreview(resourcePreview.remoteContent);
+		}
+		if (this.remotePreviewResource, resource) {
+			return this.getPullPreview(resourcePreview.remoteContent, resourcePreview.skippedStorageKeys);
+		}
+		return resourcePreview;
+	}
+
+	private async getPullPreview(remoteContent: string | null, skippedStorageKeys: string[]): Promise<IGlobalStateResourcePreview> {
+		const localGlobalState = await this.getLocalGlobalState();
+		const localResource = GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI;
+		const localContent = this.format(localGlobalState);
+		const remoteResource = this.remotePreviewResource;
+		const previewResource = this.localPreviewResource;
+		const previewContent = null;
+		if (remoteContent !== null) {
+			const remoteGlobalState: IGlobalState = JSON.parse(remoteContent);
+			const mergeResult = merge(localGlobalState.storage, remoteGlobalState.storage, null, this.getSyncStorageKeys(), skippedStorageKeys, this.logService);
+			const { local, remote, skipped } = mergeResult;
+			return {
+				localResource,
+				localContent,
+				remoteResource,
+				remoteContent: this.format(remoteGlobalState),
+				previewResource,
+				previewContent,
+				local,
+				remote,
+				localUserData: localGlobalState,
+				skippedStorageKeys: skipped,
+				localChange: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0 ? Change.Modified : Change.None,
+				remoteChange: remote !== null ? Change.Modified : Change.None,
+				hasConflicts: false,
+			};
+		} else {
+			return {
+				localResource,
+				localContent,
+				remoteResource,
+				remoteContent: null,
+				previewResource,
+				previewContent,
+				local: { added: {}, removed: [], updated: {} },
+				remote: null,
+				localUserData: localGlobalState,
+				skippedStorageKeys: [],
+				localChange: Change.None,
+				remoteChange: Change.None,
+				hasConflicts: false,
+			};
+		}
+	}
+
+	private async getPushPreview(remoteContent: string | null): Promise<IGlobalStateResourcePreview> {
+		const localUserData = await this.getLocalGlobalState();
+		const remoteGlobalState: IGlobalState = remoteContent ? JSON.parse(remoteContent) : null;
+		return {
+			localResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI,
+			localContent: this.format(localUserData),
+			remoteResource: this.remotePreviewResource,
+			remoteContent: remoteGlobalState ? this.format(remoteGlobalState) : null,
+			previewResource: this.localPreviewResource,
+			previewContent: null,
+			local: { added: {}, removed: [], updated: {} },
+			remote: localUserData.storage,
+			localUserData,
+			skippedStorageKeys: [],
+			localChange: Change.None,
+			remoteChange: Change.Modified,
+			hasConflicts: false,
+		};
 	}
 
 	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
