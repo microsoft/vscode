@@ -28,7 +28,6 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { suggestFilename } from 'vs/base/common/mime';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -38,6 +37,7 @@ import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, UTF8_BOM, detectEncodingByBOMFromBuffer, toEncodeReadable, toDecodeStream, IDecodeStreamResult } from 'vs/workbench/services/textfile/common/encoding';
 import { consumeStream } from 'vs/base/common/stream';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -65,7 +65,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IPathService private readonly pathService: IPathService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IModeService private readonly modeService: IModeService
 	) {
 		super();
 
@@ -442,8 +443,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				// Add mode file extension if specified
 				const mode = model.getMode();
-				if (mode !== PLAINTEXT_MODE_ID) {
-					suggestedFilename = suggestFilename(mode, untitledName);
+				if (mode && mode !== PLAINTEXT_MODE_ID) {
+					suggestedFilename = this.suggestFilename(mode, untitledName);
 				} else {
 					suggestedFilename = untitledName;
 				}
@@ -458,6 +459,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Try to place where last active file was if any
 		// Otherwise fallback to user home
 		return joinPath(this.fileDialogService.defaultFilePath() || (await this.pathService.userHome()), suggestedFilename);
+	}
+
+	suggestFilename(mode: string, untitledName: string) {
+		const extension = this.modeService.getExtensions(mode)[0];
+		if (extension) {
+			if (!untitledName.endsWith(extension)) {
+				return untitledName + extension;
+			}
+		}
+		const filename = this.modeService.getFilenames(mode)[0];
+		return filename || untitledName;
 	}
 
 	//#endregion
