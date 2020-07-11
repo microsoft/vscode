@@ -38,6 +38,9 @@ export interface IDialogStyles extends IButtonStyles, ISimpleCheckboxStyles {
 	dialogBackground?: Color;
 	dialogShadow?: Color;
 	dialogBorder?: Color;
+	errorIconForeground?: Color;
+	warningIconForeground?: Color;
+	infoIconForeground?: Color;
 }
 
 interface ButtonMapEntry {
@@ -70,6 +73,7 @@ export class Dialog extends Disposable {
 		this.modal = this.container.appendChild($(`.monaco-dialog-modal-block${options.type === 'pending' ? '.dimmed' : ''}`));
 		this.shadowElement = this.modal.appendChild($('.dialog-shadow'));
 		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
+		this.element.setAttribute('role', 'dialog');
 		hide(this.element);
 
 		// If no button is provided, default to OK
@@ -104,6 +108,28 @@ export class Dialog extends Disposable {
 
 		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
 		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
+	}
+
+	private getAriaLabel(): string {
+		let typeLabel = nls.localize('dialogInfoMessage', 'Info');
+		switch (this.options.type) {
+			case 'error':
+				nls.localize('dialogErrorMessage', 'Error');
+				break;
+			case 'warning':
+				nls.localize('dialogWarningMessage', 'Warning');
+				break;
+			case 'pending':
+				nls.localize('dialogPendingMessage', 'In Progress');
+				break;
+			case 'none':
+			case 'info':
+			case 'question':
+			default:
+				break;
+		}
+
+		return `${typeLabel}: ${this.message} ${this.options.detail || ''}`;
 	}
 
 	updateMessage(message: string): void {
@@ -208,7 +234,7 @@ export class Dialog extends Disposable {
 				}
 			}));
 
-			removeClasses(this.iconElement, dialogErrorIcon.classNames, dialogWarningIcon.classNames, dialogInfoIcon.classNames);
+			removeClasses(this.iconElement, dialogErrorIcon.classNames, dialogWarningIcon.classNames, dialogInfoIcon.classNames, Codicon.loading.classNames);
 
 			switch (this.options.type) {
 				case 'error':
@@ -218,7 +244,7 @@ export class Dialog extends Disposable {
 					addClasses(this.iconElement, dialogWarningIcon.classNames);
 					break;
 				case 'pending':
-					addClasses(this.iconElement, 'codicon-loading', 'codicon-animation-spin');
+					addClasses(this.iconElement, Codicon.loading.classNames, 'codicon-animation-spin');
 					break;
 				case 'none':
 				case 'info':
@@ -239,7 +265,7 @@ export class Dialog extends Disposable {
 
 			this.applyStyles();
 
-			this.element.setAttribute('aria-label', this.message);
+			this.element.setAttribute('aria-label', this.getAriaLabel());
 			show(this.element);
 
 			// Focus first element
@@ -273,9 +299,27 @@ export class Dialog extends Disposable {
 					this.checkbox.style(style);
 				}
 
-				if (this.messageDetailElement) {
+				if (this.messageDetailElement && fgColor && bgColor) {
 					const messageDetailColor = Color.fromHex(fgColor).transparent(.9);
 					this.messageDetailElement.style.color = messageDetailColor.makeOpaque(Color.fromHex(bgColor)).toString();
+				}
+
+				if (this.iconElement) {
+					let color;
+					switch (this.options.type) {
+						case 'error':
+							color = style.errorIconForeground;
+							break;
+						case 'warning':
+							color = style.warningIconForeground;
+							break;
+						default:
+							color = style.infoIconForeground;
+							break;
+					}
+					if (color) {
+						this.iconElement.style.color = color.toString();
+					}
 				}
 			}
 

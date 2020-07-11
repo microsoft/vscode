@@ -62,6 +62,7 @@ const toggleOutputActionKeybindings = {
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
 	name: nls.localize('output', "Output"),
+	icon: Codicon.output.classNames,
 	order: 1,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: OUTPUT_VIEW_ID,
@@ -242,7 +243,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-const devCategory = { value: nls.localize('developer', "Developer"), original: 'Developer' };
+const devCategory = { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' };
 registerAction2(class extends Action2 {
 	constructor() {
 		super({

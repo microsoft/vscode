@@ -14,7 +14,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { append, $, addClass, toggleClass, Dimension } from 'vs/base/browser/dom';
+import { append, $, addClass, toggleClass, Dimension, hide, show } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -34,7 +34,7 @@ import Severity from 'vs/base/common/severity';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewContainersRegistry, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
+import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -57,6 +57,9 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { MementoObject } from 'vs/workbench/common/memento';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { DragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { URI } from 'vs/base/common/uri';
+import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 
 const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
@@ -92,8 +95,9 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
-		this.container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).get(VIEWLET_ID)!;
+		this.container = viewDescriptorService.getViewContainerById(VIEWLET_ID)!;
 		this.registerViews();
 	}
 
@@ -191,19 +195,19 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		const getOutdatedViewName = (): string => getViewName(localize('outdated', "Outdated"), server);
 		const onDidChangeServerLabel: EventOf<void> = EventOf.map(this.labelService.onDidChangeFormatters, () => undefined);
 		return [{
-			id: `extensions.${server.authority}.installed`,
+			id: `extensions.${server.id}.installed`,
 			get name() { return getInstalledViewName(); },
 			ctorDescriptor: new SyncDescriptor(ServerExtensionsView, [server, EventOf.map<void, string>(onDidChangeServerLabel, () => getInstalledViewName())]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchInstalledExtensions')),
 			weight: 100
 		}, {
-			id: `extensions.${server.authority}.outdated`,
+			id: `extensions.${server.id}.outdated`,
 			get name() { return getOutdatedViewName(); },
 			ctorDescriptor: new SyncDescriptor(ServerExtensionsView, [server, EventOf.map<void, string>(onDidChangeServerLabel, () => getOutdatedViewName())]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchOutdatedExtensions')),
 			weight: 100
 		}, {
-			id: `extensions.${server.authority}.default`,
+			id: `extensions.${server.id}.default`,
 			get name() { return getInstalledViewName(); },
 			ctorDescriptor: new SyncDescriptor(ServerExtensionsView, [server, EventOf.map<void, string>(onDidChangeServerLabel, () => getInstalledViewName())]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions'), RemoteNameContext.notEqualsTo('')),
@@ -395,8 +399,12 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		addClass(parent, 'extensions-viewlet');
 		this.root = parent;
 
-		const header = append(this.root, $('.header'));
+		const overlay = append(this.root, $('.overlay'));
+		const overlayBackgroundColor = this.getColor(SIDE_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
+		overlay.style.backgroundColor = overlayBackgroundColor;
+		hide(overlay);
 
+		const header = append(this.root, $('.header'));
 		const placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
 		const searchValue = this.searchViewletState['query.value'] ? this.searchViewletState['query.value'] : '';
 
@@ -427,6 +435,49 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this._register(this.onDidChangeVisibility(visible => {
 			if (visible) {
 				this.searchBox!.focus();
+			}
+		}));
+
+		// Register DragAndDrop support
+		this._register(new DragAndDropObserver(this.root, {
+			onDragEnd: (e: DragEvent) => undefined,
+			onDragEnter: (e: DragEvent) => {
+				if (this.isSupportedDragElement(e)) {
+					show(overlay);
+				}
+			},
+			onDragLeave: (e: DragEvent) => {
+				if (this.isSupportedDragElement(e)) {
+					hide(overlay);
+				}
+			},
+			onDragOver: (e: DragEvent) => {
+				if (this.isSupportedDragElement(e)) {
+					e.dataTransfer!.dropEffect = 'copy';
+				}
+			},
+			onDrop: async (e: DragEvent) => {
+				if (this.isSupportedDragElement(e)) {
+					hide(overlay);
+
+					if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+						let vsixPaths: URI[] = [];
+						for (let index = 0; index < e.dataTransfer.files.length; index++) {
+							const path = e.dataTransfer.files.item(index)!.path;
+							if (path.indexOf('.vsix') !== -1) {
+								vsixPaths.push(URI.file(path));
+							}
+						}
+
+						try {
+							// Attempt to install the extension(s)
+							await this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL).run(vsixPaths);
+						}
+						catch (err) {
+							this.notificationService.error(err);
+						}
+					}
+				}
 			}
 		}));
 
@@ -616,6 +667,15 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 		this.notificationService.error(err);
 	}
+
+	private isSupportedDragElement(e: DragEvent): boolean {
+		if (e.dataTransfer) {
+			const typesLowerCase = e.dataTransfer.types.map(t => t.toLocaleLowerCase());
+			return typesLowerCase.indexOf('files') !== -1;
+		}
+
+		return false;
+	}
 }
 
 export class StatusUpdater extends Disposable implements IWorkbenchContribution {
@@ -637,7 +697,7 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) ? 1 : 0), 0);
 		if (outdated > 0) {
 			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
-			this.badgeHandle.value = this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
+			this.badgeHandle.value = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge, clazz: 'extensions-badge count-badge' });
 		}
 	}
 }

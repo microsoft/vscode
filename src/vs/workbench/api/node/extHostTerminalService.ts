@@ -12,7 +12,7 @@ import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/termi
 import { IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration, ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalEnvironment, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -23,7 +23,6 @@ import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/term
 import { BaseExtHostTerminalService, ExtHostTerminal, EnvironmentVariableCollection } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { dispose } from 'vs/base/common/lifecycle';
 import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
@@ -130,7 +129,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider, process.env as platform.IProcessEnvironment);
 	}
 
-	public async $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
+	public async $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name: shellLaunchConfigDto.name,
 			executable: shellLaunchConfigDto.executable,
@@ -199,8 +198,10 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		);
 
 		// Apply extension environment variable collections to the environment
-		const mergedCollection = new MergedEnvironmentVariableCollection(this._environmentVariableCollections);
-		mergedCollection.applyToProcessEnvironment(env);
+		if (!shellLaunchConfig.strictEnv) {
+			const mergedCollection = new MergedEnvironmentVariableCollection(this._environmentVariableCollections);
+			mergedCollection.applyToProcessEnvironment(env);
+		}
 
 		this._proxy.$sendResolvedLaunchConfig(id, shellLaunchConfig);
 		// Fork the process and listen for messages
@@ -208,7 +209,15 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		// TODO: Support conpty on remote, it doesn't seem to work for some reason?
 		// TODO: When conpty is enabled, only enable it when accessibilityMode is off
 		const enableConpty = false; //terminalConfig.get('windowsEnableConpty') as boolean;
-		this._setupExtHostProcessListeners(id, new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService));
+
+		const terminalProcess = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService);
+		this._setupExtHostProcessListeners(id, terminalProcess);
+		const error = await terminalProcess.start();
+		if (error) {
+			// TODO: Teardown?
+			return error;
+		}
+		return undefined;
 	}
 
 	public $getAvailableShells(): Promise<IShellDefinitionDto[]> {
@@ -227,25 +236,12 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._isWorkspaceShellAllowed = isAllowed;
 	}
 
-	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent: boolean = false): vscode.EnvironmentVariableCollection {
-		let collection: EnvironmentVariableCollection | undefined;
-		if (persistent) {
-			// If persistent is specified, return the current collection if it exists
-			collection = this._environmentVariableCollections.get(extension.identifier.value);
-
-			// If persistence changed then create a new collection
-			if (collection && !collection.persistent) {
-				collection = undefined;
-			}
-		}
-
+	public getEnvironmentVariableCollection(extension: IExtensionDescription): vscode.EnvironmentVariableCollection {
+		let collection = this._environmentVariableCollections.get(extension.identifier.value);
 		if (!collection) {
-			// If not persistent, clear out the current collection and create a new one
-			dispose(this._environmentVariableCollections.get(extension.identifier.value));
-			collection = new EnvironmentVariableCollection(persistent);
+			collection = new EnvironmentVariableCollection();
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
-
 		return collection;
 	}
 
@@ -257,7 +253,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
 		collections.forEach(entry => {
 			const extensionIdentifier = entry[0];
-			const collection = new EnvironmentVariableCollection(true, entry[1]);
+			const collection = new EnvironmentVariableCollection(entry[1]);
 			this._setEnvironmentVariableCollection(extensionIdentifier, collection);
 		});
 	}

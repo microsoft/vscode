@@ -271,7 +271,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 		if (this.$el) {
 			this.$el.remove();
-			delete this.$el;
 		}
 		if (this.disposeOnUpdate) {
 			dispose(this.disposeOnUpdate);
@@ -365,7 +364,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const debugIconStopColor = theme.getColor(debugIconStopForeground);
 	if (debugIconStopColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-stop { color: ${debugIconStopColor} !important; }`);
+		collector.addRule(`.monaco-workbench .codicon-debug-stop, .monaco-workbench .debug-view-content .codicon-record { color: ${debugIconStopColor} !important; }`);
 	}
 
 	const debugIconDisconnectColor = theme.getColor(debugIconDisconnectForeground);

@@ -61,7 +61,7 @@ export interface IMergedEnvironmentVariableCollection {
  * Tracks and persists environment variable collections as defined by extensions.
  */
 export interface IEnvironmentVariableService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Gets a single collection constructed by merging all environment variable collections into
@@ -92,11 +92,7 @@ export interface IEnvironmentVariableService {
 	delete(extensionIdentifier: string): void;
 }
 
-/**
- * First: Variable
- * Second: Value
- * Third: Type
- */
+/** [variable, mutator] */
 export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVariableMutator][];
 
 export interface IEnvironmentVariableInfo {

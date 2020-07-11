@@ -24,7 +24,9 @@ import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, IExtHostContex
 import { EditorViewColumn, editorGroupToViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { DEFAULT_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
@@ -122,7 +124,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			selection: options.selection,
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
-			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined
+			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
+			override: false
 		};
 
 		const input: IResourceEditorInput = {
@@ -296,26 +299,17 @@ CommandsRegistry.registerCommand('_workbench.open', function (accessor: Services
 
 CommandsRegistry.registerCommand('_workbench.openWith', (accessor: ServicesAccessor, args: [URI, string, ITextEditorOptions | undefined, EditorViewColumn | undefined]) => {
 	const editorService = accessor.get(IEditorService);
-	const editorGroupService = accessor.get(IEditorGroupsService);
+	const editorGroupsService = accessor.get(IEditorGroupsService);
+	const configurationService = accessor.get(IConfigurationService);
+	const quickInputService = accessor.get(IQuickInputService);
 
 	const [resource, id, options, position] = args;
 
-	const group = editorGroupService.getGroup(viewColumnToEditorGroup(editorGroupService, position)) ?? editorGroupService.activeGroup;
-	const textOptions = options ? { ...options, ignoreOverrides: true } : { ignoreOverrides: true };
+	const group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, position)) ?? editorGroupsService.activeGroup;
+	const textOptions: ITextEditorOptions = options ? { ...options, override: false } : { override: false };
 
-	const fileEditorInput = editorService.createEditorInput({ resource, forceFile: true });
-	if (id === DEFAULT_EDITOR_ID) {
-		return editorService.openEditor(fileEditorInput, textOptions, position);
-	}
-
-	const editors = editorService.getEditorOverrides(fileEditorInput, undefined, group);
-	for (const [handler, data] of editors) {
-		if (data.id === id) {
-			return handler.open(fileEditorInput, options, group, id);
-		}
-	}
-
-	return undefined;
+	const input = editorService.createEditorInput({ resource });
+	return openEditorWith(input, id, textOptions, group, editorService, configurationService, quickInputService);
 });
 
 

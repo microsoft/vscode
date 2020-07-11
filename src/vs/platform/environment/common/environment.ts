@@ -26,7 +26,7 @@ export interface IEnvironmentService {
 	// UNLESS THIS PROPERTY IS SUPPORTED BOTH IN WEB AND DESKTOP!!!!
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	// --- user roaming data
 	userRoamingDataHome: URI;
@@ -40,10 +40,14 @@ export interface IEnvironmentService {
 	backupHome: URI;
 	untitledWorkspacesHome: URI;
 
+	globalStorageHome: URI;
+	workspaceStorageHome: URI;
+
 	// --- settings sync
 	userDataSyncLogResource: URI;
 	userDataSyncHome: URI;
 	sync: 'on' | 'off' | undefined;
+	enableSyncByDefault: boolean;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;

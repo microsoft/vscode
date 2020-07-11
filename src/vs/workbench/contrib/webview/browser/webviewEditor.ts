@@ -12,11 +12,11 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
@@ -26,6 +26,7 @@ export class WebviewEditor extends BaseEditor {
 
 	private _element?: HTMLElement;
 	private _dimension?: DOM.Dimension;
+	private _visible = false;
 
 	private readonly _webviewVisibleDisposables = this._register(new DisposableStore());
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
@@ -38,7 +39,7 @@ export class WebviewEditor extends BaseEditor {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@IHostService private readonly _hostService: IHostService,
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
@@ -65,7 +66,7 @@ export class WebviewEditor extends BaseEditor {
 
 	public layout(dimension: DOM.Dimension): void {
 		this._dimension = dimension;
-		if (this.webview) {
+		if (this.webview && this._visible) {
 			this.synchronizeWebviewContainerDimensions(this.webview, dimension);
 		}
 	}
@@ -84,6 +85,7 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+		this._visible = visible;
 		if (this.input instanceof WebviewInput && this.webview) {
 			if (visible) {
 				this.claimWebview(this.input);
@@ -144,11 +146,9 @@ export class WebviewEditor extends BaseEditor {
 		this._webviewVisibleDisposables.clear();
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
-		if (this._editorGroupsService instanceof EditorPart) {
-			this._webviewVisibleDisposables.add(this._editorGroupsService.createEditorDropTarget(input.webview.container, {
-				groupContainsPredicate: (group) => this.group?.id === group.group.id
-			}));
-		}
+		this._webviewVisibleDisposables.add(this._editorDropService.createEditorDropTarget(input.webview.container, {
+			containsGroup: (group) => this.group?.id === group.group.id
+		}));
 
 		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.DRAG_START, () => {
 			this.webview?.windowDidDragStart();

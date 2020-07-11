@@ -44,6 +44,32 @@ export class FoldingModel extends Disposable {
 			this.recompute();
 		}));
 
+		this._viewModelStore.add(this._viewModel.onDidChangeSelection(() => {
+			const selectionHandles = this._viewModel!.selectionHandles;
+			const indexes = selectionHandles.map(handle =>
+				this._viewModel!.getCellIndex(this._viewModel!.getCellByHandle(handle)!)
+			);
+
+			let changed = false;
+
+			indexes.forEach(index => {
+				let regionIndex = this.regions.findRange(index + 1);
+
+				while (regionIndex !== -1) {
+					if (this._regions.isCollapsed(regionIndex) && index > this._regions.getStartLineNumber(regionIndex) - 1) {
+						this._regions.setCollapsed(regionIndex, false);
+						changed = true;
+					}
+					regionIndex = this._regions.getParentIndex(regionIndex);
+				}
+			});
+
+			if (changed) {
+				this._onDidFoldingRegionChanges.fire();
+			}
+
+		}));
+
 		this.recompute();
 	}
 

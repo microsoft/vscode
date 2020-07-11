@@ -121,6 +121,7 @@ export interface RepositoryUIState {
 export interface LogOptions {
 	/** Max number of log entries to retrieve. If not specified, the default is 32. */
 	readonly maxEntries?: number;
+	readonly path?: string;
 }
 
 export interface CommitOptions {
@@ -129,6 +130,13 @@ export interface CommitOptions {
 	signoff?: boolean;
 	signCommit?: boolean;
 	empty?: boolean;
+}
+
+export interface BranchQuery {
+	readonly remote?: boolean;
+	readonly pattern?: string;
+	readonly count?: number;
+	readonly contains?: string;
 }
 
 export interface Repository {
@@ -170,6 +178,7 @@ export interface Repository {
 	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
 	deleteBranch(name: string, force?: boolean): Promise<void>;
 	getBranch(name: string): Promise<Branch>;
+	getBranches(query: BranchQuery): Promise<Ref[]>;
 	setBranchUpstream(name: string, upstream: string): Promise<void>;
 
 	getMergeBase(ref1: string, ref2: string): Promise<string>;
@@ -179,6 +188,7 @@ export interface Repository {
 
 	addRemote(name: string, url: string): Promise<void>;
 	removeRemote(name: string): Promise<void>;
+	renameRemote(name: string, newName: string): Promise<void>;
 
 	fetch(remote?: string, ref?: string, depth?: number): Promise<void>;
 	pull(unshallow?: boolean): Promise<void>;
@@ -192,13 +202,25 @@ export interface Repository {
 
 export interface RemoteSource {
 	readonly name: string;
+	readonly description?: string;
 	readonly url: string | string[];
 }
 
 export interface RemoteSourceProvider {
 	readonly name: string;
+	readonly icon?: string; // codicon name
 	readonly supportsQuery?: boolean;
 	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
+	publishRepository?(repository: Repository): Promise<void>;
+}
+
+export interface Credentials {
+	readonly username: string;
+	readonly password: string;
+}
+
+export interface CredentialsProvider {
+	getCredentials(host: Uri): ProviderResult<Credentials>;
 }
 
 export type APIState = 'uninitialized' | 'initialized';
@@ -213,7 +235,10 @@ export interface API {
 
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
+	init(root: Uri): Promise<Repository | null>;
+
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
+	registerCredentialsProvider(provider: CredentialsProvider): Disposable;
 }
 
 export interface GitExtension {

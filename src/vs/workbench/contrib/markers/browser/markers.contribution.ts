@@ -113,6 +113,7 @@ class ToggleMarkersPanelAction extends ToggleViewAction {
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Constants.MARKERS_CONTAINER_ID,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
+	icon: Codicon.warning.classNames,
 	hideIfEmpty: true,
 	order: 0,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Constants.MARKERS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),

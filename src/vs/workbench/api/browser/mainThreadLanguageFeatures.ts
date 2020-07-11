@@ -447,8 +447,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			}
 		};
 		if (supportsResolveDetails) {
-			provider.resolveCompletionItem = (model, position, suggestion, token) => {
-				return this._proxy.$resolveCompletionItem(handle, model.uri, position, suggestion._id!, token).then(result => {
+			provider.resolveCompletionItem = (suggestion, token) => {
+				return this._proxy.$resolveCompletionItem(handle, suggestion._id!, token).then(result => {
 					if (!result) {
 						return suggestion;
 					}

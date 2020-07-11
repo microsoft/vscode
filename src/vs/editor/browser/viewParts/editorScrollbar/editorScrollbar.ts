@@ -9,7 +9,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IOverviewRulerLayoutInfo, SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollableElementChangeOptions, ScrollableElementCreationOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { INewScrollPosition } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -44,8 +44,8 @@ export class EditorScrollbar extends ViewPart {
 
 			vertical: scrollbar.vertical,
 			horizontal: scrollbar.horizontal,
-			verticalHasArrows: true, //scrollbar.verticalHasArrows,
-			horizontalHasArrows: true, //scrollbar.horizontalHasArrows,
+			verticalHasArrows: scrollbar.verticalHasArrows,
+			horizontalHasArrows: scrollbar.horizontalHasArrows,
 			verticalScrollbarSize: scrollbar.verticalScrollbarSize,
 			verticalSliderSize: scrollbar.verticalSliderSize,
 			horizontalScrollbarSize: scrollbar.horizontalScrollbarSize,
@@ -88,7 +88,7 @@ export class EditorScrollbar extends ViewPart {
 				}
 			}
 
-			this._context.viewLayout.setScrollPositionNow(newScrollPosition);
+			this._context.model.setScrollPosition(newScrollPosition, ScrollType.Immediate);
 		};
 
 		// I've seen this happen both on the view dom node & on the lines content dom node.
@@ -111,7 +111,7 @@ export class EditorScrollbar extends ViewPart {
 		const minimap = options.get(EditorOption.minimap);
 		const side = minimap.side;
 		if (side === 'right') {
-			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimapWidth);
+			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimap.minimapWidth);
 		} else {
 			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth);
 		}

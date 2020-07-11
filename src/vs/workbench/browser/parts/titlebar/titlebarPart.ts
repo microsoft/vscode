@@ -60,7 +60,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	protected title!: HTMLElement;
 	protected customMenubar: CustomMenubarControl | undefined;
@@ -72,7 +72,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private isInactive: boolean = false;
 
-	private readonly properties: ITitleProperties = { isPure: true, isAdmin: false };
+	private readonly properties: ITitleProperties = { isPure: true, isAdmin: false, prefix: undefined };
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 
 	private readonly titleUpdater = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
@@ -191,6 +191,10 @@ export class TitlebarPart extends Part implements ITitleService {
 	private getWindowTitle(): string {
 		let title = this.doGetWindowTitle();
 
+		if (this.properties.prefix) {
+			title = `${this.properties.prefix} ${title || this.productService.nameLong}`;
+		}
+
 		if (this.properties.isAdmin) {
 			title = `${title || this.productService.nameLong} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
 		}
@@ -212,10 +216,12 @@ export class TitlebarPart extends Part implements ITitleService {
 	updateProperties(properties: ITitleProperties): void {
 		const isAdmin = typeof properties.isAdmin === 'boolean' ? properties.isAdmin : this.properties.isAdmin;
 		const isPure = typeof properties.isPure === 'boolean' ? properties.isPure : this.properties.isPure;
+		const prefix = typeof properties.prefix === 'string' ? properties.prefix : this.properties.prefix;
 
-		if (isAdmin !== this.properties.isAdmin || isPure !== this.properties.isPure) {
+		if (isAdmin !== this.properties.isAdmin || isPure !== this.properties.isPure || prefix !== this.properties.prefix) {
 			this.properties.isAdmin = isAdmin;
 			this.properties.isPure = isPure;
+			this.properties.prefix = prefix;
 
 			this.titleUpdater.schedule();
 		}
@@ -265,7 +271,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			folder = workspace.folders[0];
 		} else {
-			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 			if (resource) {
 				folder = this.contextService.getWorkspaceFolder(resource);
 			}
@@ -327,7 +333,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
 
 		this.menubar = this.element.insertBefore($('div.menubar'), this.title);
-
 		this.menubar.setAttribute('role', 'menubar');
 
 		this.customMenubar.create(this.menubar);

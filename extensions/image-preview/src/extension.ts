@@ -10,8 +10,6 @@ import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 import { ZoomStatusBarEntry } from './zoomStatusBarEntry';
 
 export function activate(context: vscode.ExtensionContext) {
-	const extensionRoot = vscode.Uri.file(context.extensionPath);
-
 	const sizeStatusBarEntry = new SizeStatusBarEntry();
 	context.subscriptions.push(sizeStatusBarEntry);
 
@@ -21,10 +19,10 @@ export function activate(context: vscode.ExtensionContext) {
 	const zoomStatusBarEntry = new ZoomStatusBarEntry();
 	context.subscriptions.push(zoomStatusBarEntry);
 
-	const previewManager = new PreviewManager(extensionRoot, sizeStatusBarEntry, binarySizeStatusBarEntry, zoomStatusBarEntry);
+	const previewManager = new PreviewManager(context.extensionUri, sizeStatusBarEntry, binarySizeStatusBarEntry, zoomStatusBarEntry);
 
-	context.subscriptions.push(vscode.window.registerCustomEditorProvider2(PreviewManager.viewType, previewManager, {
-		supportsMultipleEditorsPerResource: true,
+	context.subscriptions.push(vscode.window.registerCustomEditorProvider(PreviewManager.viewType, previewManager, {
+		supportsMultipleEditorsPerDocument: true,
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('imagePreview.zoomIn', () => {

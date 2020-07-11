@@ -65,6 +65,13 @@ export function isUndefined(obj: any): obj is undefined {
 }
 
 /**
+ * @returns whether the provided parameter is defined.
+ */
+export function isDefined<T>(arg: T | null | undefined): arg is T {
+	return !isUndefinedOrNull(arg);
+}
+
+/**
  * @returns whether the provided parameter is undefined or null.
  */
 export function isUndefinedOrNull(obj: any): obj is undefined | null {
@@ -164,7 +171,7 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 			if (arg instanceof constraint) {
 				return;
 			}
-		} catch{
+		} catch {
 			// ignore
 		}
 		if (!isUndefinedOrNull(arg) && arg.constructor === constraint) {

@@ -97,6 +97,12 @@ export class NotificationsList extends Themable {
 						}
 
 						return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", element.message.raw, element.source);
+					},
+					getWidgetAriaLabel(): string {
+						return localize('notificationsList', "Notifications List");
+					},
+					getRole(): string {
+						return 'dialog'; // https://github.com/microsoft/vscode/issues/82728
 					}
 				}
 			}

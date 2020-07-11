@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { INotebookEditor, INotebookEditorMouseEvent, ICellRange, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, INotebookEditorMouseEvent, ICellRange, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as DOM from 'vs/base/browser/dom';
 import { CellFoldingState, FoldingModel } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -12,11 +12,12 @@ import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/brow
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { getActiveNotebookEditor, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { localize } from 'vs/nls';
 
 export class FoldingController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.findController';
@@ -55,7 +56,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 		}));
 	}
 
-	saveViewState(): any {
+	saveViewState(): ICellRange[] {
 		return this._foldingModel?.getMemento() || [];
 	}
 
@@ -132,13 +133,20 @@ registerNotebookContribution(FoldingController.id, FoldingController);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.fold',
-			title: 'Notebook Fold Cell',
+			id: 'notebook.fold',
+			title: { value: localize('fold.cell', "Fold Cell"), original: 'Fold Cell' },
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyCode.LeftArrow,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET
+				},
+				secondary: [KeyCode.LeftArrow],
 				weight: KeybindingWeight.WorkbenchContrib
-			}
+			},
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
+			f1: true
 		});
 	}
 
@@ -168,13 +176,20 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.unfold',
-			title: 'Notebook Unfold Cell',
+			id: 'notebook.unfold',
+			title: { value: localize('unfold.cell', "Unfold Cell"), original: 'Unfold Cell' },
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyCode.RightArrow,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET
+				},
+				secondary: [KeyCode.RightArrow],
 				weight: KeybindingWeight.WorkbenchContrib
-			}
+			},
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
+			f1: true
 		});
 	}
 

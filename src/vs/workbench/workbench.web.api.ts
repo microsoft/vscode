@@ -17,6 +17,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IProductConfiguration } from 'vs/platform/product/common/productService';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -25,14 +26,26 @@ interface IResourceUriProvider {
 interface IStaticExtension {
 	packageJSON: IExtensionManifest;
 	extensionLocation: URI;
+	isBuiltin?: boolean;
 }
 
-interface ICommontTelemetryPropertiesResolver {
+interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
 }
 
 interface IExternalUriResolver {
 	(uri: URI): Promise<URI>;
+}
+
+interface ITunnelProvider {
+	/**
+	 * Support for creating tunnels.
+	 */
+	tunnelFactory?: ITunnelFactory;
+	/**
+	 * Support for filtering candidate ports
+	 */
+	showPortCandidate?: IShowPortCandidate;
 }
 
 interface ITunnelFactory {
@@ -89,9 +102,9 @@ interface ICommand {
 interface IHomeIndicator {
 
 	/**
-	 * The identifier of the command to run when clicking the home indicator.
+	 * The link to open when clicking the home indicator.
 	 */
-	command: string;
+	href: string;
 
 	/**
 	 * The icon name for the home indicator. This needs to be one of the existing
@@ -119,7 +132,7 @@ interface IDefaultSideBarLayout {
 		}[];
 	} | {
 		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active?: false | undefined;
+		active?: false;
 		order?: number;
 		visible?: boolean;
 		views?: {
@@ -140,15 +153,28 @@ interface IDefaultPanelLayout {
 	} | {
 		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
 		order?: number;
-		active?: false | undefined;
+		active?: false;
 		visible?: boolean;
 	})[];
 }
 
+interface IDefaultView {
+	readonly id: string;
+}
+
+interface IDefaultEditor {
+	readonly uri: UriComponents;
+	readonly openOnlyIfExists?: boolean;
+	readonly openWith?: string;
+}
+
 interface IDefaultLayout {
-	sidebar?: IDefaultSideBarLayout;
-	panel?: IDefaultPanelLayout;
-	// editors?: IDefaultWorkspaceEditorsLayout
+	/** @deprecated Use views instead */
+	readonly sidebar?: IDefaultSideBarLayout;
+	/** @deprecated Use views instead */
+	readonly panel?: IDefaultPanelLayout;
+	readonly views?: IDefaultView[];
+	readonly editors?: IDefaultEditor[];
 }
 
 interface IWorkbenchConstructionOptions {
@@ -188,14 +214,10 @@ interface IWorkbenchConstructionOptions {
 	readonly resolveExternalUri?: IExternalUriResolver;
 
 	/**
-	 * Support for creating tunnels.
+	 * A provider for supplying tunneling functionality,
+	 * such as creating tunnels and showing candidate ports to forward.
 	 */
-	readonly tunnelFactory?: ITunnelFactory;
-
-	/**
-	 * Support for filtering candidate ports
-	 */
-	readonly showCandidate?: IShowPortCandidate;
+	readonly tunnelProvider?: ITunnelProvider;
 
 	//#endregion
 
@@ -214,6 +236,16 @@ interface IWorkbenchConstructionOptions {
 	userDataProvider?: IFileSystemProvider;
 
 	/**
+	 * Session id of the current authenticated user
+	 */
+	readonly authenticationSessionId?: string;
+
+	/**
+	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
+	 */
+	readonly enableSyncByDefault?: boolean;
+
+	/**
 	 * The credentials provider to store and retrieve secrets.
 	 */
 	readonly credentialsProvider?: ICredentialsProvider;
@@ -222,6 +254,11 @@ interface IWorkbenchConstructionOptions {
 	 * Add static extensions that cannot be uninstalled but only be disabled.
 	 */
 	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
+
+	/**
+	 * Service end-point hosting builtin extensions
+	 */
+	readonly builtinExtensionsServiceUrl?: string;
 
 	/**
 	 * Support for URL callbacks.
@@ -236,7 +273,7 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * Support adding additional properties to telemetry.
 	 */
-	readonly resolveCommonTelemetryProperties?: ICommontTelemetryPropertiesResolver;
+	readonly resolveCommonTelemetryProperties?: ICommonTelemetryPropertiesResolver;
 
 	/**
 	 * A set of optional commands that should be registered with the commands
@@ -247,9 +284,24 @@ interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
+	 * Optional default layout to apply on first time the workspace is opened.
+	 */
+	readonly defaultLayout?: IDefaultLayout;
+
+	//#endregion
+
+
+	//#region Branding
+
+	/**
 	 * Optional home indicator to appear above the hamburger menu in the activity bar.
 	 */
 	readonly homeIndicator?: IHomeIndicator;
+
+	/**
+	 * Optional override for the product configuration properties.
+	 */
+	readonly productConfiguration?: Partial<IProductConfiguration>;
 
 	//#endregion
 
@@ -267,8 +319,6 @@ interface IWorkbenchConstructionOptions {
 	readonly driver?: boolean;
 
 	//#endregion
-
-	defaultLayout?: IDefaultLayout;
 }
 
 interface IWorkbench {
@@ -381,12 +431,13 @@ export {
 	IUpdate,
 
 	// Telemetry
-	ICommontTelemetryPropertiesResolver,
+	ICommonTelemetryPropertiesResolver,
 
 	// External Uris
 	IExternalUriResolver,
 
 	// Tunnel
+	ITunnelProvider,
 	ITunnelFactory,
 	ITunnel,
 	ITunnelOptions,
@@ -398,13 +449,16 @@ export {
 	ICommand,
 	commands,
 
-	// Home Indicator
+	// Branding
 	IHomeIndicator,
+	IProductConfiguration,
 
 	// Default layout
+	IDefaultView,
+	IDefaultEditor,
 	IDefaultLayout,
 	IDefaultPanelLayout,
-	IDefaultSideBarLayout,
+	IDefaultSideBarLayout
 };
 
 //#endregion

@@ -153,11 +153,12 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			return this.hide();
 		}
 
-		const { lineNumber, column } = atPosition;
 		const model = this._editor.getModel();
 		if (!model) {
 			return this.hide();
 		}
+
+		const { lineNumber, column } = model.validatePosition(atPosition);
 
 		const tabSize = model.getOptions().tabSize;
 		const fontInfo = options.get(EditorOption.fontInfo);

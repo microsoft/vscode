@@ -20,7 +20,6 @@ import { URI } from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { AbstractTree } from 'vs/base/browser/ui/tree/abstractTree';
-import { assertIsDefined } from 'vs/base/common/types';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -28,6 +27,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ContextSubMenu } from 'vs/base/browser/contextmenu';
+import { Event } from 'vs/base/common/event';
 
 export abstract class Viewlet extends PaneComposite implements IViewlet {
 
@@ -44,6 +45,10 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 		@IConfigurationService protected configurationService: IConfigurationService
 	) {
 		super(id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		this._register(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews)(() => {
+			// Update title area since there is no better way to update secondary actions
+			this.updateTitleArea();
+		}));
 	}
 
 	getContextMenuActions(): IAction[] {
@@ -61,6 +66,24 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 			run: () => this.layoutService.setSideBarHidden(true)
 		}];
 	}
+
+	getSecondaryActions(): IAction[] {
+		const viewSecondaryActions = this.viewPaneContainer.getViewsVisibilityActions();
+		const secondaryActions = this.viewPaneContainer.getSecondaryActions();
+		if (viewSecondaryActions.length <= 1) {
+			return secondaryActions;
+		}
+
+		if (secondaryActions.length === 0) {
+			return viewSecondaryActions;
+		}
+
+		return [
+			new ContextSubMenu(nls.localize('views', "Views"), viewSecondaryActions),
+			new Separator(),
+			...secondaryActions
+		];
+	}
 }
 
 /**
@@ -74,10 +97,11 @@ export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 		name: string,
 		cssClass?: string,
 		order?: number,
+		requestedIndex?: number,
 		iconUrl?: URI
 	): ViewletDescriptor {
 
-		return new ViewletDescriptor(ctor as IConstructorSignature0<Viewlet>, id, name, cssClass, order, iconUrl);
+		return new ViewletDescriptor(ctor as IConstructorSignature0<Viewlet>, id, name, cssClass, order, requestedIndex, iconUrl);
 	}
 
 	private constructor(
@@ -86,9 +110,10 @@ export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 		name: string,
 		cssClass?: string,
 		order?: number,
+		requestedIndex?: number,
 		readonly iconUrl?: URI
 	) {
-		super(ctor, id, name, cssClass, order, id);
+		super(ctor, id, name, cssClass, order, requestedIndex, id);
 	}
 }
 
@@ -97,7 +122,6 @@ export const Extensions = {
 };
 
 export class ViewletRegistry extends CompositeRegistry<Viewlet> {
-	private defaultViewletId: string | undefined;
 
 	/**
 	 * Registers a viewlet to the platform.
@@ -110,9 +134,6 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 	 * Deregisters a viewlet to the platform.
 	 */
 	deregisterViewlet(id: string): void {
-		if (id === this.defaultViewletId) {
-			throw new Error('Cannot deregister default viewlet');
-		}
 		super.deregisterComposite(id);
 	}
 
@@ -130,19 +151,6 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 		return this.getComposites() as ViewletDescriptor[];
 	}
 
-	/**
-	 * Sets the id of the viewlet that should open on startup by default.
-	 */
-	setDefaultViewletId(id: string): void {
-		this.defaultViewletId = id;
-	}
-
-	/**
-	 * Gets the id of the viewlet that should open on startup by default.
-	 */
-	getDefaultViewletId(): string {
-		return assertIsDefined(this.defaultViewletId);
-	}
 }
 
 Registry.add(Extensions.Viewlets, new ViewletRegistry());
@@ -161,8 +169,6 @@ export class ShowViewletAction extends Action {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, name);
-
-		this.enabled = !!this.viewletService && !!this.editorGroupService;
 	}
 
 	async run(): Promise<void> {

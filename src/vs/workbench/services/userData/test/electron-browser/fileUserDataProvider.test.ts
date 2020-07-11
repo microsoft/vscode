@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { joinPath, dirname } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -59,7 +59,7 @@ suite('FileUserDataProvider', () => {
 		const environmentService = new TestBrowserWorkbenchEnvironmentService({ remoteAuthority: 'remote', workspaceId: 'workspaceId', logsPath: URI.file('logFile') });
 		environmentService.testUserRoamingDataHome = userDataResource;
 
-		const userDataFileSystemProvider = new FileUserDataProvider(URI.file(userDataPath), URI.file(backupsPath), diskFileSystemProvider, environmentService);
+		const userDataFileSystemProvider = new FileUserDataProvider(URI.file(userDataPath), URI.file(backupsPath), diskFileSystemProvider, environmentService, logService);
 		disposables.add(userDataFileSystemProvider);
 		disposables.add(testObject.registerProvider(Schemas.userData, userDataFileSystemProvider));
 	});
@@ -333,7 +333,7 @@ suite('FileUserDataProvider - Watching', () => {
 		const environmentService = new TestBrowserWorkbenchEnvironmentService({ remoteAuthority: 'remote', workspaceId: 'workspaceId', logsPath: URI.file('logFile') });
 		environmentService.testUserRoamingDataHome = userDataResource;
 
-		const userDataFileSystemProvider = new FileUserDataProvider(localUserDataResource, localBackupsResource, new TestFileSystemProvider(fileEventEmitter.event), environmentService);
+		const userDataFileSystemProvider = new FileUserDataProvider(localUserDataResource, localBackupsResource, new TestFileSystemProvider(fileEventEmitter.event), environmentService, new NullLogService());
 		disposables.add(userDataFileSystemProvider);
 
 		testObject = new FileService(new NullLogService());

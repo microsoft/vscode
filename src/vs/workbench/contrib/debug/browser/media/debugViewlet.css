@@ -31,6 +31,7 @@
 	font-size: 11px;
 	margin-right: 0.3em;
 	height: 20px;
+	line-height: 20px;
 	flex-shrink: 1;
 	margin-top: 7px;
 }
@@ -40,6 +41,7 @@
 }
 
 .monaco-workbench .part > .title > .title-actions .start-debug-action-item .codicon {
+	line-height: inherit;
 	flex-shrink: 0;
 	transition: transform 50ms ease;
 }
@@ -48,6 +50,9 @@
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
+	line-height: inherit;
+	padding-top: 0;
+	padding-bottom: 0;
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-select-box {
@@ -63,10 +68,8 @@
 /* Debug viewlet trees */
 
 .debug-pane .line-number {
-	border-radius: 2px;
-	font-size: 0.9em;
-	padding: 0 3px;
-	line-height: 20px;
+	padding-left: 4px;
+	padding-right: 4px;
 }
 
 .debug-pane .disabled {
@@ -74,9 +77,18 @@
 	cursor: initial;
 }
 
+/* Make icons and text the same color as the list foreground on focus selection */
+.debug-pane .monaco-list:focus .monaco-list-row.selected .state > .label,
+.debug-pane .monaco-list:focus .monaco-list-row.selected.focused .state > .label,
+.debug-pane .monaco-list:focus .monaco-list-row.selected .codicon,
+.debug-pane .monaco-list:focus .monaco-list-row.selected.focused .codicon {
+	color: inherit !important;
+}
+
 /* Call stack */
 
-.debug-pane .debug-call-stack-title {
+.debug-pane.expanded .debug-call-stack-title,
+.debug-pane.vertical .debug-call-stack-title {
 	display: flex;
 	width: 100%;
 }
@@ -110,6 +122,8 @@
 
 .debug-pane .debug-call-stack .thread > .state,
 .debug-pane .debug-call-stack .session > .state {
+	display: flex;
+	align-items: center;
 	text-align: right;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -128,6 +142,7 @@
 .debug-pane .debug-call-stack .monaco-list-row .monaco-action-bar {
 	display: none;
 	flex-shrink: 0;
+	margin-right: 1px;
 }
 
 .debug-pane .debug-call-stack .monaco-list-row:hover .monaco-action-bar {
@@ -144,14 +159,15 @@
 	height: 100%;
 	line-height: 22px;
 	margin-right: 8px;
-	vertical-align: text-top;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
 }
 
 .debug-pane .debug-call-stack .thread > .state > .label,
 .debug-pane .debug-call-stack .session > .state > .label {
-	border-radius: 2px;
 	font-size: 0.8em;
-	padding: 0 3px;
+	min-height: auto;
 }
 
 .debug-pane .debug-call-stack .stack-frame {

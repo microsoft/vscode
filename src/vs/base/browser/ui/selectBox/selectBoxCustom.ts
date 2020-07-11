@@ -20,6 +20,7 @@ import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxSty
 import { isMacintosh } from 'vs/base/common/platform';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
+import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
@@ -88,6 +89,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private _isVisible: boolean;
 	private selectBoxOptions: ISelectBoxOptions;
 	private selectElement: HTMLSelectElement;
+	private container?: HTMLElement;
 	private options: ISelectOptionItem[] = [];
 	private selected: number;
 	private readonly _onDidSelect: Emitter<ISelectData>;
@@ -306,6 +308,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	public render(container: HTMLElement): void {
+		this.container = container;
 		dom.addClass(container, 'select-container');
 		container.appendChild(this.selectElement);
 		this.applyStyles();
@@ -441,7 +444,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
 			},
 			anchorPosition: this._dropDownPosition
-		});
+		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
 
 		// Hide so we can relay out
 		this._isVisible = true;
@@ -456,11 +459,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
 			},
 			anchorPosition: this._dropDownPosition
-		});
+		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
 
 		// Track initial selection the case user escape, blur
 		this._currentSelection = this.selected;
 		this._isVisible = true;
+		this.selectElement.setAttribute('aria-expanded', 'true');
 	}
 
 	private hideSelectDropDown(focusSelect: boolean) {
@@ -469,6 +473,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		this._isVisible = false;
+		this.selectElement.setAttribute('aria-expanded', 'false');
 
 		if (focusSelect) {
 			this.selectElement.focus();
@@ -720,12 +725,20 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.listRenderer = new SelectListRenderer();
 
 		this.selectList = new List('SelectBoxCustom', this.selectDropDownListContainer, this, [this.listRenderer], {
-			ariaLabel: this.selectBoxOptions.ariaLabel,
 			useShadows: false,
 			verticalScrollMode: ScrollbarVisibility.Visible,
 			keyboardSupport: false,
-			mouseSupport: false
+			mouseSupport: false,
+			accessibilityProvider: {
+				getAriaLabel: (element) => element.text,
+				getWidgetAriaLabel: () => localize({ key: 'selectBox', comment: ['Behave like native select dropdown element.'] }, "Select Box"),
+				getRole: () => 'option',
+				getWidgetRole: () => 'listbox'
+			}
 		});
+		if (this.selectBoxOptions.ariaLabel) {
+			this.selectList.ariaLabel = this.selectBoxOptions.ariaLabel;
+		}
 
 		// SetUp list keyboard controller - control navigation, disabled items, focus
 		const onSelectDropDownKeyDown = Event.chain(domEvent(this.selectDropDownListContainer, 'keydown'))

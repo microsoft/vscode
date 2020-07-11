@@ -912,6 +912,19 @@ suite('Fuzzy Scorer', () => {
 		assert.equal(res[0], resourceB);
 	});
 
+	test('compareFilesByScore - prefer case match (bug #96122)', function () {
+		const resourceA = URI.file('lists.php');
+		const resourceB = URI.file('lib/Lists.php');
+
+		let query = 'Lists.php';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceB);
+	});
+
 	test('prepareQuery', () => {
 		assert.equal(scorer.prepareQuery(' f*a ').normalized, 'fa');
 		assert.equal(scorer.prepareQuery('model Tester.ts').original, 'model Tester.ts');
@@ -977,14 +990,14 @@ suite('Fuzzy Scorer', () => {
 		const target = 'HeLlo-World';
 
 		for (const offset of [0, 3]) {
-			let [score, matches] = _doScore2(target, 'HeLlo-World', offset);
+			let [score, matches] = _doScore2(offset === 0 ? target : `123${target}`, 'HeLlo-World', offset);
 
 			assert.ok(score);
 			assert.equal(matches.length, 1);
 			assert.equal(matches[0].start, 0 + offset);
 			assert.equal(matches[0].end, target.length + offset);
 
-			[score, matches] = _doScore2(target, 'HW', offset);
+			[score, matches] = _doScore2(offset === 0 ? target : `123${target}`, 'HW', offset);
 
 			assert.ok(score);
 			assert.equal(matches.length, 2);

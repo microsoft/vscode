@@ -93,12 +93,14 @@ export function getWordAtText(column: number, wordDefinition: RegExp, text: stri
 		// should stop so that subsequent search don't repeat previous searches
 		const regexIndex = pos - config.windowSize * i;
 		wordDefinition.lastIndex = Math.max(0, regexIndex);
-		match = _findRegexMatchEnclosingPosition(wordDefinition, text, pos, prevRegexIndex);
+		const thisMatch = _findRegexMatchEnclosingPosition(wordDefinition, text, pos, prevRegexIndex);
 
-		// stop: found something
-		if (match) {
+		if (!thisMatch && match) {
+			// stop: we have something
 			break;
 		}
+
+		match = thisMatch;
 
 		// stop: searched at start
 		if (regexIndex <= 0) {
@@ -111,7 +113,7 @@ export function getWordAtText(column: number, wordDefinition: RegExp, text: stri
 		let result = {
 			word: match[0],
 			startColumn: textOffset + 1 + match.index!,
-			endColumn: textOffset + 1 + wordDefinition.lastIndex
+			endColumn: textOffset + 1 + match.index! + match[0].length
 		};
 		wordDefinition.lastIndex = 0;
 		return result;

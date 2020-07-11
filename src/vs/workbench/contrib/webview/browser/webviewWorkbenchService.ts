@@ -46,7 +46,7 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 }
 
 export interface IWebviewWorkbenchService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	createWebview(
 		id: string,
@@ -99,9 +99,6 @@ export interface WebviewResolver {
 }
 
 function canRevive(reviver: WebviewResolver, webview: WebviewInput): boolean {
-	if (webview.isDisposed()) {
-		return false;
-	}
 	return reviver.canResolve(webview);
 }
 
@@ -173,7 +170,7 @@ class RevivalPool {
 
 
 export class WebviewEditorService implements IWebviewWorkbenchService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _revivers = new Set<WebviewResolver>();
 	private readonly _revivalPool = new RevivalPool();
@@ -267,13 +264,13 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 	public shouldPersist(
 		webview: WebviewInput
 	): boolean {
-		if (Iterable.some(this._revivers.values(), reviver => canRevive(reviver, webview))) {
+		// Revived webviews may not have an actively registered reviver but we still want to presist them
+		// since a reviver should exist when it is actually needed.
+		if (webview instanceof LazilyResolvedWebviewEditorInput) {
 			return true;
 		}
 
-		// Revived webviews may not have an actively registered reviver but we still want to presist them
-		// since a reviver should exist when it is actually needed.
-		return webview instanceof LazilyResolvedWebviewEditorInput;
+		return Iterable.some(this._revivers.values(), reviver => canRevive(reviver, webview));
 	}
 
 	private async tryRevive(
@@ -307,14 +304,12 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 	private createWebviewElement(
 		id: string,
 		extension: WebviewExtensionDescription | undefined,
-		options: WebviewInputOptions
+		options: WebviewInputOptions,
 	) {
-		const webview = this._webviewService.createWebviewOverlay(id, {
+		return this._webviewService.createWebviewOverlay(id, {
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
-		}, options);
-		webview.extension = extension;
-		return webview;
+		}, options, extension);
 	}
 }
 

@@ -17,7 +17,7 @@ export interface IEnvironmentConfiguration extends IWindowConfiguration {
 
 export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly configuration: IEnvironmentConfiguration;
 
@@ -28,4 +28,6 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	readonly webviewExternalEndpoint: string;
 	readonly webviewResourceRoot: string;
 	readonly webviewCspSource: string;
+
+	readonly skipReleaseNotes: boolean;
 }

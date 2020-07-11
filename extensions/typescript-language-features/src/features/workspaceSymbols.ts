@@ -5,11 +5,13 @@
 
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
+import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
 import * as fileSchemes from '../utils/fileSchemes';
 import { doesResourceLookLikeAJavaScriptFile, doesResourceLookLikeATypeScriptFile } from '../utils/languageDescription';
 import * as typeConverters from '../utils/typeConverters';
-import * as PConst from '../protocol.const';
+import { parseKindModifier } from '../utils/modifiers';
 
 function getSymbolKind(item: Proto.NavtoItem): vscode.SymbolKind {
 	switch (item.kind) {
@@ -29,27 +31,30 @@ function getSymbolKind(item: Proto.NavtoItem): vscode.SymbolKind {
 }
 
 class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvider {
+
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly modeIds: readonly string[]
+		private readonly modeIds: readonly string[],
 	) { }
 
 	public async provideWorkspaceSymbols(
 		search: string,
 		token: vscode.CancellationToken
 	): Promise<vscode.SymbolInformation[]> {
-		const document = this.getDocument();
-		if (!document) {
-			return [];
-		}
+		let file: string | undefined;
+		if (this.searchAllOpenProjects) {
+			file = undefined;
+		} else {
+			const document = this.getDocument();
+			file = document ? await this.toOpenedFiledPath(document) : undefined;
 
-		const filepath = await this.toOpenedFiledPath(document);
-		if (!filepath) {
-			return [];
+			if (!file && this.client.apiVersion.lt(API.v390)) {
+				return [];
+			}
 		}
 
 		const args: Proto.NavtoRequestArgs = {
-			file: filepath,
+			file,
 			searchValue: search,
 			maxResultCount: 256,
 		};
@@ -64,6 +69,10 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 			.map(item => this.toSymbolInformation(item));
 	}
 
+	private get searchAllOpenProjects() {
+		return this.client.apiVersion.gte(API.v390)
+			&& vscode.workspace.getConfiguration('typescript').get('workspaceSymbols.scope', 'allOpenProjects') === 'allOpenProjects';
+	}
 
 	private async toOpenedFiledPath(document: vscode.TextDocument) {
 		if (document.uri.scheme === fileSchemes.git) {
@@ -82,11 +91,16 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 
 	private toSymbolInformation(item: Proto.NavtoItem) {
 		const label = TypeScriptWorkspaceSymbolProvider.getLabel(item);
-		return new vscode.SymbolInformation(
+		const info = new vscode.SymbolInformation(
 			label,
 			getSymbolKind(item),
 			item.containerName || '',
 			typeConverters.Location.fromTextSpan(this.client.toResource(item.file), item));
+		const kindModifiers = item.kindModifiers ? parseKindModifier(item.kindModifiers) : undefined;
+		if (kindModifiers?.has(PConst.KindModifiers.depreacted)) {
+			info.tags = [vscode.SymbolTag.Deprecated];
+		}
+		return info;
 	}
 
 	private static getLabel(item: Proto.NavtoItem) {

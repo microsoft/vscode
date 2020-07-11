@@ -31,6 +31,7 @@ export interface IActionViewItem extends IDisposable {
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
 	isMenu?: boolean;
+	useEventAsContext?: boolean;
 }
 
 export class BaseActionViewItem extends Disposable implements IActionViewItem {
@@ -178,17 +179,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
 
-		let context: any;
-		if (types.isUndefinedOrNull(this._context)) {
-			context = event;
-		} else {
-			context = this._context;
-
-			if (types.isObject(context)) {
-				context.event = event;
-			}
-		}
-
+		const context = types.isUndefinedOrNull(this._context) ? this.options?.useEventAsContext ? event : undefined : this._context;
 		this.actionRunner.run(this._action, context);
 	}
 
@@ -414,6 +405,8 @@ export interface IActionBarOptions {
 	ariaLabel?: string;
 	animated?: boolean;
 	triggerKeys?: ActionTrigger;
+	allowContextMenu?: boolean;
+	preventLoopNavigation?: boolean;
 }
 
 const defaultOptions: IActionBarOptions = {
@@ -517,9 +510,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			let eventHandled = true;
 
 			if (event.equals(previousKey)) {
-				this.focusPrevious();
+				eventHandled = this.focusPrevious();
 			} else if (event.equals(nextKey)) {
-				this.focusNext();
+				eventHandled = this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
 				this._onDidCancel.fire();
 			} else if (this.isTriggerKeyEvent(event)) {
@@ -643,9 +636,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 			actionViewItemElement.setAttribute('role', 'presentation');
 
 			// Prevent native context menu on actions
-			this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
-				DOM.EventHelper.stop(e, true);
-			}));
+			if (!this.options.allowContextMenu) {
+				this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
+					DOM.EventHelper.stop(e, true);
+				}));
+			}
 
 			let item: IActionViewItem | undefined;
 
@@ -702,7 +697,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	clear(): void {
-		this.viewItems = dispose(this.viewItems);
+		dispose(this.viewItems);
+		this.viewItems = [];
 		DOM.clearNode(this.actionsList);
 	}
 
@@ -729,7 +725,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		if (selectFirst && typeof this.focusedItem === 'undefined') {
 			// Focus the first enabled item
-			this.focusedItem = this.viewItems.length - 1;
+			this.focusedItem = -1;
 			this.focusNext();
 		} else {
 			if (index !== undefined) {
@@ -740,7 +736,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
-	protected focusNext(): void {
+	protected focusNext(): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = this.viewItems.length - 1;
 		}
@@ -749,6 +745,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 		let item: IActionViewItem;
 
 		do {
+			if (this.options.preventLoopNavigation && this.focusedItem + 1 >= this.viewItems.length) {
+				this.focusedItem = startIndex;
+				return false;
+			}
+
 			this.focusedItem = (this.focusedItem + 1) % this.viewItems.length;
 			item = this.viewItems[this.focusedItem];
 		} while (this.focusedItem !== startIndex && !item.isEnabled());
@@ -758,9 +759,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		this.updateFocus();
+		return true;
 	}
 
-	protected focusPrevious(): void {
+	protected focusPrevious(): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = 0;
 		}
@@ -772,6 +774,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 			this.focusedItem = this.focusedItem - 1;
 
 			if (this.focusedItem < 0) {
+				if (this.options.preventLoopNavigation) {
+					this.focusedItem = startIndex;
+					return false;
+				}
+
 				this.focusedItem = this.viewItems.length - 1;
 			}
 
@@ -783,6 +790,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		this.updateFocus(true);
+		return true;
 	}
 
 	protected updateFocus(fromRight?: boolean, preventScroll?: boolean): void {

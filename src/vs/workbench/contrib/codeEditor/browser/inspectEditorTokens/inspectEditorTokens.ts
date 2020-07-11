@@ -27,12 +27,9 @@ import { ITextMateService, IGrammar, IToken, StackElement } from 'vs/workbench/s
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from 'vs/workbench/services/themes/common/colorThemeData';
-import { TokenStylingRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-export interface IEditorSemanticHighlightingOptions {
-	enabled?: boolean;
-}
+import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/common/services/modelServiceImpl';
 
 class InspectEditorTokensController extends Disposable implements IEditorContribution {
 
@@ -251,6 +248,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			}
 			let text = this._compute(grammar, semanticTokens, position);
 			this._domNode.innerHTML = text;
+			this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 			this._editor.layoutContentWidget(this);
 		}, (err) => {
 			this._notificationService.warn(err);
@@ -263,11 +261,11 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _isSemanticColoringEnabled() {
-		if (!this._themeService.getColorTheme().semanticHighlighting) {
-			return false;
+		const setting = this._configurationService.getValue<IEditorSemanticHighlightingOptions>(SEMANTIC_HIGHLIGHTING_SETTING_ID, { overrideIdentifier: this._model.getLanguageIdentifier().language, resource: this._model.uri })?.enabled;
+		if (typeof setting === 'boolean') {
+			return setting;
 		}
-		const options = this._configurationService.getValue<IEditorSemanticHighlightingOptions>('editor.semanticHighlighting', { overrideIdentifier: this._model.getLanguageIdentifier().language, resource: this._model.uri });
-		return options && options.enabled;
+		return this._themeService.getColorTheme().semanticHighlighting;
 	}
 
 	private _compute(grammar: IGrammar | null, semanticTokens: SemanticTokensResult | null, position: Position): string {
@@ -513,8 +511,18 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			const line = lastLine + lineDelta; // 0-based
 			const character = lineDelta === 0 ? lastCharacter + charDelta : charDelta; // 0-based
 			if (posLine === line && character <= posCharacter && posCharacter < character + len) {
-				const type = semanticTokens.legend.tokenTypes[typeIdx];
-				const modifiers = semanticTokens.legend.tokenModifiers.filter((_, k) => modSet & 1 << k);
+				const type = semanticTokens.legend.tokenTypes[typeIdx] || 'not in legend (ignored)';
+				const modifiers = [];
+				let modifierSet = modSet;
+				for (let modifierIndex = 0; modifierSet > 0 && modifierIndex < semanticTokens.legend.tokenModifiers.length; modifierIndex++) {
+					if (modifierSet & 1) {
+						modifiers.push(semanticTokens.legend.tokenModifiers[modifierIndex]);
+					}
+					modifierSet = modifierSet >> 1;
+				}
+				if (modifierSet > 0) {
+					modifiers.push('not in legend (ignored)');
+				}
 				const range = new Range(line + 1, character + 1, line + 1, character + 1 + len);
 				const definitions = {};
 				const colorMap = this._themeService.getColorTheme().tokenColorMap;
@@ -552,10 +560,11 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			theme.resolveScopes(definition, scopesDefinition);
 			const matchingRule = scopesDefinition[property];
 			if (matchingRule && scopesDefinition.scope) {
-				return `${escape(scopesDefinition.scope.join(' '))}<br><code class="tiw-theme-selector">${matchingRule.scope}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
+				const strScopes = Array.isArray(matchingRule.scope) ? matchingRule.scope.join(', ') : String(matchingRule.scope);
+				return `${escape(scopesDefinition.scope.join(' '))}<br><code class="tiw-theme-selector">${strScopes}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
 			}
 			return '';
-		} else if (TokenStylingRule.is(definition)) {
+		} else if (SemanticTokenRule.is(definition)) {
 			const scope = theme.getTokenStylingRuleScope(definition);
 			if (scope === 'setting') {
 				return `User settings: ${definition.selector.id} - ${this._renderStyleProperty(definition.style, property)}`;

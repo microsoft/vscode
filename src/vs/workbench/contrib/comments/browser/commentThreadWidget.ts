@@ -48,6 +48,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action codicon-chevron-up';
@@ -101,6 +102,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	private _commentMenus: CommentMenus;
 
+	private _commentOptions: modes.CommentOptions | undefined;
+
 	constructor(
 		editor: ICodeEditor,
 		private _owner: string,
@@ -133,6 +136,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		if (controller) {
 			commentControllerKey.set(controller.contextValue);
+			this._commentOptions = controller.options;
 		}
 
 		this._resizeObserver = null;
@@ -717,10 +721,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	private createReplyButton() {
-		this._reviewThreadReplyButton = <HTMLButtonElement>dom.append(this._commentForm, dom.$('button.review-thread-reply-button'));
-		this._reviewThreadReplyButton.title = nls.localize('reply', "Reply...");
+		this._reviewThreadReplyButton = <HTMLButtonElement>dom.append(this._commentForm, dom.$(`button.review-thread-reply-button.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
+		this._reviewThreadReplyButton.title = this._commentOptions?.prompt || nls.localize('reply', "Reply...");
 
-		this._reviewThreadReplyButton.textContent = nls.localize('reply', "Reply...");
+		this._reviewThreadReplyButton.textContent = this._commentOptions?.prompt || nls.localize('reply', "Reply...");
 		// bind click/escape actions for reviewThreadReplyButton and textArea
 		this._disposables.add(dom.addDisposableListener(this._reviewThreadReplyButton, 'click', _ => this.expandReplyArea()));
 		this._disposables.add(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.expandReplyArea()));
@@ -735,6 +739,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	_refresh() {
 		if (this._isExpanded && this._bodyElement) {
 			let dimensions = dom.getClientArea(this._bodyElement);
+
+			this._commentElements.forEach(element => {
+				element.layout();
+			});
+
 			const headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
 			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 			const arrowHeight = Math.round(lineHeight / 3);
@@ -768,8 +777,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			const placeholder = valueLength > 0
 				? ''
 				: hasExistingComments
-					? nls.localize('reply', "Reply...")
-					: nls.localize('newComment', "Type a new comment");
+					? (this._commentOptions?.placeHolder || nls.localize('reply', "Reply..."))
+					: (this._commentOptions?.placeHolder || nls.localize('newComment', "Type a new comment"));
 			const decorations = [{
 				range: {
 					startLineNumber: 0,

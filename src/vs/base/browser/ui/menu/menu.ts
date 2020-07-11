@@ -24,8 +24,8 @@ import { Codicon, registerIcon, stripCodicons } from 'vs/base/common/codicons';
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
 
-const menuSelectionIcon = registerIcon('menu-selection', Codicon.chevronRight);
-const menuSubmenuIcon = registerIcon('menu-submenu', Codicon.check);
+const menuSelectionIcon = registerIcon('menu-selection', Codicon.check);
+const menuSubmenuIcon = registerIcon('menu-submenu', Codicon.chevronRight);
 
 export enum Direction {
 	Right,
@@ -41,6 +41,7 @@ export interface IMenuOptions {
 	enableMnemonics?: boolean;
 	anchorAlignment?: AnchorAlignment;
 	expandDirection?: Direction;
+	useEventAsContext?: boolean;
 }
 
 export interface IMenuStyles {
@@ -84,7 +85,7 @@ export class Menu extends ActionBar {
 			context: options.context,
 			actionRunner: options.actionRunner,
 			ariaLabel: options.ariaLabel,
-			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh ? [KeyCode.Space] : [])], keyDown: true }
+			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh || isLinux ? [KeyCode.Space] : [])], keyDown: true }
 		});
 
 		this.menuElement = menuElement;
@@ -316,7 +317,7 @@ export class Menu extends ActionBar {
 
 			return menuActionViewItem;
 		} else {
-			const menuItemOptions: IMenuItemOptions = { enableMnemonics: options.enableMnemonics };
+			const menuItemOptions: IMenuItemOptions = { enableMnemonics: options.enableMnemonics, useEventAsContext: options.useEventAsContext };
 			if (options.getKeyBinding) {
 				const keybinding = options.getKeyBinding(action);
 				if (keybinding) {
@@ -394,10 +395,9 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			}
 
 			this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
-				if (e.defaultPrevented) {
-					return;
-				}
-
+				// removed default prevention as it conflicts
+				// with BaseActionViewItem #101537
+				// add back if issues arise and link new issue
 				EventHelper.stop(e, true);
 				this.onClick(e);
 			}));
@@ -426,7 +426,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			}
 		}
 
-		this.check = append(this.item, $('span.menu-item-check.' + menuSelectionIcon.cssSelector));
+		this.check = append(this.item, $('span.menu-item-check' + menuSelectionIcon.cssSelector));
 		this.check.setAttribute('role', 'none');
 
 		this.label = append(this.item, $('span.action-label'));

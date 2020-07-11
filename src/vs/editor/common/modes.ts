@@ -608,7 +608,7 @@ export interface CompletionItemProvider {
 	 *
 	 * The editor will only resolve a completion item once.
 	 */
-	resolveCompletionItem?(model: model.ITextModel, position: Position, item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
+	resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
 }
 
 export interface CodeAction {
@@ -1411,17 +1411,29 @@ export interface RenameProvider {
  */
 export interface AuthenticationSession {
 	id: string;
-	getAccessToken(): Thenable<string>;
-	accountName: string;
+	accessToken: string;
+	account: {
+		label: string;
+		id: string;
+	}
+	scopes: ReadonlyArray<string>;
 }
 
 /**
  * @internal
  */
 export interface AuthenticationSessionsChangeEvent {
-	added: string[];
-	removed: string[];
-	changed: string[];
+	added: ReadonlyArray<string>;
+	removed: ReadonlyArray<string>;
+	changed: ReadonlyArray<string>;
+}
+
+/**
+ * @internal
+ */
+export interface AuthenticationProviderInformation {
+	id: string;
+	label: string;
 }
 
 export interface Command {
@@ -1531,6 +1543,21 @@ export interface CommentReaction {
 /**
  * @internal
  */
+export interface CommentOptions {
+	/**
+	 * An optional string to show on the comment input box when it's collapsed.
+	 */
+	prompt?: string;
+
+	/**
+	 * An optional string to show as placeholder in the comment input box when it's focused.
+	 */
+	placeHolder?: string;
+}
+
+/**
+ * @internal
+ */
 export enum CommentMode {
 	Editing = 0,
 	Preview = 1
@@ -1584,7 +1611,7 @@ export interface IWebviewPortMapping {
 export interface IWebviewOptions {
 	readonly enableScripts?: boolean;
 	readonly enableCommandUris?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<URI>;
+	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
 	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
 }
 

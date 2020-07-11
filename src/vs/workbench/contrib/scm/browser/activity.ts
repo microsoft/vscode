@@ -92,7 +92,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const focusDisposable = repository.onDidFocus(() => this.focusRepository(repository));
+		const selectedDisposable = Event.filter(repository.onDidChangeSelection, selected => selected)(() => this.focusRepository(repository));
 
 		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
 		const changeDisposable = onDidChange(() => this.renderActivityCount());
@@ -104,14 +104,12 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 			if (this.scmService.repositories.length === 0) {
 				this.focusRepository(undefined);
-			} else if (this.focusedRepository === repository) {
-				this.scmService.repositories[0].focus();
 			}
 
 			this.renderActivityCount();
 		});
 
-		const disposable = combinedDisposable(focusDisposable, changeDisposable, removeDisposable);
+		const disposable = combinedDisposable(selectedDisposable, changeDisposable, removeDisposable);
 		this.disposables.push(disposable);
 
 		if (this.focusedRepository) {
@@ -155,14 +153,14 @@ export class SCMStatusController implements IWorkbenchContribution {
 			: repository.provider.label;
 
 		const disposables = new DisposableStore();
-		for (const c of commands) {
-			const tooltip = `${label} - ${c.tooltip}`;
+		for (const command of commands) {
+			const tooltip = `${label} - ${command.tooltip}`;
 
 			disposables.add(this.statusbarService.addEntry({
-				text: c.title,
-				ariaLabel: c.tooltip || label,
+				text: command.title,
+				ariaLabel: command.tooltip || label,
 				tooltip,
-				command: c
+				command: command.id ? command : undefined
 			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
 		}
 
@@ -184,7 +182,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 		if (count > 0) {
 			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
-			this.badgeDisposable.value = this.activityService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
+			this.badgeDisposable.value = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge, clazz: 'scm-viewlet-label' });
 		} else {
 			this.badgeDisposable.clear();
 		}
