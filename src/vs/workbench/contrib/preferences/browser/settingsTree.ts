@@ -1346,7 +1346,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 					},
 					disposeables: disposables
 				},
-				decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "{0}", 'default') : '')
+				decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "default") : '')
 			});
 
 		template.selectBox.setOptions(displayOptions);
