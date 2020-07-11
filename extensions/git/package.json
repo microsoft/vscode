@@ -1789,8 +1789,8 @@
           "diff"
         ],
         "extensions": [
-          ".patch",
           ".diff",
+          ".patch",
           ".rej"
         ],
         "configuration": "./languages/diff.language-configuration.json"
