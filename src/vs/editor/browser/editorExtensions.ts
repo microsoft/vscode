@@ -14,7 +14,7 @@ import { IEditorContribution, IDiffEditorContribution } from 'vs/editor/common/e
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { IConstructorSignature1, ServicesAccessor as InstantiationServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
@@ -338,6 +338,32 @@ export abstract class EditorAction extends EditorCommand {
 }
 
 //#endregion EditorAction
+
+//#region EditorAction2
+
+export abstract class EditorAction2 extends Action2 {
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		// Find the editor with text focus or active
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
+		if (!editor) {
+			// well, at least we tried...
+			return;
+		}
+		// precondition does hold
+		return editor.invokeWithinContext((editorAccessor) => {
+			const kbService = editorAccessor.get(IContextKeyService);
+			if (kbService.contextMatchesRules(withNullAsUndefined(this.desc.precondition))) {
+				return this.runEditorCommand(editorAccessor, editor!, args);
+			}
+		});
+	}
+
+	abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): any;
+}
+
+//#endregion
 
 // --- Registration of commands and actions
 
