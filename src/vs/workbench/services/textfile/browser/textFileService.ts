@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { joinPath, dirname, basename, toLocalResource, extUri, extname, isEqualOrParent } from 'vs/base/common/resources';
+import { joinPath, dirname, basename, toLocalResource, extUri, extname } from 'vs/base/common/resources';
 import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer, VSBufferReadable, bufferToStream } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
@@ -515,7 +515,8 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -633,7 +634,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 			for (const override of this.encodingOverrides) {
 
 				// check if the resource is child of encoding override path
-				if (override.parent && isEqualOrParent(resource, override.parent)) {
+				if (override.parent && this.uriIdentityService.extUri.isEqualOrParent(resource, override.parent)) {
 					return override.encoding;
 				}
 
