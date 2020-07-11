@@ -692,7 +692,7 @@ class PreferencesRenderersController extends Disposable {
 			if (nlpMetadata) {
 				const sortedKeys = Object.keys(nlpMetadata.scoredResults).sort((a, b) => nlpMetadata.scoredResults[b].score - nlpMetadata.scoredResults[a].score);
 				const suffix = '##' + key;
-				data['nlpIndex'] = arrays.firstIndex(sortedKeys, key => strings.endsWith(key, suffix));
+				data['nlpIndex'] = arrays.firstIndex(sortedKeys, key => key.endsWith(suffix));
 			}
 
 			const settingLocation = this._findSetting(this.lastFilterResult, key);
