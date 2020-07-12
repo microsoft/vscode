@@ -45,22 +45,39 @@ export interface IDecoderStream {
 
 class DecoderStream implements IDecoderStream {
 
+	private static readonly utf8TextDecoder = new TextDecoder();
+
 	/**
 	 * This stream will only load iconv-lite lazily if the encoding
 	 * is not UTF-8. This ensures that for most common cases we do
 	 * not pay the price of loading the module from disk.
+	 *
+	 * We still need to be careful when converting UTF-8 to a string
+	 * though because we read the file in chunks of Buffer and thus
+	 * need to decode it via TextDecoder helper that is available
+	 * in browser and node.js environments.
 	 */
 	static async create(encoding: string): Promise<DecoderStream> {
 		let decoder: IDecoderStream | undefined = undefined;
 		if (encoding !== UTF8) {
 			const iconv = await import('iconv-lite-umd');
 			decoder = iconv.getDecoder(toNodeEncoding(encoding));
+		} else {
+			decoder = {
+				write(buffer: Uint8Array): string {
+					return DecoderStream.utf8TextDecoder.decode(buffer, { stream: true });
+				},
+
+				end(): string | undefined {
+					return DecoderStream.utf8TextDecoder.decode();
+				}
+			};
 		}
 
 		return new DecoderStream(decoder);
 	}
 
-	private constructor(private iconvLiteDecoder: IDecoderStream | undefined) { }
+	private constructor(private iconvLiteDecoder: IDecoderStream) { }
 
 	write(buffer: Uint8Array): string {
 		if (this.iconvLiteDecoder) {
