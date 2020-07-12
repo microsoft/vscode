@@ -404,7 +404,7 @@ export interface IUserDataSyncService {
 	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
-	acceptPreviewContent(conflictResource: URI, content: string): Promise<void>;
+	acceptPreviewContent(resource: SyncResource, conflictResource: URI, content: string): Promise<void>;
 
 	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
 	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;

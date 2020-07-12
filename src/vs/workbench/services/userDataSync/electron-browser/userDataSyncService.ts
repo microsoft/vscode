@@ -104,8 +104,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('isFirstTimeSyncingWithAnotherMachine');
 	}
 
-	acceptPreviewContent(resource: URI, content: string): Promise<void> {
-		return this.channel.call('acceptPreviewContent', [resource, content]);
+	acceptPreviewContent(syncResource: SyncResource, resource: URI, content: string): Promise<void> {
+		return this.channel.call('acceptPreviewContent', [syncResource, resource, content]);
 	}
 
 	resolveContent(resource: URI): Promise<string | null> {
