@@ -79,8 +79,6 @@ export abstract class AbstractSynchroniser extends Disposable {
 	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
 
-	private _resourcePreviews: IResourcePreview[] = [];
-
 	private _conflicts: IResourcePreview[] = [];
 	get conflicts(): IResourcePreview[] { return this._conflicts; }
 	private _onDidChangeConflicts: Emitter<IResourcePreview[]> = this._register(new Emitter<IResourcePreview[]>());
@@ -382,18 +380,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 		try {
 			this.syncHeaders = { ...headers };
-
 			const preview = await this.syncPreviewPromise;
-			this.syncPreviewPromise = createCancelablePromise(async token => {
-				const newPreview = await this.updateSyncResourcePreviewContent(preview, resource, content, token);
-
-				if (!token.isCancellationRequested) {
-					await this.updateResourcePreviews(newPreview.resourcePreviews, token);
-				}
-
-				return newPreview;
-			});
-
+			this.syncPreviewPromise = createCancelablePromise(token => this.updateSyncResourcePreviewContent(preview, resource, content, token));
 			return this.merge(resource, force, headers);
 		} finally {
 			this.syncHeaders = {};
@@ -456,8 +444,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 		// reset preview
 		this.syncPreviewPromise = null;
 
-		// reset resource previews
-		await this.updateResourcePreviews([], CancellationToken.None);
+		// reset preview folder
+		await this.clearPreviewFolder();
 
 		return SyncStatus.Idle;
 	}
@@ -488,18 +476,10 @@ export abstract class AbstractSynchroniser extends Disposable {
 		};
 	}
 
-	private async updateResourcePreviews(resourcePreviews: IResourcePreview[], token: CancellationToken): Promise<void> {
-		const oldPreviews = this._resourcePreviews;
-		this._resourcePreviews = resourcePreviews;
-
-		// clear obsolete previews
-		for (const resourcePreview of oldPreviews) {
-			if (!this._resourcePreviews.some(({ previewResource }) => isEqual(previewResource, resourcePreview.previewResource))) {
-				try {
-					await this.fileService.del(resourcePreview.previewResource);
-				} catch (error) { /* Ignore */ }
-			}
-		}
+	private async clearPreviewFolder(): Promise<void> {
+		try {
+			await this.fileService.del(this.syncPreviewFolder, { recursive: true });
+		} catch (error) { /* Ignore */ }
 	}
 
 	private updateConflicts(conflicts: IResourcePreview[]): void {
@@ -588,10 +568,6 @@ export abstract class AbstractSynchroniser extends Disposable {
 		const lastSyncUserDataForPreview = lastSyncUserData === null && isLastSyncFromCurrentMachine ? remoteUserData : lastSyncUserData;
 		const resourcePreviews = await this.generateSyncPreview(remoteUserData, lastSyncUserDataForPreview, token);
 
-		if (!token.isCancellationRequested) {
-			await this.updateResourcePreviews(resourcePreviews, token);
-		}
-
 		return { remoteUserData, lastSyncUserData, resourcePreviews, isLastSyncFromCurrentMachine };
 	}
 
@@ -678,8 +654,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 			this.syncPreviewPromise = null;
 		}
 
-		await this.updateResourcePreviews([], CancellationToken.None);
 		this.updateConflicts([]);
+		await this.clearPreviewFolder();
 
 		this.setStatus(SyncStatus.Idle);
 		this.logService.info(`${this.syncResourceLogLabel}: Stopped synchronizing ${this.resource.toLowerCase()}.`);
