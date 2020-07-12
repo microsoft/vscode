@@ -63,6 +63,7 @@ export interface IResourcePreview extends IBaseResourcePreview {
 	readonly remoteContent: string | null;
 	readonly localContent: string | null;
 	readonly previewContent: string | null;
+	readonly hasConflicts: boolean;
 }
 
 export abstract class AbstractSynchroniser extends Disposable {
@@ -359,7 +360,9 @@ export abstract class AbstractSynchroniser extends Disposable {
 			}
 
 			if (apply) {
-				return await this.apply(remoteUserData, lastSyncUserData, false);
+				const preview = await this.syncPreviewPromise;
+				const newConflicts = preview.resourcePreviews.filter(({ hasConflicts }) => hasConflicts);
+				return await this.updateConflictsAndApply(newConflicts, false);
 			} else {
 				return SyncStatus.Syncing;
 			}
@@ -392,7 +395,41 @@ export abstract class AbstractSynchroniser extends Disposable {
 				return newPreview;
 			});
 
-			const status = await this.apply(preview.remoteUserData, preview.lastSyncUserData, force);
+			return this.merge(resource, force, headers);
+		} finally {
+			this.syncHeaders = {};
+		}
+	}
+
+	async merge(resource: URI, force: boolean, headers: IHeaders = {}): Promise<ISyncResourcePreview | null> {
+		if (!this.syncPreviewPromise) {
+			return null;
+		}
+
+		try {
+			this.syncHeaders = { ...headers };
+			const preview = await this.syncPreviewPromise;
+			const resourcePreview = preview.resourcePreviews.find(({ localResource, remoteResource, previewResource }) =>
+				isEqual(localResource, resource) || isEqual(remoteResource, resource) || isEqual(previewResource, resource));
+			if (!resourcePreview) {
+				return preview;
+			}
+
+			/* Add or remove the preview from conflicts */
+			const newConflicts = [...this._conflicts];
+			const index = newConflicts.findIndex(({ localResource, remoteResource, previewResource }) =>
+				isEqual(localResource, resource) || isEqual(remoteResource, resource) || isEqual(previewResource, resource));
+			if (resourcePreview.hasConflicts) {
+				if (newConflicts.indexOf(resourcePreview) === -1) {
+					newConflicts.push(resourcePreview);
+				}
+			} else {
+				if (index !== -1) {
+					newConflicts.splice(index, 1);
+				}
+			}
+
+			const status = await this.updateConflictsAndApply(newConflicts, force);
 			this.setStatus(status);
 			return this.syncPreviewPromise;
 
@@ -401,7 +438,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
-	private async apply(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, force: boolean): Promise<SyncStatus> {
+	private async updateConflictsAndApply(conflicts: IResourcePreview[], force: boolean): Promise<SyncStatus> {
 		if (!this.syncPreviewPromise) {
 			return SyncStatus.Idle;
 		}
@@ -409,13 +446,13 @@ export abstract class AbstractSynchroniser extends Disposable {
 		const preview = await this.syncPreviewPromise;
 
 		// update conflicts
-		this.updateConflicts();
+		this.updateConflicts(conflicts);
 		if (this._conflicts.length) {
 			return SyncStatus.HasConflicts;
 		}
 
 		// apply preview
-		await this.applyPreview(remoteUserData, lastSyncUserData, preview.resourcePreviews, force);
+		await this.applyPreview(preview.remoteUserData, preview.lastSyncUserData, preview.resourcePreviews, force);
 
 		// reset preview
 		this.syncPreviewPromise = null;
@@ -466,12 +503,10 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
-	private updateConflicts(): void {
-		const oldConflicts = this._conflicts;
-		const newConflicts = this._resourcePreviews.filter(({ hasConflicts }) => hasConflicts);
-		if (!equals(oldConflicts, newConflicts, (a, b) => isEqual(a.previewResource, b.previewResource))) {
-			this._conflicts = newConflicts;
-			this._onDidChangeConflicts.fire(newConflicts);
+	private updateConflicts(conflicts: IResourcePreview[]): void {
+		if (!equals(this._conflicts, conflicts, (a, b) => isEqual(a.previewResource, b.previewResource))) {
+			this._conflicts = conflicts;
+			this._onDidChangeConflicts.fire(conflicts);
 		}
 	}
 
@@ -645,7 +680,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 
 		await this.updateResourcePreviews([], CancellationToken.None);
-		this.updateConflicts();
+		this.updateConflicts([]);
 
 		this.setStatus(SyncStatus.Idle);
 		this.logService.info(`${this.syncResourceLogLabel}: Stopped synchronizing ${this.resource.toLowerCase()}.`);
