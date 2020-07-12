@@ -173,13 +173,12 @@ function terminateWhenParentTerminates() {
 }
 
 function configureCrashReporter() {
-	const crashReporterStartOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
-	const crashReporter = process['crashReporter'];
-	if (typeof crashReporterStartOptionsRaw === 'string') {
+	const crashReporterOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
+	if (typeof crashReporterOptionsRaw === 'string') {
 		try {
-			const crashReporterStartOptions = JSON.parse(crashReporterStartOptionsRaw);
-			if (crashReporterStartOptions) {
-				crashReporter.start(crashReporterStartOptions);
+			const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
+			if (crashReporterOptions) {
+				process['crashReporter'].start(crashReporterOptions);
 			}
 		} catch (error) {
 			console.error(error);

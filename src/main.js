@@ -42,6 +42,9 @@ const argvConfig = configureCommandlineSwitchesSync(args);
 // If a crash-reporter-directory is specified we store the crash reports
 // in the specified directory and don't upload them to the crash server.
 let crashReporterDirectory = args['crash-reporter-directory'];
+const productName = product.crashReporter?.productName || product.nameShort;
+const companyName = product.crashReporter?.companyName || 'Microsoft';
+let submitURL = '';
 if (crashReporterDirectory) {
 	crashReporterDirectory = path.normalize(crashReporterDirectory);
 
@@ -63,42 +66,39 @@ if (crashReporterDirectory) {
 	// need to change that directory to the provided one
 	console.log(`Found --crash-reporter-directory argument. Setting crashDumps directory to be '${crashReporterDirectory}'`);
 	app.setPath('crashDumps', crashReporterDirectory);
-	// Start crash reporter for all processes
-	crashReporter.start({
-		companyName: 'Microsoft',
-		productName: process.env['VSCODE_DEV'] ? `${product.nameShort} Dev` : product.nameShort,
-		submitURL: '',
-		uploadToServer: false
-	});
 } else {
 	const appCenter = product.appCenter;
-	const productName = product.crashReporter?.productName || product.nameShort;
-	const companyName = product.crashReporter?.companyName || 'Microsoft';
-	let submitURL = '';
+	// If enable-crash-reporter argv is undefined then this is a fresh start,
+	// generate a UUID which will be used as crash reporter id and also
+	// update the json file.
+	if (!argvConfig['enable-crash-reporter']) {
+		argvConfig['enable-crash-reporter'] = generateUuid();
+		fs.writeFileSync(getArgvConfigPath(), JSON.stringify(argvConfig));
+	}
 	// Disable Appcenter crash reporting if
 	// * --crash-reporter-directory is specified
-	// * disable-crash-reporter runtime argument is set to 'true'
+	// * enable-crash-reporter runtime argument is set to 'false'
 	// * --disable-crash-reporter command line parameter is set
-	if (appCenter && (!argvConfig['disable-crash-reporter'] || argvConfig['disable-crash-reporter'] === false || argvConfig['disable-crash-reporter'] === 'false') &&
+	if (appCenter && (argvConfig['enable-crash-reporter'] !== false || argvConfig['enable-crash-reporter'] !== 'false') &&
 		!args['disable-crash-reporter']) {
 		const isWindows = (process.platform === 'win32');
 		const isLinux = (process.platform === 'linux');
-		getCrashReporterId().then(crashReporterId => {
-			submitURL = isWindows ? appCenter[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? appCenter[`linux-x64`] : appCenter.darwin;
-			submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
-			// Send the id for child node process that are explicitly starting crash reporter.
-			// For vscode this is ExtensionHost process currently.
-			process.argv.push('--crash-reporter-id', crashReporterId);
-			// Start crash reporter for all processes
-			crashReporter.start({
-				companyName: companyName,
-				productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
-				submitURL: submitURL,
-				uploadToServer: true
-			});
-		});
+		const crashReporterId = argvConfig['enable-crash-reporter'];
+		submitURL = isWindows ? appCenter[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? appCenter[`linux-x64`] : appCenter.darwin;
+		submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
+		// Send the id for child node process that are explicitly starting crash reporter.
+		// For vscode this is ExtensionHost process currently.
+		process.argv.push('--crash-reporter-id', crashReporterId);
 	}
 }
+
+// Start crash reporter for all processes
+crashReporter.start({
+	companyName: companyName,
+	productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
+	submitURL: submitURL,
+	uploadToServer: !crashReporterDirectory
+});
 
 // Set logs path before app 'ready' event if running portable
 // to ensure that no 'logs' folder is created on disk at a
@@ -301,7 +301,6 @@ function readArgvConfigSync() {
 	if (!argvConfig) {
 		argvConfig = {
 			'disable-color-correct-rendering': true, // Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
-			'disable-crash-reporter': false
 		};
 	}
 
@@ -379,18 +378,6 @@ function getArgvConfigPath() {
 	}
 
 	return path.join(os.homedir(), dataFolderName, 'argv.json');
-}
-
-async function getCrashReporterId() {
-	const crashReporterIdPath = path.join(userDataPath, 'crashReporterId');
-	let crashReporterId;
-	try {
-		crashReporterId = await fs.promises.readFile(crashReporterIdPath, 'utf8');
-	} catch (e) {
-		crashReporterId = generateUuid();
-		await fs.promises.writeFile(crashReporterIdPath, crashReporterId);
-	}
-	return crashReporterId;
 }
 
 /**
