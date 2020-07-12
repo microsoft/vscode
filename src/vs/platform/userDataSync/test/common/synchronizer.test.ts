@@ -147,19 +147,6 @@ suite('TestSynchronizer', () => {
 		assert.deepEqual(testObject.status, SyncStatus.Idle);
 	});
 
-	test('status is set correctly when sync has conflicts', async () => {
-		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
-
-		const actual: SyncStatus[] = [];
-		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-		await testObject.sync(await client.manifest());
-
-		assert.deepEqual(actual, [SyncStatus.Syncing, SyncStatus.HasConflicts]);
-		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
-	});
-
 	test('status is set correctly when sync has errors', async () => {
 		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
 		testObject.syncResult = { hasError: true, hasConflicts: false };
@@ -175,6 +162,26 @@ suite('TestSynchronizer', () => {
 			assert.deepEqual(actual, [SyncStatus.Syncing, SyncStatus.Idle]);
 			assert.deepEqual(testObject.status, SyncStatus.Idle);
 		}
+	});
+
+	test('status is set to hasConflicts when asked to sync if there are conflicts', async () => {
+		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		testObject.syncResult = { hasConflicts: true, hasError: false };
+		testObject.syncBarrier.open();
+
+		await testObject.sync(await client.manifest());
+
+		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+	});
+
+	test('status is set to syncing when asked for preview if there are conflicts', async () => {
+		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		testObject.syncResult = { hasConflicts: true, hasError: false };
+		testObject.syncBarrier.open();
+
+		await testObject.preview(await client.manifest());
+
+		assert.deepEqual(testObject.status, SyncStatus.Syncing);
 	});
 
 	test('sync should not run if syncing already', async () => {
