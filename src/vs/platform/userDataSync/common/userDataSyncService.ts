@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle, IUserDataManifest, ISyncTask, Change, IResourcePreview, IManualSyncTask, ISyncResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode, UserDataSyncError, ISyncResourceHandle, IUserDataManifest, ISyncTask, Change, IResourcePreview, IManualSyncTask, ISyncResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -47,10 +47,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	readonly onDidChangeLocal: Event<SyncResource>;
 
-	private _conflicts: SyncResourceConflicts[] = [];
-	get conflicts(): SyncResourceConflicts[] { return this._conflicts; }
-	private _onDidChangeConflicts: Emitter<SyncResourceConflicts[]> = this._register(new Emitter<SyncResourceConflicts[]>());
-	readonly onDidChangeConflicts: Event<SyncResourceConflicts[]> = this._onDidChangeConflicts.event;
+	private _conflicts: [SyncResource, IResourcePreview[]][] = [];
+	get conflicts(): [SyncResource, IResourcePreview[]][] { return this._conflicts; }
+	private _onDidChangeConflicts: Emitter<[SyncResource, IResourcePreview[]][]> = this._register(new Emitter<[SyncResource, IResourcePreview[]][]>());
+	readonly onDidChangeConflicts: Event<[SyncResource, IResourcePreview[]][]> = this._onDidChangeConflicts.event;
 
 	private _syncErrors: [SyncResource, UserDataSyncError][] = [];
 	private _onSyncErrors: Emitter<[SyncResource, UserDataSyncError][]> = this._register(new Emitter<[SyncResource, UserDataSyncError][]>());
@@ -393,7 +393,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	private updateConflicts(): void {
 		const conflicts = this.computeConflicts();
-		if (!equals(this._conflicts, conflicts, (a, b) => a.syncResource === b.syncResource && equals(a.conflicts, b.conflicts, (a, b) => isEqual(a.previewResource, b.previewResource)))) {
+		if (!equals(this._conflicts, conflicts, ([syncResourceA, conflictsA], [syncResourceB, conflictsB]) => syncResourceA === syncResourceA && equals(conflictsA, conflictsB, (a, b) => isEqual(a.previewResource, b.previewResource)))) {
 			this._conflicts = this.computeConflicts();
 			this._onDidChangeConflicts.fire(conflicts);
 		}
@@ -438,9 +438,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.logService.error(`${source}: ${toErrorMessage(e)}`);
 	}
 
-	private computeConflicts(): SyncResourceConflicts[] {
+	private computeConflicts(): [SyncResource, IResourcePreview[]][] {
 		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)
-			.map(s => ({ syncResource: s.resource, conflicts: s.conflicts.map(toStrictResourcePreview) }));
+			.map(s => ([s.resource, s.conflicts.map(toStrictResourcePreview)]));
 	}
 
 	getSynchroniser(source: SyncResource): IUserDataSynchroniser {

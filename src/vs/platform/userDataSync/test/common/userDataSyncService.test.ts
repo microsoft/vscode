@@ -420,7 +420,7 @@ suite('UserDataSyncService', () => {
 		await (await testObject.createSyncTask()).run();
 
 		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
-		assert.deepEqual(testObject.conflicts.map(({ syncResource }) => syncResource), [SyncResource.Settings]);
+		assert.deepEqual(testObject.conflicts.map(([syncResource]) => syncResource), [SyncResource.Settings]);
 	});
 
 	test('test sync will sync other non conflicted areas', async () => {

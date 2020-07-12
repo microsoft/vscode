@@ -358,8 +358,6 @@ export interface IUserDataSyncResourceEnablementService {
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
 }
 
-export type SyncResourceConflicts = { syncResource: SyncResource, conflicts: IResourcePreview[] };
-
 export interface ISyncTask {
 	readonly manifest: IUserDataManifest | null;
 	run(): Promise<void>;
@@ -384,8 +382,8 @@ export interface IUserDataSyncService {
 	readonly onDidChangeStatus: Event<SyncStatus>;
 	readonly onSynchronizeResource: Event<SyncResource>;
 
-	readonly conflicts: SyncResourceConflicts[];
-	readonly onDidChangeConflicts: Event<SyncResourceConflicts[]>;
+	readonly conflicts: [SyncResource, IResourcePreview[]][];
+	readonly onDidChangeConflicts: Event<[SyncResource, IResourcePreview[]][]>;
 
 	readonly onDidChangeLocal: Event<SyncResource>;
 	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]>;
