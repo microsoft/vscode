@@ -490,22 +490,19 @@ class ManualSyncTask implements IManualSyncTask {
 		return this.previews;
 	}
 
-	async merge(): Promise<[SyncResource, ISyncResourcePreview][]> {
+	async merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
 		if (!this.previews) {
 			throw new Error('You need to create preview before applying');
 		}
-		const previews: [SyncResource, ISyncResourcePreview][] = [];
-		for (const [syncResource, preview] of this.previews) {
-			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
-			let newPreview: ISyncResourcePreview | null = null;
-			for (const resourcePreview of preview.resourcePreviews) {
-				newPreview = await synchroniser.merge(resourcePreview.previewResource, false, this.syncHeaders);
-			}
-			if (newPreview) {
-				previews.push(this.toSyncResourcePreview(syncResource, newPreview));
-			}
+		const index = this.previews.findIndex(([, preview]) => preview.resourcePreviews.some(({ localResource, previewResource, remoteResource }) =>
+			isEqual(resource, localResource) || isEqual(resource, previewResource) || isEqual(resource, remoteResource)));
+		if (index !== -1) {
+			const synchroniser = this.synchronisers.find(s => s.resource === this.previews![index][0])!;
+			/* force only if the resource is local or remote resource */
+			const force = this.previews![index][1].resourcePreviews.some(({ localResource, remoteResource }) => isEqual(resource, localResource) || isEqual(resource, remoteResource));
+			const preview = await synchroniser.merge(resource, force, this.syncHeaders);
+			preview ? this.previews.splice(index, 1, this.toSyncResourcePreview(synchroniser.resource, preview)) : this.previews.splice(index, 1);
 		}
-		this.previews = previews;
 		return this.previews;
 	}
 

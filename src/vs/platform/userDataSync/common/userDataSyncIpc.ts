@@ -86,7 +86,7 @@ class ManualSyncTaskChannel implements IServerChannel {
 		switch (command) {
 			case 'preview': return this.manualSyncTask.preview();
 			case 'accept': return this.manualSyncTask.accept(URI.revive(args[0]), args[1]);
-			case 'merge': return this.manualSyncTask.merge();
+			case 'merge': return this.manualSyncTask.merge(URI.revive(args[0]));
 			case 'pull': return this.manualSyncTask.pull();
 			case 'push': return this.manualSyncTask.push();
 			case 'stop': return this.manualSyncTask.stop();

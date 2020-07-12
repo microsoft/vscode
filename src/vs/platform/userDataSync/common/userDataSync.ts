@@ -369,10 +369,10 @@ export interface ISyncTask {
 export interface IManualSyncTask {
 	readonly manifest: IUserDataManifest | null;
 	preview(): Promise<[SyncResource, ISyncResourcePreview][]>;
-	merge(): Promise<[SyncResource, ISyncResourcePreview][]>;
+	accept(uri: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]>;
+	merge(uri: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
 	pull(): Promise<void>;
 	push(): Promise<void>;
-	accept(uri: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]>;
 	stop(): Promise<void>;
 }
 

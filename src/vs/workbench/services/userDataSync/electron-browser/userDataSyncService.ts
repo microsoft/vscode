@@ -181,12 +181,12 @@ class ManualSyncTask implements IManualSyncTask {
 			]));
 	}
 
-	accept(uri: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]> {
-		return this.channel.call('accept', [uri, content]);
+	accept(resource: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]> {
+		return this.channel.call('accept', [resource, content]);
 	}
 
-	merge(): Promise<[SyncResource, ISyncResourcePreview][]> {
-		return this.channel.call('merge');
+	merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
+		return this.channel.call('merge', [resource]);
 	}
 
 	pull(): Promise<void> {
