@@ -164,7 +164,7 @@ suite('TestSynchronizer', () => {
 		await testObject.sync(await client.manifest());
 
 		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
-		assertConflicts(testObject.conflicts, [testObject.resourcePreviews[0].previewResource]);
+		assertConflicts(testObject.conflicts, [resource]);
 	});
 
 	test('sync should not run if syncing already', async () => {

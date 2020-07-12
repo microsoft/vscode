@@ -80,7 +80,6 @@ export abstract class AbstractSynchroniser extends Disposable {
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
 
 	private _resourcePreviews: IResourcePreview[] = [];
-	get resourcePreviews(): IResourcePreview[] { return this._resourcePreviews; }
 
 	private _conflicts: IResourcePreview[] = [];
 	get conflicts(): IResourcePreview[] { return this._conflicts; }

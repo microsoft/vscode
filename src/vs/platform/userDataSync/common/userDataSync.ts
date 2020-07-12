@@ -317,9 +317,10 @@ export interface IUserDataSynchroniser {
 	readonly resource: SyncResource;
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
-	readonly resourcePreviews: IResourcePreview[];
+
 	readonly conflicts: IResourcePreview[];
 	readonly onDidChangeConflicts: Event<IResourcePreview[]>;
+
 	readonly onDidChangeLocal: Event<void>;
 
 	pull(): Promise<void>;

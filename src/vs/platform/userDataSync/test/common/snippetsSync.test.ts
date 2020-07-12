@@ -696,7 +696,6 @@ suite('SnippetsSync', () => {
 		let conflicts = testObject.conflicts;
 		await testObject.acceptPreviewContent(conflicts[0].previewResource, htmlSnippet2, false);
 
-		assert.deepEqual(testObject.resourcePreviews, []);
 		const fileService = testClient.instantiationService.get(IFileService);
 		assert.ok(fileService.exists(conflicts[0].previewResource));
 	});
