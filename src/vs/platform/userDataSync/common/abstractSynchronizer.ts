@@ -373,31 +373,6 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
-	private async apply(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, force: boolean): Promise<SyncStatus> {
-		if (!this.syncPreviewPromise) {
-			return SyncStatus.Idle;
-		}
-
-		const preview = await this.syncPreviewPromise;
-
-		// update conflicts
-		this.updateConflicts();
-		if (this._conflicts.length) {
-			return SyncStatus.HasConflicts;
-		}
-
-		// apply preview
-		await this.applyPreview(remoteUserData, lastSyncUserData, preview.resourcePreviews, force);
-
-		// reset preview
-		this.syncPreviewPromise = null;
-
-		// reset resource previews
-		await this.updateResourcePreviews([], CancellationToken.None);
-
-		return SyncStatus.Idle;
-	}
-
 	async acceptPreviewContent(resource: URI, content: string, force: boolean, headers: IHeaders = {}): Promise<ISyncResourcePreview | null> {
 		if (!this.syncPreviewPromise) {
 			return null;
@@ -424,6 +399,31 @@ export abstract class AbstractSynchroniser extends Disposable {
 		} finally {
 			this.syncHeaders = {};
 		}
+	}
+
+	private async apply(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, force: boolean): Promise<SyncStatus> {
+		if (!this.syncPreviewPromise) {
+			return SyncStatus.Idle;
+		}
+
+		const preview = await this.syncPreviewPromise;
+
+		// update conflicts
+		this.updateConflicts();
+		if (this._conflicts.length) {
+			return SyncStatus.HasConflicts;
+		}
+
+		// apply preview
+		await this.applyPreview(remoteUserData, lastSyncUserData, preview.resourcePreviews, force);
+
+		// reset preview
+		this.syncPreviewPromise = null;
+
+		// reset resource previews
+		await this.updateResourcePreviews([], CancellationToken.None);
+
+		return SyncStatus.Idle;
 	}
 
 	private async updateSyncResourcePreviewContent(preview: ISyncResourcePreview, resource: URI, previewContent: string, token: CancellationToken): Promise<ISyncResourcePreview> {
