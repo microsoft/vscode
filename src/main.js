@@ -80,7 +80,7 @@ if (crashReporterDirectory) {
 	// * disable-crash-reporter runtime argument is set to 'true'
 	// * --disable-crash-reporter command line parameter is set
 	if (appCenter && (!argvConfig['disable-crash-reporter'] || argvConfig['disable-crash-reporter'] === false || argvConfig['disable-crash-reporter'] === 'false') &&
-		!app.commandLine.hasSwitch('disable-crash-reporter')) {
+		!args['disable-crash-reporter']) {
 		const isWindows = (process.platform === 'win32');
 		const isLinux = (process.platform === 'linux');
 		getCrashReporterId().then(crashReporterId => {
@@ -347,10 +347,7 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 			'',
 			'	// Enabled by default by VS Code to resolve color issues in the renderer',
 			'	// See https://github.com/Microsoft/vscode/issues/51791 for details',
-			'	"disable-color-correct-rendering": true,',
-			'',
-			'	// Enabled by default to record and send crash reports to Appcenter from all processes',
-			'	"disable-crash-reporter": false'
+			'	"disable-color-correct-rendering": true',
 		];
 
 		if (legacyLocale) {
