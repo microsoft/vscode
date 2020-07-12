@@ -1776,7 +1776,7 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 	}
 }
 
-class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupChild> {
+export class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupChild> {
 
 	getTemplateId(element: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement): string {
 		if (element instanceof SettingsTreeGroupElement) {

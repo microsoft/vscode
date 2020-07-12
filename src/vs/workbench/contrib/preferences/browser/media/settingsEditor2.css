@@ -279,13 +279,18 @@
 	overflow: visible !important; /* Allow validation errors to flow out of the tree container. Override inline style from ScrollableElement. */
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents,
+.settings-editor > .settings-body .settings-tree-container > .setting-item {
 	max-width: 1000px;
 	margin: auto;
 	box-sizing: border-box;
 	padding-left: 219px;
 	padding-right: 20px;
 	overflow: visible;
+}
+
+.settings-editor > .settings-body .settings-tree-container {
+	overflow-y: auto;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents {

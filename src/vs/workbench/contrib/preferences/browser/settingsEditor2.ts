@@ -45,7 +45,7 @@ import { IEditorMemento, IEditorPane } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
+import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
@@ -54,6 +54,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { SettingsList } from 'vs/workbench/contrib/preferences/browser/settingsList';
 
 function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
 	return Iterable.map(group.children, g => {
@@ -111,7 +112,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingsTargetsWidget!: SettingsTargetsWidget;
 
 	private settingsTreeContainer!: HTMLElement;
-	private settingsTree!: SettingsTree;
+	private settingsTree!: SettingsList;
 	private settingRenderers!: SettingTreeRenderers;
 	private tocTreeModel!: TOCTreeModel;
 	private settingsTreeModel!: SettingsTreeModel;
@@ -150,7 +151,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private editorMemento: IEditorMemento<ISettingsEditor2State>;
 
 	private tocFocusedElement: SettingsTreeGroupElement | null = null;
-	private settingsTreeScrollTop = 0;
+	// private settingsTreeScrollTop = 0;
 	private dimension!: DOM.Dimension;
 
 	constructor(
@@ -668,6 +669,7 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
 				this.settingsTree.reveal(element, 0);
+				this.settingsTree.groupId = element.id;
 			}
 		}));
 
@@ -713,25 +715,25 @@ export class SettingsEditor2 extends BaseEditor {
 			this.searchWidget.setValue(element.targetKey);
 		}));
 
-		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
+		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsList,
 			this.settingsTreeContainer,
 			this.viewState,
 			this.settingRenderers.allRenderers));
 		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
 
-		this._register(this.settingsTree.onDidScroll(() => {
-			if (this.settingsTree.scrollTop === this.settingsTreeScrollTop) {
-				return;
-			}
+		// this._register(this.settingsTree.onDidScroll(() => {
+		// 	if (this.settingsTree.scrollTop === this.settingsTreeScrollTop) {
+		// 		return;
+		// 	}
 
-			this.settingsTreeScrollTop = this.settingsTree.scrollTop;
+		// 	this.settingsTreeScrollTop = this.settingsTree.scrollTop;
 
-			// setTimeout because calling setChildren on the settingsTree can trigger onDidScroll, so it fires when
-			// setChildren has called on the settings tree but not the toc tree yet, so their rendered elements are out of sync
-			setTimeout(() => {
-				this.updateTreeScrollSync();
-			}, 0);
-		}));
+		// 	// setTimeout because calling setChildren on the settingsTree can trigger onDidScroll, so it fires when
+		// 	// setChildren has called on the settings tree but not the toc tree yet, so their rendered elements are out of sync
+		// 	setTimeout(() => {
+		// 		this.updateTreeScrollSync();
+		// 	}, 0);
+		// }));
 	}
 
 	private notifyNoSaveNeeded() {
