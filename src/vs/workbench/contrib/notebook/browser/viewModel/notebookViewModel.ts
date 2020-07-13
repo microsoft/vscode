@@ -854,7 +854,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 			this.selectionHandles = endSelections;
 
-			return { cell: above, deletedCells: [above] };
+			return { cell: above, deletedCells: [cell] };
 		} else {
 			const below = this.viewCells[index + 1] as CellViewModel;
 			if (constraint && below.cellKind !== constraint) {
