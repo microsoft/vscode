@@ -6285,6 +6285,10 @@ declare module 'vscode' {
 		 * Executes a task that is managed by VS Code. The returned
 		 * task execution can be used to terminate the task.
 		 *
+		 * @throws When running a ShellExecution or a ProcessExecution
+		 * task in an environment where a new process can't be started.
+		 * In such an environment, only CustomExecution tasks can be run.
+		 *
 		 * @param task the task to execute
 		 */
 		export function executeTask(task: Task): Thenable<TaskExecution>;
