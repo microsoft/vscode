@@ -41,7 +41,6 @@ export class WebviewEditor extends BaseEditor {
 		@IStorageService storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@IHostService private readonly _hostService: IHostService,
 	) {
