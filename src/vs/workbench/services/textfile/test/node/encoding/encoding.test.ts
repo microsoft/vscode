@@ -335,7 +335,7 @@ suite('Encoding', () => {
 		const source = newTestReadableStream(buffers);
 		const { stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
 
-		const expected = incompleteEmojis.toString(encoding.UTF8);
+		const expected = new TextDecoder().decode(incompleteEmojis);
 		const actual = await readAllAsString(stream);
 
 		assert.equal(actual, expected);
