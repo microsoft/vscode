@@ -133,7 +133,7 @@ export class ContextMenuHandler {
 					this.focusToReturn.focus();
 				}
 			}
-		}, !!delegate.anchorAsContainer && isHTMLElement(anchor) ? anchor : undefined);
+		}, !!delegate.anchorAsContainer && isHTMLElement(anchor) ? anchor : (isHTMLElement(delegate.domForShadowRoot) ? delegate.domForShadowRoot : undefined));
 	}
 
 	private onActionRun(e: IRunEvent): void {

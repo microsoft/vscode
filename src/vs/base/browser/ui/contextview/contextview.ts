@@ -108,6 +108,8 @@ export class ContextView extends Disposable {
 	private delegate: IDelegate | null = null;
 	private toDisposeOnClean: IDisposable = Disposable.None;
 	private toDisposeOnSetContainer: IDisposable = Disposable.None;
+	private shadowRoot: ShadowRoot | null = null;
+	private shadowRootHostElement: HTMLElement | null;
 
 	constructor(container: HTMLElement, useFixedPosition: boolean) {
 		super();
@@ -125,12 +127,77 @@ export class ContextView extends Disposable {
 	setContainer(container: HTMLElement | null, useFixedPosition: boolean): void {
 		if (this.container) {
 			this.toDisposeOnSetContainer.dispose();
-			this.container.removeChild(this.view);
+
+			if (this.shadowRoot) {
+				this.shadowRoot.removeChild(this.view);
+				this.shadowRoot = null;
+				DOM.removeNode(this.shadowRootHostElement!);
+				this.shadowRootHostElement = null;
+			} else {
+				this.container.removeChild(this.view);
+			}
+
 			this.container = null;
 		}
 		if (container) {
 			this.container = container;
-			this.container.appendChild(this.view);
+
+			if (useFixedPosition) {
+				this.shadowRootHostElement = DOM.$('.shadow-root-host');
+				this.container.appendChild(this.shadowRootHostElement);
+				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'closed' });
+				this.shadowRoot.innerHTML = `
+					<style>
+						:host {
+							all: initial; /* 1st rule so subsequent properties are reset. */
+						}
+
+						* {
+							color: red !important;
+						}
+
+						@font-face {
+							font-family: "codicon";
+							src: url("./codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
+						}
+
+						.codicon[class*='codicon-'] {
+							font: normal normal normal 16px/1 codicon;
+							display: inline-block;
+							text-decoration: none;
+							text-rendering: auto;
+							text-align: center;
+							-webkit-font-smoothing: antialiased;
+							-moz-osx-font-smoothing: grayscale;
+							user-select: none;
+							-webkit-user-select: none;
+							-ms-user-select: none;
+						}
+
+						:host-context(.mac) { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+						.mac:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
+						.mac:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
+						.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
+						.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
+
+						:host-context(.windows) { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
+						:host-context(.windows:lang(zh-Hans)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
+						:host-context(.windows:lang(zh-Hant)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
+						:host-context(.windows:lang(ja)) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
+						:host-context(.windows:lang(ko)) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
+
+						.linux { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
+						.linux:lang(zh-Hans) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+						.linux:lang(zh-Hant) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
+						.linux:lang(ja) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
+						.linux:lang(ko) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+					</style>
+				`;
+				this.shadowRoot.appendChild(this.view);
+				this.shadowRoot.appendChild(DOM.$('slot'));
+			} else {
+				this.container.appendChild(this.view);
+			}
 
 			const toDisposeOnSetContainer = new DisposableStore();
 
@@ -162,6 +229,8 @@ export class ContextView extends Disposable {
 		this.view.className = 'context-view';
 		this.view.style.top = '0px';
 		this.view.style.left = '0px';
+		this.view.style.zIndex = '2500';
+		this.view.style.position = this.useFixedPosition ? 'fixed' : 'absolute';
 		DOM.show(this.view);
 
 		// Render content

@@ -35,4 +35,5 @@ export interface IContextMenuDelegate {
 	autoSelectFirstItem?: boolean;
 	anchorAlignment?: AnchorAlignment;
 	anchorAsContainer?: boolean;
+	domForShadowRoot?: HTMLElement;
 }
