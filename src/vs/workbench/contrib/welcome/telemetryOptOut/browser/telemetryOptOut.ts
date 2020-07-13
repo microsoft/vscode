@@ -144,7 +144,6 @@ export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution 
 							logTelemetry(true);
 							this.configurationService.updateValue('telemetry.enableTelemetry', false);
 							await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['enable-crash-reporter'], value: false }], true);
-							this.configurationService.updateValue('telemetry.enableCrashReporter', false);
 						}
 					}
 				],
