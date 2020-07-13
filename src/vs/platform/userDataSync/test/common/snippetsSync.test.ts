@@ -12,7 +12,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
-import { joinPath } from 'vs/base/common/resources';
+import { joinPath, dirname } from 'vs/base/common/resources';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { URI } from 'vs/base/common/uri';
 
@@ -291,8 +291,6 @@ suite('SnippetsSync', () => {
 
 		assert.equal(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
-		const fileService = testClient.instantiationService.get(IFileService);
-		assert.ok(!await fileService.exists(conflicts[0].previewResource));
 
 		const actual1 = await readSnippet('html.json', testClient);
 		assert.equal(actual1, htmlSnippet1);
@@ -353,9 +351,6 @@ suite('SnippetsSync', () => {
 
 		assert.equal(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
-		const fileService = testClient.instantiationService.get(IFileService);
-		assert.ok(!await fileService.exists(conflicts[0].previewResource));
-		assert.ok(!await fileService.exists(conflicts[1].previewResource));
 
 		const actual1 = await readSnippet('html.json', testClient);
 		assert.equal(actual1, htmlSnippet2);
@@ -696,9 +691,8 @@ suite('SnippetsSync', () => {
 		let conflicts = testObject.conflicts;
 		await testObject.acceptPreviewContent(conflicts[0].previewResource, htmlSnippet2, false);
 
-		assert.deepEqual(testObject.resourcePreviews, []);
 		const fileService = testClient.instantiationService.get(IFileService);
-		assert.ok(fileService.exists(conflicts[0].previewResource));
+		assert.ok(!await fileService.exists(dirname(conflicts[0].previewResource)));
 	});
 
 	function parseSnippets(content: string): IStringDictionary<string> {

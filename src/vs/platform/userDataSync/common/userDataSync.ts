@@ -304,7 +304,7 @@ export interface IResourcePreview {
 	readonly previewResource: URI;
 	readonly localChange: Change;
 	readonly remoteChange: Change;
-	readonly hasConflicts: boolean;
+
 }
 
 export interface ISyncResourcePreview {
@@ -317,9 +317,10 @@ export interface IUserDataSynchroniser {
 	readonly resource: SyncResource;
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
-	readonly resourcePreviews: IResourcePreview[];
+
 	readonly conflicts: IResourcePreview[];
 	readonly onDidChangeConflicts: Event<IResourcePreview[]>;
+
 	readonly onDidChangeLocal: Event<void>;
 
 	pull(): Promise<void>;
@@ -336,6 +337,7 @@ export interface IUserDataSynchroniser {
 
 	resolveContent(resource: URI): Promise<string | null>;
 	acceptPreviewContent(resource: URI, content: string, force: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null>;
+	merge(resource: URI, force: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null>;
 
 	getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
 	getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
@@ -403,7 +405,7 @@ export interface IUserDataSyncService {
 	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
-	acceptPreviewContent(conflictResource: URI, content: string): Promise<void>;
+	acceptPreviewContent(resource: SyncResource, conflictResource: URI, content: string): Promise<void>;
 
 	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
 	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;

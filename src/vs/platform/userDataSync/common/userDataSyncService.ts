@@ -259,13 +259,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
-	async acceptPreviewContent(resource: URI, content: string, executionId: string = generateUuid()): Promise<void> {
+	async acceptPreviewContent(syncResource: SyncResource, resource: URI, content: string, executionId: string = generateUuid()): Promise<void> {
 		await this.checkEnablement();
-		const synchroniser = this.synchronisers.find(synchroniser => synchroniser.resourcePreviews.some(({ localResource, previewResource, remoteResource }) =>
-			isEqual(resource, localResource) || isEqual(resource, previewResource) || isEqual(resource, remoteResource)));
-		if (synchroniser) {
-			await synchroniser.acceptPreviewContent(resource, content, false, { 'X-Execution-Id': executionId });
-		}
+		const synchroniser = this.getSynchroniser(syncResource);
+		await synchroniser.acceptPreviewContent(resource, content, false, { 'X-Execution-Id': executionId });
 	}
 
 	async resolveContent(resource: URI): Promise<string | null> {
@@ -502,11 +499,7 @@ class ManualSyncTask implements IManualSyncTask {
 			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
 			let newPreview: ISyncResourcePreview | null = null;
 			for (const resourcePreview of preview.resourcePreviews) {
-				/* merge only if there are no conflicts */
-				if (!resourcePreview.hasConflicts) {
-					const content = await synchroniser.resolveContent(resourcePreview.previewResource) || '';
-					newPreview = await synchroniser.acceptPreviewContent(resourcePreview.previewResource, content, false, this.syncHeaders);
-				}
+				newPreview = await synchroniser.merge(resourcePreview.previewResource, false, this.syncHeaders);
 			}
 			if (newPreview) {
 				previews.push(this.toSyncResourcePreview(syncResource, newPreview));
@@ -594,6 +587,5 @@ function toStrictResourcePreview(resourcePreview: IResourcePreview): IResourcePr
 		remoteResource: resourcePreview.remoteResource,
 		localChange: resourcePreview.localChange,
 		remoteChange: resourcePreview.remoteChange,
-		hasConflicts: resourcePreview.hasConflicts,
 	};
 }
