@@ -206,6 +206,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private _ignoreTrimWhitespace: boolean;
 	private _originalIsEditable: boolean;
+	private _originalCodeLens: boolean;
+	private _modifiedCodeLens: boolean;
 
 	private _renderSideBySide: boolean;
 	private _maxComputationTime: number;
@@ -279,6 +281,16 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._originalIsEditable = false;
 		if (typeof options.originalEditable !== 'undefined') {
 			this._originalIsEditable = Boolean(options.originalEditable);
+		}
+
+		this._originalCodeLens = false;
+		if (typeof options.originalCodeLens !== 'undefined') {
+			this._originalCodeLens = Boolean(options.originalCodeLens);
+		}
+
+		this._modifiedCodeLens = false;
+		if (typeof options.modifiedCodeLens !== 'undefined') {
+			this._modifiedCodeLens = Boolean(options.modifiedCodeLens);
 		}
 
 		this._updateDecorationsRunner = this._register(new RunOnceScheduler(() => this._updateDecorations(), 0));
@@ -469,7 +481,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _createLeftHandSideEditor(options: IDiffEditorOptions, instantiationService: IInstantiationService): CodeEditorWidget {
-		const editor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
+		const editor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable, this._originalCodeLens));
 
 		this._register(editor.onDidScrollChange((e) => {
 			if (this._isHandlingScrollEvent) {
@@ -502,7 +514,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _createRightHandSideEditor(options: IDiffEditorOptions, instantiationService: IInstantiationService): CodeEditorWidget {
-		const editor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
+		const editor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options, this._modifiedCodeLens));
 
 		this._register(editor.onDidScrollChange((e) => {
 			if (this._isHandlingScrollEvent) {
@@ -662,9 +674,15 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (typeof newOptions.originalEditable !== 'undefined') {
 			this._originalIsEditable = Boolean(newOptions.originalEditable);
 		}
+		if (typeof newOptions.originalCodeLens !== 'undefined') {
+			this._originalCodeLens = Boolean(newOptions.originalCodeLens);
+		}
+		if (typeof newOptions.modifiedCodeLens !== 'undefined') {
+			this._modifiedCodeLens = Boolean(newOptions.modifiedCodeLens);
+		}
 
-		this.modifiedEditor.updateOptions(this._adjustOptionsForRightHandSide(newOptions));
-		this.originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(newOptions, this._originalIsEditable));
+		this.modifiedEditor.updateOptions(this._adjustOptionsForRightHandSide(newOptions, this._modifiedCodeLens));
+		this.originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(newOptions, this._originalIsEditable, this._originalCodeLens));
 
 		// enableSplitViewResizing
 		if (typeof newOptions.enableSplitViewResizing !== 'undefined') {
@@ -1059,15 +1077,21 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return clonedOptions;
 	}
 
-	private _adjustOptionsForLeftHandSide(options: IDiffEditorOptions, isEditable: boolean): IEditorOptions {
+	private _adjustOptionsForLeftHandSide(options: IDiffEditorOptions, isEditable: boolean, isCodeLensEnabled: boolean): IEditorOptions {
 		let result = this._adjustOptionsForSubEditor(options);
+		if (isCodeLensEnabled) {
+			result.codeLens = true;
+		}
 		result.readOnly = !isEditable;
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
 		return result;
 	}
 
-	private _adjustOptionsForRightHandSide(options: IDiffEditorOptions): IEditorOptions {
+	private _adjustOptionsForRightHandSide(options: IDiffEditorOptions, isCodeLensEnabled: boolean): IEditorOptions {
 		let result = this._adjustOptionsForSubEditor(options);
+		if (isCodeLensEnabled) {
+			result.codeLens = true;
+		}
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
 		result.extraEditorClassName = 'modified-in-monaco-diff-editor';

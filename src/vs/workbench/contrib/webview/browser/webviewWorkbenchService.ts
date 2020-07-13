@@ -46,7 +46,7 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 }
 
 export interface IWebviewWorkbenchService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	createWebview(
 		id: string,
@@ -99,9 +99,6 @@ export interface WebviewResolver {
 }
 
 function canRevive(reviver: WebviewResolver, webview: WebviewInput): boolean {
-	if (webview.isDisposed()) {
-		return false;
-	}
 	return reviver.canResolve(webview);
 }
 
@@ -173,7 +170,7 @@ class RevivalPool {
 
 
 export class WebviewEditorService implements IWebviewWorkbenchService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _revivers = new Set<WebviewResolver>();
 	private readonly _revivalPool = new RevivalPool();

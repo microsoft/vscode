@@ -24,9 +24,9 @@ import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, IExtHostContex
 import { EditorViewColumn, editorGroupToViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { openEditorWith } from 'vs/workbench/contrib/files/common/openWith';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
@@ -125,7 +125,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
-			ignoreOverrides: true
+			override: false
 		};
 
 		const input: IResourceEditorInput = {
@@ -306,7 +306,7 @@ CommandsRegistry.registerCommand('_workbench.openWith', (accessor: ServicesAcces
 	const [resource, id, options, position] = args;
 
 	const group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, position)) ?? editorGroupsService.activeGroup;
-	const textOptions = options ? { ...options, ignoreOverrides: true } : { ignoreOverrides: true };
+	const textOptions: ITextEditorOptions = options ? { ...options, override: false } : { override: false };
 
 	const input = editorService.createEditorInput({ resource });
 	return openEditorWith(input, id, textOptions, group, editorService, configurationService, quickInputService);

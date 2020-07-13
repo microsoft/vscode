@@ -11,7 +11,7 @@ import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron
 
 export class NativeWorkspacesService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,

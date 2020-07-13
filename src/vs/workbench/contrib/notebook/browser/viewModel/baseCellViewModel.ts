@@ -8,13 +8,14 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
 export abstract class BaseCellViewModel extends Disposable {
@@ -74,12 +75,8 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._focusMode;
 	}
 	set focusMode(newMode: CellFocusMode) {
-		const changed = this._focusMode !== newMode;
 		this._focusMode = newMode;
-
-		if (changed) {
-			this._onDidChangeState.fire({ focusModeChanged: true });
-		}
+		this._onDidChangeState.fire({ focusModeChanged: true });
 	}
 
 	protected _textEditor?: ICodeEditor;
@@ -88,15 +85,22 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 	private _cursorChangeListener: IDisposable | null = null;
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null = null;
+	private _resolvedCellDecorations = new Map<string, INotebookCellDecorationOptions>();
+	private _cellDecorationsChanged = new Emitter<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }>();
+	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
 	private _resolvedDecorations = new Map<string, {
 		id?: string;
 		options: model.IModelDeltaDecoration;
 	}>();
 	private _lastDecorationId: number = 0;
-	protected _textModel?: model.ITextModel;
 
+	private _textModel: model.ITextModel | undefined = undefined;
 	get textModel(): model.ITextModel | undefined {
 		return this._textModel;
+	}
+
+	set textModel(m: model.ITextModel | undefined) {
+		this._textModel = m;
 	}
 
 	hasModel(): this is IEditableCellViewModel {
@@ -130,7 +134,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	abstract onDeselect(): void;
 
 	assertTextModelAttached(): boolean {
-		if (this._textModel && this._textEditor && this._textEditor.getModel() === this._textModel) {
+		if (this.textModel && this._textEditor && this._textEditor.getModel() === this.textModel) {
 			return true;
 		}
 
@@ -151,9 +155,10 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		this._textEditor = editor;
+		this.textModel = this._textEditor.getModel() || undefined;
 
 		if (this._editorViewStates) {
-			this.restoreViewState(this._editorViewStates);
+			this._restoreViewState(this._editorViewStates);
 		}
 
 		this._resolvedDecorations.forEach((value, key) => {
@@ -185,6 +190,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._textEditor = undefined;
+		this.textModel = undefined;
 		this._cursorChangeListener?.dispose();
 		this._cursorChangeListener = null;
 		this._onDidChangeEditorAttachState.fire();
@@ -192,6 +198,10 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	getText(): string {
 		return this.model.getValue();
+	}
+
+	getTextLength(): number {
+		return this.model.getTextLength();
 	}
 
 	private saveViewState(): void {
@@ -214,13 +224,13 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._editorViewStates = editorViewStates;
 	}
 
-	private restoreViewState(state: editorCommon.ICodeEditorViewState | null): void {
+	private _restoreViewState(state: editorCommon.ICodeEditorViewState | null): void {
 		if (state) {
 			this._textEditor?.restoreViewState(state);
 		}
 	}
 
-	addDecoration(decoration: model.IModelDeltaDecoration): string {
+	addModelDecoration(decoration: model.IModelDeltaDecoration): string {
 		if (!this._textEditor) {
 			const id = ++this._lastDecorationId;
 			const decorationId = `_lazy_${this.id};${id}`;
@@ -233,7 +243,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		return result[0];
 	}
 
-	removeDecoration(decorationId: string) {
+	removeModelDecoration(decorationId: string) {
 		const realDecorationId = this._resolvedDecorations.get(decorationId);
 
 		if (this._textEditor && realDecorationId && realDecorationId.id !== undefined) {
@@ -244,13 +254,46 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._resolvedDecorations.delete(decorationId);
 	}
 
-	deltaDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
+	deltaModelDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
 		oldDecorations.forEach(id => {
-			this.removeDecoration(id);
+			this.removeModelDecoration(id);
 		});
 
 		const ret = newDecorations.map(option => {
-			return this.addDecoration(option);
+			return this.addModelDecoration(option);
+		});
+
+		return ret;
+	}
+
+	private _removeCellDecoration(decorationId: string) {
+		const options = this._resolvedCellDecorations.get(decorationId);
+
+		if (options) {
+			this._cellDecorationsChanged.fire({ added: [], removed: [options] });
+			this._resolvedCellDecorations.delete(decorationId);
+		}
+	}
+
+	private _addCellDecoration(options: INotebookCellDecorationOptions): string {
+		const id = ++this._lastDecorationId;
+		const decorationId = `_cell_${this.id};${id}`;
+		this._resolvedCellDecorations.set(decorationId, options);
+		this._cellDecorationsChanged.fire({ added: [options], removed: [] });
+		return decorationId;
+	}
+
+	getCellDecorations() {
+		return [...this._resolvedCellDecorations.values()];
+	}
+
+	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookCellDecorationOptions[]): string[] {
+		oldDecorations.forEach(id => {
+			this._removeCellDecoration(id);
+		});
+
+		const ret = newDecorations.map(option => {
+			return this._addCellDecoration(option);
 		});
 
 		return ret;
@@ -262,6 +305,14 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	setSelection(range: Range) {
 		this._textEditor?.setSelection(range);
+	}
+
+	setSelections(selections: Selection[]) {
+		this._textEditor?.setSelections(selections);
+	}
+
+	getSelections() {
+		return this._textEditor?.getSelections() || [];
 	}
 
 	getSelectionsStartPosition(): IPosition[] | undefined {
@@ -279,11 +330,23 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		return this._textEditor.getTopForLineNumber(line) + EDITOR_TOP_MARGIN + EDITOR_TOOLBAR_HEIGHT;
+		return this._textEditor.getTopForLineNumber(line) + EDITOR_TOP_PADDING;
+	}
+
+	getPositionScrollTopOffset(line: number, column: number): number {
+		if (!this._textEditor) {
+			return 0;
+		}
+
+		return this._textEditor.getTopForPosition(line, column) + EDITOR_TOP_PADDING;
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {
 		if (!this._textEditor) {
+			return CursorAtBoundary.None;
+		}
+
+		if (!this.textModel) {
 			return CursorAtBoundary.None;
 		}
 
@@ -296,7 +359,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		const firstViewLineTop = this._textEditor.getTopForPosition(1, 1);
-		const lastViewLineTop = this._textEditor.getTopForPosition(this._textModel!.getLineCount(), this._textModel!.getLineLength(this._textModel!.getLineCount()));
+		const lastViewLineTop = this._textEditor.getTopForPosition(this.textModel!.getLineCount(), this.textModel!.getLineLength(this.textModel!.getLineCount()));
 		const selectionTop = this._textEditor.getTopForPosition(selection.startLineNumber, selection.startColumn);
 
 		if (selectionTop === lastViewLineTop) {
@@ -318,15 +381,23 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this.model.textBuffer;
 	}
 
-	protected cellStartFind(value: string): model.FindMatch[] | null {
+	abstract resolveTextModel(): Promise<model.ITextModel>;
+
+	protected cellStartFind(value: string, options: INotebookSearchOptions): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
 
 		if (this.assertTextModelAttached()) {
-			cellMatches = this._textModel!.findMatches(value, false, false, false, null, false);
+			cellMatches = this.textModel!.findMatches(
+				value,
+				false,
+				options.regex || false,
+				options.caseSensitive || false,
+				options.wholeWord ? options.wordSeparators || null : null,
+				false);
 		} else {
 			const lineCount = this.textBuffer.getLineCount();
 			const fullRange = new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
-			const searchParams = new SearchParams(value, false, false, null);
+			const searchParams = new SearchParams(value, options.regex || false, options.caseSensitive || false, options.wholeWord ? options.wordSeparators || null : null,);
 			const searchData = searchParams.parseSearchRequest();
 
 			if (!searchData) {
@@ -359,7 +430,11 @@ export abstract class BaseCellViewModel extends Disposable {
 		};
 	}
 
-	toJSON(): any {
+	dispose() {
+		super.dispose();
+	}
+
+	toJSON(): object {
 		return {
 			handle: this.handle
 		};

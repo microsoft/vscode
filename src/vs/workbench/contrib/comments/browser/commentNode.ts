@@ -197,7 +197,7 @@ export class CommentNode extends Disposable {
 				this.createToolbar();
 			}
 
-			this.toolbar!.setActions(primary, secondary)();
+			this.toolbar!.setActions(primary, secondary);
 		}));
 
 		const { primary, secondary } = this.getToolbarActions(menu);
@@ -205,7 +205,7 @@ export class CommentNode extends Disposable {
 
 		if (actions.length || secondary.length) {
 			this.createToolbar();
-			this.toolbar!.setActions(actions, secondary)();
+			this.toolbar!.setActions(actions, secondary);
 		}
 	}
 
@@ -399,6 +399,10 @@ export class CommentNode extends Disposable {
 		}
 
 		this._commentEditContainer!.remove();
+	}
+
+	layout() {
+		this._commentEditor?.layout();
 	}
 
 	public switchToEditMode() {

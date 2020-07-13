@@ -10,8 +10,10 @@ import { smokeTestActivate } from './notebookSmokeTestMain';
 export function activate(context: vscode.ExtensionContext): any {
 	smokeTestActivate(context);
 
+	const _onDidChangeNotebook = new vscode.EventEmitter<vscode.NotebookDocumentEditEvent | vscode.NotebookDocumentContentChangeEvent>();
+	context.subscriptions.push(_onDidChangeNotebook);
 	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
-		onDidChangeNotebook: new vscode.EventEmitter<vscode.NotebookDocumentEditEvent>().event,
+		onDidChangeNotebook: _onDidChangeNotebook.event,
 		openNotebook: async (_resource: vscode.Uri) => {
 			if (_resource.path.endsWith('empty.vsctestnb')) {
 				return {
@@ -41,11 +43,20 @@ export function activate(context: vscode.ExtensionContext): any {
 
 			return dto;
 		},
+		resolveNotebook: async (_document: vscode.NotebookDocument) => {
+			return;
+		},
 		saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			return;
 		},
 		saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			return;
+		},
+		backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) => {
+			return {
+				id: '1',
+				delete: () => { }
+			};
 		}
 	}));
 
@@ -62,13 +73,13 @@ export function activate(context: vscode.ExtensionContext): any {
 			}];
 			return;
 		},
-		executeCell: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell | undefined, _token: vscode.CancellationToken) => {
-			if (!_cell) {
-				_cell = _document.cells[0];
+		executeCell: async (document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined, _token: vscode.CancellationToken) => {
+			if (!cell) {
+				cell = document.cells[0];
 			}
 
-			if (_document.uri.path.endsWith('customRenderer.vsctestnb')) {
-				_cell.outputs = [{
+			if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
+				cell.outputs = [{
 					outputKind: vscode.CellOutputKind.Rich,
 					data: {
 						'text/custom': 'test'
@@ -78,26 +89,41 @@ export function activate(context: vscode.ExtensionContext): any {
 				return;
 			}
 
-			_cell.outputs = [{
+			const previousOutputs = cell.outputs;
+			const newOutputs: vscode.CellOutput[] = [{
 				outputKind: vscode.CellOutputKind.Rich,
 				data: {
 					'text/plain': ['my output']
 				}
 			}];
 
+			cell.outputs = newOutputs;
+
+			_onDidChangeNotebook.fire({
+				document: document,
+				undo: () => {
+					if (cell) {
+						cell.outputs = previousOutputs;
+					}
+				},
+				redo: () => {
+					if (cell) {
+						cell.outputs = newOutputs;
+					}
+				}
+			});
 			return;
 		}
 	}));
 
 	const preloadUri = vscode.Uri.file(path.resolve(__dirname, '../src/customRenderer.js'));
 	context.subscriptions.push(vscode.notebook.registerNotebookOutputRenderer('notebookCoreTestRenderer', {
-		type: 'display_data',
-		subTypes: [
+		mimeTypes: [
 			'text/custom'
 		]
 	}, {
 		preloads: [preloadUri],
-		render(_document: vscode.NotebookDocument, _output: vscode.CellDisplayOutput, _mimeType: string): string {
+		render(_document: vscode.NotebookDocument, _request: vscode.NotebookRenderRequest): string {
 			return '<div>test</div>';
 		}
 	}));

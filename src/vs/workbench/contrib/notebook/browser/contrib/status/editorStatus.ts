@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotebookEditor, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_HAS_MULTIPLE_KERNELS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickInputService, QuickPickInput, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import * as nls from 'vs/nls';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { NOTEBOOK_ACTIONS_CATEGORY, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { INotebookCellActionContext, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { INotebookEditor, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
 registerAction2(class extends Action2 {
@@ -19,12 +18,12 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'notebook.selectKernel',
 			category: NOTEBOOK_ACTIONS_CATEGORY,
-			title: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"),
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			icon: { id: 'codicon/server-environment' },
 			menu: {
 				id: MenuId.EditorTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_MULTIPLE_KERNELS),
+				when: NOTEBOOK_HAS_MULTIPLE_KERNELS,
 				group: 'navigation',
 				order: -2,
 			},
@@ -37,11 +36,11 @@ registerAction2(class extends Action2 {
 		const notebookService = accessor.get<INotebookService>(INotebookService);
 		const quickInputService = accessor.get<IQuickInputService>(IQuickInputService);
 
-		const activeEditorPane = editorService.activeEditorPane as any | undefined;
+		const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
 		if (!activeEditorPane?.isNotebookEditor) {
 			return;
 		}
-		const editor = activeEditorPane.getControl() as INotebookEditor;
+		const editor = editorService.activeEditorPane?.getControl() as INotebookEditor;
 		const activeKernel = editor.activeKernel;
 
 		const availableKernels = notebookService.getContributedNotebookKernels(editor.viewModel!.viewType, editor.viewModel!.uri);

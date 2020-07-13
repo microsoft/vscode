@@ -4,36 +4,66 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { webContents } from 'electron';
-import { IWebviewManagerService, RegisterWebviewMetadata } from 'vs/platform/webview/common/webviewManagerService';
-import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { UriComponents, URI } from 'vs/base/common/uri';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { IWebviewManagerService, RegisterWebviewMetadata } from 'vs/platform/webview/common/webviewManagerService';
+import { WebviewPortMappingProvider } from 'vs/platform/webview/electron-main/webviewPortMappingProvider';
+import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 
-export class WebviewMainService implements IWebviewManagerService {
+export class WebviewMainService extends Disposable implements IWebviewManagerService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
-	private protocolProvider: WebviewProtocolProvider;
+	private readonly protocolProvider: WebviewProtocolProvider;
+	private readonly portMappingProvider: WebviewPortMappingProvider;
 
 	constructor(
 		@IFileService fileService: IFileService,
+		@IRequestService requestService: IRequestService,
+		@ITunnelService tunnelService: ITunnelService,
 	) {
-		this.protocolProvider = new WebviewProtocolProvider(fileService);
+		super();
+		this.protocolProvider = this._register(new WebviewProtocolProvider(fileService, requestService));
+		this.portMappingProvider = this._register(new WebviewPortMappingProvider(tunnelService));
 	}
 
-	public async registerWebview(id: string, metadata: RegisterWebviewMetadata): Promise<void> {
-		this.protocolProvider.registerWebview(id,
-			metadata.extensionLocation ? URI.from(metadata.extensionLocation) : undefined,
-			metadata.localResourceRoots.map((x: UriComponents) => URI.from(x))
-		);
+	public async registerWebview(id: string, webContentsId: number | undefined, metadata: RegisterWebviewMetadata): Promise<void> {
+		const extensionLocation = metadata.extensionLocation ? URI.from(metadata.extensionLocation) : undefined;
+
+		this.protocolProvider.registerWebview(id, {
+			...metadata,
+			extensionLocation,
+			localResourceRoots: metadata.localResourceRoots.map(x => URI.from(x))
+		});
+
+		this.portMappingProvider.registerWebview(id, webContentsId, {
+			extensionLocation,
+			mappings: metadata.portMappings,
+			resolvedAuthority: metadata.remoteConnectionData,
+		});
 	}
 
 	public async unregisterWebview(id: string): Promise<void> {
-		this.protocolProvider.unreigsterWebview(id);
+		this.protocolProvider.unregisterWebview(id);
+		this.portMappingProvider.unregisterWebview(id);
 	}
 
-	public async updateLocalResourceRoots(id: string, roots: UriComponents[]): Promise<void> {
-		this.protocolProvider.updateLocalResourceRoots(id, roots.map((x: UriComponents) => URI.from(x)));
+	public async updateWebviewMetadata(id: string, metaDataDelta: Partial<RegisterWebviewMetadata>): Promise<void> {
+		const extensionLocation = metaDataDelta.extensionLocation ? URI.from(metaDataDelta.extensionLocation) : undefined;
+
+		this.protocolProvider.updateWebviewMetadata(id, {
+			...metaDataDelta,
+			extensionLocation,
+			localResourceRoots: metaDataDelta.localResourceRoots?.map(x => URI.from(x)),
+		});
+
+		this.portMappingProvider.updateWebviewMetadata(id, {
+			...metaDataDelta,
+			extensionLocation,
+		});
 	}
 
 	public async setIgnoreMenuShortcuts(webContentsId: number, enabled: boolean): Promise<void> {

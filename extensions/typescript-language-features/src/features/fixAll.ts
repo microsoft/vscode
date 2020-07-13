@@ -186,19 +186,23 @@ class SourceAddMissingImports extends SourceAction {
 
 class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 
-	public static readonly metadata: vscode.CodeActionProviderMetadata = {
-		providedCodeActionKinds: [
-			SourceFixAll.kind,
-			SourceRemoveUnused.kind,
-			SourceAddMissingImports.kind,
-		]
-	};
+	private static kindProviders = [
+		SourceFixAll,
+		SourceRemoveUnused,
+		SourceAddMissingImports,
+	];
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager,
 		private readonly diagnosticsManager: DiagnosticsManager,
 	) { }
+
+	public get metadata(): vscode.CodeActionProviderMetadata {
+		return {
+			providedCodeActionKinds: TypeScriptAutoFixProvider.kindProviders.map(x => x.kind),
+		};
+	}
 
 	public async provideCodeActions(
 		document: vscode.TextDocument,
@@ -238,21 +242,9 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 	}
 
 	private getFixAllActions(only: vscode.CodeActionKind): SourceAction[] {
-		const fixes = [];
-
-		if (only.intersects(SourceFixAll.kind)) {
-			fixes.push(new SourceFixAll());
-		}
-
-		if (only.intersects(SourceRemoveUnused.kind)) {
-			fixes.push(new SourceRemoveUnused());
-		}
-
-		if (only.intersects(SourceAddMissingImports.kind)) {
-			fixes.push(new SourceAddMissingImports());
-		}
-
-		return fixes;
+		return TypeScriptAutoFixProvider.kindProviders
+			.filter(provider => only.intersects(provider.kind))
+			.map(provider => new provider());
 	}
 }
 
@@ -262,8 +254,8 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 	diagnosticsManager: DiagnosticsManager,
 ) {
-	return new VersionDependentRegistration(client, API.v300, () =>
-		vscode.languages.registerCodeActionsProvider(selector,
-			new TypeScriptAutoFixProvider(client, fileConfigurationManager, diagnosticsManager),
-			TypeScriptAutoFixProvider.metadata));
+	return new VersionDependentRegistration(client, API.v300, () => {
+		const provider = new TypeScriptAutoFixProvider(client, fileConfigurationManager, diagnosticsManager);
+		return vscode.languages.registerCodeActionsProvider(selector, provider, provider.metadata);
+	});
 }

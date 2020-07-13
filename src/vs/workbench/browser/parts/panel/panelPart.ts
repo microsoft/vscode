@@ -38,7 +38,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { ViewMenuActions, ViewContainerMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop } from 'vs/workbench/browser/dnd';
+import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 
 interface ICachedPanel {
@@ -63,7 +63,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	static readonly PLACEHOLDER_VIEW_CONTAINERS = 'workbench.panel.placeholderPanels';
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	//#region IView
 
@@ -220,7 +220,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				const newPanel = {
 					id: panel.id,
 					name: panel.name,
-					order: cachedPanel?.order === undefined ? panel.order : cachedPanel.order
+					order: panel.order,
+					requestedIndex: panel.requestedIndex
 				};
 
 				this.compositeBar.addComposite(newPanel);
@@ -433,6 +434,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.emptyPanelMessageElement, {
 			onDragOver: (e) => {
 				EventHelper.stop(e.eventData, true);
+				const validDropTarget = this.dndHandler.onDragEnter(e.dragAndDropData, undefined, e.eventData);
+				toggleDropEffect(e.eventData.dataTransfer, 'move', validDropTarget);
 			},
 			onDragEnter: (e) => {
 				EventHelper.stop(e.eventData, true);
@@ -676,17 +679,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			const cachedPanels = this.getCachedPanels();
 
 			for (const cachedPanel of cachedPanels) {
-				// Add and update existing items
-				const existingItem = compositeItems.filter(({ id }) => id === cachedPanel.id)[0];
-				if (existingItem) {
-					newCompositeItems.push({
-						id: existingItem.id,
-						name: existingItem.name,
-						order: existingItem.order,
-						pinned: cachedPanel.pinned,
-						visible: existingItem.visible
-					});
-				}
+				// copy behavior from activity bar
+				newCompositeItems.push({
+					id: cachedPanel.id,
+					name: cachedPanel.name,
+					order: cachedPanel.order,
+					pinned: cachedPanel.pinned,
+					visible: !!compositeItems.find(({ id }) => id === cachedPanel.id)
+				});
 			}
 
 			for (let index = 0; index < compositeItems.length; index++) {

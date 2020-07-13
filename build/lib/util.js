@@ -138,7 +138,7 @@ function loadSourcemaps() {
                 version: '3',
                 names: [],
                 mappings: '',
-                sources: [f.relative.replace(/\//g, '/')],
+                sources: [f.relative],
                 sourcesContent: [contents]
             };
             cb(undefined, f);

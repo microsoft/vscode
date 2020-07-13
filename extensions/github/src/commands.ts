@@ -6,9 +6,10 @@
 import * as vscode from 'vscode';
 import { API as GitAPI } from './typings/git';
 import { publishRepository } from './publish';
+import { combinedDisposable } from './util';
 
-export function registerCommands(gitAPI: GitAPI): vscode.Disposable[] {
-	const disposables = [];
+export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
+	const disposables: vscode.Disposable[] = [];
 
 	disposables.push(vscode.commands.registerCommand('github.publish', async () => {
 		try {
@@ -18,5 +19,5 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable[] {
 		}
 	}));
 
-	return disposables;
+	return combinedDisposable(disposables);
 }

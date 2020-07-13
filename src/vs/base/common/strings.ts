@@ -728,9 +728,9 @@ export function isBasicASCII(str: string): boolean {
 	return IS_BASIC_ASCII.test(str);
 }
 
-export const UNUSUAL_LINE_TERMINATORS = /[\u2028\u2029\u0085]/; // LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS), NEXT LINE (NEL)
+export const UNUSUAL_LINE_TERMINATORS = /[\u2028\u2029]/; // LINE SEPARATOR (LS) or PARAGRAPH SEPARATOR (PS)
 /**
- * Returns true if `str` contains unusual line terminators, like LS, PS or NEL
+ * Returns true if `str` contains unusual line terminators, like LS or PS
  */
 export function containsUnusualLineTerminators(str: string): boolean {
 	return UNUSUAL_LINE_TERMINATORS.test(str);

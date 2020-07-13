@@ -44,16 +44,6 @@ export const ipcRenderer = (window as any).vscode.ipcRenderer as {
 export const webFrame = (window as any).vscode.webFrame as {
 
 	/**
-	 * The current zoom factor.
-	 */
-	getZoomFactor(): number;
-
-	/**
-	 * The current zoom level.
-	 */
-	getZoomLevel(): number;
-
-	/**
 	 * Changes the zoom level to the specified level. The original size is 0 and each
 	 * increment above or below represents zooming 20% larger or smaller to default
 	 * limits of 300% and 50% of original size, respectively.

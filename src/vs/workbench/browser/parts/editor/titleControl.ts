@@ -191,7 +191,7 @@ export abstract class TitleControl extends Themable {
 			secondaryEditorActions.some(action => action instanceof ExecuteCommandAction)  // see also https://github.com/Microsoft/vscode/issues/16298
 		) {
 			const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
-			editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
+			editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions);
 
 			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
 			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;
@@ -223,9 +223,11 @@ export abstract class TitleControl extends Themable {
 		this.editorToolBarMenuDisposables.clear();
 
 		// Update contexts
-		this.resourceContext.set(this.group.activeEditor ? withUndefinedAsNull(toResource(this.group.activeEditor, { supportSideBySide: SideBySideEditor.MASTER })) : null);
-		this.editorPinnedContext.set(this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false);
-		this.editorStickyContext.set(this.group.activeEditor ? this.group.isSticky(this.group.activeEditor) : false);
+		this.contextKeyService.bufferChangeEvents(() => {
+			this.resourceContext.set(this.group.activeEditor ? withUndefinedAsNull(toResource(this.group.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })) : null);
+			this.editorPinnedContext.set(this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false);
+			this.editorStickyContext.set(this.group.activeEditor ? this.group.isSticky(this.group.activeEditor) : false);
+		});
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeEditorPane = this.group.activeEditorPane;
@@ -238,7 +240,7 @@ export abstract class TitleControl extends Themable {
 				this.updateEditorActionsToolbar(); // Update editor toolbar whenever contributed actions change
 			}));
 
-			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary }));
+			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary }, (group: string) => group === 'navigation' || group === '1_run'));
 		}
 
 		return { primary, secondary };
@@ -246,7 +248,7 @@ export abstract class TitleControl extends Themable {
 
 	protected clearEditorActionsToolbar(): void {
 		if (this.editorActionsToolbar) {
-			this.editorActionsToolbar.setActions([], [])();
+			this.editorActionsToolbar.setActions([], []);
 		}
 
 		this.currentPrimaryEditorActionIds = [];
@@ -298,7 +300,7 @@ export abstract class TitleControl extends Themable {
 	}
 
 	protected doFillResourceDataTransfers(editor: IEditorInput, e: DragEvent): boolean {
-		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (!resource) {
 			return false;
 		}
@@ -326,7 +328,7 @@ export abstract class TitleControl extends Themable {
 
 		// Update contexts based on editor picked and remember previous to restore
 		const currentResourceContext = this.resourceContext.get();
-		this.resourceContext.set(withUndefinedAsNull(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER })));
+		this.resourceContext.set(withUndefinedAsNull(toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 		const currentPinnedContext = !!this.editorPinnedContext.get();
 		this.editorPinnedContext.set(this.group.isPinned(editor));
 		const currentStickyContext = !!this.editorStickyContext.get();

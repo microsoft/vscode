@@ -113,7 +113,11 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 			const webview = this._webviewService.createWebviewElement(this.id, this._options, this._contentOptions, this.extension);
 			this._webview.value = webview;
 			webview.state = this._state;
-			webview.html = this._html;
+
+			if (this._html) {
+				webview.html = this._html;
+			}
+
 			if (this._options.tryRestoreScrollPosition) {
 				webview.initialScrollProgress = this._initialScrollProgress;
 			}
@@ -142,7 +146,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 				this._onDidUpdateState.fire(state);
 			}));
 
-			this._pendingMessages.forEach(msg => webview.sendMessage(msg));
+			this._pendingMessages.forEach(msg => webview.postMessage(msg));
 			this._pendingMessages.clear();
 		}
 		this.container.style.visibility = 'visible';
@@ -203,9 +207,9 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
 	public readonly onMissingCsp: Event<any> = this._onMissingCsp.event;
 
-	sendMessage(data: any): void {
+	postMessage(data: any): void {
 		if (this._webview.value) {
-			this._webview.value.sendMessage(data);
+			this._webview.value.postMessage(data);
 		} else {
 			this._pendingMessages.add(data);
 		}

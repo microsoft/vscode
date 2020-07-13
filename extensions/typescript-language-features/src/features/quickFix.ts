@@ -355,6 +355,7 @@ const preferredFixes = new Map<string, { readonly value: number, readonly thereC
 	[fixNames.extendsInterfaceBecomesImplements, { value: 1 }],
 	[fixNames.awaitInSyncFunction, { value: 1 }],
 	[fixNames.classIncorrectlyImplementsInterface, { value: 3 }],
+	[fixNames.classDoesntImplementInheritedAbstractMember, { value: 3 }],
 	[fixNames.unreachableCode, { value: 1 }],
 	[fixNames.unusedIdentifier, { value: 1 }],
 	[fixNames.forgottenThisPropertyAccess, { value: 1 }],

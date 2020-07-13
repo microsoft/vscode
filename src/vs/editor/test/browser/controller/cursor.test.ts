@@ -2208,6 +2208,70 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #98320: Multi-Cursor, Wrap lines and cursorSelectRight ==> cursors out of sync', () => {
+		// a single model line => 4 view lines
+		withTestCodeEditor([
+			[
+				'lorem_ipsum-1993x11x13',
+				'dolor_sit_amet-1998x04x27',
+				'consectetur-2007x10x08',
+				'adipiscing-2012x07x27',
+				'elit-2015x02x27',
+			].join('\n')
+		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 16 }, (editor, viewModel) => {
+			viewModel.setSelections('test', [
+				new Selection(1, 13, 1, 13),
+				new Selection(2, 16, 2, 16),
+				new Selection(3, 13, 3, 13),
+				new Selection(4, 12, 4, 12),
+				new Selection(5, 6, 5, 6),
+			]);
+			assertCursor(viewModel, [
+				new Selection(1, 13, 1, 13),
+				new Selection(2, 16, 2, 16),
+				new Selection(3, 13, 3, 13),
+				new Selection(4, 12, 4, 12),
+				new Selection(5, 6, 5, 6),
+			]);
+
+			moveRight(editor, viewModel, true);
+			assertCursor(viewModel, [
+				new Selection(1, 13, 1, 14),
+				new Selection(2, 16, 2, 17),
+				new Selection(3, 13, 3, 14),
+				new Selection(4, 12, 4, 13),
+				new Selection(5, 6, 5, 7),
+			]);
+
+			moveRight(editor, viewModel, true);
+			assertCursor(viewModel, [
+				new Selection(1, 13, 1, 15),
+				new Selection(2, 16, 2, 18),
+				new Selection(3, 13, 3, 15),
+				new Selection(4, 12, 4, 14),
+				new Selection(5, 6, 5, 8),
+			]);
+
+			moveRight(editor, viewModel, true);
+			assertCursor(viewModel, [
+				new Selection(1, 13, 1, 16),
+				new Selection(2, 16, 2, 19),
+				new Selection(3, 13, 3, 16),
+				new Selection(4, 12, 4, 15),
+				new Selection(5, 6, 5, 9),
+			]);
+
+			moveRight(editor, viewModel, true);
+			assertCursor(viewModel, [
+				new Selection(1, 13, 1, 17),
+				new Selection(2, 16, 2, 20),
+				new Selection(3, 13, 3, 17),
+				new Selection(4, 12, 4, 16),
+				new Selection(5, 6, 5, 10),
+			]);
+		});
+	});
+
 	test('issue #41573 - delete across multiple lines does not shrink the selection when word wraps', () => {
 		withTestCodeEditor([
 			'Authorization: \'Bearer pHKRfCTFSnGxs6akKlb9ddIXcca0sIUSZJutPHYqz7vEeHdMTMh0SGN0IGU3a0n59DXjTLRsj5EJ2u33qLNIFi9fk5XF8pK39PndLYUZhPt4QvHGLScgSkK0L4gwzkzMloTQPpKhqiikiIOvyNNSpd2o8j29NnOmdTUOKi9DVt74PD2ohKxyOrWZ6oZprTkb3eKajcpnS0LABKfaw2rmv4\','

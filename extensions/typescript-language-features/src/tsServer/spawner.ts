@@ -9,7 +9,7 @@ import * as stream from 'stream';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import API from '../utils/api';
-import { TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
+import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import * as electron from '../utils/electron';
 import LogDirectoryProvider from '../utils/logDirectoryProvider';
 import Logger from '../utils/logger';
@@ -18,13 +18,24 @@ import { PluginManager } from '../utils/plugins';
 import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
-import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess, TsServerDelegate, GetErrRoutingTsServer } from './server';
+import { GetErrRoutingTsServer, ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerProcess } from './server';
 
 const enum ServerKind {
 	Main = 'main',
 	Syntax = 'syntax',
 	Semantic = 'semantic',
 	Diagnostics = 'diagnostics'
+}
+
+const enum CompositeServerType {
+	/** Run a single server that handles all commands  */
+	Single,
+
+	/** Run a separate server for syntax commands */
+	SeparateSyntax,
+
+	/** Use a separate syntax server while the project is loading */
+	DynamicSeparateSyntax,
 }
 
 export class TypeScriptServerSpawner {
@@ -44,13 +55,23 @@ export class TypeScriptServerSpawner {
 		delegate: TsServerDelegate,
 	): ITypeScriptServer {
 		let primaryServer: ITypeScriptServer;
-		if (this.shouldUseSeparateSyntaxServer(version, configuration)) {
-			primaryServer = new SyntaxRoutingTsServer({
-				syntax: this.spawnTsServer(ServerKind.Syntax, version, configuration, pluginManager),
-				semantic: this.spawnTsServer(ServerKind.Semantic, version, configuration, pluginManager)
-			}, delegate);
-		} else {
-			primaryServer = this.spawnTsServer(ServerKind.Main, version, configuration, pluginManager);
+		const serverType = this.getCompositeServerType(version, configuration);
+		switch (serverType) {
+			case CompositeServerType.SeparateSyntax:
+			case CompositeServerType.DynamicSeparateSyntax:
+				{
+					const enableDynamicRouting = serverType === CompositeServerType.DynamicSeparateSyntax;
+					primaryServer = new SyntaxRoutingTsServer({
+						syntax: this.spawnTsServer(ServerKind.Syntax, version, configuration, pluginManager),
+						semantic: this.spawnTsServer(ServerKind.Semantic, version, configuration, pluginManager)
+					}, delegate, enableDynamicRouting);
+					break;
+				}
+			case CompositeServerType.Single:
+				{
+					primaryServer = this.spawnTsServer(ServerKind.Main, version, configuration, pluginManager);
+					break;
+				}
 		}
 
 		if (this.shouldUseSeparateDiagnosticsServer(configuration)) {
@@ -63,11 +84,22 @@ export class TypeScriptServerSpawner {
 		return primaryServer;
 	}
 
-	private shouldUseSeparateSyntaxServer(
+	private getCompositeServerType(
 		version: TypeScriptVersion,
 		configuration: TypeScriptServiceConfiguration,
-	): boolean {
-		return configuration.useSeparateSyntaxServer && !!version.apiVersion && version.apiVersion.gte(API.v340);
+	): CompositeServerType {
+		switch (configuration.separateSyntaxServer) {
+			case SeparateSyntaxServerConfiguration.Disabled:
+				return CompositeServerType.Single;
+
+			case SeparateSyntaxServerConfiguration.Enabled:
+				if (version.apiVersion?.gte(API.v340)) {
+					return version.apiVersion?.gte(API.v400)
+						? CompositeServerType.DynamicSeparateSyntax
+						: CompositeServerType.SeparateSyntax;
+				}
+				return CompositeServerType.Single;
+		}
 	}
 
 	private shouldUseSeparateDiagnosticsServer(

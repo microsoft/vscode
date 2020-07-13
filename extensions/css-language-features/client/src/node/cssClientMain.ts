@@ -12,12 +12,9 @@ import { TextDecoder } from 'util';
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
 
-	const clientMain = extensions.getExtension('vscode.css-language-features')?.packageJSON?.main;
-	const serverMain = clientMain?.replace('client', 'server').replace('cssClientMain', 'cssServerMain');
-	if (!serverMain) {
-		throw new Error('Unable to compute CSS server module path. Client: ' + clientMain);
-	}
+	const clientMain = extensions.getExtension('vscode.css-language-features')?.packageJSON?.main || '';
 
+	const serverMain = `./server/${clientMain.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/cssServerMain`;
 	const serverModule = context.asAbsolutePath(serverMain);
 
 	// The debug options for the server

@@ -50,11 +50,20 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 
 			return dto;
 		},
+		resolveNotebook: async (_document: vscode.NotebookDocument) => {
+			return;
+		},
 		saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			return;
 		},
 		saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			return;
+		},
+		backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) => {
+			return {
+				id: '1',
+				delete: () => { }
+			};
 		}
 	}));
 
@@ -83,5 +92,16 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 			}];
 			return;
 		},
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-notebook-tests.debugAction', async (cell: vscode.NotebookCell) => {
+		if (cell) {
+			const edit = new vscode.WorkspaceEdit();
+			const fullRange = new vscode.Range(0, 0, cell.document.lineCount - 1, cell.document.lineAt(cell.document.lineCount - 1).range.end.character);
+			edit.replace(cell.document.uri, fullRange, 'test');
+			await vscode.workspace.applyEdit(edit);
+		} else {
+			throw new Error('Cell not set correctly');
+		}
 	}));
 }

@@ -7,16 +7,12 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtUri } from 'vs/base/common/resources';
 
-export interface IUriIdentity {
-	readonly pathHierarchical: boolean;
-	readonly ignorePathCasing: boolean;
-}
 
 export const IUriIdentityService = createDecorator<IUriIdentityService>('IUriIdentityService');
 
 export interface IUriIdentityService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Uri extensions that are aware of casing.

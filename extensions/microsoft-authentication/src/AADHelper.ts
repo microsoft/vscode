@@ -26,7 +26,7 @@ interface IToken {
 	refreshToken: string;
 
 	account: {
-		displayName: string;
+		label: string;
 		id: string;
 	};
 	scope: string;
@@ -48,7 +48,8 @@ interface IStoredSession {
 	refreshToken: string;
 	scope: string; // Scopes are alphabetized and joined with a space
 	account: {
-		displayName: string,
+		label?: string;
+		displayName?: string,
 		id: string
 	}
 }
@@ -87,6 +88,10 @@ export class AzureActiveDirectoryService {
 			try {
 				const sessions = this.parseStoredData(storedData);
 				const refreshes = sessions.map(async session => {
+					if (!session.refreshToken) {
+						return Promise.resolve();
+					}
+
 					try {
 						await this.refreshToken(session.refreshToken, session.scope, session.id);
 					} catch (e) {
@@ -97,7 +102,7 @@ export class AzureActiveDirectoryService {
 									accessToken: undefined,
 									refreshToken: session.refreshToken,
 									account: {
-										displayName: session.account.displayName,
+										label: session.account.label ?? session.account.displayName!,
 										id: session.account.id
 									},
 									scope: session.scope,
@@ -148,7 +153,7 @@ export class AzureActiveDirectoryService {
 					const sessions = this.parseStoredData(storedData);
 					let promises = sessions.map(async session => {
 						const matchesExisting = this._tokens.some(token => token.scope === session.scope && token.sessionId === session.id);
-						if (!matchesExisting) {
+						if (!matchesExisting && session.refreshToken) {
 							try {
 								await this.refreshToken(session.refreshToken, session.scope, session.id);
 								addedIds.push(session.id);
@@ -201,9 +206,9 @@ export class AzureActiveDirectoryService {
 		}, 1000 * 30);
 	}
 
-	private async convertToSession(token: IToken): Promise<vscode.AuthenticationSession2> {
+	private async convertToSession(token: IToken): Promise<vscode.AuthenticationSession> {
 		const resolvedToken = await this.resolveAccessToken(token);
-		return new vscode.AuthenticationSession2(token.sessionId, resolvedToken, token.account, token.scope.split(' '));
+		return new vscode.AuthenticationSession(token.sessionId, resolvedToken, token.account, token.scope.split(' '));
 	}
 
 	private async resolveAccessToken(token: IToken): Promise<string> {
@@ -236,12 +241,16 @@ export class AzureActiveDirectoryService {
 		}
 	}
 
-	get sessions(): Promise<vscode.AuthenticationSession2[]> {
+	get sessions(): Promise<vscode.AuthenticationSession[]> {
 		return Promise.all(this._tokens.map(token => this.convertToSession(token)));
 	}
 
-	public async login(scope: string): Promise<vscode.AuthenticationSession2> {
+	public async login(scope: string): Promise<vscode.AuthenticationSession> {
 		Logger.info('Logging in...');
+		if (!scope.includes('offline_access')) {
+			Logger.info('Warning: The \'offline_access\' scope was not included, so the generated token will not be able to be refreshed.');
+		}
+
 		return new Promise(async (resolve, reject) => {
 			if (vscode.env.uiKind === vscode.UIKind.Web) {
 				resolve(this.loginWithoutLocalServer(scope));
@@ -330,7 +339,7 @@ export class AzureActiveDirectoryService {
 		}
 	}
 
-	private async loginWithoutLocalServer(scope: string): Promise<vscode.AuthenticationSession2> {
+	private async loginWithoutLocalServer(scope: string): Promise<vscode.AuthenticationSession> {
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
 		const nonce = crypto.randomBytes(16).toString('base64');
 		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
@@ -345,7 +354,7 @@ export class AzureActiveDirectoryService {
 		});
 		vscode.env.openExternal(uri);
 
-		const timeoutPromise = new Promise((_: (value: vscode.AuthenticationSession2) => void, reject) => {
+		const timeoutPromise = new Promise((_: (value: vscode.AuthenticationSession) => void, reject) => {
 			const wait = setTimeout(() => {
 				clearTimeout(wait);
 				reject('Login timed out.');
@@ -355,9 +364,9 @@ export class AzureActiveDirectoryService {
 		return Promise.race([this.handleCodeResponse(state, codeVerifier, scope), timeoutPromise]);
 	}
 
-	private async handleCodeResponse(state: string, codeVerifier: string, scope: string): Promise<vscode.AuthenticationSession2> {
+	private async handleCodeResponse(state: string, codeVerifier: string, scope: string): Promise<vscode.AuthenticationSession> {
 		let uriEventListener: vscode.Disposable;
-		return new Promise((resolve: (value: vscode.AuthenticationSession2) => void, reject) => {
+		return new Promise((resolve: (value: vscode.AuthenticationSession) => void, reject) => {
 			uriEventListener = this._uriHandler.event(async (uri: vscode.Uri) => {
 				try {
 					const query = parseQuery(uri);
@@ -429,7 +438,7 @@ export class AzureActiveDirectoryService {
 			scope,
 			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
 			account: {
-				displayName: claims.email || claims.unique_name || 'user@example.com',
+				label: claims.email || claims.unique_name || 'user@example.com',
 				id: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}`
 			}
 		};

@@ -5,12 +5,12 @@
 
 import { Event } from 'vs/base/common/event';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app, clipboard } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app, clipboard, powerMonitor } from 'electron';
 import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isRootUser } from 'vs/base/common/platform';
 import { ICommonElectronService } from 'vs/platform/electron/common/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -22,6 +22,7 @@ import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 
 export interface IElectronMainService extends AddFirstParameterToFunctions<ICommonElectronService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -29,7 +30,7 @@ export const IElectronMainService = createDecorator<IElectronMainService>('elect
 
 export class ElectronMainService implements IElectronMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -49,16 +50,18 @@ export class ElectronMainService implements IElectronMainService {
 
 	//#region Events
 
-	readonly onWindowOpen: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-created', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onWindowOpen = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-created', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 
-	readonly onWindowMaximize: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onWindowUnmaximize: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onWindowMaximize = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onWindowUnmaximize = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 
-	readonly onWindowBlur: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onWindowFocus: Event<number> = Event.any(
+	readonly onWindowBlur = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onWindowFocus = Event.any(
 		Event.map(Event.filter(Event.map(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
-		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
+		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
 	);
+
+	readonly onOSResume = Event.fromNodeEventEmitter(powerMonitor, 'resume');
 
 	//#endregion
 
@@ -177,11 +180,7 @@ export class ElectronMainService implements IElectronMainService {
 
 		const window = this.windowById(windowId);
 		if (window) {
-			if (isMacintosh) {
-				window.win.show();
-			} else {
-				window.win.focus();
-			}
+			window.focus();
 		}
 	}
 
@@ -303,6 +302,17 @@ export class ElectronMainService implements IElectronMainService {
 		return shell.moveItemToTrash(fullPath);
 	}
 
+	async isAdmin(): Promise<boolean> {
+		let isAdmin: boolean;
+		if (isWindows) {
+			isAdmin = (await import('native-is-elevated'))();
+		} else {
+			isAdmin = isRootUser();
+		}
+
+		return isAdmin;
+	}
+
 	//#endregion
 
 
@@ -325,7 +335,7 @@ export class ElectronMainService implements IElectronMainService {
 	}
 
 	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard'): Promise<void> {
-		return clipboard.writeBuffer(format, buffer as Buffer, type);
+		return clipboard.writeBuffer(format, Buffer.from(buffer), type);
 	}
 
 	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<Uint8Array> {
@@ -368,6 +378,13 @@ export class ElectronMainService implements IElectronMainService {
 
 	//#region Lifecycle
 
+	async notifyReady(windowId: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window) {
+			window.setReady();
+		}
+	}
+
 	async relaunch(windowId: number | undefined, options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
 		return this.lifecycleMainService.relaunch(options);
 	}
@@ -405,6 +422,10 @@ export class ElectronMainService implements IElectronMainService {
 				this.lifecycleMainService.quit();
 			}, 10 /* delay to unwind callback stack (IPC) */);
 		}
+	}
+
+	async exit(windowId: number | undefined, code: number): Promise<void> {
+		await this.lifecycleMainService.kill(code);
 	}
 
 	//#endregion
@@ -445,8 +466,16 @@ export class ElectronMainService implements IElectronMainService {
 	}
 
 	async startCrashReporter(windowId: number | undefined, options: CrashReporterStartOptions): Promise<void> {
-		crashReporter.start(options);
 		this.logService.trace('ElectronMainService#crashReporter', JSON.stringify(options));
+
+		crashReporter.start(options);
+	}
+
+	async sendInputEvent(windowId: number | undefined, event: MouseInputEvent): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
+			window.win.webContents.sendInputEvent(event);
+		}
 	}
 
 	//#endregion

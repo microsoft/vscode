@@ -16,8 +16,7 @@ import { Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { MementoObject } from 'vs/workbench/common/memento';
-import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import { isLinux } from 'vs/base/common/platform';
+import { joinPath, IExtUri } from 'vs/base/common/resources';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -28,9 +27,17 @@ import { IDisposable } from 'vs/base/common/lifecycle';
  * information about the state of the editor data.
  *
  * The workbench will keep an editor alive after it has been created and show/hide it based on
- * user interaction. The lifecycle of a editor goes in the order create(), setVisible(true|false),
- * layout(), setInput(), focus(), dispose(). During use of the workbench, a editor will often receive a
- * clearInput, setVisible, layout and focus call, but only one create and dispose call.
+ * user interaction. The lifecycle of a editor goes in the order:
+ *
+ * - `createEditor()`
+ * - `setEditorVisible()`
+ * - `layout()`
+ * - `setInput()`
+ * - `focus()`
+ * - `dispose()`: when the editor group the editor is in closes
+ *
+ * During use of the workbench, a editor will often receive a `clearInput()`, `setEditorVisible()`, `layout()` and
+ * `focus()` calls, but only one `create()` and `dispose()` call.
  *
  * This class is only intended to be subclassed and not instantiated.
  */
@@ -38,10 +45,10 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
 
-	readonly minimumWidth = DEFAULT_EDITOR_MIN_DIMENSIONS.width;
-	readonly maximumWidth = DEFAULT_EDITOR_MAX_DIMENSIONS.width;
-	readonly minimumHeight = DEFAULT_EDITOR_MIN_DIMENSIONS.height;
-	readonly maximumHeight = DEFAULT_EDITOR_MAX_DIMENSIONS.height;
+	get minimumWidth() { return DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
+	get maximumWidth() { return DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
+	get minimumHeight() { return DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
+	get maximumHeight() { return DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
 	readonly onDidSizeConstraintsChange = Event.None;
 
@@ -51,7 +58,7 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	protected _options: EditorOptions | undefined;
 	get options(): EditorOptions | undefined { return this._options; }
 
-	private _group?: IEditorGroup;
+	private _group: IEditorGroup | undefined;
 	get group(): IEditorGroup | undefined { return this._group; }
 
 	constructor(
@@ -63,12 +70,25 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 		super(id, telemetryService, themeService, storageService);
 	}
 
+	create(parent: HTMLElement): void {
+		super.create(parent);
+
+		// Create Editor
+		this.createEditor(parent);
+	}
+
+	/**
+	 * Called to create the editor in the parent HTMLElement. Subclasses implement
+	 * this method to construct the editor widget.
+	 */
+	protected abstract createEditor(parent: HTMLElement): void;
+
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
 	 *
 	 * Sets the given input with the options to the editor. The input is guaranteed
-	 * to be different from the previous input that was set using the input.matches()
+	 * to be different from the previous input that was set using the `input.matches()`
 	 * method.
 	 *
 	 * The provided cancellation token should be used to test if the operation
@@ -82,6 +102,12 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	/**
 	 * Called to indicate to the editor that the input should be cleared and
 	 * resources associated with the input should be freed.
+	 *
+	 * This method can be called based on different contexts, e.g. when opening
+	 * a different editor control or when closing all editors in a group.
+	 *
+	 * To monitor the lifecycle of editor inputs, you should not rely on this
+	 * method, rather refer to the listeners on `IEditorGroup` via `IEditorGroupService`.
 	 */
 	clearInput(): void {
 		this._input = undefined;
@@ -98,18 +124,6 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	setOptions(options: EditorOptions | undefined): void {
 		this._options = options;
 	}
-
-	create(parent: HTMLElement): void {
-		super.create(parent);
-
-		// Create Editor
-		this.createEditor(parent);
-	}
-
-	/**
-	 * Called to create the editor in the parent HTMLElement.
-	 */
-	protected abstract createEditor(parent: HTMLElement): void;
 
 	setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible);
@@ -128,16 +142,6 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		this._group = group;
 	}
-
-	/**
-	 * Called before the editor is being removed from the DOM.
-	 */
-	onWillHide() { }
-
-	/**
-	 * Called after the editor has been removed from the DOM.
-	 */
-	onDidHide() { }
 
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
 		const mementoKey = `${this.getId()}${key}`;
@@ -252,6 +256,10 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 				const resourceViewState = cache.get(resource.toString());
 				if (resourceViewState) {
 					delete resourceViewState[group.id];
+
+					if (isEmptyObject(resourceViewState)) {
+						cache.delete(resource.toString());
+					}
 				}
 			} else {
 				cache.delete(resource.toString());
@@ -259,7 +267,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 	}
 
-	moveEditorState(source: URI, target: URI): void {
+	moveEditorState(source: URI, target: URI, comparer: IExtUri): void {
 		const cache = this.doLoad();
 
 		// We need a copy of the keys to not iterate over
@@ -268,7 +276,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		for (const cacheKey of cacheKeys) {
 			const resource = URI.parse(cacheKey);
 
-			if (!isEqualOrParent(resource, source)) {
+			if (!comparer.isEqualOrParent(resource, source)) {
 				continue; // not matching our resource
 			}
 
@@ -277,7 +285,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 			if (source.toString() === resource.toString()) {
 				targetResource = target; // file got moved
 			} else {
-				const index = indexOfPath(resource.path, source.path, !isLinux);
+				const index = indexOfPath(resource.path, source.path);
 				targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
 			}
 
