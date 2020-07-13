@@ -271,7 +271,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get sessionId() { return initData.telemetryInfo.sessionId; },
 			get language() { return initData.environment.appLanguage; },
 			get appName() { return initData.environment.appName; },
-			get appRoot() { return initData.environment.appRoot?.fsPath ?? '<UNKNOWN_APP_ROOT>'; }, // todo@jrieken web
+			get appRoot() { return initData.environment.appRoot?.fsPath ?? ''; },
 			get uriScheme() { return initData.environment.appUriScheme; },
 			get logLevel() {
 				checkProposedApiEnabled(extension);
