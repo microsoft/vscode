@@ -91,11 +91,11 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		if (this._notebook.supportBackup) {
 			const tokenSource = new CancellationTokenSource();
 			const backupId = await this._notebookService.backup(this.viewType, this.resource, tokenSource.token);
-			const stats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+			const stats = await this._resolveStats(this.resource);
 
 			return {
 				meta: {
-					mtime: stats.mtime || new Date().getTime(),
+					mtime: stats?.mtime || new Date().getTime(),
 					name: this._name,
 					viewType: this._notebook.viewType,
 					backupId: backupId
@@ -120,7 +120,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		}
 
 		await this.load({ forceReadFromDisk: true });
-		const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
 
 		this._notebook.setDirty(false);
@@ -159,7 +159,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 		const notebook = await this._notebookService.createNotebookFromBackup(this.viewType!, this.resource, data.metadata, data.languages, data.cells, editorId);
 		this._notebook = notebook!;
-		const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
 		this._register(this._notebook);
 
@@ -181,7 +181,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	private async loadFromProvider(forceReloadFromDisk: boolean, editorId: string | undefined, backupId: string | undefined) {
 		const notebook = await this._notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, editorId, backupId);
 		this._notebook = notebook!;
-		const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
 
 		this._register(this._notebook);
@@ -216,8 +216,8 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	}
 
 	private async _assertStat() {
-		const stats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
-		if (this._lastResolvedFileStat && stats.mtime > this._lastResolvedFileStat.mtime) {
+		const stats = await this._resolveStats(this.resource);
+		if (this._lastResolvedFileStat && stats && stats.mtime > this._lastResolvedFileStat.mtime) {
 			return new Promise<'overwrite' | 'revert' | 'none'>(resolve => {
 				const handle = this._notificationService.prompt(
 					Severity.Info,
@@ -258,7 +258,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 		const tokenSource = new CancellationTokenSource();
 		await this._notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
-		const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
 		this._notebook.setDirty(false);
 		return true;
@@ -278,10 +278,24 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 		const tokenSource = new CancellationTokenSource();
 		await this._notebookService.saveAs(this.notebook.viewType, this.notebook.uri, targetResource, tokenSource.token);
-		const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
 		this._notebook.setDirty(false);
 		return true;
+	}
+
+	private async _resolveStats(resource: URI) {
+		if (resource.scheme === Schemas.untitled) {
+			return undefined;
+		}
+
+		try {
+			const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+			return newStats;
+		} catch (e) {
+			return undefined;
+		}
+
 	}
 
 	dispose() {

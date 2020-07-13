@@ -889,6 +889,10 @@ suite('regression', () => {
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
+	test('untitled file', async function () {	
+		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: "notebookCoreTest" });
+		assert.notEqual(vscode.notebook.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
+	});
 });
 
 suite('webview', () => {
