@@ -12,7 +12,7 @@ html, body {
 }
 
 body {
-	padding-top: 1rem;
+	padding-top: 1em;
 }
 
 /* Reset margin top for elements */
@@ -154,7 +154,7 @@ h1 {
 	border-bottom-width: 1px;
 	border-bottom-style: solid;
 	font-weight: normal;
-	margin-bottom: 1.5rem;
+	margin-bottom: 1.5em;
 }
 
 table {
