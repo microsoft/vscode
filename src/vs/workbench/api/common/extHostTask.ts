@@ -679,7 +679,9 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		}
 	}
 
-	public abstract async $jsonTasksSupported(): Promise<boolean>;
+	public abstract $jsonTasksSupported(): Promise<boolean>;
+
+	public abstract $findExecutable(command: string, cwd?: string | undefined, paths?: string[] | undefined): Promise<string | undefined>;
 }
 
 export class WorkerExtHostTask extends ExtHostTaskBase {
@@ -774,6 +776,10 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 
 	public async $jsonTasksSupported(): Promise<boolean> {
 		return false;
+	}
+
+	public async $findExecutable(command: string, cwd?: string | undefined, paths?: string[] | undefined): Promise<string | undefined> {
+		return undefined;
 	}
 }
 
