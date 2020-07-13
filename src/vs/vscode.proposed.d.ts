@@ -1765,7 +1765,7 @@ declare module 'vscode' {
 		/**
 		 * Unique identifier for the backup.
 		 *
-		 * This id is passed back to your extension in `openCustomDocument` when opening a custom editor from a backup.
+		 * This id is passed back to your extension in `openCustomDocument` when opening a notebook editor from a backup.
 		 */
 		readonly id: string;
 
