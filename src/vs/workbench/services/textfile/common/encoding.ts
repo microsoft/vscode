@@ -84,15 +84,11 @@ class DecoderStream implements IDecoderStream {
 	private constructor(private iconvLiteDecoder: IDecoderStream) { }
 
 	write(buffer: Uint8Array): string {
-		if (this.iconvLiteDecoder) {
-			return this.iconvLiteDecoder.write(buffer);
-		}
-
-		return VSBuffer.wrap(buffer).toString();
+		return this.iconvLiteDecoder.write(buffer);
 	}
 
 	end(): string | undefined {
-		return this.iconvLiteDecoder?.end();
+		return this.iconvLiteDecoder.end();
 	}
 }
 
