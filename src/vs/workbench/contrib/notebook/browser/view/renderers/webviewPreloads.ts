@@ -92,7 +92,7 @@ function webviewPreloads() {
 		}
 	};
 
-	let observers: ResizeObserver[] = [];
+	let outputObservers = new Map<string, ResizeObserver>();
 
 	const resizeObserve = (container: Element, id: string) => {
 		const resizeObserver = new ResizeObserver(entries => {
@@ -115,7 +115,11 @@ function webviewPreloads() {
 		});
 
 		resizeObserver.observe(container);
-		observers.push(resizeObserver);
+		if (outputObservers.has(id)) {
+			outputObservers.get(id)?.disconnect();
+		}
+
+		outputObservers.set(id, resizeObserver);
 	};
 
 	function scrollWillGoToParent(event: WheelEvent) {
@@ -404,11 +408,11 @@ function webviewPreloads() {
 				queuedOuputActions.clear(); // stop all loading outputs
 				onWillDestroyOutput.fire([undefined, undefined]);
 				document.getElementById('container')!.innerHTML = '';
-				for (let i = 0; i < observers.length; i++) {
-					observers[i].disconnect();
-				}
 
-				observers = [];
+				outputObservers.forEach(ob => {
+					ob.disconnect();
+				});
+				outputObservers.clear();
 				break;
 			case 'clearOutput':
 				let output = document.getElementById(event.data.outputId);
