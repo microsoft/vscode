@@ -827,7 +827,8 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
-		throw new NotImplementedError();
+		// Return the empty string to avoid throwing
+		return '';
 	}
 
 	public getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
@@ -848,14 +849,5 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 
 	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
 		// No-op for web worker ext host as workspace permissions aren't used
-	}
-
-	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection {
-		// This is not implemented so worker ext host extensions cannot influence terminal envs
-		throw new NotImplementedError();
-	}
-
-	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
-		// No-op for web worker ext host as collections aren't used
 	}
 }
