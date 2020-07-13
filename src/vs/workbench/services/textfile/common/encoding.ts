@@ -45,8 +45,6 @@ export interface IDecoderStream {
 
 class DecoderStream implements IDecoderStream {
 
-	private static readonly utf8TextDecoder = new TextDecoder();
-
 	/**
 	 * This stream will only load iconv-lite lazily if the encoding
 	 * is not UTF-8. This ensures that for most common cases we do
@@ -63,13 +61,14 @@ class DecoderStream implements IDecoderStream {
 			const iconv = await import('iconv-lite-umd');
 			decoder = iconv.getDecoder(toNodeEncoding(encoding));
 		} else {
+			const utf8TextDecoder = new TextDecoder();
 			decoder = {
 				write(buffer: Uint8Array): string {
-					return DecoderStream.utf8TextDecoder.decode(buffer, { stream: true });
+					return utf8TextDecoder.decode(buffer, { stream: true });
 				},
 
 				end(): string | undefined {
-					return DecoderStream.utf8TextDecoder.decode();
+					return utf8TextDecoder.decode();
 				}
 			};
 		}
