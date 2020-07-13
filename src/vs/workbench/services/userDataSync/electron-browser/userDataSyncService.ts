@@ -38,8 +38,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onSyncErrors: Emitter<[SyncResource, UserDataSyncError][]> = this._register(new Emitter<[SyncResource, UserDataSyncError][]>());
 	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]> = this._onSyncErrors.event;
 
-	get onSynchronizeResource(): Event<SyncResource> { return this.channel.listen<SyncResource>('onSynchronizeResource'); }
-
 	constructor(
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService
 	) {
@@ -76,8 +74,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async createManualSyncTask(): Promise<IManualSyncTask> {
-		const { initialData, channelName } = await this.channel.call<{ initialData: { manifest: IUserDataManifest | null }, channelName: string }>('createManualSyncTask');
-		return new ManualSyncTask(this.sharedProcessService.getChannel(channelName), initialData.manifest);
+		const { id, manifest } = await this.channel.call<{ id: string, manifest: IUserDataManifest | null }>('createManualSyncTask');
+		return new ManualSyncTask(id, manifest, this.sharedProcessService);
 	}
 
 	replace(uri: URI): Promise<void> {
@@ -98,10 +96,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	hasLocalData(): Promise<boolean> {
 		return this.channel.call('hasLocalData');
-	}
-
-	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean> {
-		return this.channel.call('isFirstTimeSyncingWithAnotherMachine');
 	}
 
 	acceptPreviewContent(syncResource: SyncResource, resource: URI, content: string): Promise<void> {
@@ -162,7 +156,17 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 class ManualSyncTask implements IManualSyncTask {
 
-	constructor(private readonly channel: IChannel, readonly manifest: IUserDataManifest | null) { }
+	private readonly channel: IChannel;
+
+	get onSynchronizeResources(): Event<[SyncResource, URI[]][]> { return this.channel.listen<[SyncResource, URI[]][]>('onSynchronizeResources'); }
+
+	constructor(
+		readonly id: string,
+		readonly manifest: IUserDataManifest | null,
+		sharedProcessService: ISharedProcessService,
+	) {
+		this.channel = sharedProcessService.getChannel(`manualSyncTask-${id}`);
+	}
 
 	async preview(): Promise<[SyncResource, ISyncResourcePreview][]> {
 		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('preview');
@@ -185,7 +189,7 @@ class ManualSyncTask implements IManualSyncTask {
 		return this.channel.call('accept', [resource, content]);
 	}
 
-	merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
+	merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
 		return this.channel.call('merge', [resource]);
 	}
 
@@ -199,6 +203,10 @@ class ManualSyncTask implements IManualSyncTask {
 
 	stop(): Promise<void> {
 		return this.channel.call('stop');
+	}
+
+	dispose(): void {
+		this.channel.call('dispose');
 	}
 }
 

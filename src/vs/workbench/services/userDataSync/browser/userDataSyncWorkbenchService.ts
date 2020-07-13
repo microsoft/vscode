@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider, IUserDataAutoSyncService, Change } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNCED_DATA_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -21,13 +21,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { localize } from 'vs/nls';
-import { canceled } from 'vs/base/common/errors';
+import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Action } from 'vs/base/common/actions';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, ProgressLocation, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -226,17 +226,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			location: ProgressLocation.Notification,
 			title,
 			delay: 500,
-		}, async (progress) => {
-			progress.report({ message: localize('turning on', "Turning on...") });
-			const pullFirst = await this.isSyncingWithAnotherMachine();
-			const disposable = this.userDataSyncService.onSynchronizeResource(resource =>
-				progress.report({ message: localize('syncing resource', "Syncing {0}...", getSyncAreaLabel(resource)) }));
-			try {
-				await this.userDataAutoSyncService.turnOn(pullFirst);
-			} finally {
-				disposable.dispose();
-			}
-		});
+		}, (progress) => this.turnOnWithProgress(progress));
 
 		this.notificationService.info(localize('sync turned on', "{0} is turned on", title));
 	}
@@ -245,12 +235,48 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		return this.userDataAutoSyncService.turnOff(everywhere);
 	}
 
-	private async isSyncingWithAnotherMachine(): Promise<boolean> {
-		const isSyncingWithAnotherMachine = await this.userDataSyncService.isFirstTimeSyncingWithAnotherMachine();
-		if (!isSyncingWithAnotherMachine) {
-			return false;
-		}
+	private async turnOnWithProgress(progress: IProgress<IProgressStep>): Promise<void> {
+		progress.report({ message: localize('turning on', "Turning on...") });
 
+		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
+		const preview = await manualSyncTask.preview();
+
+		const hasRemoteData = manualSyncTask.manifest !== null;
+		const hasLocalData = await this.userDataSyncService.hasLocalData();
+		const isLastSyncFromCurrentMachine = preview.every(([, { isLastSyncFromCurrentMachine }]) => isLastSyncFromCurrentMachine);
+		const hasChanges = preview.some(([, { resourcePreviews }]) => resourcePreviews.some(r => r.localChange !== Change.None || r.remoteChange !== Change.None));
+
+		const progressDisposable = manualSyncTask.onSynchronizeResources(synchronizingResources =>
+			synchronizingResources.length ? progress.report({ message: localize('syncing resource', "Syncing {0}...", getSyncAreaLabel(synchronizingResources[0][0])) }) : undefined);
+
+		try {
+			if (!hasLocalData /* no data on local */
+				|| !hasRemoteData /* no data on remote */
+				|| !hasChanges /* no changes  */
+				|| isLastSyncFromCurrentMachine /* has changes but last sync is from current machine */
+			) {
+				await manualSyncTask.merge();
+			} else {
+				const pull = await this.askForPullOrMerge();
+				if (pull) {
+					await manualSyncTask.pull();
+				} else {
+					await manualSyncTask.merge();
+				}
+			}
+			await this.userDataAutoSyncService.turnOn();
+		} catch (error) {
+			if (isPromiseCanceledError(error)) {
+				await manualSyncTask.stop();
+			}
+			throw error;
+		} finally {
+			manualSyncTask.dispose();
+			progressDisposable.dispose();
+		}
+	}
+
+	private async askForPullOrMerge(): Promise<boolean> {
 		const result = await this.dialogService.show(
 			Severity.Info,
 			localize('Replace or Merge', "Replace or Merge"),

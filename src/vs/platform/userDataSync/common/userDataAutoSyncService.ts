@@ -81,12 +81,6 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 	private readonly _onError: Emitter<UserDataSyncError> = this._register(new Emitter<UserDataSyncError>());
 	readonly onError: Event<UserDataSyncError> = this._onError.event;
 
-	private readonly _onTurnOnSync: Emitter<void> = this._register(new Emitter<void>());
-	readonly onTurnOnSync: Event<void> = this._onTurnOnSync.event;
-
-	private readonly _onDidTurnOnSync: Emitter<UserDataSyncError | undefined> = this._register(new Emitter<UserDataSyncError | undefined>());
-	readonly onDidTurnOnSync: Event<UserDataSyncError | undefined> = this._onDidTurnOnSync.event;
-
 	constructor(
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
@@ -145,24 +139,9 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		return { enabled: true };
 	}
 
-	async turnOn(pullFirst: boolean): Promise<void> {
-		this._onTurnOnSync.fire();
-
-		try {
-			this.stopDisableMachineEventually();
-
-			if (pullFirst) {
-				await this.userDataSyncService.pull();
-			} else {
-				await (await this.userDataSyncService.createSyncTask()).run();
-			}
-
-			this.setEnablement(true);
-			this._onDidTurnOnSync.fire(undefined);
-		} catch (error) {
-			this._onDidTurnOnSync.fire(error);
-			throw error;
-		}
+	async turnOn(): Promise<void> {
+		this.stopDisableMachineEventually();
+		this.setEnablement(true);
 	}
 
 	async turnOff(everywhere: boolean, softTurnOffOnError?: boolean, donotRemoveMachine?: boolean): Promise<void> {

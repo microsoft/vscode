@@ -22,7 +22,6 @@ export class UserDataSyncChannel implements IServerChannel {
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onDidChangeStatus': return this.service.onDidChangeStatus;
-			case 'onSynchronizeResource': return this.service.onSynchronizeResource;
 			case 'onDidChangeConflicts': return this.service.onDidChangeConflicts;
 			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
 			case 'onDidChangeLastSyncTime': return this.service.onDidChangeLastSyncTime;
@@ -53,7 +52,6 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'resetLocal': return this.service.resetLocal();
 			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
 			case 'hasLocalData': return this.service.hasLocalData();
-			case 'isFirstTimeSyncingWithAnotherMachine': return this.service.isFirstTimeSyncingWithAnotherMachine();
 			case 'acceptPreviewContent': return this.service.acceptPreviewContent(args[0], URI.revive(args[1]), args[2]);
 			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
 			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0]);
@@ -64,13 +62,11 @@ export class UserDataSyncChannel implements IServerChannel {
 		throw new Error('Invalid call');
 	}
 
-	private taskCounter = 1;
-	private async createManualSyncTask(): Promise<{ initialData: { manifest: IUserDataManifest | null }, channelName: string }> {
+	private async createManualSyncTask(): Promise<{ id: string, manifest: IUserDataManifest | null }> {
 		const manualSyncTask = await this.service.createManualSyncTask();
 		const manualSyncTaskChannel = new ManualSyncTaskChannel(manualSyncTask);
-		const channelName = `manualSyncTask-${this.taskCounter++}`;
-		this.server.registerChannel(channelName, manualSyncTaskChannel);
-		return { initialData: { manifest: manualSyncTask.manifest }, channelName };
+		this.server.registerChannel(`manualSyncTask-${manualSyncTask.id}`, manualSyncTaskChannel);
+		return { id: manualSyncTask.id, manifest: manualSyncTask.manifest };
 	}
 }
 
@@ -79,6 +75,9 @@ class ManualSyncTaskChannel implements IServerChannel {
 	constructor(private readonly manualSyncTask: IManualSyncTask) { }
 
 	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onSynchronizeResources': return this.manualSyncTask.onSynchronizeResources;
+		}
 		throw new Error(`Event not found: ${event}`);
 	}
 
@@ -90,6 +89,7 @@ class ManualSyncTaskChannel implements IServerChannel {
 			case 'pull': return this.manualSyncTask.pull();
 			case 'push': return this.manualSyncTask.push();
 			case 'stop': return this.manualSyncTask.stop();
+			case 'dispose': return this.manualSyncTask.dispose();
 		}
 		throw new Error('Invalid call');
 	}
@@ -102,8 +102,6 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
-			case 'onTurnOnSync': return this.service.onTurnOnSync;
-			case 'onDidTurnOnSync': return this.service.onDidTurnOnSync;
 			case 'onError': return this.service.onError;
 		}
 		throw new Error(`Event not found: ${event}`);
@@ -112,7 +110,7 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'triggerSync': return this.service.triggerSync(args[0], args[1]);
-			case 'turnOn': return this.service.turnOn(args[0]);
+			case 'turnOn': return this.service.turnOn();
 			case 'turnOff': return this.service.turnOff(args[0]);
 		}
 		throw new Error('Invalid call');
