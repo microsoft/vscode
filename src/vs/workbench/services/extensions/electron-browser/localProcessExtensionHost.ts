@@ -193,6 +193,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 						submitURL: '',
 						uploadToServer: false
 					};
+					// crashReporterId is set by the main process only when crash reporting is enabled by the user.
 					if (!crashesDirectory && appcenter && crashReporterId) {
 						const submitURL = appcenter[`linux-x64`];
 						crashReporterStartOptions.submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
