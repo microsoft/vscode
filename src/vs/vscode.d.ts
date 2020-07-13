@@ -8065,6 +8065,7 @@ declare module 'vscode' {
 		 * allows specifying shell args in
 		 * [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6).
 		 * @return A new Terminal.
+		 * @throws When running in an environment where a new process can't be started.
 		 */
 		export function createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): Terminal;
 
@@ -8073,6 +8074,7 @@ declare module 'vscode' {
 		 *
 		 * @param options A TerminalOptions object describing the characteristics of the new terminal.
 		 * @return A new Terminal.
+		 * @throws When running in an environment where a new process can't be started.
 		 */
 		export function createTerminal(options: TerminalOptions): Terminal;
 
