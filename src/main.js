@@ -77,8 +77,7 @@ if (crashReporterDirectory) {
 	// * --crash-reporter-directory is specified
 	// * enable-crash-reporter runtime argument is set to 'false'
 	// * --disable-crash-reporter command line parameter is set
-	if (appCenter && (argvConfig['enable-crash-reporter'] !== false || argvConfig['enable-crash-reporter'] !== 'false') &&
-		!args['disable-crash-reporter']) {
+	if (appCenter && (argvConfig['enable-crash-reporter'] !== false) && !args['disable-crash-reporter']) {
 		const isWindows = (process.platform === 'win32');
 		const isLinux = (process.platform === 'linux');
 		const crashReporterId = argvConfig['crash-reporter-id'];
