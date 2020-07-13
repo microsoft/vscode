@@ -286,7 +286,7 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
 		// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 		// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
-		allowedTags: ['ul', 'li', 'p', 'code', 'blockquote', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'em', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'del', 'a', 'strong', 'br', 'img', 'span'],
+		allowedTags: ['ul', 'li', 'p', 'code', 'blockquote', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'em', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'del', 'a', 'strong', 'br', 'img', 'span', 'b', 'i'],
 		allowedAttributes: {
 			'a': ['href', 'name', 'target', 'data-href'],
 			'img': ['src', 'title', 'alt', 'width', 'height'],
