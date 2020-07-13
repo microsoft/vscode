@@ -19,6 +19,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { localize } from 'vs/nls';
 import { NotImplementedError } from 'vs/base/common/errors';
+import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 
@@ -313,6 +314,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _terminalProcessDisposables: { [id: number]: IDisposable } = {};
 	protected _extensionTerminalAwaitingStart: { [id: number]: { initialDimensions: ITerminalDimensionsDto | undefined } | undefined } = {};
 	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
+	protected _environmentVariableCollections: Map<string, EnvironmentVariableCollection> = new Map();
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkHandlers: Set<vscode.TerminalLinkHandler> = new Set();
@@ -352,8 +354,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public abstract $getAvailableShells(): Promise<IShellDefinitionDto[]>;
 	public abstract $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	public abstract $acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
-	public abstract getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
-	public abstract $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
@@ -719,6 +719,39 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			return false;
 		});
 		return index;
+	}
+
+	public getEnvironmentVariableCollection(extension: IExtensionDescription): vscode.EnvironmentVariableCollection {
+		let collection = this._environmentVariableCollections.get(extension.identifier.value);
+		if (!collection) {
+			collection = new EnvironmentVariableCollection();
+			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
+		}
+		return collection;
+	}
+
+	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
+		const serialized = serializeEnvironmentVariableCollection(collection.map);
+		this._proxy.$setEnvironmentVariableCollection(extensionIdentifier, collection.persistent, serialized.length === 0 ? undefined : serialized);
+	}
+
+	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
+		collections.forEach(entry => {
+			const extensionIdentifier = entry[0];
+			const collection = new EnvironmentVariableCollection(entry[1]);
+			this._setEnvironmentVariableCollection(extensionIdentifier, collection);
+		});
+	}
+
+	private _setEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
+		this._environmentVariableCollections.set(extensionIdentifier, collection);
+		collection.onDidChangeCollection(() => {
+			// When any collection value changes send this immediately, this is done to ensure
+			// following calls to createTerminal will be created with the new environment. It will
+			// result in more noise by sending multiple updates when called but collections are
+			// expected to be small.
+			this._syncEnvironmentVariableCollection(extensionIdentifier, collection!);
+		});
 	}
 }
 
