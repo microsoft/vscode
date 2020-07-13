@@ -64,7 +64,12 @@ class DecoderStream implements IDecoderStream {
 			const utf8TextDecoder = new TextDecoder();
 			decoder = {
 				write(buffer: Uint8Array): string {
-					return utf8TextDecoder.decode(buffer, { stream: true });
+					return utf8TextDecoder.decode(buffer, {
+						// Signal to TextDecoder that potentially more data is coming
+						// and that we are calling `decode` in the end to consume any
+						// remainders
+						stream: true
+					});
 				},
 
 				end(): string | undefined {
