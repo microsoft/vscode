@@ -95,9 +95,11 @@ function readCurrentState(): State {
 		case 'off':
 			return State.Off;
 		case 'on':
-			const jsDebugConfig = vscode.workspace.getConfiguration(JS_DEBUG_SETTINGS);
-			const useV3 = nodeConfig.get(NODE_DEBUG_USEV3) || jsDebugConfig.get(JS_DEBUG_USEPREVIEW);
-			return useV3 ? State.OnWithJsDebug : State.OnWithNodeDebug;
+			// todo: reenable after resolving https://github.com/microsoft/vscode/issues/102057
+			// const jsDebugConfig = vscode.workspace.getConfiguration(JS_DEBUG_SETTINGS);
+			// const useV3 = nodeConfig.get(NODE_DEBUG_USEV3) || jsDebugConfig.get(JS_DEBUG_USEPREVIEW);
+			// return useV3 ? State.OnWithJsDebug : State.OnWithNodeDebug;
+			return State.OnWithNodeDebug;
 		case 'disabled':
 		default:
 			return State.Disabled;
