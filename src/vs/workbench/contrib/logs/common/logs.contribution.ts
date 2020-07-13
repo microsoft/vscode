@@ -73,13 +73,16 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	private async registerLogChannel(id: string, label: string, file: URI): Promise<void> {
 		await whenProviderRegistered(file, this.fileService);
 		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
+
+		/* watch first and then check if file exists so that to avoid missing file creation event after watching #102117 */
+		const watcher = this.fileService.watch(dirname(file));
 		const exists = await this.fileService.exists(file);
 		if (exists) {
+			watcher.dispose();
 			outputChannelRegistry.registerChannel({ id, label, file, log: true });
 			return;
 		}
 
-		const watcher = this.fileService.watch(dirname(file));
 		const disposable = this.fileService.onDidFilesChange(e => {
 			if (e.contains(file, FileChangeType.ADDED) || e.contains(file, FileChangeType.UPDATED)) {
 				watcher.dispose();
