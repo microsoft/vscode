@@ -144,12 +144,8 @@ const transitions: { [S in State]: StateTransition<unknown> } = {
 	[State.Disabled]: {
 		async enter(context) {
 			statusItem?.hide();
-
-			// If there was js-debug state set, clear it and clear any environment variables
-			if (context.workspaceState.get<CachedIpcState>(JS_DEBUG_IPC_KEY)) {
-				await context.workspaceState.update(JS_DEBUG_IPC_KEY, undefined);
-				await vscode.commands.executeCommand('extension.js-debug.clearAutoAttachVariables');
-			}
+			await context.workspaceState.update(JS_DEBUG_IPC_KEY, undefined);
+			await vscode.commands.executeCommand('extension.js-debug.clearAutoAttachVariables');
 		},
 	},
 
@@ -190,7 +186,7 @@ const transitions: { [S in State]: StateTransition<unknown> } = {
 				})
 					.on('error', reject)
 					.listen(ipcAddress, () => resolve(s));
-			});
+			}).catch(console.error);
 
 			const statusItem = ensureStatusBarExists(context);
 			statusItem.text = ON_TEXT;
