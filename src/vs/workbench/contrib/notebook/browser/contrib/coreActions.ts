@@ -19,7 +19,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { BaseCellRenderTemplate, CellEditState, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_HAS_OUTPUTS, CellFocusMode, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_CELL_LIST_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookCellRunState, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -810,7 +810,9 @@ registerAction2(class extends NotebookAction {
 		const currCellIndex = viewModel.getCellIndex(context!.cell);
 
 		pasteCells.items.reverse().map(cell => {
-			if (pasteCells.isCopy) {
+			const data = CellUri.parse(cell.uri);
+
+			if (pasteCells.isCopy || data?.notebook.toString() !== viewModel.uri.toString()) {
 				return viewModel.notebookDocument.createCellTextModel(
 					cell.getValue(),
 					cell.language,
@@ -858,7 +860,9 @@ registerAction2(class extends NotebookAction {
 		const currCellIndex = viewModel.getCellIndex(context!.cell);
 
 		pasteCells.items.reverse().map(cell => {
-			if (pasteCells.isCopy) {
+			const data = CellUri.parse(cell.uri);
+
+			if (pasteCells.isCopy || data?.notebook.toString() !== viewModel.uri.toString()) {
 				return viewModel.notebookDocument.createCellTextModel(
 					cell.getValue(),
 					cell.language,
