@@ -72,7 +72,8 @@ if (crashReporterDirectory) {
 	// generate a UUID which will be used as crash reporter id and also
 	// update the json file.
 	if (!argvConfig['enable-crash-reporter']) {
-		argvConfig['enable-crash-reporter'] = generateUuid();
+		argvConfig['enable-crash-reporter'] = true;
+		argvConfig['crash-reporter-id'] = generateUuid();
 		fs.writeFileSync(getArgvConfigPath(), JSON.stringify(argvConfig));
 	}
 	// Disable Appcenter crash reporting if
@@ -83,7 +84,7 @@ if (crashReporterDirectory) {
 		!args['disable-crash-reporter']) {
 		const isWindows = (process.platform === 'win32');
 		const isLinux = (process.platform === 'linux');
-		const crashReporterId = argvConfig['enable-crash-reporter'];
+		const crashReporterId = argvConfig['crash-reporter-id'];
 		submitURL = isWindows ? appCenter[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? appCenter[`linux-x64`] : appCenter.darwin;
 		submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
 		// Send the id for child node process that are explicitly starting crash reporter.

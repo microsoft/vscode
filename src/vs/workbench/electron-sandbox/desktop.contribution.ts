@@ -345,7 +345,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				markdownDescription: nls.localize('argv.forceColorProfile', 'Allows to override the color profile to use. If you experience colors appear badly, try to set this to `srgb` and restart.')
 			},
 			'enable-crash-reporter': {
-				type: 'string',
+				type: 'boolean',
 				markdownDescription: nls.localize('argv.enableCrashReporter', 'Allows disabling crash reporting to Appcenter, should restart the app if the value is changed.')
 			},
 			'enable-proposed-api': {
