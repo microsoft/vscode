@@ -47,15 +47,14 @@ const PRIORITY = 100;
 
 function overrideCommandForWebview(command: MultiCommand | undefined, f: (webview: ElectronWebviewBasedWebview) => void) {
 	command?.addImplementation(PRIORITY, accessor => {
-		if (!isMacintosh || accessor.get(IConfigurationService).getValue<string>('window.titleBarStyle') !== 'native') {
-			return false;
+		if (isMacintosh || accessor.get(IConfigurationService).getValue<string>('window.titleBarStyle') === 'native') {
+			const webview = getActiveElectronBasedWebview(accessor);
+			if (webview) {
+				f(webview);
+				return true;
+			}
 		}
 
-		const webview = getActiveElectronBasedWebview(accessor);
-		if (webview) {
-			f(webview);
-			return true;
-		}
 		return false;
 	});
 }
