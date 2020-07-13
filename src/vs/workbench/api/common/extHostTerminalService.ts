@@ -18,6 +18,7 @@ import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType } from '
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { localize } from 'vs/nls';
+import { NotImplementedError } from 'vs/base/common/errors';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 
@@ -785,31 +786,31 @@ export class EnvironmentVariableCollection implements vscode.EnvironmentVariable
 
 export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
-		throw new Error('Not implemented');
+		throw new NotImplementedError();
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
-		throw new Error('Not implemented');
+		throw new NotImplementedError();
 	}
 
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
-		throw new Error('Not implemented');
+		throw new NotImplementedError();
 	}
 
 	public getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
-		throw new Error('Not implemented');
+		throw new NotImplementedError();
 	}
 
 	public $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined> {
-		throw new Error('Not implemented');
+		throw new NotImplementedError();
 	}
 
 	public $getAvailableShells(): Promise<IShellDefinitionDto[]> {
-		throw new Error('Not implemented');
+		throw new NotImplementedError();
 	}
 
 	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
-		throw new Error('Not implemented');
+		throw new NotImplementedError();
 	}
 
 	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
@@ -818,7 +819,7 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 
 	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection {
 		// This is not implemented so worker ext host extensions cannot influence terminal envs
-		throw new Error('Not implemented');
+		throw new NotImplementedError();
 	}
 
 	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
