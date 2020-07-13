@@ -756,7 +756,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				if (elm.cellKind === CellKind.Code) {
 					cellHeights[i] = elm.layoutInfo.totalHeight;
 				} else {
-					cellHeights[i] = 0;
+					cellHeights[i] = elm.layoutInfo.totalHeight;
 				}
 			}
 
