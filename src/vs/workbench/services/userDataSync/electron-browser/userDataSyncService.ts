@@ -143,7 +143,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 						previewResource: URI.revive(r.previewResource),
 					}))
 			]));
-		this._onDidChangeConflicts.fire(conflicts);
+		this._onDidChangeConflicts.fire(this._conflicts);
 	}
 
 	private updateLastSyncTime(lastSyncTime: number): void {
@@ -170,27 +170,17 @@ class ManualSyncTask implements IManualSyncTask {
 
 	async preview(): Promise<[SyncResource, ISyncResourcePreview][]> {
 		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('preview');
-		return previews.map(([syncResource, preview]) =>
-			([
-				syncResource,
-				{
-					isLastSyncFromCurrentMachine: preview.isLastSyncFromCurrentMachine,
-					resourcePreviews: preview.resourcePreviews.map(r => ({
-						...r,
-						localResource: URI.revive(r.localResource),
-						remoteResource: URI.revive(r.remoteResource),
-						previewResource: URI.revive(r.previewResource),
-					}))
-				}
-			]));
+		return this.deserializePreviews(previews);
 	}
 
-	accept(resource: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]> {
-		return this.channel.call('accept', [resource, content]);
+	async accept(resource: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]> {
+		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('accept', [resource, content]);
+		return this.deserializePreviews(previews);
 	}
 
-	merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
-		return this.channel.call('merge', [resource]);
+	async merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
+		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('merge', [resource]);
+		return this.deserializePreviews(previews);
 	}
 
 	pull(): Promise<void> {
@@ -207,6 +197,22 @@ class ManualSyncTask implements IManualSyncTask {
 
 	dispose(): void {
 		this.channel.call('dispose');
+	}
+
+	private deserializePreviews(previews: [SyncResource, ISyncResourcePreview][]): [SyncResource, ISyncResourcePreview][] {
+		return previews.map(([syncResource, preview]) =>
+			([
+				syncResource,
+				{
+					isLastSyncFromCurrentMachine: preview.isLastSyncFromCurrentMachine,
+					resourcePreviews: preview.resourcePreviews.map(r => ({
+						...r,
+						localResource: URI.revive(r.localResource),
+						remoteResource: URI.revive(r.remoteResource),
+						previewResource: URI.revive(r.previewResource),
+					}))
+				}
+			]));
 	}
 }
 
