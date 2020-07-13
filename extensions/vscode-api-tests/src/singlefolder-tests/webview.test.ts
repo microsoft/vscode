@@ -6,13 +6,16 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as os from 'os';
-import { join } from 'path';
 import * as vscode from 'vscode';
 import { closeAllEditors, conditionalTest, delay, disposeAll } from '../utils';
 
 const webviewId = 'myWebview';
 
-const testDocument = join(vscode.workspace.rootPath || '', './bower.json');
+function workspaceFile(...segments: string[]) {
+	return vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, ...segments);
+}
+
+const testDocument = workspaceFile('bower.json');
 
 suite('vscode API - webview', () => {
 	const disposables: vscode.Disposable[] = [];
@@ -252,23 +255,18 @@ suite('vscode API - webview', () => {
 				});
 			</script>`);
 
-		function asWebviewUri(path: string) {
-			const root = webview.webview.asWebviewUri(vscode.Uri.file(vscode.workspace.rootPath!));
-			return root.toString() + path;
-		}
-
 		{
-			const imagePath = asWebviewUri('/image.png');
+			const imagePath = webview.webview.asWebviewUri(workspaceFile('image.png'));
 			const response = sendRecieveMessage(webview, { src: imagePath });
 			assert.strictEqual((await response).value, true);
 		}
 		{
-			const imagePath = asWebviewUri('/no-such-image.png');
+			const imagePath = webview.webview.asWebviewUri(workspaceFile('no-such-image.png'));
 			const response = sendRecieveMessage(webview, { src: imagePath });
 			assert.strictEqual((await response).value, false);
 		}
 		{
-			const imagePath = webview.webview.asWebviewUri(vscode.Uri.file(join(vscode.workspace.rootPath!, '..', '..', '..', 'resources', 'linux', 'code.png')));
+			const imagePath = webview.webview.asWebviewUri(workspaceFile('..', '..', '..', 'resources', 'linux', 'code.png'));
 			const response = sendRecieveMessage(webview, { src: imagePath.toString() });
 			assert.strictEqual((await response).value, false);
 		}
@@ -277,7 +275,7 @@ suite('vscode API - webview', () => {
 	conditionalTest('webviews should allow overriding allowed resource paths using localResourceRoots', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
-			localResourceRoots: [vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub'))]
+			localResourceRoots: [workspaceFile('sub')]
 		}));
 
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -293,11 +291,11 @@ suite('vscode API - webview', () => {
 			</script>`);
 
 		{
-			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub', 'image.png'))).toString() });
+			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(workspaceFile('sub', 'image.png')).toString() });
 			assert.strictEqual((await response).value, true);
 		}
 		{
-			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(vscode.Uri.file(join(vscode.workspace.rootPath!, 'image.png'))).toString() });
+			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(workspaceFile('image.png')).toString() });
 			assert.strictEqual((await response).value, false);
 		}
 	});
@@ -305,10 +303,10 @@ suite('vscode API - webview', () => {
 	conditionalTest('webviews using hard-coded old style vscode-resource uri should work', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
-			localResourceRoots: [vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub'))]
+			localResourceRoots: [workspaceFile('sub')]
 		}));
 
-		const imagePath = vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub', 'image.png')).with({ scheme: 'vscode-resource' }).toString();
+		const imagePath = workspaceFile('sub', 'image.png').with({ scheme: 'vscode-resource' }).toString();
 
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
 			<img src="${imagePath}">
