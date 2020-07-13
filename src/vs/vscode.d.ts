@@ -7346,6 +7346,9 @@ declare module 'vscode' {
 
 		/**
 		 * The application root folder from which the editor is running.
+		 *
+		 * *Note* that the value is the empty string (`''`) when running in an
+		 * environment that has no representation of an application root folder.
 		 */
 		export const appRoot: string;
 
