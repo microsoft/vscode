@@ -66,6 +66,8 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class NativeWindow extends Disposable {
 
@@ -110,6 +112,7 @@ export class NativeWindow extends Disposable {
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IProductService private readonly productService: IProductService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService
 	) {
 		super();
 
@@ -412,6 +415,15 @@ export class NativeWindow extends Disposable {
 				this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
 			}
 		});
+
+		// Edit argv.json with crash reporter configs for a fresh start.
+		if (this.environmentService.createCrashReporterConfig) {
+			const enableCrashReporter = this.configurationService.getValue('telemetry.enableCrashReporter');
+			this.jsonEditingService.write(this.environmentService.argvResource, [
+				{ path: ['enable-crash-reporter'], value: enableCrashReporter },
+				{ path: ['crash-reporter-id'], value: generateUuid() }
+			], true);
+		}
 
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();

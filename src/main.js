@@ -8,7 +8,6 @@
 
 const perf = require('./vs/base/common/performance');
 const lp = require('./vs/base/node/languagePacks');
-const { generateUuid } = require('./vs/base/common/uuid');
 
 perf.mark('main:started');
 
@@ -69,12 +68,10 @@ if (crashReporterDirectory) {
 } else {
 	const appCenter = product.appCenter;
 	// If enable-crash-reporter argv is undefined then this is a fresh start,
-	// generate a UUID which will be used as crash reporter id and also
-	// update the json file.
-	if (!argvConfig['enable-crash-reporter']) {
-		argvConfig['enable-crash-reporter'] = true;
-		argvConfig['crash-reporter-id'] = generateUuid();
-		fs.writeFileSync(getArgvConfigPath(), JSON.stringify(argvConfig));
+	// based on telemetry.enableCrashreporter settings, generate a UUID which
+	// will be used as crash reporter id and also update the json file.
+	if (argvConfig['enable-crash-reporter'] === undefined) {
+		process.argv.push('--create-crash-reporter-config');
 	}
 	// Disable Appcenter crash reporting if
 	// * --crash-reporter-directory is specified

@@ -62,7 +62,7 @@ export interface ParsedArgs {
 	'export-default-configuration'?: string;
 	'install-source'?: string;
 	'disable-updates'?: boolean;
-	'disable-crash-reporter'?: boolean;
+	'create-crash-reporter-config'?: boolean;
 	'crash-reporter-directory'?: string;
 	'crash-reporter-id'?: string;
 	'skip-add-to-recently-opened'?: boolean;
@@ -181,7 +181,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'disable-restore-windows': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
-	'disable-crash-reporter': { type: 'boolean' },
+	'create-crash-reporter-config': { type: 'boolean' },
 	'crash-reporter-directory': { type: 'string' },
 	'crash-reporter-id': { type: 'string' },
 	'disable-user-env-probe': { type: 'boolean' },
