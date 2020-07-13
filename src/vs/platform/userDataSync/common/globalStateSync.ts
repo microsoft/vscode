@@ -43,7 +43,7 @@ interface ILastSyncUserData extends IRemoteUserData {
 
 export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
-	private static readonly GLOBAL_STATE_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'globalState', path: `/current.json` });
+	private static readonly GLOBAL_STATE_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'globalState', path: `/globalState.json` });
 	protected readonly version: number = 1;
 	private readonly localPreviewResource: URI = joinPath(this.syncPreviewFolder, 'globalState.json');
 	private readonly remotePreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME });

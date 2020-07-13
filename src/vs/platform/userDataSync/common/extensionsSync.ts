@@ -40,7 +40,7 @@ interface ILastSyncUserData extends IRemoteUserData {
 
 export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
-	private static readonly EXTENSIONS_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'extensions', path: `/current.json` });
+	private static readonly EXTENSIONS_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'extensions', path: `/extensions.json` });
 	/*
 		Version 3 - Introduce installed property to skip installing built in extensions
 	*/
