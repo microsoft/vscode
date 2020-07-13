@@ -11,7 +11,6 @@ import product from 'vs/platform/product/common/product';
 import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
-import * as platform from 'vs/base/common/platform';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
@@ -43,7 +42,7 @@ class ProcessExplorer {
 
 	private electronService: IElectronService;
 
-	constructor(windowId: number, data: ProcessExplorerData) {
+	constructor(windowId: number, private data: ProcessExplorerData) {
 		const mainProcessService = new MainProcessService(windowId);
 		this.electronService = new ElectronService(windowId, mainProcessService) as IElectronService;
 
@@ -92,7 +91,7 @@ class ProcessExplorer {
 
 		// Format name with indent
 		const formattedName = isRoot ? name : `${'    '.repeat(indent)} ${name}`;
-		const memory = process.platform === 'win32' ? item.mem : (totalmem() * (item.mem / 100));
+		const memory = this.data.platform === 'win32' ? item.mem : (totalmem() * (item.mem / 100));
 		processes.push({
 			cpu: item.load,
 			memory: (memory / MB),
@@ -329,14 +328,14 @@ class ProcessExplorer {
 			items.push({
 				label: localize('killProcess', "Kill Process"),
 				click() {
-					process.kill(pid, 'SIGTERM');
+					ipcRenderer.send('vscode:killProcess', { pid: pid, force: false });
 				}
 			});
 
 			items.push({
 				label: localize('forceKillProcess', "Force Kill Process"),
 				click() {
-					process.kill(pid, 'SIGKILL');
+					ipcRenderer.send('vscode:killProcess', { pid: pid, force: true });
 				}
 			});
 
@@ -405,14 +404,14 @@ class ProcessExplorer {
 
 
 export function startup(windowId: number, data: ProcessExplorerData): void {
-	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
+	const platformClass = data.platform === 'win32' ? 'windows' : data.platform === 'linux' ? 'linux' : 'mac';
 	addClass(document.body, platformClass); // used by our fonts
 	applyZoom(data.zoomLevel);
 
 	const processExplorer = new ProcessExplorer(windowId, data);
 
 	document.onkeydown = (e: KeyboardEvent) => {
-		const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
+		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
 
 		// Cmd/Ctrl + zooms in
 		if (cmdOrCtrlKey && e.keyCode === 187) {
@@ -427,7 +426,7 @@ export function startup(windowId: number, data: ProcessExplorerData): void {
 
 	// Cmd/Ctrl + w closes process explorer
 	window.addEventListener('keydown', e => {
-		const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
+		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
 		if (cmdOrCtrlKey && e.keyCode === 87) {
 			processExplorer.dispose();
 			ipcRenderer.send('vscode:closeProcessExplorer');

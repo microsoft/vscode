@@ -175,6 +175,15 @@ export class IssueMainService implements ICommonIssueService {
 				event.sender.send('vscode:windowsInfoResponse', info.windows);
 			});
 		});
+
+		ipcMain.on('vscode:killProcess', (_: unknown, arg: { pid: number, force: boolean }) => {
+			const { pid, force } = arg;
+			if (force) {
+				process.kill(pid, 'SIGTERM');
+			} else {
+				process.kill(pid, 'SIGKILL');
+			}
+		});
 	}
 
 	openReporter(data: IssueReporterData): Promise<void> {
@@ -254,7 +263,8 @@ export class IssueMainService implements ICommonIssueService {
 							enableWebSQL: false,
 							enableRemoteModule: false,
 							nativeWindowOpen: true,
-							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel)
+							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
+							devTools: true
 						}
 					});
 
@@ -270,7 +280,7 @@ export class IssueMainService implements ICommonIssueService {
 					};
 
 					this._processExplorerWindow.loadURL(
-						toLauchUrl('vs/code/electron-browser/processExplorer/processExplorer.html', windowConfiguration));
+						toLauchUrl('vs/code/electron-sandbox/processExplorer/processExplorer.html', windowConfiguration));
 
 					this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
 
