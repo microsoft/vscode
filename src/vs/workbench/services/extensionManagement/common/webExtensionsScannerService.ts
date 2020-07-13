@@ -48,7 +48,7 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 
 	private readonly systemExtensionsPromise: Promise<IScannedExtension[]>;
 	private readonly staticExtensions: IScannedExtension[];
-	private readonly extensionsResource: URI;
+	private readonly extensionsResource: URI | undefined;
 	private readonly userExtensionsResourceLimiter: Queue<IUserExtension[]>;
 
 	constructor(
@@ -58,7 +58,7 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 	) {
-		this.extensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
+		this.extensionsResource = isWeb ? joinPath(environmentService.userRoamingDataHome, 'extensions.json') : undefined;
 		this.userExtensionsResourceLimiter = new Queue<IUserExtension[]>();
 		this.systemExtensionsPromise = isWeb ? this.builtinExtensionsScannerService.scanBuiltinExtensions() : Promise.resolve([]);
 		const staticExtensions = environmentService.options && Array.isArray(environmentService.options.staticExtensions) ? environmentService.options.staticExtensions : [];
@@ -155,10 +155,13 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 		return null;
 	}
 
-	private readUserExtensions(): Promise<IUserExtension[]> {
+	private async readUserExtensions(): Promise<IUserExtension[]> {
+		if (!this.extensionsResource) {
+			return [];
+		}
 		return this.userExtensionsResourceLimiter.queue(async () => {
 			try {
-				const content = await this.fileService.readFile(this.extensionsResource);
+				const content = await this.fileService.readFile(this.extensionsResource!);
 				const storedUserExtensions: IStoredUserExtension[] = JSON.parse(content.value.toString());
 				return storedUserExtensions.map(e => ({
 					identifier: e.identifier,
@@ -174,6 +177,9 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 	}
 
 	private writeUserExtensions(userExtensions: IUserExtension[]): Promise<IUserExtension[]> {
+		if (!this.extensionsResource) {
+			throw new Error('unsupported');
+		}
 		return this.userExtensionsResourceLimiter.queue(async () => {
 			const storedUserExtensions: IStoredUserExtension[] = userExtensions.map(e => ({
 				identifier: e.identifier,
@@ -183,7 +189,7 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 				changelogUri: e.changelogUri?.toJSON(),
 				packageNLSUri: e.packageNLSUri?.toJSON(),
 			}));
-			await this.fileService.writeFile(this.extensionsResource, VSBuffer.fromString(JSON.stringify(storedUserExtensions)));
+			await this.fileService.writeFile(this.extensionsResource!, VSBuffer.fromString(JSON.stringify(storedUserExtensions)));
 			return userExtensions;
 		});
 	}
