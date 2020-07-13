@@ -1276,7 +1276,7 @@ export class MarkdownString {
 		if (thing instanceof MarkdownString) {
 			return true;
 		}
-		return (thing !== undefined) && thing.appendCodeblock && thing.appendMarkdown && thing.appendText && (thing.value !== undefined);
+		return thing && thing.appendCodeblock && thing.appendMarkdown && thing.appendText && (thing.value !== undefined);
 	}
 }
 
