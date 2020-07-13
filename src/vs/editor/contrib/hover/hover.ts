@@ -12,6 +12,7 @@ import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/brows
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
+import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -286,7 +287,7 @@ class ShowHoverAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: { position?: IPosition }): void {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -294,7 +295,7 @@ class ShowHoverAction extends EditorAction {
 		if (!controller) {
 			return;
 		}
-		const position = editor.getPosition();
+		const position = args.position ? args.position : editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		const focus = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
 		controller.showContentHover(range, HoverStartMode.Immediate, focus);
