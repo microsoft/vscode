@@ -67,17 +67,11 @@ if (crashReporterDirectory) {
 	app.setPath('crashDumps', crashReporterDirectory);
 } else {
 	const appCenter = product.appCenter;
-	// If enable-crash-reporter argv is undefined then this is a fresh start,
-	// based on telemetry.enableCrashreporter settings, generate a UUID which
-	// will be used as crash reporter id and also update the json file.
-	if (argvConfig['enable-crash-reporter'] === undefined) {
-		process.argv.push('--create-crash-reporter-config');
-	}
 	// Disable Appcenter crash reporting if
 	// * --crash-reporter-directory is specified
 	// * enable-crash-reporter runtime argument is set to 'false'
 	// * --disable-crash-reporter command line parameter is set
-	if (appCenter && (argvConfig['enable-crash-reporter'] !== false) && !args['disable-crash-reporter']) {
+	if (appCenter && argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter']) {
 		const isWindows = (process.platform === 'win32');
 		const isLinux = (process.platform === 'linux');
 		const crashReporterId = argvConfig['crash-reporter-id'];
@@ -93,7 +87,7 @@ if (crashReporterDirectory) {
 crashReporter.start({
 	companyName: companyName,
 	productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
-	submitURL: submitURL,
+	submitURL,
 	uploadToServer: !crashReporterDirectory
 });
 

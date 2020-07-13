@@ -82,6 +82,10 @@ import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMai
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { createServer, AddressInfo } from 'net';
 import { IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
+import { IFileService } from 'vs/platform/files/common/files';
+import { stripComments } from 'vs/base/common/json';
+import { generateUuid } from 'vs/base/common/uuid';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -802,7 +806,7 @@ export class CodeApplication extends Disposable {
 		return { fileUri: URI.file(path) };
 	}
 
-	private afterWindowOpen(accessor: ServicesAccessor): void {
+	private async afterWindowOpen(accessor: ServicesAccessor): Promise<void> {
 
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
@@ -814,6 +818,29 @@ export class CodeApplication extends Disposable {
 		const updateService = accessor.get(IUpdateService);
 		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
 			updateService.initialize();
+		}
+
+		// If enable-crash-reporter argv is undefined then this is a fresh start,
+		// based on telemetry.enableCrashreporter settings, generate a UUID which
+		// will be used as crash reporter id and also update the json file.
+		const fileService = accessor.get(IFileService);
+		const argvContent = await fileService.readFile(this.environmentService.argvResource);
+		const argvString = argvContent.value.toString();
+		const argvJSON = JSON.parse(stripComments(argvString));
+		if (argvJSON['enable-crash-reporter'] === undefined) {
+			const enableCrashReporter = this.configurationService.getValue<boolean>('telemetry.enableCrashReporter');
+			const additionalArgvContent = [];
+			additionalArgvContent.push('');
+			additionalArgvContent.push('	// Allows disabling crash reporting to Appcenter.');
+			additionalArgvContent.push('	// Should restart the app if the value is changed.');
+			additionalArgvContent.push(`	"enable-crash-reporter": ${enableCrashReporter},`);
+			additionalArgvContent.push('');
+			additionalArgvContent.push('	// Unique id used for correlating Appcenter crash reports from this instance.');
+			additionalArgvContent.push('	// Do not edit this value.');
+			additionalArgvContent.push(`	"crash-reporter-id": "${generateUuid()}"`);
+			additionalArgvContent.push('}');
+			const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
+			await fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(newArgvString));
 		}
 	}
 
