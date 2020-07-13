@@ -423,7 +423,6 @@ declare namespace monaco {
 		equals(keybinding: number): boolean;
 		preventDefault(): void;
 		stopPropagation(): void;
-		getKeyMods(): KeyMod[];
 	}
 	export interface IMouseEvent {
 		readonly browserEvent: MouseEvent;
