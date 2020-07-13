@@ -23,6 +23,7 @@ import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookCellRunState, CellUr
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -808,6 +809,7 @@ registerAction2(class extends NotebookAction {
 
 		const currCellIndex = viewModel.getCellIndex(context!.cell);
 
+		let topPastedCell: CellViewModel | undefined = undefined;
 		pasteCells.items.reverse().map(cell => {
 			const data = CellUri.parse(cell.uri);
 
@@ -823,9 +825,13 @@ registerAction2(class extends NotebookAction {
 				return cell;
 			}
 		}).forEach(pasteCell => {
-			viewModel.insertCell(currCellIndex, pasteCell, true);
+			topPastedCell = viewModel.insertCell(currCellIndex, pasteCell, true);
 			return;
 		});
+
+		if (topPastedCell) {
+			context.notebookEditor.focusNotebookCell(topPastedCell, 'container');
+		}
 	}
 });
 registerAction2(class extends NotebookAction {
@@ -858,6 +864,7 @@ registerAction2(class extends NotebookAction {
 
 		const currCellIndex = viewModel.getCellIndex(context!.cell);
 
+		let topPastedCell: CellViewModel | undefined = undefined;
 		pasteCells.items.reverse().map(cell => {
 			const data = CellUri.parse(cell.uri);
 
@@ -873,9 +880,13 @@ registerAction2(class extends NotebookAction {
 				return cell;
 			}
 		}).forEach(pasteCell => {
-			viewModel.insertCell(currCellIndex + 1, pasteCell, true);
+			topPastedCell = viewModel.insertCell(currCellIndex + 1, pasteCell, true);
 			return;
 		});
+
+		if (topPastedCell) {
+			context.notebookEditor.focusNotebookCell(topPastedCell, 'container');
+		}
 	}
 });
 
