@@ -97,6 +97,10 @@ function webviewPreloads() {
 	const resizeObserve = (container: Element, id: string) => {
 		const resizeObserver = new ResizeObserver(entries => {
 			for (let entry of entries) {
+				if (!document.body.contains(entry.target)) {
+					return;
+				}
+
 				if (entry.target.id === id && entry.contentRect) {
 					vscode.postMessage({
 						__vscode_notebook_message: true,
