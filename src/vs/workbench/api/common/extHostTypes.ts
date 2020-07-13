@@ -1271,6 +1271,13 @@ export class MarkdownString {
 		this.value += '\n```\n';
 		return this;
 	}
+
+	static isMarkdownString(thing: any): thing is vscode.MarkdownString {
+		if (thing instanceof MarkdownString) {
+			return true;
+		}
+		return (thing !== undefined) && thing.appendCodeblock && thing.appendMarkdown && thing.appendText && (thing.value !== undefined);
+	}
 }
 
 @es5ClassCompat
