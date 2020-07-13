@@ -893,6 +893,25 @@ suite('regression', () => {
 		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: "notebookCoreTest" });
 		assert.notEqual(vscode.notebook.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
 	});
+
+	test('#102423 - copy/paste shares the same text buffer', async function () {
+		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		let activeCell = vscode.notebook.activeNotebookEditor!.selection;
+		assert.equal(activeCell?.document.getText(), 'test');
+
+		await vscode.commands.executeCommand('notebook.cell.copyDown');
+		await vscode.commands.executeCommand('notebook.cell.edit');
+		activeCell = vscode.notebook.activeNotebookEditor!.selection;
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
+		assert.equal(activeCell?.document.getText(), 'test');
+
+		await vscode.commands.executeCommand('default:type', { text: 'var abc = 0;' });
+
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.length, 2);
+		assert.notEqual(vscode.notebook.activeNotebookEditor!.document.cells[0].document.getText(), vscode.notebook.activeNotebookEditor!.document.cells[1].document.getText())
+	});
 });
 
 suite('webview', () => {

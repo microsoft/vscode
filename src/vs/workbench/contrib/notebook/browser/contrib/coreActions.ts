@@ -23,6 +23,7 @@ import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookCellRunState } from 
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -745,7 +746,7 @@ registerAction2(class extends NotebookAction {
 		const clipboardService = accessor.get<IClipboardService>(IClipboardService);
 		const notebookService = accessor.get<INotebookService>(INotebookService);
 		clipboardService.writeText(context.cell.getText());
-		notebookService.setToCopy([context.cell.model]);
+		notebookService.setToCopy([context.cell.model], true);
 	}
 });
 
@@ -774,7 +775,7 @@ registerAction2(class extends NotebookAction {
 		}
 
 		viewModel.deleteCell(viewModel.getCellIndex(context.cell), true);
-		notebookService.setToCopy([context.cell.model]);
+		notebookService.setToCopy([context.cell.model], false);
 	}
 });
 
@@ -794,7 +795,7 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		const notebookService = accessor.get<INotebookService>(INotebookService);
-		const pasteCells = notebookService.getToCopy() || [];
+		const pasteCells = notebookService.getToCopy();
 
 		const viewModel = context.notebookEditor.viewModel;
 
@@ -802,9 +803,25 @@ registerAction2(class extends NotebookAction {
 			return;
 		}
 
+		if (!pasteCells) {
+			return;
+		}
+
 		const currCellIndex = viewModel.getCellIndex(context!.cell);
 
-		pasteCells.reverse().forEach(pasteCell => {
+		pasteCells.items.reverse().map(cell => {
+			if (pasteCells.isCopy) {
+				return viewModel.notebookDocument.createCellTextModel(
+					cell.getValue(),
+					cell.language,
+					cell.cellKind,
+					[],
+					cell.metadata
+				);
+			} else {
+				return cell;
+			}
+		}).forEach(pasteCell => {
 			viewModel.insertCell(currCellIndex, pasteCell, true);
 			return;
 		});
@@ -826,7 +843,7 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		const notebookService = accessor.get<INotebookService>(INotebookService);
-		const pasteCells = notebookService.getToCopy() || [];
+		const pasteCells = notebookService.getToCopy();
 
 		const viewModel = context.notebookEditor.viewModel;
 
@@ -834,9 +851,25 @@ registerAction2(class extends NotebookAction {
 			return;
 		}
 
+		if (!pasteCells) {
+			return;
+		}
+
 		const currCellIndex = viewModel.getCellIndex(context!.cell);
 
-		pasteCells.reverse().forEach(pasteCell => {
+		pasteCells.items.reverse().map(cell => {
+			if (pasteCells.isCopy) {
+				return viewModel.notebookDocument.createCellTextModel(
+					cell.getValue(),
+					cell.language,
+					cell.cellKind,
+					[],
+					cell.metadata
+				);
+			} else {
+				return cell;
+			}
+		}).forEach(pasteCell => {
 			viewModel.insertCell(currCellIndex + 1, pasteCell, true);
 			return;
 		});
