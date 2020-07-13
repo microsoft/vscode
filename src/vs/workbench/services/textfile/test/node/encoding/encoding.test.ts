@@ -353,6 +353,20 @@ suite('Encoding', () => {
 		assert.equal(content.length, 65537);
 	});
 
+	test('toDecodeStream - some stream (UTF-8 issue #102202)', async function () {
+		const path = getPathFromAmdModule(require, './fixtures/issue_102202.txt');
+		const source = streamToBufferReadableStream(fs.createReadStream(path));
+
+		const { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async () => 'utf-8' });
+		assert.ok(detected);
+		assert.ok(stream);
+
+		const content = await readAllAsString(stream);
+		const lines = content.split('\n');
+
+		assert.equal(lines[981].toString(), '啊啊啊啊啊啊aaa啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊，啊啊啊啊啊啊啊啊啊啊啊。');
+	});
+
 	test('toEncodeReadable - encoding, utf16be', async function () {
 		const path = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
 		const source = await readAndDecodeFromDisk(path, encoding.UTF16be);
