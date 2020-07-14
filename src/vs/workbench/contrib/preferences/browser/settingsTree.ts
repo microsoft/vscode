@@ -527,7 +527,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		DOM.addClass(_container, 'setting-item-' + typeClass);
 
 		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
-		const titleElement = DOM.append(container, $('.setting-item-title'));
+		const titleElement = DOM.append(container, $('.setting-item-title', {
+			'role': 'heading',
+			'aria-level': 3,
+		}));
 		const labelCategoryContainer = DOM.append(titleElement, $('.setting-item-cat-label-container'));
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
