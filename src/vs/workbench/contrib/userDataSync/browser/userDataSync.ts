@@ -51,9 +51,9 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/bro
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
-import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer } from 'vs/workbench/common/views';
+import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { UserDataSyncViewPaneContainer, UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncViews';
-import { IUserDataSyncWorkbenchService, CONTEXT_ENABLE_VIEWS, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, SHOW_SYNCED_DATA_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, CONTEXT_ENABLE_VIEWS, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, SHOW_SYNCED_DATA_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -64,6 +64,7 @@ type SyncConflictsClassification = {
 	action?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
+const viewContainerId = 'workbench.view.sync';
 const turnOnSyncCommand = { id: 'workbench.userDataSync.actions.turnOn', title: localize('turn on sync with category', "Preferences Sync: Turn On...") };
 const turnOffSyncCommand = { id: 'workbench.userDataSync.actions.turnOff', title: localize('stop sync', "Preferences Sync: Turn Off") };
 const configureSyncCommand = { id: CONFIGURE_SYNC_COMMAND_ID, title: localize('configure sync', "Preferences Sync: Configure...") };
@@ -926,13 +927,34 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this._register(registerAction2(class SyncStatusAction extends Action2 {
 			constructor() {
 				super({
-					id: ENABLE_SYNC_VIEWS_COMMAND_ID,
-					title: ENABLE_SYNC_VIEWS_COMMAND_ID,
-					precondition: when
+					id: SHOW_SYNCED_DATA_COMMAND_ID,
+					title: { value: localize('workbench.action.showSyncRemoteBackup', "Show Synced Data"), original: `Show Synced Data` },
+					category: { value: localize('sync preferences', "Preferences Sync"), original: `Preferences Sync` },
+					precondition: when,
+					menu: {
+						id: MenuId.CommandPalette,
+						when
+					}
 				});
 			}
-			run(accessor: ServicesAccessor): any {
+			async run(accessor: ServicesAccessor): Promise<void> {
 				that.viewsEnablementContext.set(true);
+				const viewDescriptorService = accessor.get(IViewDescriptorService);
+				const viewsService = accessor.get(IViewsService);
+				const viewContainer = viewDescriptorService.getViewContainerByViewId(viewContainerId);
+				if (viewContainer) {
+					const model = viewDescriptorService.getViewContainerModel(viewContainer);
+					if (model.activeViewDescriptors.length) {
+						viewsService.openViewContainer(viewContainerId);
+					} else {
+						const disposable = model.onDidChangeActiveViewDescriptors(e => {
+							if (e.added.length) {
+								disposable.dispose();
+								viewsService.openViewContainer(viewContainerId);
+							}
+						});
+					}
+				}
 			}
 		}));
 	}
@@ -1040,7 +1062,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private registerViewContainer(): ViewContainer {
-		const viewContainerId = 'workbench.view.sync';
 		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: viewContainerId,
