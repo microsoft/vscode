@@ -27,6 +27,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
@@ -330,4 +332,16 @@ CommandsRegistry.registerCommand('_workbench.diff', function (accessor: Services
 	}
 
 	return editorService.openEditor({ leftResource, rightResource, label, description, options }, viewColumnToEditorGroup(editorGroupService, position)).then(() => undefined);
+});
+
+CommandsRegistry.registerCommand('_workbench.revertAllDirty', (accessor: ServicesAccessor) => {
+	const environmentService = accessor.get(IEnvironmentService);
+	if (!environmentService.extensionTestsLocationURI) {
+		throw new Error('Command is only available when running extension tests.');
+	}
+
+	const workingCopyService = accessor.get(IWorkingCopyService);
+	for (const workingCopy of workingCopyService.dirtyWorkingCopies) {
+		workingCopy.revert({ soft: true });
+	}
 });

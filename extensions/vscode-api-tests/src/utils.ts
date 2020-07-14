@@ -48,6 +48,10 @@ export function closeAllEditors(): Thenable<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 }
 
+export async function revertAllDirty(): Promise<void> {
+	return vscode.commands.executeCommand('_workbench.revertAllDirty');
+}
+
 export function disposeAll(disposables: vscode.Disposable[]) {
 	vscode.Disposable.from(...disposables).dispose();
 }
