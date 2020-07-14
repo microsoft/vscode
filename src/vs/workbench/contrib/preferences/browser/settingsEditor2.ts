@@ -719,7 +719,6 @@ export class SettingsEditor2 extends BaseEditor {
 			this.settingsTreeContainer,
 			this.viewState,
 			this.settingRenderers.allRenderers));
-		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
 
 		// this._register(this.settingsTree.onDidScroll(() => {
 		// 	if (this.settingsTree.scrollTop === this.settingsTreeScrollTop) {

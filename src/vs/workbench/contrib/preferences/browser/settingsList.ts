@@ -11,18 +11,40 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { ITreeRenderer, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { isDefined } from 'vs/base/common/types';
-import { SettingsTreeDelegate } from 'vs/workbench/contrib/preferences/browser/settingsTree';
+import { SettingsTreeDelegate, ISettingItemTemplate } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { focusBorder, foreground, errorForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
 import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 
 const $ = DOM.$;
 
+interface ISettingsListCacheItem {
+	container: HTMLElement;
+	template: ISettingItemTemplate;
+}
+
 export class SettingsList extends Disposable {
 	private settingGroups = new Map<string, SettingsTreeSettingElement[]>();
 	private currentGroupId: string = '';
 	private getTemplateId = new SettingsTreeDelegate().getTemplateId;
-	private templateToRenderer = new Map<string, ITreeRenderer<SettingsTreeElement, never, any>>();
+	private templateToRenderer = new Map<string, ITreeRenderer<SettingsTreeElement, never, ISettingItemTemplate>>();
+	private freePool = new Map<string, ISettingsListCacheItem[]>();
+	private usedPool = new Map<string, ISettingsListCacheItem[]>();
+
+	dispose() {
+		for (const items of this.usedPool.values()) {
+			items.forEach(({ template }) => template.toDispose.dispose());
+		}
+
+		for (const items of this.freePool.values()) {
+			items.forEach(({ template }) => template.toDispose.dispose());
+		}
+
+		this.usedPool.clear();
+		this.freePool.clear();
+
+		super.dispose();
+	}
 
 	get groupId(): string {
 		return this.currentGroupId;
@@ -33,6 +55,13 @@ export class SettingsList extends Disposable {
 		this.currentGroupId = groupId;
 
 		if (shouldRerender) {
+			for (const [templateId, usedItems] of this.usedPool.entries()) {
+				const freeItems = this.freePool.get(templateId) ?? [];
+				this.freePool.set(templateId, [...usedItems, ...freeItems]);
+			}
+
+			this.usedPool.clear();
+
 			this.render();
 		}
 	}
@@ -47,6 +76,7 @@ export class SettingsList extends Disposable {
 	) {
 		super();
 
+		container.setAttribute('tabindex', '-1');
 		container.classList.add('settings-editor-tree');
 		renderers.forEach(renderer => this.templateToRenderer.set(renderer.templateId, renderer));
 
@@ -151,9 +181,26 @@ export class SettingsList extends Disposable {
 	}
 
 	private renderSetting(element: SettingsTreeSettingElement): HTMLElement {
-		const container = $('div');
+		const templateId = this.getTemplateId(element);
 		const renderer = this.templateToRenderer.get(this.getTemplateId(element))!;
-		const template = renderer.renderTemplate(container);
+		const freeItems = this.freePool.get(templateId);
+
+		let container: HTMLElement;
+		let template: ISettingItemTemplate;
+
+		if (isDefined(freeItems) && freeItems.length > 0) {
+			container = freeItems[0].container;
+			template = freeItems[0].template;
+			this.freePool.set(templateId, freeItems.slice(1));
+		} else {
+			container = $('div');
+			template = renderer.renderTemplate(container);
+		}
+
+		this.usedPool.set(templateId, [
+			...(this.usedPool.get(templateId) ?? []),
+			{ container, template }
+		]);
 
 		renderer.renderElement({ element } as any, 0, template, undefined);
 
