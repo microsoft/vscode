@@ -193,7 +193,6 @@ suite('vscode API - webview', () => {
 					}
 				});
 				vscode.postMessage({ type: 'ready' });
-
 			</script>`);
 		await ready;
 
@@ -241,34 +240,47 @@ suite('vscode API - webview', () => {
 
 
 	conditionalTest('webviews should only be able to load resources from workspace by default', async () => {
-		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', {
+			viewColumn: vscode.ViewColumn.One
+		}, {
+			enableScripts: true
+		}));
 
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
 			<script>
 				const vscode = acquireVsCodeApi();
 				window.addEventListener('message', (message) => {
 					const img = document.createElement('img');
-					img.addEventListener('load', () => { vscode.postMessage({ value: true }); });
-					img.addEventListener('error', () => { vscode.postMessage({ value: false }); });
+					img.addEventListener('load', () => {
+						vscode.postMessage({ value: true });
+					});
+					img.addEventListener('error', () => {
+						vscode.postMessage({ value: false });
+					});
 					img.src = message.data.src;
 					document.body.appendChild(img);
 				});
+
+				vscode.postMessage({ type: 'ready' });
 			</script>`);
+
+		const ready = getMesssage(webview);
+		await ready;
 
 		{
 			const imagePath = webview.webview.asWebviewUri(workspaceFile('image.png'));
-			const response = sendRecieveMessage(webview, { src: imagePath });
-			assert.strictEqual((await response).value, true);
+			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+			assert.strictEqual(response.value, true);
 		}
 		{
 			const imagePath = webview.webview.asWebviewUri(workspaceFile('no-such-image.png'));
-			const response = sendRecieveMessage(webview, { src: imagePath });
-			assert.strictEqual((await response).value, false);
+			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+			assert.strictEqual(response.value, false);
 		}
 		{
 			const imagePath = webview.webview.asWebviewUri(workspaceFile('..', '..', '..', 'resources', 'linux', 'code.png'));
-			const response = sendRecieveMessage(webview, { src: imagePath.toString() });
-			assert.strictEqual((await response).value, false);
+			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+			assert.strictEqual(response.value, false);
 		}
 	});
 
@@ -370,7 +382,7 @@ suite('vscode API - webview', () => {
 			</script>`);
 			await ready;
 
-			await vscode.commands.executeCommand('editor.action.webvieweditor.copy');
+			await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
 			await delay(200); // Make sure copy has time to reach webview
 			assert.strictEqual(await vscode.env.clipboard.readText(), expectedText);
 		});
