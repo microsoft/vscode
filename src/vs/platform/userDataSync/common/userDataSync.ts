@@ -304,6 +304,7 @@ export interface IResourcePreview {
 	readonly previewResource: URI;
 	readonly localChange: Change;
 	readonly remoteChange: Change;
+	readonly merged: boolean;
 }
 
 export interface ISyncResourcePreview {

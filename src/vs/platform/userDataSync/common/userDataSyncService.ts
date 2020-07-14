@@ -632,5 +632,6 @@ function toStrictResourcePreview(resourcePreview: IResourcePreview): IResourcePr
 		remoteResource: resourcePreview.remoteResource,
 		localChange: resourcePreview.localChange,
 		remoteChange: resourcePreview.remoteChange,
+		merged: resourcePreview.merged,
 	};
 }

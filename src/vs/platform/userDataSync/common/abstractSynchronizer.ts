@@ -53,16 +53,15 @@ function isSyncData(thing: any): thing is ISyncData {
 	return false;
 }
 
-export interface IResourcePreview extends IBaseResourcePreview {
+export interface IMergableResourcePreview extends IBaseResourcePreview {
 	readonly remoteContent: string | null;
 	readonly localContent: string | null;
 	readonly previewContent: string | null;
 	readonly hasConflicts: boolean;
-}
-
-interface IMergableResourcePreview extends IResourcePreview {
 	merged: boolean;
 }
+
+export type IResourcePreview = Omit<IMergableResourcePreview, 'merged'>;
 
 export interface ISyncResourcePreview extends IBaseSyncResourcePreview {
 	readonly remoteUserData: IRemoteUserData;
