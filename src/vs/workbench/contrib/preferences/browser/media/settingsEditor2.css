@@ -250,6 +250,11 @@
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
+	overflow-y: auto;
+}
+
+.settings-editor > .settings-body .settings-tree-container:focus {
+	outline: none;
 }
 
 .settings-editor > .settings-body .settings-toc-wrapper {
@@ -287,10 +292,6 @@
 	padding-left: 219px;
 	padding-right: 20px;
 	overflow: visible;
-}
-
-.settings-editor > .settings-body .settings-tree-container {
-	overflow-y: auto;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents {
