@@ -189,6 +189,13 @@ export interface IUserDataSyncBackupStoreService {
 
 //#endregion
 
+// #region User Data Sync Headers
+
+export const HEADER_OPERATION_ID = 'x-operation-id';
+export const HEADER_EXECUTION_ID = 'X-Execution-Id';
+
+//#endregion
+
 // #region User Data Sync Error
 
 export enum UserDataSyncErrorCode {
@@ -218,27 +225,21 @@ export enum UserDataSyncErrorCode {
 
 export class UserDataSyncError extends Error {
 
-	constructor(message: string, public readonly code: UserDataSyncErrorCode, public readonly resource?: SyncResource) {
+	constructor(
+		message: string,
+		readonly code: UserDataSyncErrorCode,
+		readonly resource?: SyncResource,
+		readonly operationId?: string
+	) {
 		super(message);
-		this.name = `${this.code} (UserDataSyncError) ${this.resource || ''}`;
-	}
-
-	static toUserDataSyncError(error: Error): UserDataSyncError {
-		if (error instanceof UserDataSyncError) {
-			return error;
-		}
-		const match = /^(.+) \(UserDataSyncError\) (.+)?$/.exec(error.name);
-		if (match && match[1]) {
-			return new UserDataSyncError(error.message, <UserDataSyncErrorCode>match[1], <SyncResource>match[2]);
-		}
-		return new UserDataSyncError(error.message, UserDataSyncErrorCode.Unknown);
+		this.name = `${this.code} (UserDataSyncError) syncResource:${this.resource || 'unknown'} operationId:${this.operationId || 'unknown'}`;
 	}
 
 }
 
 export class UserDataSyncStoreError extends UserDataSyncError {
-	constructor(message: string, code: UserDataSyncErrorCode) {
-		super(message, code);
+	constructor(message: string, code: UserDataSyncErrorCode, readonly operationId: string | undefined) {
+		super(message, code, undefined, operationId);
 	}
 }
 
@@ -246,6 +247,23 @@ export class UserDataAutoSyncError extends UserDataSyncError {
 	constructor(message: string, code: UserDataSyncErrorCode) {
 		super(message, code);
 	}
+}
+
+export namespace UserDataSyncError {
+
+	export function toUserDataSyncError(error: Error): UserDataSyncError {
+		if (error instanceof UserDataSyncError) {
+			return error;
+		}
+		const match = /^(.+) \(UserDataSyncError\) syncResource:(.+) operationId:(.+)$/.exec(error.name);
+		if (match && match[1]) {
+			const syncResource = match[2] === 'unknown' ? undefined : match[2] as SyncResource;
+			const operationId = match[3] === 'unknown' ? undefined : match[3];
+			return new UserDataSyncError(error.message, <UserDataSyncErrorCode>match[1], syncResource, operationId);
+		}
+		return new UserDataSyncError(error.message, UserDataSyncErrorCode.Unknown);
+	}
+
 }
 
 //#endregion

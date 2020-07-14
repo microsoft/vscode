@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode, UserDataSyncError, ISyncResourceHandle, IUserDataManifest, ISyncTask, IResourcePreview, IManualSyncTask, ISyncResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
+import {
+	IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode,
+	UserDataSyncError, ISyncResourceHandle, IUserDataManifest, ISyncTask, IResourcePreview, IManualSyncTask, ISyncResourcePreview, HEADER_EXECUTION_ID
+} from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -30,6 +33,12 @@ type SyncErrorClassification = {
 };
 
 const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
+
+function createSyncHeaders(executionId: string): IHeaders {
+	const headers: IHeaders = {};
+	headers[HEADER_EXECUTION_ID] = executionId;
+	return headers;
+}
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -133,7 +142,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		const executionId = generateUuid();
 		let manifest: IUserDataManifest | null;
 		try {
-			manifest = await this.userDataSyncStoreService.manifest({ 'X-Execution-Id': executionId });
+			manifest = await this.userDataSyncStoreService.manifest(createSyncHeaders(executionId));
 		} catch (error) {
 			if (error instanceof UserDataSyncError) {
 				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource, executionId });
@@ -166,7 +175,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		await this.checkEnablement();
 
 		const executionId = generateUuid();
-		const syncHeaders: IHeaders = { 'X-Execution-Id': executionId };
+		const syncHeaders = createSyncHeaders(executionId);
+
 		let manifest: IUserDataManifest | null;
 		try {
 			manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
@@ -200,7 +210,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.setStatus(SyncStatus.Syncing);
 			}
 
-			const syncHeaders: IHeaders = { 'X-Execution-Id': executionId };
+			const syncHeaders = createSyncHeaders(executionId);
 
 			for (const synchroniser of this.synchronisers) {
 				// Return if cancellation is requested
@@ -257,7 +267,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	async acceptPreviewContent(syncResource: SyncResource, resource: URI, content: string, executionId: string = generateUuid()): Promise<void> {
 		await this.checkEnablement();
 		const synchroniser = this.getSynchroniser(syncResource);
-		await synchroniser.acceptPreviewContent(resource, content, false, { 'X-Execution-Id': executionId });
+		await synchroniser.acceptPreviewContent(resource, content, false, createSyncHeaders(executionId));
 	}
 
 	async resolveContent(resource: URI): Promise<string | null> {

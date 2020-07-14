@@ -48,9 +48,12 @@ class UserDataSyncReportIssueContribution extends Disposable implements IWorkben
 		switch (error.code) {
 			case UserDataSyncErrorCode.LocalTooManyRequests:
 			case UserDataSyncErrorCode.TooManyRequests:
+				const operationId = error.operationId ? localize('operationId', "Operation Id: {0}", error.operationId) : undefined;
+				const message = localize({ key: 'too many requests', comment: ['Preferences Sync is the name of the feature'] }, "Preferences sync is disabled because the current device is making too many requests. Please report an issue by providing the sync logs.");
 				this.notificationService.notify({
 					severity: Severity.Error,
-					message: localize({ key: 'too many requests', comment: ['Preferences Sync is the name of the feature'] }, "Preferences sync is disabled because the current device is making too many requests. Please report an issue by providing the sync logs."),
+					message: operationId ? `${message} ${operationId}` : message,
+					source: error.operationId ? localize('preferences sync', "Preferences Sync. Operation Id: {0}", error.operationId) : undefined,
 					actions: {
 						primary: [
 							new Action('Show Sync Logs', localize('show sync logs', "Show Log"), undefined, true, () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)),
