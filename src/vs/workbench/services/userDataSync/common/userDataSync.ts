@@ -54,7 +54,9 @@ export interface IUserDataSyncWorkbenchService {
 	turnOn(): Promise<void>;
 	turnoff(everyWhere: boolean): Promise<void>;
 	signIn(): Promise<void>;
+
 	resetSyncedData(): Promise<void>;
+	showSyncActivity(): Promise<void>;
 }
 
 export function getSyncAreaLabel(source: SyncResource): string {
@@ -83,7 +85,7 @@ export const CONTEXT_SHOW_MANUAL_SYNC_VIEW = new RawContextKey<boolean>(`showMan
 // Commands
 export const CONFIGURE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
 export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog';
-export const SHOW_SYNCED_DATA_COMMAND_ID = 'workbench.userDataSync.actions.showSyncedData';
 
 // VIEWS
+export const SYNC_VIEW_CONTAINER_ID = 'workbench.view.sync';
 export const MANUAL_SYNC_VIEW_ID = 'workbench.views.manualSyncView';

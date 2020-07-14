@@ -87,9 +87,10 @@ export class UserDataSyncDataViews extends Disposable {
 
 	private registerViews(container: ViewContainer): void {
 		this.registerManualSyncView(container);
-		this.registerMachinesView(container);
 
 		this.registerActivityView(container, true);
+		this.registerMachinesView(container);
+
 		this.registerActivityView(container, false);
 	}
 
@@ -359,7 +360,7 @@ export class UserDataSyncDataViews extends Disposable {
 			canMoveView: false,
 			treeView,
 			collapsed: false,
-			order: 200,
+			order: 300,
 		}], container);
 
 		registerAction2(class extends Action2 {
@@ -426,8 +427,8 @@ export class UserDataSyncDataViews extends Disposable {
 			canToggleVisibility: true,
 			canMoveView: false,
 			treeView,
-			collapsed: true,
-			order: 300,
+			collapsed: false,
+			order: remote ? 200 : 400,
 			hideByDefault: !remote,
 		}], container);
 
