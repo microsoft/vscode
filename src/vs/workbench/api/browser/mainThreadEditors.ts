@@ -278,7 +278,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 // --- commands
 
-CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn, string?]) {
+CommandsRegistry.registerCommand('_workbench.open', async function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn, string?]) {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const openerService = accessor.get(IOpenerService);
@@ -287,16 +287,17 @@ CommandsRegistry.registerCommand('_workbench.open', function (accessor: Services
 
 	if (options || typeof position === 'number') {
 		// use editor options or editor view column as a hint to use the editor service for opening
-		return editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, position)).then(_ => undefined);
+		await editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, position));
+		return;
 	}
 
 	if (resource && resource.scheme === 'command') {
 		// do not allow to execute commands from here
-		return Promise.resolve(undefined);
+		return;
 
 	}
 	// finally, delegate to opener service
-	return openerService.open(resource).then(_ => undefined);
+	await openerService.open(resource);
 });
 
 CommandsRegistry.registerCommand('_workbench.openWith', (accessor: ServicesAccessor, args: [URI, string, ITextEditorOptions | undefined, EditorViewColumn | undefined]) => {
@@ -315,7 +316,7 @@ CommandsRegistry.registerCommand('_workbench.openWith', (accessor: ServicesAcces
 });
 
 
-CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string, IEditorOptions, EditorViewColumn]) {
+CommandsRegistry.registerCommand('_workbench.diff', async function (accessor: ServicesAccessor, args: [URI, URI, string, string, IEditorOptions, EditorViewColumn]) {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 
@@ -331,10 +332,10 @@ CommandsRegistry.registerCommand('_workbench.diff', function (accessor: Services
 		label = localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
 	}
 
-	return editorService.openEditor({ leftResource, rightResource, label, description, options }, viewColumnToEditorGroup(editorGroupService, position)).then(() => undefined);
+	await editorService.openEditor({ leftResource, rightResource, label, description, options }, viewColumnToEditorGroup(editorGroupService, position));
 });
 
-CommandsRegistry.registerCommand('_workbench.revertAllDirty', (accessor: ServicesAccessor) => {
+CommandsRegistry.registerCommand('_workbench.revertAllDirty', async function (accessor: ServicesAccessor) {
 	const environmentService = accessor.get(IEnvironmentService);
 	if (!environmentService.extensionTestsLocationURI) {
 		throw new Error('Command is only available when running extension tests.');
@@ -342,6 +343,6 @@ CommandsRegistry.registerCommand('_workbench.revertAllDirty', (accessor: Service
 
 	const workingCopyService = accessor.get(IWorkingCopyService);
 	for (const workingCopy of workingCopyService.dirtyWorkingCopies) {
-		workingCopy.revert({ soft: true });
+		await workingCopy.revert({ soft: true });
 	}
 });
