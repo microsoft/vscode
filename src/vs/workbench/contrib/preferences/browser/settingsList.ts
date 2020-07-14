@@ -12,9 +12,10 @@ import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupElement
 import { ITreeRenderer, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { isDefined } from 'vs/base/common/types';
 import { SettingsTreeDelegate, ISettingItemTemplate } from 'vs/workbench/contrib/preferences/browser/settingsTree';
-import { focusBorder, foreground, errorForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
+import { focusBorder, foreground, errorForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarSliderBackground } from 'vs/platform/theme/common/colorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
 import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import 'vs/css!./media/settingsListScrollbar';
 import { localize } from 'vs/nls';
 
 const $ = DOM.$;
@@ -132,6 +133,22 @@ export class SettingsList extends Disposable {
 			if (focusBorderColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
 			}
+
+			// Scrollbar
+			const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
+			if (scrollbarSliderBackgroundColor) {
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container:hover { background-color: ${scrollbarSliderBackgroundColor}; }`);
+			}
+
+			const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
+			if (scrollbarSliderHoverBackgroundColor) {
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container::-webkit-scrollbar-thumb:hover { background-color: ${scrollbarSliderHoverBackgroundColor}; }`);
+			}
+
+			const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
+			if (scrollbarSliderActiveBackgroundColor) {
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container::-webkit-scrollbar-thumb:active { background-color: ${scrollbarSliderActiveBackgroundColor}; }`);
+			}
 		}));
 	}
 
@@ -219,12 +236,12 @@ export class SettingsList extends Disposable {
 	lastVisibleElement: SettingsTreeElement = { id: 'last visible', index: 0 };
 
 	reveal(...args: any[]) {
-		console.log('reveal...');
+		// TODO@9at8 STUB
 	}
 	getRelativeTop(...args: any[]): number {
 		return 0;
 	}
 	layout(...args: any[]) {
-		console.log('layout');
+		// TODO@9at8 STUB
 	}
 }
