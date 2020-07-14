@@ -44,6 +44,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { isUUID } from 'vs/base/common/uuid';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -193,7 +194,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					const crashReporterId = this._environmentService.crashReporterId; // crashReporterId is set by the main process only when crash reporting is enabled by the user.
 					const appcenter = this._productService.appCenter;
 					const uploadCrashesToServer = !this._environmentService.crashReporterDirectory; // only upload unless --crash-reporter-directory is provided
-					if (uploadCrashesToServer && appcenter && crashReporterId) {
+					if (uploadCrashesToServer && appcenter && crashReporterId && isUUID(crashReporterId)) {
 						const submitURL = appcenter[`linux-x64`];
 						crashReporterStartOptions.submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
 						crashReporterStartOptions.uploadToServer = true;

@@ -832,11 +832,11 @@ export class CodeApplication extends Disposable {
 				const enableCrashReporter = this.configurationService.getValue<boolean>('telemetry.enableCrashReporter') ?? true;
 				const additionalArgvContent = [
 					'',
-					'	// Allows disabling crash reporting to Appcenter.',
+					'	// Allows to disable crash reporting.',
 					'	// Should restart the app if the value is changed.',
 					`	"enable-crash-reporter": ${enableCrashReporter},`,
 					'',
-					'	// Unique id used for correlating Appcenter crash reports from this instance.',
+					'	// Unique id used for correlating crash reports sent from this instance.',
 					'	// Do not edit this value.',
 					`	"crash-reporter-id": "${generateUuid()}"`,
 					'}'

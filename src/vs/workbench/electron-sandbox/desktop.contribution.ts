@@ -346,11 +346,11 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			},
 			'enable-crash-reporter': {
 				type: 'boolean',
-				markdownDescription: nls.localize('argv.enableCrashReporter', 'Allows disabling crash reporting to Appcenter, should restart the app if the value is changed.')
+				markdownDescription: nls.localize('argv.enableCrashReporter', 'Allows to disable crash reporting, should restart the app if the value is changed.')
 			},
 			'crash-reporter-id': {
 				type: 'string',
-				markdownDescription: nls.localize('argv.crashReporterId', 'Unique id used for correlating crash reports from this app instance.')
+				markdownDescription: nls.localize('argv.crashReporterId', 'Unique id used for correlating crash reports sent from this app instance.')
 			},
 			'enable-proposed-api': {
 				type: 'array',
