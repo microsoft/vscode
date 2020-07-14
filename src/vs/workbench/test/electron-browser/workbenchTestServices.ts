@@ -41,6 +41,7 @@ import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export const TestWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
@@ -78,7 +79,8 @@ export class TestTextFileService extends NativeTextFileService {
 		@IPathService athService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ILogService logService: ILogService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IModeService modeService: IModeService
 	) {
 		super(
 			fileService,
@@ -97,7 +99,8 @@ export class TestTextFileService extends NativeTextFileService {
 			athService,
 			workingCopyFileService,
 			logService,
-			uriIdentityService
+			uriIdentityService,
+			modeService
 		);
 	}
 

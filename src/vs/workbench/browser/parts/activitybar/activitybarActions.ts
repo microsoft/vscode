@@ -31,7 +31,8 @@ import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionba
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { distinct } from 'vs/base/common/arrays';
+import { AuthenticationSession } from 'vs/editor/common/modes';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -105,7 +106,8 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IMenuService protected menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -140,10 +142,19 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		const providers = this.authenticationService.getProviderIds();
 		const allSessions = providers.map(async id => {
 			const sessions = await this.authenticationService.getSessions(id);
-			const uniqueSessions = distinct(sessions, session => session.account.label);
+
+			const groupedSessions: { [label: string]: AuthenticationSession[] } = {};
+			sessions.forEach(session => {
+				if (groupedSessions[session.account.label]) {
+					groupedSessions[session.account.label].push(session);
+				} else {
+					groupedSessions[session.account.label] = [session];
+				}
+			});
+
 			return {
 				providerId: id,
-				sessions: uniqueSessions
+				sessions: groupedSessions
 			};
 		});
 
@@ -151,16 +162,18 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		let menus: (IAction | ContextSubMenu)[] = [];
 		result.forEach(sessionInfo => {
 			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
-			sessionInfo.sessions.forEach(session => {
-				const accountName = session.account.label;
-				const menu = new ContextSubMenu(`${accountName} (${providerDisplayName})`, [
-					new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
-						return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
-					}),
-					new Action('signOut', nls.localize('signOut', "Sign Out"), '', true, _ => {
-						return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
-					})
-				]);
+			Object.keys(sessionInfo.sessions).forEach(accountName => {
+				const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === this.environmentService.options?.authenticationSessionId);
+				const manageExtensionsAction = new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
+					return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
+				});
+				const signOutAction = new Action('signOut', nls.localize('signOut', "Sign Out"), '', true, _ => {
+					return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
+				});
+
+				const actions = hasEmbedderAccountSession ? [manageExtensionsAction] : [manageExtensionsAction, signOutAction];
+
+				const menu = new ContextSubMenu(`${accountName} (${providerDisplayName})`, actions);
 				menus.push(menu);
 			});
 		});

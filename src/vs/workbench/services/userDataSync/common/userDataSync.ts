@@ -4,15 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IAuthenticationProvider, SyncStatus, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IAuthenticationProvider, SyncStatus, SyncResource, Change } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
+import { URI } from 'vs/base/common/uri';
 
 export interface IUserDataSyncAccount {
 	readonly authenticationProviderId: string;
 	readonly accountName: string;
 	readonly accountId: string;
+}
+
+export interface IUserDataSyncPreview {
+	readonly onDidChangeChanges: Event<ReadonlyArray<IUserDataSyncResourceGroup>>;
+	readonly changes: ReadonlyArray<IUserDataSyncResourceGroup>;
+
+	onDidChangeConflicts: Event<ReadonlyArray<IUserDataSyncResourceGroup>>;
+	readonly conflicts: ReadonlyArray<IUserDataSyncResourceGroup>;
+
+	accept(syncResource: SyncResource, resource: URI, content: string): Promise<void>;
+	merge(resource?: URI): Promise<void>;
+	pull(): Promise<void>;
+	push(): Promise<void>;
+}
+
+export interface IUserDataSyncResourceGroup {
+	readonly syncResource: SyncResource;
+	readonly local: URI;
+	readonly remote: URI;
+	readonly preview: URI;
+	readonly localChange: Change;
+	readonly remoteChange: Change;
 }
 
 export const IUserDataSyncWorkbenchService = createDecorator<IUserDataSyncWorkbenchService>('IUserDataSyncWorkbenchService');
@@ -26,9 +49,14 @@ export interface IUserDataSyncWorkbenchService {
 	readonly accountStatus: AccountStatus;
 	readonly onDidChangeAccountStatus: Event<AccountStatus>;
 
+	readonly userDataSyncPreview: IUserDataSyncPreview;
+
 	turnOn(): Promise<void>;
 	turnoff(everyWhere: boolean): Promise<void>;
 	signIn(): Promise<void>;
+
+	resetSyncedData(): Promise<void>;
+	showSyncActivity(): Promise<void>;
 }
 
 export function getSyncAreaLabel(source: SyncResource): string {
@@ -51,10 +79,13 @@ export const enum AccountStatus {
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
 export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
-export const CONTEXT_ENABLE_VIEWS = new RawContextKey<boolean>(`showUserDataSyncViews`, false);
+export const CONTEXT_ENABLE_ACTIVITY_VIEWS = new RawContextKey<boolean>(`enableSyncActivityViews`, false);
+export const CONTEXT_ENABLE_MANUAL_SYNC_VIEW = new RawContextKey<boolean>(`enableManualSyncView`, false);
 
 // Commands
-export const ENABLE_SYNC_VIEWS_COMMAND_ID = 'workbench.userDataSync.actions.enableViews';
 export const CONFIGURE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
 export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog';
-export const SHOW_SYNCED_DATA_COMMAND_ID = 'workbench.userDataSync.actions.showSyncedData';
+
+// VIEWS
+export const SYNC_VIEW_CONTAINER_ID = 'workbench.view.sync';
+export const MANUAL_SYNC_VIEW_ID = 'workbench.views.manualSyncView';

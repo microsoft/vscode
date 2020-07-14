@@ -6285,6 +6285,10 @@ declare module 'vscode' {
 		 * Executes a task that is managed by VS Code. The returned
 		 * task execution can be used to terminate the task.
 		 *
+		 * @throws When running a ShellExecution or a ProcessExecution
+		 * task in an environment where a new process cannot be started.
+		 * In such an environment, only CustomExecution tasks can be run.
+		 *
 		 * @param task the task to execute
 		 */
 		export function executeTask(task: Task): Thenable<TaskExecution>;
@@ -7346,6 +7350,9 @@ declare module 'vscode' {
 
 		/**
 		 * The application root folder from which the editor is running.
+		 *
+		 * *Note* that the value is the empty string when running in an
+		 * environment that has no representation of an application root folder.
 		 */
 		export const appRoot: string;
 
@@ -7388,7 +7395,8 @@ declare module 'vscode' {
 
 		/**
 		 * The detected default shell for the extension host, this is overridden by the
-		 * `terminal.integrated.shell` setting for the extension host's platform.
+		 * `terminal.integrated.shell` setting for the extension host's platform. Note that in
+		 * environments that do not support a shell the value is the empty string.
 		 */
 		export const shell: string;
 
@@ -8062,6 +8070,7 @@ declare module 'vscode' {
 		 * allows specifying shell args in
 		 * [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6).
 		 * @return A new Terminal.
+		 * @throws When running in an environment where a new process cannot be started.
 		 */
 		export function createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): Terminal;
 
@@ -8070,6 +8079,7 @@ declare module 'vscode' {
 		 *
 		 * @param options A TerminalOptions object describing the characteristics of the new terminal.
 		 * @return A new Terminal.
+		 * @throws When running in an environment where a new process cannot be started.
 		 */
 		export function createTerminal(options: TerminalOptions): Terminal;
 

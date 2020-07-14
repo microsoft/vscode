@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from 'vscode';
-
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -346,6 +344,9 @@ declare module 'vscode' {
 		/**
 		 * Forwards a port. If the current resolver implements RemoteAuthorityResolver:forwardPort then that will be used to make the tunnel.
 		 * By default, openTunnel only support localhost; however, RemoteAuthorityResolver:tunnelFactory can be used to support other ips.
+		 *
+		 * @throws When run in an environment without a remote.
+		 *
 		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
 		export function openTunnel(tunnelOptions: TunnelOptions): Thenable<Tunnel>;
@@ -1764,7 +1765,7 @@ declare module 'vscode' {
 		/**
 		 * Unique identifier for the backup.
 		 *
-		 * This id is passed back to your extension in `openCustomDocument` when opening a custom editor from a backup.
+		 * This id is passed back to your extension in `openCustomDocument` when opening a notebook editor from a backup.
 		 */
 		readonly id: string;
 
@@ -2105,17 +2106,22 @@ declare module 'vscode' {
 		 * The directory might not exist on disk and creation is up to the extension. However,
 		 * the parent directory is guaranteed to be existent.
 		 *
-		 * @see vscode.workspace.fs
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
 		 */
 		readonly logUri: Uri;
 
 		/**
 		 * The uri of a workspace specific directory in which the extension
-		 * can store private state. The directory might not exist on disk and creation is
+		 * can store private state. The directory might not exist and creation is
 		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * The value is `undefined` when no workspace nor folder has been opened.
 		 *
 		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
 		 */
 		readonly storageUri: Uri | undefined;
 
@@ -2125,8 +2131,24 @@ declare module 'vscode' {
 		 * up to the extension. However, the parent directory is guaranteed to be existent.
 		 *
 		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
 		 */
 		readonly globalStorageUri: Uri;
+
+		/**
+		 * @deprecated Use [logUri](#ExtensionContext.logUri) instead.
+		 */
+		readonly logPath: string;
+		/**
+		 * @deprecated Use [storagePath](#ExtensionContent.storageUri) instead.
+		 */
+		readonly storagePath: string | undefined;
+		/**
+		 * @deprecated Use [globalStoragePath](#ExtensionContent.globalStorageUri) instead.
+		 */
+		readonly globalStoragePath: string;
 	}
 
 	//#endregion

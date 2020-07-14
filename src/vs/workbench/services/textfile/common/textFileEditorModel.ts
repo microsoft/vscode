@@ -694,15 +694,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// participant triggering
 			this.logService.trace(`[text file model] doSave(${versionId}) - before write()`, this.resource.toString(true));
 			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
-			const textFileEdiorModel = this;
+			const textFileEditorModel = this;
 			return this.saveSequentializer.setPending(versionId, (async () => {
 				try {
-					const stat = await this.textFileService.write(lastResolvedFileStat.resource, textFileEdiorModel.createSnapshot(), {
+					const stat = await this.textFileService.write(lastResolvedFileStat.resource, textFileEditorModel.createSnapshot(), {
 						overwriteReadonly: options.overwriteReadonly,
 						overwriteEncoding: options.overwriteEncoding,
 						mtime: lastResolvedFileStat.mtime,
 						encoding: this.getEncoding(),
-						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, textFileEdiorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
+						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, textFileEditorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 						writeElevated: options.writeElevated
 					});
 

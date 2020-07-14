@@ -174,9 +174,9 @@ export class OneSnippet {
 			}
 
 			return selections;
-		})!;
+		});
 
-		return !couldSkipThisPlaceholder ? newSelections : this.move(fwd);
+		return !couldSkipThisPlaceholder ? newSelections ?? [] : this.move(fwd);
 	}
 
 	private _hasPlaceholderBeenCollapsed(placeholder: Placeholder): boolean {
@@ -450,7 +450,7 @@ export class SnippetSession {
 				modelBasedVariableResolver,
 				new ClipboardBasedVariableResolver(readClipboardText, idx, indexedSelections.length, editor.getOption(EditorOption.multiCursorPaste) === 'spread'),
 				new SelectionBasedVariableResolver(model, selection),
-				new CommentBasedVariableResolver(model),
+				new CommentBasedVariableResolver(model, selection),
 				new TimeBasedVariableResolver,
 				new WorkspaceBasedVariableResolver(workspaceService),
 				new RandomBasedVariableResolver,
@@ -503,11 +503,9 @@ export class SnippetSession {
 			if (this._snippets[0].hasPlaceholder) {
 				return this._move(true);
 			} else {
-				return (
-					undoEdits
-						.filter(edit => !!edit.identifier) // only use our undo edits
-						.map(edit => Selection.fromPositions(edit.range.getEndPosition()))
-				);
+				return undoEdits
+					.filter(edit => !!edit.identifier) // only use our undo edits
+					.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
 			}
 		});
 		this._editor.revealRange(this._editor.getSelections()[0]);

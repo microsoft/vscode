@@ -1117,6 +1117,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		if (remoteAuthority) {
 			const first = anyPath.charCodeAt(0);
+
 			// make absolute
 			if (first !== CharCode.Slash) {
 				if (isWindowsDriveLetter(first) && anyPath.charCodeAt(anyPath.charCodeAt(1)) === CharCode.Colon) {

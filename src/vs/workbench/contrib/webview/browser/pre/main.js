@@ -277,6 +277,14 @@
 		 * @param {KeyboardEvent} e
 		 */
 		const handleInnerKeydown = (e) => {
+			// If the keypress would trigger a browser event, such as copy or paste,
+			// make sure we block the browser from dispatching it. Instead VS Code
+			// handles these events and will dispatch a copy/paste back to the webview
+			// if needed
+			if (isCopyPasteOrCut(e) || isUndoRedo(e)) {
+				e.preventDefault();
+			}
+
 			host.postMessage('did-keydown', {
 				key: e.key,
 				keyCode: e.keyCode,
@@ -288,6 +296,24 @@
 				repeat: e.repeat
 			});
 		};
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isCopyPasteOrCut(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && ['c', 'v', 'x'].includes(e.key);
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isUndoRedo(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && ['z', 'y'].includes(e.key);
+		}
 
 		let isHandlingScroll = false;
 

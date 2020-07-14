@@ -474,7 +474,7 @@ export function peekReadable<T>(readable: Readable<T>, reducer: IReducer<T>, max
 /**
  * Helper to fully read a T stream into a T.
  */
-export function consumeStream<T>(stream: ReadableStream<T>, reducer: IReducer<T>): Promise<T> {
+export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer: IReducer<T>): Promise<T> {
 	return new Promise((resolve, reject) => {
 		const chunks: T[] = [];
 

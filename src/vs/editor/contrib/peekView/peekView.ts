@@ -169,7 +169,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		container.appendChild(this._bodyElement);
 	}
 
-	protected _fillHead(container: HTMLElement): void {
+	protected _fillHead(container: HTMLElement, noCloseAction?: boolean): void {
 		const titleElement = dom.$('.peekview-title');
 		dom.append(this._headElement!, titleElement);
 		dom.addStandardDisposableListener(titleElement, 'click', event => this._onTitleClick(event));
@@ -187,10 +187,12 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		this._actionbarWidget = new ActionBar(actionsContainer, actionBarOptions);
 		this._disposables.add(this._actionbarWidget);
 
-		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => {
-			this.dispose();
-			return Promise.resolve();
-		}), { label: false, icon: true });
+		if (!noCloseAction) {
+			this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => {
+				this.dispose();
+				return Promise.resolve();
+			}), { label: false, icon: true });
+		}
 	}
 
 	protected _fillTitleIcon(container: HTMLElement): void {

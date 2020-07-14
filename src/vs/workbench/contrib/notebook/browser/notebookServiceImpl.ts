@@ -190,6 +190,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	private readonly _onDidChangeKernels = new Emitter<void>();
 	onDidChangeKernels: Event<void> = this._onDidChangeKernels.event;
 	private cutItems: NotebookCellTextModel[] | undefined;
+	private _lastClipboardIsCopy: boolean = true;
 
 	private _displayOrder: { userOrder: string[], defaultOrder: string[] } = Object.create(null);
 
@@ -728,12 +729,17 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._onDidChangeVisibleEditors.fire(alreadyCreated);
 	}
 
-	setToCopy(items: NotebookCellTextModel[]) {
+	setToCopy(items: NotebookCellTextModel[], isCopy: boolean) {
 		this.cutItems = items;
+		this._lastClipboardIsCopy = isCopy;
 	}
 
-	getToCopy(): NotebookCellTextModel[] | undefined {
-		return this.cutItems;
+	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined {
+		if (this.cutItems) {
+			return { items: this.cutItems, isCopy: this._lastClipboardIsCopy };
+		}
+
+		return undefined;
 	}
 
 	async save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean> {

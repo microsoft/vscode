@@ -345,8 +345,32 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	public selectAll() {
+		this.execCommand('selectAll');
+	}
+
+	public copy() {
+		this.execCommand('copy');
+	}
+
+	public paste() {
+		this.execCommand('paste');
+	}
+
+	public cut() {
+		this.execCommand('cut');
+	}
+
+	public undo() {
+		this.execCommand('undo');
+	}
+
+	public redo() {
+		this.execCommand('redo');
+	}
+
+	private execCommand(command: string) {
 		if (this.element) {
-			this._send('execCommand', 'selectAll');
+			this._send('execCommand', command);
 		}
 	}
 }

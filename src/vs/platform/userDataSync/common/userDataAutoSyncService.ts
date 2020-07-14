@@ -81,12 +81,6 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 	private readonly _onError: Emitter<UserDataSyncError> = this._register(new Emitter<UserDataSyncError>());
 	readonly onError: Event<UserDataSyncError> = this._onError.event;
 
-	private readonly _onTurnOnSync: Emitter<void> = this._register(new Emitter<void>());
-	readonly onTurnOnSync: Event<void> = this._onTurnOnSync.event;
-
-	private readonly _onDidTurnOnSync: Emitter<UserDataSyncError | undefined> = this._register(new Emitter<UserDataSyncError | undefined>());
-	readonly onDidTurnOnSync: Event<UserDataSyncError | undefined> = this._onDidTurnOnSync.event;
-
 	constructor(
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
@@ -145,24 +139,9 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		return { enabled: true };
 	}
 
-	async turnOn(pullFirst: boolean): Promise<void> {
-		this._onTurnOnSync.fire();
-
-		try {
-			this.stopDisableMachineEventually();
-
-			if (pullFirst) {
-				await this.userDataSyncService.pull();
-			} else {
-				await (await this.userDataSyncService.createSyncTask()).run();
-			}
-
-			this.setEnablement(true);
-			this._onDidTurnOnSync.fire(undefined);
-		} catch (error) {
-			this._onDidTurnOnSync.fire(error);
-			throw error;
-		}
+	async turnOn(): Promise<void> {
+		this.stopDisableMachineEventually();
+		this.setEnablement(true);
 	}
 
 	async turnOff(everywhere: boolean, softTurnOffOnError?: boolean, donotRemoveMachine?: boolean): Promise<void> {
@@ -237,6 +216,26 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 				true /* do not disable machine because disabling a machine makes request to server and can fail with TooManyRequests */);
 			this.disableMachineEventually();
 			this.logService.info('Auto Sync: Turned off sync because of making too many requests to server');
+		}
+
+		// Upgrade Required or Gone
+		else if (userDataSyncError.code === UserDataSyncErrorCode.UpgradeRequired || userDataSyncError.code === UserDataSyncErrorCode.Gone) {
+			await this.turnOff(false, true /* force soft turnoff on error */,
+				true /* do not disable machine because disabling a machine makes request to server and can fail with upgrade required or gone */);
+			this.disableMachineEventually();
+			this.logService.info('Auto Sync: Turned off sync because current client is not compatible with server. Requires client upgrade.');
+		}
+
+		// Incompatible Local Content
+		else if (userDataSyncError.code === UserDataSyncErrorCode.IncompatibleLocalContent) {
+			await this.turnOff(false, true /* force soft turnoff on error */);
+			this.logService.info('Auto Sync: Turned off sync because server has {0} content with newer version than of client. Requires client upgrade.', userDataSyncError.resource);
+		}
+
+		// Incompatible Remote Content
+		else if (userDataSyncError.code === UserDataSyncErrorCode.IncompatibleRemoteContent) {
+			await this.turnOff(false, true /* force soft turnoff on error */);
+			this.logService.info('Auto Sync: Turned off sync because server has {0} content with older version than of client. Requires server reset.', userDataSyncError.resource);
 		}
 
 		else {

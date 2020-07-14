@@ -12,6 +12,7 @@ import * as iconv from 'iconv-lite-umd';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from 'vs/base/common/buffer';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
+import { isWindows } from 'vs/base/common/platform';
 
 export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
 	try {
@@ -335,7 +336,7 @@ suite('Encoding', () => {
 		const source = newTestReadableStream(buffers);
 		const { stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
 
-		const expected = incompleteEmojis.toString(encoding.UTF8);
+		const expected = new TextDecoder().decode(incompleteEmojis);
 		const actual = await readAllAsString(stream);
 
 		assert.equal(actual, expected);
@@ -351,6 +352,20 @@ suite('Encoding', () => {
 
 		const content = await readAllAsString(stream);
 		assert.equal(content.length, 65537);
+	});
+
+	(isWindows /* unsupported OS */ ? test.skip : test)('toDecodeStream - some stream (UTF-8 issue #102202)', async function () {
+		const path = getPathFromAmdModule(require, './fixtures/issue_102202.txt');
+		const source = streamToBufferReadableStream(fs.createReadStream(path));
+
+		const { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async () => 'utf-8' });
+		assert.ok(detected);
+		assert.ok(stream);
+
+		const content = await readAllAsString(stream);
+		const lines = content.split('\n');
+
+		assert.equal(lines[981].toString(), '啊啊啊啊啊啊aaa啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊，啊啊啊啊啊啊啊啊啊啊啊。');
 	});
 
 	test('toEncodeReadable - encoding, utf16be', async function () {
