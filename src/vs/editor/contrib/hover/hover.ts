@@ -28,6 +28,9 @@ import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/go
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HoverSource } from 'vs/editor/common/modes';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -287,17 +290,31 @@ class ShowHoverAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: { position?: IPosition }): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: { position?: IPosition, uri?: string }): void {
 		if (!editor.hasModel()) {
 			return;
 		}
-		let controller = ModesHoverController.get(editor);
+		let finalEditor = editor;
+		if (args.uri) {
+			const codeEditorService = accessor.get(ICodeEditorService);
+			const modelService = accessor.get(IModelService);
+			const model = modelService.getModel(URI.parse(args.uri));
+			if (model?.isAttachedToEditor()) {
+				for (const editor of codeEditorService.listCodeEditors()) {
+					if (editor.hasModel() && editor.getModel() === model && editor.hasTextFocus()) {
+						finalEditor = editor;
+						break;
+					}
+				}
+			}
+		}
+		let controller = ModesHoverController.get(finalEditor);
 		if (!controller) {
 			return;
 		}
-		const position = args.position ? args.position : editor.getPosition();
+		const position = args.position ? args.position : finalEditor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const focus = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
+		const focus = finalEditor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
 		controller.showContentHover(range, HoverStartMode.Immediate, focus);
 	}
 }
