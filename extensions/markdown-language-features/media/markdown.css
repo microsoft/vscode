@@ -22,10 +22,9 @@ p, ol, ul, pre {
 }
 
 h2, h3, h4, h5, h6 {
-  font-weight: normal;
-  margin-bottom: 0.2em;
+	font-weight: normal;
+	margin-bottom: 0.2em;
 }
-  
 
 #code-csp-warning {
 	position: fixed;
@@ -131,7 +130,7 @@ textarea:focus {
 p {
 	margin-bottom: 1.5em;
 }
-  
+
 /* don't space 2 paragraphs too far apart */
 p + p {
 	margin-top: -0.8em;
