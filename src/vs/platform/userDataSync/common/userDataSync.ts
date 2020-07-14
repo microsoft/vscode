@@ -304,6 +304,7 @@ export interface IResourcePreview {
 	readonly previewResource: URI;
 	readonly localChange: Change;
 	readonly remoteChange: Change;
+	readonly merged: boolean;
 }
 
 export interface ISyncResourcePreview {
@@ -329,7 +330,6 @@ export interface IUserDataSynchroniser {
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
-	generateSyncResourcePreview(): Promise<ISyncResourcePreview | null>;
 	hasPreviouslySynced(): Promise<boolean>;
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;

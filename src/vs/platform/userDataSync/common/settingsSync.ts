@@ -183,7 +183,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			remoteContent: remoteSettingsSyncContent ? remoteSettingsSyncContent.settings : null,
 			previewResource: this.localPreviewResource,
 			previewContent,
-			localChange: hasLocalChanged ? Change.Modified : Change.None,
+			localChange: hasLocalChanged ? fileContent ? Change.Modified : Change.Added : Change.None,
 			remoteChange: hasRemoteChanged ? Change.Modified : Change.None,
 			hasConflicts,
 		}];

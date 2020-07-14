@@ -162,7 +162,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 			previewResource: this.localPreviewResource,
 			previewContent,
 			hasConflicts,
-			localChange: hasLocalChanged ? Change.Modified : Change.None,
+			localChange: hasLocalChanged ? fileContent ? Change.Modified : Change.Added : Change.None,
 			remoteChange: hasRemoteChanged ? Change.Modified : Change.None,
 		}];
 	}

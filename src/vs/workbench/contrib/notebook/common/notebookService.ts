@@ -66,8 +66,8 @@ export interface INotebookService {
 	saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined>;
 	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: unknown): void;
-	setToCopy(items: NotebookCellTextModel[]): void;
-	getToCopy(): NotebookCellTextModel[] | undefined;
+	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;
+	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined;
 
 	// editor events
 	addNotebookEditor(editor: IEditor): void;
