@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -13,9 +14,11 @@ export const IWebviewManagerService = createDecorator<IWebviewManagerService>('w
 export interface IWebviewManagerService {
 	_serviceBrand: unknown;
 
-	registerWebview(id: string, webContentsId: number | undefined, metadata: RegisterWebviewMetadata): Promise<void>;
+	registerWebview(id: string, webContentsId: number | undefined, windowId: number, metadata: RegisterWebviewMetadata): Promise<void>;
 	unregisterWebview(id: string): Promise<void>;
 	updateWebviewMetadata(id: string, metadataDelta: Partial<RegisterWebviewMetadata>): Promise<void>;
+
+	didLoadResource(requestId: number, content: VSBuffer | undefined): void;
 
 	setIgnoreMenuShortcuts(webContentsId: number, enabled: boolean): Promise<void>;
 }
