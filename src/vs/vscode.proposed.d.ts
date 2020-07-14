@@ -1122,7 +1122,7 @@ declare module 'vscode' {
 		/**
 		 * Handle an activated terminal link.
 		 */
-		handleTerminalLink(link: T): void;
+		handleTerminalLink(link: T): ProviderResult<void>;
 	}
 
 	export interface TerminalLink {
