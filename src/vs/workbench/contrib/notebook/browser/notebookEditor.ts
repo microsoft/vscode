@@ -22,7 +22,7 @@ import { NotebookEditorOptions, NotebookEditorWidget } from 'vs/workbench/contri
 import { IBorrowValue, INotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
 import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -172,7 +172,7 @@ export class NotebookEditor extends BaseEditor {
 			return;
 		}
 
-		const viewState = this._loadTextEditorViewState(input);
+		const viewState = this._loadNotebookEditorViewState(input);
 
 		await this._widget.value!.setModel(model.notebook, viewState);
 		await this._widget.value!.setOptions(options instanceof NotebookEditorOptions ? options : undefined);
@@ -214,11 +214,21 @@ export class NotebookEditor extends BaseEditor {
 		}
 	}
 
-	private _loadTextEditorViewState(input: NotebookEditorInput): INotebookEditorViewState | undefined {
+	private _loadNotebookEditorViewState(input: NotebookEditorInput): INotebookEditorViewState | undefined {
+		let result: INotebookEditorViewState | undefined;
 		if (this.group) {
-			return this._editorMemento.loadEditorState(this.group, input.resource);
+			result = this._editorMemento.loadEditorState(this.group, input.resource);
 		}
-
+		if (result) {
+			return result;
+		}
+		// when we don't have a view state for the group/input-tuple then we try to use an existing
+		// editor for the same resource.
+		for (const group of this._editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			if (group.activeEditorPane !== this && group.activeEditorPane instanceof NotebookEditor && group.activeEditor?.matches(input)) {
+				return group.activeEditorPane._widget.value?.getEditorViewState();
+			}
+		}
 		return;
 	}
 
