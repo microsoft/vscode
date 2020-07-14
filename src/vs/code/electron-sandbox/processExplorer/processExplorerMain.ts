@@ -327,15 +327,15 @@ class ProcessExplorer {
 		if (isLocal) {
 			items.push({
 				label: localize('killProcess', "Kill Process"),
-				click() {
-					ipcRenderer.send('vscode:killProcess', { pid: pid, force: false });
+				click: () => {
+					this.electronService.killProcess(pid, false);
 				}
 			});
 
 			items.push({
 				label: localize('forceKillProcess', "Force Kill Process"),
-				click() {
-					ipcRenderer.send('vscode:killProcess', { pid: pid, force: true });
+				click: () => {
+					this.electronService.killProcess(pid, true);
 				}
 			});
 

@@ -207,6 +207,7 @@ export class TestElectronService implements IElectronService {
 	async setRepresentedFilename(path: string): Promise<void> { }
 	async isAdmin(): Promise<boolean> { return false; }
 	async getTotalMem(): Promise<number> { return 0; }
+	async killProcess(): Promise<void> { }
 	async setDocumentEdited(edited: boolean): Promise<void> { }
 	async openExternal(url: string): Promise<boolean> { return false; }
 	async updateTouchBar(): Promise<void> { }

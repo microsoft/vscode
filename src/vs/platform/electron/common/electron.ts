@@ -66,6 +66,9 @@ export interface ICommonElectronService {
 	isAdmin(): Promise<boolean>;
 	getTotalMem(): Promise<number>;
 
+	// Process
+	killProcess(pid: number, force: boolean): Promise<void>;
+
 	// clipboard
 	readClipboardText(type?: 'selection' | 'clipboard'): Promise<string>;
 	writeClipboardText(text: string, type?: 'selection' | 'clipboard'): Promise<void>;

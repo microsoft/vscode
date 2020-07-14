@@ -321,6 +321,19 @@ export class ElectronMainService implements IElectronMainService {
 	//#endregion
 
 
+	//#region Process
+
+	async killProcess(windowId: number | undefined, pid: number, force: boolean): Promise<void> {
+		if (force) {
+			process.kill(pid, 'SIGTERM');
+		} else {
+			process.kill(pid, 'SIGKILL');
+		}
+	}
+
+	//#endregion
+
+
 	//#region clipboard
 
 	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {

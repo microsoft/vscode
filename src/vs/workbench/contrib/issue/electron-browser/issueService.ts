@@ -69,7 +69,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 				hoverForeground: getColor(theme, listHoverForeground),
 				highlightForeground: getColor(theme, listHighlightForeground),
 			},
-			platform: platform
+			platform
 		};
 		return this.issueService.openProcessExplorer(data);
 	}
