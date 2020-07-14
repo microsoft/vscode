@@ -828,7 +828,10 @@ export class CodeApplication extends Disposable {
 		const argvString = argvContent.value.toString();
 		const argvJSON = JSON.parse(stripComments(argvString));
 		if (argvJSON['enable-crash-reporter'] === undefined) {
-			const enableCrashReporter = this.configurationService.getValue<boolean>('telemetry.enableCrashReporter');
+			let enableCrashReporter = this.configurationService.getValue<boolean>('telemetry.enableCrashReporter');
+			if (enableCrashReporter === undefined) {
+				enableCrashReporter = true;
+			}
 			const additionalArgvContent = [];
 			additionalArgvContent.push('');
 			additionalArgvContent.push('	// Allows disabling crash reporting to Appcenter.');
