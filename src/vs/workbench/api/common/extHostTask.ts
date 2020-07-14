@@ -26,7 +26,7 @@ import * as Platform from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
-import { NotImplementedError } from 'vs/base/common/errors';
+import { NotSupportedError } from 'vs/base/common/errors';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
@@ -717,7 +717,7 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		if (CustomExecutionDTO.is(dto.execution)) {
 			await this.addCustomExecution(dto, task, false);
 		} else {
-			throw new NotImplementedError();
+			throw new NotSupportedError();
 		}
 
 		// Always get the task execution first to prevent timing issues when retrieving it later
