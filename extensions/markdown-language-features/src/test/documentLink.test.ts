@@ -18,7 +18,7 @@ async function getLinksForFile(file: vscode.Uri): Promise<vscode.DocumentLink[]>
 	return (await vscode.commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', file))!;
 }
 
-suite.skip('Markdown Document links', () => {
+suite('Markdown Document links', () => {
 
 	teardown(async () => {
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
