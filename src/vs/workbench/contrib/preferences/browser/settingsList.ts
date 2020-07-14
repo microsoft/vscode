@@ -15,6 +15,7 @@ import { SettingsTreeDelegate, ISettingItemTemplate } from 'vs/workbench/contrib
 import { focusBorder, foreground, errorForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
 import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { localize } from 'vs/nls';
 
 const $ = DOM.$;
 
@@ -77,6 +78,9 @@ export class SettingsList extends Disposable {
 		super();
 
 		container.setAttribute('tabindex', '-1');
+		container.setAttribute('role', 'form');
+		container.setAttribute('aria-label', localize('settings', "Settings"));
+
 		container.classList.add('settings-editor-tree');
 		renderers.forEach(renderer => this.templateToRenderer.set(renderer.templateId, renderer));
 
