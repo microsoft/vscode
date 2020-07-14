@@ -30,7 +30,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IUserDataSyncWorkbenchService, CONTEXT_SYNC_STATE, getSyncAreaLabel, CONTEXT_ACCOUNT_STATE, AccountStatus, CONTEXT_ENABLE_VIEWS, SHOW_SYNC_LOG_COMMAND_ID, CONFIGURE_SYNC_COMMAND_ID, CONTEXT_SHOW_MANUAL_SYNC_VIEW, IUserDataSyncPreview, IUserDataSyncResourceGroup } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, CONTEXT_SYNC_STATE, getSyncAreaLabel, CONTEXT_ACCOUNT_STATE, AccountStatus, CONTEXT_ENABLE_ACTIVITY_VIEWS, SHOW_SYNC_LOG_COMMAND_ID, CONFIGURE_SYNC_COMMAND_ID, CONTEXT_ENABLE_MANUAL_SYNC_VIEW, IUserDataSyncPreview, IUserDataSyncResourceGroup } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -109,7 +109,7 @@ export class UserDataSyncDataViews extends Disposable {
 			id,
 			name,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
-			when: ContextKeyExpr.and(CONTEXT_ENABLE_VIEWS, CONTEXT_SHOW_MANUAL_SYNC_VIEW),
+			when: CONTEXT_ENABLE_MANUAL_SYNC_VIEW,
 			canToggleVisibility: false,
 			canMoveView: false,
 			treeView,
@@ -355,7 +355,7 @@ export class UserDataSyncDataViews extends Disposable {
 			id,
 			name,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_ENABLE_VIEWS),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_ENABLE_ACTIVITY_VIEWS),
 			canToggleVisibility: true,
 			canMoveView: false,
 			treeView,
@@ -423,7 +423,7 @@ export class UserDataSyncDataViews extends Disposable {
 			id,
 			name,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_ENABLE_VIEWS),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_ENABLE_ACTIVITY_VIEWS),
 			canToggleVisibility: true,
 			canMoveView: false,
 			treeView,

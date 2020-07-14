@@ -79,8 +79,8 @@ export const enum AccountStatus {
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
 export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
-export const CONTEXT_ENABLE_VIEWS = new RawContextKey<boolean>(`showUserDataSyncViews`, false);
-export const CONTEXT_SHOW_MANUAL_SYNC_VIEW = new RawContextKey<boolean>(`showManualSyncView`, false);
+export const CONTEXT_ENABLE_ACTIVITY_VIEWS = new RawContextKey<boolean>(`enableSyncActivityViews`, false);
+export const CONTEXT_ENABLE_MANUAL_SYNC_VIEW = new RawContextKey<boolean>(`enableManualSyncView`, false);
 
 // Commands
 export const CONFIGURE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
