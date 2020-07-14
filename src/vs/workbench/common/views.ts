@@ -24,6 +24,7 @@ import Severity from 'vs/base/common/severity';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { mixin } from 'vs/base/common/objects';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -650,9 +651,9 @@ export interface ITreeItem {
 }
 
 export class ResolvableTreeItem implements ITreeItem {
-	handle: string;
+	handle!: string;
 	parentHandle?: string;
-	collapsibleState: TreeItemCollapsibleState;
+	collapsibleState!: TreeItemCollapsibleState;
 	label?: ITreeItemLabel;
 	description?: string | boolean;
 	icon?: UriComponents;
@@ -668,20 +669,7 @@ export class ResolvableTreeItem implements ITreeItem {
 	private resolved: boolean = false;
 	private _hasResolve: boolean = false;
 	constructor(treeItem: ITreeItem, resolve?: (() => Promise<ITreeItem | undefined>)) {
-		this.handle = treeItem.handle;
-		this.parentHandle = treeItem.parentHandle;
-		this.collapsibleState = treeItem.collapsibleState;
-		this.label = treeItem.label;
-		this.description = treeItem.description;
-		this.icon = treeItem.icon;
-		this.iconDark = treeItem.iconDark;
-		this.themeIcon = treeItem.themeIcon;
-		this.resourceUri = treeItem.resourceUri;
-		this.tooltip = treeItem.tooltip;
-		this.contextValue = treeItem.contextValue;
-		this.command = treeItem.command;
-		this.children = treeItem.children;
-		this.accessibilityInformation = treeItem.accessibilityInformation;
+		mixin(this, treeItem);
 		this._hasResolve = !!resolve;
 		this.resolve = async () => {
 			if (resolve && !this.resolved) {
