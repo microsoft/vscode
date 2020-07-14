@@ -823,27 +823,29 @@ export class CodeApplication extends Disposable {
 		// If enable-crash-reporter argv is undefined then this is a fresh start,
 		// based on telemetry.enableCrashreporter settings, generate a UUID which
 		// will be used as crash reporter id and also update the json file.
-		const fileService = accessor.get(IFileService);
-		const argvContent = await fileService.readFile(this.environmentService.argvResource);
-		const argvString = argvContent.value.toString();
-		const argvJSON = JSON.parse(stripComments(argvString));
-		if (argvJSON['enable-crash-reporter'] === undefined) {
-			let enableCrashReporter = this.configurationService.getValue<boolean>('telemetry.enableCrashReporter');
-			if (enableCrashReporter === undefined) {
-				enableCrashReporter = true;
+		try {
+			const fileService = accessor.get(IFileService);
+			const argvContent = await fileService.readFile(this.environmentService.argvResource);
+			const argvString = argvContent.value.toString();
+			const argvJSON = JSON.parse(stripComments(argvString));
+			if (argvJSON['enable-crash-reporter'] === undefined) {
+				const enableCrashReporter = this.configurationService.getValue<boolean>('telemetry.enableCrashReporter') ?? true;
+				const additionalArgvContent = [
+					'',
+					'	// Allows disabling crash reporting to Appcenter.',
+					'	// Should restart the app if the value is changed.',
+					`	"enable-crash-reporter": ${enableCrashReporter},`,
+					'',
+					'	// Unique id used for correlating Appcenter crash reports from this instance.',
+					'	// Do not edit this value.',
+					`	"crash-reporter-id": "${generateUuid()}"`,
+					'}'
+				];
+				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
+				await fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(newArgvString));
 			}
-			const additionalArgvContent = [];
-			additionalArgvContent.push('');
-			additionalArgvContent.push('	// Allows disabling crash reporting to Appcenter.');
-			additionalArgvContent.push('	// Should restart the app if the value is changed.');
-			additionalArgvContent.push(`	"enable-crash-reporter": ${enableCrashReporter},`);
-			additionalArgvContent.push('');
-			additionalArgvContent.push('	// Unique id used for correlating Appcenter crash reports from this instance.');
-			additionalArgvContent.push('	// Do not edit this value.');
-			additionalArgvContent.push(`	"crash-reporter-id": "${generateUuid()}"`);
-			additionalArgvContent.push('}');
-			const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
-			await fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(newArgvString));
+		} catch (error) {
+			this.logService.error(error);
 		}
 	}
 

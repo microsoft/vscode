@@ -41,8 +41,6 @@ const argvConfig = configureCommandlineSwitchesSync(args);
 // If a crash-reporter-directory is specified we store the crash reports
 // in the specified directory and don't upload them to the crash server.
 let crashReporterDirectory = args['crash-reporter-directory'];
-const productName = product.crashReporter?.productName || product.nameShort;
-const companyName = product.crashReporter?.companyName || 'Microsoft';
 let submitURL = '';
 if (crashReporterDirectory) {
 	crashReporterDirectory = path.normalize(crashReporterDirectory);
@@ -84,6 +82,8 @@ if (crashReporterDirectory) {
 }
 
 // Start crash reporter for all processes
+const productName = product.crashReporter?.productName || product.nameShort;
+const companyName = product.crashReporter?.companyName || 'Microsoft';
 crashReporter.start({
 	companyName: companyName,
 	productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,

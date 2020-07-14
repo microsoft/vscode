@@ -184,17 +184,16 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 				// On linux crash reporter needs to be started on child node processes explicitly
 				if (platform.isLinux) {
-					const crashesDirectory = this._environmentService.crashReporterDirectory;
-					const appcenter = this._productService.appCenter;
-					const crashReporterId = this._environmentService.crashReporterId;
 					const crashReporterStartOptions: CrashReporterStartOptions = {
 						companyName: this._productService.crashReporter?.companyName || 'Microsoft',
 						productName: this._productService.crashReporter?.productName || this._productService.nameShort,
 						submitURL: '',
 						uploadToServer: false
 					};
-					// crashReporterId is set by the main process only when crash reporting is enabled by the user.
-					if (!crashesDirectory && appcenter && crashReporterId) {
+					const crashReporterId = this._environmentService.crashReporterId; // crashReporterId is set by the main process only when crash reporting is enabled by the user.
+					const appcenter = this._productService.appCenter;
+					const uploadCrashesToServer = !this._environmentService.crashReporterDirectory; // only upload unless --crash-reporter-directory is provided
+					if (uploadCrashesToServer && appcenter && crashReporterId) {
 						const submitURL = appcenter[`linux-x64`];
 						crashReporterStartOptions.submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
 						crashReporterStartOptions.uploadToServer = true;

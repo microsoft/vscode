@@ -157,7 +157,7 @@ pr: none
 
 schedules:
 - cron: "0 5 * * Mon-Fri"
-  displayName: Mon-Fri at 7:00 CET
+  displayName: Mon-Fri at 7:00
   branches:
     include:
     - master
