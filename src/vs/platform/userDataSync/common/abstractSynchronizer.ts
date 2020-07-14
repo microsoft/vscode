@@ -53,17 +53,21 @@ function isSyncData(thing: any): thing is ISyncData {
 	return false;
 }
 
-export interface ISyncResourcePreview extends IBaseSyncResourcePreview {
-	readonly remoteUserData: IRemoteUserData;
-	readonly lastSyncUserData: IRemoteUserData | null;
-	readonly resourcePreviews: IResourcePreview[];
-}
-
 export interface IResourcePreview extends IBaseResourcePreview {
 	readonly remoteContent: string | null;
 	readonly localContent: string | null;
 	readonly previewContent: string | null;
 	readonly hasConflicts: boolean;
+}
+
+interface IMergableResourcePreview extends IResourcePreview {
+	merged: boolean;
+}
+
+export interface ISyncResourcePreview extends IBaseSyncResourcePreview {
+	readonly remoteUserData: IRemoteUserData;
+	readonly lastSyncUserData: IRemoteUserData | null;
+	readonly resourcePreviews: IMergableResourcePreview[];
 }
 
 export abstract class AbstractSynchroniser extends Disposable {
@@ -79,10 +83,10 @@ export abstract class AbstractSynchroniser extends Disposable {
 	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
 
-	private _conflicts: IResourcePreview[] = [];
-	get conflicts(): IResourcePreview[] { return this._conflicts; }
-	private _onDidChangeConflicts: Emitter<IResourcePreview[]> = this._register(new Emitter<IResourcePreview[]>());
-	readonly onDidChangeConflicts: Event<IResourcePreview[]> = this._onDidChangeConflicts.event;
+	private _conflicts: IMergableResourcePreview[] = [];
+	get conflicts(): IMergableResourcePreview[] { return this._conflicts; }
+	private _onDidChangeConflicts: Emitter<IMergableResourcePreview[]> = this._register(new Emitter<IMergableResourcePreview[]>());
+	readonly onDidChangeConflicts: Event<IMergableResourcePreview[]> = this._onDidChangeConflicts.event;
 
 	private readonly localChangeTriggerScheduler = new RunOnceScheduler(() => this.doTriggerLocalChange(), 50);
 	private readonly _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
@@ -136,7 +140,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		else {
 			this.logService.trace(`${this.syncResourceLogLabel}: Checking for local changes...`);
 			const lastSyncUserData = await this.getLastSyncUserData();
-			const hasRemoteChanged = lastSyncUserData ? (await this.doGenerateSyncResourcePreview(lastSyncUserData, lastSyncUserData, CancellationToken.None)).resourcePreviews.some(({ remoteChange }) => remoteChange !== Change.None) : true;
+			const hasRemoteChanged = lastSyncUserData ? (await this.doGenerateSyncResourcePreview(lastSyncUserData, lastSyncUserData, true, CancellationToken.None)).resourcePreviews.some(({ remoteChange }) => remoteChange !== Change.None) : true;
 			if (hasRemoteChanged) {
 				this._onDidChangeLocal.fire();
 			}
@@ -304,15 +308,6 @@ export abstract class AbstractSynchroniser extends Disposable {
 		return this.getRemoteUserData(lastSyncUserData);
 	}
 
-	async generateSyncResourcePreview(): Promise<ISyncResourcePreview | null> {
-		if (this.isEnabled()) {
-			const lastSyncUserData = await this.getLastSyncUserData();
-			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-			return this.doGenerateSyncResourcePreview(remoteUserData, lastSyncUserData, CancellationToken.None);
-		}
-		return null;
-	}
-
 	private async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean): Promise<SyncStatus> {
 		if (remoteUserData.syncData && remoteUserData.syncData.version > this.version) {
 			// current version is not compatible with cloud version
@@ -353,7 +348,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		try {
 			// generate or use existing preview
 			if (!this.syncPreviewPromise) {
-				this.syncPreviewPromise = createCancelablePromise(token => this.doGenerateSyncResourcePreview(remoteUserData, lastSyncUserData, token));
+				this.syncPreviewPromise = createCancelablePromise(token => this.doGenerateSyncResourcePreview(remoteUserData, lastSyncUserData, apply, token));
 			}
 
 			if (apply) {
@@ -402,6 +397,9 @@ export abstract class AbstractSynchroniser extends Disposable {
 				return preview;
 			}
 
+			/* mark merged */
+			resourcePreview.merged = true;
+
 			/* Add or remove the preview from conflicts */
 			const newConflicts = [...this._conflicts];
 			const index = newConflicts.findIndex(({ localResource, remoteResource, previewResource }) =>
@@ -425,7 +423,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
-	private async updateConflictsAndApply(conflicts: IResourcePreview[], force: boolean): Promise<SyncStatus> {
+	private async updateConflictsAndApply(conflicts: IMergableResourcePreview[], force: boolean): Promise<SyncStatus> {
 		if (!this.syncPreviewPromise) {
 			return SyncStatus.Idle;
 		}
@@ -436,6 +434,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 		this.updateConflicts(conflicts);
 		if (this._conflicts.length) {
 			return SyncStatus.HasConflicts;
+		}
+
+		// check if all are merged
+		if (preview.resourcePreviews.some(r => !r.merged)) {
+			return SyncStatus.Syncing;
 		}
 
 		// apply preview
@@ -457,7 +460,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		if (index !== -1) {
 			const resourcePreviews = [...preview.resourcePreviews];
 			const resourcePreview = await this.updateResourcePreviewContent(resourcePreviews[index], resource, previewContent, token);
-			resourcePreviews[index] = resourcePreview;
+			resourcePreviews[index] = { ...resourcePreview, merged: resourcePreviews[index].merged };
 			preview = {
 				...preview,
 				resourcePreviews
@@ -482,7 +485,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		} catch (error) { /* Ignore */ }
 	}
 
-	private updateConflicts(conflicts: IResourcePreview[]): void {
+	private updateConflicts(conflicts: IMergableResourcePreview[]): void {
 		if (!equals(this._conflicts, conflicts, (a, b) => isEqual(a.previewResource, b.previewResource))) {
 			this._conflicts = conflicts;
 			this._onDidChangeConflicts.fire(conflicts);
@@ -560,7 +563,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		} catch (e) { /* ignore */ }
 	}
 
-	private async doGenerateSyncResourcePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncResourcePreview> {
+	private async doGenerateSyncResourcePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, merge: boolean, token: CancellationToken): Promise<ISyncResourcePreview> {
 		const machineId = await this.currentMachineIdPromise;
 		const isLastSyncFromCurrentMachine = !!remoteUserData.syncData?.machineId && remoteUserData.syncData.machineId === machineId;
 
@@ -568,7 +571,13 @@ export abstract class AbstractSynchroniser extends Disposable {
 		const lastSyncUserDataForPreview = lastSyncUserData === null && isLastSyncFromCurrentMachine ? remoteUserData : lastSyncUserData;
 		const resourcePreviews = await this.generateSyncPreview(remoteUserData, lastSyncUserDataForPreview, token);
 
-		return { remoteUserData, lastSyncUserData, resourcePreviews, isLastSyncFromCurrentMachine };
+		// Mark merge
+		const mergableResourcePreviews = resourcePreviews.map(r => ({
+			...r,
+			merged: merge || (r.localChange === Change.None && r.remoteChange === Change.None) /* Mark previews with no changes as merged */
+		}));
+
+		return { remoteUserData, lastSyncUserData, resourcePreviews: mergableResourcePreviews, isLastSyncFromCurrentMachine };
 	}
 
 	async getLastSyncUserData<T extends IRemoteUserData>(): Promise<T | null> {

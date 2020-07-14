@@ -329,7 +329,6 @@ export interface IUserDataSynchroniser {
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
-	generateSyncResourcePreview(): Promise<ISyncResourcePreview | null>;
 	hasPreviouslySynced(): Promise<boolean>;
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;
