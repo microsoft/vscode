@@ -18,7 +18,7 @@ import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType } from '
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { localize } from 'vs/nls';
-import { NotImplementedError } from 'vs/base/common/errors';
+import { NotSupportedError } from 'vs/base/common/errors';
 import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
@@ -819,11 +819,11 @@ export class EnvironmentVariableCollection implements vscode.EnvironmentVariable
 
 export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
-		throw new NotImplementedError();
+		throw new NotSupportedError();
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
-		throw new NotImplementedError();
+		throw new NotSupportedError();
 	}
 
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
@@ -832,19 +832,19 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
-		throw new NotImplementedError();
+		throw new NotSupportedError();
 	}
 
 	public $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined> {
-		throw new NotImplementedError();
+		throw new NotSupportedError();
 	}
 
 	public $getAvailableShells(): Promise<IShellDefinitionDto[]> {
-		throw new NotImplementedError();
+		throw new NotSupportedError();
 	}
 
 	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
-		throw new NotImplementedError();
+		throw new NotSupportedError();
 	}
 
 	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
