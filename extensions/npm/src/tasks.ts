@@ -12,6 +12,7 @@ import * as fs from 'fs';
 import * as minimatch from 'minimatch';
 import * as nls from 'vscode-nls';
 import { JSONVisitor, visit, ParseErrorCode } from 'jsonc-parser';
+import preferredPM from 'preferred-pm';
 
 const localize = nls.loadMessageBundle();
 
@@ -40,7 +41,7 @@ export class NpmTaskProvider implements TaskProvider {
 		return provideNpmScripts();
 	}
 
-	public resolveTask(_task: Task): Task | undefined {
+	public resolveTask(_task: Task): Promise<Task> | undefined {
 		const npmTask = (<any>_task.definition).script;
 		if (npmTask) {
 			const kind: NpmTaskDefinition = (<any>_task.definition);
@@ -107,8 +108,16 @@ export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
 	return value && typeof value !== 'number';
 }
 
-export function getPackageManager(folder: WorkspaceFolder): string {
-	return workspace.getConfiguration('npm', folder.uri).get<string>('packageManager', 'npm');
+export async function getPackageManager(folder: WorkspaceFolder): Promise<string> {
+	let packageManagerName = workspace.getConfiguration('npm', folder.uri).get<string>('packageManager', 'npm');
+
+	if (packageManagerName === 'auto') {
+		packageManagerName = (await preferredPM(folder.uri.fsPath) || { name: 'npm' }).name;
+	}
+
+	// TODO: Warn if multiple lock files present AND auto
+
+	return packageManagerName;
 }
 
 export async function hasNpmScripts(): Promise<boolean> {
@@ -238,8 +247,8 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 	const result: Task[] = [];
 
 	const prePostScripts = getPrePostScripts(scripts);
-	Object.keys(scripts).forEach(each => {
-		const task = createTask(each, `run ${each}`, folder!, packageJsonUri, scripts![each]);
+	Object.keys(scripts).forEach(async (each) => {
+		const task = await createTask(each, `run ${each}`, folder!, packageJsonUri, scripts![each]);
 		const lowerCaseTaskName = each.toLowerCase();
 		if (isBuildTask(lowerCaseTaskName)) {
 			task.group = TaskGroup.Build;
@@ -257,7 +266,7 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 		result.push(task);
 	});
 	// always add npm install (without a problem matcher)
-	result.push(createTask(INSTALL_SCRIPT, INSTALL_SCRIPT, folder, packageJsonUri, 'install dependencies from package', []));
+	result.push(await createTask(INSTALL_SCRIPT, INSTALL_SCRIPT, folder, packageJsonUri, 'install dependencies from package', []));
 	return result;
 }
 
@@ -268,7 +277,7 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-export function createTask(script: NpmTaskDefinition | string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, detail?: string, matcher?: any): Task {
+export async function createTask(script: NpmTaskDefinition | string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, detail?: string, matcher?: any): Promise<Task> {
 	let kind: NpmTaskDefinition;
 	if (typeof script === 'string') {
 		kind = { type: 'npm', script: script };
@@ -276,8 +285,8 @@ export function createTask(script: NpmTaskDefinition | string, cmd: string, fold
 		kind = script;
 	}
 
-	function getCommandLine(folder: WorkspaceFolder, cmd: string): string {
-		let packageManager = getPackageManager(folder);
+	async function getCommandLine(folder: WorkspaceFolder, cmd: string): Promise<string> {
+		let packageManager = await getPackageManager(folder);
 		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
 			return `${packageManager} --silent ${cmd}`;
 		}
@@ -296,7 +305,7 @@ export function createTask(script: NpmTaskDefinition | string, cmd: string, fold
 	}
 	let taskName = getTaskName(kind.script, relativePackageJson);
 	let cwd = path.dirname(packageJsonUri.fsPath);
-	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(getCommandLine(folder, cmd), { cwd: cwd }), matcher);
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(await getCommandLine(folder, cmd), { cwd: cwd }), matcher);
 	task.detail = detail;
 	return task;
 }
@@ -348,21 +357,21 @@ async function readFile(file: string): Promise<string> {
 	});
 }
 
-export function runScript(script: string, document: TextDocument) {
+export async function runScript(script: string, document: TextDocument) {
 	let uri = document.uri;
 	let folder = workspace.getWorkspaceFolder(uri);
 	if (folder) {
-		let task = createTask(script, `run ${script}`, folder, uri);
+		let task = await createTask(script, `run ${script}`, folder, uri);
 		tasks.executeTask(task);
 	}
 }
 
-export function startDebugging(scriptName: string, folder: WorkspaceFolder) {
+export async function startDebugging(scriptName: string, folder: WorkspaceFolder) {
 	const config: DebugConfiguration = {
 		type: 'pwa-node',
 		request: 'launch',
 		name: `Debug ${scriptName}`,
-		runtimeExecutable: getPackageManager(folder),
+		runtimeExecutable: await getPackageManager(folder),
 		runtimeArgs: [
 			'run',
 			scriptName,

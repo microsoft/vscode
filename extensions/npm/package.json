@@ -20,6 +20,7 @@
   "dependencies": {
     "jsonc-parser": "^2.2.1",
     "minimatch": "^3.0.4",
+    "preferred-pm": "^3.0.1",
     "request-light": "^0.4.0",
     "vscode-nls": "^4.1.1"
   },
@@ -209,11 +210,12 @@
           "scope": "resource",
           "type": "string",
           "enum": [
+            "auto",
             "npm",
             "yarn",
             "pnpm"
           ],
-          "default": "npm",
+          "default": "auto",
           "description": "%config.npm.packageManager%"
         },
         "npm.exclude": {
