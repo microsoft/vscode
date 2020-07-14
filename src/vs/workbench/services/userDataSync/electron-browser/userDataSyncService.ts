@@ -86,6 +86,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('reset');
 	}
 
+	resetRemote(): Promise<void> {
+		return this.channel.call('resetRemote');
+	}
+
 	resetLocal(): Promise<void> {
 		return this.channel.call('resetLocal');
 	}
@@ -165,7 +169,16 @@ class ManualSyncTask implements IManualSyncTask {
 		readonly manifest: IUserDataManifest | null,
 		sharedProcessService: ISharedProcessService,
 	) {
-		this.channel = sharedProcessService.getChannel(`manualSyncTask-${id}`);
+		const manualSyncTaskChannel = sharedProcessService.getChannel(`manualSyncTask-${id}`);
+		this.channel = {
+			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
+				return manualSyncTaskChannel.call(command, arg, cancellationToken)
+					.then(null, error => { throw UserDataSyncError.toUserDataSyncError(error); });
+			},
+			listen<T>(event: string, arg?: any): Event<T> {
+				return manualSyncTaskChannel.listen(event, arg);
+			}
+		};
 	}
 
 	async preview(): Promise<[SyncResource, ISyncResourcePreview][]> {

@@ -313,6 +313,16 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		await this.resetLocal();
 	}
 
+	async resetRemote(): Promise<void> {
+		await this.checkEnablement();
+		try {
+			await this.userDataSyncStoreService.clear();
+			this.logService.info('Cleared data on server');
+		} catch (e) {
+			this.logService.error(e);
+		}
+	}
+
 	async resetLocal(): Promise<void> {
 		await this.checkEnablement();
 		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL);
@@ -334,16 +344,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 		}
 		return false;
-	}
-
-	private async resetRemote(): Promise<void> {
-		await this.checkEnablement();
-		try {
-			await this.userDataSyncStoreService.clear();
-			this.logService.info('Cleared data on server');
-		} catch (e) {
-			this.logService.error(e);
-		}
 	}
 
 	private setStatus(status: SyncStatus): void {
@@ -402,7 +402,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				case UserDataSyncErrorCode.LocalTooManyRequests:
 				case UserDataSyncErrorCode.Gone:
 				case UserDataSyncErrorCode.UpgradeRequired:
-				case UserDataSyncErrorCode.Incompatible:
+				case UserDataSyncErrorCode.IncompatibleRemoteContent:
+				case UserDataSyncErrorCode.IncompatibleLocalContent:
 					throw e;
 			}
 		}

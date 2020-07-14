@@ -217,7 +217,8 @@ export enum UserDataSyncErrorCode {
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
 	LocalError = 'LocalError',
-	Incompatible = 'Incompatible',
+	IncompatibleLocalContent = 'IncompatibleLocalContent',
+	IncompatibleRemoteContent = 'IncompatibleRemoteContent',
 	UnresolvedConflicts = 'UnresolvedConflicts',
 
 	Unknown = 'Unknown',
@@ -415,6 +416,7 @@ export interface IUserDataSyncService {
 	pull(): Promise<void>;
 	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;
+	resetRemote(): Promise<void>;
 	resetLocal(): Promise<void>;
 
 	hasLocalData(): Promise<boolean>;

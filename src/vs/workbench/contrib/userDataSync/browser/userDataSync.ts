@@ -119,6 +119,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IStorageService private readonly storageService: IStorageService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -294,10 +295,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					this.handleTooLargeError(error.resource, localize('too large', "Disabled syncing {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea.toLowerCase(), sourceArea.toLowerCase(), '100kb'), error);
 				}
 				break;
-			case UserDataSyncErrorCode.Incompatible:
+			case UserDataSyncErrorCode.IncompatibleLocalContent:
 			case UserDataSyncErrorCode.Gone:
 			case UserDataSyncErrorCode.UpgradeRequired:
-				this.userDataSyncWorkbenchService.turnoff(false);
 				const message = localize('error upgrade required', "Preferences sync is disabled because the current version ({0}, {1}) is not compatible with the sync service. Please update before turning on sync.", this.productService.version, this.productService.commit);
 				const operationId = error.operationId ? localize('operationId', "Operation Id: {0}", error.operationId) : undefined;
 				this.notificationService.notify({
@@ -305,6 +305,18 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					message: operationId ? `${message} ${operationId}` : message,
 				});
 				break;
+			case UserDataSyncErrorCode.IncompatibleRemoteContent:
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('error reset required', "Preferences sync is disabled because your data in the cloud is older than that of in the client. Please reset your data in the cloud before turning on sync."),
+					actions: {
+						primary: [
+							new Action('reset', localize('reset', "Reset Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
+							new Action('show synced data', localize('show synced data action', "Show Synced Data"), undefined, true, () => this.commandService.executeCommand(SHOW_SYNCED_DATA_COMMAND_ID))
+						]
+					}
+				});
+				return;
 		}
 	}
 
@@ -439,7 +451,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 							return;
 						}
 						break;
-					case UserDataSyncErrorCode.Incompatible:
+					case UserDataSyncErrorCode.IncompatibleLocalContent:
 					case UserDataSyncErrorCode.Gone:
 					case UserDataSyncErrorCode.UpgradeRequired:
 						const message = localize('error upgrade required while starting sync', "Preferences sync cannot be turned on because the current version ({0}, {1}) is not compatible with the sync service. Please update before turning on sync.", this.productService.version, this.productService.commit);
@@ -447,6 +459,18 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						this.notificationService.notify({
 							severity: Severity.Error,
 							message: operationId ? `${message} ${operationId}` : message,
+						});
+						return;
+					case UserDataSyncErrorCode.IncompatibleRemoteContent:
+						this.notificationService.notify({
+							severity: Severity.Error,
+							message: localize('error reset required while starting sync', "Preferences sync cannot be turned on because your data in the cloud is older than that of in the client. Please reset your data in the cloud before turning on sync."),
+							actions: {
+								primary: [
+									new Action('reset', localize('reset', "Reset Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
+									new Action('show synced data', localize('show synced data action', "Show Synced Data"), undefined, true, () => this.commandService.executeCommand(SHOW_SYNCED_DATA_COMMAND_ID))
+								]
+							}
 						});
 						return;
 				}
@@ -946,7 +970,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				that.viewsEnablementContext.set(true);
 				const viewDescriptorService = accessor.get(IViewDescriptorService);
 				const viewsService = accessor.get(IViewsService);
-				const viewContainer = viewDescriptorService.getViewContainerByViewId(viewContainerId);
+				const viewContainer = viewDescriptorService.getViewContainerById(viewContainerId);
 				if (viewContainer) {
 					const model = viewDescriptorService.getViewContainerModel(viewContainer);
 					if (model.activeViewDescriptors.length) {

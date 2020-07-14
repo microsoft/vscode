@@ -54,6 +54,7 @@ export interface IUserDataSyncWorkbenchService {
 	turnOn(): Promise<void>;
 	turnoff(everyWhere: boolean): Promise<void>;
 	signIn(): Promise<void>;
+	resetSyncedData(): Promise<void>;
 }
 
 export function getSyncAreaLabel(source: SyncResource): string {

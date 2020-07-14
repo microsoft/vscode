@@ -357,6 +357,18 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 	}
 
+	async resetSyncedData(): Promise<void> {
+		const result = await this.dialogService.confirm({
+			message: localize('reset', "This will clear your synced data from the cloud and stop sync on all your devices."),
+			title: localize('reset title', "Reset Synced Data"),
+			type: 'info',
+			primaryButton: localize('reset button', "Reset"),
+		});
+		if (result.confirmed) {
+			await this.userDataSyncService.resetRemote();
+		}
+	}
+
 	private isSupportedAuthenticationProviderId(authenticationProviderId: string): boolean {
 		return this.authenticationProviders.some(({ id }) => id === authenticationProviderId);
 	}

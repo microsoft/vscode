@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle as IResourceHandle, SyncStatus, IUserDataSyncResourceEnablementService, IUserDataAutoSyncService, Change } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle as IResourceHandle, SyncStatus, IUserDataSyncResourceEnablementService, IUserDataAutoSyncService, Change, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -33,7 +33,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { IUserDataSyncWorkbenchService, CONTEXT_SYNC_STATE, getSyncAreaLabel, CONTEXT_ACCOUNT_STATE, AccountStatus, CONTEXT_ENABLE_VIEWS, SHOW_SYNC_LOG_COMMAND_ID, CONFIGURE_SYNC_COMMAND_ID, CONTEXT_SHOW_MANUAL_SYNC_VIEW, IUserDataSyncPreview, IUserDataSyncResourceGroup } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TreeView } from 'vs/workbench/contrib/views/browser/treeView';
 import { flatten } from 'vs/base/common/arrays';
 import { isEqual, basename } from 'vs/base/common/resources';
@@ -42,7 +42,6 @@ export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
 	constructor(
 		containerId: string,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -68,20 +67,8 @@ export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
 	getSecondaryActions(): IAction[] {
 		return [
-			new Action('workbench.actions.syncData.reset', localize('workbench.actions.syncData.reset', "Reset Synced Data"), undefined, true, () => this.reset()),
+			new Action('workbench.actions.syncData.reset', localize('workbench.actions.syncData.reset', "Reset Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
 		];
-	}
-
-	private async reset(): Promise<void> {
-		const result = await this.dialogService.confirm({
-			message: localize('reset', "This will clear your synced data from the cloud and stop sync on all your devices."),
-			title: localize('reset title', "Reset Synced Data"),
-			type: 'info',
-			primaryButton: localize('reset button', "Reset"),
-		});
-		if (result.confirmed) {
-			await this.userDataSyncWorkbenchService.turnoff(true);
-		}
 	}
 
 }
@@ -626,6 +613,7 @@ abstract class UserDataSyncActivityViewDataProvider implements ITreeViewDataProv
 	constructor(
 		@IUserDataSyncService protected readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataAutoSyncService protected readonly userDataAutoSyncService: IUserDataAutoSyncService,
+		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) { }
 
@@ -639,7 +627,22 @@ abstract class UserDataSyncActivityViewDataProvider implements ITreeViewDataProv
 			}
 			return [];
 		} catch (error) {
-			this.notificationService.error(error);
+			if (!(error instanceof UserDataSyncError)) {
+				error = UserDataSyncError.toUserDataSyncError(error);
+			}
+			if (error instanceof UserDataSyncError && error.code === UserDataSyncErrorCode.IncompatibleRemoteContent) {
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: error.message,
+					actions: {
+						primary: [
+							new Action('reset', localize('reset', "Reset Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
+						]
+					}
+				});
+			} else {
+				this.notificationService.error(error);
+			}
 			throw error;
 		}
 	}
@@ -705,9 +708,10 @@ class RemoteUserDataSyncActivityViewDataProvider extends UserDataSyncActivityVie
 		@IUserDataSyncService userDataSyncService: IUserDataSyncService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
 		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
+		@IUserDataSyncWorkbenchService userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@INotificationService notificationService: INotificationService,
 	) {
-		super(userDataSyncService, userDataAutoSyncService, notificationService);
+		super(userDataSyncService, userDataAutoSyncService, userDataSyncWorkbenchService, notificationService);
 	}
 
 	async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {

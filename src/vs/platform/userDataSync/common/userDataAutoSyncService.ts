@@ -218,6 +218,26 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 			this.logService.info('Auto Sync: Turned off sync because of making too many requests to server');
 		}
 
+		// Upgrade Required or Gone
+		else if (userDataSyncError.code === UserDataSyncErrorCode.UpgradeRequired || userDataSyncError.code === UserDataSyncErrorCode.Gone) {
+			await this.turnOff(false, true /* force soft turnoff on error */,
+				true /* do not disable machine because disabling a machine makes request to server and can fail with upgrade required or gone */);
+			this.disableMachineEventually();
+			this.logService.info('Auto Sync: Turned off sync because current client is not compatible with server. Requires client upgrade.');
+		}
+
+		// Incompatible Local Content
+		else if (userDataSyncError.code === UserDataSyncErrorCode.IncompatibleLocalContent) {
+			await this.turnOff(false, true /* force soft turnoff on error */);
+			this.logService.info('Auto Sync: Turned off sync because server has {0} content with newer version than of client. Requires client upgrade.', userDataSyncError.resource);
+		}
+
+		// Incompatible Remote Content
+		else if (userDataSyncError.code === UserDataSyncErrorCode.IncompatibleRemoteContent) {
+			await this.turnOff(false, true /* force soft turnoff on error */);
+			this.logService.info('Auto Sync: Turned off sync because server has {0} content with older version than of client. Requires server reset.', userDataSyncError.resource);
+		}
+
 		else {
 			this.logService.error(userDataSyncError);
 			this.successiveFailures++;
