@@ -5,7 +5,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, RemoteSourceProvider, CredentialsProvider, BranchQuery } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, RemoteSourceProvider, CredentialsProvider, BranchQuery, PushErrorHandler } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
 import { mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -271,6 +271,10 @@ export class ApiImpl implements API {
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
 		return this._model.registerCredentialsProvider(provider);
+	}
+
+	registerPushErrorHandler(handler: PushErrorHandler): Disposable {
+		return this._model.registerPushErrorHandler(handler);
 	}
 
 	constructor(private _model: Model) { }
