@@ -345,6 +345,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		/* Merge to sync globalState changes */
 		await task.merge();
 
+		this.userDataSyncPreview.unsetManualSyncPreview();
+
 		this.manualSyncViewEnablementContext.set(false);
 		if (visibleViewContainer) {
 			this.viewsService.openViewContainer(visibleViewContainer.id);
@@ -558,19 +560,17 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 
+	private _changes: ReadonlyArray<IUserDataSyncResourceGroup> = [];
+	get changes() { return Object.freeze(this._changes); }
 	private _onDidChangeChanges = this._register(new Emitter<ReadonlyArray<IUserDataSyncResourceGroup>>());
 	readonly onDidChangeChanges = this._onDidChangeChanges.event;
 
+	private _conflicts: ReadonlyArray<IUserDataSyncResourceGroup> = [];
+	get conflicts() { return Object.freeze(this._conflicts); }
 	private _onDidChangeConflicts = this._register(new Emitter<ReadonlyArray<IUserDataSyncResourceGroup>>());
 	readonly onDidChangeConflicts = this._onDidChangeConflicts.event;
 
-	private _changes: ReadonlyArray<IUserDataSyncResourceGroup> = [];
-	get changes() { return Object.freeze(this._changes); }
-
-	private _conflicts: ReadonlyArray<IUserDataSyncResourceGroup> = [];
-	get conflicts() { return Object.freeze(this._conflicts); }
-
-	private manualSync: { preview: [SyncResource, ISyncResourcePreview][], task: IManualSyncTask } | undefined;
+	private manualSync: { preview: [SyncResource, ISyncResourcePreview][], task: IManualSyncTask, disposables: DisposableStore } | undefined;
 
 	constructor(
 		private readonly userDataSyncService: IUserDataSyncService
@@ -581,7 +581,16 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 	}
 
 	setManualSyncPreview(task: IManualSyncTask, preview: [SyncResource, ISyncResourcePreview][]): void {
-		this.manualSync = { task, preview };
+		const disposables = new DisposableStore();
+		this.manualSync = { task, preview, disposables };
+		this.updateChanges();
+	}
+
+	unsetManualSyncPreview(): void {
+		if (this.manualSync) {
+			this.manualSync.disposables.dispose();
+			this.manualSync = undefined;
+		}
 		this.updateChanges();
 	}
 

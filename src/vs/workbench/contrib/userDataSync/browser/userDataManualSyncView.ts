@@ -22,6 +22,7 @@ import { IUserDataSyncWorkbenchService, getSyncAreaLabel, CONTEXT_ENABLE_MANUAL_
 import { TreeView } from 'vs/workbench/contrib/views/browser/treeView';
 import { isEqual, basename } from 'vs/base/common/resources';
 import { IDecorationsProvider, IDecorationData, IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 const viewName = localize('manual sync', "Sync Manually");
 
@@ -33,6 +34,9 @@ export class UserDataManualSyncView extends Disposable {
 	constructor(
 		container: ViewContainer,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IProgressService private readonly progressService: IProgressService,
+		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncWorkbenchService userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IDecorationsService decorationsService: IDecorationsService,
 	) {
@@ -83,6 +87,7 @@ export class UserDataManualSyncView extends Disposable {
 		const localActionOrder = 1;
 		const remoteActionOrder = 1;
 		const mergeActionOrder = 1;
+		const that = this;
 
 		/* accept all local */
 		registerAction2(class extends Action2 {
@@ -99,9 +104,8 @@ export class UserDataManualSyncView extends Disposable {
 					},
 				});
 			}
-			async run(accessor: ServicesAccessor): Promise<void> {
-				const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
-				await userDataSyncWorkbenchService.userDataSyncPreview.push();
+			run(accessor: ServicesAccessor): Promise<void> {
+				return that.push();
 			}
 		});
 
@@ -121,8 +125,7 @@ export class UserDataManualSyncView extends Disposable {
 				});
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
-				const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
-				await userDataSyncWorkbenchService.userDataSyncPreview.pull();
+				return that.pull();
 			}
 		});
 
@@ -142,8 +145,7 @@ export class UserDataManualSyncView extends Disposable {
 				});
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
-				const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
-				await userDataSyncWorkbenchService.userDataSyncPreview.merge();
+				return that.merge();
 			}
 		});
 
@@ -163,13 +165,7 @@ export class UserDataManualSyncView extends Disposable {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
-				const userDataSyncService = accessor.get(IUserDataSyncService);
-				const previewResource: IUserDataSyncResourceGroup = ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle);
-				const isConflict = userDataSyncWorkbenchService.userDataSyncPreview.conflicts.some(({ local }) => isEqual(local, previewResource.local));
-				const localResource = isConflict ? previewResource.preview : previewResource.local;
-				const content = await userDataSyncService.resolveContent(localResource);
-				await userDataSyncWorkbenchService.userDataSyncPreview.accept(previewResource.syncResource, localResource, content || '');
+				return that.acceptLocal(ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle));
 			}
 		});
 
@@ -189,11 +185,7 @@ export class UserDataManualSyncView extends Disposable {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
-				const userDataSyncService = accessor.get(IUserDataSyncService);
-				const previewResource: IUserDataSyncResourceGroup = ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle);
-				const content = await userDataSyncService.resolveContent(previewResource.remote);
-				await userDataSyncWorkbenchService.userDataSyncPreview.accept(previewResource.syncResource, previewResource.remote, content || '');
+				return that.acceptRemote(ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle));
 			}
 		});
 
@@ -213,9 +205,7 @@ export class UserDataManualSyncView extends Disposable {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
-				const previewResource: IUserDataSyncResourceGroup = ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle);
-				await userDataSyncWorkbenchService.userDataSyncPreview.merge(previewResource.preview);
+				return that.mergeResource(ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle));
 			}
 		});
 
@@ -234,12 +224,7 @@ export class UserDataManualSyncView extends Disposable {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
-				const userDataSyncService = accessor.get(IUserDataSyncService);
-				const previewResource: IUserDataSyncResourceGroup = ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle);
-				const resource = previewResource.remoteChange === Change.Deleted || previewResource.localChange === Change.Added ? previewResource.local : previewResource.remote;
-				const content = await userDataSyncService.resolveContent(resource);
-				await userDataSyncWorkbenchService.userDataSyncPreview.accept(previewResource.syncResource, resource, content || '');
+				return that.deleteResource(ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle));
 			}
 		});
 
@@ -258,12 +243,7 @@ export class UserDataManualSyncView extends Disposable {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
-				const userDataSyncService = accessor.get(IUserDataSyncService);
-				const previewResource: IUserDataSyncResourceGroup = ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle);
-				const resource = previewResource.remoteChange === Change.Added || previewResource.localChange === Change.Deleted ? previewResource.local : previewResource.remote;
-				const content = await userDataSyncService.resolveContent(resource);
-				await userDataSyncWorkbenchService.userDataSyncPreview.accept(previewResource.syncResource, resource, content || '');
+				return that.addResource(ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle));
 			}
 		});
 
@@ -275,29 +255,83 @@ export class UserDataManualSyncView extends Disposable {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const editorService = accessor.get(IEditorService);
-				const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
 				const previewResource: IUserDataSyncResourceGroup = ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle);
-				const isConflict = userDataSyncWorkbenchService.userDataSyncPreview.conflicts.some(({ local }) => isEqual(local, previewResource.local));
-				if (previewResource.localChange === Change.Added || previewResource.remoteChange === Change.Deleted) {
-					await editorService.openEditor({ resource: URI.revive(previewResource.remote), label: localize({ key: 'resourceLabel', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(previewResource.remote)) });
-				} else {
-					const leftResource = URI.revive(previewResource.remote);
-					const rightResource = isConflict ? URI.revive(previewResource.preview) : URI.revive(previewResource.local);
-					const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(leftResource));
-					const rightResourceName = localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
-					await editorService.openEditor({
-						leftResource,
-						rightResource,
-						label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
-						options: {
-							preserveFocus: true,
-							revealIfVisible: true,
-						},
-					});
-				}
+				return that.showChanges(previewResource);
 			}
 		});
+	}
+
+	private async push(): Promise<void> {
+		return this.withProgress(() => this.userDataSyncPreview.push());
+	}
+
+	private async pull(): Promise<void> {
+		return this.withProgress(() => this.userDataSyncPreview.pull());
+	}
+
+	private async merge(): Promise<void> {
+		return this.withProgress(() => this.userDataSyncPreview.merge());
+	}
+
+	private async acceptLocal(previewResource: IUserDataSyncResourceGroup): Promise<void> {
+		const isConflict = this.userDataSyncPreview.conflicts.some(({ local }) => isEqual(local, previewResource.local));
+		const localResource = isConflict ? previewResource.preview : previewResource.local;
+		return this.withProgress(async () => {
+			const content = await this.userDataSyncService.resolveContent(localResource);
+			await this.userDataSyncPreview.accept(previewResource.syncResource, localResource, content || '');
+		});
+	}
+
+	private async acceptRemote(previewResource: IUserDataSyncResourceGroup): Promise<void> {
+		return this.withProgress(async () => {
+			const content = await this.userDataSyncService.resolveContent(previewResource.remote);
+			await this.userDataSyncPreview.accept(previewResource.syncResource, previewResource.remote, content || '');
+		});
+	}
+
+	private async mergeResource(previewResource: IUserDataSyncResourceGroup): Promise<void> {
+		return this.withProgress(() => this.userDataSyncPreview.merge(previewResource.preview));
+	}
+
+	private async deleteResource(previewResource: IUserDataSyncResourceGroup): Promise<void> {
+		const resource = previewResource.remoteChange === Change.Deleted || previewResource.localChange === Change.Added ? previewResource.local : previewResource.remote;
+		return this.withProgress(async () => {
+			const content = await this.userDataSyncService.resolveContent(resource);
+			await this.userDataSyncPreview.accept(previewResource.syncResource, resource, content || '');
+		});
+	}
+
+	private async addResource(previewResource: IUserDataSyncResourceGroup): Promise<void> {
+		const resource = previewResource.remoteChange === Change.Added || previewResource.localChange === Change.Deleted ? previewResource.local : previewResource.remote;
+		return this.withProgress(async () => {
+			const content = await this.userDataSyncService.resolveContent(resource);
+			await this.userDataSyncPreview.accept(previewResource.syncResource, resource, content || '');
+		});
+	}
+
+	private async showChanges(previewResource: IUserDataSyncResourceGroup): Promise<void> {
+		const isConflict = this.userDataSyncPreview.conflicts.some(({ local }) => isEqual(local, previewResource.local));
+		if (previewResource.localChange === Change.Added || previewResource.remoteChange === Change.Deleted) {
+			await this.editorService.openEditor({ resource: URI.revive(previewResource.remote), label: localize({ key: 'resourceLabel', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(previewResource.remote)) });
+		} else {
+			const leftResource = URI.revive(previewResource.remote);
+			const rightResource = isConflict ? URI.revive(previewResource.preview) : URI.revive(previewResource.local);
+			const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(leftResource));
+			const rightResourceName = localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
+			await this.editorService.openEditor({
+				leftResource,
+				rightResource,
+				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
+				options: {
+					preserveFocus: true,
+					revealIfVisible: true,
+				},
+			});
+		}
+	}
+
+	private withProgress(task: () => Promise<void>): Promise<void> {
+		return this.progressService.withProgress({ location: MANUAL_SYNC_VIEW_ID, delay: 500 }, task);
 	}
 
 }
@@ -344,27 +378,31 @@ class ManualSyncViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	private getChanges(): ITreeItem[] {
-		return this.userDataSyncPreview.changes.map(change => ({
-			handle: JSON.stringify(change),
-			resourceUri: change.remote,
-			themeIcon: FileThemeIcon,
-			description: getSyncAreaLabel(change.syncResource),
-			contextValue: `sync-resource-${change.localChange === Change.Added ? 'add-local' : change.localChange === Change.Deleted ? 'delete-local' : change.remoteChange === Change.Added ? 'add-remote' : change.remoteChange === Change.Deleted ? 'delete-remote' : 'modified'}-change`,
-			collapsibleState: TreeItemCollapsibleState.None,
-			command: { id: `workbench.actions.sync.showChanges`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: JSON.stringify(change) }] },
-		}));
+		return this.userDataSyncPreview.changes.map(change => {
+			return {
+				handle: JSON.stringify(change),
+				resourceUri: change.remote,
+				themeIcon: FileThemeIcon,
+				description: getSyncAreaLabel(change.syncResource),
+				contextValue: `sync-resource-${change.localChange === Change.Added ? 'add-local' : change.localChange === Change.Deleted ? 'delete-local' : change.remoteChange === Change.Added ? 'add-remote' : change.remoteChange === Change.Deleted ? 'delete-remote' : 'modified'}-change`,
+				collapsibleState: TreeItemCollapsibleState.None,
+				command: { id: `workbench.actions.sync.showChanges`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: JSON.stringify(change) }] },
+			};
+		});
 	}
 
 	private getConflicts(): ITreeItem[] {
-		return this.userDataSyncPreview.conflicts.map(conflict => ({
-			handle: JSON.stringify(conflict),
-			resourceUri: conflict.remote,
-			themeIcon: FileThemeIcon,
-			description: getSyncAreaLabel(conflict.syncResource),
-			contextValue: `sync-resource-modified-conflict`,
-			collapsibleState: TreeItemCollapsibleState.None,
-			command: { id: `workbench.actions.sync.showChanges`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: JSON.stringify(conflict) }] },
-		}));
+		return this.userDataSyncPreview.conflicts.map(conflict => {
+			return {
+				handle: JSON.stringify(conflict),
+				resourceUri: conflict.remote,
+				themeIcon: FileThemeIcon,
+				description: getSyncAreaLabel(conflict.syncResource),
+				contextValue: `sync-resource-modified-conflict`,
+				collapsibleState: TreeItemCollapsibleState.None,
+				command: { id: `workbench.actions.sync.showChanges`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: JSON.stringify(conflict) }] },
+			};
+		});
 	}
 
 	static toUserDataSyncResourceGroup(handle: string): IUserDataSyncResourceGroup {
