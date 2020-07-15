@@ -38,10 +38,12 @@ interface IExternalUriResolver {
 }
 
 interface ITunnelProvider {
+
 	/**
 	 * Support for creating tunnels.
 	 */
 	tunnelFactory?: ITunnelFactory;
+
 	/**
 	 * Support for filtering candidate ports
 	 */
@@ -169,12 +171,21 @@ interface IDefaultEditor {
 }
 
 interface IDefaultLayout {
-	/** @deprecated Use views instead */
+	/** @deprecated Use views instead (TODO@eamodio remove eventually) */
 	readonly sidebar?: IDefaultSideBarLayout;
-	/** @deprecated Use views instead */
+	/** @deprecated Use views instead (TODO@eamodio remove eventually) */
 	readonly panel?: IDefaultPanelLayout;
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
+}
+
+interface IProductQualityChangeHandler {
+
+	/**
+	 * Handler is being called when the user wants to switch between
+	 * `insider` or `stable` product qualities.
+	 */
+	(newQuality: 'insider' | 'stable'): void;
 }
 
 interface IWorkbenchConstructionOptions {
@@ -266,11 +277,6 @@ interface IWorkbenchConstructionOptions {
 	readonly urlCallbackProvider?: IURLCallbackProvider;
 
 	/**
-	 * Support for update reporting.
-	 */
-	readonly updateProvider?: IUpdateProvider;
-
-	/**
 	 * Support adding additional properties to telemetry.
 	 */
 	readonly resolveCommonTelemetryProperties?: ICommonTelemetryPropertiesResolver;
@@ -287,6 +293,21 @@ interface IWorkbenchConstructionOptions {
 	 * Optional default layout to apply on first time the workspace is opened.
 	 */
 	readonly defaultLayout?: IDefaultLayout;
+
+	//#endregion
+
+
+	//#region Update/Quality related
+
+	/**
+	 * Support for update reporting
+	 */
+	readonly updateProvider?: IUpdateProvider;
+
+	/**
+	 * Support for product quality switching
+	 */
+	readonly productQualityChangeHandler?: IProductQualityChangeHandler;
 
 	//#endregion
 
@@ -426,9 +447,10 @@ export {
 	// LogLevel
 	LogLevel,
 
-	// Updates
+	// Updates/Quality
 	IUpdateProvider,
 	IUpdate,
+	IProductQualityChangeHandler,
 
 	// Telemetry
 	ICommonTelemetryPropertiesResolver,
