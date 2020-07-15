@@ -122,9 +122,6 @@
 
 .debug-pane .debug-call-stack .thread > .state,
 .debug-pane .debug-call-stack .session > .state {
-	display: flex;
-	align-items: center;
-	text-align: right;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	padding: 0 10px;
