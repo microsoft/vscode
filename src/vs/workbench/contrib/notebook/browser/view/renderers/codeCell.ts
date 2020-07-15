@@ -24,9 +24,14 @@ interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
 }
 
+interface IRenderedOutput {
+	element: HTMLElement;
+	renderResult: IRenderOutput;
+}
+
 export class CodeCell extends Disposable {
 	private outputResizeListeners = new Map<IProcessedOutput, DisposableStore>();
-	private outputElements = new Map<IProcessedOutput, HTMLElement>();
+	private outputElements = new Map<IProcessedOutput, IRenderedOutput>();
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: CodeCellViewModel,
@@ -162,7 +167,7 @@ export class CodeCell extends Disposable {
 					// already removed
 					removedKeys.push(key);
 					// remove element from DOM
-					this.templateData?.outputContainer?.removeChild(value);
+					this.templateData?.outputContainer?.removeChild(value.element);
 					this.notebookEditor.removeInset(key);
 				}
 			});
@@ -179,14 +184,14 @@ export class CodeCell extends Disposable {
 			[...this.viewCell.outputs].reverse().forEach(output => {
 				if (this.outputElements.has(output)) {
 					// already exist
-					prevElement = this.outputElements.get(output);
+					prevElement = this.outputElements.get(output)!.element;
 					return;
 				}
 
 				// newly added element
 				let currIndex = this.viewCell.outputs.indexOf(output);
 				this.renderOutput(output, currIndex, prevElement);
-				prevElement = this.outputElements.get(output);
+				prevElement = this.outputElements.get(output)!.element;
 			});
 
 			let editorHeight = templateData.editor!.getContentHeight();
@@ -205,7 +210,7 @@ export class CodeCell extends Disposable {
 				const index = viewCell.outputs.indexOf(key);
 				if (index >= 0) {
 					const top = this.viewCell.getOutputOffsetInContainer(index);
-					value.style.top = `${top}px`;
+					value.element.style.top = `${top}px`;
 				}
 			});
 
@@ -302,6 +307,13 @@ export class CodeCell extends Disposable {
 				height: realContentHeight
 			}
 		);
+
+    this.viewCell.outputs.forEach((o, i) => {
+			const renderedOutput = this.outputElements.get(o);
+			if (renderedOutput && !renderedOutput.renderResult.hasDynamicHeight && !renderedOutput.renderResult.shadowContent) {
+				this.viewCell.updateOutputHeight(i, renderedOutput.element.clientHeight);
+			}
+		});
 	}
 
 	private onCellHeightChange(newHeight: number): void {
@@ -376,7 +388,7 @@ export class CodeCell extends Disposable {
 			return;
 		}
 
-		this.outputElements.set(currOutput, outputItemDiv);
+		this.outputElements.set(currOutput, { element: outputItemDiv, renderResult: result });
 
 		if (beforeElement) {
 			this.templateData.outputContainer?.insertBefore(outputItemDiv, beforeElement);
@@ -483,9 +495,9 @@ export class CodeCell extends Disposable {
 		if (pick !== currIndex) {
 			// user chooses another mimetype
 			let index = this.viewCell.outputs.indexOf(output);
-			let nextElement = index + 1 < this.viewCell.outputs.length ? this.outputElements.get(this.viewCell.outputs[index + 1]) : undefined;
+			let nextElement = index + 1 < this.viewCell.outputs.length ? this.outputElements.get(this.viewCell.outputs[index + 1])?.element : undefined;
 			this.outputResizeListeners.get(output)?.clear();
-			let element = this.outputElements.get(output);
+			let element = this.outputElements.get(output)?.element;
 			if (element) {
 				this.templateData?.outputContainer?.removeChild(element);
 				this.notebookEditor.removeInset(output);
