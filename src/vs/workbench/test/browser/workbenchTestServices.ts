@@ -291,7 +291,7 @@ export class TestBrowserTextFileServiceWithEncodingOverrides extends BrowserText
 	}
 }
 
-class TestEncodingOracle extends EncodingOracle {
+export class TestEncodingOracle extends EncodingOracle {
 
 	protected get encodingOverrides(): IEncodingOverride[] {
 		return [
