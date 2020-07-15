@@ -33,7 +33,7 @@ const args = minimist(process.argv, {
 		'host',
 		'port',
 		'local_port',
-		'extensions-dir'
+		'extension'
 	],
 });
 
