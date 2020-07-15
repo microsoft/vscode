@@ -25,7 +25,6 @@ const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench'
 
 const args = minimist(process.argv, {
 	boolean: [
-		'watch',
 		'no-launch',
 		'help'
 	],
@@ -33,19 +32,20 @@ const args = minimist(process.argv, {
 		'scheme',
 		'host',
 		'port',
-		'local_port'
+		'local_port',
+		'extensions-dir'
 	],
 });
 
 if (args.help) {
 	console.log(
 		'yarn web [options]\n' +
-		' --watch       Watch extensions that require browser specific builds\n' +
-		' --no-launch   Do not open VSCode web in the browser\n' +
-		' --scheme      Protocol (https or http)\n' +
-		' --host        Remote host\n' +
-		' --port        Remote/Local port\n' +
-		' --local_port  Local port override\n' +
+		' --no-launch      Do not open VSCode web in the browser\n' +
+		' --scheme         Protocol (https or http)\n' +
+		' --host           Remote host\n' +
+		' --port           Remote/Local port\n' +
+		' --local_port     Local port override\n' +
+		' --extension      Path of an extension to include\n' +
 		' --help\n' +
 		'[Example]\n' +
 		' yarn web --scheme https --host example.com --port 8080 --local_port 30000'
@@ -61,76 +61,114 @@ const AUTHORITY = process.env.VSCODE_AUTHORITY || `${HOST}:${PORT}`;
 
 const exists = (path) => util.promisify(fs.exists)(path);
 const readFile = (path) => util.promisify(fs.readFile)(path);
+const readdir = (path) => util.promisify(fs.readdir)(path);
+const readdirWithFileTypes = (path) => util.promisify(fs.readdir)(path, { withFileTypes: true });
 
-let unbuiltExensions = [];
-
-async function initialize() {
+async function getBuiltInExtensionInfos(extensionsRoot) {
 	const builtinExtensions = [];
-
-	const children = await util.promisify(fs.readdir)(EXTENSIONS_ROOT, { withFileTypes: true });
-	const folders = children.filter(c => !c.isFile());
-	await Promise.all(folders.map(async folder => {
-		const folderName = folder.name;
-		const extensionPath = path.join(EXTENSIONS_ROOT, folderName);
-
-		let children = [];
-		try {
-			children = await util.promisify(fs.readdir)(extensionPath);
-		} catch (error) {
-			console.log(error);
-			return;
-		}
-
-		const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-		const readmePath = readme ? path.join(extensionPath, readme) : undefined;
-		const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
-		const changelogPath = changelog ? path.join(extensionPath, changelog) : undefined;
-
-		const packageJSONPath = path.join(EXTENSIONS_ROOT, folderName, 'package.json');
-		if (await exists(packageJSONPath)) {
-			try {
-				let packageJSON = JSON.parse((await readFile(packageJSONPath)).toString());
-				if (packageJSON.main && !packageJSON.browser) {
-					return; // unsupported
-				}
-
-				if (packageJSON.browser) {
-					packageJSON.main = packageJSON.browser;
-
-					let mainFilePath = path.join(EXTENSIONS_ROOT, folderName, packageJSON.browser);
-					if (path.extname(mainFilePath) !== '.js') {
-						mainFilePath += '.js';
-					}
-					if (!await exists(mainFilePath)) {
-						unbuiltExensions.push(path.relative(EXTENSIONS_ROOT, mainFilePath));
-					}
-				}
-				packageJSON.extensionKind = ['web']; // enable for Web
-
-				const packageNLSPath = path.join(folderName, 'package.nls.json');
-				const packageNLSExists = await exists(path.join(EXTENSIONS_ROOT, packageNLSPath));
-				if (packageNLSExists) {
-					packageJSON = extensions.translatePackageJSON(packageJSON, path.join(EXTENSIONS_ROOT, packageNLSPath)); // temporary, until fixed in core
-				}
-				builtinExtensions.push({
-					extensionPath: folderName,
-					packageJSON,
-					packageNLSPath: packageNLSExists ? packageNLSPath : undefined,
-					readmePath,
-					changelogPath
-				});
-			} catch (e) {
-				console.log(e);
+	const children = await readdirWithFileTypes(extensionsRoot);
+	await Promise.all(children.map(async child => {
+		if (child.isDirectory()) {
+			const info = await getBuiltInExtensionInfo(path.join(extensionsRoot, child.name));
+			if (info) {
+				builtinExtensions.push(info);
 			}
 		}
 	}));
-	if (unbuiltExensions.length) {
-		fancyLog(`${ansiColors.yellow('Warning')}: Make sure to run ${ansiColors.cyan('yarn gulp watch-web')}\nCould not find the following browser main files: \n${unbuiltExensions.join('\n')}`);
-	}
 	return builtinExtensions;
 }
 
-const builtinExtensionsPromise = initialize();
+async function getBuiltInExtensionInfo(extensionPath) {
+	const packageJSON = await getExtensionPackageJSON(extensionPath);
+	if (!packageJSON) {
+		return undefined;
+	}
+	const builtInExtensionPath = path.basename(extensionPath);
+
+	let children = [];
+	try {
+		children = await readdir(extensionPath);
+	} catch (error) {
+		console.log(`Can not read extension folder ${extensionPath}: ${error}`);
+		return;
+	}
+	const readme = children.find(child => /^readme(\.txt|\.md|)$/i.test(child));
+	const changelog = children.find(child => /^changelog(\.txt|\.md|)$/i.test(child));
+	const packageJSONNLS = children.find(child => /^package.nls.json$/i.test(child));
+	return {
+		extensionPath: builtInExtensionPath,
+		packageJSON,
+		packageNLSPath: packageJSONNLS ? `${builtInExtensionPath}/${packageJSONNLS}` : undefined,
+		readmePath: readme ? `${builtInExtensionPath}/${readme}` : undefined,
+		changelogPath: changelog ? `${builtInExtensionPath}/${changelog}` : undefined
+	};
+}
+
+async function getDefaultExtensionInfos() {
+	const extensions = [];
+	const locations = {};
+
+	let extensionArg = args['extension'];
+	if (!extensionArg) {
+		return { extensions, locations }
+	}
+
+	const extensionPaths = Array.isArray(extensionArg) ? extensionArg : [extensionArg];
+	await Promise.all(extensionPaths.map(async extensionPath => {
+		extensionPath = path.resolve(process.cwd(), extensionPath);
+		const packageJSON = await getExtensionPackageJSON(extensionPath);
+		if (packageJSON) {
+			const extensionId = `${packageJSON.publisher}.${packageJSON.name}`;
+			extensions.push({
+				packageJSON,
+				extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/extension/${extensionId}` }
+			});
+			locations[extensionId] = extensionPath;
+		}
+	}));
+	return { extensions, locations };
+}
+
+async function getExtensionPackageJSON(extensionPath) {
+
+	const packageJSONPath = path.join(extensionPath, 'package.json');
+	if (await exists(packageJSONPath)) {
+		try {
+			let packageJSON = JSON.parse((await readFile(packageJSONPath)).toString());
+			if (packageJSON.main && !packageJSON.browser) {
+				return; // unsupported
+			}
+
+			if (packageJSON.browser) {
+				packageJSON.main = packageJSON.browser;
+
+				let mainFilePath = path.join(extensionPath, packageJSON.browser);
+				if (path.extname(mainFilePath) !== '.js') {
+					mainFilePath += '.js';
+				}
+				if (!await exists(mainFilePath)) {
+					fancyLog(`${ansiColors.yellow('Warning')}: Could not find ${mainFilePath}. Use ${ansiColors.cyan('yarn gulp watch-web')} to build the built-in extensions.`);
+				}
+			}
+			packageJSON.extensionKind = ['web']; // enable for Web
+
+			const packageNLSPath = path.join(extensionPath, 'package.nls.json');
+			const packageNLSExists = await exists(packageNLSPath);
+			if (packageNLSExists) {
+				packageJSON = extensions.translatePackageJSON(packageJSON, packageNLSPath); // temporary, until fixed in core
+			}
+
+			return packageJSON;
+		} catch (e) {
+			console.log(e);
+		}
+	}
+	return undefined;
+}
+
+
+const builtinExtensionsPromise = getBuiltInExtensionInfos(EXTENSIONS_ROOT);
+const defaultExtensionsPromise = getDefaultExtensionInfos();
 
 const mapCallbackUriToRequestId = new Map();
 
@@ -158,9 +196,13 @@ const server = http.createServer((req, res) => {
 			// static requests
 			return handleStatic(req, res, parsedUrl);
 		}
-		if (/^\/static-extension\//.test(pathname)) {
-			// static extension requests
-			return handleStaticExtension(req, res, parsedUrl);
+		if (/^\/extension\//.test(pathname)) {
+			// default extension requests
+			return handleExtension(req, res, parsedUrl);
+		}
+		if (/^\/builtin-extension\//.test(pathname)) {
+			// builtin extension requests
+			return handleBuiltinExtension(req, res, parsedUrl);
 		}
 		if (pathname === '/') {
 			// main web
@@ -211,13 +253,34 @@ function handleStatic(req, res, parsedUrl) {
  * @param {import('http').ServerResponse} res
  * @param {import('url').UrlWithParsedQuery} parsedUrl
  */
-function handleStaticExtension(req, res, parsedUrl) {
+async function handleExtension(req, res, parsedUrl) {
+	// Strip `/extension/` from the path
+	const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/extension/'.length));
+	const firstSlash = relativePath.indexOf('/');
+	if (firstSlash === -1) {
+		return serveError(req, res, 400, `Bad request.`);
+	}
+	const extensionId = relativePath.substr(0, firstSlash);
+	const { locations } = await defaultExtensionsPromise;
 
-	// Strip `/static-extension/` from the path
-	const relativeFilePath = path.normalize(decodeURIComponent(parsedUrl.pathname.substr('/static-extension/'.length)));
+	const extensionPath = locations[extensionId];
+	if (!extensionPath) {
+		return serveError(req, res, 400, `Bad request.`);
+	}
 
-	const filePath = path.join(EXTENSIONS_ROOT, relativeFilePath);
+	const filePath = path.join(extensionPath, relativePath.substr(firstSlash + 1));
+	return serveFile(req, res, filePath);
+}
 
+/**
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ * @param {import('url').UrlWithParsedQuery} parsedUrl
+ */
+async function handleBuiltinExtension(req, res, parsedUrl) {
+	// Strip `/builtin-extension/` from the path
+	const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/builtin-extension/'.length));
+	const filePath = path.join(EXTENSIONS_ROOT, relativePath);
 	return serveFile(req, res, filePath);
 }
 
@@ -254,13 +317,15 @@ async function handleRoot(req, res) {
 	}
 
 	const builtinExtensions = await builtinExtensionsPromise;
+	const { extensions } = await defaultExtensionsPromise;
 
 	const webConfigJSON = escapeAttribute(JSON.stringify({
 		folderUri: folderUri,
-		builtinExtensionsServiceUrl: `${SCHEME}://${AUTHORITY}/static-extension`
+		staticExtensions: extensions,
+		builtinExtensionsServiceUrl: `${SCHEME}://${AUTHORITY}/builtin-extension`
 	}));
 
-	const data = (await util.promisify(fs.readFile)(WEB_MAIN)).toString()
+	const data = (await readFile(WEB_MAIN)).toString()
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => webConfigJSON) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
 		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(builtinExtensions)))
 		.replace('{{WEBVIEW_ENDPOINT}}', '')
@@ -422,10 +487,6 @@ async function serveFile(req, res, filePath, responseHeaders = Object.create(nul
 
 		// Sanity checks
 		filePath = path.normalize(filePath); // ensure no "." and ".."
-		if (filePath.indexOf(`${APP_ROOT}${path.sep}`) !== 0) {
-			// invalid location outside of APP_ROOT
-			return serveError(req, res, 400, `Bad request.`);
-		}
 
 		const stat = await util.promisify(fs.stat)(filePath);
 
