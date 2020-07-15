@@ -450,7 +450,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 		newCell.model.language = language;
 	}
 
-	await notebookEditor.focusNotebookCell(newCell, cell.editState === CellEditState.Editing ? 'editor' : 'container');
+	notebookEditor.focusNotebookCell(newCell, cell.editState === CellEditState.Editing ? 'editor' : 'container');
 	notebookEditor.deleteNotebookCell(cell);
 
 	return newCell;
@@ -475,7 +475,7 @@ abstract class InsertCellCommand extends NotebookAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const newCell = context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, context.ui);
 		if (newCell) {
-			await context.notebookEditor.focusNotebookCell(newCell, 'editor');
+			context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
 	}
 }
@@ -656,12 +656,12 @@ registerAction2(class extends NotebookAction {
 			// deletion succeeds, move focus to the next cell
 			const nextCellIdx = index < context.notebookEditor.viewModel!.length ? index : context.notebookEditor.viewModel!.length - 1;
 			if (nextCellIdx >= 0) {
-				await context.notebookEditor.focusNotebookCell(context.notebookEditor.viewModel!.viewCells[nextCellIdx], 'container');
+				context.notebookEditor.focusNotebookCell(context.notebookEditor.viewModel!.viewCells[nextCellIdx], 'container');
 			} else {
 				// No cells left, insert a new empty one
 				const newCell = context.notebookEditor.insertNotebookCell(undefined, context.cell.cellKind);
 				if (newCell) {
-					await context.notebookEditor.focusNotebookCell(newCell, 'editor');
+					context.notebookEditor.focusNotebookCell(newCell, 'editor');
 				}
 			}
 		}
@@ -675,7 +675,7 @@ async function moveCell(context: INotebookCellActionContext, direction: 'up' | '
 
 	if (result) {
 		// move cell command only works when the cell container has focus
-		await context.notebookEditor.focusNotebookCell(result, 'container');
+		context.notebookEditor.focusNotebookCell(result, 'container');
 	}
 }
 
@@ -684,7 +684,7 @@ async function copyCell(context: INotebookCellActionContext, direction: 'up' | '
 	const newCellDirection = direction === 'up' ? 'above' : 'below';
 	const newCell = context.notebookEditor.insertNotebookCell(context.cell, context.cell.cellKind, newCellDirection, text);
 	if (newCell) {
-		await context.notebookEditor.focusNotebookCell(newCell, 'container');
+		context.notebookEditor.focusNotebookCell(newCell, 'container');
 	}
 }
 
@@ -1057,7 +1057,7 @@ registerAction2(class extends NotebookAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
-		await editor.focusNotebookCell(activeCell, 'editor');
+		editor.focusNotebookCell(activeCell, 'editor');
 	}
 });
 
@@ -1119,7 +1119,7 @@ registerAction2(class extends NotebookAction {
 		}
 
 		const firstCell = editor.viewModel.viewCells[0];
-		await editor.focusNotebookCell(firstCell, 'container');
+		editor.focusNotebookCell(firstCell, 'container');
 	}
 });
 
@@ -1144,7 +1144,7 @@ registerAction2(class extends NotebookAction {
 		}
 
 		const firstCell = editor.viewModel.viewCells[editor.viewModel.length - 1];
-		await editor.focusNotebookCell(firstCell, 'container');
+		editor.focusNotebookCell(firstCell, 'container');
 	}
 });
 
@@ -1247,7 +1247,7 @@ export class ChangeCellLanguageAction extends NotebookAction {
 			if (selection.languageId === 'markdown' && context.cell?.language !== 'markdown') {
 				const newCell = await changeCellToKind(CellKind.Markdown, { cell: context.cell, notebookEditor: context.notebookEditor });
 				if (newCell) {
-					await context.notebookEditor.focusNotebookCell(newCell, 'editor');
+					context.notebookEditor.focusNotebookCell(newCell, 'editor');
 				}
 			} else if (selection.languageId !== 'markdown' && context.cell?.language === 'markdown') {
 				await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor }, selection.languageId);
@@ -1307,7 +1307,7 @@ async function splitCell(context: INotebookCellActionContext): Promise<void> {
 	if (context.cell.cellKind === CellKind.Code) {
 		const newCells = await context.notebookEditor.splitNotebookCell(context.cell);
 		if (newCells) {
-			await context.notebookEditor.focusNotebookCell(newCells[newCells.length - 1], 'editor');
+			context.notebookEditor.focusNotebookCell(newCells[newCells.length - 1], 'editor');
 		}
 	}
 }
@@ -1342,7 +1342,7 @@ registerAction2(class extends NotebookAction {
 async function joinCells(context: INotebookCellActionContext, direction: 'above' | 'below'): Promise<void> {
 	const cell = await context.notebookEditor.joinNotebookCells(context.cell, direction, CellKind.Code);
 	if (cell) {
-		await context.notebookEditor.focusNotebookCell(cell, 'editor');
+		context.notebookEditor.focusNotebookCell(cell, 'editor');
 	}
 }
 
