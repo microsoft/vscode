@@ -582,6 +582,7 @@ export interface NotebookDocumentBackupData {
 	readonly viewType: string;
 	readonly name: string;
 	readonly backupId?: string;
+	readonly mtime?: number;
 }
 
 export interface IEditor extends editorCommon.ICompositeCodeEditor {
@@ -598,4 +599,11 @@ export interface IEditor extends editorCommon.ICompositeCodeEditor {
 export enum NotebookEditorPriority {
 	default = 'default',
 	option = 'option',
+}
+
+export interface INotebookSearchOptions {
+	regex?: boolean;
+	wholeWord?: boolean;
+	caseSensitive?: boolean
+	wordSeparators?: string;
 }

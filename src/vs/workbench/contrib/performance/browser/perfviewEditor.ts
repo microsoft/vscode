@@ -12,7 +12,7 @@ import { ILifecycleService, LifecyclePhase, StartupKindToString } from 'vs/platf
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/electron-browser/timerService';
+import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/browser/timerService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import * as perf from 'vs/base/common/performance';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -179,6 +179,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		table.push(['restore editors', metrics.timers.ellapsedEditorRestore, '[renderer]', `${metrics.editorIds.length}: ${metrics.editorIds.join(', ')}`]);
 		table.push(['overall workbench load', metrics.timers.ellapsedWorkbench, '[renderer]', undefined]);
 		table.push(['workbench ready', metrics.ellapsed, '[main->renderer]', undefined]);
+		table.push(['renderer ready', metrics.timers.ellapsedRenderer, '[renderer]', undefined]);
 		table.push(['extensions registered', metrics.timers.ellapsedExtensionsReady, '[renderer]', undefined]);
 
 		md.heading(2, 'Performance Marks');
@@ -421,6 +422,5 @@ class MarkdownBuilder {
 			});
 			this.value += '|\n';
 		});
-
 	}
 }

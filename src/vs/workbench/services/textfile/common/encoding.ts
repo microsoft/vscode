@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecoderStream } from 'iconv-lite-umd';
 import { Readable, ReadableStream, newWriteableStream } from 'vs/base/common/stream';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
@@ -39,6 +38,60 @@ export interface IDecodeStreamResult {
 	detected: IDetectedEncodingResult;
 }
 
+export interface IDecoderStream {
+	write(buffer: Uint8Array): string;
+	end(): string | undefined;
+}
+
+class DecoderStream implements IDecoderStream {
+
+	/**
+	 * This stream will only load iconv-lite lazily if the encoding
+	 * is not UTF-8. This ensures that for most common cases we do
+	 * not pay the price of loading the module from disk.
+	 *
+	 * We still need to be careful when converting UTF-8 to a string
+	 * though because we read the file in chunks of Buffer and thus
+	 * need to decode it via TextDecoder helper that is available
+	 * in browser and node.js environments.
+	 */
+	static async create(encoding: string): Promise<DecoderStream> {
+		let decoder: IDecoderStream | undefined = undefined;
+		if (encoding !== UTF8) {
+			const iconv = await import('iconv-lite-umd');
+			decoder = iconv.getDecoder(toNodeEncoding(encoding));
+		} else {
+			const utf8TextDecoder = new TextDecoder();
+			decoder = {
+				write(buffer: Uint8Array): string {
+					return utf8TextDecoder.decode(buffer, {
+						// Signal to TextDecoder that potentially more data is coming
+						// and that we are calling `decode` in the end to consume any
+						// remainders
+						stream: true
+					});
+				},
+
+				end(): string | undefined {
+					return utf8TextDecoder.decode();
+				}
+			};
+		}
+
+		return new DecoderStream(decoder);
+	}
+
+	private constructor(private iconvLiteDecoder: IDecoderStream) { }
+
+	write(buffer: Uint8Array): string {
+		return this.iconvLiteDecoder.write(buffer);
+	}
+
+	end(): string | undefined {
+		return this.iconvLiteDecoder.end();
+	}
+}
+
 export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeStreamOptions): Promise<IDecodeStreamResult> {
 	const minBytesRequiredForDetection = options.minBytesRequiredForDetection ?? options.guessEncoding ? AUTO_ENCODING_GUESS_MIN_BYTES : NO_ENCODING_GUESS_MIN_BYTES;
 
@@ -48,7 +101,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 		const bufferedChunks: VSBuffer[] = [];
 		let bytesBuffered = 0;
 
-		let decoder: DecoderStream | undefined = undefined;
+		let decoder: IDecoderStream | undefined = undefined;
 
 		const createDecoder = async () => {
 			try {
@@ -63,8 +116,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 				detected.encoding = await options.overwriteEncoding(detected.encoding);
 
 				// decode and write buffered content
-				const iconv = await import('iconv-lite-umd');
-				decoder = iconv.getDecoder(toNodeEncoding(detected.encoding));
+				decoder = await DecoderStream.create(detected.encoding);
 				const decoded = decoder.write(VSBuffer.concat(bufferedChunks).buffer);
 				target.write(decoded);
 
@@ -132,7 +184,7 @@ export async function toEncodeReadable(readable: Readable<string>, encoding: str
 	const iconv = await import('iconv-lite-umd');
 	const encoder = iconv.getEncoder(toNodeEncoding(encoding), options);
 
-	let bytesRead = 0;
+	let bytesWritten = false;
 	let done = false;
 
 	return {
@@ -146,9 +198,9 @@ export async function toEncodeReadable(readable: Readable<string>, encoding: str
 				done = true;
 
 				// If we are instructed to add a BOM but we detect that no
-				// bytes have been read, we must ensure to return the BOM
+				// bytes have been written, we must ensure to return the BOM
 				// ourselves so that we comply with the contract.
-				if (bytesRead === 0 && options?.addBOM) {
+				if (!bytesWritten && options?.addBOM) {
 					switch (encoding) {
 						case UTF8:
 						case UTF8_with_bom:
@@ -162,13 +214,15 @@ export async function toEncodeReadable(readable: Readable<string>, encoding: str
 
 				const leftovers = encoder.end();
 				if (leftovers && leftovers.length > 0) {
+					bytesWritten = true;
+
 					return VSBuffer.wrap(leftovers);
 				}
 
 				return null;
 			}
 
-			bytesRead += chunk.length;
+			bytesWritten = true;
 
 			return VSBuffer.wrap(encoder.write(chunk));
 		}

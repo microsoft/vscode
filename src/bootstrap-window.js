@@ -22,8 +22,6 @@
 	}
 }(this, function () {
 	const path = require.__$__nodeRequire('path');
-	const webFrame = require.__$__nodeRequire('electron').webFrame;
-	const ipc = require.__$__nodeRequire('electron').ipcRenderer;
 	const bootstrap = globalThis.MonacoBootstrap;
 
 	/**
@@ -36,7 +34,6 @@
 		/**
 		 * // configuration: INativeWindowConfiguration
 		 * @type {{
-		 * zoomLevel?: number,
 		 * extensionDevelopmentPath?: string[],
 		 * extensionTestsPath?: string,
 		 * userEnv?: { [key: string]: string | undefined },
@@ -44,12 +41,6 @@
 		 * nodeCachedDataDir?: string
 		 * }} */
 		const configuration = JSON.parse(args['config'] || '{}') || {};
-
-		// Apply zoom level early to avoid glitches
-		const zoomLevel = configuration.zoomLevel;
-		if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-			webFrame.setZoomLevel(zoomLevel);
-		}
 
 		// Error handler
 		process.on('uncaughtException', function (error) {
@@ -96,7 +87,7 @@
 		const loaderConfig = {
 			baseUrl: `${bootstrap.uriFromPath(configuration.appRoot)}/out`,
 			'vs/nls': nlsConfig,
-			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
+			amdModulesPattern: /^vs\//,
 		};
 
 		// cached data config
@@ -159,6 +150,8 @@
 	 * @returns {() => void}
 	 */
 	function registerDeveloperKeybindings(disallowReloadKeybinding) {
+		const ipcRenderer = globals().ipcRenderer;
+
 		const extractKey = function (e) {
 			return [
 				e.ctrlKey ? 'ctrl-' : '',
@@ -177,9 +170,9 @@
 		let listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {
-				ipc.send('vscode:toggleDevTools');
+				ipcRenderer.send('vscode:toggleDevTools');
 			} else if (key === RELOAD_KB && !disallowReloadKeybinding) {
-				ipc.send('vscode:reloadWindow');
+				ipcRenderer.send('vscode:reloadWindow');
 			}
 		};
 
@@ -199,7 +192,8 @@
 	 */
 	function onUnexpectedError(error, enableDeveloperTools) {
 		if (enableDeveloperTools) {
-			ipc.send('vscode:openDevTools');
+			const ipcRenderer = globals().ipcRenderer;
+			ipcRenderer.send('vscode:openDevTools');
 		}
 
 		console.error(`[uncaught exception]: ${error}`);
@@ -209,7 +203,16 @@
 		}
 	}
 
+	/**
+	 * @return {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals')}
+	 */
+	function globals() {
+		// @ts-ignore (defined in globals.js)
+		return window.vscode;
+	}
+
 	return {
-		load
+		load,
+		globals
 	};
 }));

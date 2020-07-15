@@ -15,7 +15,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { distinct } from 'vs/base/common/arrays';
-import { values } from 'vs/base/common/map';
 
 export class ConfigBasedRecommendations extends ExtensionRecommendations {
 
@@ -60,8 +59,8 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 				}
 			}
 		}
-		this.importantTips = values(importantTips);
-		this.otherTips = values(otherTips).filter(tip => !importantTips.has(tip.extensionId));
+		this.importantTips = [...importantTips.values()];
+		this.otherTips = [...otherTips.values()].filter(tip => !importantTips.has(tip.extensionId));
 		this._recommendations = [...this.importantTips, ...this.otherTips].map(tip => this.toExtensionRecommendation(tip));
 	}
 

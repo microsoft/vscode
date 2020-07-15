@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line code-import-patterns
-import 'vs/css!vs/workbench/contrib/notebook/browser/media/notebook';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
@@ -451,10 +449,13 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		templateData.disposables.clear();
 	}
 
-	disposeElement(element: ICellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
-		if (height) {
-			templateData.elementDisposables.clear();
-		}
+	disposeElement(element: ICellViewModel, _index: number, templateData: MarkdownCellRenderTemplate): void {
+		templateData.elementDisposables.clear();
+		element.getCellDecorations().forEach(e => {
+			if (e.className) {
+				templateData.container.classList.remove(e.className);
+			}
+		});
 	}
 }
 
@@ -866,10 +867,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
 
-		const focusIndicatorTop = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
-		DOM.append(
-			DOM.append(focusIndicatorTop, $('.cell-shadow-container.cell-shadow-container-top')),
-			$('.cell-shadow.cell-shadow-top'));
+		DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
 		const toolbar = disposables.add(this.createToolbar(container));
 		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		focusIndicator.setAttribute('draggable', 'true');
@@ -918,9 +916,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		DOM.append(bottomCellContainer, $('.separator'));
 
 		const focusIndicatorBottom = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom'));
-		DOM.append(
-			DOM.append(focusIndicatorBottom, $('.cell-shadow-container.cell-shadow-container-bottom')),
-			$('.cell-shadow.cell-shadow-bottom'));
 
 		const templateData: CodeCellRenderTemplate = {
 			contextKeyService,
@@ -1048,6 +1043,17 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
+		const removedClassNames: string[] = [];
+		templateData.container.classList.forEach(className => {
+			if (/^nb\-.*$/.test(className)) {
+				removedClassNames.push(className);
+			}
+		});
+
+		removedClassNames.forEach(className => {
+			templateData.container.classList.remove(className);
+		});
+
 		this.commonRenderElement(element, index, templateData);
 
 		templateData.currentRenderedCell = element;

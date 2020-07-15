@@ -155,6 +155,13 @@ export interface IUpdatePreloadResourceMessage {
 	source: 'renderer' | 'kernel';
 }
 
+export interface IUpdateDecorationsMessage {
+	type: 'decorations';
+	cellId: string;
+	addedClassNames: string[];
+	removedClassNames: string[];
+}
+
 export interface ICustomRendererMessage {
 	__vscode_notebook_message: boolean;
 	type: 'customRendererMessage';
@@ -184,6 +191,7 @@ export type ToWebviewMessage =
 	| IShowOutputMessage
 	| IUpdatePreloadResourceMessage
 	| IFocusOutputMessage
+	| IUpdateDecorationsMessage
 	| ICustomRendererMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
@@ -259,6 +267,9 @@ export class BackLayerWebView extends Disposable {
 						padding: ${outputNodePadding}px;
 						box-sizing: border-box;
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
+					}
+					#container > div.nb-symbolHighlight > div {
+						background-color: var(--vscode-notebook-symbolHighlightBackground);
 					}
 					body {
 						padding: 0px;
@@ -683,6 +694,16 @@ ${loaderJs}
 				cellId,
 			});
 		}, 50);
+	}
+
+	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
+		this._sendMessageToWebview({
+			type: 'decorations',
+			cellId,
+			addedClassNames: added,
+			removedClassNames: removed
+		});
+
 	}
 
 	async updateKernelPreloads(extensionLocations: URI[], preloads: URI[]) {

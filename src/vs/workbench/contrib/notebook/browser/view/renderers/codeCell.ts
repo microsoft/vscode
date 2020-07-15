@@ -62,7 +62,7 @@ export class CodeCell extends Disposable {
 			if (model && templateData.editor) {
 				templateData.editor.setModel(model);
 				viewCell.attachTextEditor(templateData.editor);
-				if (notebookEditor.getActiveCell() === viewCell && viewCell.focusMode === CellFocusMode.Editor) {
+				if (notebookEditor.getActiveCell() === viewCell && viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasFocus()) {
 					templateData.editor?.focus();
 				}
 
@@ -71,7 +71,7 @@ export class CodeCell extends Disposable {
 					this.onCellHeightChange(realContentHeight);
 				}
 
-				if (this.notebookEditor.getActiveCell() === this.viewCell && viewCell.focusMode === CellFocusMode.Editor) {
+				if (this.notebookEditor.getActiveCell() === this.viewCell && viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasFocus()) {
 					templateData.editor?.focus();
 				}
 			}
@@ -216,6 +216,39 @@ export class CodeCell extends Disposable {
 
 		}));
 
+		this._register(viewCell.onCellDecorationsChanged((e) => {
+			e.added.forEach(options => {
+				if (options.className) {
+					DOM.addClass(templateData.container, options.className);
+				}
+
+				if (options.outputClassName) {
+					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.outputClassName], []);
+				}
+			});
+
+			e.removed.forEach(options => {
+				if (options.className) {
+					DOM.removeClass(templateData.container, options.className);
+				}
+
+				if (options.outputClassName) {
+					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [], [options.outputClassName]);
+				}
+			});
+		}));
+		// apply decorations
+
+		viewCell.getCellDecorations().forEach(options => {
+			if (options.className) {
+				DOM.addClass(templateData.container, options.className);
+			}
+
+			if (options.outputClassName) {
+				this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.outputClassName], []);
+			}
+		});
+
 		const updateFocusMode = () => viewCell.focusMode = templateData.editor!.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
 		this._register(templateData.editor!.onDidFocusEditorWidget(() => {
 			updateFocusMode();
@@ -265,6 +298,9 @@ export class CodeCell extends Disposable {
 
 	private onCellWidthChange(): void {
 		const realContentHeight = this.templateData.editor!.getContentHeight();
+		this.viewCell.editorHeight = realContentHeight;
+		this.relayoutCell();
+
 		this.layoutEditor(
 			{
 				width: this.viewCell.layoutInfo.editorWidth,
@@ -272,29 +308,24 @@ export class CodeCell extends Disposable {
 			}
 		);
 
-
-		this.viewCell.outputs.forEach((o, i) => {
+    this.viewCell.outputs.forEach((o, i) => {
 			const renderedOutput = this.outputElements.get(o);
 			if (renderedOutput && !renderedOutput.renderResult.hasDynamicHeight && !renderedOutput.renderResult.shadowContent) {
 				this.viewCell.updateOutputHeight(i, renderedOutput.element.clientHeight);
 			}
 		});
-
-		this.viewCell.editorHeight = realContentHeight;
-		this.relayoutCell();
 	}
 
 	private onCellHeightChange(newHeight: number): void {
 		const viewLayout = this.templateData.editor!.getLayoutInfo();
+		this.viewCell.editorHeight = newHeight;
+		this.relayoutCell();
 		this.layoutEditor(
 			{
 				width: viewLayout.width,
 				height: newHeight
 			}
 		);
-
-		this.viewCell.editorHeight = newHeight;
-		this.relayoutCell();
 	}
 
 	renderOutput(currOutput: IProcessedOutput, index: number, beforeElement?: HTMLElement) {

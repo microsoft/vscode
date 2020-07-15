@@ -294,7 +294,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			if (!exeBasedExtensionTips || !exeBasedExtensionTips.wsl) {
 				return;
 			}
-			const extId = exeBasedExtensionTips.wsl.recommendations[0];
+			const extId = Object.keys(exeBasedExtensionTips.wsl.recommendations).find(extId => exeBasedExtensionTips.wsl.recommendations[extId].important);
 			if (extId && ! await this.isExtensionInstalled(extId)) {
 				this._notificationService.prompt(
 					Severity.Info,

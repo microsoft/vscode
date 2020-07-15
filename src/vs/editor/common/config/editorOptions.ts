@@ -11,7 +11,6 @@ import { Constants } from 'vs/base/common/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDimension } from 'vs/editor/common/editorCommon';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 //#region typed options
@@ -600,13 +599,6 @@ export interface IEditorOptions {
 	showDeprecated?: boolean;
 }
 
-export interface IEditorConstructionOptions extends IEditorOptions {
-	/**
-	 * The initial editor dimension (to avoid measuring the container).
-	 */
-	dimension?: IDimension;
-}
-
 /**
  * @internal
  * The width of the minimap gutter, in pixels.
@@ -647,6 +639,16 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Defaults to false.
 	 */
 	originalEditable?: boolean;
+	/**
+	 * Original editor should be have code lens enabled?
+	 * Defaults to false.
+	 */
+	originalCodeLens?: boolean;
+	/**
+	 * Modified editor should be have code lens enabled?
+	 * Defaults to false.
+	 */
+	modifiedCodeLens?: boolean;
 }
 
 //#endregion
@@ -1070,6 +1072,11 @@ export interface IEditorCommentsOptions {
 	 * Defaults to true.
 	 */
 	insertSpace?: boolean;
+	/**
+	 * Ignore empty lines when inserting line comments.
+	 * Defaults to true.
+	 */
+	ignoreEmptyLines?: boolean;
 }
 
 export type EditorCommentsOptions = Readonly<Required<IEditorCommentsOptions>>;
@@ -1079,6 +1086,7 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, EditorComme
 	constructor() {
 		const defaults: EditorCommentsOptions = {
 			insertSpace: true,
+			ignoreEmptyLines: true,
 		};
 		super(
 			EditorOption.comments, 'comments', defaults,
@@ -1087,6 +1095,11 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, EditorComme
 					type: 'boolean',
 					default: defaults.insertSpace,
 					description: nls.localize('comments.insertSpace', "Controls whether a space character is inserted when commenting.")
+				},
+				'editor.comments.ignoreEmptyLines': {
+					type: 'boolean',
+					default: defaults.ignoreEmptyLines,
+					description: nls.localize('comments.ignoreEmptyLines', 'Controls if empty lines should be ignored with toggle, add or remove actions for line comments.')
 				},
 			}
 		);
@@ -1099,6 +1112,7 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, EditorComme
 		const input = _input as IEditorCommentsOptions;
 		return {
 			insertSpace: EditorBooleanOption.boolean(input.insertSpace, this.defaultValue.insertSpace),
+			ignoreEmptyLines: EditorBooleanOption.boolean(input.ignoreEmptyLines, this.defaultValue.ignoreEmptyLines),
 		};
 	}
 }

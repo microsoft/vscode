@@ -62,7 +62,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
-		private readonly _state: FindReplaceState = new FindReplaceState(),
+		protected readonly _state: FindReplaceState = new FindReplaceState(),
 		showOptionButtons?: boolean
 	) {
 		super();
@@ -267,7 +267,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	public updateTheme(theme: IColorTheme): void {
 		const inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
-			inputActiveOptionForeground: theme.getColor(inputActiveOptionBackground),
+			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
 			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
@@ -280,7 +280,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
 			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		};
 		this._findInput.style(inputStyles);
 		const replaceStyles: IReplaceInputStyles = {
@@ -298,7 +298,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
 			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		};
 		this._replaceInput.style(replaceStyles);
 	}

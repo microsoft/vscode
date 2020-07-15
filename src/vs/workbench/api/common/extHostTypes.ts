@@ -1271,6 +1271,13 @@ export class MarkdownString {
 		this.value += '\n```\n';
 		return this;
 	}
+
+	static isMarkdownString(thing: any): thing is vscode.MarkdownString {
+		if (thing instanceof MarkdownString) {
+			return true;
+		}
+		return thing && thing.appendCodeblock && thing.appendMarkdown && thing.appendText && (thing.value !== undefined);
+	}
 }
 
 @es5ClassCompat
@@ -2770,7 +2777,7 @@ export enum ExtensionMode {
 
 //#region Authentication
 export class AuthenticationSession implements vscode.AuthenticationSession {
-	constructor(public id: string, public accessToken: string, public account: { displayName: string, id: string }, public scopes: string[]) { }
+	constructor(public id: string, public accessToken: string, public account: { label: string, id: string }, public scopes: string[]) { }
 }
 
 //#endregion Authentication

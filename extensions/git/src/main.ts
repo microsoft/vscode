@@ -127,7 +127,7 @@ async function warnAboutMissingGit(): Promise<void> {
 	}
 }
 
-export async function _activate(context: ExtensionContext): Promise<GitExtension> {
+export async function _activate(context: ExtensionContext): Promise<GitExtensionImpl> {
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
 

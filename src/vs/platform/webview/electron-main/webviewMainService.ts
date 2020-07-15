@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { webContents } from 'electron';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -12,6 +13,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { IWebviewManagerService, RegisterWebviewMetadata } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewPortMappingProvider } from 'vs/platform/webview/electron-main/webviewPortMappingProvider';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 export class WebviewMainService extends Disposable implements IWebviewManagerService {
 
@@ -24,17 +26,19 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		@IFileService fileService: IFileService,
 		@IRequestService requestService: IRequestService,
 		@ITunnelService tunnelService: ITunnelService,
+		@IWindowsMainService windowsMainService: IWindowsMainService,
 	) {
 		super();
-		this.protocolProvider = this._register(new WebviewProtocolProvider(fileService, requestService));
+		this.protocolProvider = this._register(new WebviewProtocolProvider(fileService, requestService, windowsMainService));
 		this.portMappingProvider = this._register(new WebviewPortMappingProvider(tunnelService));
 	}
 
-	public async registerWebview(id: string, webContentsId: number | undefined, metadata: RegisterWebviewMetadata): Promise<void> {
+	public async registerWebview(id: string, webContentsId: number | undefined, windowId: number, metadata: RegisterWebviewMetadata): Promise<void> {
 		const extensionLocation = metadata.extensionLocation ? URI.from(metadata.extensionLocation) : undefined;
 
 		this.protocolProvider.registerWebview(id, {
 			...metadata,
+			windowId: windowId,
 			extensionLocation,
 			localResourceRoots: metadata.localResourceRoots.map(x => URI.from(x))
 		});
@@ -74,5 +78,9 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		if (!contents.isDestroyed()) {
 			contents.setIgnoreMenuShortcuts(enabled);
 		}
+	}
+
+	public async didLoadResource(requestId: number, content: VSBuffer | undefined): Promise<void> {
+		this.protocolProvider.didLoadResource(requestId, content);
 	}
 }

@@ -2,6 +2,10 @@
 <!DOCTYPE html>
 <html>
 	<head>
+		<script>
+			globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
+			globalThis.MonacoPerformanceMarks.push('renderer/started', Date.now());
+		</script>
 		<meta charset="utf-8" />
 
 		<!-- Disable pinch zooming -->
@@ -29,6 +33,7 @@
 		// NOTE: Changes to inline scripts require update of content security policy
 		self.require = {
 			baseUrl: `${window.location.origin}/static/out`,
+			recordStats: true,
 			paths: {
 				'vscode-textmate': `${window.location.origin}/static/remote/web/node_modules/vscode-textmate/release/main`,
 				'vscode-oniguruma': `${window.location.origin}/static/remote/web/node_modules/vscode-oniguruma/release/main`,
@@ -43,6 +48,9 @@
 		};
 	</script>
 	<script src="./static/out/vs/loader.js"></script>
+	<script>
+		globalThis.MonacoPerformanceMarks.push('willLoadWorkbenchMain', Date.now());
+	</script>
 	<script>
 		// NOTE: Changes to inline scripts require update of content security policy
 		require(['vs/code/browser/workbench/workbench'], function() {});

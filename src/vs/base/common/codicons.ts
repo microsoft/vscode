@@ -52,6 +52,8 @@ export class Codicon {
 		_registry.add(this);
 	}
 	public get classNames() { return 'codicon codicon-' + this.id; }
+	// classNamesArray is useful for migrating to ES6 classlist
+	public get classNamesArray() { return ['codicon', 'codicon-' + this.id]; }
 	public get cssSelector() { return '.codicon.codicon-' + this.id; }
 }
 

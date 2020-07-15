@@ -543,7 +543,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			});
 
 			this.editorsAffectingFilter.forEach(e => {
-				if (editors.indexOf(e) === -1) {
+				if (!editors.includes(e)) {
 					// Editor that was affecting filtering is no longer visible
 					shouldFire = true;
 				}

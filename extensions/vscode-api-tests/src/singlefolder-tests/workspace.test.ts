@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs, delay, withLogDisabled } from '../utils';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs, delay, withLogDisabled, revertAllDirty } from '../utils';
 import { join, posix, basename } from 'path';
 import * as fs from 'fs';
 import { TestFS } from '../memfs';
@@ -288,7 +288,7 @@ suite('vscode API - workspace', () => {
 		const file = await createRandomFile();
 		let disposables: vscode.Disposable[] = [];
 
-		await vscode.workspace.saveAll();
+		await revertAllDirty(); // needed for a clean state for `onDidSaveTextDocument` (#102365)
 
 		let pendingAsserts: Function[] = [];
 		let onDidOpenTextDocument = false;
@@ -329,6 +329,8 @@ suite('vscode API - workspace', () => {
 		const file = await createRandomFile();
 		let disposables: vscode.Disposable[] = [];
 		let pendingAsserts: Function[] = [];
+
+		await revertAllDirty(); // needed for a clean state for `onDidSaveTextDocument` (#102365)
 
 		let onDidSaveTextDocument = false;
 		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {

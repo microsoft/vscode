@@ -29,6 +29,7 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 			}
 		}));
 
+		let lastDecorationId: string[] = [];
 		const result: ITableOfContentsEntry[] = [];
 		for (const cell of editor.viewModel.viewCells) {
 			const content = cell.getText();
@@ -47,15 +48,25 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 							notebookWidget.revealInCenterIfOutsideViewport(cell);
 							notebookWidget.selectElement(cell);
 							notebookWidget.focusNotebookCell(cell, cell.cellKind === CellKind.Markdown ? 'container' : 'editor');
+							lastDecorationId = notebookWidget.deltaCellDecorations(lastDecorationId, []);
 						},
 						preview() {
 							notebookWidget.revealInCenterIfOutsideViewport(cell);
 							notebookWidget.selectElement(cell);
+							lastDecorationId = notebookWidget.deltaCellDecorations(lastDecorationId, [{
+								handle: cell.handle,
+								options: { className: 'nb-symbolHighlight', outputClassName: 'nb-symbolHighlight' }
+							}]);
 						}
 					});
 				}
 			}
 		}
+
+		context.disposables.add(toDisposable(() => {
+			notebookWidget.deltaCellDecorations(lastDecorationId, []);
+		}));
+
 		return result;
 	}
 });

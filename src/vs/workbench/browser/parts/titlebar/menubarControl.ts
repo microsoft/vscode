@@ -734,4 +734,10 @@ export class CustomMenubarControl extends MenubarControl {
 
 		this.menubar?.update(this.getMenuBarOptions());
 	}
+
+	toggleFocus() {
+		if (this.menubar) {
+			this.menubar.toggleFocus();
+		}
+	}
 }

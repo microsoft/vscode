@@ -14,6 +14,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { newWriteableBufferStream } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('UserDataSyncStoreService', () => {
 
@@ -332,7 +333,7 @@ suite('UserDataSyncRequestsSession', () => {
 	};
 
 	test('too many requests are thrown when limit exceeded', async () => {
-		const testObject = new RequestsSession(1, 500, requestService);
+		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
 		await testObject.request({}, CancellationToken.None);
 
 		try {
@@ -346,14 +347,14 @@ suite('UserDataSyncRequestsSession', () => {
 	});
 
 	test('requests are handled after session is expired', async () => {
-		const testObject = new RequestsSession(1, 500, requestService);
+		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
 		await testObject.request({}, CancellationToken.None);
 		await timeout(600);
 		await testObject.request({}, CancellationToken.None);
 	});
 
 	test('too many requests are thrown after session is expired', async () => {
-		const testObject = new RequestsSession(1, 500, requestService);
+		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
 		await testObject.request({}, CancellationToken.None);
 		await timeout(600);
 		await testObject.request({}, CancellationToken.None);

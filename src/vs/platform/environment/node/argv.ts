@@ -33,6 +33,7 @@ export interface ParsedArgs {
 	trace?: boolean;
 	'trace-category-filter'?: string;
 	'trace-options'?: string;
+	'open-devtools'?: boolean;
 	log?: string;
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
@@ -193,6 +194,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
 	'force-user-env': { type: 'boolean' },
+	'open-devtools': { type: 'boolean' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },

@@ -14,8 +14,8 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
 export abstract class BaseCellViewModel extends Disposable {
@@ -85,22 +85,26 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 	private _cursorChangeListener: IDisposable | null = null;
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null = null;
+	private _resolvedCellDecorations = new Map<string, INotebookCellDecorationOptions>();
+	private _cellDecorationsChanged = new Emitter<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }>();
+	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
 	private _resolvedDecorations = new Map<string, {
 		id?: string;
 		options: model.IModelDeltaDecoration;
 	}>();
 	private _lastDecorationId: number = 0;
 
+	private _textModel: model.ITextModel | undefined = undefined;
 	get textModel(): model.ITextModel | undefined {
-		return this.model.textModel;
+		return this._textModel;
 	}
 
 	set textModel(m: model.ITextModel | undefined) {
-		this.model.textModel = m;
+		this._textModel = m;
 	}
 
 	hasModel(): this is IEditableCellViewModel {
-		return !!this.model.textModel;
+		return !!this._textModel;
 	}
 
 	private _dragging: boolean = false;
@@ -226,7 +230,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 	}
 
-	addDecoration(decoration: model.IModelDeltaDecoration): string {
+	addModelDecoration(decoration: model.IModelDeltaDecoration): string {
 		if (!this._textEditor) {
 			const id = ++this._lastDecorationId;
 			const decorationId = `_lazy_${this.id};${id}`;
@@ -239,7 +243,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		return result[0];
 	}
 
-	removeDecoration(decorationId: string) {
+	removeModelDecoration(decorationId: string) {
 		const realDecorationId = this._resolvedDecorations.get(decorationId);
 
 		if (this._textEditor && realDecorationId && realDecorationId.id !== undefined) {
@@ -250,13 +254,46 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._resolvedDecorations.delete(decorationId);
 	}
 
-	deltaDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
+	deltaModelDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
 		oldDecorations.forEach(id => {
-			this.removeDecoration(id);
+			this.removeModelDecoration(id);
 		});
 
 		const ret = newDecorations.map(option => {
-			return this.addDecoration(option);
+			return this.addModelDecoration(option);
+		});
+
+		return ret;
+	}
+
+	private _removeCellDecoration(decorationId: string) {
+		const options = this._resolvedCellDecorations.get(decorationId);
+
+		if (options) {
+			this._cellDecorationsChanged.fire({ added: [], removed: [options] });
+			this._resolvedCellDecorations.delete(decorationId);
+		}
+	}
+
+	private _addCellDecoration(options: INotebookCellDecorationOptions): string {
+		const id = ++this._lastDecorationId;
+		const decorationId = `_cell_${this.id};${id}`;
+		this._resolvedCellDecorations.set(decorationId, options);
+		this._cellDecorationsChanged.fire({ added: [options], removed: [] });
+		return decorationId;
+	}
+
+	getCellDecorations() {
+		return [...this._resolvedCellDecorations.values()];
+	}
+
+	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookCellDecorationOptions[]): string[] {
+		oldDecorations.forEach(id => {
+			this._removeCellDecoration(id);
+		});
+
+		const ret = newDecorations.map(option => {
+			return this._addCellDecoration(option);
 		});
 
 		return ret;
@@ -346,15 +383,21 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	abstract resolveTextModel(): Promise<model.ITextModel>;
 
-	protected cellStartFind(value: string): model.FindMatch[] | null {
+	protected cellStartFind(value: string, options: INotebookSearchOptions): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
 
 		if (this.assertTextModelAttached()) {
-			cellMatches = this.textModel!.findMatches(value, false, false, false, null, false);
+			cellMatches = this.textModel!.findMatches(
+				value,
+				false,
+				options.regex || false,
+				options.caseSensitive || false,
+				options.wholeWord ? options.wordSeparators || null : null,
+				false);
 		} else {
 			const lineCount = this.textBuffer.getLineCount();
 			const fullRange = new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
-			const searchParams = new SearchParams(value, false, false, null);
+			const searchParams = new SearchParams(value, options.regex || false, options.caseSensitive || false, options.wholeWord ? options.wordSeparators || null : null,);
 			const searchData = searchParams.parseSearchRequest();
 
 			if (!searchData) {

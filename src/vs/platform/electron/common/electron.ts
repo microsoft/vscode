@@ -63,6 +63,7 @@ export interface ICommonElectronService {
 	openExternal(url: string): Promise<boolean>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
+	isAdmin(): Promise<boolean>;
 
 	// clipboard
 	readClipboardText(type?: 'selection' | 'clipboard'): Promise<string>;

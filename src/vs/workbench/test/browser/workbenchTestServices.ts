@@ -230,7 +230,8 @@ export class TestTextFileService extends BrowserTextFileService {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IPathService pathService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IModeService modeService: IModeService
 	) {
 		super(
 			fileService,
@@ -247,7 +248,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			codeEditorService,
 			pathService,
 			workingCopyFileService,
-			uriIdentityService
+			uriIdentityService,
+			modeService
 		);
 	}
 
@@ -289,7 +291,7 @@ export class TestBrowserTextFileServiceWithEncodingOverrides extends BrowserText
 	}
 }
 
-class TestEncodingOracle extends EncodingOracle {
+export class TestEncodingOracle extends EncodingOracle {
 
 	protected get encodingOverrides(): IEncodingOverride[] {
 		return [

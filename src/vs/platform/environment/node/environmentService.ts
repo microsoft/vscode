@@ -39,9 +39,6 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	extensionsDownloadPath: string;
 	builtinExtensionsPath: string;
 
-	globalStorageHome: string;
-	workspaceStorageHome: string;
-
 	driverHandle?: string;
 	driverVerbose: boolean;
 
@@ -102,10 +99,10 @@ export class EnvironmentService implements INativeEnvironmentService {
 	get machineSettingsResource(): URI { return resources.joinPath(URI.file(path.join(this.userDataPath, 'Machine')), 'settings.json'); }
 
 	@memoize
-	get globalStorageHome(): string { return path.join(this.appSettingsHome.fsPath, 'globalStorage'); }
+	get globalStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'globalStorage'); }
 
 	@memoize
-	get workspaceStorageHome(): string { return path.join(this.appSettingsHome.fsPath, 'workspaceStorage'); }
+	get workspaceStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'workspaceStorage'); }
 
 	@memoize
 	get keybindingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keybindings.json'); }

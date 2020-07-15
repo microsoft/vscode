@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import { webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-browser/window';
@@ -73,8 +73,9 @@ class DesktopMain extends Disposable {
 		importEntries(this.environmentService.configuration.perfEntries);
 
 		// Browser config
-		setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
-		setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
+		const zoomLevel = this.configuration.zoomLevel || 0;
+		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
+		setZoomLevel(zoomLevel, true /* isTrusted */);
 		setFullscreen(!!this.environmentService.configuration.fullscreen);
 
 		// Keyboard support

@@ -5,7 +5,7 @@
 <head>
 	<meta charset="utf-8" />
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; img-src 'self' https: data:; media-src 'none'; child-src 'self'; object-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; font-src 'self' https:;">
+		content="default-src 'none'; img-src 'self' https: data:; media-src 'none'; child-src 'self'; object-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; font-src 'self' https:;">
 	<style>
 		html,
 		body {
@@ -78,43 +78,6 @@
 	</section>
 </body>
 
-<script>
-
-	function promptForCredentials(data) {
-		return new Promise((c, e) => {
-			const $title = document.getElementById('title');
-			const $username = document.getElementById('username');
-			const $password = document.getElementById('password');
-			const $form = document.getElementById('form');
-			const $cancel = document.getElementById('cancel');
-			const $message = document.getElementById('message');
-
-			function submit() {
-				c({ username: $username.value, password: $password.value });
-				return false;
-			};
-
-			function cancel() {
-				c({ username: '', password: '' });
-				return false;
-			};
-
-			$form.addEventListener('submit', submit);
-			$cancel.addEventListener('click', cancel);
-
-			document.body.addEventListener('keydown', function (e) {
-				switch (e.keyCode) {
-					case 27: e.preventDefault(); e.stopPropagation(); return cancel();
-					case 13: e.preventDefault(); e.stopPropagation(); return submit();
-				}
-			});
-
-			$title.textContent = data.title;
-			$message.textContent = data.message;
-			$username.focus();
-		});
-	}
-
-</script>
+<script src="auth.js"></script>
 
 </html>

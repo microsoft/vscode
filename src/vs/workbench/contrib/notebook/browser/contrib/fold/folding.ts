@@ -134,7 +134,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.fold',
-			title: localize('fold.cell', 'Fold Cell'),
+			title: { value: localize('fold.cell', "Fold Cell"), original: 'Fold Cell' },
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -177,7 +177,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.unfold',
-			title: localize('unfold.cell', 'Unfold Cell'),
+			title: { value: localize('unfold.cell', "Unfold Cell"), original: 'Unfold Cell' },
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),

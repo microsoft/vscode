@@ -93,7 +93,8 @@ export class View extends ViewEventHandler {
 		configuration: IConfiguration,
 		themeService: IThemeService,
 		model: IViewModel,
-		userInputEvents: ViewUserInputEvents
+		userInputEvents: ViewUserInputEvents,
+		overflowWidgetsDomNode: HTMLElement | undefined
 	) {
 		super();
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -209,7 +210,12 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
 		this._overflowGuardContainer.appendChild(minimap.getDomNode());
 		this.domNode.appendChild(this._overflowGuardContainer);
-		this.domNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode);
+
+		if (overflowWidgetsDomNode) {
+			overflowWidgetsDomNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode.domNode);
+		} else {
+			this.domNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode);
+		}
 
 		this._applyLayout();
 
@@ -316,6 +322,8 @@ export class View extends ViewEventHandler {
 			this._renderAnimationFrame.dispose();
 			this._renderAnimationFrame = null;
 		}
+
+		this._contentWidgets.overflowingContentWidgetsDomNode.domNode.remove();
 
 		this._context.removeEventHandler(this);
 

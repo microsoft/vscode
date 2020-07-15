@@ -62,5 +62,13 @@ export function setup() {
 			await app.workbench.notebook.focusOutCellOutput();
 			await app.workbench.notebook.waitForActiveCellEditorContents('code()');
 		});
+
+		it('cell action execution', async function () {
+			const app = this.app as Application;
+			await app.workbench.notebook.openNotebook();
+			await app.workbench.notebook.insertNotebookCell('code');
+			await app.workbench.notebook.executeCellAction('.notebook-editor .monaco-list-row.focused div.monaco-toolbar .codicon-debug');
+			await app.workbench.notebook.waitForActiveCellEditorContents('test');
+		});
 	});
 }

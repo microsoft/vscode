@@ -19,9 +19,9 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as files from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { didUseCachedData, ITimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
+import { didUseCachedData } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { getEntries } from 'vs/base/common/performance';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 export class StartupTimings implements IWorkbenchContribution {
 
@@ -43,22 +43,7 @@ export class StartupTimings implements IWorkbenchContribution {
 
 	private async _report() {
 		const standardStartupError = await this._isStandardStartup();
-		this._reportStartupTimes().catch(onUnexpectedError);
 		this._appendStartupTimes(standardStartupError).catch(onUnexpectedError);
-		this._reportPerfTicks();
-	}
-
-	private async _reportStartupTimes(): Promise<void> {
-		const metrics = await this._timerService.startupMetrics;
-
-		/* __GDPR__
-			"startupTimeVaried" : {
-				"${include}": [
-					"${IStartupMetrics}"
-				]
-			}
-		*/
-		this._telemetryService.publicLog('startupTimeVaried', metrics);
 	}
 
 	private async _appendStartupTimes(standardStartupError: string | undefined) {
@@ -119,18 +104,5 @@ export class StartupTimings implements IWorkbenchContribution {
 			return 'Not on latest version, updates available';
 		}
 		return undefined;
-	}
-
-	private _reportPerfTicks(): void {
-		const entries: Record<string, number> = Object.create(null);
-		for (const entry of getEntries()) {
-			entries[entry.name] = entry.startTime;
-		}
-		/* __GDPR__
-			"startupRawTimers" : {
-				"entries": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-			}
-		*/
-		this._telemetryService.publicLog('startupRawTimers', { entries });
 	}
 }

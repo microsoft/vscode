@@ -67,6 +67,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	static PREFIX = '';
 
+	private static readonly NO_RESULTS_PICK: IAnythingQuickPickItem = {
+		label: localize('noAnythingResults', "No matching results")
+	};
+
 	private static readonly MAX_RESULTS = 512;
 
 	private static readonly TYPING_SEARCH_DELAY = 200; // this delay accommodates for the user typing a word and then stops typing to start searching
@@ -173,9 +177,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
-			noResultsPick: {
-				label: localize('noAnythingResults', "No matching results")
-			}
+			noResultsPick: AnythingQuickAccessProvider.NO_RESULTS_PICK
 		});
 	}
 
@@ -278,13 +280,15 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		this.pickState.lastFilter = filter;
 
 		// Remember our pick state before returning new picks
-		// unless an editor symbol is selected. We can use this
-		// state to return back to the global pick when the
-		// user is narrowing back out of editor symbols.
+		// unless we are inside an editor symbol filter or result.
+		// We can use this state to return back to the global pick
+		// when the user is narrowing back out of editor symbols.
 		const picks = this.pickState.picker?.items;
 		const activePick = this.pickState.picker?.activeItems[0];
 		if (picks && activePick) {
-			if (!isEditorSymbolQuickPickItem(activePick)) {
+			const activePickIsEditorSymbol = isEditorSymbolQuickPickItem(activePick);
+			const activePickIsNoResultsInEditorSymbols = activePick === AnythingQuickAccessProvider.NO_RESULTS_PICK && filter.indexOf(GotoSymbolQuickAccessProvider.PREFIX) >= 0;
+			if (!activePickIsEditorSymbol && !activePickIsNoResultsInEditorSymbols) {
 				this.pickState.lastGlobalPicks = {
 					items: picks,
 					active: activePick

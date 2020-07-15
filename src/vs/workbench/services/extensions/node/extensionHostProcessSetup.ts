@@ -20,8 +20,10 @@ import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/com
 import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import 'vs/workbench/api/node/extHost.services';
 import { RunOnceScheduler } from 'vs/base/common/async';
+
+import 'vs/workbench/api/common/extHost.common.services';
+import 'vs/workbench/api/node/extHost.node.services';
 
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;

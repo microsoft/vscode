@@ -1413,7 +1413,7 @@ export interface AuthenticationSession {
 	id: string;
 	accessToken: string;
 	account: {
-		displayName: string;
+		label: string;
 		id: string;
 	}
 	scopes: ReadonlyArray<string>;
@@ -1426,6 +1426,14 @@ export interface AuthenticationSessionsChangeEvent {
 	added: ReadonlyArray<string>;
 	removed: ReadonlyArray<string>;
 	changed: ReadonlyArray<string>;
+}
+
+/**
+ * @internal
+ */
+export interface AuthenticationProviderInformation {
+	id: string;
+	label: string;
 }
 
 export interface Command {

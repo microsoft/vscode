@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from 'vscode';
-
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -50,14 +48,29 @@ declare module 'vscode' {
 	 */
 	export interface AuthenticationSessionAccountInformation {
 		/**
-		 * The human-readable name of the account.
-		 */
-		readonly displayName: string;
-
-		/**
 		 * The unique identifier of the account.
 		 */
 		readonly id: string;
+
+		/**
+		 * The human-readable name of the account.
+		 */
+		readonly label: string;
+	}
+
+	/**
+	 * Basic information about an[authenticationProvider](#AuthenticationProvider)
+	 */
+	export interface AuthenticationProviderInformation {
+		/**
+		 * The unique identifier of the authentication provider.
+		 */
+		readonly id: string;
+
+		/**
+		 * The human-readable name of the authentication provider.
+		 */
+		readonly label: string;
 	}
 
 	/**
@@ -67,12 +80,12 @@ declare module 'vscode' {
 		/**
 		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been added.
 		 */
-		readonly added: ReadonlyArray<string>;
+		readonly added: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
 		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed.
 		 */
-		readonly removed: ReadonlyArray<string>;
+		readonly removed: ReadonlyArray<AuthenticationProviderInformation>;
 	}
 
 	/**
@@ -89,6 +102,13 @@ declare module 'vscode' {
 		 * Defaults to false.
 		 */
 		clearSessionPreference?: boolean;
+	}
+
+	export interface AuthenticationProviderAuthenticationSessionsChangeEvent extends AuthenticationSessionsChangeEvent {
+		/**
+		 * The [authenticationProvider](#AuthenticationProvider) that has had its sessions change.
+		 */
+		readonly provider: AuthenticationProviderInformation;
 	}
 
 	/**
@@ -175,6 +195,7 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
+		 * @deprecated
 		 * The ids of the currently registered authentication providers.
 		 * @returns An array of the ids of authentication providers that are currently registered.
 		 */
@@ -185,6 +206,11 @@ declare module 'vscode' {
 		 * An array of the ids of authentication providers that are currently registered.
 		 */
 		export const providerIds: ReadonlyArray<string>;
+
+		/**
+		 * An array of the information of authentication providers that are currently registered.
+		 */
+		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
 		 * Returns whether a provider has any sessions matching the requested scopes. This request
@@ -235,7 +261,7 @@ declare module 'vscode' {
 		* within a session has changed for a provider. Fires with the ids of the providers
 		* that have had session data change.
 		*/
-		export const onDidChangeSessions: Event<{ [providerId: string]: AuthenticationSessionsChangeEvent; }>;
+		export const onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
 	}
 
 	//#endregion
@@ -318,6 +344,9 @@ declare module 'vscode' {
 		/**
 		 * Forwards a port. If the current resolver implements RemoteAuthorityResolver:forwardPort then that will be used to make the tunnel.
 		 * By default, openTunnel only support localhost; however, RemoteAuthorityResolver:tunnelFactory can be used to support other ips.
+		 *
+		 * @throws When run in an environment without a remote.
+		 *
 		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
 		export function openTunnel(tunnelOptions: TunnelOptions): Thenable<Tunnel>;
@@ -852,6 +881,32 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
+	export interface DebugSession {
+
+		/**
+		 * Terminates the session.
+		 */
+		terminate(): Thenable<void>;
+	}
+
+	export interface DebugSession {
+
+		/**
+		 * Terminates the session.
+		 */
+		terminate(): Thenable<void>;
+	}
+
+	export namespace debug {
+
+		/**
+		 * Stop the given debug session or stop all debug sessions if no session is specified.
+		 * @param session The [debug session](#DebugSession) to stop or `undefined` for stopping all sessions.
+		 * @return A thenable that resolves when the sessions could be stopped successfully.
+		 */
+		export function stopDebugging(session: DebugSession | undefined): Thenable<void>;
+	}
+
 	//#endregion
 
 	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
@@ -1067,19 +1122,19 @@ declare module 'vscode' {
 		/**
 		 * Handle an activated terminal link.
 		 */
-		handleTerminalLink(link: T): void;
+		handleTerminalLink(link: T): ProviderResult<void>;
 	}
 
 	export interface TerminalLink {
 		/**
-		 * The 0-based start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
+		 * The start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
 		 */
 		startIndex: number;
 
 		/**
-		 * The 0-based end index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
+		 * The length of the link on [TerminalLinkContext.line](#TerminalLinkContext.line]
 		 */
-		endIndex: number;
+		length: number;
 
 		/**
 		 * The tooltip text when you hover over this link.
@@ -1710,7 +1765,7 @@ declare module 'vscode' {
 		/**
 		 * Unique identifier for the backup.
 		 *
-		 * This id is passed back to your extension in `openCustomDocument` when opening a custom editor from a backup.
+		 * This id is passed back to your extension in `openCustomDocument` when opening a notebook editor from a backup.
 		 */
 		readonly id: string;
 
@@ -1764,6 +1819,10 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookContentProvider {
+		/**
+		 * Content providers should always use [file system providers](#FileSystemProvider) to
+		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
+		 */
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
 		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
@@ -2034,6 +2093,62 @@ declare module 'vscode' {
 
 	export namespace languages {
 		export function getTokenInformationAtPosition(document: TextDocument, position: Position): Promise<TokenInformation>;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/101857
+
+	export interface ExtensionContext {
+
+		/**
+		 * The uri of a directory in which the extension can create log files.
+		 * The directory might not exist on disk and creation is up to the extension. However,
+		 * the parent directory is guaranteed to be existent.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly logUri: Uri;
+
+		/**
+		 * The uri of a workspace specific directory in which the extension
+		 * can store private state. The directory might not exist and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * The value is `undefined` when no workspace nor folder has been opened.
+		 *
+		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
+		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly storageUri: Uri | undefined;
+
+		/**
+		 * The uri of a directory in which the extension can store global state.
+		 * The directory might not exist on disk and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 *
+		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly globalStorageUri: Uri;
+
+		/**
+		 * @deprecated Use [logUri](#ExtensionContext.logUri) instead.
+		 */
+		readonly logPath: string;
+		/**
+		 * @deprecated Use [storagePath](#ExtensionContent.storageUri) instead.
+		 */
+		readonly storagePath: string | undefined;
+		/**
+		 * @deprecated Use [globalStoragePath](#ExtensionContent.globalStorageUri) instead.
+		 */
+		readonly globalStoragePath: string;
 	}
 
 	//#endregion
