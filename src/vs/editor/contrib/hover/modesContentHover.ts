@@ -18,7 +18,7 @@ import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidg
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { coalesce, equals as equalArray } from 'vs/base/common/arrays';
-import { IIdentifiedSingleEditOperation, IModelDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, IModelDecoration, TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -205,6 +205,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	private readonly _computer: ModesContentComputer;
 	private readonly _hoverOperation: HoverOperation<HoverPartInfo[]>;
 	private _highlightDecorations: string[];
+	private _currentDecorations: IModelDeltaDecoration[];
 	private _isChangingDecorations: boolean;
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget | null;
@@ -255,6 +256,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		this._lastRange = null;
 		this._computer = new ModesContentComputer(this._editor, this._markerHoverParticipant, this._markdownHoverParticipant);
 		this._highlightDecorations = [];
+		this._currentDecorations = [];
 		this._isChangingDecorations = false;
 		this._shouldFocus = false;
 		this._colorPicker = null;
@@ -472,6 +474,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		}
 
 		this._isChangingDecorations = true;
+		this._currentDecorations = [];
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
 		this._isChangingDecorations = false;
 		if (this._renderDisposable) {
@@ -487,6 +490,10 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 	public onContentsChanged(): void {
 		this._hover.onContentsChanged();
+	}
+
+	addAdditionalDecorations(decorations: IModelDeltaDecoration[]) {
+		this._currentDecorations.push(...decorations);
 	}
 
 	private _withResult(result: HoverPartInfo[], complete: boolean): void {
@@ -638,10 +645,13 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		}
 
 		this._isChangingDecorations = true;
-		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, highlightRange ? [{
-			range: highlightRange,
-			options: ModesContentHoverWidget._DECORATION_OPTIONS
-		}] : []);
+		if (highlightRange) {
+			this._currentDecorations.push({
+				range: highlightRange,
+				options: ModesContentHoverWidget._DECORATION_OPTIONS
+			});
+		}
+		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, this._currentDecorations);
 		this._isChangingDecorations = false;
 	}
 
