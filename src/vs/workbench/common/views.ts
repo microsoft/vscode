@@ -440,7 +440,7 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 		const viewsToDeregister: IViewDescriptor[] = [];
 		const remaningViews: IViewDescriptor[] = [];
 		for (const view of views) {
-			if (viewDescriptors.indexOf(view) === -1) {
+			if (!viewDescriptors.includes(view)) {
 				remaningViews.push(view);
 			} else {
 				viewsToDeregister.push(view);

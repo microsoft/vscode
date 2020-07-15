@@ -1009,7 +1009,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			restoreWindows = windowConfig?.restoreWindows || 'all'; // by default restore all windows
 
-			if (['all', 'folders', 'one', 'none'].indexOf(restoreWindows) === -1) {
+			if (!['all', 'folders', 'one', 'none'].includes(restoreWindows)) {
 				restoreWindows = 'all'; // by default restore all windows
 			}
 		}

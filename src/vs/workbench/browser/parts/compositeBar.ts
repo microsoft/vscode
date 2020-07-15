@@ -555,7 +555,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		// Pull out composites that overflow or got hidden
 		const compositesToRemove: number[] = [];
 		this.visibleComposites.forEach((compositeId, index) => {
-			if (compositesToShow.indexOf(compositeId) === -1) {
+			if (!compositesToShow.includes(compositeId)) {
 				compositesToRemove.push(index);
 			}
 		});
@@ -616,8 +616,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			overflowingIds.push(this.model.activeItem.id);
 		}
 
-		overflowingIds = overflowingIds.filter(compositeId => this.visibleComposites.indexOf(compositeId) === -1);
-		return this.model.visibleItems.filter(c => overflowingIds.indexOf(c.id) !== -1).map(item => { return { id: item.id, name: this.getAction(item.id)?.label || item.name }; });
+		overflowingIds = overflowingIds.filter(compositeId => !this.visibleComposites.includes(compositeId));
+		return this.model.visibleItems.filter(c => overflowingIds.includes(c.id)).map(item => { return { id: item.id, name: this.getAction(item.id)?.label || item.name }; });
 	}
 
 	private showContextMenu(e: MouseEvent): void {

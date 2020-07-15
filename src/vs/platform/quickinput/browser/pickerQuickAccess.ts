@@ -219,7 +219,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 								let fallbackActivePick: Pick<T> | undefined = undefined;
 								if (!activePick && !additionalActivePick) {
 									const fallbackActivePickCandidate = picker.activeItems[0];
-									if (fallbackActivePickCandidate && picks.includes(fallbackActivePickCandidate)) {
+									if (fallbackActivePickCandidate && picks.indexOf(fallbackActivePickCandidate) !== -1) {
 										fallbackActivePick = fallbackActivePickCandidate;
 									}
 								}
