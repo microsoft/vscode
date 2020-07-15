@@ -24,7 +24,7 @@ import { isEqual, basename } from 'vs/base/common/resources';
 import { IDecorationsProvider, IDecorationData, IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 
-const viewName = localize('manual sync', "Sync Manually");
+const viewName = localize('manual sync', "Manual Sync");
 
 export class UserDataManualSyncView extends Disposable {
 
