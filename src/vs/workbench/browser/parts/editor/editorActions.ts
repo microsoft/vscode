@@ -43,7 +43,7 @@ export class ExecuteCommandAction extends Action {
 	}
 }
 
-export class BaseSplitEditorAction extends Action {
+abstract class AbstractSplitEditorAction extends Action {
 	private readonly toDispose = this._register(new DisposableStore());
 	private direction: GroupDirection;
 
@@ -77,7 +77,7 @@ export class BaseSplitEditorAction extends Action {
 	}
 }
 
-export class SplitEditorAction extends BaseSplitEditorAction {
+export class SplitEditorAction extends AbstractSplitEditorAction {
 
 	static readonly ID = 'workbench.action.splitEditor';
 	static readonly LABEL = localize('splitEditor', "Split Editor");
@@ -92,7 +92,7 @@ export class SplitEditorAction extends BaseSplitEditorAction {
 	}
 }
 
-export class SplitEditorOrthogonalAction extends BaseSplitEditorAction {
+export class SplitEditorOrthogonalAction extends AbstractSplitEditorAction {
 
 	static readonly ID = 'workbench.action.splitEditorOrthogonal';
 	static readonly LABEL = localize('splitEditorOrthogonal', "Split Editor Orthogonal");
@@ -259,7 +259,7 @@ export class FocusActiveGroupAction extends Action {
 	}
 }
 
-export abstract class BaseFocusGroupAction extends Action {
+abstract class AbstractFocusGroupAction extends Action {
 
 	constructor(
 		id: string,
@@ -278,7 +278,7 @@ export abstract class BaseFocusGroupAction extends Action {
 	}
 }
 
-export class FocusFirstGroupAction extends BaseFocusGroupAction {
+export class FocusFirstGroupAction extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusFirstEditorGroup';
 	static readonly LABEL = localize('focusFirstEditorGroup', "Focus First Editor Group");
@@ -292,7 +292,7 @@ export class FocusFirstGroupAction extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusLastGroupAction extends BaseFocusGroupAction {
+export class FocusLastGroupAction extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusLastEditorGroup';
 	static readonly LABEL = localize('focusLastEditorGroup', "Focus Last Editor Group");
@@ -306,7 +306,7 @@ export class FocusLastGroupAction extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusNextGroup extends BaseFocusGroupAction {
+export class FocusNextGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusNextGroup';
 	static readonly LABEL = localize('focusNextGroup', "Focus Next Editor Group");
@@ -320,7 +320,7 @@ export class FocusNextGroup extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusPreviousGroup extends BaseFocusGroupAction {
+export class FocusPreviousGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusPreviousGroup';
 	static readonly LABEL = localize('focusPreviousGroup', "Focus Previous Editor Group");
@@ -334,7 +334,7 @@ export class FocusPreviousGroup extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusLeftGroup extends BaseFocusGroupAction {
+export class FocusLeftGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusLeftGroup';
 	static readonly LABEL = localize('focusLeftGroup', "Focus Left Editor Group");
@@ -348,7 +348,7 @@ export class FocusLeftGroup extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusRightGroup extends BaseFocusGroupAction {
+export class FocusRightGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusRightGroup';
 	static readonly LABEL = localize('focusRightGroup', "Focus Right Editor Group");
@@ -362,7 +362,7 @@ export class FocusRightGroup extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusAboveGroup extends BaseFocusGroupAction {
+export class FocusAboveGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusAboveGroup';
 	static readonly LABEL = localize('focusAboveGroup', "Focus Above Editor Group");
@@ -376,7 +376,7 @@ export class FocusAboveGroup extends BaseFocusGroupAction {
 	}
 }
 
-export class FocusBelowGroup extends BaseFocusGroupAction {
+export class FocusBelowGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusBelowGroup';
 	static readonly LABEL = localize('focusBelowGroup', "Focus Below Editor Group");
@@ -534,7 +534,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	}
 }
 
-abstract class BaseCloseAllAction extends Action {
+abstract class AbstractCloseAllAction extends Action {
 
 	constructor(
 		id: string,
@@ -647,7 +647,7 @@ abstract class BaseCloseAllAction extends Action {
 	protected abstract doCloseAll(): Promise<void>;
 }
 
-export class CloseAllEditorsAction extends BaseCloseAllAction {
+export class CloseAllEditorsAction extends AbstractCloseAllAction {
 
 	static readonly ID = 'workbench.action.closeAllEditors';
 	static readonly LABEL = localize('closeAllEditors', "Close All Editors");
@@ -673,7 +673,7 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 	}
 }
 
-export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
+export class CloseAllEditorGroupsAction extends AbstractCloseAllAction {
 
 	static readonly ID = 'workbench.action.closeAllGroups';
 	static readonly LABEL = localize('closeAllGroups', "Close All Editor Groups");
@@ -750,7 +750,7 @@ export class CloseEditorInAllGroupsAction extends Action {
 	}
 }
 
-class BaseMoveCopyGroupAction extends Action {
+abstract class AbstractMoveCopyGroupAction extends Action {
 
 	constructor(
 		id: string,
@@ -815,7 +815,7 @@ class BaseMoveCopyGroupAction extends Action {
 	}
 }
 
-class BaseMoveGroupAction extends BaseMoveCopyGroupAction {
+abstract class AbstractMoveGroupAction extends AbstractMoveCopyGroupAction {
 
 	constructor(
 		id: string,
@@ -827,7 +827,7 @@ class BaseMoveGroupAction extends BaseMoveCopyGroupAction {
 	}
 }
 
-export class MoveGroupLeftAction extends BaseMoveGroupAction {
+export class MoveGroupLeftAction extends AbstractMoveGroupAction {
 
 	static readonly ID = 'workbench.action.moveActiveEditorGroupLeft';
 	static readonly LABEL = localize('moveActiveGroupLeft', "Move Editor Group Left");
@@ -841,7 +841,7 @@ export class MoveGroupLeftAction extends BaseMoveGroupAction {
 	}
 }
 
-export class MoveGroupRightAction extends BaseMoveGroupAction {
+export class MoveGroupRightAction extends AbstractMoveGroupAction {
 
 	static readonly ID = 'workbench.action.moveActiveEditorGroupRight';
 	static readonly LABEL = localize('moveActiveGroupRight', "Move Editor Group Right");
@@ -855,7 +855,7 @@ export class MoveGroupRightAction extends BaseMoveGroupAction {
 	}
 }
 
-export class MoveGroupUpAction extends BaseMoveGroupAction {
+export class MoveGroupUpAction extends AbstractMoveGroupAction {
 
 	static readonly ID = 'workbench.action.moveActiveEditorGroupUp';
 	static readonly LABEL = localize('moveActiveGroupUp', "Move Editor Group Up");
@@ -869,7 +869,7 @@ export class MoveGroupUpAction extends BaseMoveGroupAction {
 	}
 }
 
-export class MoveGroupDownAction extends BaseMoveGroupAction {
+export class MoveGroupDownAction extends AbstractMoveGroupAction {
 
 	static readonly ID = 'workbench.action.moveActiveEditorGroupDown';
 	static readonly LABEL = localize('moveActiveGroupDown', "Move Editor Group Down");
@@ -883,7 +883,7 @@ export class MoveGroupDownAction extends BaseMoveGroupAction {
 	}
 }
 
-class BaseDuplicateGroupAction extends BaseMoveCopyGroupAction {
+abstract class AbstractDuplicateGroupAction extends AbstractMoveCopyGroupAction {
 
 	constructor(
 		id: string,
@@ -895,7 +895,7 @@ class BaseDuplicateGroupAction extends BaseMoveCopyGroupAction {
 	}
 }
 
-export class DuplicateGroupLeftAction extends BaseDuplicateGroupAction {
+export class DuplicateGroupLeftAction extends AbstractDuplicateGroupAction {
 
 	static readonly ID = 'workbench.action.duplicateActiveEditorGroupLeft';
 	static readonly LABEL = localize('duplicateActiveGroupLeft', "Duplicate Editor Group Left");
@@ -909,7 +909,7 @@ export class DuplicateGroupLeftAction extends BaseDuplicateGroupAction {
 	}
 }
 
-export class DuplicateGroupRightAction extends BaseDuplicateGroupAction {
+export class DuplicateGroupRightAction extends AbstractDuplicateGroupAction {
 
 	static readonly ID = 'workbench.action.duplicateActiveEditorGroupRight';
 	static readonly LABEL = localize('duplicateActiveGroupRight', "Duplicate Editor Group Right");
@@ -923,7 +923,7 @@ export class DuplicateGroupRightAction extends BaseDuplicateGroupAction {
 	}
 }
 
-export class DuplicateGroupUpAction extends BaseDuplicateGroupAction {
+export class DuplicateGroupUpAction extends AbstractDuplicateGroupAction {
 
 	static readonly ID = 'workbench.action.duplicateActiveEditorGroupUp';
 	static readonly LABEL = localize('duplicateActiveGroupUp', "Duplicate Editor Group Up");
@@ -937,7 +937,7 @@ export class DuplicateGroupUpAction extends BaseDuplicateGroupAction {
 	}
 }
 
-export class DuplicateGroupDownAction extends BaseDuplicateGroupAction {
+export class DuplicateGroupDownAction extends AbstractDuplicateGroupAction {
 
 	static readonly ID = 'workbench.action.duplicateActiveEditorGroupDown';
 	static readonly LABEL = localize('duplicateActiveGroupDown', "Duplicate Editor Group Down");
@@ -1016,7 +1016,7 @@ export class MaximizeGroupAction extends Action {
 	}
 }
 
-export abstract class BaseNavigateEditorAction extends Action {
+abstract class AbstractNavigateEditorAction extends Action {
 
 	constructor(
 		id: string,
@@ -1047,7 +1047,7 @@ export abstract class BaseNavigateEditorAction extends Action {
 	protected abstract navigate(): IEditorIdentifier | undefined;
 }
 
-export class OpenNextEditor extends BaseNavigateEditorAction {
+export class OpenNextEditor extends AbstractNavigateEditorAction {
 
 	static readonly ID = 'workbench.action.nextEditor';
 	static readonly LABEL = localize('openNextEditor', "Open Next Editor");
@@ -1082,7 +1082,7 @@ export class OpenNextEditor extends BaseNavigateEditorAction {
 	}
 }
 
-export class OpenPreviousEditor extends BaseNavigateEditorAction {
+export class OpenPreviousEditor extends AbstractNavigateEditorAction {
 
 	static readonly ID = 'workbench.action.previousEditor';
 	static readonly LABEL = localize('openPreviousEditor', "Open Previous Editor");
@@ -1117,7 +1117,7 @@ export class OpenPreviousEditor extends BaseNavigateEditorAction {
 	}
 }
 
-export class OpenNextEditorInGroup extends BaseNavigateEditorAction {
+export class OpenNextEditorInGroup extends AbstractNavigateEditorAction {
 
 	static readonly ID = 'workbench.action.nextEditorInGroup';
 	static readonly LABEL = localize('nextEditorInGroup', "Open Next Editor in Group");
@@ -1140,7 +1140,7 @@ export class OpenNextEditorInGroup extends BaseNavigateEditorAction {
 	}
 }
 
-export class OpenPreviousEditorInGroup extends BaseNavigateEditorAction {
+export class OpenPreviousEditorInGroup extends AbstractNavigateEditorAction {
 
 	static readonly ID = 'workbench.action.previousEditorInGroup';
 	static readonly LABEL = localize('openPreviousEditorInGroup', "Open Previous Editor in Group");
@@ -1163,7 +1163,7 @@ export class OpenPreviousEditorInGroup extends BaseNavigateEditorAction {
 	}
 }
 
-export class OpenFirstEditorInGroup extends BaseNavigateEditorAction {
+export class OpenFirstEditorInGroup extends AbstractNavigateEditorAction {
 
 	static readonly ID = 'workbench.action.firstEditorInGroup';
 	static readonly LABEL = localize('firstEditorInGroup', "Open First Editor in Group");
@@ -1185,7 +1185,7 @@ export class OpenFirstEditorInGroup extends BaseNavigateEditorAction {
 	}
 }
 
-export class OpenLastEditorInGroup extends BaseNavigateEditorAction {
+export class OpenLastEditorInGroup extends AbstractNavigateEditorAction {
 
 	static readonly ID = 'workbench.action.lastEditorInGroup';
 	static readonly LABEL = localize('lastEditorInGroup', "Open Last Editor in Group");
@@ -1359,7 +1359,7 @@ export class ShowAllEditorsByMostRecentlyUsedAction extends Action {
 	}
 }
 
-export class BaseQuickAccessEditorAction extends Action {
+abstract class AbstractQuickAccessEditorAction extends Action {
 
 	constructor(
 		id: string,
@@ -1382,7 +1382,7 @@ export class BaseQuickAccessEditorAction extends Action {
 	}
 }
 
-export class QuickAccessPreviousRecentlyUsedEditorAction extends BaseQuickAccessEditorAction {
+export class QuickAccessPreviousRecentlyUsedEditorAction extends AbstractQuickAccessEditorAction {
 
 	static readonly ID = 'workbench.action.quickOpenPreviousRecentlyUsedEditor';
 	static readonly LABEL = localize('quickOpenPreviousRecentlyUsedEditor', "Quick Open Previous Recently Used Editor");
@@ -1397,7 +1397,7 @@ export class QuickAccessPreviousRecentlyUsedEditorAction extends BaseQuickAccess
 	}
 }
 
-export class QuickAccessLeastRecentlyUsedEditorAction extends BaseQuickAccessEditorAction {
+export class QuickAccessLeastRecentlyUsedEditorAction extends AbstractQuickAccessEditorAction {
 
 	static readonly ID = 'workbench.action.quickOpenLeastRecentlyUsedEditor';
 	static readonly LABEL = localize('quickOpenLeastRecentlyUsedEditor', "Quick Open Least Recently Used Editor");
@@ -1412,7 +1412,7 @@ export class QuickAccessLeastRecentlyUsedEditorAction extends BaseQuickAccessEdi
 	}
 }
 
-export class QuickAccessPreviousRecentlyUsedEditorInGroupAction extends BaseQuickAccessEditorAction {
+export class QuickAccessPreviousRecentlyUsedEditorInGroupAction extends AbstractQuickAccessEditorAction {
 
 	static readonly ID = 'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup';
 	static readonly LABEL = localize('quickOpenPreviousRecentlyUsedEditorInGroup', "Quick Open Previous Recently Used Editor in Group");
@@ -1427,7 +1427,7 @@ export class QuickAccessPreviousRecentlyUsedEditorInGroupAction extends BaseQuic
 	}
 }
 
-export class QuickAccessLeastRecentlyUsedEditorInGroupAction extends BaseQuickAccessEditorAction {
+export class QuickAccessLeastRecentlyUsedEditorInGroupAction extends AbstractQuickAccessEditorAction {
 
 	static readonly ID = 'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup';
 	static readonly LABEL = localize('quickOpenLeastRecentlyUsedEditorInGroup', "Quick Open Least Recently Used Editor in Group");
@@ -1817,7 +1817,7 @@ export class EditorLayoutTwoRowsRightAction extends ExecuteCommandAction {
 	}
 }
 
-export class BaseCreateEditorGroupAction extends Action {
+abstract class AbstractCreateEditorGroupAction extends Action {
 
 	constructor(
 		id: string,
@@ -1833,7 +1833,7 @@ export class BaseCreateEditorGroupAction extends Action {
 	}
 }
 
-export class NewEditorGroupLeftAction extends BaseCreateEditorGroupAction {
+export class NewEditorGroupLeftAction extends AbstractCreateEditorGroupAction {
 
 	static readonly ID = 'workbench.action.newGroupLeft';
 	static readonly LABEL = localize('newEditorLeft', "New Editor Group to the Left");
@@ -1847,7 +1847,7 @@ export class NewEditorGroupLeftAction extends BaseCreateEditorGroupAction {
 	}
 }
 
-export class NewEditorGroupRightAction extends BaseCreateEditorGroupAction {
+export class NewEditorGroupRightAction extends AbstractCreateEditorGroupAction {
 
 	static readonly ID = 'workbench.action.newGroupRight';
 	static readonly LABEL = localize('newEditorRight', "New Editor Group to the Right");
@@ -1861,7 +1861,7 @@ export class NewEditorGroupRightAction extends BaseCreateEditorGroupAction {
 	}
 }
 
-export class NewEditorGroupAboveAction extends BaseCreateEditorGroupAction {
+export class NewEditorGroupAboveAction extends AbstractCreateEditorGroupAction {
 
 	static readonly ID = 'workbench.action.newGroupAbove';
 	static readonly LABEL = localize('newEditorAbove', "New Editor Group Above");
@@ -1875,7 +1875,7 @@ export class NewEditorGroupAboveAction extends BaseCreateEditorGroupAction {
 	}
 }
 
-export class NewEditorGroupBelowAction extends BaseCreateEditorGroupAction {
+export class NewEditorGroupBelowAction extends AbstractCreateEditorGroupAction {
 
 	static readonly ID = 'workbench.action.newGroupBelow';
 	static readonly LABEL = localize('newEditorBelow', "New Editor Group Below");

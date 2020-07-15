@@ -618,12 +618,12 @@ export interface IEditorInput extends IDisposable {
 	isDisposed(): boolean;
 }
 
-export abstract class BaseEditorInput extends Disposable {
+export abstract class AbstractEditorInput extends Disposable {
 	// Marker class for implementing `isEditorInput`
 }
 
 export function isEditorInput(editor: unknown): editor is IEditorInput {
-	return editor instanceof BaseEditorInput;
+	return editor instanceof AbstractEditorInput;
 }
 
 export interface IEditorInputWithPreferredResource {
