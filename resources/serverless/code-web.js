@@ -20,13 +20,15 @@ const ansiColors = require('ansi-colors');
 const extensions = require('../../build/lib/extensions');
 
 const APP_ROOT = path.join(__dirname, '..', '..');
-const EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
+const BUILTIN_EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
+const BUILTIN_MARKETPLACE_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInExtensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
 
 const args = minimist(process.argv, {
 	boolean: [
 		'no-launch',
-		'help'
+		'help',
+		'verbose'
 	],
 	string: [
 		'scheme',
@@ -46,6 +48,7 @@ if (args.help) {
 		' --port           Remote/Local port\n' +
 		' --local_port     Local port override\n' +
 		' --extension      Path of an extension to include\n' +
+		' --verbose        Print out more information\n' +
 		' --help\n' +
 		'[Example]\n' +
 		' yarn web --scheme https --host example.com --port 8080 --local_port 30000'
@@ -64,18 +67,27 @@ const readFile = (path) => util.promisify(fs.readFile)(path);
 const readdir = (path) => util.promisify(fs.readdir)(path);
 const readdirWithFileTypes = (path) => util.promisify(fs.readdir)(path, { withFileTypes: true });
 
-async function getBuiltInExtensionInfos(extensionsRoot) {
-	const builtinExtensions = [];
-	const children = await readdirWithFileTypes(extensionsRoot);
-	await Promise.all(children.map(async child => {
-		if (child.isDirectory()) {
-			const info = await getBuiltInExtensionInfo(path.join(extensionsRoot, child.name));
-			if (info) {
-				builtinExtensions.push(info);
-			}
+async function getBuiltInExtensionInfos() {
+	const extensions = [];
+	/** @type {Object.<string, string>} */
+	const locations = {};
+
+	for (const extensionsRoot of [BUILTIN_EXTENSIONS_ROOT, BUILTIN_MARKETPLACE_EXTENSIONS_ROOT]) {
+		if (await exists(extensionsRoot)) {
+			const children = await readdirWithFileTypes(extensionsRoot);
+			await Promise.all(children.map(async child => {
+				if (child.isDirectory()) {
+					const extensionPath = path.join(extensionsRoot, child.name);
+					const info = await getBuiltInExtensionInfo(extensionPath);
+					if (info) {
+						extensions.push(info);
+						locations[path.basename(extensionPath)] = extensionPath;
+					}
+				}
+			}));
 		}
-	}));
-	return builtinExtensions;
+	}
+	return { extensions, locations };
 }
 
 async function getBuiltInExtensionInfo(extensionPath) {
@@ -106,6 +118,8 @@ async function getBuiltInExtensionInfo(extensionPath) {
 
 async function getDefaultExtensionInfos() {
 	const extensions = [];
+
+	/** @type {Object.<string, string>} */
 	const locations = {};
 
 	let extensionArg = args['extension'];
@@ -166,8 +180,7 @@ async function getExtensionPackageJSON(extensionPath) {
 	return undefined;
 }
 
-
-const builtinExtensionsPromise = getBuiltInExtensionInfos(EXTENSIONS_ROOT);
+const builtInExtensionsPromise = getBuiltInExtensionInfos();
 const defaultExtensionsPromise = getDefaultExtensionInfos();
 
 const mapCallbackUriToRequestId = new Map();
@@ -201,8 +214,8 @@ const server = http.createServer((req, res) => {
 			return handleExtension(req, res, parsedUrl);
 		}
 		if (/^\/builtin-extension\//.test(pathname)) {
-			// builtin extension requests
-			return handleBuiltinExtension(req, res, parsedUrl);
+			// built-in extension requests
+			return handleBuiltInExtension(req, res, parsedUrl);
 		}
 		if (pathname === '/') {
 			// main web
@@ -256,19 +269,10 @@ function handleStatic(req, res, parsedUrl) {
 async function handleExtension(req, res, parsedUrl) {
 	// Strip `/extension/` from the path
 	const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/extension/'.length));
-	const firstSlash = relativePath.indexOf('/');
-	if (firstSlash === -1) {
+	const filePath = getExtensionFilePath(relativePath, (await defaultExtensionsPromise).locations);
+	if (!filePath) {
 		return serveError(req, res, 400, `Bad request.`);
 	}
-	const extensionId = relativePath.substr(0, firstSlash);
-	const { locations } = await defaultExtensionsPromise;
-
-	const extensionPath = locations[extensionId];
-	if (!extensionPath) {
-		return serveError(req, res, 400, `Bad request.`);
-	}
-
-	const filePath = path.join(extensionPath, relativePath.substr(firstSlash + 1));
 	return serveFile(req, res, filePath);
 }
 
@@ -277,10 +281,13 @@ async function handleExtension(req, res, parsedUrl) {
  * @param {import('http').ServerResponse} res
  * @param {import('url').UrlWithParsedQuery} parsedUrl
  */
-async function handleBuiltinExtension(req, res, parsedUrl) {
+async function handleBuiltInExtension(req, res, parsedUrl) {
 	// Strip `/builtin-extension/` from the path
 	const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/builtin-extension/'.length));
-	const filePath = path.join(EXTENSIONS_ROOT, relativePath);
+	const filePath = getExtensionFilePath(relativePath, (await builtInExtensionsPromise).locations);
+	if (!filePath) {
+		return serveError(req, res, 400, `Bad request.`);
+	}
 	return serveFile(req, res, filePath);
 }
 
@@ -316,18 +323,23 @@ async function handleRoot(req, res) {
 		}
 	}
 
-	const builtinExtensions = await builtinExtensionsPromise;
-	const { extensions } = await defaultExtensionsPromise;
+	const { extensions: builtInExtensions } = await builtInExtensionsPromise;
+	const { extensions: staticExtensions } = await defaultExtensionsPromise;
+
+	if (args.verbose) {
+		fancyLog(`${ansiColors.magenta('BuiltIn extensions')}: ${builtInExtensions.map(e => path.basename(e.extensionPath)).join(', ')}`);
+		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${staticExtensions.map(e => path.basename(e.extensionLocation.path)).join(', ') || 'None'}`);
+	}
 
 	const webConfigJSON = escapeAttribute(JSON.stringify({
 		folderUri: folderUri,
-		staticExtensions: extensions,
+		staticExtensions,
 		builtinExtensionsServiceUrl: `${SCHEME}://${AUTHORITY}/builtin-extension`
 	}));
 
 	const data = (await readFile(WEB_MAIN)).toString()
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => webConfigJSON) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
-		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(builtinExtensions)))
+		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(builtInExtensions)))
 		.replace('{{WEBVIEW_ENDPOINT}}', '')
 		.replace('{{REMOTE_USER_DATA_URI}}', '');
 
@@ -434,6 +446,25 @@ function getFirstQueryValues(parsedUrl, ignoreKeys) {
  */
 function escapeAttribute(value) {
 	return value.replace(/"/g, '&quot;');
+}
+
+/**
+ * @param {string} relativePath
+ * @param {Object.<string, string>} locations
+ * @returns {string | undefined}
+*/
+function getExtensionFilePath(relativePath, locations) {
+	const firstSlash = relativePath.indexOf('/');
+	if (firstSlash === -1) {
+		return undefined;
+	}
+	const extensionId = relativePath.substr(0, firstSlash);
+
+	const extensionPath = locations[extensionId];
+	if (!extensionPath) {
+		return undefined;
+	}
+	return path.join(extensionPath, relativePath.substr(firstSlash + 1));
 }
 
 /**
