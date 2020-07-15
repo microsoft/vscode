@@ -67,6 +67,7 @@ export class ModesHoverController implements IEditorContribution {
 		this._contentWidget = null;
 		this._glyphWidget = null;
 		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(_contextKeyService);
+		this.addAdditionalDecorations([]);
 
 		this._hookEvents();
 
