@@ -11,6 +11,8 @@ import { INotebookCellActionContext, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbe
 import { INotebookEditor, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { INotebookKernelInfoDto2, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 registerAction2(class extends Action2 {
@@ -43,17 +45,25 @@ registerAction2(class extends Action2 {
 		const editor = editorService.activeEditorPane?.getControl() as INotebookEditor;
 		const activeKernel = editor.activeKernel;
 
+		const tokenSource = new CancellationTokenSource();
+		const availableKernels2 = await notebookService.getContributedNotebookKernels2(editor.viewModel!.viewType, editor.viewModel!.uri, tokenSource.token);
 		const availableKernels = notebookService.getContributedNotebookKernels(editor.viewModel!.viewType, editor.viewModel!.uri);
-		const picks: QuickPickInput<IQuickPickItem & { run(): void; }>[] = availableKernels.map((a) => {
+		const picks: QuickPickInput<IQuickPickItem & { run(): void; }>[] = [...availableKernels2, ...availableKernels].map((a) => {
 			return {
 				id: a.id,
 				label: a.label,
 				picked: a.id === activeKernel?.id,
-				description: a.extension.value + (a.id === activeKernel?.id
-					? nls.localize('currentActiveKernel', " (Currently Active)")
-					: ''),
-				run: () => {
+				description:
+					(a as INotebookKernelInfoDto2).description
+						? (a as INotebookKernelInfoDto2).description
+						: a.extension.value + (a.id === activeKernel?.id
+							? nls.localize('currentActiveKernel', " (Currently Active)")
+							: ''),
+				run: async () => {
 					editor.activeKernel = a;
+					if ((a as any).resolve) {
+						(a as INotebookKernelInfo2).resolve(editor.uri!, editor.getId());
+					}
 				}
 			};
 		});
