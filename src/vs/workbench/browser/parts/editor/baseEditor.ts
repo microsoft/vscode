@@ -8,12 +8,12 @@ import { EditorInput, EditorOptions, IEditorPane, GroupIdentifier, IEditorMement
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { LRUCache, Touch } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { isEmptyObject } from 'vs/base/common/types';
+import { isEmptyObject, isUndefinedOrNull } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { MementoObject } from 'vs/workbench/common/memento';
 import { joinPath, IExtUri } from 'vs/base/common/resources';
@@ -227,9 +227,9 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 	}
 
-	loadEditorState(group: IEditorGroup, resource: URI): T | undefined;
-	loadEditorState(group: IEditorGroup, editor: EditorInput): T | undefined;
-	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T | undefined {
+	loadEditorState(group: IEditorGroup, resource: URI, fallbackToOtherGroupState?: boolean): T | undefined;
+	loadEditorState(group: IEditorGroup, editor: EditorInput, fallbackToOtherGroupState?: boolean): T | undefined;
+	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput, fallbackToOtherGroupState?: boolean): T | undefined {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (!resource || !group) {
 			return undefined; // we are not in a good state to load any state for a resource
@@ -239,7 +239,18 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 
 		const mementoForResource = cache.get(resource.toString());
 		if (mementoForResource) {
-			return mementoForResource[group.id];
+			let mementoForResourceAndGroup = mementoForResource[group.id];
+			if (!fallbackToOtherGroupState || !isUndefinedOrNull(mementoForResourceAndGroup)) {
+				return mementoForResourceAndGroup;
+			}
+
+			// Fallback to retrieve state from the most recently active editor group as instructed
+			for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+				mementoForResourceAndGroup = mementoForResource[group.id];
+				if (!isUndefinedOrNull(mementoForResourceAndGroup)) {
+					return mementoForResourceAndGroup;
+				}
+			}
 		}
 
 		return undefined;
@@ -339,7 +350,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		// cache and its is a LRU cache make a copy to ensure iteration succeeds
 		const entries = [...cache.entries()];
 		for (const [resource, mapGroupToMemento] of entries) {
-			Object.keys(mapGroupToMemento).forEach(group => {
+			for (const group of Object.keys(mapGroupToMemento)) {
 				const groupId: GroupIdentifier = Number(group);
 				if (!this.editorGroupService.getGroup(groupId)) {
 					delete mapGroupToMemento[groupId];
@@ -347,7 +358,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 						cache.delete(resource);
 					}
 				}
-			});
+			}
 		}
 	}
 }
