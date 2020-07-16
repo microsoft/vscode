@@ -102,8 +102,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('hasLocalData');
 	}
 
-	acceptPreviewContent(syncResource: SyncResource, resource: URI, content: string): Promise<void> {
-		return this.channel.call('acceptPreviewContent', [syncResource, resource, content]);
+	accept(syncResource: SyncResource, resource: URI, content: string, apply: boolean): Promise<void> {
+		return this.channel.call('accept', [syncResource, resource, content, apply]);
 	}
 
 	resolveContent(resource: URI): Promise<string | null> {
@@ -191,8 +191,13 @@ class ManualSyncTask implements IManualSyncTask {
 		return this.deserializePreviews(previews);
 	}
 
-	async merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
+	async merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
 		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('merge', [resource]);
+		return this.deserializePreviews(previews);
+	}
+
+	async apply(): Promise<[SyncResource, ISyncResourcePreview][]> {
+		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('apply');
 		return this.deserializePreviews(previews);
 	}
 

@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import {
 	SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService,
 	IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncResourcePreview as IBaseSyncResourcePreview,
-	IUserDataManifest, ISyncData, IRemoteUserData, PREVIEW_DIR_NAME, IResourcePreview as IBaseResourcePreview, Change
+	IUserDataManifest, ISyncData, IRemoteUserData, PREVIEW_DIR_NAME, IResourcePreview as IBaseResourcePreview, Change, MergeState
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname, isEqual, basename } from 'vs/base/common/resources';
@@ -58,10 +58,10 @@ export interface IMergableResourcePreview extends IBaseResourcePreview {
 	readonly localContent: string | null;
 	readonly previewContent: string | null;
 	readonly hasConflicts: boolean;
-	merged: boolean;
+	mergeState: MergeState;
 }
 
-export type IResourcePreview = Omit<IMergableResourcePreview, 'merged'>;
+export type IResourcePreview = Omit<IMergableResourcePreview, 'mergeState'>;
 
 export interface ISyncResourcePreview extends IBaseSyncResourcePreview {
 	readonly remoteUserData: IRemoteUserData;
@@ -217,6 +217,19 @@ export abstract class AbstractSynchroniser extends Disposable {
 		return this._sync(manifest, false, headers);
 	}
 
+	async apply(force: boolean, headers: IHeaders = {}): Promise<ISyncResourcePreview | null> {
+		try {
+			this.syncHeaders = { ...headers };
+
+			const status = await this.doApply(force);
+			this.setStatus(status);
+
+			return this.syncPreviewPromise;
+		} finally {
+			this.syncHeaders = {};
+		}
+	}
+
 	private async _sync(manifest: IUserDataManifest | null, apply: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null> {
 		try {
 			this.syncHeaders = { ...headers };
@@ -350,13 +363,17 @@ export abstract class AbstractSynchroniser extends Disposable {
 				this.syncPreviewPromise = createCancelablePromise(token => this.doGenerateSyncResourcePreview(remoteUserData, lastSyncUserData, apply, token));
 			}
 
-			if (apply) {
-				const preview = await this.syncPreviewPromise;
-				const newConflicts = preview.resourcePreviews.filter(({ hasConflicts }) => hasConflicts);
-				return await this.updateConflictsAndApply(newConflicts, false);
-			} else {
-				return SyncStatus.Syncing;
+			const preview = await this.syncPreviewPromise;
+			this.updateConflicts(preview.resourcePreviews);
+			if (preview.resourcePreviews.some(({ mergeState }) => mergeState === MergeState.Conflict)) {
+				return SyncStatus.HasConflicts;
 			}
+
+			if (apply) {
+				return await this.doApply(false);
+			}
+
+			return SyncStatus.Syncing;
 
 		} catch (error) {
 
@@ -367,76 +384,63 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
-	async acceptPreviewContent(resource: URI, content: string, force: boolean, headers: IHeaders = {}): Promise<ISyncResourcePreview | null> {
+	async accept(resource: URI, content: string): Promise<ISyncResourcePreview | null> {
 		if (!this.syncPreviewPromise) {
 			return null;
 		}
 
-		try {
-			this.syncHeaders = { ...headers };
-			const preview = await this.syncPreviewPromise;
-			this.syncPreviewPromise = createCancelablePromise(token => this.updateSyncResourcePreviewContent(preview, resource, content, token));
-			return this.merge(resource, force, headers);
-		} finally {
-			this.syncHeaders = {};
+		let preview = await this.syncPreviewPromise;
+		this.syncPreviewPromise = createCancelablePromise(token => this.updateSyncResourcePreviewContent(preview, resource, content, token));
+
+		preview = await this.syncPreviewPromise;
+		this.updateConflicts(preview.resourcePreviews);
+		if (preview.resourcePreviews.some(({ mergeState }) => mergeState === MergeState.Conflict)) {
+			this.setStatus(SyncStatus.HasConflicts);
+		} else {
+			this.setStatus(SyncStatus.Syncing);
 		}
+
+		return preview;
 	}
 
-	async merge(resource: URI, force: boolean, headers: IHeaders = {}): Promise<ISyncResourcePreview | null> {
+	async merge(resource: URI): Promise<ISyncResourcePreview | null> {
 		if (!this.syncPreviewPromise) {
 			return null;
 		}
 
-		try {
-			this.syncHeaders = { ...headers };
-			const preview = await this.syncPreviewPromise;
-			const resourcePreview = preview.resourcePreviews.find(({ localResource, remoteResource, previewResource }) =>
-				isEqual(localResource, resource) || isEqual(remoteResource, resource) || isEqual(previewResource, resource));
-			if (!resourcePreview) {
-				return preview;
-			}
-
-			/* mark merged */
-			resourcePreview.merged = true;
-
-			/* Add or remove the preview from conflicts */
-			const newConflicts = [...this._conflicts];
-			const index = newConflicts.findIndex(({ localResource, remoteResource, previewResource }) =>
-				isEqual(localResource, resource) || isEqual(remoteResource, resource) || isEqual(previewResource, resource));
-			if (resourcePreview.hasConflicts) {
-				if (newConflicts.indexOf(resourcePreview) === -1) {
-					newConflicts.push(resourcePreview);
-				}
-			} else {
-				if (index !== -1) {
-					newConflicts.splice(index, 1);
-				}
-			}
-
-			const status = await this.updateConflictsAndApply(newConflicts, force);
-			this.setStatus(status);
-			return this.syncPreviewPromise;
-
-		} finally {
-			this.syncHeaders = {};
+		const preview = await this.syncPreviewPromise;
+		const resourcePreview = preview.resourcePreviews.find(({ localResource, remoteResource, previewResource }) =>
+			isEqual(localResource, resource) || isEqual(remoteResource, resource) || isEqual(previewResource, resource));
+		if (!resourcePreview) {
+			return preview;
 		}
+
+		resourcePreview.mergeState = resourcePreview.hasConflicts ? MergeState.Conflict : MergeState.Accepted;
+
+		this.updateConflicts(preview.resourcePreviews);
+		if (preview.resourcePreviews.some(({ mergeState }) => mergeState === MergeState.Conflict)) {
+			this.setStatus(SyncStatus.HasConflicts);
+		} else {
+			this.setStatus(SyncStatus.Syncing);
+		}
+
+		return preview;
 	}
 
-	private async updateConflictsAndApply(conflicts: IMergableResourcePreview[], force: boolean): Promise<SyncStatus> {
+	private async doApply(force: boolean): Promise<SyncStatus> {
 		if (!this.syncPreviewPromise) {
 			return SyncStatus.Idle;
 		}
 
 		const preview = await this.syncPreviewPromise;
 
-		// update conflicts
-		this.updateConflicts(conflicts);
-		if (this._conflicts.length) {
+		// check for conflicts
+		if (preview.resourcePreviews.some(({ mergeState }) => mergeState === MergeState.Conflict)) {
 			return SyncStatus.HasConflicts;
 		}
 
-		// check if all are merged
-		if (preview.resourcePreviews.some(r => !r.merged)) {
+		// check if all are accepted
+		if (preview.resourcePreviews.some(({ mergeState }) => mergeState !== MergeState.Accepted)) {
 			return SyncStatus.Syncing;
 		}
 
@@ -459,7 +463,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		if (index !== -1) {
 			const resourcePreviews = [...preview.resourcePreviews];
 			const resourcePreview = await this.updateResourcePreviewContent(resourcePreviews[index], resource, previewContent, token);
-			resourcePreviews[index] = { ...resourcePreview, merged: resourcePreviews[index].merged };
+			resourcePreviews[index] = { ...resourcePreview, mergeState: MergeState.Accepted };
 			preview = {
 				...preview,
 				resourcePreviews
@@ -484,7 +488,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 		} catch (error) { /* Ignore */ }
 	}
 
-	private updateConflicts(conflicts: IMergableResourcePreview[]): void {
+	private updateConflicts(previews: IMergableResourcePreview[]): void {
+		const conflicts = previews.filter(p => p.mergeState === MergeState.Conflict);
 		if (!equals(this._conflicts, conflicts, (a, b) => isEqual(a.previewResource, b.previewResource))) {
 			this._conflicts = conflicts;
 			this._onDidChangeConflicts.fire(conflicts);
@@ -562,7 +567,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		} catch (e) { /* ignore */ }
 	}
 
-	private async doGenerateSyncResourcePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, merge: boolean, token: CancellationToken): Promise<ISyncResourcePreview> {
+	private async doGenerateSyncResourcePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean, token: CancellationToken): Promise<ISyncResourcePreview> {
 		const machineId = await this.currentMachineIdPromise;
 		const isLastSyncFromCurrentMachine = !!remoteUserData.syncData?.machineId && remoteUserData.syncData.machineId === machineId;
 
@@ -571,9 +576,12 @@ export abstract class AbstractSynchroniser extends Disposable {
 		const resourcePreviews = await this.generateSyncPreview(remoteUserData, lastSyncUserDataForPreview, token);
 
 		// Mark merge
-		const mergableResourcePreviews = resourcePreviews.map(r => ({
+		const mergableResourcePreviews = resourcePreviews.map<IMergableResourcePreview>(r => ({
 			...r,
-			merged: merge || (r.localChange === Change.None && r.remoteChange === Change.None) /* Mark previews with no changes as merged */
+			mergeState: r.localChange === Change.None && r.remoteChange === Change.None ? MergeState.Accepted /* Mark previews with no changes as merged */
+				: apply ? (r.hasConflicts ? MergeState.Conflict : MergeState.Accepted)
+					: MergeState.Preview
+
 		}));
 
 		return { remoteUserData, lastSyncUserData, resourcePreviews: mergableResourcePreviews, isLastSyncFromCurrentMachine };

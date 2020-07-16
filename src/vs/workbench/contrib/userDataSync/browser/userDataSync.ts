@@ -240,7 +240,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			for (const conflict of conflicts) {
 				const modelRef = await this.textModelResolverService.createModelReference(conflict.remoteResource);
 				try {
-					await this.userDataSyncService.acceptPreviewContent(syncResource, conflict.remoteResource, modelRef.object.textEditorModel.getValue());
+					await this.userDataSyncService.accept(syncResource, conflict.remoteResource, modelRef.object.textEditorModel.getValue(), true);
 				} finally {
 					modelRef.dispose();
 				}
@@ -255,7 +255,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			for (const conflict of conflicts) {
 				const modelRef = await this.textModelResolverService.createModelReference(conflict.previewResource);
 				try {
-					await this.userDataSyncService.acceptPreviewContent(syncResource, conflict.previewResource, modelRef.object.textEditorModel.getValue());
+					await this.userDataSyncService.accept(syncResource, conflict.previewResource, modelRef.object.textEditorModel.getValue(), true);
 				} finally {
 					modelRef.dispose();
 				}
@@ -1195,7 +1195,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 					});
 					if (result.confirmed) {
 						try {
-							await this.userDataSyncService.acceptPreviewContent(syncResource, model.uri, model.getValue());
+							await this.userDataSyncService.accept(syncResource, model.uri, model.getValue(), true);
 						} catch (e) {
 							if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.LocalPreconditionFailed) {
 								const syncResourceCoflicts = this.userDataSyncService.conflicts.filter(syncResourceCoflicts => syncResourceCoflicts[0] === syncResource)[0];

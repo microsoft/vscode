@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, MergeState } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResourceGroup, CONTEXT_ENABLE_MANUAL_SYNC_VIEW, MANUAL_SYNC_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -270,7 +270,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 					synchronizingResources.length ? progress.report({ message: localize('syncing resource', "Syncing {0}...", getSyncAreaLabel(synchronizingResources[0][0])) }) : undefined);
 				try {
 					switch (action) {
-						case 'merge': return await manualSyncTask.merge();
+						case 'merge': return await manualSyncTask.apply();
 						case 'pull': return await manualSyncTask.pull();
 						case 'push': return await manualSyncTask.push();
 						case 'manual': return;
@@ -343,7 +343,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		/* Merge to sync globalState changes */
-		await task.merge();
+		await task.apply();
 
 		this.userDataSyncPreview.unsetManualSyncPreview();
 
@@ -599,11 +599,11 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 			const syncPreview = await this.manualSync.task.accept(resource, content);
 			this.updatePreview(syncPreview);
 		} else {
-			await this.userDataSyncService.acceptPreviewContent(syncResource, resource, content);
+			await this.userDataSyncService.accept(syncResource, resource, content, false);
 		}
 	}
 
-	async merge(resource?: URI): Promise<void> {
+	async merge(resource: URI): Promise<void> {
 		if (!this.manualSync) {
 			throw new Error('Can merge only while syncing manually');
 		}
@@ -650,10 +650,9 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 				.map(([syncResource, syncResourcePreview]) =>
 					([
 						syncResource,
-						/* remove merged previews and conflicts and with no changes and conflicts */
+						/* remove accepted previews and conflicts */
 						syncResourcePreview.resourcePreviews.filter(r =>
-							!r.merged
-							&& (r.localChange !== Change.None || r.remoteChange !== Change.None)
+							r.mergeState !== MergeState.Accepted
 							&& !this._conflicts.some(c => c.syncResource === syncResource && isEqual(c.local, r.localResource)))
 					]))
 		);

@@ -317,13 +317,19 @@ export const enum Change {
 	Deleted,
 }
 
+export const enum MergeState {
+	Preview,
+	Conflict,
+	Accepted,
+}
+
 export interface IResourcePreview {
 	readonly remoteResource: URI;
 	readonly localResource: URI;
 	readonly previewResource: URI;
 	readonly localChange: Change;
 	readonly remoteChange: Change;
-	readonly merged: boolean;
+	readonly mergeState: MergeState;
 }
 
 export interface ISyncResourcePreview {
@@ -345,18 +351,19 @@ export interface IUserDataSynchroniser {
 	pull(): Promise<void>;
 	push(): Promise<void>;
 	sync(manifest: IUserDataManifest | null, headers: IHeaders): Promise<void>;
-	preview(manifest: IUserDataManifest | null, headers: IHeaders): Promise<ISyncResourcePreview | null>;
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
+
+	preview(manifest: IUserDataManifest | null, headers: IHeaders): Promise<ISyncResourcePreview | null>;
+	accept(resource: URI, content: string): Promise<ISyncResourcePreview | null>;
+	merge(resource: URI): Promise<ISyncResourcePreview | null>;
+	apply(force: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null>;
 
 	hasPreviouslySynced(): Promise<boolean>;
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;
 
 	resolveContent(resource: URI): Promise<string | null>;
-	acceptPreviewContent(resource: URI, content: string, force: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null>;
-	merge(resource: URI, force: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null>;
-
 	getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
 	getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
 	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]>;
@@ -388,7 +395,8 @@ export interface IManualSyncTask extends IDisposable {
 	readonly onSynchronizeResources: Event<[SyncResource, URI[]][]>;
 	preview(): Promise<[SyncResource, ISyncResourcePreview][]>;
 	accept(uri: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]>;
-	merge(uri?: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
+	merge(uri: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
+	apply(): Promise<[SyncResource, ISyncResourcePreview][]>;
 	pull(): Promise<void>;
 	push(): Promise<void>;
 	stop(): Promise<void>;
@@ -422,7 +430,7 @@ export interface IUserDataSyncService {
 	hasLocalData(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
-	acceptPreviewContent(resource: SyncResource, conflictResource: URI, content: string): Promise<void>;
+	accept(resource: SyncResource, conflictResource: URI, content: string, apply: boolean): Promise<void>;
 
 	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
 	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
