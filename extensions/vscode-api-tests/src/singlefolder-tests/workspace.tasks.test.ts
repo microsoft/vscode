@@ -18,7 +18,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 			disposables.length = 0;
 		});
 
-		test.skip('CustomExecution task should start and shutdown successfully', (done) => {
+		test('CustomExecution task should start and shutdown successfully', (done) => {
 			interface CustomTestingTaskDefinition extends TaskDefinition {
 				/**
 				 * One of the task properties. This can be used to customize the task in the tasks.json
@@ -110,7 +110,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 			commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
 		});
 
-		test.skip('sync CustomExecution task should flush all data on close', (done) => {
+		test('sync CustomExecution task should flush all data on close', (done) => {
 			interface CustomTestingTaskDefinition extends TaskDefinition {
 				/**
 				 * One of the task properties. This can be used to customize the task in the tasks.json
@@ -222,7 +222,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 		});
 
 		// https://github.com/microsoft/vscode/issues/100577
-		test.skip('A CustomExecution task can be fetched and executed', () => {
+		test('A CustomExecution task can be fetched and executed', () => {
 			return new Promise(async (resolve, reject) => {
 				class CustomTerminal implements Pseudoterminal {
 					private readonly writeEmitter = new EventEmitter<string>();
