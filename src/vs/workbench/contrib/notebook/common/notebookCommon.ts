@@ -14,7 +14,6 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { GlobPattern } from 'vs/workbench/api/common/extHost.protocol';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IRevertOptions } from 'vs/workbench/common/editor';
@@ -70,7 +69,7 @@ export interface NotebookDocumentMetadata {
 	cellEditable: boolean;
 	cellRunnable: boolean;
 	cellHasExecutionOrder: boolean;
-	displayOrder?: GlobPattern[];
+	displayOrder?: (string | glob.IRelativePattern)[];
 	custom?: { [key: string]: unknown };
 }
 
