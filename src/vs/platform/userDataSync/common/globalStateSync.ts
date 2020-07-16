@@ -45,9 +45,10 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	private static readonly GLOBAL_STATE_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'globalState', path: `/globalState.json` });
 	protected readonly version: number = 1;
-	private readonly localPreviewResource: URI = joinPath(this.syncPreviewFolder, 'globalState.json');
-	private readonly remotePreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
-	private readonly acceptedPreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
+	private readonly previewResource: URI = joinPath(this.syncPreviewFolder, 'globalState.json');
+	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
+	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
+	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
 
 	constructor(
 		@IFileService fileService: IFileService,
@@ -94,13 +95,13 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		const mergeResult = merge(localUserData.storage, syncGlobalState.storage, localUserData.storage, this.getSyncStorageKeys(), lastSyncUserData?.skippedStorageKeys || [], this.logService);
 		const { local, skipped } = mergeResult;
 		return [{
-			localResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI,
+			localResource: this.localResource,
 			localContent: this.format(localUserData),
-			remoteResource: this.remotePreviewResource,
+			remoteResource: this.remoteResource,
 			remoteContent: remoteGlobalState ? this.format(remoteGlobalState) : null,
-			previewResource: this.localPreviewResource,
+			previewResource: this.previewResource,
 			previewContent: null,
-			acceptedResource: this.acceptedPreviewResource,
+			acceptedResource: this.acceptedResource,
 			acceptedContent: null,
 			local,
 			remote: syncGlobalState.storage,
@@ -128,13 +129,13 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		const { local, remote, skipped } = mergeResult;
 
 		return [{
-			localResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI,
+			localResource: this.localResource,
 			localContent: this.format(localGloablState),
-			remoteResource: this.remotePreviewResource,
+			remoteResource: this.remoteResource,
 			remoteContent: remoteGlobalState ? this.format(remoteGlobalState) : null,
-			previewResource: this.localPreviewResource,
+			previewResource: this.previewResource,
 			previewContent: null,
-			acceptedResource: this.acceptedPreviewResource,
+			acceptedResource: this.acceptedResource,
 			acceptedContent: null,
 			local,
 			remote,
@@ -178,10 +179,10 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	protected async updateResourcePreview(resourcePreview: IGlobalStateResourcePreview, resource: URI, acceptedContent: string): Promise<IGlobalStateResourcePreview> {
-		if (GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI, resource) {
+		if (isEqual(this.localResource, resource)) {
 			return this.getPushPreview(resourcePreview.remoteContent);
 		}
-		if (this.remotePreviewResource, resource) {
+		if (isEqual(this.remoteResource, resource)) {
 			return this.getPullPreview(resourcePreview.remoteContent, resourcePreview.skippedStorageKeys);
 		}
 		return resourcePreview;
@@ -189,11 +190,11 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	private async getPullPreview(remoteContent: string | null, skippedStorageKeys: string[]): Promise<IGlobalStateResourcePreview> {
 		const localGlobalState = await this.getLocalGlobalState();
-		const localResource = GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI;
+		const localResource = this.localResource;
 		const localContent = this.format(localGlobalState);
-		const remoteResource = this.remotePreviewResource;
-		const previewResource = this.localPreviewResource;
-		const acceptedResource = this.acceptedPreviewResource;
+		const remoteResource = this.remoteResource;
+		const previewResource = this.previewResource;
+		const acceptedResource = this.acceptedResource;
 		const previewContent = null;
 		if (remoteContent !== null) {
 			const remoteGlobalState: IGlobalState = JSON.parse(remoteContent);
@@ -241,13 +242,13 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		const localUserData = await this.getLocalGlobalState();
 		const remoteGlobalState: IGlobalState = remoteContent ? JSON.parse(remoteContent) : null;
 		return {
-			localResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI,
+			localResource: this.localResource,
 			localContent: this.format(localUserData),
-			remoteResource: this.remotePreviewResource,
+			remoteResource: this.remoteResource,
 			remoteContent: remoteGlobalState ? this.format(remoteGlobalState) : null,
-			previewResource: this.localPreviewResource,
+			previewResource: this.previewResource,
 			previewContent: null,
-			acceptedResource: this.acceptedPreviewResource,
+			acceptedResource: this.acceptedResource,
 			acceptedContent: null,
 			local: { added: {}, removed: [], updated: {} },
 			remote: localUserData.storage,
@@ -264,12 +265,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
-		if (isEqual(uri, GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI)) {
-			const localGlobalState = await this.getLocalGlobalState();
-			return this.format(localGlobalState);
-		}
-
-		if (isEqual(this.remotePreviewResource, uri) || isEqual(this.acceptedPreviewResource, uri)) {
+		if (isEqual(this.remoteResource, uri) || isEqual(this.localResource, uri) || isEqual(this.acceptedResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}
 
