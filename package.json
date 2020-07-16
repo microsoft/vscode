@@ -174,7 +174,7 @@
     "webpack": "^4.43.0",
     "webpack-cli": "^3.3.12",
     "webpack-stream": "^5.2.1",
-    "yaserver": "^0.2.0"
+    "yaserver": "^0.3.0"
   },
   "repository": {
     "type": "git",
