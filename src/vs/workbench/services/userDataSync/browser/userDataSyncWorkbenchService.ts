@@ -304,9 +304,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			Severity.Info,
 			localize('Replace or Merge', "Replace or Merge"),
 			[
-				localize('sync manually', "Sync Manually"),
 				localize('merge', "Merge"),
 				localize('replace local', "Replace Local"),
+				localize('sync manually', "Sync Manually"),
 				localize('cancel', "Cancel"),
 			],
 			{
@@ -316,14 +316,14 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		);
 		switch (result.choice) {
 			case 0:
-				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'manual' });
-				return 'manual';
-			case 1:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
 				return 'merge';
-			case 2:
+			case 1:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'pull' });
 				return 'pull';
+			case 2:
+				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'manual' });
+				return 'manual';
 		}
 		this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
 		throw canceled();

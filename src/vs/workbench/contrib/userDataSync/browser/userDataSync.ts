@@ -483,8 +483,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			Severity.Info,
 			localize('sync preview message', "Synchronizing your preferences is a preview feature, please read the documentation before turning it on."),
 			[
-				localize('open doc', "Open Documentation"),
 				localize('turn on', "Turn On"),
+				localize('open doc', "Open Documentation"),
 				localize('cancel', "Cancel"),
 			],
 			{
@@ -492,7 +492,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 		);
 		switch (result.choice) {
-			case 0: this.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); return false;
+			case 1: this.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); return false;
 			case 2: return false;
 		}
 		return true;
