@@ -3,19 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
-
 'use strict';
 
-const path = require('path');
-const withDefaults = require('../shared.webpack.config');
-
-module.exports = withDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/extension.ts',
-	},
-	externals: {
-		'keytar': 'commonjs keytar'
-	}
-});
+export async function sha256(s: string | Uint8Array): Promise<string> {
+	return (require('crypto')).createHash('sha256').update(s).digest('base64');
+}

@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as crypto from 'crypto';
-import * as https from 'https';
+import * as randomBytes from 'randombytes';
 import * as querystring from 'querystring';
 import * as vscode from 'vscode';
-import * as uuid from 'uuid';
-import { createServer, startServer } from './authServer';
+import { createServer, startServer } from './env/node/authServer';
+
+import { v4 as uuid } from 'uuid';
 import { keychain } from './keychain';
 import Logger from './logger';
 import { toBase64UrlEncoding } from './utils';
+import fetch from 'node-fetch';
+import { sha256 } from './env/node/sha256';
 
 const redirectUrl = 'https://vscode-redirect.azurewebsites.net/';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
@@ -21,7 +23,7 @@ const tenant = 'organizations';
 interface IToken {
 	accessToken?: string; // When unable to refresh due to network problems, the access token becomes undefined
 
-	expiresIn?: string; // How long access token is valid, in seconds
+	expiresIn?: number; // How long access token is valid, in seconds
 	expiresAt?: number; // UNIX epoch time at which token will expire
 	refreshToken: string;
 
@@ -52,6 +54,15 @@ interface IStoredSession {
 		displayName?: string,
 		id: string
 	}
+}
+
+export interface ITokenResponse {
+	access_token: string;
+	expires_in: number;
+	ext_expires_in: number;
+	refresh_token: string;
+	scope: string;
+	token_type: string;
 }
 
 function parseQuery(uri: vscode.Uri) {
@@ -257,7 +268,7 @@ export class AzureActiveDirectoryService {
 				return;
 			}
 
-			const nonce = crypto.randomBytes(16).toString('base64');
+			const nonce = randomBytes(16).toString('base64');
 			const { server, redirectPromise, codePromise } = createServer(nonce);
 
 			let token: IToken | undefined;
@@ -279,8 +290,8 @@ export class AzureActiveDirectoryService {
 
 				const state = `${updatedPort},${encodeURIComponent(nonce)}`;
 
-				const codeVerifier = toBase64UrlEncoding(crypto.randomBytes(32).toString('base64'));
-				const codeChallenge = toBase64UrlEncoding(crypto.createHash('sha256').update(codeVerifier).digest('base64'));
+				const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
+				const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
 				const loginUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize?response_type=code&response_mode=query&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&scope=${encodeURIComponent(scope)}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`;
 
 				await redirectReq.res.writeHead(302, { Location: loginUrl });
@@ -341,14 +352,14 @@ export class AzureActiveDirectoryService {
 
 	private async loginWithoutLocalServer(scope: string): Promise<vscode.AuthenticationSession> {
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
-		const nonce = crypto.randomBytes(16).toString('base64');
+		const nonce = randomBytes(16).toString('base64');
 		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
 		const callbackEnvironment = this.getCallbackEnvironment(callbackUri);
 		const state = `${callbackEnvironment}${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
 		const signInUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize`;
 		let uri = vscode.Uri.parse(signInUrl);
-		const codeVerifier = toBase64UrlEncoding(crypto.randomBytes(32).toString('base64'));
-		const codeChallenge = toBase64UrlEncoding(crypto.createHash('sha256').update(codeVerifier).digest('base64'));
+		const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
+		const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
 		uri = uri.with({
 			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&response_mode=query&redirect_uri=${redirectUrl}&state=${state}&scope=${scope}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`
 		});
@@ -421,14 +432,13 @@ export class AzureActiveDirectoryService {
 						onDidChangeSessions.fire({ added: [], removed: [token.sessionId], changed: [] });
 					}
 				}
-			}, 1000 * (parseInt(token.expiresIn) - 30)));
+			}, 1000 * (token.expiresIn - 30)));
 		}
 
 		this.storeTokenData();
 	}
 
-	private getTokenFromResponse(buffer: Buffer[], scope: string, existingId?: string): IToken {
-		const json = JSON.parse(Buffer.concat(buffer).toString());
+	private getTokenFromResponse(json: ITokenResponse, scope: string, existingId?: string): IToken {
 		const claims = this.getTokenClaims(json.access_token);
 		return {
 			expiresIn: json.expires_in,
@@ -445,60 +455,42 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async exchangeCodeForToken(code: string, codeVerifier: string, scope: string): Promise<IToken> {
-		return new Promise((resolve: (value: IToken) => void, reject) => {
-			Logger.info('Exchanging login code for token');
-			try {
-				const postData = querystring.stringify({
-					grant_type: 'authorization_code',
-					code: code,
-					client_id: clientId,
-					scope: scope,
-					code_verifier: codeVerifier,
-					redirect_uri: redirectUrl
-				});
+		Logger.info('Exchanging login code for token');
+		try {
+			const postData = querystring.stringify({
+				grant_type: 'authorization_code',
+				code: code,
+				client_id: clientId,
+				scope: scope,
+				code_verifier: codeVerifier,
+				redirect_uri: redirectUrl
+			});
 
-				const tokenUrl = vscode.Uri.parse(`${loginEndpointUrl}${tenant}/oauth2/v2.0/token`);
+			const result = await fetch(`${loginEndpointUrl}${tenant}/oauth2/v2.0/token`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'Content-Length': postData.length.toString()
+				},
+				body: postData
+			});
 
-				const post = https.request({
-					host: tokenUrl.authority,
-					path: tokenUrl.path,
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/x-www-form-urlencoded',
-						'Content-Length': postData.length
-					}
-				}, result => {
-					const buffer: Buffer[] = [];
-					result.on('data', (chunk: Buffer) => {
-						buffer.push(chunk);
-					});
-					result.on('end', () => {
-						if (result.statusCode === 200) {
-							Logger.info('Exchanging login code for token success');
-							resolve(this.getTokenFromResponse(buffer, scope));
-						} else {
-							Logger.error('Exchanging login code for token failed');
-							reject(new Error('Unable to login.'));
-						}
-					});
-				});
-
-				post.write(postData);
-
-				post.end();
-				post.on('error', err => {
-					reject(err);
-				});
-
-			} catch (e) {
-				Logger.error(e.message);
-				reject(e);
+			if (result.ok) {
+				Logger.info('Exchanging login code for token success');
+				const json = await result.json();
+				return this.getTokenFromResponse(json, scope);
+			} else {
+				Logger.error('Exchanging login code for token failed');
+				throw new Error('Unable to login.');
 			}
-		});
+		} catch (e) {
+			Logger.error(e.message);
+			throw e;
+		}
 	}
 
 	private async refreshToken(refreshToken: string, scope: string, sessionId: string): Promise<IToken> {
-		return new Promise((resolve: (value: IToken) => void, reject) => {
+		try {
 			Logger.info('Refreshing token...');
 			const postData = querystring.stringify({
 				refresh_token: refreshToken,
@@ -507,40 +499,29 @@ export class AzureActiveDirectoryService {
 				scope: scope
 			});
 
-			const post = https.request({
-				host: 'login.microsoftonline.com',
-				path: `/${tenant}/oauth2/v2.0/token`,
+			const result = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',
-					'Content-Length': postData.length
-				}
-			}, result => {
-				const buffer: Buffer[] = [];
-				result.on('data', (chunk: Buffer) => {
-					buffer.push(chunk);
-				});
-				result.on('end', async () => {
-					if (result.statusCode === 200) {
-						const token = this.getTokenFromResponse(buffer, scope, sessionId);
-						this.setToken(token, scope);
-						Logger.info('Token refresh success');
-						resolve(token);
-					} else {
-						Logger.error('Refreshing token failed');
-						reject(new Error('Refreshing token failed.'));
-					}
-				});
+					'Content-Length': postData.length.toString()
+				},
+				body: postData
 			});
 
-			post.write(postData);
-
-			post.end();
-			post.on('error', err => {
-				Logger.error(err.message);
-				reject(new Error(REFRESH_NETWORK_FAILURE));
-			});
-		});
+			if (result.ok) {
+				const json = await result.json();
+				const token = this.getTokenFromResponse(json, scope, sessionId);
+				this.setToken(token, scope);
+				Logger.info('Token refresh success');
+				return token;
+			} else {
+				Logger.error('Refreshing token failed');
+				throw new Error('Refreshing token failed.');
+			}
+		} catch (e) {
+			Logger.error('Refreshing token failed');
+			throw e;
+		}
 	}
 
 	private clearSessionTimeout(sessionId: string): void {
