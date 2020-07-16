@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as stream from 'stream';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
-import { ClientCapability } from '../typescriptService';
+import { ClientCapabilities, ClientCapability } from '../typescriptService';
 import API from '../utils/api';
 import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import * as electron from '../utils/electron';
@@ -54,7 +54,7 @@ export class TypeScriptServerSpawner {
 
 	public spawn(
 		version: TypeScriptVersion,
-		capabilities: Set<ClientCapability>,
+		capabilities: ClientCapabilities,
 		configuration: TypeScriptServiceConfiguration,
 		pluginManager: PluginManager,
 		delegate: TsServerDelegate,
@@ -96,7 +96,7 @@ export class TypeScriptServerSpawner {
 
 	private getCompositeServerType(
 		version: TypeScriptVersion,
-		capabilities: Set<ClientCapability>,
+		capabilities: ClientCapabilities,
 		configuration: TypeScriptServiceConfiguration,
 	): CompositeServerType {
 		if (!capabilities.has(ClientCapability.Semantic)) {

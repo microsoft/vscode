@@ -14,7 +14,7 @@ import { EventName } from './protocol.const';
 import { ITypeScriptServer } from './tsServer/server';
 import { TypeScriptServerError } from './tsServer/serverError';
 import { TypeScriptServerSpawner } from './tsServer/spawner';
-import { ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
+import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
@@ -204,13 +204,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public get capabilities() {
-		return new Set<ClientCapability>([
+		return new ClientCapabilities(
 			ClientCapability.Semantic,
 			ClientCapability.Syntax,
-		]);
+		);
 	}
 
-	private readonly _onDidChangeCapabilities = this._register(new vscode.EventEmitter<Set<ClientCapability>>());
+	private readonly _onDidChangeCapabilities = this._register(new vscode.EventEmitter<ClientCapabilities>());
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
 
 	private cancelInflightRequestsForResource(resource: vscode.Uri): void {
