@@ -31,16 +31,41 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 		let disposable = vscode.commands.registerCommand('vscode-web-playground.addExtensionFromURL', async () => {
-			const knownWebExtensions = [
-				'https://cdn.jsdelivr.net/gh/aeschli/test-theme@1.1'
+			const knownWebExtensions: vscode.QuickPickItem[] = [
+				{ label: 'Test Theme', description: 'https://cdn.jsdelivr.net/gh/aeschli/test-theme@1.1' }
+				//	{ label: 'Yaml', description: 'https://cdn.jsdelivr.net/gh/aeschli/vscode-yaml@0.9.0-webworker' }
 			];
 
-			const value = await vscode.window.showQuickPick(knownWebExtensions, {
-				ignoreFocusOut: true,
-				placeHolder: 'Enter the URL of the extension to add.'
+
+			let uri: vscode.Uri | undefined = undefined;
+
+			await new Promise((suc, _err) => {
+				const qp = vscode.window.createQuickPick();
+				qp.items = knownWebExtensions;
+				qp.ignoreFocusOut = true;
+				qp.canSelectMany = false;
+				qp.onDidAccept(_ => {
+					const value = qp.value;
+					if (value) {
+						uri = vscode.Uri.parse(value);
+						qp.hide();
+					}
+				});
+				qp.onDidChangeSelection(e => {
+					const active = qp.selectedItems;
+					if (active.length === 1) {
+						qp.value = active[0].description || active[0].label;
+					}
+				});
+				qp.onDidHide(_ => {
+					qp.dispose();
+					suc();
+				});
+				qp.show();
 			});
-			if (value) {
-				vscode.commands.executeCommand('_workbench.extensions.installFromURL', vscode.Uri.parse(value));
+
+			if (uri) {
+				vscode.commands.executeCommand('_workbench.extensions.installFromURL', uri);
 			}
 		});
 
