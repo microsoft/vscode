@@ -107,7 +107,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 				super({
 					id: `workbench.actions.sync.acceptRemote`,
 					title: localize('workbench.actions.sync.acceptRemote', "Accept Remote"),
-					icon: Codicon.cloudDownload, /* Use just cloud icon */
+					icon: Codicon.cloud,
 					menu: {
 						id: MenuId.ViewItemContext,
 						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', MANUAL_SYNC_VIEW_ID), ContextKeyExpr.or(ContextKeyExpr.equals('viewItem', 'sync-resource-preview'), ContextKeyExpr.equals('viewItem', 'sync-resource-conflict'))),
