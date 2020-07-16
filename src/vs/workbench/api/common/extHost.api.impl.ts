@@ -205,9 +205,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get providers(): ReadonlyArray<vscode.AuthenticationProviderInformation> {
 				return extHostAuthentication.providers;
 			},
-			hasSessions(providerId: string, scopes: string[]): Thenable<boolean> {
-				return extHostAuthentication.hasSessions(providerId, scopes);
-			},
 			getSession(providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions) {
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
@@ -1103,8 +1100,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TimelineItem: extHostTypes.TimelineItem,
 			CellKind: extHostTypes.CellKind,
 			CellOutputKind: extHostTypes.CellOutputKind,
-			NotebookCellRunState: extHostTypes.NotebookCellRunState,
-			AuthenticationSession: extHostTypes.AuthenticationSession
+			NotebookCellRunState: extHostTypes.NotebookCellRunState
 		};
 	};
 }

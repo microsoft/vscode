@@ -219,7 +219,12 @@ export class AzureActiveDirectoryService {
 
 	private async convertToSession(token: IToken): Promise<vscode.AuthenticationSession> {
 		const resolvedToken = await this.resolveAccessToken(token);
-		return new vscode.AuthenticationSession(token.sessionId, resolvedToken, token.account, token.scope.split(' '));
+		return {
+			id: token.sessionId,
+			accessToken: resolvedToken,
+			account: token.account,
+			scopes: token.scope.split(' ')
+		};
 	}
 
 	private async resolveAccessToken(token: IToken): Promise<string> {

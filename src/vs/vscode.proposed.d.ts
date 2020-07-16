@@ -18,7 +18,7 @@ declare module 'vscode' {
 
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
-	export class AuthenticationSession {
+	export interface AuthenticationSession {
 		/**
 		 * The identifier of the authentication session.
 		 */
@@ -39,8 +39,6 @@ declare module 'vscode' {
 		 * are defined by the authentication provider.
 		 */
 		readonly scopes: ReadonlyArray<string>;
-
-		constructor(id: string, accessToken: string, account: AuthenticationSessionAccountInformation, scopes: string[]);
 	}
 
 	/**
@@ -211,17 +209,6 @@ declare module 'vscode' {
 		 * An array of the information of authentication providers that are currently registered.
 		 */
 		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
-
-		/**
-		 * Returns whether a provider has any sessions matching the requested scopes. This request
-		 * is transparent to the user, no UI is shown. Rejects if a provider with providerId is not
-		 * registered.
-		 * @param providerId The id of the provider
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
-		 * provider
-		 * @returns A thenable that resolve to whether the provider has sessions with the requested scopes.
-		 */
-		export function hasSessions(providerId: string, scopes: string[]): Thenable<boolean>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
