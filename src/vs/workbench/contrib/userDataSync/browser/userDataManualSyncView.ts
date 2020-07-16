@@ -107,7 +107,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 				super({
 					id: `workbench.actions.sync.acceptRemote`,
 					title: localize('workbench.actions.sync.acceptRemote', "Accept Remote"),
-					icon: Codicon.cloud,
+					icon: Codicon.cloudDownload,
 					menu: {
 						id: MenuId.ViewItemContext,
 						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', MANUAL_SYNC_VIEW_ID), ContextKeyExpr.or(ContextKeyExpr.equals('viewItem', 'sync-resource-preview'), ContextKeyExpr.equals('viewItem', 'sync-resource-conflict'))),
@@ -127,7 +127,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 				super({
 					id: `workbench.actions.sync.acceptLocal`,
 					title: localize('workbench.actions.sync.acceptLocal', "Accept Local"),
-					icon: Codicon.vm,
+					icon: Codicon.cloudUpload,
 					menu: {
 						id: MenuId.ViewItemContext,
 						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', MANUAL_SYNC_VIEW_ID), ContextKeyExpr.or(ContextKeyExpr.equals('viewItem', 'sync-resource-preview'), ContextKeyExpr.equals('viewItem', 'sync-resource-conflict'))),
