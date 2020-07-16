@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as semver from 'semver-umd';
-import { IBuiltinExtensionsScannerService, IScannedExtension, ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IBuiltinExtensionsScannerService, IScannedExtension, ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { isWeb } from 'vs/base/common/platform';
@@ -23,7 +23,7 @@ import { groupByExtension, areSameExtensions } from 'vs/platform/extensionManage
 interface IUserExtension {
 	identifier: IExtensionIdentifier;
 	version: string;
-	uri: URI;
+	location: URI;
 	readmeUri?: URI;
 	changelogUri?: URI;
 	packageNLSUri?: URI;
@@ -32,7 +32,9 @@ interface IUserExtension {
 interface IStoredUserExtension {
 	identifier: IExtensionIdentifier;
 	version: string;
-	uri: UriComponents;
+	uri?: UriComponents; // legacy: URI used to be the assert uri
+	location?: UriComponents; // location is the actional extension location
+	external?: boolean;
 	readmeUri?: UriComponents;
 	changelogUri?: UriComponents;
 	packageNLSUri?: UriComponents;
@@ -88,7 +90,8 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 			throw new Error(`Missing ${AssetTypeWebResource} asset type`);
 		}
 
-		const packageNLSUri = joinPath(getExtensionLocation(galleryExtension.assetUri), 'package.nls.json');
+		const extensionLocation = getExtensionLocation(galleryExtension.assetUri);
+		const packageNLSUri = joinPath(extensionLocation, 'package.nls.json');
 		const context = await this.requestService.request({ type: 'GET', url: packageNLSUri.toString() }, CancellationToken.None);
 		const packageNLSExists = isSuccess(context);
 
@@ -96,7 +99,7 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 		const userExtension: IUserExtension = {
 			identifier: galleryExtension.identifier,
 			version: galleryExtension.version,
-			uri: galleryExtension.assetUri,
+			location: extensionLocation,
 			readmeUri: galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined,
 			changelogUri: galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined,
 			packageNLSUri: packageNLSExists ? packageNLSUri : undefined
@@ -109,6 +112,49 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 			return scannedExtension;
 		}
 		throw new Error('Error while scanning extension');
+	}
+
+	async addExtensionFromLocation(extensionLocation: URI): Promise<IScannedExtension> {
+
+		const packageNLSUri = joinPath(extensionLocation, 'package.nls.json');
+		const context = await this.requestService.request({ type: 'GET', url: packageNLSUri.toString(true) }, CancellationToken.None);
+		const packageNLSExists = isSuccess(context);
+
+		const packageJSON = await this.getManifest(extensionLocation);
+		const identifier: IExtensionIdentifier = { id: `${packageJSON.publisher}.${packageJSON.name}` };
+		let userExtensions = await this.readUserExtensions();
+		userExtensions = userExtensions.filter(extension => !(areSameExtensions(extension.identifier, identifier)));
+
+		const userExtension: IUserExtension = {
+			identifier: identifier,
+			version: packageJSON.version,
+			location: extensionLocation,
+			readmeUri: undefined,
+			changelogUri: undefined,
+			packageNLSUri: packageNLSExists ? packageNLSUri : undefined
+		};
+
+		userExtensions.push(userExtension);
+		await this.writeUserExtensions(userExtensions);
+
+		const scannedExtension = await this.toScannedExtension(userExtension);
+		if (scannedExtension) {
+			return scannedExtension;
+		}
+		throw new Error('Error while scanning extension');
+	}
+
+	async getManifest(extensionLocation: URI): Promise<IExtensionManifest> {
+		const packageJSONUri = joinPath(extensionLocation, 'package.json');
+		const packageJSONContext = await this.requestService.request({ type: 'GET', url: packageJSONUri.toString(true) }, CancellationToken.None);
+		if (!isSuccess(packageJSONContext)) {
+			throw new Error('Unable to load ' + packageJSONUri);
+		}
+		const content = await asText(packageJSONContext);
+		if (content) {
+			return JSON.parse(content);
+		}
+		throw new Error('Unable to load ' + packageJSONUri);
 	}
 
 	async removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void> {
@@ -136,21 +182,19 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 	}
 
 	private async toScannedExtension(userExtension: IUserExtension): Promise<IScannedExtension | null> {
-		const context = await this.requestService.request({ type: 'GET', url: joinPath(userExtension.uri, 'Microsoft.VisualStudio.Code.Manifest').toString() }, CancellationToken.None);
-		if (isSuccess(context)) {
-			const content = await asText(context);
-			if (content) {
-				const packageJSON = JSON.parse(content);
-				return {
-					identifier: userExtension.identifier,
-					location: getExtensionLocation(userExtension.uri),
-					packageJSON,
-					type: ExtensionType.User,
-					readmeUrl: userExtension.readmeUri,
-					changelogUrl: userExtension.changelogUri,
-					packageNLSUrl: userExtension.packageNLSUri,
-				};
-			}
+		try {
+			const packageJSON = await this.getManifest(userExtension.location);
+			return {
+				identifier: userExtension.identifier,
+				location: userExtension.location,
+				packageJSON,
+				type: ExtensionType.User,
+				readmeUrl: userExtension.readmeUri,
+				changelogUrl: userExtension.changelogUri,
+				packageNLSUrl: userExtension.packageNLSUri,
+			};
+		} catch (e) {
+			// ignore
 		}
 		return null;
 	}
@@ -166,7 +210,7 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 				return storedUserExtensions.map(e => ({
 					identifier: e.identifier,
 					version: e.version,
-					uri: URI.revive(e.uri),
+					location: e.uri ? getExtensionLocation(URI.revive(e.uri)) : URI.revive(e.location!),
 					readmeUri: URI.revive(e.readmeUri),
 					changelogUri: URI.revive(e.changelogUri),
 					packageNLSUri: URI.revive(e.packageNLSUri),
@@ -184,7 +228,7 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 			const storedUserExtensions: IStoredUserExtension[] = userExtensions.map(e => ({
 				identifier: e.identifier,
 				version: e.version,
-				uri: e.uri.toJSON(),
+				location: e.location.toJSON(),
 				readmeUri: e.readmeUri?.toJSON(),
 				changelogUri: e.changelogUri?.toJSON(),
 				packageNLSUri: e.packageNLSUri?.toJSON(),

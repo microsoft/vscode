@@ -9,7 +9,8 @@
   "activationEvents": [
     "onFileSystem:memfs",
     "onFileSystem:github",
-    "onDebug"
+    "onDebug",
+    "onCommand:vscode-web-playground.addExtensionFromURL"
   ],
   "browser": "./dist/browser/extension",
   "main": "./out/extension",
@@ -91,7 +92,21 @@
           "workspaceSuffix": "GitHub"
         }
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "vscode-web-playground.addExtensionFromURL",
+        "title": "Extensions: Add Extension from URL..."
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "vscode-web-playground.addExtensionFromURL",
+          "when": "isWeb && !remoteName"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",

@@ -62,6 +62,23 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 		}
 	}
 
+	async install(extensionLocation: URI): Promise<ILocalExtension> {
+		this.logService.info('Installing extension: ' + extensionLocation.toString());
+		try {
+			const scannedExtension = await this.webExtensionsScannerService.addExtensionFromLocation(extensionLocation);
+			const local = await this.toLocalExtension(scannedExtension);
+			this._onInstallExtension.fire({ identifier: local.identifier });
+			this._onDidInstallExtension.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
+			return local;
+		} catch (error) {
+			throw error;
+		}
+	}
+
+	getManifest(extensionLocation: URI): Promise<IExtensionManifest> {
+		return this.webExtensionsScannerService.getManifest(extensionLocation);
+	}
+
 	async uninstall(extension: ILocalExtension): Promise<void> {
 		this._onUninstallExtension.fire(extension.identifier);
 		try {
@@ -109,8 +126,7 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 
 	zip(extension: ILocalExtension): Promise<URI> { throw new Error('unsupported'); }
 	unzip(zipLocation: URI): Promise<IExtensionIdentifier> { throw new Error('unsupported'); }
-	getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('unsupported'); }
-	install(vsix: URI, isMachineScoped?: boolean): Promise<ILocalExtension> { throw new Error('unsupported'); }
+
 	reinstallFromGallery(extension: ILocalExtension): Promise<void> { throw new Error('unsupported'); }
 	getExtensionsReport(): Promise<IReportedExtension[]> { throw new Error('unsupported'); }
 

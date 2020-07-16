@@ -29,7 +29,24 @@ export function activate(context: vscode.ExtensionContext) {
 
 			vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(`memfs:/sample-folder/large.ts`));
 		}
+
+		let disposable = vscode.commands.registerCommand('vscode-web-playground.addExtensionFromURL', async () => {
+			const knownWebExtensions = [
+				'https://cdn.jsdelivr.net/gh/aeschli/test-theme@1.1'
+			];
+
+			const value = await vscode.window.showQuickPick(knownWebExtensions, {
+				ignoreFocusOut: true,
+				placeHolder: 'Enter the URL of the extension to add.'
+			});
+			if (value) {
+				vscode.commands.executeCommand('_workbench.extensions.installFromURL', vscode.Uri.parse(value));
+			}
+		});
+
+		context.subscriptions.push(disposable);
 	}
+
 }
 
 function enableFs(context: vscode.ExtensionContext): MemFS {

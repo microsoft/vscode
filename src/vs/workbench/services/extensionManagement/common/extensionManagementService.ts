@@ -172,6 +172,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return this.installVSIX(vsix, this.extensionManagementServerService.remoteExtensionManagementServer);
 		}
+		if (this.extensionManagementServerService.webExtensionManagementServer) {
+			return this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.install(vsix);
+		}
 		return Promise.reject('No Servers to Install');
 	}
 
@@ -185,6 +188,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		}
 		if (vsix.scheme === Schemas.vscodeRemote && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getManifest(vsix);
+		}
+		if (this.extensionManagementServerService.webExtensionManagementServer) {
+			return this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.getManifest(vsix);
 		}
 		return Promise.reject('No Servers');
 	}

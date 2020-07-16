@@ -3359,6 +3359,32 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWith
 		});
 });
 
+CommandsRegistry.registerCommand('_workbench.extensions.installFromURL', async function (accessor: ServicesAccessor, uri: URI) {
+	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+	const extensionService = accessor.get(IExtensionService);
+	const hostService = accessor.get(IHostService);
+	const notificationService = accessor.get(INotificationService);
+	const instantiationService = accessor.get(IInstantiationService);
+
+	const extension = await extensionsWorkbenchService.install(uri);
+	const requireReload = !(extension.local && extensionService.canAddExtension(toExtensionDescription(extension.local)));
+	const message = requireReload ? localize('InstallFromURI.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.displayName || extension.name)
+		: localize('InstallFromURI.success', "Completed installing the extension {0}.", extension.displayName || extension.name);
+	const actions = requireReload ? [{
+		label: localize('InstallFromURI.reloadNow', "Reload Now"),
+		run: () => hostService.reload()
+	}] : [];
+	notificationService.prompt(
+		Severity.Info,
+		message,
+		actions,
+		{ sticky: true }
+	);
+	await instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run(true);
+
+});
+
+
 export const extensionButtonProminentBackground = registerColor('extensionButton.prominentBackground', {
 	dark: '#327e36',
 	light: '#327e36',

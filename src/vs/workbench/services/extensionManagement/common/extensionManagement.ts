@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { IExtension, IScannedExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IExtension, IScannedExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -143,5 +143,7 @@ export interface IWebExtensionsScannerService {
 	readonly _serviceBrand: undefined;
 	scanExtensions(type?: ExtensionType): Promise<IScannedExtension[]>;
 	addExtension(galleryExtension: IGalleryExtension): Promise<IScannedExtension>;
+	addExtensionFromLocation(location: URI): Promise<IScannedExtension>;
+	getManifest(location: URI): Promise<IExtensionManifest>;
 	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;
 }
