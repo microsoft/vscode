@@ -6,7 +6,14 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+import {
+	ConfigurationChangedEvent,
+	EditorAutoClosingOvertypeStrategy,
+	EditorAutoClosingStrategy,
+	EditorAutoIndentStrategy,
+	EditorAutoSurroundStrategy,
+	EditorOption
+} from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -79,6 +86,7 @@ export class CursorConfiguration {
 	public readonly autoClosingPairs: AutoClosingPairs;
 	public readonly surroundingPairs: CharacterMap;
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
+	public readonly overtypeAllowed: boolean;
 
 	private readonly _languageIdentifier: LanguageIdentifier;
 	private _electricChars: { [key: string]: boolean; } | null;
@@ -97,6 +105,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.useTabStops)
 			|| e.hasChanged(EditorOption.lineHeight)
 			|| e.hasChanged(EditorOption.readOnly)
+			|| e.hasChanged(EditorOption.overtypeAllowed)
 		);
 	}
 
@@ -128,6 +137,7 @@ export class CursorConfiguration {
 		this.autoClosingOvertype = options.get(EditorOption.autoClosingOvertype);
 		this.autoSurround = options.get(EditorOption.autoSurround);
 		this.autoIndent = options.get(EditorOption.autoIndent);
+		this.overtypeAllowed = options.get(EditorOption.overtypeAllowed);
 
 		this.surroundingPairs = {};
 		this._electricChars = null;

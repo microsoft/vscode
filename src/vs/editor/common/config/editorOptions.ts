@@ -639,6 +639,11 @@ export interface IEditorOptions {
 	 * Defaults to true.
 	 */
 	showHoverDefinition?: boolean;
+	/**
+	 * Controls whether overtype is allowed not only for auto closing symbols of language.
+	 * Defaults to false.
+	 */
+	overtypeAllowed?: boolean;
 }
 
 /**
@@ -3796,6 +3801,7 @@ export const enum EditorOption {
 	multiCursorModifier,
 	multiCursorPaste,
 	occurrencesHighlight,
+	overtypeAllowed,
 	overviewRulerBorder,
 	overviewRulerLanes,
 	padding,
@@ -4208,6 +4214,10 @@ export const EditorOptions = {
 	occurrencesHighlight: register(new EditorBooleanOption(
 		EditorOption.occurrencesHighlight, 'occurrencesHighlight', true,
 		{ description: nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.") }
+	)),
+	overtypeAllowed: register(new EditorBooleanOption(
+		EditorOption.overtypeAllowed, 'overtypeAllowed', false,
+		{ description: nls.localize('overtypeAllowed', "Controls whether overtype is allowed not only for autoclosing symbols of language.") }
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(
 		EditorOption.overviewRulerBorder, 'overviewRulerBorder', true,
