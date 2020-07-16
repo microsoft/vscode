@@ -14,6 +14,9 @@ module.exports = withDefaults({
 	entry: {
 		extension: './src/extensionEditingMain.ts',
 	},
+	output: {
+		filename: 'extensionEditingMain.js'
+	},
 	externals: {
 		'../../../product.json': 'commonjs ../../../product.json',
 		'typescript': 'commonjs typescript'
