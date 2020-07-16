@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as stream from 'stream';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
+import { ClientCapability } from '../typescriptService';
 import API from '../utils/api';
 import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import * as electron from '../utils/electron';
@@ -36,6 +37,9 @@ const enum CompositeServerType {
 
 	/** Use a separate syntax server while the project is loading */
 	DynamicSeparateSyntax,
+
+	/** Only enable the syntax server */
+	SyntaxOnly
 }
 
 export class TypeScriptServerSpawner {
@@ -50,12 +54,13 @@ export class TypeScriptServerSpawner {
 
 	public spawn(
 		version: TypeScriptVersion,
+		capabilities: Set<ClientCapability>,
 		configuration: TypeScriptServiceConfiguration,
 		pluginManager: PluginManager,
 		delegate: TsServerDelegate,
 	): ITypeScriptServer {
 		let primaryServer: ITypeScriptServer;
-		const serverType = this.getCompositeServerType(version, configuration);
+		const serverType = this.getCompositeServerType(version, capabilities, configuration);
 		switch (serverType) {
 			case CompositeServerType.SeparateSyntax:
 			case CompositeServerType.DynamicSeparateSyntax:
@@ -72,6 +77,11 @@ export class TypeScriptServerSpawner {
 					primaryServer = this.spawnTsServer(ServerKind.Main, version, configuration, pluginManager);
 					break;
 				}
+			case CompositeServerType.SyntaxOnly:
+				{
+					primaryServer = this.spawnTsServer(ServerKind.Syntax, version, configuration, pluginManager);
+					break;
+				}
 		}
 
 		if (this.shouldUseSeparateDiagnosticsServer(configuration)) {
@@ -86,8 +96,13 @@ export class TypeScriptServerSpawner {
 
 	private getCompositeServerType(
 		version: TypeScriptVersion,
+		capabilities: Set<ClientCapability>,
 		configuration: TypeScriptServiceConfiguration,
 	): CompositeServerType {
+		if (!capabilities.has(ClientCapability.Semantic)) {
+			return CompositeServerType.SyntaxOnly;
+		}
+
 		switch (configuration.separateSyntaxServer) {
 			case SeparateSyntaxServerConfiguration.Disabled:
 				return CompositeServerType.Single;

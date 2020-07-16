@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient, ClientCapability } from '../typescriptService';
 import API from './api';
 import { Disposable } from './dispose';
 
@@ -93,5 +93,15 @@ export function requireConfiguration(
 			return !!config.get<boolean>(configValue);
 		},
 		vscode.workspace.onDidChangeConfiguration
+	);
+}
+
+export function requireCapability(
+	client: ITypeScriptServiceClient,
+	requiredCapability: ClientCapability,
+) {
+	return new Condition(
+		() => client.capabilities.has(requiredCapability),
+		client.onDidChangeCapabilities
 	);
 }

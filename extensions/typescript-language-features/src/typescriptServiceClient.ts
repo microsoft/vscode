@@ -10,10 +10,11 @@ import * as nls from 'vscode-nls';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
 import * as Proto from './protocol';
+import { EventName } from './protocol.const';
 import { ITypeScriptServer } from './tsServer/server';
 import { TypeScriptServerError } from './tsServer/serverError';
 import { TypeScriptServerSpawner } from './tsServer/spawner';
-import { ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
+import { ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
@@ -22,12 +23,11 @@ import LogDirectoryProvider from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
-import { TelemetryReporter, VSCodeTelemetryReporter, TelemetryProperties } from './utils/telemetry';
+import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
 import { TypeScriptVersionManager } from './utils/versionManager';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
-import { EventName } from './protocol.const';
 
 const localize = nls.loadMessageBundle();
 
@@ -203,6 +203,16 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}));
 	}
 
+	public get capabilities() {
+		return new Set<ClientCapability>([
+			ClientCapability.Semantic,
+			ClientCapability.Syntax,
+		]);
+	}
+
+	private readonly _onDidChangeCapabilities = this._register(new vscode.EventEmitter<Set<ClientCapability>>());
+	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
+
 	private cancelInflightRequestsForResource(resource: vscode.Uri): void {
 		if (this.serverState.type !== ServerState.Type.Running) {
 			return;
@@ -337,7 +347,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		const apiVersion = version.apiVersion || API.defaultVersion;
 		let mytoken = ++this.token;
-		const handle = this.typescriptServerSpawner.spawn(version, this.configuration, this.pluginManager, {
+		const handle = this.typescriptServerSpawner.spawn(version, this.capabilities, this.configuration, this.pluginManager, {
 			onFatalError: (command, err) => this.fatalError(command, err),
 		});
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);

@@ -7,11 +7,11 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { LearnMoreAboutRefactoringsCommand } from '../commands/learnMoreAboutRefactorings';
 import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { Command, CommandManager } from '../utils/commandManager';
-import { conditionalRegistration, requireMinVersion } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireCapability, requireMinVersion } from '../utils/dependentRegistration';
 import * as fileSchemes from '../utils/fileSchemes';
 import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
@@ -403,7 +403,8 @@ export function register(
 	telemetryReporter: TelemetryReporter,
 ) {
 	return conditionalRegistration([
-		requireMinVersion(client, TypeScriptRefactorProvider.minVersion)
+		requireMinVersion(client, TypeScriptRefactorProvider.minVersion),
+		requireCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeActionsProvider(selector,
 			new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager, telemetryReporter),

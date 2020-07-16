@@ -7,9 +7,9 @@
 import { TokenEncodingConsts, TokenModifier, TokenType, VersionRequirement } from 'typescript-vscode-sh-plugin/lib/constants';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
-import { ExecConfig, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
+import { ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
-import { conditionalRegistration, requireMinVersion } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireCapability, requireMinVersion } from '../utils/dependentRegistration';
 
 
 const minTypeScriptVersion = API.fromVersionString(`${VersionRequirement.major}.${VersionRequirement.minor}`);
@@ -20,6 +20,7 @@ const CONTENT_LENGTH_LIMIT = 100000;
 export function register(selector: vscode.DocumentSelector, client: ITypeScriptServiceClient) {
 	return conditionalRegistration([
 		requireMinVersion(client, minTypeScriptVersion),
+		requireCapability(client, ClientCapability.Semantic),
 	], () => {
 		const provider = new DocumentSemanticTokensProvider(client);
 		return vscode.Disposable.from(
