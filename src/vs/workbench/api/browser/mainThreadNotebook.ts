@@ -469,8 +469,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			resolveKernel: (editorId: string, uri: URI, kernelId: string, token: CancellationToken) => {
 				return that._proxy.$resolveNotebookKernel(handle, editorId, uri, kernelId, token);
 			},
-			executeNotebook: (viewType: string, uri: URI, kernelId: string, handle: number | undefined, token: CancellationToken) => {
-				return that._proxy.$executeNotebook2(kernelId, viewType, uri, handle, token);
+			executeNotebook: (uri: URI, kernelId: string, cellHandle: number | undefined, token: CancellationToken) => {
+				return that._proxy.$executeNotebookKernelFromProvider(handle, uri, kernelId, cellHandle, token);
 			}
 		});
 		this._notebookKernelProviders.set(handle, {
@@ -527,8 +527,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		await controller?.spliceNotebookCellOutputs(resource, cellHandle, splices, renderers);
 	}
 
-	async executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {
-		return this._proxy.$executeNotebook(viewType, uri, undefined, useAttachedKernel, token);
+	async executeNotebookByAttachedKernel(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
+		return this._proxy.$executeNotebookByAttachedKernel(viewType, uri, undefined, token);
 	}
 
 	async $postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean> {
@@ -691,8 +691,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		await mainthreadNotebook?.spliceNotebookCellOutputs(cellHandle, splices);
 	}
 
-	async executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {
-		return this._mainThreadNotebook.executeNotebook(viewType, uri, useAttachedKernel, token);
+	async executeNotebookByAttachedKernel(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
+		return this._mainThreadNotebook.executeNotebookByAttachedKernel(viewType, uri, token);
 	}
 
 	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: unknown): void {
@@ -739,8 +739,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		document?.textModel.updateNotebookCellMetadata(handle, metadata);
 	}
 
-	async executeNotebookCell(uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {
-		return this._proxy.$executeNotebook(this._viewType, uri, handle, useAttachedKernel, token);
+	async executeNotebookCell(uri: URI, handle: number, token: CancellationToken): Promise<void> {
+		return this._proxy.$executeNotebookByAttachedKernel(this._viewType, uri, handle, token);
 	}
 
 	async save(uri: URI, token: CancellationToken): Promise<boolean> {

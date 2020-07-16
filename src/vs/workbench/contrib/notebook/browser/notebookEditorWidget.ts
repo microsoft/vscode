@@ -577,7 +577,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (kernelsFromSameExtension.length) {
 			const preferedKernel = kernelsFromSameExtension.find(kernel => kernel.isPreferred) || kernelsFromSameExtension[0];
 			this.activeKernel = preferedKernel;
-			await this.notebookService.resolveNotebookKernel(this.viewModel!.viewType, this.viewModel!.uri, this.getId(), preferedKernel.id);
+			await preferedKernel.resolve(this.viewModel!.uri, this.getId());
 			return;
 		}
 
@@ -1152,14 +1152,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				if (this._activeKernel) {
 					// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
 					if ((this._activeKernel as any).executeNotebook) {
-						await (this._activeKernel as INotebookKernelInfo2).executeNotebook(this._notebookViewModel!.viewType, this._notebookViewModel!.uri, undefined, tokenSource.token);
+						await (this._activeKernel as INotebookKernelInfo2).executeNotebook(this._notebookViewModel!.uri, undefined, tokenSource.token);
 					} else {
 						await this.notebookService.executeNotebook2(this._notebookViewModel!.viewType, this._notebookViewModel!.uri, this._activeKernel.id, tokenSource.token);
 					}
 				} else if (provider.kernel) {
-					return await this.notebookService.executeNotebook(viewType, notebookUri, true, tokenSource.token);
-				} else {
-					return await this.notebookService.executeNotebook(viewType, notebookUri, false, tokenSource.token);
+					return await this.notebookService.executeNotebook(viewType, notebookUri, tokenSource.token);
 				}
 			}
 
@@ -1207,11 +1205,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				const notebookUri = this._notebookViewModel!.uri;
 
 				if (this._activeKernel) {
-					return await this.notebookService.executeNotebookCell2(viewType, notebookUri, cell.handle, this._activeKernel.id, tokenSource.token);
+					// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
+					if ((this._activeKernel as any).executeNotebook) {
+						await (this._activeKernel as INotebookKernelInfo2).executeNotebook(this._notebookViewModel!.uri, cell.handle, tokenSource.token);
+					} else {
+
+						return await this.notebookService.executeNotebookCell2(viewType, notebookUri, cell.handle, this._activeKernel.id, tokenSource.token);
+					}
 				} else if (provider.kernel) {
-					return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle, true, tokenSource.token);
-				} else {
-					return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle, false, tokenSource.token);
+					return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle, tokenSource.token);
 				}
 			}
 		} finally {

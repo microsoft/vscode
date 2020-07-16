@@ -10,7 +10,7 @@ import { notebookProviderExtensionPoint, notebookRendererExtensionPoint, INotebo
 import { NotebookProviderInfo, NotebookEditorDescriptor } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, CellOutputKind, ITransformedDisplayOutputDto, IDisplayOutput, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, IOrderedMimeType, mimeTypeSupportedByCore, IOutputRenderRequestOutputInfo, IOutputRenderRequestCellInfo, NotebookCellOutputsSplice, ICellEditOperation, CellEditType, ICellInsertEdit, IOutputRenderResponse, IProcessedOutput, BUILTIN_RENDERER_ID, NotebookEditorPriority, INotebookKernelProvider, INotebookKernelInfoDto2, notebookDocumentFilterMatch, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, CellOutputKind, ITransformedDisplayOutputDto, IDisplayOutput, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, IOrderedMimeType, mimeTypeSupportedByCore, IOutputRenderRequestOutputInfo, IOutputRenderRequestCellInfo, NotebookCellOutputsSplice, ICellEditOperation, CellEditType, ICellInsertEdit, IOutputRenderResponse, IProcessedOutput, BUILTIN_RENDERER_ID, NotebookEditorPriority, INotebookKernelProvider, notebookDocumentFilterMatch, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { Iterable } from 'vs/base/common/iterator';
@@ -329,8 +329,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 						const tokenSource = new CancellationTokenSource();
 						return provider.resolveKernel(editorId, uri, dto.id, tokenSource.token);
 					},
-					executeNotebook: async (viewType: string, uri: URI, handle: number | undefined, token: CancellationToken) => {
-						return provider.executeNotebook(viewType, uri, dto.id, handle, token);
+					executeNotebook: async (uri: URI, handle: number | undefined, token: CancellationToken) => {
+						return provider.executeNotebook(uri, dto.id, handle, token);
 					}
 				};
 			});
@@ -674,20 +674,20 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this.notebookRenderersInfoStore.getContributedRenderer(mimeType);
 	}
 
-	async executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {
+	async executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			return provider.controller.executeNotebook(viewType, uri, useAttachedKernel, token);
+			return provider.controller.executeNotebookByAttachedKernel(viewType, uri, token);
 		}
 
 		return;
 	}
 
-	async executeNotebookCell(viewType: string, uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {
+	async executeNotebookCell(viewType: string, uri: URI, handle: number, token: CancellationToken): Promise<void> {
 		const provider = this._notebookProviders.get(viewType);
 		if (provider) {
-			await provider.controller.executeNotebookCell(uri, handle, useAttachedKernel, token);
+			await provider.controller.executeNotebookCell(uri, handle, token);
 		}
 	}
 

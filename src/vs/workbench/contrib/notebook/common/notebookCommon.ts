@@ -648,7 +648,7 @@ export interface INotebookKernelInfoDto2 {
 
 export interface INotebookKernelInfo2 extends INotebookKernelInfoDto2 {
 	resolve(uri: URI, editorId: string): Promise<void>;
-	executeNotebook(viewType: string, uri: URI, handle: number | undefined, token: CancellationToken): Promise<void>;
+	executeNotebook(uri: URI, handle: number | undefined, token: CancellationToken): Promise<void>;
 }
 
 export interface INotebookKernelProvider {
@@ -656,5 +656,5 @@ export interface INotebookKernelProvider {
 	onDidChangeKernels: Event<void>;
 	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
 	resolveKernel(editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
-	executeNotebook(viewType: string, uri: URI, kernelId: string, handle: number | undefined, token: CancellationToken): Promise<void>;
+	executeNotebook(uri: URI, kernelId: string, handle: number | undefined, token: CancellationToken): Promise<void>;
 }

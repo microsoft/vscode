@@ -1616,7 +1616,8 @@ export interface ExtHostNotebookShape {
 	$resolveNotebookEditor(viewType: string, uri: UriComponents, editorId: string): Promise<void>;
 	$provideNotebookKernels(handle: number, uri: UriComponents, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
 	$resolveNotebookKernel(handle: number, editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
-	$executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
+	$executeNotebookByAttachedKernel(viewType: string, uri: UriComponents, cellHandle: number | undefined, token: CancellationToken): Promise<void>;
+	$executeNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined, token: CancellationToken): Promise<void>;
 	$executeNotebook2(kernelId: string, viewType: string, uri: UriComponents, cellHandle: number | undefined, token: CancellationToken): Promise<void>;
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;

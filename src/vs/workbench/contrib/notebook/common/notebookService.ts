@@ -8,7 +8,10 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, INotebookKernelInfoDto, INotebookTextModelBackup, IEditor, ICellEditOperation, NotebookCellOutputsSplice, IOrderedMimeType, IProcessedOutput, INotebookKernelProvider, INotebookKernelInfoDto2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import {
+	INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, INotebookKernelInfoDto, INotebookTextModelBackup,
+	IEditor, ICellEditOperation, NotebookCellOutputsSplice, IOrderedMimeType, IProcessedOutput, INotebookKernelProvider, INotebookKernelInfo2
+} from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -21,9 +24,9 @@ export interface IMainNotebookController {
 	kernel: INotebookKernelInfoDto | undefined;
 	createNotebook(viewType: string, uri: URI, backup: INotebookTextModelBackup | undefined, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined>;
 	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
-	executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
+	executeNotebookByAttachedKernel(viewType: string, uri: URI, token: CancellationToken): Promise<void>;
 	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
-	executeNotebookCell(uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
+	executeNotebookCell(uri: URI, handle: number, token: CancellationToken): Promise<void>;
 	removeNotebookDocument(notebook: INotebookTextModel): Promise<void>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
@@ -51,12 +54,12 @@ export interface INotebookService {
 	unregisterNotebookKernel(id: string): void;
 	registerNotebookKernelProvider(provider: INotebookKernelProvider): IDisposable;
 	getContributedNotebookKernels(viewType: string, resource: URI): readonly INotebookKernelInfo[];
-	getContributedNotebookKernels2(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
+	getContributedNotebookKernels2(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]>;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
 	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined>;
 	createNotebookFromBackup(viewType: string, uri: URI, metadata: NotebookDocumentMetadata, languages: string[], cells: ICellDto2[], editorId?: string): Promise<NotebookTextModel | undefined>;
-	executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
-	executeNotebookCell(viewType: string, uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
+	executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void>;
+	executeNotebookCell(viewType: string, uri: URI, handle: number, token: CancellationToken): Promise<void>;
 	executeNotebook2(viewType: string, uri: URI, kernelId: string, token: CancellationToken): Promise<void>;
 	executeNotebookCell2(viewType: string, uri: URI, handle: number, kernelId: string, token: CancellationToken): Promise<void>;
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
