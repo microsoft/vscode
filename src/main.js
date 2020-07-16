@@ -85,8 +85,8 @@ if (crashReporterDirectory) {
 }
 
 // Start crash reporter for all processes
-const productName = product.crashReporter?.productName || product.nameShort;
-const companyName = product.crashReporter?.companyName || 'Microsoft';
+const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
+const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
 crashReporter.start({
 	companyName: companyName,
 	productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
