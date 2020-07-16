@@ -1552,6 +1552,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookConcatTextDocument {
+		uri: Uri;
 		isClosed: boolean;
 		dispose(): void;
 		onDidChange: Event<void>;
