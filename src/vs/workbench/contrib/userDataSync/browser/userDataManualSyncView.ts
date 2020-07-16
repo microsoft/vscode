@@ -73,7 +73,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		this.buttonsContainer = DOM.append(container, DOM.$('.manual-sync-buttons-container'));
 
 		this.syncButton = this._register(new Button(this.buttonsContainer));
-		this.syncButton.label = localize('accept', "Sync");
+		this.syncButton.label = localize('turn on sync', "Turn on Preferences Sync");
 		this.updateSyncButtonEnablement();
 		this._register(attachButtonStyler(this.syncButton, this.themeService));
 		this._register(this.syncButton.onDidClick(() => this.apply()));
