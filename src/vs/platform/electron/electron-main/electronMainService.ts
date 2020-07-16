@@ -323,12 +323,8 @@ export class ElectronMainService implements IElectronMainService {
 
 	//#region Process
 
-	async killProcess(windowId: number | undefined, pid: number, force: boolean): Promise<void> {
-		if (force) {
-			process.kill(pid, 'SIGTERM');
-		} else {
-			process.kill(pid, 'SIGKILL');
-		}
+	async killProcess(windowId: number | undefined, pid: number, code: string): Promise<void> {
+		process.kill(pid, code);
 	}
 
 	//#endregion

@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/processExplorer';
 import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
-import { totalmem } from 'os';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import product from 'vs/platform/product/common/product';
 import { localize } from 'vs/nls';
@@ -64,17 +63,17 @@ class ProcessExplorer {
 		ipcRenderer.send('vscode:listProcesses');
 	}
 
-	private getProcessList(rootProcess: ProcessItem, isLocal: boolean): FormattedProcessItem[] {
+	private getProcessList(rootProcess: ProcessItem, isLocal: boolean, totalMem: number): FormattedProcessItem[] {
 		const processes: FormattedProcessItem[] = [];
 
 		if (rootProcess) {
-			this.getProcessItem(processes, rootProcess, 0, isLocal);
+			this.getProcessItem(processes, rootProcess, 0, isLocal, totalMem);
 		}
 
 		return processes;
 	}
 
-	private getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, indent: number, isLocal: boolean): void {
+	private getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, indent: number, isLocal: boolean, totalMem: number): void {
 		const isRoot = (indent === 0);
 
 		const MB = 1024 * 1024;
@@ -91,7 +90,7 @@ class ProcessExplorer {
 
 		// Format name with indent
 		const formattedName = isRoot ? name : `${'    '.repeat(indent)} ${name}`;
-		const memory = this.data.platform === 'win32' ? item.mem : (totalmem() * (item.mem / 100));
+		const memory = this.data.platform === 'win32' ? item.mem : (totalMem * (item.mem / 100));
 		processes.push({
 			cpu: item.load,
 			memory: (memory / MB),
@@ -105,7 +104,7 @@ class ProcessExplorer {
 		if (Array.isArray(item.children)) {
 			item.children.forEach(child => {
 				if (child) {
-					this.getProcessItem(processes, child, indent + 1, isLocal);
+					this.getProcessItem(processes, child, indent + 1, isLocal, totalMem);
 				}
 			});
 		}
@@ -263,7 +262,7 @@ class ProcessExplorer {
 		container.appendChild(body);
 	}
 
-	private updateProcessInfo(processLists: [{ name: string, rootProcess: ProcessItem | IRemoteDiagnosticError }]): void {
+	private async updateProcessInfo(processLists: [{ name: string, rootProcess: ProcessItem | IRemoteDiagnosticError }]): Promise<void> {
 		const container = document.getElementById('process-list');
 		if (!container) {
 			return;
@@ -283,12 +282,13 @@ class ProcessExplorer {
 		container.append(tableHead);
 
 		const hasMultipleMachines = Object.keys(processLists).length > 1;
+		const totalMem = await this.electronService.getTotalMem();
 		processLists.forEach((remote, i) => {
 			const isLocal = i === 0;
 			if (isRemoteDiagnosticError(remote.rootProcess)) {
 				this.renderProcessFetchError(remote.name, remote.rootProcess.errorMessage);
 			} else {
-				this.renderTableSection(remote.name, this.getProcessList(remote.rootProcess, isLocal), hasMultipleMachines, isLocal);
+				this.renderTableSection(remote.name, this.getProcessList(remote.rootProcess, isLocal, totalMem), hasMultipleMachines, isLocal);
 			}
 		});
 	}
@@ -328,14 +328,14 @@ class ProcessExplorer {
 			items.push({
 				label: localize('killProcess', "Kill Process"),
 				click: () => {
-					this.electronService.killProcess(pid, false);
+					this.electronService.killProcess(pid, 'SIGTERM');
 				}
 			});
 
 			items.push({
 				label: localize('forceKillProcess', "Force Kill Process"),
 				click: () => {
-					this.electronService.killProcess(pid, true);
+					this.electronService.killProcess(pid, 'SIGKILL');
 				}
 			});
 
