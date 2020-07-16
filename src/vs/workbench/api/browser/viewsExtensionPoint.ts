@@ -83,17 +83,17 @@ interface IUserFriendlyViewDescriptor {
 
 	icon?: string;
 	contextualTitle?: string;
-	initialState?: string;
+	visibility?: string;
 
 	// From 'remoteViewDescriptor' type
 	group?: string;
 	remoteName?: string | string[];
 }
 
-enum InitialState {
+enum InitialVisibility {
 	Visible = 'visible',
-	Collapsed = 'collapsed',
-	Hidden = 'hidden'
+	Hidden = 'hidden',
+	Collapsed = 'collapsed'
 }
 
 const viewDescriptor: IJSONSchema = {
@@ -119,18 +119,18 @@ const viewDescriptor: IJSONSchema = {
 			description: localize('vscode.extension.contributes.view.contextualTitle', "Human-readable context for when the view is moved out of its original location. By default, the view's container name will be used. Will be shown"),
 			type: 'string'
 		},
-		initialState: {
+		visibility: {
 			description: localize('vscode.extension.contributes.view.initialState', "Initial state of the view when the extension is first installed. Once the user has changed the view state by collapsing, moving, or hiding the view, the initial state will not be used again."),
 			type: 'string',
 			enum: [
 				'visible',
-				'collapsed',
-				'hidden'
+				'hidden',
+				'collapsed'
 			],
 			enumDescriptions: [
 				localize('vscode.extension.contributes.view.initialState.visible', "The default initial state for view. The view will be expanded. This may have different behavior when the view container that the view is in is built in."),
-				localize('vscode.extension.contributes.view.initialState.collapsed', "The view will show in the view container, but will be collapsed."),
-				localize('vscode.extension.contributes.view.initialState.hidden', "The view will not be shown in the view container, but will be discoverable through the views menu and other view entry points and can be un-hidden by the user.")
+				localize('vscode.extension.contributes.view.initialState.hidden', "The view will not be shown in the view container, but will be discoverable through the views menu and other view entry points and can be un-hidden by the user."),
+				localize('vscode.extension.contributes.view.initialState.collapsed', "The view will show in the view container, but will be collapsed.")
 			]
 		}
 	}
@@ -440,7 +440,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 							: undefined;
 
 					const icon = item.icon ? resources.joinPath(extension.description.extensionLocation, item.icon) : undefined;
-					const initialState = this.convertInitialState(item.initialState);
+					const initialVisibility = this.convertInitialVisibility(item.visibility);
 					const viewDescriptor = <ICustomViewDescriptor>{
 						id: item.id,
 						name: item.name,
@@ -451,13 +451,13 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						canToggleVisibility: true,
 						canMoveView: true,
 						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name),
-						collapsed: this.showCollapsed(container) || initialState === InitialState.Collapsed,
+						collapsed: this.showCollapsed(container) || initialVisibility === InitialVisibility.Collapsed,
 						order: order,
 						extensionId: extension.description.identifier,
 						originalContainerId: entry.key,
 						group: item.group,
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
-						hideByDefault: initialState === InitialState.Hidden
+						hideByDefault: initialVisibility === InitialVisibility.Hidden
 					};
 
 					viewIds.add(viewDescriptor.id);
@@ -486,8 +486,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		}
 	}
 
-	private convertInitialState(value: any): InitialState | undefined {
-		if (Object.values(InitialState).includes(value)) {
+	private convertInitialVisibility(value: any): InitialVisibility | undefined {
+		if (Object.values(InitialVisibility).includes(value)) {
 			return value;
 		}
 		return undefined;
@@ -520,8 +520,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'contextualTitle'));
 				return false;
 			}
-			if (descriptor.initialState && !this.convertInitialState(descriptor.initialState)) {
-				collector.error(localize('optenum', "property `{0}` can be omitted or must be one of {1}", 'initialState', Object.values(InitialState).join(', ')));
+			if (descriptor.visibility && !this.convertInitialVisibility(descriptor.visibility)) {
+				collector.error(localize('optenum', "property `{0}` can be omitted or must be one of {1}", 'visibility', Object.values(InitialVisibility).join(', ')));
 				return false;
 			}
 		}
