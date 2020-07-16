@@ -318,9 +318,9 @@ export const enum Change {
 }
 
 export const enum MergeState {
-	Preview,
-	Conflict,
-	Accepted,
+	Preview = 'preview',
+	Conflict = 'conflict',
+	Accepted = 'accepted',
 }
 
 export interface IResourcePreview {
@@ -357,6 +357,7 @@ export interface IUserDataSynchroniser {
 	preview(manifest: IUserDataManifest | null, headers: IHeaders): Promise<ISyncResourcePreview | null>;
 	accept(resource: URI, content: string): Promise<ISyncResourcePreview | null>;
 	merge(resource: URI): Promise<ISyncResourcePreview | null>;
+	discard(resource: URI): Promise<ISyncResourcePreview | null>;
 	apply(force: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null>;
 
 	hasPreviouslySynced(): Promise<boolean>;
@@ -394,8 +395,9 @@ export interface IManualSyncTask extends IDisposable {
 	readonly manifest: IUserDataManifest | null;
 	readonly onSynchronizeResources: Event<[SyncResource, URI[]][]>;
 	preview(): Promise<[SyncResource, ISyncResourcePreview][]>;
-	accept(uri: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]>;
-	merge(uri: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
+	accept(resource: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]>;
+	merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
+	discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
 	apply(): Promise<[SyncResource, ISyncResourcePreview][]>;
 	pull(): Promise<void>;
 	push(): Promise<void>;

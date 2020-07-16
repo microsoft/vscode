@@ -464,16 +464,20 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 	}
 
 	async accept(resource: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]> {
-		return this.mergeOrAccept(resource, sychronizer => sychronizer.accept(resource, content));
+		return this.performAction(resource, sychronizer => sychronizer.accept(resource, content));
 	}
 
 	async merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
-		return this.mergeOrAccept(resource, sychronizer => sychronizer.merge(resource));
+		return this.performAction(resource, sychronizer => sychronizer.merge(resource));
 	}
 
-	private async mergeOrAccept(resource: URI, mergeOrAccept: (synchroniser: IUserDataSynchroniser) => Promise<ISyncResourcePreview | null>): Promise<[SyncResource, ISyncResourcePreview][]> {
+	async discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
+		return this.performAction(resource, sychronizer => sychronizer.discard(resource));
+	}
+
+	private async performAction(resource: URI, action: (synchroniser: IUserDataSynchroniser) => Promise<ISyncResourcePreview | null>): Promise<[SyncResource, ISyncResourcePreview][]> {
 		if (!this.previews) {
-			throw new Error('You need to create preview before merging or accepting');
+			throw new Error('Missing preview. Create preview and try again.');
 		}
 
 		const index = this.previews.findIndex(([, preview]) => preview.resourcePreviews.some(({ localResource, previewResource, remoteResource }) =>
@@ -499,7 +503,7 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 		}
 
 		const synchroniser = this.synchronisers.find(s => s.resource === this.previews![index][0])!;
-		const preview = await mergeOrAccept(synchroniser);
+		const preview = await action(synchroniser);
 		preview ? this.previews.splice(index, 1, this.toSyncResourcePreview(synchroniser.resource, preview)) : this.previews.splice(index, 1);
 
 		const i = this.synchronizingResources.findIndex(s => s[0] === syncResource);

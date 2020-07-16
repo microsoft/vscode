@@ -196,6 +196,11 @@ class ManualSyncTask implements IManualSyncTask {
 		return this.deserializePreviews(previews);
 	}
 
+	async discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
+		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('discard', [resource]);
+		return this.deserializePreviews(previews);
+	}
+
 	async apply(): Promise<[SyncResource, ISyncResourcePreview][]> {
 		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('apply');
 		return this.deserializePreviews(previews);
