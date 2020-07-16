@@ -23,8 +23,8 @@ import * as Tasks from './tasks';
 import { TaskDefinitionRegistry } from './taskDefinitionRegistry';
 import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { URI } from 'vs/base/common/uri';
-import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
-
+import { USER_TASKS_GROUP_KEY, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const enum ShellQuoting {
 	/**
@@ -709,6 +709,7 @@ interface ParseContext {
 	schemaVersion: Tasks.JsonSchemaVersion;
 	platform: Platform;
 	taskLoadIssues: string[];
+	contextKeyService: IContextKeyService;
 }
 
 
@@ -1656,6 +1657,11 @@ namespace TaskParser {
 		return customize === undefined && (type === undefined || type === null || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'shell' || type === 'process');
 	}
 
+	const builtinTypeContextMap: IStringDictionary<RawContextKey<boolean>> = {
+		shell: ShellExecutionSupportedContext,
+		process: ProcessExecutionSupportedContext
+	};
+
 	export function from(this: void, externals: Array<CustomTask | ConfiguringTask> | undefined, globals: Globals, context: ParseContext, source: TaskConfigSource): TaskParseResult {
 		let result: TaskParseResult = { custom: [], configured: [] };
 		if (!externals) {
@@ -1667,6 +1673,27 @@ namespace TaskParser {
 		const baseLoadIssues = Objects.deepClone(context.taskLoadIssues);
 		for (let index = 0; index < externals.length; index++) {
 			let external = externals[index];
+			const definition = external.type ? TaskDefinitionRegistry.get(external.type) : undefined;
+			let typeNotSupported: boolean = false;
+			if (definition && definition.when && !context.contextKeyService.contextMatchesRules(definition.when)) {
+				typeNotSupported = true;
+			} else if (!definition && external.type) {
+				for (const key of Object.keys(builtinTypeContextMap)) {
+					if (external.type === key) {
+						typeNotSupported = !ShellExecutionSupportedContext.evaluate(context.contextKeyService.getContext(null));
+						break;
+					}
+				}
+			}
+
+			if (typeNotSupported) {
+				context.problemReporter.info(nls.localize(
+					'taskConfiguration.providerUnavailable', 'Warning: {0} tasks are unavailable in the current environment.\n',
+					external.type
+				));
+				continue;
+			}
+
 			if (isCustomTask(external)) {
 				let customTask = CustomTask.from(external, context, index, source);
 				if (customTask) {
@@ -1976,7 +2003,7 @@ class ConfigurationParser {
 		this.uuidMap = uuidMap;
 	}
 
-	public run(fileConfig: ExternalTaskRunnerConfiguration, source: TaskConfigSource): ParseResult {
+	public run(fileConfig: ExternalTaskRunnerConfiguration, source: TaskConfigSource, contextKeyService: IContextKeyService): ParseResult {
 		let engine = ExecutionEngine.from(fileConfig);
 		let schemaVersion = JsonSchemaVersion.from(fileConfig);
 		let context: ParseContext = {
@@ -1988,7 +2015,8 @@ class ConfigurationParser {
 			engine,
 			schemaVersion,
 			platform: this.platform,
-			taskLoadIssues: []
+			taskLoadIssues: [],
+			contextKeyService
 		};
 		let taskParseResult = this.createTaskRunnerConfiguration(fileConfig, context, source);
 		return {
@@ -2081,7 +2109,7 @@ class ConfigurationParser {
 
 let uuidMaps: Map<TaskConfigSource, Map<string, UUIDMap>> = new Map();
 let recentUuidMaps: Map<TaskConfigSource, Map<string, UUIDMap>> = new Map();
-export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace | undefined, platform: Platform, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter, source: TaskConfigSource, isRecents: boolean = false): ParseResult {
+export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace | undefined, platform: Platform, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter, source: TaskConfigSource, contextKeyService: IContextKeyService, isRecents: boolean = false): ParseResult {
 	let recentOrOtherMaps = isRecents ? recentUuidMaps : uuidMaps;
 	let selectedUuidMaps = recentOrOtherMaps.get(source);
 	if (!selectedUuidMaps) {
@@ -2095,7 +2123,7 @@ export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace |
 	}
 	try {
 		uuidMap.start();
-		return (new ConfigurationParser(workspaceFolder, workspace, platform, logger, uuidMap)).run(configuration, source);
+		return (new ConfigurationParser(workspaceFolder, workspace, platform, logger, uuidMap)).run(configuration, source, contextKeyService);
 	} finally {
 		uuidMap.finish();
 	}

@@ -160,7 +160,9 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			if (match(pattern, uri.toString())) {
 				for (const extensionId of extensionIds) {
 					// Add to recommendation to prompt if it is an important tip
-					if (this.importantExtensionTips[extensionId]) {
+					// Only prompt if the pattern matches the extensionImportantTips pattern
+					// Otherwise, assume pattern is from extensionTips, which means it should be a file based "passive" recommendation
+					if (this.importantExtensionTips[extensionId]?.pattern === pattern) {
 						recommendationsToPrompt.push(extensionId);
 					}
 					// Update file based recommendations
