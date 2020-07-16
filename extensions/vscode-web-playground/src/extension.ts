@@ -51,7 +51,7 @@ export function activate(context: vscode.ExtensionContext) {
 						qp.hide();
 					}
 				});
-				qp.onDidChangeSelection(e => {
+				qp.onDidChangeSelection(_ => {
 					const active = qp.selectedItems;
 					if (active.length === 1) {
 						qp.value = active[0].description || active[0].label;
