@@ -39,6 +39,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 
 	private buttonsContainer!: HTMLElement;
 	private syncButton!: Button;
+	private cancelButton!: Button;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -79,10 +80,10 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		this._register(attachButtonStyler(this.syncButton, this.themeService));
 		this._register(this.syncButton.onDidClick(() => this.apply()));
 
-		const cancelButton = this._register(new Button(this.buttonsContainer));
-		cancelButton.label = localize('cancel', "Cancel");
-		this._register(attachButtonStyler(cancelButton, this.themeService));
-		this._register(cancelButton.onDidClick(() => this.cancel()));
+		this.cancelButton = this._register(new Button(this.buttonsContainer));
+		this.cancelButton.label = localize('cancel', "Cancel");
+		this._register(attachButtonStyler(this.cancelButton, this.themeService));
+		this._register(this.cancelButton.onDidClick(() => this.cancel()));
 
 		this.treeView.dataProvider = new ManualSyncViewDataProvider(this.userDataSyncPreview);
 	}
@@ -225,6 +226,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 	private async apply(): Promise<void> {
 		this.syncButton.label = localize('turning on', "Turning on...");
 		this.syncButton.enabled = false;
+		this.cancelButton.enabled = false;
 		return this.withProgress(async () => {
 			for (const resource of this.userDataSyncPreview.resources) {
 				if (resource.syncResource === SyncResource.GlobalState) {
