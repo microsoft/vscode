@@ -59,10 +59,14 @@ import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+import { ReplFilterActionViewItem, ReplFilterState } from 'vs/workbench/contrib/debug/browser/replFilterView';
+import { Memento, MementoObject } from 'vs/workbench/common/memento';
+import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
 
 const $ = dom.$;
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
+const FILTER_STATE_STORAGE_KEY = 'debug.repl.filter';
 const DECORATION_KEY = 'replinputdecoration';
 
 
@@ -93,6 +97,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private styleElement: HTMLStyleElement | undefined;
 	private completionItemProvider: IDisposable | undefined;
 	private modelChangeListener: IDisposable = Disposable.None;
+	private readonly panelState: MementoObject;
+	private readonly filterActionId: string = `workbench.actions.treeView.${this.id}.filter`;
+	private readonly filterState: ReplFilterState;
+	private readonly filter: ReplFilter;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -116,6 +124,16 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
+		this.panelState = new Memento(FILTER_STATE_STORAGE_KEY, storageService).getMemento(StorageScope.WORKSPACE);
+
+		const initialFilterText = this.panelState['filter'] || '';
+		this.filter = new ReplFilter(initialFilterText);
+		this.filterState = this._register(new ReplFilterState({
+			filterText: initialFilterText,
+			filterHistory: this.panelState['filterHistory'] || [],
+			layout: new dom.Dimension(0, 0),
+		}));
+
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
 		this.registerListeners();
 	}
@@ -236,6 +254,15 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this.setMode();
+		}));
+
+		this._register(this.filterState.onDidChange((e) => {
+			if (e.filterText) {
+				this.filter.filterQuery = this.filterState.filterText;
+				if (this.tree) {
+					this.tree.refilter();
+				}
+			}
 		}));
 	}
 
@@ -428,6 +455,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.replInputContainer.style.height = `${replInputHeight}px`;
 
 		this.replInput.layout({ width: width - 30, height: replInputHeight });
+		this.filterState.layout = new dom.Dimension(width, height);
 	}
 
 	focus(): void {
@@ -437,6 +465,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === SelectReplAction.ID) {
 			return this.instantiationService.createInstance(SelectReplActionViewItem, this.selectReplAction);
+		} else if (action.id === this.filterActionId) {
+			return this.instantiationService.createInstance(ReplFilterActionViewItem, action, this.filterState);
 		}
 
 		return super.getActionViewItem(action);
@@ -444,6 +474,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	getActions(): IAction[] {
 		const result: IAction[] = [];
+		result.push(new Action(this.filterActionId));
 		if (this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl() && !sessionsToIgnore.has(s)).length > 1) {
 			result.push(this.selectReplAction);
 		}
@@ -532,6 +563,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			// https://github.com/microsoft/TypeScript/issues/32526
 			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
 			{
+				filter: this.filter,
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,
@@ -681,6 +713,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		} else {
 			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
+
+		this.panelState['filter'] = this.filterState.filterText;
+		this.panelState['filterHistory'] = this.filterState.filterHistory;
 
 		super.saveState();
 	}
