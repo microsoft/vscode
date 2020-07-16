@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, MergeState } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResourceGroup, CONTEXT_ENABLE_MANUAL_SYNC_VIEW, MANUAL_SYNC_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_MANUAL_SYNC_VIEW, MANUAL_SYNC_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -337,14 +337,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.waitForActiveSyncViews();
 		await this.viewsService.openView(MANUAL_SYNC_VIEW_ID);
 
-		await Event.toPromise(Event.filter(this.userDataSyncPreview.onDidChangeChanges, e => e.length === 0));
-		if (this.userDataSyncPreview.conflicts.length) {
-			await Event.toPromise(Event.filter(this.userDataSyncPreview.onDidChangeConflicts, e => e.length === 0));
-		}
-
-		/* Merge to sync globalState changes */
-		await task.apply();
-
+		const completed = await Event.toPromise(this.userDataSyncPreview.onDidCompleteManualSync);
 		this.userDataSyncPreview.unsetManualSyncPreview();
 
 		this.manualSyncViewEnablementContext.set(false);
@@ -353,6 +346,10 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		} else {
 			const viewContainer = this.viewDescriptorService.getViewContainerByViewId(MANUAL_SYNC_VIEW_ID);
 			this.viewsService.closeViewContainer(viewContainer!.id);
+		}
+
+		if (!completed) {
+			throw canceled();
 		}
 	}
 
@@ -560,16 +557,18 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 
-	private _changes: ReadonlyArray<IUserDataSyncResourceGroup> = [];
-	get changes() { return Object.freeze(this._changes); }
-	private _onDidChangeChanges = this._register(new Emitter<ReadonlyArray<IUserDataSyncResourceGroup>>());
-	readonly onDidChangeChanges = this._onDidChangeChanges.event;
+	private _resources: ReadonlyArray<IUserDataSyncResource> = [];
+	get resources() { return Object.freeze(this._resources); }
+	private _onDidChangeResources = this._register(new Emitter<ReadonlyArray<IUserDataSyncResource>>());
+	readonly onDidChangeResources = this._onDidChangeResources.event;
 
-	private _conflicts: ReadonlyArray<IUserDataSyncResourceGroup> = [];
+	private _conflicts: ReadonlyArray<IUserDataSyncResource> = [];
 	get conflicts() { return Object.freeze(this._conflicts); }
-	private _onDidChangeConflicts = this._register(new Emitter<ReadonlyArray<IUserDataSyncResourceGroup>>());
+	private _onDidChangeConflicts = this._register(new Emitter<ReadonlyArray<IUserDataSyncResource>>());
 	readonly onDidChangeConflicts = this._onDidChangeConflicts.event;
 
+	private _onDidCompleteManualSync = this._register(new Emitter<boolean>());
+	readonly onDidCompleteManualSync = this._onDidCompleteManualSync.event;
 	private manualSync: { preview: [SyncResource, ISyncResourcePreview][], task: IManualSyncTask, disposables: DisposableStore } | undefined;
 
 	constructor(
@@ -583,7 +582,7 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 	setManualSyncPreview(task: IManualSyncTask, preview: [SyncResource, ISyncResourcePreview][]): void {
 		const disposables = new DisposableStore();
 		this.manualSync = { task, preview, disposables };
-		this.updateChanges();
+		this.updateResources();
 	}
 
 	unsetManualSyncPreview(): void {
@@ -591,7 +590,7 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 			this.manualSync.disposables.dispose();
 			this.manualSync = undefined;
 		}
-		this.updateChanges();
+		this.updateResources();
 	}
 
 	async accept(syncResource: SyncResource, resource: URI, content: string): Promise<void> {
@@ -609,6 +608,35 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 		}
 		const syncPreview = await this.manualSync.task.merge(resource);
 		this.updatePreview(syncPreview);
+	}
+
+	async discard(resource: URI): Promise<void> {
+		if (!this.manualSync) {
+			throw new Error('Can discard only while syncing manually');
+		}
+		const syncPreview = await this.manualSync.task.discard(resource);
+		this.updatePreview(syncPreview);
+	}
+
+	async apply(): Promise<void> {
+		if (!this.manualSync) {
+			throw new Error('Can apply only while syncing manually');
+		}
+
+		const syncPreview = await this.manualSync.task.apply();
+		this.updatePreview(syncPreview);
+		if (!this._resources.length) {
+			this._onDidCompleteManualSync.fire(true);
+		}
+	}
+
+	async cancel(): Promise<void> {
+		if (!this.manualSync) {
+			throw new Error('Can cancel only while syncing manually');
+		}
+		await this.manualSync.task.stop();
+		this.updatePreview([]);
+		this._onDidCompleteManualSync.fire(false);
 	}
 
 	async pull(): Promise<void> {
@@ -630,7 +658,7 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 	private updatePreview(preview: [SyncResource, ISyncResourcePreview][]) {
 		if (this.manualSync) {
 			this.manualSync.preview = preview;
-			this.updateChanges();
+			this.updateResources();
 		}
 	}
 
@@ -640,33 +668,28 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 			this._conflicts = newConflicts;
 			this._onDidChangeConflicts.fire(this.conflicts);
 		}
-		this.updateChanges();
 	}
 
-	private updateChanges(): void {
-		const newChanges = this.toUserDataSyncResourceGroups(
+	private updateResources(): void {
+		const newResources = this.toUserDataSyncResourceGroups(
 			(this.manualSync?.preview || [])
-				.filter(([syncResource]) => syncResource !== SyncResource.GlobalState) /* Filter Global State Changes */
 				.map(([syncResource, syncResourcePreview]) =>
 					([
 						syncResource,
-						/* remove accepted previews and conflicts */
-						syncResourcePreview.resourcePreviews.filter(r =>
-							r.mergeState !== MergeState.Accepted
-							&& !this._conflicts.some(c => c.syncResource === syncResource && isEqual(c.local, r.localResource)))
+						syncResourcePreview.resourcePreviews
 					]))
 		);
-		if (!equals(newChanges, this._changes, (a, b) => isEqual(a.local, b.local))) {
-			this._changes = newChanges;
-			this._onDidChangeChanges.fire(this.changes);
+		if (!equals(newResources, this._resources, (a, b) => isEqual(a.local, b.local) && a.mergeState === b.mergeState)) {
+			this._resources = newResources;
+			this._onDidChangeResources.fire(this.resources);
 		}
 	}
 
-	private toUserDataSyncResourceGroups(syncResourcePreviews: [SyncResource, IResourcePreview[]][]): IUserDataSyncResourceGroup[] {
+	private toUserDataSyncResourceGroups(syncResourcePreviews: [SyncResource, IResourcePreview[]][]): IUserDataSyncResource[] {
 		return flatten(
 			syncResourcePreviews.map(([syncResource, resourcePreviews]) =>
-				resourcePreviews.map<IUserDataSyncResourceGroup>(({ localResource, remoteResource, previewResource, localChange, remoteChange }) =>
-					({ syncResource, local: localResource, remote: remoteResource, preview: previewResource, localChange, remoteChange })))
+				resourcePreviews.map<IUserDataSyncResource>(({ localResource, remoteResource, previewResource, localChange, remoteChange, mergeState }) =>
+					({ syncResource, local: localResource, remote: remoteResource, preview: previewResource, localChange, remoteChange, mergeState })))
 		);
 	}
 

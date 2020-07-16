@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IAuthenticationProvider, SyncStatus, SyncResource, Change } from 'vs/platform/userDataSync/common/userDataSync';
+import { IAuthenticationProvider, SyncStatus, SyncResource, Change, MergeState } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
@@ -17,25 +17,26 @@ export interface IUserDataSyncAccount {
 }
 
 export interface IUserDataSyncPreview {
-	readonly onDidChangeChanges: Event<ReadonlyArray<IUserDataSyncResourceGroup>>;
-	readonly changes: ReadonlyArray<IUserDataSyncResourceGroup>;
-
-	onDidChangeConflicts: Event<ReadonlyArray<IUserDataSyncResourceGroup>>;
-	readonly conflicts: ReadonlyArray<IUserDataSyncResourceGroup>;
+	readonly onDidChangeResources: Event<ReadonlyArray<IUserDataSyncResource>>;
+	readonly resources: ReadonlyArray<IUserDataSyncResource>;
 
 	accept(syncResource: SyncResource, resource: URI, content: string): Promise<void>;
 	merge(resource?: URI): Promise<void>;
+	discard(resource?: URI): Promise<void>;
 	pull(): Promise<void>;
 	push(): Promise<void>;
+	apply(): Promise<void>;
+	cancel(): Promise<void>;
 }
 
-export interface IUserDataSyncResourceGroup {
+export interface IUserDataSyncResource {
 	readonly syncResource: SyncResource;
 	readonly local: URI;
 	readonly remote: URI;
 	readonly preview: URI;
 	readonly localChange: Change;
 	readonly remoteChange: Change;
+	readonly mergeState: MergeState;
 }
 
 export const IUserDataSyncWorkbenchService = createDecorator<IUserDataSyncWorkbenchService>('IUserDataSyncWorkbenchService');
