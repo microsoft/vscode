@@ -63,13 +63,6 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.treeView.refresh()));
 		this._register(decorationsService.registerDecorationsProvider(this._register(new UserDataSyncResourcesDecorationProvider(this.userDataSyncPreview))));
 
-		const disposable = this.treeView.onDidChangeVisibility(visible => {
-			if (visible && !this.treeView.dataProvider) {
-				disposable.dispose();
-				this.treeView.dataProvider = new ManualSyncViewDataProvider(this.userDataSyncPreview);
-			}
-		});
-
 		this.registerActions();
 	}
 
@@ -88,6 +81,8 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		cancelButton.label = localize('cancel', "Cancel");
 		this._register(attachButtonStyler(cancelButton, this.themeService));
 		this._register(cancelButton.onDidClick(() => this.userDataSyncPreview.cancel()));
+
+		this.treeView.dataProvider = new ManualSyncViewDataProvider(this.userDataSyncPreview);
 	}
 
 	protected layoutTreeView(height: number, width: number): void {
