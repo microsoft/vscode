@@ -8,7 +8,7 @@ import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireMinVersion } from '../utils/dependentRegistration';
 import * as errorCodes from '../utils/errorCodes';
 import * as fixNames from '../utils/fixNames';
 import * as typeConverters from '../utils/typeConverters';
@@ -254,7 +254,9 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 	diagnosticsManager: DiagnosticsManager,
 ) {
-	return new VersionDependentRegistration(client, API.v300, () => {
+	return conditionalRegistration([
+		requireMinVersion(client, API.v300)
+	], () => {
 		const provider = new TypeScriptAutoFixProvider(client, fileConfigurationManager, diagnosticsManager);
 		return vscode.languages.registerCodeActionsProvider(selector, provider, provider.metadata);
 	});

@@ -8,7 +8,7 @@ import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireConfiguration } from '../utils/dependentRegistration';
 import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens, getSymbolRange } from './baseCodeLensProvider';
 import { CachedResponse } from '../tsServer/cachedResponse';
 import * as typeConverters from '../utils/typeConverters';
@@ -94,7 +94,9 @@ export function register(
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
-	return new ConfigurationDependentRegistration(modeId, 'implementationsCodeLens.enabled', () => {
+	return conditionalRegistration([
+		requireConfiguration(modeId, 'implementationsCodeLens.enabled'),
+	], () => {
 		return vscode.languages.registerCodeLensProvider(selector,
 			new TypeScriptImplementationsCodeLensProvider(client, cachedResponse));
 	});

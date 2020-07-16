@@ -12,14 +12,14 @@ import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { applyCodeAction } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
-import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireConfiguration } from '../utils/dependentRegistration';
+import { parseKindModifier } from '../utils/modifiers';
 import * as Previewer from '../utils/previewer';
 import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
 import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
-import { parseKindModifier } from '../utils/modifiers';
 
 const localize = nls.loadMessageBundle();
 
@@ -804,8 +804,11 @@ export function register(
 	telemetryReporter: TelemetryReporter,
 	onCompletionAccepted: (item: vscode.CompletionItem) => void
 ) {
-	return new ConfigurationDependentRegistration(modeId, 'suggest.enabled', () =>
-		vscode.languages.registerCompletionItemProvider(selector,
+	return conditionalRegistration([
+		requireConfiguration(modeId, 'suggest.enabled'),
+	], () => {
+		return vscode.languages.registerCompletionItemProvider(selector,
 			new TypeScriptCompletionItemProvider(client, modeId, typingsStatus, fileConfigurationManager, commandManager, telemetryReporter, onCompletionAccepted),
-			...TypeScriptCompletionItemProvider.triggerCharacters));
+			...TypeScriptCompletionItemProvider.triggerCharacters);
+	});
 }
