@@ -1017,7 +1017,7 @@ class ViewModel {
 			}
 
 			const collapsed = this.repositoryCollapseStates?.get(item.element);
-			return { element: item.element, children, incompressible: true, collapsed, collapsible: hasSomeChanges };
+			return { element: item.element, children, incompressible: true, collapsed, collapsible: true };
 		} else {
 			const children = this.mode === ViewModelMode.List
 				? Iterable.map(item.resources, element => ({ element, incompressible: true }))
