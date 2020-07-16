@@ -9,9 +9,9 @@ import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollec
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ITreeRenderer, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { isDefined } from 'vs/base/common/types';
-import { SettingsTreeDelegate, ISettingItemTemplate } from 'vs/workbench/contrib/preferences/browser/settingsTree';
+import { SettingsTreeDelegate, ISettingItemTemplate, SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { focusBorder, foreground, errorForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarSliderBackground } from 'vs/platform/theme/common/colorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
 import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
@@ -20,14 +20,26 @@ import { localize } from 'vs/nls';
 
 const $ = DOM.$;
 
+interface ISettingsListView {
+	group: SettingsTreeGroupElement;
+	settings: SettingsTreeSettingElement[];
+}
+
 interface ISettingsListCacheItem {
 	container: HTMLElement;
 	template: ISettingItemTemplate;
 }
 
+function isGroupElement(element: SettingsTreeElement): element is SettingsTreeGroupElement {
+	return element instanceof SettingsTreeGroupElement;
+}
+
+function isSettingElement(element: SettingsTreeElement): element is SettingsTreeSettingElement {
+	return element instanceof SettingsTreeSettingElement;
+}
+
 export class SettingsList extends Disposable {
-	private settingGroups = new Map<string, SettingsTreeSettingElement[]>();
-	private currentGroupId: string = '';
+	private searchFilter: (element: SettingsTreeElement) => boolean;
 	private getTemplateId = new SettingsTreeDelegate().getTemplateId;
 	private templateToRenderer = new Map<string, ITreeRenderer<SettingsTreeElement, never, ISettingItemTemplate>>();
 	private freePool = new Map<string, ISettingsListCacheItem[]>();
@@ -48,26 +60,6 @@ export class SettingsList extends Disposable {
 		super.dispose();
 	}
 
-	get groupId(): string {
-		return this.currentGroupId;
-	}
-
-	set groupId(groupId: string) {
-		const shouldRerender = this.currentGroupId !== groupId;
-		this.currentGroupId = groupId;
-
-		if (shouldRerender) {
-			for (const [templateId, usedItems] of this.usedPool.entries()) {
-				const freeItems = this.freePool.get(templateId) ?? [];
-				this.freePool.set(templateId, [...usedItems, ...freeItems]);
-			}
-
-			this.usedPool.clear();
-
-			this.render();
-		}
-	}
-
 	constructor(
 		private container: HTMLElement,
 		viewState: ISettingsEditorViewState,
@@ -81,9 +73,11 @@ export class SettingsList extends Disposable {
 		container.setAttribute('tabindex', '-1');
 		container.setAttribute('role', 'form');
 		container.setAttribute('aria-label', localize('settings', "Settings"));
-
 		container.classList.add('settings-editor-tree');
+
 		renderers.forEach(renderer => this.templateToRenderer.set(renderer.templateId, renderer));
+
+		this.searchFilter = element => instantiationService.createInstance(SettingsTreeFilter, viewState).filter(element, null as any);
 
 		this._register(registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 			const activeBorderColor = theme.getColor(focusBorder);
@@ -156,49 +150,38 @@ export class SettingsList extends Disposable {
 		return this.container;
 	}
 
-	setChildren(_: any, children: Iterable<ITreeElement<SettingsTreeElement>>) {
-		this.settingGroups = new Map();
+	render(group: SettingsTreeGroupElement): void {
+		const view = this.getSettingsFromGroup(group);
 
-		for (const child of children) {
-			if (child.element instanceof SettingsTreeGroupElement) {
+		DOM.clearNode(this.container);
 
-				if (!this.currentGroupId) {
-					this.currentGroupId = child.element.id;
-				}
+		// TODO@9at8 Render the heading using view.group
 
-				this.storeSettingGroup(child.element);
-			} else {
-				// TODO@9at8 ???
+		this.container.append(...view.settings.map(setting => this.renderSetting(setting)));
+	}
+
+	private getSettingsFromGroup(group: SettingsTreeGroupElement): ISettingsListView {
+		if (!this.searchFilter(group)) {
+			return { group, settings: [] };
+		}
+
+		const settings = group.children.filter(isSettingElement).filter(this.searchFilter);
+
+		if (settings.length > 0) {
+			return { group, settings };
+		}
+
+		const groups = group.children.filter(isGroupElement).filter(this.searchFilter);
+
+		for (const child of groups) {
+			const childResult = this.getSettingsFromGroup(child);
+
+			if (childResult.settings.length > 0) {
+				return childResult;
 			}
 		}
 
-		this.render();
-	}
-
-	private storeSettingGroup(group: SettingsTreeGroupElement) {
-		// TODO@9at8 could these be something else?
-		const leaves = group.children.filter(c => c instanceof SettingsTreeSettingElement) as SettingsTreeSettingElement[];
-		const groups = group.children.filter(g => g instanceof SettingsTreeGroupElement) as SettingsTreeGroupElement[];
-
-		if (leaves.length > 0) {
-			this.settingGroups.set(group.id, leaves);
-		}
-
-		groups.forEach(group => this.storeSettingGroup(group));
-	}
-
-	private render() {
-		const settings = this.settingGroups.get(this.currentGroupId);
-
-		if (isDefined(settings)) {
-			DOM.clearNode(this.container);
-
-			settings
-				.map(setting => this.renderSetting(setting))
-				.forEach(element => this.container.append(element));
-		} else {
-			// TODO@09at8 what should we do if no settings in that group exist?
-		}
+		return { group, settings };
 	}
 
 	private renderSetting(element: SettingsTreeSettingElement): HTMLElement {

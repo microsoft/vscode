@@ -7,7 +7,6 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/common/async';
@@ -16,7 +15,6 @@ import * as collections from 'vs/base/common/collections';
 import { fromNow } from 'vs/base/common/date';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -46,7 +44,7 @@ import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/work
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
-import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
+import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
@@ -56,16 +54,16 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { SettingsList } from 'vs/workbench/contrib/preferences/browser/settingsList';
 
-function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
-	return Iterable.map(group.children, g => {
-		return {
-			element: g,
-			children: g instanceof SettingsTreeGroupElement ?
-				createGroupIterator(g) :
-				undefined
-		};
-	});
-}
+// function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
+// 	return Iterable.map(group.children, g => {
+// 		return {
+// 			element: g,
+// 			children: g instanceof SettingsTreeGroupElement ?
+// 				createGroupIterator(g) :
+// 				undefined
+// 		};
+// 	});
+// }
 
 const $ = DOM.$;
 
@@ -615,7 +613,7 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
 				this.settingsTree.reveal(element, 0);
-				this.settingsTree.groupId = element.id;
+				this.settingsTree.render(element);
 			}
 		}));
 
@@ -661,10 +659,12 @@ export class SettingsEditor2 extends BaseEditor {
 			this.searchWidget.setValue(element.targetKey);
 		}));
 
-		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsList,
+		this.settingsTree = this._register(this.instantiationService.createInstance(
+			SettingsList,
 			this.settingsTreeContainer,
 			this.viewState,
-			this.settingRenderers.allRenderers));
+			this.settingRenderers.allRenderers,
+		));
 
 		// this._register(this.settingsTree.onDidScroll(() => {
 		// 	if (this.settingsTree.scrollTop === this.settingsTreeScrollTop) {
@@ -1046,7 +1046,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private refreshTree(): void {
 		if (this.isVisible()) {
-			this.settingsTree.setChildren(null, createGroupIterator(this.currentSettingsModel.root));
+			this.settingsTree.render(this.currentSettingsModel.root);
 		}
 	}
 

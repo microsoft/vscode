@@ -18,7 +18,7 @@ import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selec
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -1724,7 +1724,7 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 	) { }
 
-	filter(element: SettingsTreeElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
+	filter(element: SettingsTreeElement, parentVisibility: TreeVisibility): boolean {
 		// Filter during search
 		if (this.viewState.filterToCategory && element instanceof SettingsTreeSettingElement) {
 			if (!this.settingContainedInGroup(element.setting, this.viewState.filterToCategory)) {
@@ -1749,11 +1749,7 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 
 		// Group with no visible children
 		if (element instanceof SettingsTreeGroupElement) {
-			if (typeof element.count === 'number') {
-				return element.count > 0;
-			}
-
-			return TreeVisibility.Recurse;
+			return typeof element.count === 'number' ? element.count > 0 : true;
 		}
 
 		// Filtered "new extensions" button
