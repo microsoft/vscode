@@ -1151,8 +1151,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 				if (this._activeKernel) {
 					// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
-					if ((this._activeKernel as any).executeNotebook) {
-						await (this._activeKernel as INotebookKernelInfo2).executeNotebook(this._notebookViewModel!.uri, undefined, tokenSource.token);
+					if ((this._activeKernel as INotebookKernelInfo2).executeNotebookCell) {
+						await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, undefined, tokenSource.token);
 					} else {
 						await this.notebookService.executeNotebook2(this._notebookViewModel!.viewType, this._notebookViewModel!.uri, this._activeKernel.id, tokenSource.token);
 					}
@@ -1206,8 +1206,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 				if (this._activeKernel) {
 					// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
-					if ((this._activeKernel as any).executeNotebook) {
-						await (this._activeKernel as INotebookKernelInfo2).executeNotebook(this._notebookViewModel!.uri, cell.handle, tokenSource.token);
+					if ((this._activeKernel as INotebookKernelInfo2).executeNotebookCell) {
+						await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, cell.handle, tokenSource.token);
 					} else {
 
 						return await this.notebookService.executeNotebookCell2(viewType, notebookUri, cell.handle, this._activeKernel.id, tokenSource.token);
