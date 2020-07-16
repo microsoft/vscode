@@ -47,7 +47,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	protected readonly version: number = 3;
 	protected isEnabled(): boolean { return super.isEnabled() && this.extensionGalleryService.isEnabled(); }
 	private readonly localPreviewResource: URI = joinPath(this.syncPreviewFolder, 'extensions.json');
-	private readonly remotePreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME });
+	private readonly remotePreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
+	private readonly acceptedPreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -100,6 +101,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			remoteContent: remoteExtensions ? this.format(remoteExtensions) : null,
 			previewResource: this.localPreviewResource,
 			previewContent: null,
+			acceptedResource: this.acceptedPreviewResource,
+			acceptedContent: null,
 			added,
 			removed,
 			updated,
@@ -137,6 +140,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			remoteContent: remoteExtensions ? this.format(remoteExtensions) : null,
 			previewResource: this.localPreviewResource,
 			previewContent: null,
+			acceptedResource: this.acceptedPreviewResource,
+			acceptedContent: null,
 			added,
 			removed,
 			updated,
@@ -177,14 +182,14 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		}
 	}
 
-	protected async updateResourcePreviewContent(resourcePreview: IExtensionResourcePreview, resource: URI, previewContent: string, token: CancellationToken): Promise<IExtensionResourcePreview> {
+	protected async updateResourcePreview(resourcePreview: IExtensionResourcePreview, resource: URI, acceptedContent: string): Promise<IExtensionResourcePreview> {
 		if (isEqual(resource, ExtensionsSynchroniser.EXTENSIONS_DATA_URI)) {
 			const remoteExtensions = resourcePreview.remoteContent ? JSON.parse(resourcePreview.remoteContent) : null;
 			return this.getPushPreview(remoteExtensions);
 		}
 		return {
 			...resourcePreview,
-			previewContent,
+			acceptedContent,
 			hasConflicts: false,
 			localChange: Change.Modified,
 			remoteChange: Change.Modified,
@@ -199,6 +204,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const localContent = this.format(localExtensions);
 		const remoteResource = this.remotePreviewResource;
 		const previewResource = this.localPreviewResource;
+		const acceptedResource = this.acceptedPreviewResource;
 		const previewContent = null;
 		if (remoteExtensions !== null) {
 			const mergeResult = merge(localExtensions, remoteExtensions, localExtensions, [], ignoredExtensions);
@@ -210,6 +216,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				remoteContent: this.format(remoteExtensions),
 				previewResource,
 				previewContent,
+				acceptedResource,
+				acceptedContent: previewContent,
 				added,
 				removed,
 				updated,
@@ -228,6 +236,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				remoteContent: null,
 				previewResource,
 				previewContent,
+				acceptedResource,
+				acceptedContent: previewContent,
 				added: [], removed: [], updated: [], remote: null, localExtensions, skippedExtensions: [],
 				localChange: Change.None,
 				remoteChange: Change.None,
@@ -249,6 +259,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			remoteContent: remoteExtensions ? this.format(remoteExtensions) : null,
 			previewResource: this.localPreviewResource,
 			previewContent: null,
+			acceptedResource: this.acceptedPreviewResource,
+			acceptedContent: null,
 			added,
 			removed,
 			updated,
@@ -272,7 +284,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			return this.format(localExtensions);
 		}
 
-		if (isEqual(this.remotePreviewResource, uri) || isEqual(this.localPreviewResource, uri)) {
+		if (isEqual(this.remotePreviewResource, uri) || isEqual(this.acceptedPreviewResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}
 

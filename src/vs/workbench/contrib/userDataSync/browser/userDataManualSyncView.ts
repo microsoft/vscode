@@ -31,6 +31,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 export class UserDataManualSyncViewPane extends TreeViewPane {
 
@@ -189,31 +190,35 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const previewResource: IUserDataSyncResource = ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle);
-				return that.showChanges(previewResource);
+				return that.open(previewResource);
 			}
 		}));
 	}
 
 	private async acceptLocal(userDataSyncResource: IUserDataSyncResource): Promise<void> {
-		return this.withProgress(async () => {
+		await this.withProgress(async () => {
 			const content = await this.userDataSyncService.resolveContent(userDataSyncResource.local);
 			await this.userDataSyncPreview.accept(userDataSyncResource.syncResource, userDataSyncResource.local, content || '');
 		});
+		await this.reopen(userDataSyncResource);
 	}
 
 	private async acceptRemote(userDataSyncResource: IUserDataSyncResource): Promise<void> {
-		return this.withProgress(async () => {
+		await this.withProgress(async () => {
 			const content = await this.userDataSyncService.resolveContent(userDataSyncResource.remote);
 			await this.userDataSyncPreview.accept(userDataSyncResource.syncResource, userDataSyncResource.remote, content || '');
 		});
+		await this.reopen(userDataSyncResource);
 	}
 
 	private async mergeResource(previewResource: IUserDataSyncResource): Promise<void> {
-		return this.withProgress(() => this.userDataSyncPreview.merge(previewResource.preview));
+		await this.withProgress(() => this.userDataSyncPreview.merge(previewResource.merged));
+		await this.reopen(previewResource);
 	}
 
 	private async discardResource(previewResource: IUserDataSyncResource): Promise<void> {
-		return this.withProgress(() => this.userDataSyncPreview.discard(previewResource.preview));
+		this.close(previewResource);
+		return this.withProgress(() => this.userDataSyncPreview.discard(previewResource.merged));
 	}
 
 	private async apply(): Promise<void> {
@@ -225,12 +230,12 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		await this.userDataSyncPreview.apply();
 	}
 
-	private async showChanges(previewResource: IUserDataSyncResource): Promise<void> {
-		if (previewResource.localChange === Change.Added || previewResource.remoteChange === Change.Deleted) {
-			await this.editorService.openEditor({ resource: URI.revive(previewResource.remote), label: localize({ key: 'resourceLabel', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(previewResource.remote)) });
+	private async open(previewResource: IUserDataSyncResource): Promise<void> {
+		if (previewResource.mergeState === MergeState.Accepted) {
+			await this.editorService.openEditor({ resource: previewResource.accepted, label: localize('preview', "{0} (Preview)", basename(previewResource.accepted)) });
 		} else {
-			const leftResource = URI.revive(previewResource.remote);
-			const rightResource = previewResource.mergeState === MergeState.Conflict ? URI.revive(previewResource.preview) : URI.revive(previewResource.local);
+			const leftResource = previewResource.remote;
+			const rightResource = previewResource.mergeState === MergeState.Conflict ? previewResource.merged : previewResource.local;
 			const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(leftResource));
 			const rightResourceName = localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
 			await this.editorService.openEditor({
@@ -242,6 +247,29 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 					revealIfVisible: true,
 				},
 			});
+		}
+	}
+
+	private async reopen(previewResource: IUserDataSyncResource): Promise<void> {
+		this.close(previewResource);
+		const resource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local));
+		if (resource) {
+			await this.open(resource);
+		}
+	}
+
+	private close(previewResource: IUserDataSyncResource) {
+		for (const input of this.editorService.editors) {
+			if (input instanceof DiffEditorInput) {
+				// Close all diff editors
+				if (isEqual(previewResource.remote, input.secondary.resource)) {
+					input.dispose();
+				}
+			}
+			// Close all preview editors
+			else if (isEqual(previewResource.accepted, input.resource)) {
+				input.dispose();
+			}
 		}
 	}
 
@@ -281,8 +309,9 @@ class ManualSyncViewDataProvider implements ITreeViewDataProvider {
 		return {
 			syncResource: parsed.syncResource,
 			local: URI.revive(parsed.local),
-			preview: URI.revive(parsed.preview),
 			remote: URI.revive(parsed.remote),
+			merged: URI.revive(parsed.merged),
+			accepted: URI.revive(parsed.accepted),
 			localChange: parsed.localChange,
 			remoteChange: parsed.remoteChange,
 			mergeState: parsed.mergeState,

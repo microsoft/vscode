@@ -233,6 +233,7 @@ class ManualSyncTask implements IManualSyncTask {
 						localResource: URI.revive(r.localResource),
 						remoteResource: URI.revive(r.remoteResource),
 						previewResource: URI.revive(r.previewResource),
+						acceptedResource: URI.revive(r.acceptedResource),
 					}))
 				}
 			]));

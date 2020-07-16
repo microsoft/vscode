@@ -327,6 +327,7 @@ export interface IResourcePreview {
 	readonly remoteResource: URI;
 	readonly localResource: URI;
 	readonly previewResource: URI;
+	readonly acceptedResource: URI;
 	readonly localChange: Change;
 	readonly remoteChange: Change;
 	readonly mergeState: MergeState;

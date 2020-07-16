@@ -46,7 +46,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	private static readonly GLOBAL_STATE_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'globalState', path: `/globalState.json` });
 	protected readonly version: number = 1;
 	private readonly localPreviewResource: URI = joinPath(this.syncPreviewFolder, 'globalState.json');
-	private readonly remotePreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME });
+	private readonly remotePreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
+	private readonly acceptedPreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
 
 	constructor(
 		@IFileService fileService: IFileService,
@@ -99,6 +100,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			remoteContent: remoteGlobalState ? this.format(remoteGlobalState) : null,
 			previewResource: this.localPreviewResource,
 			previewContent: null,
+			acceptedResource: this.acceptedPreviewResource,
+			acceptedContent: null,
 			local,
 			remote: syncGlobalState.storage,
 			localUserData,
@@ -131,6 +134,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			remoteContent: remoteGlobalState ? this.format(remoteGlobalState) : null,
 			previewResource: this.localPreviewResource,
 			previewContent: null,
+			acceptedResource: this.acceptedPreviewResource,
+			acceptedContent: null,
 			local,
 			remote,
 			localUserData: localGloablState,
@@ -172,7 +177,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 	}
 
-	protected async updateResourcePreviewContent(resourcePreview: IGlobalStateResourcePreview, resource: URI, previewContent: string, token: CancellationToken): Promise<IGlobalStateResourcePreview> {
+	protected async updateResourcePreview(resourcePreview: IGlobalStateResourcePreview, resource: URI, acceptedContent: string): Promise<IGlobalStateResourcePreview> {
 		if (GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI, resource) {
 			return this.getPushPreview(resourcePreview.remoteContent);
 		}
@@ -188,6 +193,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		const localContent = this.format(localGlobalState);
 		const remoteResource = this.remotePreviewResource;
 		const previewResource = this.localPreviewResource;
+		const acceptedResource = this.acceptedPreviewResource;
 		const previewContent = null;
 		if (remoteContent !== null) {
 			const remoteGlobalState: IGlobalState = JSON.parse(remoteContent);
@@ -200,6 +206,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				remoteContent: this.format(remoteGlobalState),
 				previewResource,
 				previewContent,
+				acceptedResource,
+				acceptedContent: previewContent,
 				local,
 				remote,
 				localUserData: localGlobalState,
@@ -216,6 +224,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				remoteContent: null,
 				previewResource,
 				previewContent,
+				acceptedResource,
+				acceptedContent: previewContent,
 				local: { added: {}, removed: [], updated: {} },
 				remote: null,
 				localUserData: localGlobalState,
@@ -237,6 +247,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			remoteContent: remoteGlobalState ? this.format(remoteGlobalState) : null,
 			previewResource: this.localPreviewResource,
 			previewContent: null,
+			acceptedResource: this.acceptedPreviewResource,
+			acceptedContent: null,
 			local: { added: {}, removed: [], updated: {} },
 			remote: localUserData.storage,
 			localUserData,
@@ -257,7 +269,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			return this.format(localGlobalState);
 		}
 
-		if (isEqual(this.remotePreviewResource, uri) || isEqual(this.localPreviewResource, uri)) {
+		if (isEqual(this.remotePreviewResource, uri) || isEqual(this.acceptedPreviewResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}
 
