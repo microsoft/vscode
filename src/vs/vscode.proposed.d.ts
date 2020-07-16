@@ -233,6 +233,8 @@ declare module 'vscode' {
 		export const onDidChangeSessions: Event<{ [providerId: string]: AuthenticationSessionsChangeEvent; }>;
 	}
 
+
+
 	//#endregion
 
 	//#region @alexdima - resolvers

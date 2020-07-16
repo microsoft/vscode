@@ -88,7 +88,6 @@
 			"group": "test",
 			"presentation": {
 				"echo": true,
-				"reveal": "always"
 			}
 		},
 		{
