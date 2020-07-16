@@ -1584,7 +1584,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private isTaskProviderEnabled(type: string) {
 		const definition = TaskDefinitionRegistry.get(type);
-		return !definition.when || this.contextKeyService.contextMatchesRules(definition.when);
+		return !definition || !definition.when || this.contextKeyService.contextMatchesRules(definition.when);
 	}
 
 	private getGroupedTasks(type?: string): Promise<TaskMap> {
