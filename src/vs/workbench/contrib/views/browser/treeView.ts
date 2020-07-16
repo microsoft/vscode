@@ -788,7 +788,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private setupHovers(node: ITreeItem, htmlElement: HTMLElement, disposableStore: DisposableStore, label: string | undefined): void {
-		if ((node.tooltip && isString(node.tooltip)) || !(node instanceof ResolvableTreeItem) || !node.hasResolve) {
+		if (!(node instanceof ResolvableTreeItem) || (node.tooltip && isString(node.tooltip)) || (!node.tooltip && !node.hasResolve)) {
 			return;
 		}
 		const resolvableNode: ResolvableTreeItem = node;
