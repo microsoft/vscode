@@ -131,7 +131,7 @@ p {
 	margin-bottom: 1.5em;
 }
 
-ul p {
+li > p {
 	margin-bottom: 0;
 }
 
