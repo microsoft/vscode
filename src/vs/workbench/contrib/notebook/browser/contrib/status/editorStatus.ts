@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { INotebookCellActionContext, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { INotebookActionContext, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { INotebookEditor, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -31,7 +31,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
 		const editorService = accessor.get<IEditorService>(IEditorService);
 		const notebookService = accessor.get<INotebookService>(INotebookService);
 		const quickInputService = accessor.get<IQuickInputService>(IQuickInputService);
