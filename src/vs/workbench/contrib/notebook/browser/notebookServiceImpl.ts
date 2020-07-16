@@ -329,7 +329,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 						const tokenSource = new CancellationTokenSource();
 						return provider.resolveKernel(editorId, uri, dto.id, tokenSource.token);
 					},
-					executeNotebook: async (uri: URI, handle: number | undefined, token: CancellationToken) => {
+					executeNotebookCell: async (uri: URI, handle: number | undefined, token: CancellationToken) => {
 						return provider.executeNotebook(uri, dto.id, handle, token);
 					}
 				};

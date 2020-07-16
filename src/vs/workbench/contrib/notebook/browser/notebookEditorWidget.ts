@@ -132,7 +132,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._notebookViewModel?.notebookDocument;
 	}
 
-	private _activeKernel: INotebookKernelInfo | INotebookKernelInfoDto2 | undefined = undefined;
+	private _activeKernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined = undefined;
 	private readonly _onDidChangeKernel = this._register(new Emitter<void>());
 	readonly onDidChangeKernel: Event<void> = this._onDidChangeKernel.event;
 
@@ -140,7 +140,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._activeKernel;
 	}
 
-	set activeKernel(kernel: INotebookKernelInfo | INotebookKernelInfoDto2 | undefined) {
+	set activeKernel(kernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined) {
 		if (this._isDisposed) {
 			return;
 		}
@@ -148,6 +148,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._activeKernel = kernel;
 		this._onDidChangeKernel.fire();
 	}
+
+	multipleKernelsAvailable: boolean = false;
 
 	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
 	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
@@ -560,10 +562,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		if (provider.kernel && (availableKernels.length + availableKernels2.length) > 0) {
 			this._notebookHasMultipleKernels!.set(true);
+			this.multipleKernelsAvailable = true;
 		} else if ((availableKernels.length + availableKernels2.length) > 1) {
 			this._notebookHasMultipleKernels!.set(true);
+			this.multipleKernelsAvailable = true;
 		} else {
 			this._notebookHasMultipleKernels!.set(false);
+			this.multipleKernelsAvailable = false;
 		}
 
 		if (provider && provider.kernel) {
