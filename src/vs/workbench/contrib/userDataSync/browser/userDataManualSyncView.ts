@@ -232,7 +232,10 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 
 	private async open(previewResource: IUserDataSyncResource): Promise<void> {
 		if (previewResource.mergeState === MergeState.Accepted) {
-			await this.editorService.openEditor({ resource: previewResource.accepted, label: localize('preview', "{0} (Preview)", basename(previewResource.accepted)) });
+			if (previewResource.localChange !== Change.Deleted && previewResource.remoteChange !== Change.Deleted) {
+				// Do not open deleted preview
+				await this.editorService.openEditor({ resource: previewResource.accepted, label: localize('preview', "{0} (Preview)", basename(previewResource.accepted)) });
+			}
 		} else {
 			const leftResource = previewResource.remote;
 			const rightResource = previewResource.mergeState === MergeState.Conflict ? previewResource.merged : previewResource.local;
@@ -294,6 +297,7 @@ class ManualSyncViewDataProvider implements ITreeViewDataProvider {
 				roots.push({
 					handle,
 					resourceUri: resource.remote,
+					label: { label: basename(resource.remote), strikethrough: resource.mergeState === MergeState.Accepted && (resource.localChange === Change.Deleted || resource.remoteChange === Change.Deleted) },
 					description: getSyncAreaLabel(resource.syncResource),
 					collapsibleState: TreeItemCollapsibleState.None,
 					command: { id: `workbench.actions.sync.showChanges`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: handle }] },

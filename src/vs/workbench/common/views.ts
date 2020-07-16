@@ -617,6 +617,8 @@ export interface ITreeItemLabel {
 
 	highlights?: [number, number][];
 
+	strikethrough?: boolean;
+
 }
 
 export interface ITreeItem {

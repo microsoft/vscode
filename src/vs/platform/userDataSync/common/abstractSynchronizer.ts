@@ -396,19 +396,22 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	async merge(resource: URI): Promise<ISyncResourcePreview | null> {
-		await this.updateSyncResourcePreview(resource, async (resourcePreview) => ({
-			...resourcePreview,
-			mergeState: resourcePreview.hasConflicts ? MergeState.Conflict : MergeState.Accepted
-		}));
+		await this.updateSyncResourcePreview(resource, async (resourcePreview) => {
+			const updatedResourcePreview = await this.updateResourcePreview(resourcePreview, resourcePreview.previewResource, resourcePreview.previewContent || '');
+			return {
+				...updatedResourcePreview,
+				mergeState: resourcePreview.hasConflicts ? MergeState.Conflict : MergeState.Accepted
+			};
+		});
 		return this.syncPreviewPromise;
 	}
 
 	async discard(resource: URI): Promise<ISyncResourcePreview | null> {
 		await this.updateSyncResourcePreview(resource, async (resourcePreview) => {
 			await this.fileService.writeFile(resourcePreview.previewResource, VSBuffer.fromString(resourcePreview.previewContent || ''));
-			const updatedPreview = await this.updateResourcePreview(resourcePreview, resourcePreview.previewResource, resourcePreview.previewContent || '');
+			const updatedResourcePreview = await this.updateResourcePreview(resourcePreview, resourcePreview.previewResource, resourcePreview.previewContent || '');
 			return {
-				...updatedPreview,
+				...updatedResourcePreview,
 				mergeState: MergeState.Preview
 			};
 		});

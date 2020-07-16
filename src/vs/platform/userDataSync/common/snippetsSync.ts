@@ -100,9 +100,83 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		return {
 			...resourcePreview,
 			acceptedContent: acceptedContent || null,
-			localChange: acceptedContent ? Change.Modified : Change.Deleted,
-			remoteChange: acceptedContent ? Change.Modified : Change.Deleted,
+			localChange: this.computeLocalChange(resourcePreview, resource, acceptedContent || null),
+			remoteChange: this.computeRemoteChange(resourcePreview, resource, acceptedContent || null),
 		};
+	}
+
+	private computeLocalChange(resourcePreview: IFileResourcePreview, resource: URI, acceptedContent: string | null): Change {
+		const isRemoteResourceAccepted = isEqualOrParent(resource, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }));
+		const isPreviewResourceAccepted = isEqualOrParent(resource, this.syncPreviewFolder);
+
+		const previewExists = acceptedContent !== null;
+		const remoteExists = resourcePreview.remoteContent !== null;
+		const localExists = resourcePreview.fileContent !== null;
+
+		if (isRemoteResourceAccepted) {
+			if (remoteExists && localExists) {
+				return Change.Modified;
+			}
+			if (remoteExists && !localExists) {
+				return Change.Added;
+			}
+			if (!remoteExists && localExists) {
+				return Change.Deleted;
+			}
+			return Change.None;
+		}
+
+		if (isPreviewResourceAccepted) {
+			if (previewExists && localExists) {
+				return Change.Modified;
+			}
+			if (previewExists && !localExists) {
+				return Change.Added;
+			}
+			if (!previewExists && localExists) {
+				return Change.Deleted;
+			}
+			return Change.None;
+		}
+
+		return Change.None;
+	}
+
+	private computeRemoteChange(resourcePreview: IFileResourcePreview, resource: URI, acceptedContent: string | null): Change {
+		const isLocalResourceAccepted = isEqualOrParent(resource, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }));
+		const isPreviewResourceAccepted = isEqualOrParent(resource, this.syncPreviewFolder);
+
+		const previewExists = acceptedContent !== null;
+		const remoteExists = resourcePreview.remoteContent !== null;
+		const localExists = resourcePreview.fileContent !== null;
+
+		if (isLocalResourceAccepted) {
+			if (remoteExists && localExists) {
+				return Change.Modified;
+			}
+			if (remoteExists && !localExists) {
+				return Change.Deleted;
+			}
+			if (!remoteExists && localExists) {
+				return Change.Added;
+			}
+			return Change.None;
+		}
+
+		if (isPreviewResourceAccepted) {
+			if (previewExists && remoteExists) {
+				return Change.Modified;
+			}
+			if (previewExists && !remoteExists) {
+				return Change.Added;
+			}
+			if (!previewExists && remoteExists) {
+				return Change.Deleted;
+			}
+			return Change.None;
+		}
+
+		return Change.None;
 	}
 
 	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: IFileResourcePreview[], force: boolean): Promise<void> {
