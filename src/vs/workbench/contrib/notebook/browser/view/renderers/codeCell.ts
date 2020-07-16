@@ -308,7 +308,7 @@ export class CodeCell extends Disposable {
 			}
 		);
 
-    this.viewCell.outputs.forEach((o, i) => {
+		this.viewCell.outputs.forEach((o, i) => {
 			const renderedOutput = this.outputElements.get(o);
 			if (renderedOutput && !renderedOutput.renderResult.hasDynamicHeight && !renderedOutput.renderResult.shadowContent) {
 				this.viewCell.updateOutputHeight(i, renderedOutput.element.clientHeight);
