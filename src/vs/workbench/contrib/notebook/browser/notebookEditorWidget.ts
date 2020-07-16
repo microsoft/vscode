@@ -37,7 +37,7 @@ import { CellDragAndDropController, CodeCellRenderer, MarkdownCellRenderer, Note
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, IProcessedOutput, INotebookKernelInfo, INotebookKernelInfoDto, INotebookKernelInfoDto2, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, INotebookKernelInfo, INotebookKernelInfoDto, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -149,6 +149,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._onDidChangeKernel.fire();
 	}
 
+	private _currentKernelTokenSource: CancellationTokenSource | undefined = undefined;
 	multipleKernelsAvailable: boolean = false;
 
 	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
@@ -477,11 +478,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// clear state
 		this._dndController?.clearGlobalDragState();
 
-		await this._setKernels(textModel);
+		this._currentKernelTokenSource = new CancellationTokenSource();
+		this._localStore.add(this._currentKernelTokenSource);
+		await this._setKernels(textModel, this._currentKernelTokenSource);
 
 		this._localStore.add(this.notebookService.onDidChangeKernels(async () => {
 			if (this.activeKernel === undefined) {
-				await this._setKernels(textModel);
+				this._currentKernelTokenSource?.cancel();
+				this._currentKernelTokenSource = new CancellationTokenSource();
+				await this._setKernels(textModel, this._currentKernelTokenSource);
 			}
 		}));
 
@@ -553,10 +558,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._list?.clear();
 	}
 
-	private async _setKernels(textModel: NotebookTextModel) {
+	private async _setKernels(textModel: NotebookTextModel, tokenSource: CancellationTokenSource) {
 		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-
-		const tokenSource = new CancellationTokenSource();
 		const availableKernels2 = await this.notebookService.getContributedNotebookKernels2(textModel.viewType, textModel.uri, tokenSource.token);
 		const availableKernels = this.notebookService.getContributedNotebookKernels(textModel.viewType, textModel.uri);
 
@@ -582,7 +585,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (kernelsFromSameExtension.length) {
 			const preferedKernel = kernelsFromSameExtension.find(kernel => kernel.isPreferred) || kernelsFromSameExtension[0];
 			this.activeKernel = preferedKernel;
-			await preferedKernel.resolve(this.viewModel!.uri, this.getId());
+			await preferedKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
 			return;
 		}
 

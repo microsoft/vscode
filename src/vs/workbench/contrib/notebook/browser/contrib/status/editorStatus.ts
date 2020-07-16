@@ -61,7 +61,7 @@ registerAction2(class extends Action2 {
 				run: async () => {
 					editor.activeKernel = a;
 					if ((a as any).resolve) {
-						(a as INotebookKernelInfo2).resolve(editor.uri!, editor.getId());
+						(a as INotebookKernelInfo2).resolve(editor.uri!, editor.getId(), tokenSource.token);
 					}
 				}
 			};
@@ -84,6 +84,7 @@ registerAction2(class extends Action2 {
 		}
 
 		const action = await quickInputService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });
+		tokenSource.dispose();
 		return action?.run();
 
 	}

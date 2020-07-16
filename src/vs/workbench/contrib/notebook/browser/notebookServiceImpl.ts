@@ -15,7 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { Iterable } from 'vs/base/common/iterator';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService, ICustomEditorViewTypesHandler, ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -325,9 +325,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					description: dto.description,
 					isPreferred: dto.isPreferred,
 					preloads: dto.preloads,
-					resolve: async (uri: URI, editorId: string) => {
-						const tokenSource = new CancellationTokenSource();
-						return provider.resolveKernel(editorId, uri, dto.id, tokenSource.token);
+					resolve: async (uri: URI, editorId: string, token: CancellationToken) => {
+						return provider.resolveKernel(editorId, uri, dto.id, token);
 					},
 					executeNotebookCell: async (uri: URI, handle: number | undefined, token: CancellationToken) => {
 						return provider.executeNotebook(uri, dto.id, handle, token);
