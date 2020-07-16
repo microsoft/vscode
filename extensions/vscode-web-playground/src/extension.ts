@@ -32,8 +32,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 		let disposable = vscode.commands.registerCommand('vscode-web-playground.addExtensionFromURL', async () => {
 			const knownWebExtensions: vscode.QuickPickItem[] = [
-				{ label: 'Test Theme', description: 'https://cdn.jsdelivr.net/gh/aeschli/test-theme@1.1' }
-				//	{ label: 'Yaml', description: 'https://cdn.jsdelivr.net/gh/aeschli/vscode-yaml@0.9.0-webworker' }
+				{ label: 'Test Theme', description: 'https://cdn.jsdelivr.net/gh/aeschli/test-theme@1.1' },
+				{ label: 'Yaml', description: 'https://cdn.jsdelivr.net/gh/aeschli/vscode-yaml@0.9.0-webworker.3' }
 			];
 
 
