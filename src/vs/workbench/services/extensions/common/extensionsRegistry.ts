@@ -354,7 +354,7 @@ export const schema: IJSONSchema = {
 			]
 		},
 		extensionDependencies: {
-			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
+			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The identifier of an extension is always ${publisher}.${name}. For example: ms-dotnettools.csharp.'),
 			type: 'array',
 			uniqueItems: true,
 			items: {
@@ -363,7 +363,7 @@ export const schema: IJSONSchema = {
 			}
 		},
 		extensionPack: {
-			description: nls.localize('vscode.extension.contributes.extensionPack', "A set of extensions that can be installed together. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
+			description: nls.localize('vscode.extension.contributes.extensionPack', "A set of extensions that can be installed together. The identifier of an extension is always ${publisher}.${name}. For example: ms-dotnettools.csharp."),
 			type: 'array',
 			uniqueItems: true,
 			items: {

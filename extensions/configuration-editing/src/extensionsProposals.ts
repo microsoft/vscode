@@ -24,7 +24,7 @@ export function provideInstalledExtensionProposals(existing: string[], range: vs
 			});
 		} else {
 			const example = new vscode.CompletionItem(localize('exampleExtension', "Example"));
-			example.insertText = '"vscode.csharp"';
+			example.insertText = '"ms-dotnettools.csharp"';
 			example.kind = vscode.CompletionItemKind.Value;
 			example.range = range;
 			return [example];

@@ -57,7 +57,7 @@ export function registerConfiguration(): IDisposable {
 			},
 			'sync.ignoredExtensions': {
 				'type': 'array',
-				'description': localize('sync.ignoredExtensions', "List of extensions to be ignored while synchronizing. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
+				'description': localize('sync.ignoredExtensions', "List of extensions to be ignored while synchronizing. The identifier of an extension is always ${publisher}.${name}. For example: ms-dotnettools.csharp."),
 				$ref: ignoredExtensionsSchemaId,
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
@@ -95,7 +95,7 @@ export function registerConfiguration(): IDisposable {
 	jsonRegistry.registerSchema(ignoredExtensionsSchemaId, {
 		type: 'string',
 		pattern: EXTENSION_IDENTIFIER_PATTERN,
-		errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
+		errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'ms-dotnettools.csharp'.")
 	});
 	return configurationRegistry.onDidUpdateConfiguration(() => registerIgnoredSettingsSchema());
 }
