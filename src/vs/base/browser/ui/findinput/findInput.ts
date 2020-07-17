@@ -212,7 +212,7 @@ export class FindInput extends Widget {
 		// Arrow-Key support to navigate between options
 		let indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
-			if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
+			if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow)) {
 				let index = indexes.indexOf(<HTMLElement>document.activeElement);
 				if (index >= 0) {
 					let newIndex: number = -1;
@@ -226,9 +226,7 @@ export class FindInput extends Widget {
 						}
 					}
 
-					if (event.equals(KeyCode.Escape)) {
-						indexes[index].blur();
-					} else if (newIndex >= 0) {
+					if (newIndex >= 0) {
 						indexes[newIndex].focus();
 					}
 
