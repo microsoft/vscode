@@ -488,11 +488,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._setKernels(textModel, this._currentKernelTokenSource);
 
 		this._localStore.add(this.notebookService.onDidChangeKernels(async () => {
-			if (this.activeKernel === undefined) {
-				this._currentKernelTokenSource?.cancel();
-				this._currentKernelTokenSource = new CancellationTokenSource();
-				await this._setKernels(textModel, this._currentKernelTokenSource);
-			}
+			this._currentKernelTokenSource?.cancel();
+			this._currentKernelTokenSource = new CancellationTokenSource();
+			await this._setKernels(textModel, this._currentKernelTokenSource);
 		}));
 
 		this._localStore.add(this._list!.onDidChangeFocus(() => {
@@ -592,6 +590,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			// it has a builtin kernel, don't automatically choose a kernel
 			this._loadKernelPreloads(provider.providerExtensionLocation, provider.kernel);
 			tokenSource.dispose();
+			return;
+		}
+
+		const activeKernelStillExist = [...availableKernels2, ...availableKernels].find(kernel => kernel.id === this.activeKernel?.id && this.activeKernel?.id !== undefined);
+
+		if (activeKernelStillExist) {
 			return;
 		}
 
