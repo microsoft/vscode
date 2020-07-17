@@ -270,7 +270,7 @@ export class IssueMainService implements ICommonIssueService {
 					};
 
 					this._processExplorerWindow.loadURL(
-						toLauchUrl('vs/code/electron-browser/processExplorer/processExplorer.html', windowConfiguration));
+						toLauchUrl('vs/code/electron-sandbox/processExplorer/processExplorer.html', windowConfiguration));
 
 					this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
 
