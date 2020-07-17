@@ -119,6 +119,27 @@ suite('Notebook API tests', () => {
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
+	test('notebook open/close, notebook ready when cell-document open event is fired', async function () {
+		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		let didHappen = false;
+		const p = getEventOncePromise(vscode.workspace.onDidOpenTextDocument).then(doc => {
+			if (doc.uri.scheme !== 'vscode-notebook-cell') {
+				return;
+			}
+			const notebook = vscode.notebook.notebookDocuments.find(notebook => {
+				const cell = notebook.cells.find(cell => cell.document === doc);
+				return Boolean(cell);
+			});
+			assert.ok(notebook, `notebook for cell ${doc.uri} NOT found`);
+			didHappen = true;
+		});
+
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		await p;
+		assert.strictEqual(didHappen, true);
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	});
+
 	test('shared document in notebook editors', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		let counter = 0;
