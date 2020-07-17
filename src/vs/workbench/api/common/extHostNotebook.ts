@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
@@ -64,7 +64,7 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 			modeId: cell.language,
 			uri: cell.uri,
 			isDirty: false,
-			versionId: 1
+			versionId: -1
 		};
 	}
 
@@ -320,7 +320,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	dispose() {
 		this._disposed = true;
 		super.dispose();
-		this._cellDisposableMapping.forEach(cell => cell.dispose());
+		dispose(this._cellDisposableMapping.values());
 	}
 
 	get fileName() { return this.uri.fsPath; }
@@ -1397,8 +1397,19 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				let document = this._documents.get(revivedUriStr);
 
 				if (document) {
+
+					// remove all documents that have not been opened by the renderer
+					// and have not yet been closed
+					const removedCellDocuments: URI[] = [];
+					for (let cell of document.cells) {
+						if (this._documentsAndEditors.getDocument(cell.uri)?.version === -1) {
+							removedCellDocuments.push(cell.uri);
+						}
+					}
+
 					document.dispose();
 					this._documents.delete(revivedUriStr);
+					this._documentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: removedCellDocuments });
 					this._onDidCloseNotebookDocument.fire(document);
 				}
 
