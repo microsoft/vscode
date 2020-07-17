@@ -30,6 +30,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { Schemas } from 'vs/base/common/network';
 
 namespace delta {
 
@@ -399,8 +400,12 @@ export class MainThreadDocumentsAndEditors {
 			extHostDelta.removedEditors = removedEditors;
 		}
 		if (delta.addedDocuments.length > 0) {
+			// notebook cell documents get sync'd by the notebook open logic
+			// and therefore we don't send them another time now.
 			empty = false;
-			extHostDelta.addedDocuments = delta.addedDocuments.map(m => this._toModelAddData(m));
+			extHostDelta.addedDocuments = delta.addedDocuments
+				.filter(m => m.uri.scheme !== Schemas.vscodeNotebookCell)
+				.map(m => this._toModelAddData(m));
 		}
 		if (delta.addedEditors.length > 0) {
 			empty = false;

@@ -292,17 +292,6 @@ suite('NotebookConcatDocument', function () {
 		let cell1End = doc.offsetAt(new Position(2, 12));
 		assert.equal(doc.positionAt(cell1End).isEqual(new Position(2, 12)), true);
 
-		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
-			addedDocuments: [{
-				uri: notebook.cells[0].uri,
-				versionId: 1,
-				lines: ['Hello', 'World', 'Hello World!'],
-				EOL: '\n',
-				modeId: '',
-				isDirty: false
-			}]
-		});
-
 		extHostDocuments.$acceptModelChanged(notebook.cells[0].uri, {
 			versionId: 0,
 			eol: '\n',
