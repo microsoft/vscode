@@ -96,22 +96,15 @@ suite('Notebook API tests', () => {
 	test('notebook open/close, all cell-documents are ready', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 
-		const p = new Promise<void>((resolve, reject) => {
-			once(vscode.notebook.onDidOpenNotebookDocument)(notebook => {
-				try {
-					for (let cell of notebook.cells) {
-						const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === cell.uri.toString());
-						assert.ok(doc);
-						assert.strictEqual(doc === cell.document, true);
-						assert.strictEqual(doc?.languageId, cell.language);
-						assert.strictEqual(doc?.isDirty, false);
-						assert.strictEqual(doc?.isClosed, false);
-					}
-					resolve();
-				} catch (err) {
-					reject(err);
-				}
-			});
+		const p = getEventOncePromise(vscode.notebook.onDidOpenNotebookDocument).then(notebook => {
+			for (let cell of notebook.cells) {
+				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === cell.uri.toString());
+				assert.ok(doc);
+				assert.strictEqual(doc === cell.document, true);
+				assert.strictEqual(doc?.languageId, cell.language);
+				assert.strictEqual(doc?.isDirty, false);
+				assert.strictEqual(doc?.isClosed, false);
+			}
 		});
 
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
