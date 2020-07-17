@@ -20,6 +20,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { groupByExtension, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStaticExtension } from 'vs/workbench/workbench.web.api';
 
 interface IUserExtension {
 	identifier: IExtensionIdentifier;
@@ -47,10 +48,10 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly systemExtensionsPromise: Promise<IScannedExtension[]>;
-	private readonly staticExtensionsPromise: Promise<IScannedExtension[]>;
-	private readonly extensionsResource: URI | undefined;
-	private readonly userExtensionsResourceLimiter: Queue<IUserExtension[]>;
+	private readonly systemExtensionsPromise: Promise<IScannedExtension[]> = Promise.resolve([]);
+	private readonly staticExtensionsPromise: Promise<IScannedExtension[]> = Promise.resolve([]);
+	private readonly extensionsResource: URI | undefined = undefined;
+	private readonly userExtensionsResourceLimiter: Queue<IUserExtension[]> = new Queue<IUserExtension[]>();
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -60,41 +61,45 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		this.extensionsResource = isWeb ? joinPath(environmentService.userRoamingDataHome, 'extensions.json') : undefined;
-		this.userExtensionsResourceLimiter = new Queue<IUserExtension[]>();
-		this.systemExtensionsPromise = isWeb ? this.builtinExtensionsScannerService.scanBuiltinExtensions() : Promise.resolve([]);
-		this.staticExtensionsPromise = this.readStaticExtensions();
+		if (isWeb) {
+			this.extensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
+			this.systemExtensionsPromise = this.builtinExtensionsScannerService.scanBuiltinExtensions();
+			this.staticExtensionsPromise = this.readStaticExtensions();
+		}
 	}
+
 	private async readStaticExtensions(): Promise<IScannedExtension[]> {
 		const staticExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.staticExtensions) ? this.environmentService.options.staticExtensions : [];
-		const defaultStaticExtensions = staticExtensions.map<IScannedExtension>(data => ({
-			identifier: { id: getGalleryExtensionId(data.packageJSON.publisher, data.packageJSON.name) },
-			location: data.extensionLocation,
+		const defaultUserWebExtensions = await this.readDefaultUserWebExtensions();
+		return [...staticExtensions, ...defaultUserWebExtensions].map<IScannedExtension>(e => ({
+			identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
+			location: e.extensionLocation,
 			type: ExtensionType.User,
-			packageJSON: data.packageJSON,
+			packageJSON: e.packageJSON,
 		}));
-		const userStaticExtensions = isWeb ? await this.readStaticExtensionsFromConfiguration() : [];
-		return [...defaultStaticExtensions, ...userStaticExtensions];
 	}
-	private async readStaticExtensionsFromConfiguration(): Promise<IScannedExtension[]> {
-		const result: IScannedExtension[] = [];
-		for (const webExtension of this.configurationService.getValue<{ location: string }[]>('_extensions.defaultUserWebExtensions') || []) {
+
+	private async readDefaultUserWebExtensions(): Promise<IStaticExtension[]> {
+		const result: IStaticExtension[] = [];
+		const defaultUserWebExtensions = this.configurationService.getValue<{ location: string }[]>('_extensions.defaultUserWebExtensions') || [];
+		for (const webExtension of defaultUserWebExtensions) {
 			const extensionLocation = URI.parse(webExtension.location);
 			const manifestLocation = joinPath(extensionLocation, 'package.json');
 			const context = await this.requestService.request({ type: 'GET', url: manifestLocation.toString(true) }, CancellationToken.None);
 			if (!isSuccess(context)) {
-				console.error('Unable to load ' + manifestLocation);
+				this.logService.warn('Skipped default user web extension as there is an error while fetching manifest', manifestLocation);
+				continue;
 			}
 			const content = await asText(context);
-			if (content) {
-				const packageJSON = JSON.parse(content);
-				result.push({
-					identifier: { id: getGalleryExtensionId(packageJSON.publisher, packageJSON.name) },
-					packageJSON,
-					location: extensionLocation,
-					type: ExtensionType.User,
-				});
+			if (!content) {
+				this.logService.warn('Skipped default user web extension as there is manifest is not found', manifestLocation);
+				continue;
 			}
+			const packageJSON = JSON.parse(content);
+			result.push({
+				packageJSON,
+				extensionLocation,
+			});
 		}
 		return result;
 	}
