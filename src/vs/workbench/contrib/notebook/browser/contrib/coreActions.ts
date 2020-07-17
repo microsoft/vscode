@@ -1355,7 +1355,7 @@ registerAction2(class extends NotebookCellAction {
 
 
 async function joinCells(context: INotebookCellActionContext, direction: 'above' | 'below'): Promise<void> {
-	const cell = await context.notebookEditor.joinNotebookCells(context.cell, direction, CellKind.Code);
+	const cell = await context.notebookEditor.joinNotebookCells(context.cell, direction);
 	if (cell) {
 		context.notebookEditor.focusNotebookCell(cell, 'editor');
 	}
