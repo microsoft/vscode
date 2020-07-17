@@ -617,6 +617,16 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		this._active = value;
 	}
 
+	private _kernel?: vscode.NotebookKernel;
+
+	get kernel() {
+		return this._kernel;
+	}
+
+	set kernel(_kernel: vscode.NotebookKernel | undefined) {
+		throw readonly('kernel');
+	}
+
 	private _onDidDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 	private _onDidReceiveMessage = new Emitter<any>();
@@ -692,6 +702,9 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		throw readonly('viewColumn');
 	}
 
+	updateActiveKernel(kernel?: vscode.NotebookKernel) {
+		this._kernel = kernel;
+	}
 	async postMessage(message: any): Promise<boolean> {
 		return this._webComm.postMessage(message);
 	}
@@ -1327,6 +1340,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		if (event.providerHandle !== undefined) {
 			this._withAdapter(event.providerHandle, event.uri, async (adapter, document) => {
 				const kernel = event.kernelId ? adapter.getKernel(event.kernelId) : undefined;
+				this._editors.forEach(editor => {
+					if (editor.editor.document === document) {
+						editor.editor.updateActiveKernel(kernel);
+					}
+				});
 				this._onDidChangeActiveNotebookKernel.fire({ document, kernel });
 			});
 		}

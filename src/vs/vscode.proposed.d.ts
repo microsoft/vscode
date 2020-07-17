@@ -1594,6 +1594,11 @@ declare module 'vscode' {
 		readonly onDidDispose: Event<void>;
 
 		/**
+		 * Active kernel used in the editor
+		 */
+		readonly kernel?: NotebookKernel;
+
+		/**
 		 * Fired when the output hosting webview posts a message.
 		 */
 		readonly onDidReceiveMessage: Event<any>;
