@@ -890,7 +890,7 @@ suite('regression', () => {
 	});
 
 	test('#102411 - untitled notebook creation failed', async function () {
-		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: "notebookCoreTest" });
+		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: 'notebookCoreTest' });
 		assert.notEqual(vscode.notebook.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
 	});
 
@@ -910,7 +910,7 @@ suite('regression', () => {
 		await vscode.commands.executeCommand('default:type', { text: 'var abc = 0;' });
 
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.length, 2);
-		assert.notEqual(vscode.notebook.activeNotebookEditor!.document.cells[0].document.getText(), vscode.notebook.activeNotebookEditor!.document.cells[1].document.getText())
+		assert.notEqual(vscode.notebook.activeNotebookEditor!.document.cells[0].document.getText(), vscode.notebook.activeNotebookEditor!.document.cells[1].document.getText());
 	});
 });
 
