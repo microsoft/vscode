@@ -625,7 +625,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		result.className += ' mac';
 	}
 
-	if (process.env.VSCODE_ALWAYS_SHOW_SCROLLBARS === '1') {
+	if (process && process.env.VSCODE_ALWAYS_SHOW_SCROLLBARS === '1') {
 		if (result.vertical === ScrollbarVisibility.Auto) {
 			result.vertical = ScrollbarVisibility.Visible;
 		}
