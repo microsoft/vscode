@@ -125,7 +125,7 @@ suite('Notebook API tests', () => {
 		await firstEditorClose;
 	});
 
-	test('editor open/close event', async function () {
+	test('editor open/close event 2', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		let count = 0;
 		const disposables: vscode.Disposable[] = [];

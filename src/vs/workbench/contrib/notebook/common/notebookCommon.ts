@@ -14,10 +14,10 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { GlobPattern } from 'vs/workbench/api/common/extHost.protocol';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IRevertOptions } from 'vs/workbench/common/editor';
+import { basename } from 'vs/base/common/path';
 
 export enum CellKind {
 	Markdown = 1,
@@ -69,7 +69,7 @@ export interface NotebookDocumentMetadata {
 	cellEditable: boolean;
 	cellRunnable: boolean;
 	cellHasExecutionOrder: boolean;
-	displayOrder?: GlobPattern[];
+	displayOrder?: (string | glob.IRelativePattern)[];
 	custom?: { [key: string]: unknown };
 }
 
@@ -607,4 +607,54 @@ export interface INotebookSearchOptions {
 	wholeWord?: boolean;
 	caseSensitive?: boolean
 	wordSeparators?: string;
+}
+
+export interface INotebookDocumentFilter {
+	viewType?: string;
+	filenamePattern?: string | glob.IRelativePattern;
+	excludeFileNamePattern?: string | glob.IRelativePattern;
+}
+
+//TODO@rebornix test
+export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, viewType: string, resource: URI): boolean {
+	if (filter.viewType === viewType) {
+		return true;
+	}
+
+	if (filter.filenamePattern) {
+		if (glob.match(filter.filenamePattern, basename(resource.fsPath).toLowerCase())) {
+			if (filter.excludeFileNamePattern) {
+				if (glob.match(filter.excludeFileNamePattern, basename(resource.fsPath).toLowerCase())) {
+					// should exclude
+
+					return false;
+				}
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+export interface INotebookKernelInfoDto2 {
+	id: string;
+	label: string;
+	extension: ExtensionIdentifier;
+	extensionLocation: URI;
+	description?: string;
+	isPreferred?: boolean;
+	preloads?: UriComponents[];
+}
+
+export interface INotebookKernelInfo2 extends INotebookKernelInfoDto2 {
+	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
+	executeNotebookCell?(uri: URI, handle: number | undefined, token: CancellationToken): Promise<void>;
+}
+
+export interface INotebookKernelProvider {
+	selector: INotebookDocumentFilter;
+	onDidChangeKernels: Event<void>;
+	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
+	resolveKernel(editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
+	executeNotebook(uri: URI, kernelId: string, handle: number | undefined, token: CancellationToken): Promise<void>;
 }

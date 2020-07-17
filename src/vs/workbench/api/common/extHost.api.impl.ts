@@ -933,6 +933,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeVisibleNotebookEditors;
 			},
+			get activeNotebookKernel() {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.activeNotebookKernel;
+			},
+			get onDidChangeActiveNotebookKernel() {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeActiveNotebookKernel;
+			},
 			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider);
@@ -940,6 +948,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerNotebookKernel: (id: string, selector: vscode.GlobPattern[], kernel: vscode.NotebookKernel) => {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookKernel(extension, id, selector, kernel);
+			},
+			registerNotebookKernelProvider: (selector: vscode.NotebookDocumentFilter, provider: vscode.NotebookKernelProvider) => {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.registerNotebookKernelProvider(extension, selector, provider);
 			},
 			registerNotebookOutputRenderer: (type: string, outputFilter: vscode.NotebookOutputSelector, renderer: vscode.NotebookOutputRenderer) => {
 				checkProposedApiEnabled(extension);

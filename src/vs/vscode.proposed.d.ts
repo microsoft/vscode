@@ -1823,15 +1823,34 @@ declare module 'vscode' {
 
 	export interface NotebookKernel {
 		label: string;
+		description?: string;
+		isPreferred?: boolean;
 		preloads?: Uri[];
 		executeCell(document: NotebookDocument, cell: NotebookCell, token: CancellationToken): Promise<void>;
 		executeAllCells(document: NotebookDocument, token: CancellationToken): Promise<void>;
+	}
+
+	export interface NotebookDocumentFilter {
+		viewType?: string;
+		filenamePattern?: GlobPattern;
+		excludeFileNamePattern?: GlobPattern;
+	}
+
+	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
+		onDidChangeKernels?: Event<void>;
+		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
+		resolveKernel?(kernel: T, document: NotebookDocument, webview: NotebookCommunication, token: CancellationToken): ProviderResult<void>;
 	}
 
 	export namespace notebook {
 		export function registerNotebookContentProvider(
 			notebookType: string,
 			provider: NotebookContentProvider
+		): Disposable;
+
+		export function registerNotebookKernelProvider(
+			selector: NotebookDocumentFilter,
+			provider: NotebookKernelProvider
 		): Disposable;
 
 		export function registerNotebookKernel(
@@ -1870,6 +1889,9 @@ declare module 'vscode' {
 		 * @param selector
 		 */
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
+
+		export let activeNotebookKernel: NotebookKernel | undefined;
+		export const onDidChangeActiveNotebookKernel: Event<void>;
 	}
 
 	//#endregion

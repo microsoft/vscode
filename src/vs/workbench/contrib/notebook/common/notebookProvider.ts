@@ -18,6 +18,7 @@ export interface NotebookEditorDescriptor {
 	readonly displayName: string;
 	readonly selector: readonly NotebookSelector[];
 	readonly priority: NotebookEditorPriority;
+	readonly providerId?: string;
 	readonly providerDisplayName: string;
 	readonly providerExtensionLocation: URI;
 	kernel?: INotebookKernelInfoDto;
@@ -29,6 +30,8 @@ export class NotebookProviderInfo implements NotebookEditorDescriptor {
 	readonly displayName: string;
 	readonly selector: readonly NotebookSelector[];
 	readonly priority: NotebookEditorPriority;
+	// it's optional as the memento might not have it
+	readonly providerId?: string;
 	readonly providerDisplayName: string;
 	readonly providerExtensionLocation: URI;
 	kernel?: INotebookKernelInfoDto;
@@ -38,6 +41,7 @@ export class NotebookProviderInfo implements NotebookEditorDescriptor {
 		this.displayName = descriptor.displayName;
 		this.selector = descriptor.selector;
 		this.priority = descriptor.priority;
+		this.providerId = descriptor.providerId;
 		this.providerDisplayName = descriptor.providerDisplayName;
 		this.providerExtensionLocation = descriptor.providerExtensionLocation;
 	}
