@@ -1827,7 +1827,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookKernel {
-		readonly id: string;
+		readonly id?: string;
 		label: string;
 		description?: string;
 		isPreferred?: boolean;
