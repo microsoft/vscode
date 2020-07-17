@@ -361,7 +361,7 @@
 			"IllusionMH"
 		],
 		"action": "comment",
-		"comment": "Thanks for reporting this issue! Unfortunately, it's hard for us to understand what behaviour you're seeing. Please help us out by providing a gif showing exactly what isn't working as expected. You may find https://gifcap.dev helpful as a browser-based gif recording tool.\n\nHappy coding!"
+		"comment": "Thanks for reporting this issue! Unfortunately, it's hard for us to understand what issue you're seeing. Please help us out by providing a gif showing exactly what isn't working as expected. You may find https://gifcap.dev helpful as a browser-based gif recording tool.\n\nHappy coding!"
 	},
 	{
 		"type": "comment",
