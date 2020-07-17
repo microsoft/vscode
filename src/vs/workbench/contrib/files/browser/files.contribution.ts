@@ -102,8 +102,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 // Register default file input factory
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileEditorInputFactory({
-	createFileEditorInput: (resource, label, encoding, mode, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, label, encoding, mode);
+	createFileEditorInput: (resource, preferredResource, encoding, mode, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, encoding, mode);
 	},
 
 	isFileEditorInput: (obj): obj is IFileEditorInput => {
@@ -113,7 +113,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 
 interface ISerializedFileEditorInput {
 	resourceJSON: UriComponents;
-	labelJSON?: UriComponents;
+	preferredResourceJSON?: UriComponents;
 	encoding?: string;
 	modeId?: string;
 }
@@ -128,10 +128,10 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	serialize(editorInput: EditorInput): string {
 		const fileEditorInput = <FileEditorInput>editorInput;
 		const resource = fileEditorInput.resource;
-		const label = fileEditorInput.getLabel();
+		const preferredResource = fileEditorInput.preferredResource;
 		const serializedFileEditorInput: ISerializedFileEditorInput = {
 			resourceJSON: resource.toJSON(),
-			labelJSON: extUri.isEqual(resource, label) ? undefined : label, // only storing label if it differs from the resource
+			preferredResourceJSON: extUri.isEqual(resource, preferredResource) ? undefined : preferredResource, // only storing preferredResource if it differs from the resource
 			encoding: fileEditorInput.getEncoding(),
 			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
 		};
@@ -143,13 +143,18 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
 			const serializedFileEditorInput: ISerializedFileEditorInput = JSON.parse(serializedEditorInput);
 			const resource = URI.revive(serializedFileEditorInput.resourceJSON);
-			const label = URI.revive(serializedFileEditorInput.labelJSON);
+			const preferredResource = URI.revive(serializedFileEditorInput.preferredResourceJSON);
 			const encoding = serializedFileEditorInput.encoding;
 			const mode = serializedFileEditorInput.modeId;
 
-			const fileEditorInput = accessor.get(IEditorService).createEditorInput({ resource, encoding, mode, forceFile: true }) as FileEditorInput;
-			if (label) {
-				fileEditorInput.setLabel(label);
+			const fileEditorInput = accessor.get(IEditorService).createEditorInput({
+				resource: preferredResource || resource, // prefer the preferred resource when creating the input again (https://github.com/microsoft/vscode/issues/102627)
+				encoding,
+				mode,
+				forceFile: true
+			}) as FileEditorInput;
+			if (preferredResource) {
+				fileEditorInput.setPreferredResource(preferredResource);
 			}
 
 			return fileEditorInput;

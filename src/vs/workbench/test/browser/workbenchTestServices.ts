@@ -1123,7 +1123,7 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 
 export class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
-	readonly label = this.resource;
+	readonly preferredResource = this.resource;
 
 	gotDisposed = false;
 	gotSaved = false;
@@ -1142,7 +1142,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	getTypeId() { return this.typeId; }
 	resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
 	matches(other: EditorInput): boolean { return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.getTypeId() === this.typeId); }
-	setLabel(label: URI): void { }
+	setPreferredResource(resource: URI): void { }
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
 	setPreferredEncoding(encoding: string) { }
