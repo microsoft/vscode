@@ -56,8 +56,9 @@
         {
           "id": "npm",
           "name": "%view.name%",
-          "when": "npm:showScriptExplorer || config.npm.enableScriptExplorer",
-          "icon": "images/code.svg"
+          "when": "npm:showScriptExplorer",
+          "icon": "images/code.svg",
+          "visibility": "hidden"
         }
       ]
     },
