@@ -80,7 +80,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		this._register(attachButtonStyler(this.syncButton, this.themeService));
 		this._register(this.syncButton.onDidClick(() => this.apply()));
 
-		this.cancelButton = this._register(new Button(this.buttonsContainer));
+		this.cancelButton = this._register(new Button(this.buttonsContainer, { secondary: true }));
 		this.cancelButton.label = localize('cancel', "Cancel");
 		this._register(attachButtonStyler(this.cancelButton, this.themeService));
 		this._register(this.cancelButton.onDidClick(() => this.cancel()));
