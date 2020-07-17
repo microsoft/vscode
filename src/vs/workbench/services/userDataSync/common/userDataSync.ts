@@ -33,7 +33,8 @@ export interface IUserDataSyncResource {
 	readonly syncResource: SyncResource;
 	readonly local: URI;
 	readonly remote: URI;
-	readonly preview: URI;
+	readonly merged: URI;
+	readonly accepted: URI;
 	readonly localChange: Change;
 	readonly remoteChange: Change;
 	readonly mergeState: MergeState;

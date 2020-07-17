@@ -3,19 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
+export function startServer(_: any): any {
+	throw new Error('Not implemented');
+}
 
-'use strict';
-
-const path = require('path');
-const withDefaults = require('../shared.webpack.config');
-
-module.exports = withDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/extension.ts',
-	},
-	externals: {
-		'keytar': 'commonjs keytar'
-	}
-});
+export function createServer(_: any): any {
+	throw new Error('Not implemented');
+}

@@ -12,6 +12,8 @@ import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
+import { IFileService } from 'vs/platform/files/common/files';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 
 const resource = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'testResource', path: `/current.json` });
 
@@ -47,27 +49,27 @@ class TestSynchroniser extends AbstractSynchroniser {
 	}
 
 	protected async generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<IResourcePreview[]> {
-		return [{ localContent: null, localResource: resource, remoteContent: null, remoteResource: resource, previewContent: remoteUserData.ref, previewResource: resource, localChange: Change.Modified, remoteChange: Change.None, hasConflicts: this.syncResult.hasConflicts }];
+		return [{ localContent: null, localResource: resource, remoteContent: null, remoteResource: resource, acceptedContent: remoteUserData.ref, previewContent: remoteUserData.ref, previewResource: resource, acceptedResource: resource, localChange: Change.Modified, remoteChange: Change.None, hasConflicts: this.syncResult.hasConflicts }];
 	}
 
 	protected async generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<IResourcePreview[]> {
-		return [{ localContent: null, localResource: resource, remoteContent: null, remoteResource: resource, previewContent: remoteUserData.ref, previewResource: resource, localChange: Change.Modified, remoteChange: Change.None, hasConflicts: this.syncResult.hasConflicts }];
+		return [{ localContent: null, localResource: resource, remoteContent: null, remoteResource: resource, acceptedContent: remoteUserData.ref, previewContent: remoteUserData.ref, previewResource: resource, acceptedResource: resource, localChange: Change.Modified, remoteChange: Change.None, hasConflicts: this.syncResult.hasConflicts }];
 	}
 
 	protected async generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<IResourcePreview[]> {
-		return [{ localContent: null, localResource: resource, remoteContent: null, remoteResource: resource, previewContent: remoteUserData.ref, previewResource: resource, localChange: Change.Modified, remoteChange: Change.None, hasConflicts: this.syncResult.hasConflicts }];
+		return [{ localContent: null, localResource: resource, remoteContent: null, remoteResource: resource, acceptedContent: remoteUserData.ref, previewContent: remoteUserData.ref, previewResource: resource, acceptedResource: resource, localChange: Change.Modified, remoteChange: Change.None, hasConflicts: this.syncResult.hasConflicts }];
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<IResourcePreview[]> {
 		if (this.syncResult.hasError) {
 			throw new Error('failed');
 		}
-		return [{ localContent: null, localResource: resource, remoteContent: null, remoteResource: resource, previewContent: remoteUserData.ref, previewResource: resource, localChange: Change.Modified, remoteChange: Change.None, hasConflicts: this.syncResult.hasConflicts }];
+		return [{ localContent: null, localResource: resource, remoteContent: null, remoteResource: resource, acceptedContent: remoteUserData.ref, previewContent: remoteUserData.ref, previewResource: resource, acceptedResource: resource, localChange: Change.Modified, remoteChange: Change.None, hasConflicts: this.syncResult.hasConflicts }];
 	}
 
 	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, preview: IResourcePreview[], forcePush: boolean): Promise<void> {
-		if (preview[0]?.previewContent) {
-			await this.applyRef(preview[0].previewContent);
+		if (preview[0]?.acceptedContent) {
+			await this.applyRef(preview[0].acceptedContent);
 		}
 	}
 
@@ -106,6 +108,7 @@ suite('TestSynchronizer', () => {
 		await client.setUp();
 		userDataSyncStoreService = client.instantiationService.get(IUserDataSyncStoreService);
 		disposableStore.add(toDisposable(() => userDataSyncStoreService.clear()));
+		client.instantiationService.get(IFileService).registerProvider(USER_DATA_SYNC_SCHEME, new InMemoryFileSystemProvider());
 	});
 
 	teardown(() => disposableStore.clear());
@@ -325,7 +328,7 @@ suite('TestSynchronizer', () => {
 		testObject.syncBarrier.open();
 
 		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, preview!.resourcePreviews[0].previewContent!);
+		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, preview!.resourcePreviews[0].acceptedContent!);
 
 		assert.deepEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [resource]);
@@ -338,7 +341,7 @@ suite('TestSynchronizer', () => {
 		testObject.syncBarrier.open();
 
 		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, preview!.resourcePreviews[0].previewContent!);
+		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, preview!.resourcePreviews[0].acceptedContent!);
 		preview = await testObject.apply(false);
 
 		assert.deepEqual(testObject.status, SyncStatus.Idle);
@@ -363,8 +366,8 @@ suite('TestSynchronizer', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
-		const preview = await testObject.preview(await client.manifest());
-		await testObject.merge(preview!.resourcePreviews[0].previewResource);
+		let preview = await testObject.preview(await client.manifest());
+		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 
 		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
 		assertPreviews(preview!.resourcePreviews, [resource]);
@@ -394,7 +397,7 @@ suite('TestSynchronizer', () => {
 
 		let preview = await testObject.preview(await client.manifest());
 		await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, preview!.resourcePreviews[0].previewContent!);
+		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, preview!.resourcePreviews[0].acceptedContent!);
 
 		assert.deepEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [resource]);
@@ -408,7 +411,7 @@ suite('TestSynchronizer', () => {
 
 		let preview = await testObject.preview(await client.manifest());
 		await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, preview!.resourcePreviews[0].previewContent!);
+		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, preview!.resourcePreviews[0].acceptedContent!);
 		preview = await testObject.apply(false);
 
 		assert.deepEqual(testObject.status, SyncStatus.Idle);
@@ -422,7 +425,7 @@ suite('TestSynchronizer', () => {
 		testObject.syncBarrier.open();
 
 		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, preview!.resourcePreviews[0].previewContent!);
+		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, preview!.resourcePreviews[0].acceptedContent!);
 
 		assert.deepEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [resource]);
@@ -435,7 +438,7 @@ suite('TestSynchronizer', () => {
 		testObject.syncBarrier.open();
 
 		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, preview!.resourcePreviews[0].previewContent!);
+		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, preview!.resourcePreviews[0].acceptedContent!);
 		preview = await testObject.apply(false);
 
 		assert.deepEqual(testObject.status, SyncStatus.Idle);

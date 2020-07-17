@@ -641,6 +641,7 @@ function toStrictResourcePreview(resourcePreview: IResourcePreview): IResourcePr
 		localResource: resourcePreview.localResource,
 		previewResource: resourcePreview.previewResource,
 		remoteResource: resourcePreview.remoteResource,
+		acceptedResource: resourcePreview.acceptedResource,
 		localChange: resourcePreview.localChange,
 		remoteChange: resourcePreview.remoteChange,
 		mergeState: resourcePreview.mergeState,
