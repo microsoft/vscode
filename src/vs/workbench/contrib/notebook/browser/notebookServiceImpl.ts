@@ -302,7 +302,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	registerNotebookKernelProvider(provider: INotebookKernelProvider): IDisposable {
 		this._notebookKernelProviders.push(provider);
+		const kernelChangeEventListener = provider.onDidChangeKernels(() => {
+			this._onDidChangeKernels.fire();
+		});
 		return toDisposable(() => {
+			kernelChangeEventListener.dispose();
 			let idx = this._notebookKernelProviders.indexOf(provider);
 			if (idx >= 0) {
 				this._notebookKernelProviders.splice(idx, 1);
