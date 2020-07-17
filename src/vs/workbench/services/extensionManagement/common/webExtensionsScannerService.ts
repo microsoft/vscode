@@ -49,7 +49,7 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 	declare readonly _serviceBrand: undefined;
 
 	private readonly systemExtensionsPromise: Promise<IScannedExtension[]> = Promise.resolve([]);
-	private readonly staticExtensionsPromise: Promise<IScannedExtension[]> = Promise.resolve([]);
+	private readonly defaultExtensionsPromise: Promise<IScannedExtension[]> = Promise.resolve([]);
 	private readonly extensionsResource: URI | undefined = undefined;
 	private readonly userExtensionsResourceLimiter: Queue<IUserExtension[]> = new Queue<IUserExtension[]>();
 
@@ -64,11 +64,11 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 		if (isWeb) {
 			this.extensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
 			this.systemExtensionsPromise = this.builtinExtensionsScannerService.scanBuiltinExtensions();
-			this.staticExtensionsPromise = this.readStaticExtensions();
+			this.defaultExtensionsPromise = this.readDefaultExtensions();
 		}
 	}
 
-	private async readStaticExtensions(): Promise<IScannedExtension[]> {
+	private async readDefaultExtensions(): Promise<IScannedExtension[]> {
 		const staticExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.staticExtensions) ? this.environmentService.options.staticExtensions : [];
 		const defaultUserWebExtensions = await this.readDefaultUserWebExtensions();
 		return [...staticExtensions, ...defaultUserWebExtensions].map<IScannedExtension>(e => ({
@@ -111,7 +111,7 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 			extensions.push(...systemExtensions);
 		}
 		if (type === undefined || type === ExtensionType.User) {
-			const staticExtensions = await this.staticExtensionsPromise;
+			const staticExtensions = await this.defaultExtensionsPromise;
 			extensions.push(...staticExtensions);
 			const userExtensions = await this.scanUserExtensions();
 			extensions.push(...userExtensions);
