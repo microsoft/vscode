@@ -93,6 +93,8 @@ export class ActivityService implements IActivityService {
 				id: 1,
 				activity: this.instantiationService.createInstance(ViewContainerActivityByView, viewId)
 			};
+
+			this.viewActivities.set(viewId, maybeItem);
 		}
 
 		const id = maybeItem.id;
