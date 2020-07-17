@@ -20,7 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class TreeViewPane extends ViewPane {
 
-	private treeView: ITreeView;
+	protected readonly treeView: ITreeView;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -55,7 +55,7 @@ export class TreeViewPane extends ViewPane {
 
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
-		this.treeView.show(container);
+		this.renderTreeView(container);
 	}
 
 	shouldShowWelcome(): boolean {
@@ -64,11 +64,19 @@ export class TreeViewPane extends ViewPane {
 
 	layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this.treeView.layout(height, width);
+		this.layoutTreeView(height, width);
 	}
 
 	getOptimalWidth(): number {
 		return this.treeView.getOptimalWidth();
+	}
+
+	protected renderTreeView(container: HTMLElement): void {
+		this.treeView.show(container);
+	}
+
+	protected layoutTreeView(height: number, width: number): void {
+		this.treeView.layout(height, width);
 	}
 
 	private updateTreeVisibility(): void {

@@ -533,7 +533,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	getPinnedPanels(): readonly PanelDescriptor[] {
 		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(c => c.id);
 		return this.getPanels()
-			.filter(p => pinnedCompositeIds.indexOf(p.id) !== -1)
+			.filter(p => pinnedCompositeIds.includes(p.id))
 			.sort((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id));
 	}
 

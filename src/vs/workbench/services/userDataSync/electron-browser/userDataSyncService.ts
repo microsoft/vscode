@@ -86,6 +86,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('reset');
 	}
 
+	resetRemote(): Promise<void> {
+		return this.channel.call('resetRemote');
+	}
+
 	resetLocal(): Promise<void> {
 		return this.channel.call('resetLocal');
 	}
@@ -98,8 +102,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('hasLocalData');
 	}
 
-	acceptPreviewContent(syncResource: SyncResource, resource: URI, content: string): Promise<void> {
-		return this.channel.call('acceptPreviewContent', [syncResource, resource, content]);
+	accept(syncResource: SyncResource, resource: URI, content: string, apply: boolean): Promise<void> {
+		return this.channel.call('accept', [syncResource, resource, content, apply]);
 	}
 
 	resolveContent(resource: URI): Promise<string | null> {
@@ -165,7 +169,16 @@ class ManualSyncTask implements IManualSyncTask {
 		readonly manifest: IUserDataManifest | null,
 		sharedProcessService: ISharedProcessService,
 	) {
-		this.channel = sharedProcessService.getChannel(`manualSyncTask-${id}`);
+		const manualSyncTaskChannel = sharedProcessService.getChannel(`manualSyncTask-${id}`);
+		this.channel = {
+			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
+				return manualSyncTaskChannel.call(command, arg, cancellationToken)
+					.then(null, error => { throw UserDataSyncError.toUserDataSyncError(error); });
+			},
+			listen<T>(event: string, arg?: any): Event<T> {
+				return manualSyncTaskChannel.listen(event, arg);
+			}
+		};
 	}
 
 	async preview(): Promise<[SyncResource, ISyncResourcePreview][]> {
@@ -178,8 +191,18 @@ class ManualSyncTask implements IManualSyncTask {
 		return this.deserializePreviews(previews);
 	}
 
-	async merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
+	async merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
 		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('merge', [resource]);
+		return this.deserializePreviews(previews);
+	}
+
+	async discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
+		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('discard', [resource]);
+		return this.deserializePreviews(previews);
+	}
+
+	async apply(): Promise<[SyncResource, ISyncResourcePreview][]> {
+		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('apply');
 		return this.deserializePreviews(previews);
 	}
 
@@ -210,6 +233,7 @@ class ManualSyncTask implements IManualSyncTask {
 						localResource: URI.revive(r.localResource),
 						remoteResource: URI.revive(r.remoteResource),
 						previewResource: URI.revive(r.previewResource),
+						acceptedResource: URI.revive(r.acceptedResource),
 					}))
 				}
 			]));

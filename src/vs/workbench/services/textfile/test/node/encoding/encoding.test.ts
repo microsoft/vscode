@@ -298,7 +298,6 @@ suite('Encoding', () => {
 		assert.equal(content, '');
 	});
 
-
 	test('toDecodeStream - encoding, utf16be', async function () {
 		const path = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
 		const source = streamToBufferReadableStream(fs.createReadStream(path));
@@ -312,7 +311,6 @@ suite('Encoding', () => {
 		const actual = await readAllAsString(stream);
 		assert.equal(actual, expected);
 	});
-
 
 	test('toDecodeStream - empty file', async function () {
 		const path = getPathFromAmdModule(require, './fixtures/empty.txt');

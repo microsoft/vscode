@@ -189,6 +189,13 @@ export interface IUserDataSyncBackupStoreService {
 
 //#endregion
 
+// #region User Data Sync Headers
+
+export const HEADER_OPERATION_ID = 'x-operation-id';
+export const HEADER_EXECUTION_ID = 'X-Execution-Id';
+
+//#endregion
+
 // #region User Data Sync Error
 
 export enum UserDataSyncErrorCode {
@@ -210,7 +217,8 @@ export enum UserDataSyncErrorCode {
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
 	LocalError = 'LocalError',
-	Incompatible = 'Incompatible',
+	IncompatibleLocalContent = 'IncompatibleLocalContent',
+	IncompatibleRemoteContent = 'IncompatibleRemoteContent',
 	UnresolvedConflicts = 'UnresolvedConflicts',
 
 	Unknown = 'Unknown',
@@ -218,27 +226,21 @@ export enum UserDataSyncErrorCode {
 
 export class UserDataSyncError extends Error {
 
-	constructor(message: string, public readonly code: UserDataSyncErrorCode, public readonly resource?: SyncResource) {
+	constructor(
+		message: string,
+		readonly code: UserDataSyncErrorCode,
+		readonly resource?: SyncResource,
+		readonly operationId?: string
+	) {
 		super(message);
-		this.name = `${this.code} (UserDataSyncError) ${this.resource || ''}`;
-	}
-
-	static toUserDataSyncError(error: Error): UserDataSyncError {
-		if (error instanceof UserDataSyncError) {
-			return error;
-		}
-		const match = /^(.+) \(UserDataSyncError\) (.+)?$/.exec(error.name);
-		if (match && match[1]) {
-			return new UserDataSyncError(error.message, <UserDataSyncErrorCode>match[1], <SyncResource>match[2]);
-		}
-		return new UserDataSyncError(error.message, UserDataSyncErrorCode.Unknown);
+		this.name = `${this.code} (UserDataSyncError) syncResource:${this.resource || 'unknown'} operationId:${this.operationId || 'unknown'}`;
 	}
 
 }
 
 export class UserDataSyncStoreError extends UserDataSyncError {
-	constructor(message: string, code: UserDataSyncErrorCode) {
-		super(message, code);
+	constructor(message: string, code: UserDataSyncErrorCode, readonly operationId: string | undefined) {
+		super(message, code, undefined, operationId);
 	}
 }
 
@@ -246,6 +248,23 @@ export class UserDataAutoSyncError extends UserDataSyncError {
 	constructor(message: string, code: UserDataSyncErrorCode) {
 		super(message, code);
 	}
+}
+
+export namespace UserDataSyncError {
+
+	export function toUserDataSyncError(error: Error): UserDataSyncError {
+		if (error instanceof UserDataSyncError) {
+			return error;
+		}
+		const match = /^(.+) \(UserDataSyncError\) syncResource:(.+) operationId:(.+)$/.exec(error.name);
+		if (match && match[1]) {
+			const syncResource = match[2] === 'unknown' ? undefined : match[2] as SyncResource;
+			const operationId = match[3] === 'unknown' ? undefined : match[3];
+			return new UserDataSyncError(error.message, <UserDataSyncErrorCode>match[1], syncResource, operationId);
+		}
+		return new UserDataSyncError(error.message, UserDataSyncErrorCode.Unknown);
+	}
+
 }
 
 //#endregion
@@ -298,13 +317,20 @@ export const enum Change {
 	Deleted,
 }
 
+export const enum MergeState {
+	Preview = 'preview',
+	Conflict = 'conflict',
+	Accepted = 'accepted',
+}
+
 export interface IResourcePreview {
 	readonly remoteResource: URI;
 	readonly localResource: URI;
 	readonly previewResource: URI;
+	readonly acceptedResource: URI;
 	readonly localChange: Change;
 	readonly remoteChange: Change;
-	readonly merged: boolean;
+	readonly mergeState: MergeState;
 }
 
 export interface ISyncResourcePreview {
@@ -326,18 +352,20 @@ export interface IUserDataSynchroniser {
 	pull(): Promise<void>;
 	push(): Promise<void>;
 	sync(manifest: IUserDataManifest | null, headers: IHeaders): Promise<void>;
-	preview(manifest: IUserDataManifest | null, headers: IHeaders): Promise<ISyncResourcePreview | null>;
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
+
+	preview(manifest: IUserDataManifest | null, headers: IHeaders): Promise<ISyncResourcePreview | null>;
+	accept(resource: URI, content: string): Promise<ISyncResourcePreview | null>;
+	merge(resource: URI): Promise<ISyncResourcePreview | null>;
+	discard(resource: URI): Promise<ISyncResourcePreview | null>;
+	apply(force: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null>;
 
 	hasPreviouslySynced(): Promise<boolean>;
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;
 
 	resolveContent(resource: URI): Promise<string | null>;
-	acceptPreviewContent(resource: URI, content: string, force: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null>;
-	merge(resource: URI, force: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null>;
-
 	getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
 	getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
 	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]>;
@@ -368,8 +396,10 @@ export interface IManualSyncTask extends IDisposable {
 	readonly manifest: IUserDataManifest | null;
 	readonly onSynchronizeResources: Event<[SyncResource, URI[]][]>;
 	preview(): Promise<[SyncResource, ISyncResourcePreview][]>;
-	accept(uri: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]>;
-	merge(uri?: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
+	accept(resource: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]>;
+	merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
+	discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
+	apply(): Promise<[SyncResource, ISyncResourcePreview][]>;
 	pull(): Promise<void>;
 	push(): Promise<void>;
 	stop(): Promise<void>;
@@ -397,12 +427,13 @@ export interface IUserDataSyncService {
 	pull(): Promise<void>;
 	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;
+	resetRemote(): Promise<void>;
 	resetLocal(): Promise<void>;
 
 	hasLocalData(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
-	acceptPreviewContent(resource: SyncResource, conflictResource: URI, content: string): Promise<void>;
+	accept(resource: SyncResource, conflictResource: URI, content: string, apply: boolean): Promise<void>;
 
 	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
 	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;

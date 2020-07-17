@@ -49,10 +49,11 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'pull': return this.service.pull();
 			case 'replace': return this.service.replace(URI.revive(args[0]));
 			case 'reset': return this.service.reset();
+			case 'resetRemote': return this.service.resetRemote();
 			case 'resetLocal': return this.service.resetLocal();
 			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
 			case 'hasLocalData': return this.service.hasLocalData();
-			case 'acceptPreviewContent': return this.service.acceptPreviewContent(args[0], URI.revive(args[1]), args[2]);
+			case 'accept': return this.service.accept(args[0], URI.revive(args[1]), args[2], args[3]);
 			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
 			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0]);
 			case 'getRemoteSyncResourceHandles': return this.service.getRemoteSyncResourceHandles(args[0]);
@@ -86,6 +87,8 @@ class ManualSyncTaskChannel implements IServerChannel {
 			case 'preview': return this.manualSyncTask.preview();
 			case 'accept': return this.manualSyncTask.accept(URI.revive(args[0]), args[1]);
 			case 'merge': return this.manualSyncTask.merge(URI.revive(args[0]));
+			case 'discard': return this.manualSyncTask.discard(URI.revive(args[0]));
+			case 'apply': return this.manualSyncTask.apply();
 			case 'pull': return this.manualSyncTask.pull();
 			case 'push': return this.manualSyncTask.push();
 			case 'stop': return this.manualSyncTask.stop();

@@ -251,6 +251,9 @@ suite('Workbench base editor', () => {
 		assert.ok(!memento.loadEditorState(testGroup4, URI.file('/C')));
 		assert.ok(memento.loadEditorState(testGroup0, URI.file('/D')));
 		assert.ok(!memento.loadEditorState(testGroup0, URI.file('/E')));
+
+		// Use fallbackToOtherGroupState
+		assert.ok(memento.loadEditorState(testGroup4, URI.file('/C'), true));
 	});
 
 	test('EditorMemento - move', function () {

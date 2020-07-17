@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as child_process from 'child_process';
 import * as path from 'path';
-import * as stream from 'stream';
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import { ClientCapabilities, ClientCapability } from '../typescriptService';
 import API from '../utils/api';
 import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import * as electron from '../utils/electron';
@@ -15,10 +13,11 @@ import LogDirectoryProvider from '../utils/logDirectoryProvider';
 import Logger from '../utils/logger';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
+import { ChildServerProcess } from '../utils/serverProcess';
 import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
-import { GetErrRoutingTsServer, ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerProcess } from './server';
+import { GetErrRoutingTsServer, ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerDelegate } from './server';
 
 const enum ServerKind {
 	Main = 'main',
@@ -36,6 +35,9 @@ const enum CompositeServerType {
 
 	/** Use a separate syntax server while the project is loading */
 	DynamicSeparateSyntax,
+
+	/** Only enable the syntax server */
+	SyntaxOnly
 }
 
 export class TypeScriptServerSpawner {
@@ -50,12 +52,13 @@ export class TypeScriptServerSpawner {
 
 	public spawn(
 		version: TypeScriptVersion,
+		capabilities: ClientCapabilities,
 		configuration: TypeScriptServiceConfiguration,
 		pluginManager: PluginManager,
 		delegate: TsServerDelegate,
 	): ITypeScriptServer {
 		let primaryServer: ITypeScriptServer;
-		const serverType = this.getCompositeServerType(version, configuration);
+		const serverType = this.getCompositeServerType(version, capabilities, configuration);
 		switch (serverType) {
 			case CompositeServerType.SeparateSyntax:
 			case CompositeServerType.DynamicSeparateSyntax:
@@ -72,6 +75,11 @@ export class TypeScriptServerSpawner {
 					primaryServer = this.spawnTsServer(ServerKind.Main, version, configuration, pluginManager);
 					break;
 				}
+			case CompositeServerType.SyntaxOnly:
+				{
+					primaryServer = this.spawnTsServer(ServerKind.Syntax, version, configuration, pluginManager);
+					break;
+				}
 		}
 
 		if (this.shouldUseSeparateDiagnosticsServer(configuration)) {
@@ -86,8 +94,13 @@ export class TypeScriptServerSpawner {
 
 	private getCompositeServerType(
 		version: TypeScriptVersion,
+		capabilities: ClientCapabilities,
 		configuration: TypeScriptServiceConfiguration,
 	): CompositeServerType {
+		if (!capabilities.has(ClientCapability.Semantic)) {
+			return CompositeServerType.SyntaxOnly;
+		}
+
 		switch (configuration.separateSyntaxServer) {
 			case SeparateSyntaxServerConfiguration.Disabled:
 				return CompositeServerType.Single;
@@ -254,25 +267,3 @@ export class TypeScriptServerSpawner {
 	}
 }
 
-class ChildServerProcess implements TsServerProcess {
-
-	public constructor(
-		private readonly _process: child_process.ChildProcess,
-	) { }
-
-	get stdout(): stream.Readable { return this._process.stdout!; }
-
-	write(serverRequest: Proto.Request): void {
-		this._process.stdin!.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
-	}
-
-	on(name: 'exit', handler: (code: number | null) => void): void;
-	on(name: 'error', handler: (error: Error) => void): void;
-	on(name: any, handler: any) {
-		this._process.on(name, handler);
-	}
-
-	kill(): void {
-		this._process.kill();
-	}
-}

@@ -152,6 +152,7 @@ interface ISCMLayout {
 }
 
 interface RepositoryTemplate {
+	readonly label: HTMLElement;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly countContainer: HTMLElement;
@@ -192,7 +193,7 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const disposable = Disposable.None;
 		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar, badgeStyler);
 
-		return { name, description, countContainer, count, toolBar, disposable, templateDisposable };
+		return { label, name, description, countContainer, count, toolBar, disposable, templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
@@ -202,9 +203,11 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const repository = node.element;
 
 		if (repository.provider.rootUri) {
+			templateData.label.title = `${repository.provider.label}: ${repository.provider.rootUri.fsPath}`;
 			templateData.name.textContent = basename(repository.provider.rootUri);
 			templateData.description.textContent = repository.provider.label;
 		} else {
+			templateData.label.title = repository.provider.label;
 			templateData.name.textContent = repository.provider.label;
 			templateData.description.textContent = '';
 		}
@@ -1017,7 +1020,7 @@ class ViewModel {
 			}
 
 			const collapsed = this.repositoryCollapseStates?.get(item.element);
-			return { element: item.element, children, incompressible: true, collapsed, collapsible: hasSomeChanges };
+			return { element: item.element, children, incompressible: true, collapsed, collapsible: true };
 		} else {
 			const children = this.mode === ViewModelMode.List
 				? Iterable.map(item.resources, element => ({ element, incompressible: true }))

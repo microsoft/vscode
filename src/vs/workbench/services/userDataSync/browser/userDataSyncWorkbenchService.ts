@@ -6,7 +6,7 @@
 import { IUserDataSyncService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResourceGroup, CONTEXT_SHOW_MANUAL_SYNC_VIEW, SHOW_SYNCED_DATA_COMMAND_ID, MANUAL_SYNC_VIEW_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_MANUAL_SYNC_VIEW, MANUAL_SYNC_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -25,13 +25,11 @@ import { canceled } from 'vs/base/common/errors';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Action } from 'vs/base/common/actions';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
-import { IDecorationsProvider, IDecorationData, IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -81,7 +79,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private readonly syncEnablementContext: IContextKey<boolean>;
 	private readonly syncStatusContext: IContextKey<string>;
 	private readonly accountStatusContext: IContextKey<string>;
-	private readonly showManualSyncViewContext: IContextKey<boolean>;
+	private readonly manualSyncViewEnablementContext: IContextKey<boolean>;
+	private readonly activityViewsEnablementContext: IContextKey<boolean>;
 
 	readonly userDataSyncPreview: UserDataSyncPreview = this._register(new UserDataSyncPreview(this.userDataSyncService));
 
@@ -101,20 +100,17 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IDecorationsService decorationsService: IDecorationsService,
 	) {
 		super();
 		this.authenticationProviders = getUserDataSyncStore(productService, configurationService)?.authenticationProviders || [];
 		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
 		this.accountStatusContext = CONTEXT_ACCOUNT_STATE.bindTo(contextKeyService);
-		this.showManualSyncViewContext = CONTEXT_SHOW_MANUAL_SYNC_VIEW.bindTo(contextKeyService);
-
-		decorationsService.registerDecorationsProvider(this.userDataSyncPreview);
+		this.activityViewsEnablementContext = CONTEXT_ENABLE_ACTIVITY_VIEWS.bindTo(contextKeyService);
+		this.manualSyncViewEnablementContext = CONTEXT_ENABLE_MANUAL_SYNC_VIEW.bindTo(contextKeyService);
 
 		if (this.authenticationProviders.length) {
 
@@ -274,7 +270,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 					synchronizingResources.length ? progress.report({ message: localize('syncing resource', "Syncing {0}...", getSyncAreaLabel(synchronizingResources[0][0])) }) : undefined);
 				try {
 					switch (action) {
-						case 'merge': return await manualSyncTask.merge();
+						case 'merge': return await manualSyncTask.apply();
 						case 'pull': return await manualSyncTask.pull();
 						case 'push': return await manualSyncTask.push();
 						case 'manual': return;
@@ -308,9 +304,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			Severity.Info,
 			localize('Replace or Merge', "Replace or Merge"),
 			[
-				localize('sync manually', "Sync Manually"),
 				localize('merge', "Merge"),
 				localize('replace local', "Replace Local"),
+				localize('sync manually', "Sync Manually"),
 				localize('cancel', "Cancel"),
 			],
 			{
@@ -320,14 +316,14 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		);
 		switch (result.choice) {
 			case 0:
-				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'manual' });
-				return 'manual';
-			case 1:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
 				return 'merge';
-			case 2:
+			case 1:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'pull' });
 				return 'pull';
+			case 2:
+				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'manual' });
+				return 'manual';
 		}
 		this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
 		throw canceled();
@@ -337,23 +333,51 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		const visibleViewContainer = this.viewsService.getVisibleViewContainer(ViewContainerLocation.Sidebar);
 		this.userDataSyncPreview.setManualSyncPreview(task, preview);
 
-		this.showManualSyncViewContext.set(true);
-		await this.commandService.executeCommand(SHOW_SYNCED_DATA_COMMAND_ID);
+		this.manualSyncViewEnablementContext.set(true);
+		await this.waitForActiveSyncViews();
 		await this.viewsService.openView(MANUAL_SYNC_VIEW_ID);
 
-		await Event.toPromise(Event.filter(this.userDataSyncPreview.onDidChangeChanges, e => e.length === 0));
-		if (this.userDataSyncPreview.conflicts.length) {
-			await Event.toPromise(Event.filter(this.userDataSyncPreview.onDidChangeConflicts, e => e.length === 0));
-		}
+		const completed = await Event.toPromise(this.userDataSyncPreview.onDidCompleteManualSync);
+		this.userDataSyncPreview.unsetManualSyncPreview();
 
-		/* Merge to sync globalState changes */
-		await task.merge();
-
+		this.manualSyncViewEnablementContext.set(false);
 		if (visibleViewContainer) {
 			this.viewsService.openViewContainer(visibleViewContainer.id);
 		} else {
 			const viewContainer = this.viewDescriptorService.getViewContainerByViewId(MANUAL_SYNC_VIEW_ID);
 			this.viewsService.closeViewContainer(viewContainer!.id);
+		}
+
+		if (!completed) {
+			throw canceled();
+		}
+	}
+
+	async resetSyncedData(): Promise<void> {
+		const result = await this.dialogService.confirm({
+			message: localize('reset', "This will clear your synced data from the cloud and stop sync on all your devices."),
+			title: localize('reset title', "Reset Synced Data"),
+			type: 'info',
+			primaryButton: localize('reset button', "Reset"),
+		});
+		if (result.confirmed) {
+			await this.userDataSyncService.resetRemote();
+		}
+	}
+
+	async showSyncActivity(): Promise<void> {
+		this.activityViewsEnablementContext.set(true);
+		await this.waitForActiveSyncViews();
+		await this.viewsService.openViewContainer(SYNC_VIEW_CONTAINER_ID);
+	}
+
+	private async waitForActiveSyncViews(): Promise<void> {
+		const viewContainer = this.viewDescriptorService.getViewContainerById(SYNC_VIEW_CONTAINER_ID);
+		if (viewContainer) {
+			const model = this.viewDescriptorService.getViewContainerModel(viewContainer);
+			if (!model.activeViewDescriptors.length) {
+				await Event.toPromise(Event.filter(model.onDidChangeActiveViewDescriptors, e => model.activeViewDescriptors.length > 0));
+			}
 		}
 	}
 
@@ -531,26 +555,21 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 }
 
-class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview, IDecorationsProvider {
+class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 
-	readonly label: string = localize('label', "UserDataSyncResources");
+	private _resources: ReadonlyArray<IUserDataSyncResource> = [];
+	get resources() { return Object.freeze(this._resources); }
+	private _onDidChangeResources = this._register(new Emitter<ReadonlyArray<IUserDataSyncResource>>());
+	readonly onDidChangeResources = this._onDidChangeResources.event;
 
-	private readonly _onDidChange = this._register(new Emitter<URI[]>());
-	readonly onDidChange = this._onDidChange.event;
-
-	private _onDidChangeChanges = this._register(new Emitter<ReadonlyArray<IUserDataSyncResourceGroup>>());
-	readonly onDidChangeChanges = this._onDidChangeChanges.event;
-
-	private _onDidChangeConflicts = this._register(new Emitter<ReadonlyArray<IUserDataSyncResourceGroup>>());
+	private _conflicts: ReadonlyArray<IUserDataSyncResource> = [];
+	get conflicts() { return Object.freeze(this._conflicts); }
+	private _onDidChangeConflicts = this._register(new Emitter<ReadonlyArray<IUserDataSyncResource>>());
 	readonly onDidChangeConflicts = this._onDidChangeConflicts.event;
 
-	private _changes: ReadonlyArray<IUserDataSyncResourceGroup> = [];
-	get changes() { return Object.freeze(this._changes); }
-
-	private _conflicts: ReadonlyArray<IUserDataSyncResourceGroup> = [];
-	get conflicts() { return Object.freeze(this._conflicts); }
-
-	private manualSync: { preview: [SyncResource, ISyncResourcePreview][], task: IManualSyncTask } | undefined;
+	private _onDidCompleteManualSync = this._register(new Emitter<boolean>());
+	readonly onDidCompleteManualSync = this._onDidCompleteManualSync.event;
+	private manualSync: { preview: [SyncResource, ISyncResourcePreview][], task: IManualSyncTask, disposables: DisposableStore } | undefined;
 
 	constructor(
 		private readonly userDataSyncService: IUserDataSyncService
@@ -561,8 +580,17 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview, ID
 	}
 
 	setManualSyncPreview(task: IManualSyncTask, preview: [SyncResource, ISyncResourcePreview][]): void {
-		this.manualSync = { task, preview };
-		this.updateChanges();
+		const disposables = new DisposableStore();
+		this.manualSync = { task, preview, disposables };
+		this.updateResources();
+	}
+
+	unsetManualSyncPreview(): void {
+		if (this.manualSync) {
+			this.manualSync.disposables.dispose();
+			this.manualSync = undefined;
+		}
+		this.updateResources();
 	}
 
 	async accept(syncResource: SyncResource, resource: URI, content: string): Promise<void> {
@@ -570,16 +598,45 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview, ID
 			const syncPreview = await this.manualSync.task.accept(resource, content);
 			this.updatePreview(syncPreview);
 		} else {
-			await this.userDataSyncService.acceptPreviewContent(syncResource, resource, content);
+			await this.userDataSyncService.accept(syncResource, resource, content, false);
 		}
 	}
 
-	async merge(resource?: URI): Promise<void> {
+	async merge(resource: URI): Promise<void> {
 		if (!this.manualSync) {
 			throw new Error('Can merge only while syncing manually');
 		}
 		const syncPreview = await this.manualSync.task.merge(resource);
 		this.updatePreview(syncPreview);
+	}
+
+	async discard(resource: URI): Promise<void> {
+		if (!this.manualSync) {
+			throw new Error('Can discard only while syncing manually');
+		}
+		const syncPreview = await this.manualSync.task.discard(resource);
+		this.updatePreview(syncPreview);
+	}
+
+	async apply(): Promise<void> {
+		if (!this.manualSync) {
+			throw new Error('Can apply only while syncing manually');
+		}
+
+		const syncPreview = await this.manualSync.task.apply();
+		this.updatePreview(syncPreview);
+		if (!this._resources.length) {
+			this._onDidCompleteManualSync.fire(true);
+		}
+	}
+
+	async cancel(): Promise<void> {
+		if (!this.manualSync) {
+			throw new Error('Can cancel only while syncing manually');
+		}
+		await this.manualSync.task.stop();
+		this.updatePreview([]);
+		this._onDidCompleteManualSync.fire(false);
 	}
 
 	async pull(): Promise<void> {
@@ -598,30 +655,10 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview, ID
 		this.updatePreview([]);
 	}
 
-	provideDecorations(resource: URI): IDecorationData | undefined {
-		const changeResource = this.changes.find(c => isEqual(c.remote, resource)) || this.conflicts.find(c => isEqual(c.remote, resource));
-		if (changeResource) {
-			if (changeResource.localChange === Change.Modified || changeResource.remoteChange === Change.Modified) {
-				return {
-					letter: 'M',
-				};
-			}
-			if (changeResource.localChange === Change.Added
-				|| changeResource.localChange === Change.Deleted
-				|| changeResource.remoteChange === Change.Added
-				|| changeResource.remoteChange === Change.Deleted) {
-				return {
-					letter: 'A',
-				};
-			}
-		}
-		return undefined;
-	}
-
 	private updatePreview(preview: [SyncResource, ISyncResourcePreview][]) {
 		if (this.manualSync) {
 			this.manualSync.preview = preview;
-			this.updateChanges();
+			this.updateResources();
 		}
 	}
 
@@ -631,34 +668,28 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview, ID
 			this._conflicts = newConflicts;
 			this._onDidChangeConflicts.fire(this.conflicts);
 		}
-		this.updateChanges();
 	}
 
-	private updateChanges(): void {
-		const newChanges = this.toUserDataSyncResourceGroups(
+	private updateResources(): void {
+		const newResources = this.toUserDataSyncResourceGroups(
 			(this.manualSync?.preview || [])
-				.filter(([syncResource]) => syncResource !== SyncResource.GlobalState) /* Filter Global State Changes */
 				.map(([syncResource, syncResourcePreview]) =>
 					([
 						syncResource,
-						/* remove merged previews and conflicts and with no changes and conflicts */
-						syncResourcePreview.resourcePreviews.filter(r =>
-							!r.merged
-							&& (r.localChange !== Change.None || r.remoteChange !== Change.None)
-							&& !this._conflicts.some(c => c.syncResource === syncResource && isEqual(c.local, r.localResource)))
+						syncResourcePreview.resourcePreviews
 					]))
 		);
-		if (!equals(newChanges, this._changes, (a, b) => isEqual(a.local, b.local))) {
-			this._changes = newChanges;
-			this._onDidChangeChanges.fire(this.changes);
+		if (!equals(newResources, this._resources, (a, b) => isEqual(a.local, b.local) && a.mergeState === b.mergeState)) {
+			this._resources = newResources;
+			this._onDidChangeResources.fire(this.resources);
 		}
 	}
 
-	private toUserDataSyncResourceGroups(syncResourcePreviews: [SyncResource, IResourcePreview[]][]): IUserDataSyncResourceGroup[] {
+	private toUserDataSyncResourceGroups(syncResourcePreviews: [SyncResource, IResourcePreview[]][]): IUserDataSyncResource[] {
 		return flatten(
 			syncResourcePreviews.map(([syncResource, resourcePreviews]) =>
-				resourcePreviews.map<IUserDataSyncResourceGroup>(({ localResource, remoteResource, previewResource, localChange, remoteChange }) =>
-					({ syncResource, local: localResource, remote: remoteResource, preview: previewResource, localChange, remoteChange })))
+				resourcePreviews.map<IUserDataSyncResource>(({ localResource, remoteResource, previewResource, acceptedResource, localChange, remoteChange, mergeState }) =>
+					({ syncResource, local: localResource, remote: remoteResource, merged: previewResource, accepted: acceptedResource, localChange, remoteChange, mergeState })))
 		);
 	}
 

@@ -290,7 +290,8 @@
             "type": "string",
             "description": "%taskdef.path%"
           }
-        }
+        },
+        "when": "shellExecutionSupported"
       }
     ]
   }

@@ -295,6 +295,7 @@ export interface IMainCellDto {
 	handle: number;
 	uri: UriComponents,
 	source: string[];
+	eol: string;
 	language: string;
 	cellKind: CellKind;
 	outputs: IProcessedOutput[];
