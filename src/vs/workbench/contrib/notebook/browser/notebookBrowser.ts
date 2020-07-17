@@ -66,6 +66,13 @@ export interface NotebookLayoutChangeEvent {
 	fontInfo?: boolean;
 }
 
+export enum CodeCellLayoutState {
+	Uninitialized,
+	Estimated,
+	FromCache,
+	Measured
+}
+
 export interface CodeCellLayoutInfo {
 	readonly fontInfo: BareFontInfo | null;
 	readonly editorHeight: number;
@@ -75,6 +82,7 @@ export interface CodeCellLayoutInfo {
 	readonly outputTotalHeight: number;
 	readonly indicatorHeight: number;
 	readonly bottomToolbarOffset: number;
+	readonly layoutState: CodeCellLayoutState;
 }
 
 export interface CodeCellLayoutChangeEvent {

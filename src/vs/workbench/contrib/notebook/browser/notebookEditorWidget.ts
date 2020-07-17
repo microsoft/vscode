@@ -403,7 +403,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._cellListFocusTracker = this._register(DOM.trackFocus(this._body));
 		this._register(this._cellListFocusTracker.onDidFocus(() => {
-			// hack - FocusTracker forces 'blur' to run after 'focus'. 
+			// hack - FocusTracker forces 'blur' to run after 'focus'.
 			// We want the other way around so that when switching from notebook to notebook, the focus happens last
 			setTimeout(() => {
 				this.updateEditorFocus();
