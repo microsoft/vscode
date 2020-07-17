@@ -509,10 +509,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._tryUpdateWidgetWidth();
 			this._updateButtons();
 
-			setTimeout(() => {
-				dom.addClass(this._domNode, 'visible');
-				this._domNode.setAttribute('aria-hidden', 'false');
-			}, 0);
+			dom.addClass(this._domNode, 'visible');
+			this._domNode.setAttribute('aria-hidden', 'false');
 
 			// validate query again as it's being dismissed when we hide the find widget.
 			setTimeout(() => {
