@@ -1822,6 +1822,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookKernel {
+		readonly id: string;
 		label: string;
 		description?: string;
 		isPreferred?: boolean;
@@ -1890,8 +1891,7 @@ declare module 'vscode' {
 		 */
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 
-		export let activeNotebookKernel: NotebookKernel | undefined;
-		export const onDidChangeActiveNotebookKernel: Event<void>;
+		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined }>;
 	}
 
 	//#endregion

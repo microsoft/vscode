@@ -308,6 +308,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			this._updateState();
 		}));
 
+		this._register(this._notebookService.onDidChangeNotebookActiveKernel(e => {
+			this._proxy.$acceptNotebookActiveKernelChange(e);
+		}));
+
 		const updateOrder = () => {
 			let userOrder = this.configurationService.getValue<string[]>('notebook.displayOrder');
 			this._proxy.$acceptDisplayOrder({
@@ -464,8 +468,14 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		const provider = this._notebookService.registerNotebookKernelProvider({
 			onDidChangeKernels: emitter.event,
 			selector: documentFilter,
-			provideKernels: (uri: URI, token: CancellationToken) => {
-				return that._proxy.$provideNotebookKernels(handle, uri, token);
+			provideKernels: async (uri: URI, token: CancellationToken) => {
+				const kernels = await that._proxy.$provideNotebookKernels(handle, uri, token);
+				return kernels.map(kernel => {
+					return {
+						...kernel,
+						providerHandle: handle
+					};
+				});
 			},
 			resolveKernel: (editorId: string, uri: URI, kernelId: string, token: CancellationToken) => {
 				return that._proxy.$resolveNotebookKernel(handle, editorId, uri, kernelId, token);

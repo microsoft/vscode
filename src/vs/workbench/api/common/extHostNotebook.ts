@@ -767,11 +767,18 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 		const data = await this._provider.provideKernels(document, token) || [];
 
 		const newMap = new Map<vscode.NotebookKernel, string>();
+		let kernel_unique_pool = 0;
+		let kernelIdCache = new Set<string>();
 
 		const transformedData: INotebookKernelInfoDto2[] = data.map(kernel => {
 			let id = this._kernelToId.get(kernel);
 			if (id === undefined) {
-				id = UUID.generateUuid();
+				if (kernel.id && kernelIdCache.has(kernel.id)) {
+					id = `${this._extension.identifier.value}_${kernel.id}_${kernel_unique_pool++}`;
+				} else {
+					id = `${this._extension.identifier.value}_${kernel.id || UUID.generateUuid()}`;
+				}
+
 				this._kernelToId.set(kernel, id);
 			}
 
@@ -796,6 +803,10 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 		});
 
 		return transformedData;
+	}
+
+	getKernel(kernelId: string) {
+		return this._idToKernel.get(kernelId);
 	}
 
 	async resolveNotebook(kernelId: string, document: ExtHostNotebookDocument, webview: vscode.NotebookCommunication, token: CancellationToken) {
@@ -864,9 +875,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>();
 	onDidCloseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
 	visibleNotebookEditors: ExtHostNotebookEditor[] = [];
-	activeNotebookKernel?: vscode.NotebookKernel;
-
-	private _onDidChangeActiveNotebookKernel = new Emitter<void>();
+	private _onDidChangeActiveNotebookKernel = new Emitter<{ document: ExtHostNotebookDocument, kernel: vscode.NotebookKernel | undefined }>();
 	onDidChangeActiveNotebookKernel = this._onDidChangeActiveNotebookKernel.event;
 	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>();
 	onDidChangeVisibleNotebookEditors = this._onDidChangeVisibleNotebookEditors.event;
@@ -1312,6 +1321,15 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void {
 		this._outputDisplayOrder = displayOrder;
+	}
+
+	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelId: string | undefined }) {
+		if (event.providerHandle !== undefined) {
+			this._withAdapter(event.providerHandle, event.uri, async (adapter, document) => {
+				const kernel = event.kernelId ? adapter.getKernel(event.kernelId) : undefined;
+				this._onDidChangeActiveNotebookKernel.fire({ document, kernel });
+			});
+		}
 	}
 
 	// TODO: remove document - editor one on one mapping

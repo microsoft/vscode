@@ -118,7 +118,9 @@ export interface INotebookKernelInfo {
 	extension: ExtensionIdentifier;
 	extensionLocation: URI,
 	preloads: URI[];
+	providerHandle?: number;
 	executeNotebook(viewType: string, uri: URI, handle: number | undefined, token: CancellationToken): Promise<void>;
+
 }
 
 export interface INotebookKernelInfoDto {
@@ -641,6 +643,7 @@ export interface INotebookKernelInfoDto2 {
 	label: string;
 	extension: ExtensionIdentifier;
 	extensionLocation: URI;
+	providerHandle?: number;
 	description?: string;
 	isPreferred?: boolean;
 	preloads?: UriComponents[];

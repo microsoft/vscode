@@ -933,10 +933,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeVisibleNotebookEditors;
 			},
-			get activeNotebookKernel() {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.activeNotebookKernel;
-			},
 			get onDidChangeActiveNotebookKernel() {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeActiveNotebookKernel;

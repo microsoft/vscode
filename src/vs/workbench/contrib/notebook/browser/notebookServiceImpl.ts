@@ -174,6 +174,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	private readonly _models = new Map<string, ModelData>();
 	private _onDidChangeActiveEditor = new Emitter<string | null>();
 	onDidChangeActiveEditor: Event<string | null> = this._onDidChangeActiveEditor.event;
+	private _activeEditorDisposables = new DisposableStore();
 	private _onDidChangeVisibleEditors = new Emitter<string[]>();
 	onDidChangeVisibleEditors: Event<string[]> = this._onDidChangeVisibleEditors.event;
 	private readonly _onNotebookEditorAdd: Emitter<INotebookEditor> = this._register(new Emitter<INotebookEditor>());
@@ -191,6 +192,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	private readonly _onDidChangeKernels = new Emitter<void>();
 	onDidChangeKernels: Event<void> = this._onDidChangeKernels.event;
+	private readonly _onDidChangeNotebookActiveKernel = new Emitter<{ uri: URI, providerHandle: number | undefined, kernelId: string | undefined }>();
+	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelId: string | undefined }> = this._onDidChangeNotebookActiveKernel.event;
 	private cutItems: NotebookCellTextModel[] | undefined;
 	private _lastClipboardIsCopy: boolean = true;
 
@@ -768,6 +771,17 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	updateActiveNotebookEditor(editor: INotebookEditor | null) {
+		this._activeEditorDisposables.clear();
+
+		if (editor) {
+			this._activeEditorDisposables.add(editor.onDidChangeKernel(() => {
+				this._onDidChangeNotebookActiveKernel.fire({
+					uri: editor.uri!,
+					providerHandle: editor.activeKernel?.providerHandle,
+					kernelId: editor.activeKernel?.id
+				});
+			}));
+		}
 		this._onDidChangeActiveEditor.fire(editor ? editor.getId() : null);
 	}
 
