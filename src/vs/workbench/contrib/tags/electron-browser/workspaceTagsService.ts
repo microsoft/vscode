@@ -447,9 +447,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			const packageJsonPromises = getFilePromises('package.json', this.fileService, this.textFileService, content => {
 				try {
 					const packageJsonContents = JSON.parse(content.value);
-					let deps = Object.keys(packageJsonContents['dependencies']);
-					let devDeps = Object.keys(packageJsonContents['devDependencies']);
-					let dependencies = new Set([...devDeps, ...deps]);
+					let dependencies = Object.keys(packageJsonContents['dependencies']).concat(Object.keys(packageJsonContents['devDependencies']));
 
 					for (let dependency of dependencies) {
 						if ('react-native' === dependency) {
