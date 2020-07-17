@@ -655,7 +655,7 @@ export class SuggestModel implements IDisposable {
 
 			if (this._completionModel.items.length === 1) {
 				const item = this._completionModel.items[0];
-				if (ctx.auto && item.completion.insertText === ctx.leadingWord.word) {
+				if (ctx.auto && !item.completion.additionalTextEdits && item.completion.insertText === ctx.leadingWord.word) {
 					// Selecting item won't change anything, so we can cancel
 					this.cancel();
 					return;
