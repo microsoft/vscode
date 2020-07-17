@@ -96,10 +96,31 @@ suite('NotebookCell#Document', function () {
 
 		assert.ok(d1);
 		assert.equal(d1.languageId, c1.language);
+		assert.equal(d1.version, -1); // we use -1 as signal that the document was created on the ext-host side
 
 		const d2 = extHostDocuments.getDocument(c2.uri);
 		assert.ok(d2);
 		assert.equal(d2.languageId, c2.language);
+		assert.equal(d2.version, -1);
+	});
+
+	test('cell document goes when notebook closes', async function () {
+		const cellUris: string[] = [];
+		for (let cell of notebook.cells) {
+			assert.ok(extHostDocuments.getDocument(cell.uri));
+			cellUris.push(cell.uri.toString());
+		}
+
+		const removedCellUris: string[] = [];
+		const reg = extHostDocuments.onDidRemoveDocument(doc => {
+			removedCellUris.push(doc.uri.toString());
+		});
+
+		await extHostNotebooks.$acceptDocumentAndEditorsDelta({ removedDocuments: [notebook.uri] });
+		reg.dispose();
+
+		assert.strictEqual(removedCellUris.length, 2);
+		assert.deepStrictEqual(removedCellUris.sort(), cellUris.sort());
 	});
 
 	test('cell document is vscode.TextDocument after changing it', async function () {
