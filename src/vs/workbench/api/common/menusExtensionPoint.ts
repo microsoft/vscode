@@ -647,7 +647,7 @@ menusExtensionPoint.setHandler(extensions => {
 					item = { command, alt, group: undefined, order: undefined, when: undefined };
 				} else {
 					if (!extension.description.enableProposedApi) {
-						collector.error(localize('proposedAPI.invalid.submenureference', "Menu item references a submenu which is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", entry.key, extension.description.identifier.value));
+						collector.error(localize('proposedAPI.invalid.submenureference', "Menu item references a submenu which is only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
 						continue;
 					}
 
