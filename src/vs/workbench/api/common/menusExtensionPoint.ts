@@ -81,6 +81,14 @@ namespace schema {
 		return false;
 	}
 
+	export function supportsSubmenus(menuId: MenuId): boolean {
+		switch (menuId) {
+			case MenuId.EditorContext:
+				return true;
+		}
+		return false;
+	}
+
 	export function isMenuItem(item: IUserFriendlyMenuItem | IUserFriendlySubmenuItem): item is IUserFriendlyMenuItem {
 		return typeof (item as IUserFriendlyMenuItem).command === 'string';
 	}
@@ -626,6 +634,8 @@ menusExtensionPoint.setHandler(extensions => {
 				return;
 			}
 
+			const submenuSupport = schema.supportsSubmenus(id);
+
 			for (const menuItem of entry.value) {
 				let item: IMenuItem | ISubmenuItem;
 
@@ -648,6 +658,11 @@ menusExtensionPoint.setHandler(extensions => {
 				} else {
 					if (!extension.description.enableProposedApi) {
 						collector.error(localize('proposedAPI.invalid.submenureference', "Menu item references a submenu which is only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
+						continue;
+					}
+
+					if (!submenuSupport) {
+						collector.error(localize('proposedAPI.unsupported.submenureference', "Menu item references a submenu for a menu which doesn't have submenu support."));
 						continue;
 					}
 
