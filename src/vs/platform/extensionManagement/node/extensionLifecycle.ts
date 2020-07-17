@@ -14,14 +14,15 @@ import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { rimraf } from 'vs/base/node/pfs';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class ExtensionsLifecycle extends Disposable {
 
 	private processesLimiter: Limiter<void> = new Limiter(5); // Run max 5 processes in parallel
 
 	constructor(
-		private environmentService: INativeEnvironmentService,
-		private logService: ILogService
+		@IEnvironmentService private environmentService: INativeEnvironmentService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
