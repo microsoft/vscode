@@ -15,6 +15,7 @@ import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ResourceMap } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
@@ -60,7 +61,14 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		if (delta.addedDocuments) {
 			for (const data of delta.addedDocuments) {
 				const resource = URI.revive(data.uri);
-				assert.ok(!this._documents.has(resource), `document '${resource} already exists!'`);
+				const existingDocumentData = this._documents.get(resource);
+				if (existingDocumentData) {
+					if (resource.scheme !== Schemas.vscodeNotebookCell) {
+						throw new Error(`document '${resource} already exists!'`);
+					}
+					existingDocumentData.onEvents({ changes: [], versionId: data.versionId, eol: data.EOL });
+					continue;
+				}
 
 				const documentData = new ExtHostDocumentData(
 					this._extHostRpc.getProxy(MainContext.MainThreadDocuments),
