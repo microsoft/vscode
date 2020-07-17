@@ -10,20 +10,31 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuId, MenuRegistry, ILocalizedString, IMenuItem, ICommandAction } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, ILocalizedString, IMenuItem, ICommandAction, ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 namespace schema {
 
-	// --- menus contribution point
+	// --- menus, submenus contribution point
 
 	export interface IUserFriendlyMenuItem {
 		command: string;
 		alt?: string;
 		when?: string;
 		group?: string;
+	}
+
+	export interface IUserFriendlySubmenuItem {
+		submenu: string;
+		when?: string;
+		group?: string;
+	}
+
+	export interface IUserFriendlySubmenu {
+		id: string;
+		label: string;
 	}
 
 	export function parseMenuId(value: string): MenuId | undefined {
@@ -70,29 +81,82 @@ namespace schema {
 		return false;
 	}
 
-	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {
-		if (!Array.isArray(menu)) {
-			collector.error(localize('requirearray', "menu items must be an array"));
+	export function isMenuItem(item: IUserFriendlyMenuItem | IUserFriendlySubmenuItem): item is IUserFriendlyMenuItem {
+		return typeof (item as IUserFriendlyMenuItem).command === 'string';
+	}
+
+	export function isValidMenuItem(item: IUserFriendlyMenuItem, collector: ExtensionMessageCollector): boolean {
+		if (typeof item.command !== 'string') {
+			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
+			return false;
+		}
+		if (item.alt && typeof item.alt !== 'string') {
+			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'alt'));
+			return false;
+		}
+		if (item.when && typeof item.when !== 'string') {
+			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
+			return false;
+		}
+		if (item.group && typeof item.group !== 'string') {
+			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'group'));
 			return false;
 		}
 
-		for (let item of menu) {
-			if (typeof item.command !== 'string') {
-				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
-				return false;
+		return true;
+	}
+
+	export function isValidSubmenuItem(item: IUserFriendlySubmenuItem, collector: ExtensionMessageCollector): boolean {
+		if (typeof item.submenu !== 'string') {
+			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'submenu'));
+			return false;
+		}
+		if (item.when && typeof item.when !== 'string') {
+			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
+			return false;
+		}
+		if (item.group && typeof item.group !== 'string') {
+			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'group'));
+			return false;
+		}
+
+		return true;
+	}
+
+	export function isValidItems(items: (IUserFriendlyMenuItem | IUserFriendlySubmenuItem)[], collector: ExtensionMessageCollector): boolean {
+		if (!Array.isArray(items)) {
+			collector.error(localize('requirearray', "submenu items must be an array"));
+			return false;
+		}
+
+		for (let item of items) {
+			if (isMenuItem(item)) {
+				if (!isValidMenuItem(item, collector)) {
+					return false;
+				}
+			} else {
+				if (!isValidSubmenuItem(item, collector)) {
+					return false;
+				}
 			}
-			if (item.alt && typeof item.alt !== 'string') {
-				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'alt'));
-				return false;
-			}
-			if (item.when && typeof item.when !== 'string') {
-				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
-				return false;
-			}
-			if (item.group && typeof item.group !== 'string') {
-				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'group'));
-				return false;
-			}
+		}
+
+		return true;
+	}
+
+	export function isValidSubmenu(submenu: IUserFriendlySubmenu, collector: ExtensionMessageCollector): boolean {
+		if (typeof submenu !== 'object') {
+			collector.error(localize('require', "submenu items must be an object"));
+			return false;
+		}
+
+		if (typeof submenu.id !== 'string') {
+			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'id'));
+			return false;
+		}
+		if (typeof submenu.label !== 'string') {
+			collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'label'));
+			return false;
 		}
 
 		return true;
@@ -120,6 +184,38 @@ namespace schema {
 		}
 	};
 
+	const submenuItem: IJSONSchema = {
+		type: 'object',
+		properties: {
+			submenu: {
+				description: localize('vscode.extension.contributes.menuItem.submenu', 'Identifier of the submenu to display in this item.'),
+				type: 'string'
+			},
+			when: {
+				description: localize('vscode.extension.contributes.menuItem.when', 'Condition which must be true to show this item'),
+				type: 'string'
+			},
+			group: {
+				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this command belongs'),
+				type: 'string'
+			}
+		}
+	};
+
+	const submenu: IJSONSchema = {
+		type: 'object',
+		properties: {
+			id: {
+				description: localize('submenu.id', 'Identifier of the menu to display as a submenu.'),
+				type: 'string'
+			},
+			label: {
+				description: localize('submenu.label', 'The label of the menu item which leads to this submenu.'),
+				type: 'string'
+			}
+		}
+	};
+
 	export const menusContribution: IJSONSchema = {
 		description: localize('vscode.extension.contributes.menus', "Contributes menu items to the editor"),
 		type: 'object',
@@ -142,7 +238,7 @@ namespace schema {
 			'editor/context': {
 				description: localize('menus.editorContext', "The editor context menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'explorer/context': {
 				description: localize('menus.explorerContext', "The file explorer context menu"),
@@ -250,6 +346,12 @@ namespace schema {
 				items: menuItem
 			},
 		}
+	};
+
+	export const submenusContribution: IJSONSchema = {
+		description: localize('vscode.extension.contributes.submenus', "Contributes submenu items to the editor"),
+		type: 'array',
+		items: submenu
 	};
 
 	// --- commands contribution point
@@ -430,74 +532,147 @@ commandsExtensionPoint.setHandler(extensions => {
 	_commandRegistrations.add(MenuRegistry.addCommands(newCommands));
 });
 
-const _menuRegistrations = new DisposableStore();
+interface IRegisteredSubmenu {
+	readonly id: MenuId;
+	readonly label: string;
+}
 
-ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>({
-	extensionPoint: 'menus',
-	jsonSchema: schema.menusContribution
-}).setHandler(extensions => {
+const _submenus = new Map<string, IRegisteredSubmenu>();
 
-	// remove all previous menu registrations
-	_menuRegistrations.clear();
+const submenusExtensionPoint = ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlySubmenu[]>({
+	extensionPoint: 'submenus',
+	jsonSchema: schema.submenusContribution
+});
 
-	const items: { id: MenuId, item: IMenuItem }[] = [];
+submenusExtensionPoint.setHandler(extensions => {
+
+	_submenus.clear();
 
 	for (let extension of extensions) {
 		const { value, collector } = extension;
 
 		forEach(value, entry => {
-			if (!schema.isValidMenuItems(entry.value, collector)) {
+			if (!schema.isValidSubmenu(entry.value, collector)) {
 				return;
 			}
 
-			const menu = schema.parseMenuId(entry.key);
-			if (typeof menu === 'undefined') {
+			if (!entry.value.id) {
+				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", entry.value.id));
+				return;
+			}
+			if (!entry.value.label) {
+				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", entry.value.label));
+				return;
+			}
+
+			if (!extension.description.enableProposedApi) {
+				collector.error(localize('submenu.proposedAPI.invalid', "Submenus are proposed API and are only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", extension.description.identifier.value));
+				return;
+			}
+
+			const item: IRegisteredSubmenu = {
+				id: new MenuId(`api:${entry.value.id}`),
+				label: entry.value.label
+			};
+
+			_submenus.set(entry.value.id, item);
+		});
+	}
+});
+
+const _menuRegistrations = new DisposableStore();
+
+const menusExtensionPoint = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: (schema.IUserFriendlyMenuItem | schema.IUserFriendlySubmenuItem)[] }>({
+	extensionPoint: 'menus',
+	jsonSchema: schema.menusContribution,
+	deps: [submenusExtensionPoint]
+});
+
+menusExtensionPoint.setHandler(extensions => {
+
+	// remove all previous menu registrations
+	_menuRegistrations.clear();
+
+	const items: { id: MenuId, item: IMenuItem | ISubmenuItem }[] = [];
+
+	for (let extension of extensions) {
+		const { value, collector } = extension;
+
+		forEach(value, entry => {
+			if (!schema.isValidItems(entry.value, collector)) {
+				return;
+			}
+
+			let id = schema.parseMenuId(entry.key);
+			let isSubmenu = false;
+
+			if (!id) {
+				id = _submenus.get(entry.key)?.id;
+				isSubmenu = true;
+			}
+
+			if (!id) {
 				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
 				return;
 			}
 
-			if (schema.isProposedAPI(menu) && !extension.description.enableProposedApi) {
+			if (schema.isProposedAPI(id) && !extension.description.enableProposedApi) {
 				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier and is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", entry.key, extension.description.identifier.value));
 				return;
 			}
 
-			for (let item of entry.value) {
-				let command = MenuRegistry.getCommand(item.command);
-				let alt = item.alt && MenuRegistry.getCommand(item.alt) || undefined;
+			if (isSubmenu && !extension.description.enableProposedApi) {
+				collector.error(localize('proposedAPI.invalid.submenu', "{0} is a submenu identifier and is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", entry.key, extension.description.identifier.value));
+				return;
+			}
 
-				if (!command) {
-					collector.error(localize('missing.command', "Menu item references a command `{0}` which is not defined in the 'commands' section.", item.command));
-					continue;
-				}
-				if (item.alt && !alt) {
-					collector.warn(localize('missing.altCommand', "Menu item references an alt-command `{0}` which is not defined in the 'commands' section.", item.alt));
-				}
-				if (item.command === item.alt) {
-					collector.info(localize('dupe.command', "Menu item references the same command as default and alt-command"));
+			for (const menuItem of entry.value) {
+				let item: IMenuItem | ISubmenuItem;
+
+				if (schema.isMenuItem(menuItem)) {
+					const command = MenuRegistry.getCommand(menuItem.command);
+					const alt = menuItem.alt && MenuRegistry.getCommand(menuItem.alt) || undefined;
+
+					if (!command) {
+						collector.error(localize('missing.command', "Menu item references a command `{0}` which is not defined in the 'commands' section.", menuItem.command));
+						continue;
+					}
+					if (menuItem.alt && !alt) {
+						collector.warn(localize('missing.altCommand', "Menu item references an alt-command `{0}` which is not defined in the 'commands' section.", menuItem.alt));
+					}
+					if (menuItem.command === menuItem.alt) {
+						collector.info(localize('dupe.command', "Menu item references the same command as default and alt-command"));
+					}
+
+					item = { command, alt, group: undefined, order: undefined, when: undefined };
+				} else {
+					if (!extension.description.enableProposedApi) {
+						collector.error(localize('proposedAPI.invalid.submenureference', "Menu item references a submenu which is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", entry.key, extension.description.identifier.value));
+						continue;
+					}
+
+					const submenu = _submenus.get(menuItem.submenu);
+
+					if (!submenu) {
+						collector.error(localize('missing.submenu', "Menu item references a submenu `{0}` which is not defined in the 'submenus' section.", menuItem.submenu));
+						continue;
+					}
+
+					item = { submenu: submenu.id, title: submenu.label, group: undefined, order: undefined, when: undefined };
 				}
 
-				let group: string | undefined;
-				let order: number | undefined;
-				if (item.group) {
-					const idx = item.group.lastIndexOf('@');
+				if (menuItem.group) {
+					const idx = menuItem.group.lastIndexOf('@');
 					if (idx > 0) {
-						group = item.group.substr(0, idx);
-						order = Number(item.group.substr(idx + 1)) || undefined;
+						item.group = menuItem.group.substr(0, idx);
+						item.order = Number(menuItem.group.substr(idx + 1)) || undefined;
 					} else {
-						group = item.group;
+						item.group = menuItem.group;
 					}
 				}
 
-				items.push({
-					id: menu,
-					item: {
-						command,
-						alt,
-						group,
-						order,
-						when: ContextKeyExpr.deserialize(item.when)
-					}
-				});
+				item.when = ContextKeyExpr.deserialize(menuItem.when);
+				items.push({ id, item });
 			}
 		});
 	}
