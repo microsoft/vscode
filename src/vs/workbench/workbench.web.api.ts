@@ -18,6 +18,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
+import { mark } from 'vs/base/common/performance';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -358,6 +359,10 @@ let created = false;
 let workbenchPromiseResolve: Function;
 const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
 async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+
+	// Mark start of workbench
+	mark('didLoadWorkbenchMain');
+	performance.mark('workbench-start');
 
 	// Assert that the workbench is not created more than once. We currently
 	// do not support this and require a full context switch to clean-up.
