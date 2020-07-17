@@ -18,7 +18,8 @@ import { asText, isSuccess, IRequestService } from 'vs/platform/request/common/r
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { groupByExtension, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { groupByExtension, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IUserExtension {
 	identifier: IExtensionIdentifier;
@@ -47,26 +48,55 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 	declare readonly _serviceBrand: undefined;
 
 	private readonly systemExtensionsPromise: Promise<IScannedExtension[]>;
-	private readonly staticExtensions: IScannedExtension[];
+	private readonly staticExtensionsPromise: Promise<IScannedExtension[]>;
 	private readonly extensionsResource: URI | undefined;
 	private readonly userExtensionsResourceLimiter: Queue<IUserExtension[]>;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IBuiltinExtensionsScannerService private readonly builtinExtensionsScannerService: IBuiltinExtensionsScannerService,
 		@IFileService private readonly fileService: IFileService,
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		this.extensionsResource = isWeb ? joinPath(environmentService.userRoamingDataHome, 'extensions.json') : undefined;
 		this.userExtensionsResourceLimiter = new Queue<IUserExtension[]>();
 		this.systemExtensionsPromise = isWeb ? this.builtinExtensionsScannerService.scanBuiltinExtensions() : Promise.resolve([]);
-		const staticExtensions = environmentService.options && Array.isArray(environmentService.options.staticExtensions) ? environmentService.options.staticExtensions : [];
-		this.staticExtensions = staticExtensions.map(data => <IScannedExtension>{
+		this.staticExtensionsPromise = this.readStaticExtensions();
+	}
+	private async readStaticExtensions(): Promise<IScannedExtension[]> {
+		const staticExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.staticExtensions) ? this.environmentService.options.staticExtensions : [];
+		const defaultStaticExtensions = staticExtensions.map<IScannedExtension>(data => ({
+			identifier: { id: getGalleryExtensionId(data.packageJSON.publisher, data.packageJSON.name) },
 			location: data.extensionLocation,
 			type: ExtensionType.User,
 			packageJSON: data.packageJSON,
-		});
+		}));
+		const userStaticExtensions = isWeb ? await this.readStaticExtensionsFromConfiguration() : [];
+		return [...defaultStaticExtensions, ...userStaticExtensions];
+	}
+	private async readStaticExtensionsFromConfiguration(): Promise<IScannedExtension[]> {
+		const result: IScannedExtension[] = [];
+		for (const webExtension of this.configurationService.getValue<{ location: string }[]>('_extensions.defaultUserWebExtensions') || []) {
+			const extensionLocation = URI.parse(webExtension.location);
+			const manifestLocation = joinPath(extensionLocation, 'package.json');
+			const context = await this.requestService.request({ type: 'GET', url: manifestLocation.toString(true) }, CancellationToken.None);
+			if (!isSuccess(context)) {
+				console.error('Unable to load ' + manifestLocation);
+			}
+			const content = await asText(context);
+			if (content) {
+				const packageJSON = JSON.parse(content);
+				result.push({
+					identifier: { id: getGalleryExtensionId(packageJSON.publisher, packageJSON.name) },
+					packageJSON,
+					location: extensionLocation,
+					type: ExtensionType.User,
+				});
+			}
+		}
+		return result;
 	}
 
 	async scanExtensions(type?: ExtensionType): Promise<IScannedExtension[]> {
@@ -76,7 +106,8 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 			extensions.push(...systemExtensions);
 		}
 		if (type === undefined || type === ExtensionType.User) {
-			extensions.push(...this.staticExtensions);
+			const staticExtensions = await this.staticExtensionsPromise;
+			extensions.push(...staticExtensions);
 			const userExtensions = await this.scanUserExtensions();
 			extensions.push(...userExtensions);
 		}
