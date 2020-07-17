@@ -147,12 +147,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 			const encoding = serializedFileEditorInput.encoding;
 			const mode = serializedFileEditorInput.modeId;
 
-			const fileEditorInput = accessor.get(IEditorService).createEditorInput({
-				resource: preferredResource || resource, // prefer the preferred resource when creating the input again (https://github.com/microsoft/vscode/issues/102627)
-				encoding,
-				mode,
-				forceFile: true
-			}) as FileEditorInput;
+			const fileEditorInput = accessor.get(IEditorService).createEditorInput({ resource, encoding, mode, forceFile: true }) as FileEditorInput;
 			if (preferredResource) {
 				fileEditorInput.setPreferredResource(preferredResource);
 			}
