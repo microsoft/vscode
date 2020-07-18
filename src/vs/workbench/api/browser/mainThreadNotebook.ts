@@ -18,7 +18,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Emitter } from 'vs/base/common/event';
@@ -168,7 +167,6 @@ class DocumentAndEditorState {
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks extends Disposable implements MainThreadNotebookShape {
-	static mainthreadNotebookDocumentHandle: number = 0;
 	private readonly _notebookProviders = new Map<string, IMainNotebookController>();
 	private readonly _notebookKernels = new Map<string, MainThreadNotebookKernel>();
 	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<void>, provider: IDisposable }>();
@@ -183,8 +181,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		@INotebookService private _notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 
 	) {
 		super();
@@ -200,23 +197,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 
 		return false;
-	}
-
-	createNotebookTextModelAndBindListeners(uri: URI, viewType: string, supportBackup: boolean) {
-		const disposableStore = new DisposableStore();
-		const textModel = this._instantiationService.createInstance(NotebookTextModel, MainThreadNotebooks.mainthreadNotebookDocumentHandle++, viewType, supportBackup, uri);
-		disposableStore.add(textModel.onDidModelChangeProxy(e => {
-			this._proxy.$acceptModelChanged(textModel.uri, e);
-			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: { selections: textModel.selections }, metadata: null });
-		}));
-		disposableStore.add(textModel.onDidSelectionChange(e => {
-			const selectionsChange = e ? { selections: e } : null;
-			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: selectionsChange, metadata: null });
-		}));
-
-		this._editorEventListenersMapping.set(textModel.uri.toString(), disposableStore);
-
-		return textModel;
 	}
 
 	async removeNotebookTextModel(uri: URI): Promise<void> {
@@ -441,6 +421,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	async $registerNotebookProvider(_extension: NotebookExtensionDescription, _viewType: string, _supportBackup: boolean, _kernel: INotebookKernelInfoDto | undefined): Promise<void> {
 		const controller: IMainNotebookController = {
 			kernel: _kernel,
+			supportBackup: _supportBackup,
 			reloadNotebook: async (mainthreadTextModel: NotebookTextModel) => {
 				const data = await this._proxy.$resolveNotebookData(_viewType, mainthreadTextModel.uri);
 				if (!data) {
@@ -463,10 +444,9 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					});
 				});
 			},
-			createNotebook: async (viewType: string, uri: URI, editorId?: string, backupId?: string) => {
-				const textModel = this.createNotebookTextModelAndBindListeners(uri, viewType, _supportBackup);
+			createNotebook: async (textModel: NotebookTextModel, backupId?: string) => {
 				// open notebook document
-				const data = await this._proxy.$resolveNotebookData(viewType, uri, backupId);
+				const data = await this._proxy.$resolveNotebookData(textModel.viewType, textModel.uri, backupId);
 				if (!data) {
 					return;
 				}
@@ -481,9 +461,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					textModel.insertTemplateCell(mainCell);
 				}
 
-				this._proxy.$acceptEditorPropertiesChanged(uri, { selections: null, metadata: textModel.metadata });
-
-				return textModel;
+				this._proxy.$acceptEditorPropertiesChanged(textModel.uri, { selections: null, metadata: textModel.metadata });
+				return;
 			},
 			resolveNotebookEditor: async (viewType: string, uri: URI, editorId: string) => {
 				await this._proxy.$resolveNotebookEditor(viewType, uri, editorId);

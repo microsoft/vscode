@@ -29,6 +29,7 @@ import { StorageScope, IStorageService } from 'vs/platform/storage/common/storag
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { flatten } from 'vs/base/common/arrays';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -166,6 +167,7 @@ class ModelData implements IDisposable {
 }
 export class NotebookService extends Disposable implements INotebookService, ICustomEditorViewTypesHandler {
 	declare readonly _serviceBrand: undefined;
+	static mainthreadNotebookDocumentHandle: number = 0;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
 	private readonly _notebookRenderers = new Map<string, INotebookRendererInfo>();
 	private readonly _notebookKernels = new Map<string, INotebookKernelInfo>();
@@ -205,7 +207,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -411,7 +414,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 			return notebookModel;
 		} else {
-			notebookModel = await provider.controller.createNotebook(viewType, uri, editorId, backupId);
+			notebookModel = this._instantiationService.createInstance(NotebookTextModel, NotebookService.mainthreadNotebookDocumentHandle++, viewType, provider.controller.supportBackup, uri);
+			await provider.controller.createNotebook(notebookModel, backupId);
 
 			if (!notebookModel) {
 				return undefined;
