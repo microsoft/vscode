@@ -68,7 +68,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
 
 		let previewContent: string | null = null;
-		if (remoteSettingsSyncContent !== null) {
+		if (remoteSettingsSyncContent) {
 			// Update ignored settings from local file content
 			previewContent = updateIgnoredSettings(remoteSettingsSyncContent.settings, fileContent ? fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
 		}
@@ -96,10 +96,10 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		const ignoredSettings = await this.getIgnoredSettings();
 		const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
 
-		let previewContent: string | null = null;
-		if (fileContent !== null) {
+		let previewContent: string | null = fileContent?.value.toString() || null;
+		if (previewContent) {
 			// Remove ignored settings
-			previewContent = updateIgnoredSettings(fileContent.value.toString(), '{}', ignoredSettings, formatUtils);
+			previewContent = updateIgnoredSettings(previewContent, '{}', ignoredSettings, formatUtils);
 		}
 
 		return [{
@@ -200,7 +200,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 	}
 
 	protected async updateResourcePreview(resourcePreview: IFileResourcePreview, resource: URI, acceptedContent: string): Promise<IFileResourcePreview> {
-		if (isEqual(resource, this.previewResource) || isEqual(resource, this.remoteResource)) {
+		if (acceptedContent && isEqual(resource, this.previewResource) || isEqual(resource, this.remoteResource)) {
 			const formatUtils = await this.getFormattingOptions();
 			// Add ignored settings from local file content
 			const ignoredSettings = await this.getIgnoredSettings();
@@ -297,7 +297,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 	protected async resolvePreviewContent(resource: URI): Promise<string | null> {
 		let content = await super.resolvePreviewContent(resource);
-		if (content !== null) {
+		if (content) {
 			const formatUtils = await this.getFormattingOptions();
 			// remove ignored settings from the preview content
 			const ignoredSettings = await this.getIgnoredSettings();
