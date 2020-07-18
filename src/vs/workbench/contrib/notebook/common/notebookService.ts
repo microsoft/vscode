@@ -27,7 +27,7 @@ export interface IMainNotebookController {
 	executeNotebookByAttachedKernel(viewType: string, uri: URI, token: CancellationToken): Promise<void>;
 	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
 	executeNotebookCell(uri: URI, handle: number, token: CancellationToken): Promise<void>;
-	removeNotebookDocument(notebook: INotebookTextModel): Promise<void>;
+	removeNotebookDocument(uri: URI): Promise<void>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(uri: URI, token: CancellationToken): Promise<string | undefined>;
@@ -58,6 +58,7 @@ export interface INotebookService {
 	getContributedNotebookKernels2(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]>;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
 	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined>;
+	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void>;
 	executeNotebookCell(viewType: string, uri: URI, handle: number, token: CancellationToken): Promise<void>;
 	executeNotebook2(viewType: string, uri: URI, kernelId: string, token: CancellationToken): Promise<void>;

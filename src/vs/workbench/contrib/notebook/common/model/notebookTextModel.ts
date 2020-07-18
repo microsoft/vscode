@@ -117,8 +117,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		public viewType: string,
 		public supportBackup: boolean,
 		public uri: URI,
-		private _undoService: IUndoRedoService,
-		private _modelService: ITextModelService
+		@IUndoRedoService private _undoService: IUndoRedoService,
+		@ITextModelService private _modelService: ITextModelService
 	) {
 		super();
 		this.cells = [];

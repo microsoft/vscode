@@ -423,6 +423,12 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return modelData.model;
 	}
 
+	getNotebookTextModel(uri: URI): NotebookTextModel | undefined {
+		const modelId = MODEL_ID(uri);
+
+		return this._models.get(modelId)?.model;
+	}
+
 	private async _fillInTransformedOutputs<T>(
 		renderers: Set<string>,
 		requestItems: IOutputRenderRequestCellInfo<T>[],
@@ -837,7 +843,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			let provider = this._notebookProviders.get(modelData!.model.viewType);
 
 			if (provider) {
-				provider.controller.removeNotebookDocument(modelData!.model);
+				provider.controller.removeNotebookDocument(modelData!.model.uri);
+				modelData!.model.dispose();
 			}
 
 
