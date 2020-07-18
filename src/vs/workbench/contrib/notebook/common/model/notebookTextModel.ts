@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IProcessedOutput, notebookDocumentMetadataDefaults, diff, ICellDeleteEdit, NotebookCellsChangeType, ICellDto2, IMainCellDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextSnapshot } from 'vs/editor/common/model';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { InsertCellEdit, DeleteCellEdit, MoveCellEdit, SpliceCellsEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
@@ -262,6 +263,21 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._onDidChangeCells.fire({ synchronous: synchronous, splices: diffs });
 		return true;
+	}
+
+	$handleEdit(label: string | undefined, undo: () => void, redo: () => void): void {
+		this._undoService.pushElement({
+			type: UndoRedoElementType.Resource,
+			resource: this.uri,
+			label: label ?? nls.localize('defaultEditLabel', "Edit"),
+			undo: async () => {
+				undo();
+			},
+			redo: async () => {
+				redo();
+			},
+		});
+		this.setDirty(true);
 	}
 
 	createSnapshot(preserveBOM?: boolean): ITextSnapshot {
