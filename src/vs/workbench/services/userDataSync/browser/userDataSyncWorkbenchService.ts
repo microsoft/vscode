@@ -302,16 +302,16 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		const result = await this.dialogService.show(
 			Severity.Info,
-			localize('Replace or Merge', "Replace or Merge"),
+			localize('preferences sync', "Preferences Sync"),
 			[
 				localize('merge', "Merge"),
 				localize('replace local', "Replace Local"),
-				localize('sync manually', "Sync Manually"),
+				localize('sync manually', "Sync Manually..."),
 				localize('cancel', "Cancel"),
 			],
 			{
 				cancelId: 3,
-				detail: localize('first time sync detail', "It looks like you last synced from another machine.\nWould you like to replace or merge with the synced data?"),
+				detail: localize('first time sync detail', "It looks like you last synced from another machine.\nWould you like to replace or merge with your data in the cloud or sync manually?"),
 			}
 		);
 		switch (result.choice) {
