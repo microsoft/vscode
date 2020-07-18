@@ -168,7 +168,8 @@ class DocumentAndEditorState {
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks extends Disposable implements MainThreadNotebookShape {
-	private readonly _notebookProviders = new Map<string, MainThreadNotebookController>();
+	static mainthreadNotebookDocumentHandle: number = 0;
+	private readonly _notebookProviders = new Map<string, IMainNotebookController>();
 	private readonly _notebookKernels = new Map<string, MainThreadNotebookKernel>();
 	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<void>, provider: IDisposable }>();
 	private readonly _notebookRenderers = new Map<string, MainThreadNotebookRenderer>();
@@ -203,7 +204,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 	createNotebookTextModelAndBindListeners(uri: URI, viewType: string, supportBackup: boolean) {
 		const disposableStore = new DisposableStore();
-		const textModel = this._instantiationService.createInstance(NotebookTextModel, MainThreadNotebookController.documentHandle++, viewType, supportBackup, uri);
+		const textModel = this._instantiationService.createInstance(NotebookTextModel, MainThreadNotebooks.mainthreadNotebookDocumentHandle++, viewType, supportBackup, uri);
 		disposableStore.add(textModel.onDidModelChangeProxy(e => {
 			this._proxy.$acceptModelChanged(textModel.uri, e);
 			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: { selections: textModel.selections }, metadata: null });
@@ -437,10 +438,81 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this._notebookService.unregisterNotebookRenderer(id);
 	}
 
-	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, kernel: INotebookKernelInfoDto | undefined): Promise<void> {
-		let controller = new MainThreadNotebookController(this._proxy, this, viewType, supportBackup, kernel, this._notebookService, this._instantiationService);
-		this._notebookProviders.set(viewType, controller);
-		this._notebookService.registerNotebookController(viewType, extension, controller);
+	async $registerNotebookProvider(_extension: NotebookExtensionDescription, _viewType: string, _supportBackup: boolean, _kernel: INotebookKernelInfoDto | undefined): Promise<void> {
+		const controller: IMainNotebookController = {
+			kernel: _kernel,
+			reloadNotebook: async (mainthreadTextModel: NotebookTextModel) => {
+				const data = await this._proxy.$resolveNotebookData(_viewType, mainthreadTextModel.uri);
+				if (!data) {
+					return;
+				}
+
+				mainthreadTextModel.languages = data.languages;
+				mainthreadTextModel.metadata = data.metadata;
+
+				const edits: ICellEditOperation[] = [
+					{ editType: CellEditType.Delete, count: mainthreadTextModel.cells.length, index: 0 },
+					{ editType: CellEditType.Insert, index: 0, cells: data.cells }
+				];
+
+				await this._notebookService.transformEditsOutputs(mainthreadTextModel, edits);
+				await new Promise(resolve => {
+					DOM.scheduleAtNextAnimationFrame(() => {
+						const ret = mainthreadTextModel!.$applyEdit(mainthreadTextModel!.versionId, edits, true);
+						resolve(ret);
+					});
+				});
+			},
+			createNotebook: async (viewType: string, uri: URI, editorId?: string, backupId?: string) => {
+				const textModel = this.createNotebookTextModelAndBindListeners(uri, viewType, _supportBackup);
+				// open notebook document
+				const data = await this._proxy.$resolveNotebookData(viewType, uri, backupId);
+				if (!data) {
+					return;
+				}
+
+				textModel.languages = data.languages;
+				textModel.metadata = data.metadata;
+
+				if (data.cells.length) {
+					textModel.initialize(data!.cells);
+				} else {
+					const mainCell = textModel.createCellTextModel([''], textModel.languages.length ? textModel.languages[0] : '', CellKind.Code, [], undefined);
+					textModel.insertTemplateCell(mainCell);
+				}
+
+				this._proxy.$acceptEditorPropertiesChanged(uri, { selections: null, metadata: textModel.metadata });
+
+				return textModel;
+			},
+			resolveNotebookEditor: async (viewType: string, uri: URI, editorId: string) => {
+				await this._proxy.$resolveNotebookEditor(viewType, uri, editorId);
+			},
+			executeNotebookByAttachedKernel: async (viewType: string, uri: URI, token: CancellationToken) => {
+				return this.executeNotebookByAttachedKernel(viewType, uri, token);
+			},
+			onDidReceiveMessage: (editorId: string, rendererType: string | undefined, message: unknown) => {
+				this._proxy.$onDidReceiveMessage(editorId, rendererType, message);
+			},
+			removeNotebookDocument: async (uri: URI) => {
+				return this.removeNotebookTextModel(uri);
+			},
+			executeNotebookCell: async (uri: URI, handle: number, token: CancellationToken) => {
+				return this._proxy.$executeNotebookByAttachedKernel(_viewType, uri, handle, token);
+			},
+			save: async (uri: URI, token: CancellationToken) => {
+				return this._proxy.$saveNotebook(_viewType, uri, token);
+			},
+			saveAs: async (uri: URI, target: URI, token: CancellationToken) => {
+				return this._proxy.$saveNotebookAs(_viewType, uri, target, token);
+			},
+			backup: async (uri: URI, token: CancellationToken) => {
+				return this._proxy.$backup(_viewType, uri, token);
+			}
+		};
+
+		this._notebookProviders.set(_viewType, controller);
+		this._notebookService.registerNotebookController(_viewType, _extension, controller);
 		return;
 	}
 
@@ -568,106 +640,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	$onContentChange(resource: UriComponents, viewType: string): void {
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		textModel?.handleUnknownChange();
-	}
-}
-
-export class MainThreadNotebookController implements IMainNotebookController {
-	static documentHandle: number = 0;
-
-	constructor(
-		private readonly _proxy: ExtHostNotebookShape,
-		private _mainThreadNotebook: MainThreadNotebooks,
-		private _viewType: string,
-		private _supportBackup: boolean,
-		readonly kernel: INotebookKernelInfoDto | undefined,
-		readonly notebookService: INotebookService,
-		readonly _instantiationService: IInstantiationService
-
-	) {
-	}
-
-	async createNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined> {
-		let mainthreadTextModel = this.notebookService.getNotebookTextModel(uri);
-
-		if (mainthreadTextModel) {
-			if (forceReload) {
-				const data = await this._proxy.$resolveNotebookData(viewType, uri);
-				if (!data) {
-					return;
-				}
-
-				mainthreadTextModel.languages = data.languages;
-				mainthreadTextModel.metadata = data.metadata;
-
-				const edits: ICellEditOperation[] = [
-					{ editType: CellEditType.Delete, count: mainthreadTextModel.cells.length, index: 0 },
-					{ editType: CellEditType.Insert, index: 0, cells: data.cells }
-				];
-
-				await this.notebookService.transformEditsOutputs(mainthreadTextModel, edits);
-				await new Promise(resolve => {
-					DOM.scheduleAtNextAnimationFrame(() => {
-						const ret = mainthreadTextModel!.$applyEdit(mainthreadTextModel!.versionId, edits, true);
-						resolve(ret);
-					});
-				});
-			}
-			return mainthreadTextModel;
-		}
-
-		const textModel = this._mainThreadNotebook.createNotebookTextModelAndBindListeners(uri, viewType, this._supportBackup);
-		// open notebook document
-		const data = await this._proxy.$resolveNotebookData(viewType, uri, backupId);
-		if (!data) {
-			return;
-		}
-
-		textModel.languages = data.languages;
-		textModel.metadata = data.metadata;
-
-		if (data.cells.length) {
-			textModel.initialize(data!.cells);
-		} else {
-			const mainCell = textModel.createCellTextModel([''], textModel.languages.length ? textModel.languages[0] : '', CellKind.Code, [], undefined);
-			textModel.insertTemplateCell(mainCell);
-		}
-
-		this._proxy.$acceptEditorPropertiesChanged(uri, { selections: null, metadata: textModel.metadata });
-
-		return textModel;
-	}
-
-	async resolveNotebookEditor(viewType: string, uri: URI, editorId: string) {
-		await this._proxy.$resolveNotebookEditor(viewType, uri, editorId);
-	}
-
-	async executeNotebookByAttachedKernel(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
-		return this._mainThreadNotebook.executeNotebookByAttachedKernel(viewType, uri, token);
-	}
-
-	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: unknown): void {
-		this._proxy.$onDidReceiveMessage(editorId, rendererType, message);
-	}
-
-	async removeNotebookDocument(uri: URI): Promise<void> {
-		return this._mainThreadNotebook.removeNotebookTextModel(uri);
-	}
-
-	async executeNotebookCell(uri: URI, handle: number, token: CancellationToken): Promise<void> {
-		return this._proxy.$executeNotebookByAttachedKernel(this._viewType, uri, handle, token);
-	}
-
-	async save(uri: URI, token: CancellationToken): Promise<boolean> {
-		return this._proxy.$saveNotebook(this._viewType, uri, token);
-	}
-
-	async saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean> {
-		return this._proxy.$saveNotebookAs(this._viewType, uri, target, token);
-	}
-
-	async backup(uri: URI, token: CancellationToken): Promise<string | undefined> {
-		const backupId = await this._proxy.$backup(this._viewType, uri, token);
-		return backupId;
 	}
 }
 

@@ -399,13 +399,24 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			return undefined;
 		}
 
-		const notebookModel = await provider.controller.createNotebook(viewType, uri, forceReload, editorId, backupId);
-		if (!notebookModel) {
-			return undefined;
+		const modelId = MODEL_ID(uri);
+
+		let notebookModel: NotebookTextModel | undefined = undefined;
+		if (this._models.has(modelId)) {
+			// the model already exists
+			notebookModel = this._models.get(modelId)!.model;
+			if (forceReload) {
+				await provider.controller.reloadNotebook(notebookModel);
+			}
+		} else {
+			notebookModel = await provider.controller.createNotebook(viewType, uri, editorId, backupId);
+
+			if (!notebookModel) {
+				return undefined;
+			}
 		}
 
 		// new notebook model created
-		const modelId = MODEL_ID(uri);
 		const modelData = new ModelData(
 			notebookModel!,
 			(model) => this._onWillDisposeDocument(model),
