@@ -8,7 +8,7 @@ import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, TreeViewIte
 import { localize } from 'vs/nls';
 import { TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataSyncService, Change, MergeState, SyncResource, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, Change, MergeState, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -36,6 +36,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class UserDataManualSyncViewPane extends TreeViewPane {
 
@@ -48,6 +49,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 	constructor(
 		options: IViewletViewOptions,
 		@IEditorService private readonly editorService: IEditorService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncWorkbenchService userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
@@ -219,6 +221,10 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 
 	private async mergeResource(previewResource: IUserDataSyncResource): Promise<void> {
 		await this.withProgress(() => this.userDataSyncPreview.merge(previewResource.merged));
+		previewResource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local))!;
+		if (previewResource.mergeState === MergeState.Conflict) {
+			this.notificationService.warn(localize('conflicts detected', "Unable to merge due to conflicts. Please resolve them to continue."));
+		}
 		await this.reopen(previewResource);
 	}
 
@@ -260,7 +266,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 			const leftResource = previewResource.remote;
 			const rightResource = previewResource.mergeState === MergeState.Conflict ? previewResource.merged : previewResource.local;
 			const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(leftResource));
-			const rightResourceName = previewResource.mergeState === MergeState.Conflict ? localize('merge preview', "{0} (Merge Preview)", basename(rightResource))
+			const rightResourceName = previewResource.mergeState === MergeState.Conflict ? localize('merges', "{0} (Merges)", basename(rightResource))
 				: localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
 			await this.editorService.openEditor({
 				leftResource,
@@ -406,7 +412,6 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 	) {
 		super();
@@ -460,9 +465,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 				const model = this.editor.getModel();
 				if (model) {
 					this.telemetryService.publicLog2<{ source: string, action: string }, AcceptChangesClassification>('sync/acceptChanges', { source: userDataSyncResource.syncResource, action: isRemoteResource ? 'acceptRemote' : isLocalResource ? 'acceptLocal' : 'acceptMerges' });
-					if (this.userDataAutoSyncService.isEnabled()) {
-						await this.userDataSyncWorkbenchService.userDataSyncPreview.accept(userDataSyncResource.syncResource, model.uri, model.getValue());
-					}
+					await this.userDataSyncWorkbenchService.userDataSyncPreview.accept(userDataSyncResource.syncResource, model.uri, model.getValue());
 				}
 			}));
 

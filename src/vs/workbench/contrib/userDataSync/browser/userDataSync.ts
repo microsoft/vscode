@@ -1130,7 +1130,6 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
-		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 	) {
 		super();
 
@@ -1157,6 +1156,10 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		const model = editor.getModel();
 		if (!model) {
 			return false; // we need a model
+		}
+
+		if (!this.userDataAutoSyncService.isEnabled()) {
+			return false;
 		}
 
 		const syncResourceConflicts = this.getSyncResourceConflicts(model.uri);
@@ -1188,33 +1191,29 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 				if (model) {
 					this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: isRemote ? 'acceptRemote' : 'acceptLocal' });
 					const syncAreaLabel = getSyncAreaLabel(syncResource);
-					if (this.userDataAutoSyncService.isEnabled()) {
-						const result = await this.dialogService.confirm({
-							type: 'info',
-							title: isRemote
-								? localize('Sync accept remote', "Preferences Sync: {0}", acceptRemoteLabel)
-								: localize('Sync accept local', "Preferences Sync: {0}", acceptLocalLabel),
-							message: isRemote
-								? localize('confirm replace and overwrite local', "Would you like to accept remote {0} and replace local {1}?", syncAreaLabel.toLowerCase(), syncAreaLabel.toLowerCase())
-								: localize('confirm replace and overwrite remote', "Would you like to accept local {0} and replace remote {1}?", syncAreaLabel.toLowerCase(), syncAreaLabel.toLowerCase()),
-							primaryButton: isRemote ? acceptRemoteLabel : acceptLocalLabel
-						});
-						if (result.confirmed) {
-							try {
-								await this.userDataSyncService.accept(syncResource, model.uri, model.getValue(), true);
-							} catch (e) {
-								if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.LocalPreconditionFailed) {
-									const syncResourceCoflicts = this.userDataSyncService.conflicts.filter(syncResourceCoflicts => syncResourceCoflicts[0] === syncResource)[0];
-									if (syncResourceCoflicts && conflicts.some(conflict => isEqual(conflict.previewResource, model.uri) || isEqual(conflict.remoteResource, model.uri))) {
-										this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
-									}
-								} else {
-									this.notificationService.error(e);
+					const result = await this.dialogService.confirm({
+						type: 'info',
+						title: isRemote
+							? localize('Sync accept remote', "Preferences Sync: {0}", acceptRemoteLabel)
+							: localize('Sync accept local', "Preferences Sync: {0}", acceptLocalLabel),
+						message: isRemote
+							? localize('confirm replace and overwrite local', "Would you like to accept remote {0} and replace local {1}?", syncAreaLabel.toLowerCase(), syncAreaLabel.toLowerCase())
+							: localize('confirm replace and overwrite remote', "Would you like to accept local {0} and replace remote {1}?", syncAreaLabel.toLowerCase(), syncAreaLabel.toLowerCase()),
+						primaryButton: isRemote ? acceptRemoteLabel : acceptLocalLabel
+					});
+					if (result.confirmed) {
+						try {
+							await this.userDataSyncService.accept(syncResource, model.uri, model.getValue(), true);
+						} catch (e) {
+							if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.LocalPreconditionFailed) {
+								const syncResourceCoflicts = this.userDataSyncService.conflicts.filter(syncResourceCoflicts => syncResourceCoflicts[0] === syncResource)[0];
+								if (syncResourceCoflicts && conflicts.some(conflict => isEqual(conflict.previewResource, model.uri) || isEqual(conflict.remoteResource, model.uri))) {
+									this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
 								}
+							} else {
+								this.notificationService.error(e);
 							}
 						}
-					} else {
-						await this.userDataSyncWorkbenchService.userDataSyncPreview.accept(syncResource, model.uri, model.getValue());
 					}
 				}
 			}));
