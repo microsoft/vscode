@@ -408,6 +408,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			if (forceReload) {
 				await provider.controller.reloadNotebook(notebookModel);
 			}
+
+			return notebookModel;
 		} else {
 			notebookModel = await provider.controller.createNotebook(viewType, uri, editorId, backupId);
 
