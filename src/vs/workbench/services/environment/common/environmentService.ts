@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions } from 'vs/workbench/common/options';
 import { URI } from 'vs/base/common/uri';
 
 export const IWorkbenchEnvironmentService = createDecorator<IWorkbenchEnvironmentService>('environmentService');

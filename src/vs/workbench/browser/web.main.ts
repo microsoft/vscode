@@ -33,7 +33,7 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import { IWorkbenchConstructionOptions, IWorkspace, IWorkbench } from 'vs/workbench/workbench.web.api';
+import { IBrowserWorkbenchConstructionOptions, IWorkspace, IWorkbench } from 'vs/workbench/workbench.web.api';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { joinPath } from 'vs/base/common/resources';
@@ -55,7 +55,7 @@ class BrowserMain extends Disposable {
 
 	constructor(
 		private readonly domElement: HTMLElement,
-		private readonly configuration: IWorkbenchConstructionOptions
+		private readonly configuration: IBrowserWorkbenchConstructionOptions
 	) {
 		super();
 	}
@@ -331,7 +331,7 @@ class BrowserMain extends Disposable {
 	}
 }
 
-export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
+export function main(domElement: HTMLElement, options: IBrowserWorkbenchConstructionOptions): Promise<IWorkbench> {
 	const workbench = new BrowserMain(domElement, options);
 
 	return workbench.open();

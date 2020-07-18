@@ -6,6 +6,7 @@
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { find } from 'vs/base/common/arrays';
 
 export interface ICredentialsProvider {
@@ -24,7 +25,7 @@ export class BrowserCredentialsService implements ICredentialsService {
 
 	private credentialsProvider: ICredentialsProvider;
 
-	constructor(@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService) {
+	constructor(@IWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService) {
 		if (environmentService.options && environmentService.options.credentialsProvider) {
 			this.credentialsProvider = environmentService.options.credentialsProvider;
 		} else {

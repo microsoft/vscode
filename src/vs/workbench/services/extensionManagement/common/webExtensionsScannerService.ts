@@ -20,7 +20,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { groupByExtension, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStaticExtension } from 'vs/workbench/workbench.web.api';
+import { IStaticExtension } from 'vs/workbench/common/options';
 
 interface IUserExtension {
 	identifier: IExtensionIdentifier;

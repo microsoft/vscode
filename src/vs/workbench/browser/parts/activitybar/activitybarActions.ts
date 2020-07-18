@@ -33,6 +33,7 @@ import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -107,7 +108,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		@IMenuService protected menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}

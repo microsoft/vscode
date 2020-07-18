@@ -10,12 +10,16 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { BACKUPS, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { IPath } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService, IEnvironmentConfiguration } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import { IBrowserWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import product from 'vs/platform/product/common/product';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { LIGHT } from 'vs/platform/theme/common/themeService';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
+
+export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironmentService {
+	readonly options?: IBrowserWorkbenchConstructionOptions;
+}
 
 export class BrowserEnvironmentConfiguration implements IEnvironmentConfiguration {
 
@@ -84,7 +88,7 @@ export class BrowserEnvironmentConfiguration implements IEnvironmentConfiguratio
 	}
 }
 
-interface IBrowserWorkbenchEnvironmentConstructionOptions extends IWorkbenchConstructionOptions {
+interface IBrowserWorkbenchEnvironmentConstructionOptions extends IBrowserWorkbenchConstructionOptions {
 	workspaceId: string;
 	logsPath: URI;
 }
@@ -97,7 +101,7 @@ interface IExtensionHostDebugEnvironment {
 	extensionEnabledProposedApi?: string[];
 }
 
-export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
+export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
 
