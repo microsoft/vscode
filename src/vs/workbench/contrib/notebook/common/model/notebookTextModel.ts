@@ -172,7 +172,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._increaseVersionId();
 	}
 
-	$applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], emitToExtHost: boolean, synchronous: boolean): boolean {
+	$applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], synchronous: boolean): boolean {
 		if (modelVersionId !== this._versionId) {
 			return false;
 		}
@@ -233,22 +233,20 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return [diff.start, diff.deleteCount, diff.toInsert] as [number, number, NotebookCellTextModel[]];
 		});
 
-		if (emitToExtHost) {
-			this._onDidModelChangeProxy.fire({
-				kind: NotebookCellsChangeType.ModelChange,
-				versionId: this._versionId,
-				changes: diffs.map(diff => [diff[0], diff[1], diff[2].map(cell => ({
-					handle: cell.handle,
-					uri: cell.uri,
-					source: cell.textBuffer.getLinesContent(),
-					eol: cell.textBuffer.getEOL(),
-					language: cell.language,
-					cellKind: cell.cellKind,
-					outputs: cell.outputs,
-					metadata: cell.metadata
-				}))] as [number, number, IMainCellDto[]])
-			});
-		}
+		this._onDidModelChangeProxy.fire({
+			kind: NotebookCellsChangeType.ModelChange,
+			versionId: this._versionId,
+			changes: diffs.map(diff => [diff[0], diff[1], diff[2].map(cell => ({
+				handle: cell.handle,
+				uri: cell.uri,
+				source: cell.textBuffer.getLinesContent(),
+				eol: cell.textBuffer.getEOL(),
+				language: cell.language,
+				cellKind: cell.cellKind,
+				outputs: cell.outputs,
+				metadata: cell.metadata
+			}))] as [number, number, IMainCellDto[]])
+		});
 
 		const undoDiff = diffs.map(diff => {
 			const deletedCells = this.cells.slice(diff[0], diff[0] + diff[1]);

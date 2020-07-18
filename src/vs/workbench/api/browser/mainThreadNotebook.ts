@@ -55,14 +55,14 @@ export class MainThreadNotebookDocument extends Disposable {
 		}));
 	}
 
-	async applyEdit(modelVersionId: number, edits: ICellEditOperation[], emitToExtHost: boolean, synchronous: boolean): Promise<boolean> {
+	async applyEdit(modelVersionId: number, edits: ICellEditOperation[], synchronous: boolean): Promise<boolean> {
 		await this.notebookService.transformEditsOutputs(this.textModel, edits);
 		if (synchronous) {
-			return this._textModel.$applyEdit(modelVersionId, edits, emitToExtHost, synchronous);
+			return this._textModel.$applyEdit(modelVersionId, edits, synchronous);
 		} else {
 			return new Promise(resolve => {
 				this._register(DOM.scheduleAtNextAnimationFrame(() => {
-					const ret = this._textModel.$applyEdit(modelVersionId, edits, emitToExtHost, true);
+					const ret = this._textModel.$applyEdit(modelVersionId, edits, true);
 					resolve(ret);
 				}));
 			});
@@ -594,7 +594,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 				await mainthreadNotebook.applyEdit(mainthreadNotebook.textModel.versionId, [
 					{ editType: CellEditType.Delete, count: mainthreadNotebook.textModel.cells.length, index: 0 },
 					{ editType: CellEditType.Insert, index: 0, cells: data.cells }
-				], true, false);
+				], false);
 			}
 			return mainthreadNotebook.textModel;
 		}
@@ -653,7 +653,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		let mainthreadNotebook = this._mapping.get(URI.from(resource).toString());
 
 		if (mainthreadNotebook) {
-			return await mainthreadNotebook.applyEdit(modelVersionId, edits, true, true);
+			return await mainthreadNotebook.applyEdit(modelVersionId, edits, true);
 		}
 
 		return false;
