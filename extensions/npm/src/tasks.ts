@@ -9,8 +9,8 @@ import {
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as minimatch from 'minimatch';
 import * as nls from 'vscode-nls';
+import minimatch from 'minimatch';
 import { JSONVisitor, visit, ParseErrorCode } from 'jsonc-parser';
 import preferredPM from 'preferred-pm';
 
