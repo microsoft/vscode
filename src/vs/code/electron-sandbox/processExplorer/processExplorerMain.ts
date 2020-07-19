@@ -275,7 +275,7 @@ class ProcessExplorer {
 		tableHead.innerHTML = `<tr>
 			<th scope="col" class="cpu">${localize('cpu', "CPU %")}</th>
 			<th scope="col" class="memory">${localize('memory', "Memory (MB)")}</th>
-			<th scope="col" class="pid">${localize('pid', "pid")}</th>
+			<th scope="col" class="pid">${localize('pid', "PID")}</th>
 			<th scope="col" class="nameLabel">${localize('name', "Name")}</th>
 		</tr>`;
 

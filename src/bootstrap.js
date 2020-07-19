@@ -16,7 +16,11 @@
 
 	// Browser
 	else {
-		globalThis.MonacoBootstrap = factory();
+		try {
+			globalThis.MonacoBootstrap = factory();
+		} catch (error) {
+			console.warn(error); // expected when e.g. running with sandbox: true (TODO@sandbox eventually consolidate this)
+		}
 	}
 }(this, function () {
 	const Module = require('module');
@@ -39,20 +43,9 @@
 
 	//#region Add support for using node_modules.asar
 
-	/**
-	 * @param {string=} nodeModulesPath
-	 */
-	function enableASARSupport(nodeModulesPath) {
-		let NODE_MODULES_PATH = nodeModulesPath;
-		if (!NODE_MODULES_PATH) {
-			NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
-		} else {
-			// use the drive letter casing of __dirname
-			if (process.platform === 'win32') {
-				NODE_MODULES_PATH = __dirname.substr(0, 1) + NODE_MODULES_PATH.substr(1);
-			}
-		}
-
+	function enableASARSupport() {
+		const appRoot = path.dirname(__dirname);
+		const NODE_MODULES_PATH = path.join(appRoot, 'node_modules');
 		const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
 
 		// @ts-ignore
@@ -83,7 +76,7 @@
 	 * @param {string} _path
 	 * @returns {string}
 	 */
-	function uriFromPath(_path) {
+	function fileUriFromPath(_path) {
 		let pathName = path.resolve(_path).replace(/\\/g, '/');
 		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
 			pathName = `/${pathName}`;
@@ -132,7 +125,7 @@
 				}
 
 				const bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, `${bundle.replace(/\//g, '!')}.nls.json`);
-				readFile(bundleFile).then(function (content) {
+				fs.promises.readFile(bundleFile, 'utf8').then(function (content) {
 					const json = JSON.parse(content);
 					bundles[bundle] = json;
 
@@ -140,7 +133,7 @@
 				}).catch((error) => {
 					try {
 						if (nlsConfig._corruptedFile) {
-							writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+							fs.promises.writeFile(nlsConfig._corruptedFile, 'corrupted', 'utf8').catch(function (error) { console.error(error); });
 						}
 					} finally {
 						cb(error, undefined);
@@ -150,23 +143,6 @@
 		}
 
 		return nlsConfig;
-	}
-
-	/**
-	 * @param {string} file
-	 * @returns {Promise<string>}
-	 */
-	function readFile(file) {
-		return fs.promises.readFile(file, 'utf8');
-	}
-
-	/**
-	 * @param {string} file
-	 * @param {string} content
-	 * @returns {Promise<void>}
-	 */
-	function writeFile(file, content) {
-		return fs.promises.writeFile(file, content, 'utf8');
 	}
 
 	//#endregion
@@ -254,6 +230,6 @@
 		avoidMonkeyPatchFromAppInsights,
 		configurePortable,
 		setupNLS,
-		uriFromPath
+		fileUriFromPath
 	};
 }));
