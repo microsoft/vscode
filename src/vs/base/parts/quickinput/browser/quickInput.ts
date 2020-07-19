@@ -27,8 +27,9 @@ import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/lis
 import { List, IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Color } from 'vs/base/common/color';
-import { registerIcon, Codicon } from 'vs/base/common/codicons';
+import { registerIcon, Codicon, renderCodicons } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { escape } from 'vs/base/common/strings';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -962,10 +963,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			}
 		}
 		if (this.validationMessage) {
-			this.ui.message.textContent = this.validationMessage;
+			this.ui.message.innerHTML = renderCodicons(escape(this.validationMessage));
 			this.showMessageDecoration(Severity.Error);
 		} else {
-			this.ui.message.textContent = null;
+			this.ui.message.innerHTML = '';
 			this.showMessageDecoration(Severity.Ignore);
 		}
 		this.ui.customButton.label = this.customLabel || '';
@@ -1097,14 +1098,11 @@ class InputBox extends QuickInput implements IInputBox {
 		if (this.ui.inputBox.password !== this.password) {
 			this.ui.inputBox.password = this.password;
 		}
-		if (!this.validationMessage && this.ui.message.textContent !== this.noValidationMessage) {
-			this.ui.message.textContent = this.noValidationMessage;
-			this.showMessageDecoration(Severity.Ignore);
+		let messageInnerHtml = renderCodicons(escape(this.validationMessage || this.noValidationMessage));
+		if (this.ui.message.innerHTML !== messageInnerHtml) {
+			this.ui.message.innerHTML = messageInnerHtml;
 		}
-		if (this.validationMessage && this.ui.message.textContent !== this.validationMessage) {
-			this.ui.message.textContent = this.validationMessage;
-			this.showMessageDecoration(Severity.Error);
-		}
+		this.showMessageDecoration(this.validationMessage ? Severity.Error : Severity.Ignore);
 	}
 }
 
@@ -1528,7 +1526,7 @@ export class QuickInputController extends Disposable {
 		ui.inputBox.showDecoration(Severity.Ignore);
 		ui.visibleCount.setCount(0);
 		ui.count.setCount(0);
-		ui.message.textContent = '';
+		ui.message.innerHTML = '';
 		ui.progressBar.stop();
 		ui.list.setElements([]);
 		ui.list.matchOnDescription = false;
