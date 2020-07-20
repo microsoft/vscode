@@ -97,7 +97,7 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		this.syncTriggerDelayer = this._register(new Delayer<void>(0));
 
 		if (userDataSyncStoreService.userDataSyncStore) {
-			this.updateAutoSync();
+			this.updateAutoSync(true);
 			if (this.hasToDisableMachineEventually()) {
 				this.disableMachineEventually();
 			}
@@ -108,7 +108,7 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		}
 	}
 
-	private updateAutoSync(): void {
+	private updateAutoSync(init?: boolean): void {
 		const { enabled, message } = this.isAutoSyncEnabled();
 		if (enabled) {
 			if (this.autoSync.value === undefined) {
@@ -126,6 +126,11 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 					this.logService.info(message);
 				}
 				this.autoSync.clear();
+			}
+
+			/* log message when auto sync is disabled during start up or when auto sync is not disabled by user */
+			else if (message && (init || this.isEnabled())) {
+				this.logService.info(message);
 			}
 		}
 	}
