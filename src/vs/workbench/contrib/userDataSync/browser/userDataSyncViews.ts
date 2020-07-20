@@ -67,7 +67,7 @@ export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
 	getSecondaryActions(): IAction[] {
 		return [
-			new Action('workbench.actions.syncData.reset', localize('workbench.actions.syncData.reset', "Reset Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
+			new Action('workbench.actions.syncData.reset', localize('workbench.actions.syncData.reset', "Clear Data in Cloud..."), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
 		];
 	}
 

@@ -308,10 +308,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			case UserDataSyncErrorCode.IncompatibleRemoteContent:
 				this.notificationService.notify({
 					severity: Severity.Error,
-					message: localize('error reset required', "Preferences sync is disabled because your data in the cloud is older than that of the client. Please reset your data in the cloud before turning on sync."),
+					message: localize('error reset required', "Preferences sync is disabled because your data in the cloud is older than that of the client. Please clear your data in the cloud before turning on sync."),
 					actions: {
 						primary: [
-							new Action('reset', localize('reset', "Reset Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
+							new Action('reset', localize('reset', "Clear Data in Cloud..."), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
 							new Action('show synced data', localize('show synced data action', "Show Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.showSyncActivity())
 						]
 					}
@@ -464,10 +464,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					case UserDataSyncErrorCode.IncompatibleRemoteContent:
 						this.notificationService.notify({
 							severity: Severity.Error,
-							message: localize('error reset required while starting sync', "Preferences sync cannot be turned on because your data in the cloud is older than that of in the client. Please reset your data in the cloud before turning on sync."),
+							message: localize('error reset required while starting sync', "Preferences sync cannot be turned on because your data in the cloud is older than that of the client. Please clear your data in the cloud before turning on sync."),
 							actions: {
 								primary: [
-									new Action('reset', localize('reset', "Reset Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
+									new Action('reset', localize('reset', "Clear Data in Cloud..."), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
 									new Action('show synced data', localize('show synced data action', "Show Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.showSyncActivity())
 								]
 							}

@@ -355,8 +355,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 	async resetSyncedData(): Promise<void> {
 		const result = await this.dialogService.confirm({
-			message: localize('reset', "This will clear your synced data from the cloud and stop sync on all your devices."),
-			title: localize('reset title', "Reset Synced Data"),
+			message: localize('reset', "This will clear your data in the cloud and stop sync on all your devices."),
+			title: localize('reset title', "Clear"),
 			type: 'info',
 			primaryButton: localize('reset button', "Reset"),
 		});
