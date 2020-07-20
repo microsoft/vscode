@@ -14,7 +14,6 @@ import { ILogDirectoryProvider } from './logDirectoryProvider';
 import Logger from '../utils/logger';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
-import { ChildServerProcess } from '../utils/serverProcess';
 import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
@@ -149,7 +148,7 @@ export class TypeScriptServerSpawner {
 
 		return new ProcessBasedTsServer(
 			kind,
-			new ChildServerProcess(childProcess),
+			process,
 			tsServerLogFile,
 			canceller,
 			version,
