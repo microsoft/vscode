@@ -23,9 +23,10 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { CellLanguageStatusBarItem, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { IMenu } from 'vs/platform/actions/common/actions';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -65,6 +66,13 @@ export interface NotebookLayoutChangeEvent {
 	fontInfo?: boolean;
 }
 
+export enum CodeCellLayoutState {
+	Uninitialized,
+	Estimated,
+	FromCache,
+	Measured
+}
+
 export interface CodeCellLayoutInfo {
 	readonly fontInfo: BareFontInfo | null;
 	readonly editorHeight: number;
@@ -74,6 +82,7 @@ export interface CodeCellLayoutInfo {
 	readonly outputTotalHeight: number;
 	readonly indicatorHeight: number;
 	readonly bottomToolbarOffset: number;
+	readonly layoutState: CodeCellLayoutState;
 }
 
 export interface CodeCellLayoutChangeEvent {
@@ -171,7 +180,8 @@ export interface INotebookEditor extends IEditor {
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
 	isNotebookEditor: boolean;
-	activeKernel: INotebookKernelInfo | undefined;
+	activeKernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined;
+	multipleKernelsAvailable: boolean;
 	readonly onDidChangeKernel: Event<void>;
 
 	isDisposed: boolean;
@@ -451,6 +461,7 @@ export interface BaseCellRenderTemplate {
 	currentRenderedCell?: ICellViewModel;
 	statusBarContainer: HTMLElement;
 	languageStatusBarItem: CellLanguageStatusBarItem;
+	titleMenu: IMenu;
 	toJSON: () => object;
 }
 

@@ -755,9 +755,23 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
-			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, { fileKind: this.getFileKind(node), title, hideIcon: !!iconUrl, fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches: matches ? matches : createMatches(element.filterData) });
+			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, {
+				fileKind: this.getFileKind(node),
+				title,
+				hideIcon: !!iconUrl,
+				fileDecorations,
+				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
+				matches: matches ? matches : createMatches(element.filterData),
+				strikethrough: treeItemLabel?.strikethrough,
+			});
 		} else {
-			templateData.resourceLabel.setResource({ name: label, description }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches: matches ? matches : createMatches(element.filterData) });
+			templateData.resourceLabel.setResource({ name: label, description }, {
+				title,
+				hideIcon: true,
+				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
+				matches: matches ? matches : createMatches(element.filterData),
+				strikethrough: treeItemLabel?.strikethrough,
+			});
 		}
 
 		templateData.icon.title = title ? title : '';
@@ -788,7 +802,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private setupHovers(node: ITreeItem, htmlElement: HTMLElement, disposableStore: DisposableStore, label: string | undefined): void {
-		if ((node.tooltip && isString(node.tooltip)) || !(node instanceof ResolvableTreeItem) || !node.hasResolve) {
+		if (!(node instanceof ResolvableTreeItem) || (node.tooltip && isString(node.tooltip)) || (!node.tooltip && !node.hasResolve)) {
 			return;
 		}
 		const resolvableNode: ResolvableTreeItem = node;

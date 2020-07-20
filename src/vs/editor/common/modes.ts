@@ -1428,6 +1428,14 @@ export interface AuthenticationSessionsChangeEvent {
 	changed: ReadonlyArray<string>;
 }
 
+/**
+ * @internal
+ */
+export interface AuthenticationProviderInformation {
+	id: string;
+	label: string;
+}
+
 export interface Command {
 	id: string;
 	title: string;

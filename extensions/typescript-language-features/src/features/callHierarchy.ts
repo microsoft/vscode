@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import * as typeConverters from '../utils/typeConverters';
-import API from '../utils/api';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
-import type * as Proto from '../protocol';
 import * as path from 'path';
+import * as vscode from 'vscode';
+import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
+import { conditionalRegistration, requireMinVersion } from '../utils/dependentRegistration';
 import { parseKindModifier } from '../utils/modifiers';
+import * as typeConverters from '../utils/typeConverters';
 
 namespace Experimental {
 	export interface CallHierarchyItem extends Proto.CallHierarchyItem {
@@ -120,7 +120,10 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient
 ) {
-	return new VersionDependentRegistration(client, TypeScriptCallHierarchySupport.minVersion,
-		() => vscode.languages.registerCallHierarchyProvider(selector,
-			new TypeScriptCallHierarchySupport(client)));
+	return conditionalRegistration([
+		requireMinVersion(client, TypeScriptCallHierarchySupport.minVersion),
+	], () => {
+		return vscode.languages.registerCallHierarchyProvider(selector,
+			new TypeScriptCallHierarchySupport(client));
+	});
 }

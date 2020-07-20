@@ -17,6 +17,8 @@ import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, 
 import { IFileWatcher, watch } from './watch';
 import { Log, LogLevel } from './log';
 import { IRemoteSourceProviderRegistry } from './remoteProvider';
+import { IPushErrorHandlerRegistry } from './pushError';
+import { ApiRepository } from './api/api1';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -683,6 +685,7 @@ export class Repository implements Disposable {
 	constructor(
 		private readonly repository: BaseRepository,
 		remoteSourceProviderRegistry: IRemoteSourceProviderRegistry,
+		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
 		globalState: Memento,
 		outputChannel: OutputChannel
 	) {
@@ -1181,15 +1184,15 @@ export class Repository implements Disposable {
 			branch = `${head.name}:${head.upstream.name}`;
 		}
 
-		await this.run(Operation.Push, () => this.repository.push(remote, branch, undefined, undefined, forcePushMode));
+		await this.run(Operation.Push, () => this._push(remote, branch, undefined, undefined, forcePushMode));
 	}
 
 	async pushTo(remote?: string, name?: string, setUpstream: boolean = false, forcePushMode?: ForcePushMode): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream, undefined, forcePushMode));
+		await this.run(Operation.Push, () => this._push(remote, name, setUpstream, undefined, forcePushMode));
 	}
 
 	async pushFollowTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true, forcePushMode));
+		await this.run(Operation.Push, () => this._push(remote, undefined, false, true, forcePushMode));
 	}
 
 	async blame(path: string): Promise<string> {
@@ -1249,7 +1252,7 @@ export class Repository implements Disposable {
 				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
 				if (shouldPush) {
-					await this.repository.push(remoteName, pushBranch);
+					await this._push(remoteName, pushBranch);
 				}
 			});
 		});
@@ -1409,6 +1412,31 @@ export class Repository implements Disposable {
 			}
 		}
 		return ignored;
+	}
+
+	private async _push(remote?: string, refspec?: string, setUpstream: boolean = false, tags = false, forcePushMode?: ForcePushMode): Promise<void> {
+		try {
+			await this.repository.push(remote, refspec, setUpstream, tags, forcePushMode);
+		} catch (err) {
+			if (!remote || !refspec) {
+				throw err;
+			}
+
+			const repository = new ApiRepository(this);
+			const remoteObj = repository.state.remotes.find(r => r.name === remote);
+
+			if (!remoteObj) {
+				throw err;
+			}
+
+			for (const handler of this.pushErrorHandlerRegistry.getPushErrorHandlers()) {
+				if (await handler.handlePushError(repository, remoteObj, refspec, err)) {
+					return;
+				}
+			}
+
+			throw err;
+		}
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {

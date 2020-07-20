@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IServerChannel, IChannel, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IUserDataSyncService, IUserDataSyncUtilService, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncUtilService, IUserDataAutoSyncService, IManualSyncTask, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
@@ -17,12 +17,11 @@ import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/use
 
 export class UserDataSyncChannel implements IServerChannel {
 
-	constructor(private readonly service: IUserDataSyncService, private readonly logService: ILogService) { }
+	constructor(private server: IPCServer, private readonly service: IUserDataSyncService, private readonly logService: ILogService) { }
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onDidChangeStatus': return this.service.onDidChangeStatus;
-			case 'onSynchronizeResource': return this.service.onSynchronizeResource;
 			case 'onDidChangeConflicts': return this.service.onDidChangeConflicts;
 			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
 			case 'onDidChangeLastSyncTime': return this.service.onDidChangeLastSyncTime;
@@ -44,13 +43,17 @@ export class UserDataSyncChannel implements IServerChannel {
 	private _call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflicts, this.service.lastSyncTime]);
+
+			case 'createManualSyncTask': return this.createManualSyncTask();
+
 			case 'pull': return this.service.pull();
 			case 'replace': return this.service.replace(URI.revive(args[0]));
 			case 'reset': return this.service.reset();
+			case 'resetRemote': return this.service.resetRemote();
 			case 'resetLocal': return this.service.resetLocal();
 			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
-			case 'isFirstTimeSyncingWithAnotherMachine': return this.service.isFirstTimeSyncingWithAnotherMachine();
-			case 'acceptPreviewContent': return this.service.acceptPreviewContent(URI.revive(args[0]), args[1]);
+			case 'hasLocalData': return this.service.hasLocalData();
+			case 'accept': return this.service.accept(args[0], URI.revive(args[1]), args[2], args[3]);
 			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
 			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0]);
 			case 'getRemoteSyncResourceHandles': return this.service.getRemoteSyncResourceHandles(args[0]);
@@ -59,6 +62,41 @@ export class UserDataSyncChannel implements IServerChannel {
 		}
 		throw new Error('Invalid call');
 	}
+
+	private async createManualSyncTask(): Promise<{ id: string, manifest: IUserDataManifest | null }> {
+		const manualSyncTask = await this.service.createManualSyncTask();
+		const manualSyncTaskChannel = new ManualSyncTaskChannel(manualSyncTask);
+		this.server.registerChannel(`manualSyncTask-${manualSyncTask.id}`, manualSyncTaskChannel);
+		return { id: manualSyncTask.id, manifest: manualSyncTask.manifest };
+	}
+}
+
+class ManualSyncTaskChannel implements IServerChannel {
+
+	constructor(private readonly manualSyncTask: IManualSyncTask) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onSynchronizeResources': return this.manualSyncTask.onSynchronizeResources;
+		}
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	async call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case 'preview': return this.manualSyncTask.preview();
+			case 'accept': return this.manualSyncTask.accept(URI.revive(args[0]), args[1]);
+			case 'merge': return this.manualSyncTask.merge(URI.revive(args[0]));
+			case 'discard': return this.manualSyncTask.discard(URI.revive(args[0]));
+			case 'apply': return this.manualSyncTask.apply();
+			case 'pull': return this.manualSyncTask.pull();
+			case 'push': return this.manualSyncTask.push();
+			case 'stop': return this.manualSyncTask.stop();
+			case 'dispose': return this.manualSyncTask.dispose();
+		}
+		throw new Error('Invalid call');
+	}
+
 }
 
 export class UserDataAutoSyncChannel implements IServerChannel {
@@ -67,8 +105,6 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
-			case 'onTurnOnSync': return this.service.onTurnOnSync;
-			case 'onDidTurnOnSync': return this.service.onDidTurnOnSync;
 			case 'onError': return this.service.onError;
 		}
 		throw new Error(`Event not found: ${event}`);
@@ -77,7 +113,7 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'triggerSync': return this.service.triggerSync(args[0], args[1]);
-			case 'turnOn': return this.service.turnOn(args[0]);
+			case 'turnOn': return this.service.turnOn();
 			case 'turnOff': return this.service.turnOff(args[0]);
 		}
 		throw new Error('Invalid call');

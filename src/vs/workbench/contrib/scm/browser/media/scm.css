@@ -36,9 +36,9 @@
 }
 
 .scm-view .scm-provider > .label {
-	display: flex;
-	flex-shrink: 1;
+	flex: 1;
 	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .scm-view .scm-provider > .label > .name {
@@ -52,8 +52,6 @@
 }
 
 .scm-view .scm-provider > .actions {
-	flex: 1;
-	padding-left: 10px;
 	overflow: hidden;
 	justify-content: flex-end;
 }
@@ -79,6 +77,11 @@
 	margin: 0;
 	background-repeat: no-repeat;
 	background-position: center;
+}
+
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label > .codicon {
+	font-size: 12px;
+	padding-right: 2px;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:last-of-type {

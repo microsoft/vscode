@@ -18,8 +18,6 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 	declare readonly _serviceBrand: undefined;
 
 	private readonly channel: IChannel;
-	get onTurnOnSync(): Event<void> { return this.channel.listen<void>('onTurnOnSync'); }
-	get onDidTurnOnSync(): Event<UserDataSyncError | undefined> { return Event.map(this.channel.listen<Error | undefined>('onDidTurnOnSync'), e => e ? UserDataSyncError.toUserDataSyncError(e) : undefined); }
 	get onError(): Event<UserDataSyncError> { return Event.map(this.channel.listen<Error>('onError'), e => UserDataSyncError.toUserDataSyncError(e)); }
 
 	constructor(
@@ -37,8 +35,8 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		return this.channel.call('triggerSync', [sources, hasToLimitSync]);
 	}
 
-	turnOn(pullFirst: boolean): Promise<void> {
-		return this.channel.call('turnOn', [pullFirst]);
+	turnOn(): Promise<void> {
+		return this.channel.call('turnOn');
 	}
 
 	turnOff(everywhere: boolean): Promise<void> {

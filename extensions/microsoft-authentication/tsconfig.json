@@ -1,13 +1,21 @@
 {
-	"extends": "../shared.tsconfig.json",
 	"compilerOptions": {
-		"outDir": "./out",
+		"baseUrl": ".",
 		"experimentalDecorators": true,
-		"typeRoots": [
-			"./node_modules/@types"
-		]
+		"forceConsistentCasingInFileNames": true,
+		"lib": ["es2019"],
+		"module": "commonjs",
+		"moduleResolution": "node",
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": false,
+		"outDir": "dist",
+		"resolveJsonModule": true,
+		"rootDir": "src",
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"target": "es2019"
 	},
-	"include": [
-		"src/**/*"
-	]
+	"exclude": ["node_modules"]
 }

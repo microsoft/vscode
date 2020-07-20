@@ -308,7 +308,9 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	setSelections(selections: Selection[]) {
-		this._textEditor?.setSelections(selections);
+		if (selections.length) {
+			this._textEditor?.setSelections(selections);
+		}
 	}
 
 	getSelections() {

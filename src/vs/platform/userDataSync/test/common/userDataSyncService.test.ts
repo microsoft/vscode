@@ -91,17 +91,9 @@ suite('UserDataSyncService', () => {
 
 		// Sync (pull) from the test client
 		target.reset();
-		await testObject.isFirstTimeSyncingWithAnotherMachine();
 		await testObject.pull();
 
 		assert.deepEqual(target.requests, [
-			/* first time sync */
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
-			/* pull */
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
@@ -131,14 +123,9 @@ suite('UserDataSyncService', () => {
 
 		// Sync (pull) from the test client
 		target.reset();
-		await testObject.isFirstTimeSyncingWithAnotherMachine();
 		await testObject.pull();
 
 		assert.deepEqual(target.requests, [
-			/* first time sync */
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
-			/* pull */
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
@@ -163,17 +150,9 @@ suite('UserDataSyncService', () => {
 
 		// Sync (merge) from the test client
 		target.reset();
-		await testObject.isFirstTimeSyncingWithAnotherMachine();
 		await (await testObject.createSyncTask()).run();
 
 		assert.deepEqual(target.requests, [
-			/* first time sync */
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
-			/* sync */
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
@@ -205,15 +184,9 @@ suite('UserDataSyncService', () => {
 
 		// Sync (merge) from the test client
 		target.reset();
-		await testObject.isFirstTimeSyncingWithAnotherMachine();
 		await (await testObject.createSyncTask()).run();
 
 		assert.deepEqual(target.requests, [
-			/* first time sync */
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
-
-			/* first time sync */
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
@@ -420,7 +393,7 @@ suite('UserDataSyncService', () => {
 		await (await testObject.createSyncTask()).run();
 
 		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
-		assert.deepEqual(testObject.conflicts.map(({ syncResource }) => syncResource), [SyncResource.Settings]);
+		assert.deepEqual(testObject.conflicts.map(([syncResource]) => syncResource), [SyncResource.Settings]);
 	});
 
 	test('test sync will sync other non conflicted areas', async () => {

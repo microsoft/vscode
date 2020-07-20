@@ -613,6 +613,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $registerTaskSystem(key: string, info: TaskSystemInfoDTO): void {
 		let platform: Platform.Platform;
 		switch (info.platform) {
+			case 'Web':
+				platform = Platform.Platform.Web;
+				break;
 			case 'win32':
 				platform = Platform.Platform.Windows;
 				break;
@@ -668,6 +671,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 			},
 			getDefaultShellAndArgs: (): Promise<{ shell: string, args: string[] | string | undefined }> => {
 				return Promise.resolve(this._proxy.$getDefaultShellAndArgs());
+			},
+			findExecutable: (command: string, cwd?: string, paths?: string[]): Promise<string | undefined> => {
+				return this._proxy.$findExecutable(command, cwd, paths);
 			}
 		});
 	}
