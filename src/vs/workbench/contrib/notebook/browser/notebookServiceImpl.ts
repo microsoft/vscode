@@ -338,8 +338,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					resolve: async (uri: URI, editorId: string, token: CancellationToken) => {
 						return provider.resolveKernel(editorId, uri, dto.id, token);
 					},
-					executeNotebookCell: async (uri: URI, handle: number | undefined, token: CancellationToken) => {
-						return provider.executeNotebook(uri, dto.id, handle, token);
+					executeNotebookCell: async (uri: URI, handle: number | undefined) => {
+						return provider.executeNotebook(uri, dto.id, handle);
 					}
 				};
 			});
@@ -679,34 +679,51 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this.notebookRenderersInfoStore.getContributedRenderer(mimeType);
 	}
 
-	async executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
+	async executeNotebook(viewType: string, uri: URI): Promise<void> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			return provider.controller.executeNotebookByAttachedKernel(viewType, uri, token);
+			return provider.controller.executeNotebookByAttachedKernel(viewType, uri);
 		}
 
 		return;
 	}
 
-	async executeNotebookCell(viewType: string, uri: URI, handle: number, token: CancellationToken): Promise<void> {
+	async executeNotebookCell(viewType: string, uri: URI, handle: number): Promise<void> {
 		const provider = this._notebookProviders.get(viewType);
 		if (provider) {
-			await provider.controller.executeNotebookCell(uri, handle, token);
+			await provider.controller.executeNotebookCell(uri, handle);
 		}
 	}
 
-	async executeNotebook2(viewType: string, uri: URI, kernelId: string, token: CancellationToken): Promise<void> {
-		const kernel = this._notebookKernels.get(kernelId);
-		if (kernel) {
-			await kernel.executeNotebook(viewType, uri, undefined, token);
+	async cancelNotebook(viewType: string, uri: URI): Promise<void> {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			return provider.controller.cancelNotebookByAttachedKernel(viewType, uri);
+		}
+
+		return;
+	}
+
+	async cancelNotebookCell(viewType: string, uri: URI, handle: number): Promise<void> {
+		const provider = this._notebookProviders.get(viewType);
+		if (provider) {
+			await provider.controller.cancelNotebookCell(uri, handle);
 		}
 	}
 
-	async executeNotebookCell2(viewType: string, uri: URI, handle: number, kernelId: string, token: CancellationToken): Promise<void> {
+	async executeNotebook2(viewType: string, uri: URI, kernelId: string): Promise<void> {
 		const kernel = this._notebookKernels.get(kernelId);
 		if (kernel) {
-			await kernel.executeNotebook(viewType, uri, handle, token);
+			await kernel.executeNotebook(viewType, uri, undefined);
+		}
+	}
+
+	async executeNotebookCell2(viewType: string, uri: URI, handle: number, kernelId: string): Promise<void> {
+		const kernel = this._notebookKernels.get(kernelId);
+		if (kernel) {
+			await kernel.executeNotebook(viewType, uri, handle);
 		}
 	}
 

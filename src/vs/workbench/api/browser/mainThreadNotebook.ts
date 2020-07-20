@@ -467,8 +467,11 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			resolveNotebookEditor: async (viewType: string, uri: URI, editorId: string) => {
 				await this._proxy.$resolveNotebookEditor(viewType, uri, editorId);
 			},
-			executeNotebookByAttachedKernel: async (viewType: string, uri: URI, token: CancellationToken) => {
-				return this.executeNotebookByAttachedKernel(viewType, uri, token);
+			executeNotebookByAttachedKernel: async (viewType: string, uri: URI) => {
+				return this.executeNotebookByAttachedKernel(viewType, uri);
+			},
+			cancelNotebookByAttachedKernel: async (viewType: string, uri: URI) => {
+				return this.cancelNotebookByAttachedKernel(viewType, uri);
 			},
 			onDidReceiveMessage: (editorId: string, rendererType: string | undefined, message: unknown) => {
 				this._proxy.$onDidReceiveMessage(editorId, rendererType, message);
@@ -476,8 +479,11 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			removeNotebookDocument: async (uri: URI) => {
 				return this.removeNotebookTextModel(uri);
 			},
-			executeNotebookCell: async (uri: URI, handle: number, token: CancellationToken) => {
-				return this._proxy.$executeNotebookByAttachedKernel(_viewType, uri, handle, token);
+			executeNotebookCell: async (uri: URI, handle: number) => {
+				return this._proxy.$executeNotebookByAttachedKernel(_viewType, uri, handle);
+			},
+			cancelNotebookCell: async (uri: URI, handle: number) => {
+				return this._proxy.$cancelNotebookByAttachedKernel(_viewType, uri, handle);
 			},
 			save: async (uri: URI, token: CancellationToken) => {
 				return this._proxy.$saveNotebook(_viewType, uri, token);
@@ -537,8 +543,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			resolveKernel: (editorId: string, uri: URI, kernelId: string, token: CancellationToken) => {
 				return that._proxy.$resolveNotebookKernel(handle, editorId, uri, kernelId, token);
 			},
-			executeNotebook: (uri: URI, kernelId: string, cellHandle: number | undefined, token: CancellationToken) => {
-				return that._proxy.$executeNotebookKernelFromProvider(handle, uri, kernelId, cellHandle, token);
+			executeNotebook: (uri: URI, kernelId: string, cellHandle: number | undefined) => {
+				return that._proxy.$executeNotebookKernelFromProvider(handle, uri, kernelId, cellHandle);
 			}
 		});
 		this._notebookKernelProviders.set(handle, {
@@ -590,8 +596,12 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 	}
 
-	async executeNotebookByAttachedKernel(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
-		return this._proxy.$executeNotebookByAttachedKernel(viewType, uri, undefined, token);
+	async executeNotebookByAttachedKernel(viewType: string, uri: URI): Promise<void> {
+		return this._proxy.$executeNotebookByAttachedKernel(viewType, uri, undefined);
+	}
+
+	async cancelNotebookByAttachedKernel(viewType: string, uri: URI): Promise<void> {
+		return this._proxy.$cancelNotebookByAttachedKernel(viewType, uri, undefined);
 	}
 
 	async $postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean> {
@@ -634,8 +644,8 @@ export class MainThreadNotebookKernel implements INotebookKernelInfo {
 	) {
 	}
 
-	async executeNotebook(viewType: string, uri: URI, handle: number | undefined, token: CancellationToken): Promise<void> {
-		return this._proxy.$executeNotebook2(this.id, viewType, uri, handle, token);
+	async executeNotebook(viewType: string, uri: URI, handle: number | undefined): Promise<void> {
+		return this._proxy.$executeNotebook2(this.id, viewType, uri, handle);
 	}
 }
 

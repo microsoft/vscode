@@ -8,7 +8,6 @@ import { IListEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
@@ -117,7 +116,6 @@ export interface ICellViewModel {
 	language: string;
 	cellKind: CellKind;
 	editState: CellEditState;
-	currentTokenSource: CancellationTokenSource | undefined;
 	focusMode: CellFocusMode;
 	getText(): string;
 	getTextLength(): number;
