@@ -11,7 +11,7 @@ import * as fileSchemes from './utils/fileSchemes';
 import { standardLanguageDescriptions } from './utils/languageDescription';
 import * as ProjectStatus from './utils/largeProjectStatus';
 import { lazy, Lazy } from './utils/lazy';
-import LogDirectoryProvider from './utils/logDirectoryProvider';
+import { ILogDirectoryProvider } from './utils/logDirectoryProvider';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { PluginManager } from './utils/plugins';
 
@@ -19,7 +19,7 @@ export function createLazyClientHost(
 	context: vscode.ExtensionContext,
 	pluginManager: PluginManager,
 	commandManager: CommandManager,
-	logDirectoryProvider: LogDirectoryProvider,
+	logDirectoryProvider: ILogDirectoryProvider,
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
 	return lazy(() => {

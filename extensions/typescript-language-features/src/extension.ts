@@ -5,6 +5,7 @@
 
 import * as rimraf from 'rimraf';
 import * as vscode from 'vscode';
+import { NodeLogDirectoryProvider } from './utils/logDirectoryProvider.electron';
 import { Api, getExtensionApi } from './api';
 import { registerCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
@@ -12,7 +13,6 @@ import * as task from './features/task';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { CommandManager } from './utils/commandManager';
 import * as electron from './utils/electron';
-import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { PluginManager } from './utils/plugins';
 
 export function activate(
@@ -27,7 +27,7 @@ export function activate(
 	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
 	context.subscriptions.push(onCompletionAccepted);
 
-	const logDirectoryProvider = new LogDirectoryProvider(context);
+	const logDirectoryProvider = new NodeLogDirectoryProvider(context);
 
 	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, logDirectoryProvider, item => {
 		onCompletionAccepted.fire(item);

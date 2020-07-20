@@ -9,7 +9,7 @@ import { ClientCapabilities, ClientCapability } from '../typescriptService';
 import API from '../utils/api';
 import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import * as electron from '../utils/electron';
-import LogDirectoryProvider from '../utils/logDirectoryProvider';
+import { ILogDirectoryProvider } from '../utils/logDirectoryProvider';
 import Logger from '../utils/logger';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
@@ -43,7 +43,7 @@ const enum CompositeServerType {
 export class TypeScriptServerSpawner {
 	public constructor(
 		private readonly _versionProvider: TypeScriptVersionProvider,
-		private readonly _logDirectoryProvider: LogDirectoryProvider,
+		private readonly _logDirectoryProvider: ILogDirectoryProvider,
 		private readonly _pluginPathsProvider: TypeScriptPluginPathsProvider,
 		private readonly _logger: Logger,
 		private readonly _telemetryReporter: TelemetryReporter,

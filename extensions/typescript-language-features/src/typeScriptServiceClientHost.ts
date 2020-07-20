@@ -9,6 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 
 import * as vscode from 'vscode';
+import { ILogDirectoryProvider } from './utils/logDirectoryProvider';
 import { DiagnosticKind } from './features/diagnostics';
 import FileConfigurationManager from './features/fileConfigurationManager';
 import LanguageProvider from './languageProvider';
@@ -20,7 +21,6 @@ import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
 import * as errorCodes from './utils/errorCodes';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
-import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
@@ -60,7 +60,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		workspaceState: vscode.Memento,
 		pluginManager: PluginManager,
 		private readonly commandManager: CommandManager,
-		logDirectoryProvider: LogDirectoryProvider,
+		logDirectoryProvider: ILogDirectoryProvider,
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
 		super();

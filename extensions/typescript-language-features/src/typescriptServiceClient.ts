@@ -20,7 +20,7 @@ import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
-import LogDirectoryProvider from './utils/logDirectoryProvider';
+import { ILogDirectoryProvider } from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
@@ -124,7 +124,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	constructor(
 		private readonly workspaceState: vscode.Memento,
 		public readonly pluginManager: PluginManager,
-		private readonly logDirectoryProvider: LogDirectoryProvider,
+		private readonly logDirectoryProvider: ILogDirectoryProvider,
 		allModeIds: readonly string[]
 	) {
 		super();
