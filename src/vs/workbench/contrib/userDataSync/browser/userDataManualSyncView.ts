@@ -285,16 +285,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		this.syncButton.label = localize('turning on', "Turning on...");
 		this.syncButton.enabled = false;
 		this.cancelButton.enabled = false;
-		return this.withProgress(async () => {
-			for (const resource of this.userDataSyncPreview.resources) {
-				if (resource.syncResource === SyncResource.GlobalState) {
-					await this.userDataSyncPreview.merge(resource.merged);
-				} else {
-					this.close(resource);
-				}
-			}
-			await this.userDataSyncPreview.apply();
-		});
+		return this.withProgress(async () => this.userDataSyncPreview.apply());
 	}
 
 	private async cancel(): Promise<void> {
