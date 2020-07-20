@@ -9,7 +9,8 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
-import { conditionalRegistration, requireCapability, requireMinVersion } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireSomeCapability, requireMinVersion } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
 
 
 const minTypeScriptVersion = API.fromVersionString(`${VersionRequirement.major}.${VersionRequirement.minor}`);
@@ -17,15 +18,18 @@ const minTypeScriptVersion = API.fromVersionString(`${VersionRequirement.major}.
 // as we don't do deltas, for performance reasons, don't compute semantic tokens for documents above that limit
 const CONTENT_LENGTH_LIMIT = 100000;
 
-export function register(selector: vscode.DocumentSelector, client: ITypeScriptServiceClient) {
+export function register(
+	selector: DocumentSelector,
+	client: ITypeScriptServiceClient,
+) {
 	return conditionalRegistration([
 		requireMinVersion(client, minTypeScriptVersion),
-		requireCapability(client, ClientCapability.Semantic),
+		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		const provider = new DocumentSemanticTokensProvider(client);
 		return vscode.Disposable.from(
 			// register only as a range provider
-			vscode.languages.registerDocumentRangeSemanticTokensProvider(selector, provider, provider.getLegend()),
+			vscode.languages.registerDocumentRangeSemanticTokensProvider(selector.semantic, provider, provider.getLegend()),
 		);
 	});
 }

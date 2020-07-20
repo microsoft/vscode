@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const file = 'file';
-export const untitled = 'untitled';
-export const git = 'git';
-export const walkThroughSnippet = 'walkThroughSnippet';
+import * as vscode from 'vscode';
 
-export const semanticSupportedSchemes = [
-	file,
-	untitled,
-];
+export interface DocumentSelector {
+	/**
+	 * Selector for files which only require a basic syntax server.
+	 */
+	readonly syntax: vscode.DocumentFilter[];
+
+	/**
+	 * Selector for files which require semantic server support.
+	 */
+	readonly semantic: vscode.DocumentFilter[];
+}

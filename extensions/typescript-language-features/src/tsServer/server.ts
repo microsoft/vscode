@@ -16,6 +16,10 @@ import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion } from '../utils/versionProvider';
 
+export enum ExectuionTarget {
+	Semantic,
+	Syntax
+}
 
 export interface ITypeScriptServer {
 	readonly onEvent: vscode.Event<Proto.Event>;
@@ -26,9 +30,9 @@ export interface ITypeScriptServer {
 
 	kill(): void;
 
-	executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
-	executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
-	executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined;
+	executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean, executionTarget?: ExectuionTarget }): undefined;
+	executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, executionTarget?: ExectuionTarget }): Promise<ServerResponse.Response<Proto.Response>>;
+	executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, executionTarget?: ExectuionTarget }): Promise<ServerResponse.Response<Proto.Response>> | undefined;
 
 	dispose(): void;
 }
@@ -172,9 +176,9 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		}
 	}
 
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
+	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean, executionTarget?: ExectuionTarget }): undefined;
+	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, executionTarget?: ExectuionTarget }): Promise<ServerResponse.Response<Proto.Response>>;
+	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, executionTarget?: ExectuionTarget }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
 		const request = this._requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request,
@@ -272,6 +276,14 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 }
 
 
+interface ExecuteInfo {
+	readonly isAsync: boolean;
+	readonly token?: vscode.CancellationToken;
+	readonly expectsResult: boolean;
+	readonly lowPriority?: boolean;
+	readonly executionTarget?: ExectuionTarget;
+}
+
 class RequestRouter {
 
 	private static readonly sharedCommands = new Set<keyof TypeScriptRequests>([
@@ -284,13 +296,16 @@ class RequestRouter {
 	]);
 
 	constructor(
-		private readonly servers: ReadonlyArray<{ readonly server: ITypeScriptServer, canRun?(command: keyof TypeScriptRequests): void }>,
+		private readonly servers: ReadonlyArray<{
+			readonly server: ITypeScriptServer;
+			canRun?(command: keyof TypeScriptRequests, executeInfo: ExecuteInfo): void;
+		}>,
 		private readonly delegate: TsServerDelegate,
 	) { }
 
-	public execute(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
-		if (RequestRouter.sharedCommands.has(command)) {
-			// Dispatch shared commands to all server but only return from first one one
+	public execute(command: keyof TypeScriptRequests, args: any, executeInfo: ExecuteInfo): Promise<ServerResponse.Response<Proto.Response>> | undefined {
+		if (RequestRouter.sharedCommands.has(command) && typeof executeInfo.executionTarget === 'undefined') {
+			// Dispatch shared commands to all servers but only return from first one
 
 			const requestStates: RequestState.State[] = this.servers.map(() => RequestState.Unresolved);
 
@@ -344,7 +359,7 @@ class RequestRouter {
 		}
 
 		for (const { canRun, server } of this.servers) {
-			if (!canRun || canRun(command)) {
+			if (!canRun || canRun(command, executeInfo)) {
 				return server.executeImpl(command, args, executeInfo);
 			}
 		}
@@ -420,9 +435,9 @@ export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServ
 		this.mainServer.kill();
 	}
 
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
+	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean, executionTarget?: ExectuionTarget }): undefined;
+	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, executionTarget?: ExectuionTarget }): Promise<ServerResponse.Response<Proto.Response>>;
+	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, executionTarget?: ExectuionTarget }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
 		return this.router.execute(command, args, executeInfo);
 	}
 }
@@ -490,7 +505,12 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 			[
 				{
 					server: this.syntaxServer,
-					canRun: (command) => {
+					canRun: (command, execInfo) => {
+						switch (execInfo.executionTarget) {
+							case ExectuionTarget.Semantic: return false;
+							case ExectuionTarget.Syntax: return true;
+						}
+
 						if (SyntaxRoutingTsServer.syntaxAlwaysCommands.has(command)) {
 							return true;
 						}
@@ -556,9 +576,9 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		this.semanticServer.kill();
 	}
 
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
+	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean, executionTarget?: ExectuionTarget }): undefined;
+	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, executionTarget?: ExectuionTarget }): Promise<ServerResponse.Response<Proto.Response>>;
+	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, executionTarget?: ExectuionTarget }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
 		return this.router.execute(command, args, executeInfo);
 	}
 }

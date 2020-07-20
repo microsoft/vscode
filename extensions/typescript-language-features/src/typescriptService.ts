@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import * as Proto from './protocol';
+import { ExectuionTarget } from './tsServer/server';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { PluginManager } from './utils/plugins';
@@ -82,11 +83,24 @@ export type TypeScriptRequests = StandardTsServerRequests & NoResponseTsServerRe
 export type ExecConfig = {
 	readonly lowPriority?: boolean;
 	readonly nonRecoverable?: boolean;
-	readonly cancelOnResourceChange?: vscode.Uri
+	readonly cancelOnResourceChange?: vscode.Uri;
+	readonly executionTarget?: ExectuionTarget;
 };
 
 export enum ClientCapability {
+	/**
+	 * Basic syntax server. All clients should support this.
+	 */
 	Syntax,
+
+	/**
+	 * Advanced syntax server that can provide single file IntelliSense.
+	 */
+	EnhancedSyntax,
+
+	/**
+	 * Complete, multi-file semantic server
+	 */
 	Semantic,
 }
 
@@ -138,7 +152,7 @@ export interface ITypeScriptServiceClient {
 	readonly onTypesInstallerInitializationFailed: vscode.Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
 	readonly capabilities: ClientCapabilities;
-	readonly onDidChangeCapabilities: vscode.Event<ClientCapabilities>;
+	readonly onDidChangeCapabilities: vscode.Event<void>;
 
 	onReady(f: () => void): Promise<void>;
 

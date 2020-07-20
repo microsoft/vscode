@@ -11,7 +11,7 @@ import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService
 import API from '../utils/api';
 import { Delayer } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
-import { conditionalRegistration, requireCapability, requireMinVersion } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireSomeCapability, requireMinVersion } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../utils/fileSchemes';
 import { doesResourceLookLikeATypeScriptFile } from '../utils/languageDescription';
@@ -296,7 +296,7 @@ export function register(
 ) {
 	return conditionalRegistration([
 		requireMinVersion(client, UpdateImportsOnFileRenameHandler.minVersion),
-		requireCapability(client, ClientCapability.Semantic),
+		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return new UpdateImportsOnFileRenameHandler(client, fileConfigurationManager, handles);
 	});

@@ -5,14 +5,13 @@
 
 import * as vscode from 'vscode';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
+import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { flatten } from './utils/arrays';
 import { CommandManager } from './utils/commandManager';
-import * as fileSchemes from './utils/fileSchemes';
 import { standardLanguageDescriptions } from './utils/languageDescription';
 import * as ProjectStatus from './utils/largeProjectStatus';
 import { lazy, Lazy } from './utils/lazy';
-import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { PluginManager } from './utils/plugins';
 
@@ -87,11 +86,8 @@ export function lazilyActivateClient(
 }
 
 function isSupportedDocument(
-	supportedLanguage: string[],
+	supportedLanguage: readonly string[],
 	document: vscode.TextDocument
 ): boolean {
-	if (supportedLanguage.indexOf(document.languageId) < 0) {
-		return false;
-	}
-	return fileSchemes.isSupportedScheme(document.uri.scheme);
+	return supportedLanguage.indexOf(document.languageId) >= 0;
 }

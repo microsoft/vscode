@@ -207,13 +207,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public get capabilities() {
+		if (this.apiVersion.gte(API.v400)) {
+			return new ClientCapabilities(
+				ClientCapability.Syntax,
+				ClientCapability.EnhancedSyntax,
+				ClientCapability.Semantic);
+		}
 		return new ClientCapabilities(
-			ClientCapability.Semantic,
 			ClientCapability.Syntax,
-		);
+			ClientCapability.Semantic);
 	}
 
-	private readonly _onDidChangeCapabilities = this._register(new vscode.EventEmitter<ClientCapabilities>());
+	private readonly _onDidChangeCapabilities = this._register(new vscode.EventEmitter<void>());
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
 
 	private cancelInflightRequestsForResource(resource: vscode.Uri): void {
@@ -437,7 +442,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		this._onReady!.resolve();
 		this._onTsServerStarted.fire({ version: version, usedApiVersion: apiVersion });
-
+		this._onDidChangeCapabilities.fire();
 		return this.serverState;
 	}
 
@@ -608,27 +613,23 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public normalizedPath(resource: vscode.Uri): string | undefined {
-		if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
-			const dirName = path.dirname(resource.path);
-			const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
-			return resource.with({ path: path.posix.join(dirName, fileName), query: '' }).toString(true);
-		}
+		switch (resource.scheme) {
+			case fileSchemes.file:
+				{
+					let result = resource.fsPath;
+					if (!result) {
+						return undefined;
+					}
+					result = path.normalize(result);
 
-		if (resource.scheme !== fileSchemes.file) {
-			return undefined;
+					// Both \ and / must be escaped in regular expressions
+					return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
+				}
+			default:
+				{
+					return this.inMemoryResourcePrefix + resource.toString(true);
+				}
 		}
-
-		let result = resource.fsPath;
-		if (!result) {
-			return undefined;
-		}
-
-		if (resource.scheme === fileSchemes.file) {
-			result = path.normalize(result);
-		}
-
-		// Both \ and / must be escaped in regular expressions
-		return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
 	}
 
 	public toPath(resource: vscode.Uri): string | undefined {
@@ -735,9 +736,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		});
 	}
 
-	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
-	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
-	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
+	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean, requireSemantic?: boolean }): undefined;
+	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, requireSemantic?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
+	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, requireSemantic?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
 		this.bufferSyncSupport.beforeCommand(command);
 		const runningServerState = this.service();
 		return runningServerState.server.executeImpl(command, args, executeInfo);

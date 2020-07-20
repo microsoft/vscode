@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
 import * as typeConverters from '../utils/typeConverters';
 
 class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
@@ -42,9 +44,13 @@ class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	client: ITypeScriptServiceClient
 ) {
-	return vscode.languages.registerReferenceProvider(selector,
-		new TypeScriptReferenceSupport(client));
+	return conditionalRegistration([
+		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
+	], () => {
+		return vscode.languages.registerReferenceProvider(selector.syntax,
+			new TypeScriptReferenceSupport(client));
+	});
 }

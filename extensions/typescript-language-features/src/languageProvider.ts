@@ -5,15 +5,16 @@
 
 import { basename } from 'path';
 import * as vscode from 'vscode';
-import { CachedResponse } from './tsServer/cachedResponse';
 import { DiagnosticKind } from './features/diagnostics';
 import FileConfigurationManager from './features/fileConfigurationManager';
+import { CachedResponse } from './tsServer/cachedResponse';
+import { ClientCapability } from './typescriptService';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
+import { DocumentSelector } from './utils/documentSelector';
 import * as fileSchemes from './utils/fileSchemes';
 import { LanguageDescription } from './utils/languageDescription';
-import { memoize } from './utils/memoize';
 import { TelemetryReporter } from './utils/telemetry';
 import TypingsStatus from './utils/typingsStatus';
 
@@ -39,15 +40,22 @@ export default class LanguageProvider extends Disposable {
 		client.onReady(() => this.registerProviders());
 	}
 
-	@memoize
-	private get documentSelector(): vscode.DocumentFilter[] {
-		const documentSelector = [];
+	private get documentSelector(): DocumentSelector {
+		const semantic: vscode.DocumentFilter[] = [];
+		const syntax: vscode.DocumentFilter[] = [];
 		for (const language of this.description.modeIds) {
-			for (const scheme of fileSchemes.supportedSchemes) {
-				documentSelector.push({ language, scheme });
+			syntax.push({ language });
+			for (const scheme of fileSchemes.semanticSupportedSchemes) {
+				semantic.push({ language, scheme });
 			}
 		}
-		return documentSelector;
+
+		if (this.client.capabilities.has(ClientCapability.EnhancedSyntax)) {
+			return { semantic, syntax };
+		}
+
+		// If we don't have a
+		return { semantic, syntax: semantic };
 	}
 
 	private async registerProviders(): Promise<void> {
