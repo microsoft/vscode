@@ -10,7 +10,7 @@ import { notebookProviderExtensionPoint, notebookRendererExtensionPoint, INotebo
 import { NotebookProviderInfo, NotebookEditorDescriptor } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, CellOutputKind, ITransformedDisplayOutputDto, IDisplayOutput, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, IOrderedMimeType, mimeTypeSupportedByCore, IOutputRenderRequestOutputInfo, IOutputRenderRequestCellInfo, NotebookCellOutputsSplice, ICellEditOperation, CellEditType, ICellInsertEdit, IOutputRenderResponse, IProcessedOutput, BUILTIN_RENDERER_ID, NotebookEditorPriority, INotebookKernelProvider, notebookDocumentFilterMatch, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookRendererInfo, INotebookKernelInfo, CellOutputKind, ITransformedDisplayOutputDto, IDisplayOutput, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, IOrderedMimeType, mimeTypeSupportedByCore, IOutputRenderRequestOutputInfo, IOutputRenderRequestCellInfo, NotebookCellOutputsSplice, ICellEditOperation, CellEditType, ICellInsertEdit, IOutputRenderResponse, IProcessedOutput, BUILTIN_RENDERER_ID, NotebookEditorPriority, INotebookKernelProvider, notebookDocumentFilterMatch, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { Iterable } from 'vs/base/common/iterator';
@@ -29,6 +29,7 @@ import { StorageScope, IStorageService } from 'vs/platform/storage/common/storag
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { flatten } from 'vs/base/common/arrays';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -166,6 +167,7 @@ class ModelData implements IDisposable {
 }
 export class NotebookService extends Disposable implements INotebookService, ICustomEditorViewTypesHandler {
 	declare readonly _serviceBrand: undefined;
+	static mainthreadNotebookDocumentHandle: number = 0;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
 	private readonly _notebookRenderers = new Map<string, INotebookRendererInfo>();
 	private readonly _notebookKernels = new Map<string, INotebookKernelInfo>();
@@ -205,7 +207,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -393,43 +396,33 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return renderer;
 	}
 
-	async createNotebookFromBackup(viewType: string, uri: URI, metadata: NotebookDocumentMetadata, languages: string[], cells: ICellDto2[], editorId?: string): Promise<NotebookTextModel | undefined> {
-		const provider = this._notebookProviders.get(viewType);
-		if (!provider) {
-			return undefined;
-		}
-
-		const notebookModel = await provider.controller.createNotebook(viewType, uri, { metadata, languages, cells }, false, editorId);
-		if (!notebookModel) {
-			return undefined;
-		}
-
-		// new notebook model created
-		const modelId = MODEL_ID(uri);
-		const modelData = new ModelData(
-			notebookModel,
-			(model) => this._onWillDisposeDocument(model),
-		);
-		this._models.set(modelId, modelData);
-		this._onNotebookDocumentAdd.fire([notebookModel.uri]);
-		// after the document is added to the store and sent to ext host, we transform the ouputs
-		await this.transformTextModelOutputs(notebookModel!);
-		return modelData.model;
-	}
-
 	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined> {
 		const provider = this._notebookProviders.get(viewType);
 		if (!provider) {
 			return undefined;
 		}
 
-		const notebookModel = await provider.controller.createNotebook(viewType, uri, undefined, forceReload, editorId, backupId);
-		if (!notebookModel) {
-			return undefined;
+		const modelId = MODEL_ID(uri);
+
+		let notebookModel: NotebookTextModel | undefined = undefined;
+		if (this._models.has(modelId)) {
+			// the model already exists
+			notebookModel = this._models.get(modelId)!.model;
+			if (forceReload) {
+				await provider.controller.reloadNotebook(notebookModel);
+			}
+
+			return notebookModel;
+		} else {
+			notebookModel = this._instantiationService.createInstance(NotebookTextModel, NotebookService.mainthreadNotebookDocumentHandle++, viewType, provider.controller.supportBackup, uri);
+			await provider.controller.createNotebook(notebookModel, backupId);
+
+			if (!notebookModel) {
+				return undefined;
+			}
 		}
 
 		// new notebook model created
-		const modelId = MODEL_ID(uri);
 		const modelData = new ModelData(
 			notebookModel!,
 			(model) => this._onWillDisposeDocument(model),
@@ -445,6 +438,12 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		}
 
 		return modelData.model;
+	}
+
+	getNotebookTextModel(uri: URI): NotebookTextModel | undefined {
+		const modelId = MODEL_ID(uri);
+
+		return this._models.get(modelId)?.model;
 	}
 
 	private async _fillInTransformedOutputs<T>(
@@ -861,7 +860,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			let provider = this._notebookProviders.get(modelData!.model.viewType);
 
 			if (provider) {
-				provider.controller.removeNotebookDocument(modelData!.model);
+				provider.controller.removeNotebookDocument(modelData!.model.uri);
+				modelData!.model.dispose();
 			}
 
 
