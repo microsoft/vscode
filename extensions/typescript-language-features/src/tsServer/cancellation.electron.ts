@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { OngoingRequestCanceller } from './cancellation';
+import { OngoingRequestCanceller, OngoingRequestCancellerFactory } from './cancellation';
 import { getTempFile } from '../utils/electron';
 import Tracer from '../utils/tracer';
 
@@ -31,3 +31,10 @@ export class NodeRequestCanceller implements OngoingRequestCanceller {
 		return true;
 	}
 }
+
+
+export const nodeRequestCancellerFactory = new class implements OngoingRequestCancellerFactory {
+	create(serverId: string, tracer: Tracer): OngoingRequestCanceller {
+		return new NodeRequestCanceller(serverId, tracer);
+	}
+};

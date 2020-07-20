@@ -11,7 +11,7 @@ import { LanguageConfigurationManager } from './features/languageConfiguration';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { CommandManager } from './utils/commandManager';
 import { PluginManager } from './utils/plugins';
-import { noopRequestCanceller } from './tsServer/cancellation';
+import { noopRequestCancellerFactory } from './tsServer/cancellation';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -25,10 +25,7 @@ export function activate(
 	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
 	context.subscriptions.push(onCompletionAccepted);
 
-	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, noopLogDirectoryProvider, {
-		create: () => noopRequestCanceller
-
-	}, item => {
+	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, noopLogDirectoryProvider, noopRequestCancellerFactory, item => {
 		onCompletionAccepted.fire(item);
 	});
 

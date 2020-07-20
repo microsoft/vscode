@@ -11,7 +11,7 @@ import { registerCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
 import * as task from './features/task';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
-import { NodeRequestCanceller } from './tsServer/cancellation.electron';
+import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { CommandManager } from './utils/commandManager';
 import * as electron from './utils/electron';
 import { PluginManager } from './utils/plugins';
@@ -30,9 +30,7 @@ export function activate(
 
 	const logDirectoryProvider = new NodeLogDirectoryProvider(context);
 
-	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, logDirectoryProvider, {
-		create: (kind, tracer) => new NodeRequestCanceller(kind, tracer)
-	}, item => {
+	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, logDirectoryProvider, nodeRequestCancellerFactory, item => {
 		onCompletionAccepted.fire(item);
 	});
 

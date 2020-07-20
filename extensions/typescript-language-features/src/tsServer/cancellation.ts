@@ -14,10 +14,16 @@ export interface OngoingRequestCancellerFactory {
 	create(serverId: string, tracer: Tracer): OngoingRequestCanceller;
 }
 
-export const noopRequestCanceller = new class implements OngoingRequestCanceller {
+const noopRequestCanceller = new class implements OngoingRequestCanceller {
 	public readonly cancellationPipeName = undefined;
 
 	public tryCancelOngoingRequest(_seq: number): boolean {
 		return false;
+	}
+};
+
+export const noopRequestCancellerFactory = new class implements OngoingRequestCancellerFactory {
+	create(_serverId: string, _tracer: Tracer): OngoingRequestCanceller {
+		return noopRequestCanceller;
 	}
 };
