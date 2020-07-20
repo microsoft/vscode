@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/userDataSyncViews';
-import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg, IViewDescriptorService } from 'vs/workbench/common/views';
+import { ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -36,7 +36,8 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Severity } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export class UserDataManualSyncViewPane extends TreeViewPane {
 
@@ -46,10 +47,12 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 	private syncButton!: Button;
 	private cancelButton!: Button;
 
+	private readonly treeItems = new Map<string, ITreeItem>();
+
 	constructor(
 		options: IViewletViewOptions,
 		@IEditorService private readonly editorService: IEditorService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncWorkbenchService userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
@@ -77,7 +80,14 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 
 	protected renderTreeView(container: HTMLElement): void {
 		super.renderTreeView(DOM.append(container, DOM.$('')));
+		this.createButtons(container);
 
+		const that = this;
+		this.treeView.message = localize('explanation', "Please go through each entry and accept the change to enable sync.");
+		this.treeView.dataProvider = { getChildren() { return that.getTreeItems(); } };
+	}
+
+	private createButtons(container: HTMLElement): void {
 		this.buttonsContainer = DOM.append(container, DOM.$('.manual-sync-buttons-container'));
 
 		this.syncButton = this._register(new Button(this.buttonsContainer));
@@ -90,20 +100,56 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		this.cancelButton.label = localize('cancel', "Cancel");
 		this._register(attachButtonStyler(this.cancelButton, this.themeService));
 		this._register(this.cancelButton.onDidClick(() => this.cancel()));
-
-		this.treeView.dataProvider = new ManualSyncViewDataProvider(this.userDataSyncPreview);
 	}
 
 	protected layoutTreeView(height: number, width: number): void {
-		const buttonContainerHeight = 117;
+		const buttonContainerHeight = 78;
 		this.buttonsContainer.style.height = `${buttonContainerHeight}px`;
 		this.buttonsContainer.style.width = `${width}px`;
+
 		const numberOfChanges = this.userDataSyncPreview.resources.filter(r => r.syncResource !== SyncResource.GlobalState && (r.localChange !== Change.None || r.remoteChange !== Change.None)).length;
-		super.layoutTreeView(Math.min(height - buttonContainerHeight, 22 * numberOfChanges), width);
+		const messageHeight = 44;
+		super.layoutTreeView(Math.min(height - buttonContainerHeight, ((22 * numberOfChanges) + messageHeight)), width);
 	}
 
 	private updateSyncButtonEnablement(): void {
 		this.syncButton.enabled = this.userDataSyncPreview.resources.every(c => c.syncResource === SyncResource.GlobalState || c.mergeState === MergeState.Accepted);
+	}
+
+	private async getTreeItems(): Promise<ITreeItem[]> {
+		this.treeItems.clear();
+		const roots: ITreeItem[] = [];
+		for (const resource of this.userDataSyncPreview.resources) {
+			if (resource.syncResource !== SyncResource.GlobalState && (resource.localChange !== Change.None || resource.remoteChange !== Change.None)) {
+				const handle = JSON.stringify(resource);
+				const treeItem = {
+					handle,
+					resourceUri: resource.remote,
+					label: { label: basename(resource.remote), strikethrough: resource.mergeState === MergeState.Accepted && (resource.localChange === Change.Deleted || resource.remoteChange === Change.Deleted) },
+					description: getSyncAreaLabel(resource.syncResource),
+					collapsibleState: TreeItemCollapsibleState.None,
+					command: { id: `workbench.actions.sync.showChanges`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: handle }] },
+					contextValue: `sync-resource-${resource.mergeState}`
+				};
+				this.treeItems.set(handle, treeItem);
+				roots.push(treeItem);
+			}
+		}
+		return roots;
+	}
+
+	private toUserDataSyncResourceGroup(handle: string): IUserDataSyncResource {
+		const parsed: IUserDataSyncResource = JSON.parse(handle);
+		return {
+			syncResource: parsed.syncResource,
+			local: URI.revive(parsed.local),
+			remote: URI.revive(parsed.remote),
+			merged: URI.revive(parsed.merged),
+			accepted: URI.revive(parsed.accepted),
+			localChange: parsed.localChange,
+			remoteChange: parsed.remoteChange,
+			mergeState: parsed.mergeState,
+		};
 	}
 
 	private registerActions(): void {
@@ -125,7 +171,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				return that.acceptRemote(ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle));
+				return that.acceptRemote(that.toUserDataSyncResourceGroup(handle.$treeItemHandle));
 			}
 		}));
 
@@ -145,7 +191,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				return that.acceptLocal(ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle));
+				return that.acceptLocal(that.toUserDataSyncResourceGroup(handle.$treeItemHandle));
 			}
 		}));
 
@@ -165,7 +211,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				return that.mergeResource(ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle));
+				return that.mergeResource(that.toUserDataSyncResourceGroup(handle.$treeItemHandle));
 			}
 		}));
 
@@ -185,7 +231,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				return that.discardResource(ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle));
+				return that.discardResource(that.toUserDataSyncResourceGroup(handle.$treeItemHandle));
 			}
 		}));
 
@@ -197,7 +243,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const previewResource: IUserDataSyncResource = ManualSyncViewDataProvider.toUserDataSyncResourceGroup(handle.$treeItemHandle);
+				const previewResource: IUserDataSyncResource = that.toUserDataSyncResourceGroup(handle.$treeItemHandle);
 				return that.open(previewResource);
 			}
 		}));
@@ -222,10 +268,12 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 	private async mergeResource(previewResource: IUserDataSyncResource): Promise<void> {
 		await this.withProgress(() => this.userDataSyncPreview.merge(previewResource.merged));
 		previewResource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local))!;
-		if (previewResource.mergeState === MergeState.Conflict) {
-			this.notificationService.warn(localize('conflicts detected', "Unable to merge due to conflicts. Please resolve them to continue."));
-		}
 		await this.reopen(previewResource);
+		if (previewResource.mergeState === MergeState.Conflict) {
+			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected."), [], {
+				detail: localize('resolve', "Unable to merge due to conflicts. Please resolve them to continue.")
+			});
+		}
 	}
 
 	private async discardResource(previewResource: IUserDataSyncResource): Promise<void> {
@@ -284,6 +332,10 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		this.close(previewResource);
 		const resource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local));
 		if (resource) {
+			// select the resource
+			await this.treeView.refresh();
+			this.treeView.setSelection([this.treeItems.get(JSON.stringify(resource))!]);
+
 			await this.open(resource);
 		}
 	}
@@ -319,48 +371,6 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 
 	private withProgress(task: () => Promise<void>): Promise<void> {
 		return this.progressService.withProgress({ location: MANUAL_SYNC_VIEW_ID, delay: 500 }, task);
-	}
-
-}
-
-class ManualSyncViewDataProvider implements ITreeViewDataProvider {
-
-	constructor(
-		private readonly userDataSyncPreview: IUserDataSyncPreview
-	) {
-	}
-
-	async getChildren(): Promise<ITreeItem[]> {
-		const roots: ITreeItem[] = [];
-		for (const resource of this.userDataSyncPreview.resources) {
-			if (resource.syncResource !== SyncResource.GlobalState && (resource.localChange !== Change.None || resource.remoteChange !== Change.None)) {
-				const handle = JSON.stringify(resource);
-				roots.push({
-					handle,
-					resourceUri: resource.remote,
-					label: { label: basename(resource.remote), strikethrough: resource.mergeState === MergeState.Accepted && (resource.localChange === Change.Deleted || resource.remoteChange === Change.Deleted) },
-					description: getSyncAreaLabel(resource.syncResource),
-					collapsibleState: TreeItemCollapsibleState.None,
-					command: { id: `workbench.actions.sync.showChanges`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: handle }] },
-					contextValue: `sync-resource-${resource.mergeState}`
-				});
-			}
-		}
-		return roots;
-	}
-
-	static toUserDataSyncResourceGroup(handle: string): IUserDataSyncResource {
-		const parsed: IUserDataSyncResource = JSON.parse(handle);
-		return {
-			syncResource: parsed.syncResource,
-			local: URI.revive(parsed.local),
-			remote: URI.revive(parsed.remote),
-			merged: URI.revive(parsed.merged),
-			accepted: URI.revive(parsed.accepted),
-			localChange: parsed.localChange,
-			remoteChange: parsed.remoteChange,
-			mergeState: parsed.mergeState,
-		};
 	}
 
 }

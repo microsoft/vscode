@@ -250,11 +250,22 @@ export class IssueMainService implements ICommonIssueService {
 						title: localize('processExplorer', "Process Explorer"),
 						webPreferences: {
 							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
-							nodeIntegration: true,
 							enableWebSQL: false,
 							enableRemoteModule: false,
 							nativeWindowOpen: true,
-							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel)
+							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
+							...this.environmentService.sandbox ?
+
+								// Sandbox
+								{
+									sandbox: true,
+									contextIsolation: true
+								} :
+
+								// No Sandbox
+								{
+									nodeIntegration: true
+								}
 						}
 					});
 
