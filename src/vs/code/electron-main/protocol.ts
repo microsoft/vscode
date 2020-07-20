@@ -30,8 +30,9 @@ export class FileProtocolHandler extends Disposable {
 	private async handleResourceRequest(request: Electron.Request, callback: any) {
 		const uri = URI.parse(request.url);
 		const appRoot = this.environmentService.appRoot;
-		const extensionsPath = this.environmentService.extensionsPath ?? '';
-		if (uri.path.startsWith(appRoot) || uri.path.startsWith(extensionsPath)) {
+		const extensionsPath = this.environmentService.extensionsPath;
+		if (uri.path.startsWith(appRoot) ||
+			(extensionsPath && uri.path.startsWith(extensionsPath))) {
 			return callback({
 				path: uri.path
 			});
