@@ -1467,6 +1467,9 @@ export class QuickInputController extends Disposable {
 			input.placeholder = options.placeHolder;
 			input.password = !!options.password;
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
+			validation.then(result => {
+				input.validationMessage = result || undefined;
+			});
 			input.show();
 		});
 	}
