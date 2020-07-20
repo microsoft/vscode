@@ -394,6 +394,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 					throw new UserDataSyncError(e.message, e.code, source);
 
 				case UserDataSyncErrorCode.TooManyRequests:
+				case UserDataSyncErrorCode.TooManyRequestsAndRetryAfter:
 				case UserDataSyncErrorCode.LocalTooManyRequests:
 				case UserDataSyncErrorCode.Gone:
 				case UserDataSyncErrorCode.UpgradeRequired:

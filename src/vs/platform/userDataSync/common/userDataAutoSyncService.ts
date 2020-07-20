@@ -15,6 +15,7 @@ import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { localize } from 'vs/nls';
+import { toLocalISOString } from 'vs/base/common/date';
 
 type AutoSyncClassification = {
 	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -101,13 +102,14 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 				this.disableMachineEventually();
 			}
 			this._register(userDataSyncAccountService.onDidChangeAccount(() => this.updateAutoSync()));
+			this._register(userDataSyncStoreService.onDidChangeDonotMakeRequestsUntil(() => this.updateAutoSync()));
 			this._register(Event.debounce<string, string[]>(userDataSyncService.onDidChangeLocal, (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, false)));
 			this._register(Event.filter(this.userDataSyncResourceEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerSync(['resourceEnablement'], false)));
 		}
 	}
 
 	private updateAutoSync(): void {
-		const { enabled, reason } = this.isAutoSyncEnabled();
+		const { enabled, message } = this.isAutoSyncEnabled();
 		if (enabled) {
 			if (this.autoSync.value === undefined) {
 				this.autoSync.value = new AutoSync(1000 * 60 * 5 /* 5 miutes */, this.userDataSyncStoreService, this.userDataSyncService, this.userDataSyncMachinesService, this.logService, this.storageService);
@@ -120,7 +122,9 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		} else {
 			this.syncTriggerDelayer.cancel();
 			if (this.autoSync.value !== undefined) {
-				this.logService.info('Auto Sync: Disabled because', reason);
+				if (message) {
+					this.logService.info(message);
+				}
 				this.autoSync.clear();
 			}
 		}
@@ -129,12 +133,15 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 	// For tests purpose only
 	protected startAutoSync(): boolean { return true; }
 
-	private isAutoSyncEnabled(): { enabled: boolean, reason?: string } {
+	private isAutoSyncEnabled(): { enabled: boolean, message?: string } {
 		if (!this.isEnabled()) {
-			return { enabled: false, reason: 'sync is disabled' };
+			return { enabled: false, message: 'Auto Sync: Disabled.' };
 		}
 		if (!this.userDataSyncAccountService.account) {
-			return { enabled: false, reason: 'token is not avaialable' };
+			return { enabled: false, message: 'Auto Sync: Suspended until auth token is available.' };
+		}
+		if (this.userDataSyncStoreService.donotMakeRequestsUntil) {
+			return { enabled: false, message: `Auto Sync: Suspended until ${toLocalISOString(this.userDataSyncStoreService.donotMakeRequestsUntil)} because server is not accepting requests until then.` };
 		}
 		return { enabled: true };
 	}
