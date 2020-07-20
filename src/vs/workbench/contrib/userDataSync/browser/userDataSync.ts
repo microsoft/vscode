@@ -1121,6 +1121,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
@@ -1184,16 +1185,29 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 				const model = this.editor.getModel();
 				if (model) {
 					this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: isRemote ? 'acceptRemote' : 'acceptLocal' });
-					try {
-						await this.userDataSyncService.accept(syncResource, model.uri, model.getValue(), true);
-					} catch (e) {
-						if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.LocalPreconditionFailed) {
-							const syncResourceCoflicts = this.userDataSyncService.conflicts.filter(syncResourceCoflicts => syncResourceCoflicts[0] === syncResource)[0];
-							if (syncResourceCoflicts && conflicts.some(conflict => isEqual(conflict.previewResource, model.uri) || isEqual(conflict.remoteResource, model.uri))) {
-								this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
+					const syncAreaLabel = getSyncAreaLabel(syncResource);
+					const result = await this.dialogService.confirm({
+						type: 'info',
+						title: isRemote
+							? localize('Sync accept remote', "Preferences Sync: {0}", acceptRemoteLabel)
+							: localize('Sync accept merges', "Preferences Sync: {0}", acceptMergesLabel),
+						message: isRemote
+							? localize('confirm replace and overwrite local', "Would you like to accept remote {0} and replace local {1}?", syncAreaLabel.toLowerCase(), syncAreaLabel.toLowerCase())
+							: localize('confirm replace and overwrite remote', "Would you like to accept merges and replace remote {1}?", syncAreaLabel.toLowerCase()),
+						primaryButton: isRemote ? acceptRemoteLabel : acceptMergesLabel
+					});
+					if (result.confirmed) {
+						try {
+							await this.userDataSyncService.accept(syncResource, model.uri, model.getValue(), true);
+						} catch (e) {
+							if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.LocalPreconditionFailed) {
+								const syncResourceCoflicts = this.userDataSyncService.conflicts.filter(syncResourceCoflicts => syncResourceCoflicts[0] === syncResource)[0];
+								if (syncResourceCoflicts && conflicts.some(conflict => isEqual(conflict.previewResource, model.uri) || isEqual(conflict.remoteResource, model.uri))) {
+									this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
+								}
+							} else {
+								this.notificationService.error(e);
 							}
-						} else {
-							this.notificationService.error(e);
 						}
 					}
 				}
