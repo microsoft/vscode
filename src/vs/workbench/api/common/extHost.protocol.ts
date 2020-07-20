@@ -165,7 +165,7 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$selectSession(providerId: string, providerName: string, extensionId: string, extensionName: string, potentialSessions: modes.AuthenticationSession[], scopes: string[], clearSessionPreference: boolean): Promise<modes.AuthenticationSession>;
 	$getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean>;
 	$loginPrompt(providerName: string, extensionName: string): Promise<boolean>;
-	$setTrustedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<void>;
+	$setTrustedExtensionAndAccountPreference(providerId: string, accountName: string, extensionId: string, extensionName: string, sessionId: string): Promise<void>;
 	$requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void>;
 
 	$getSessions(providerId: string): Promise<ReadonlyArray<modes.AuthenticationSession>>;

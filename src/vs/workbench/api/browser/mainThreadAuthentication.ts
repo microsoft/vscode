@@ -294,7 +294,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				}
 
 				const session = await this.authenticationService.login(providerId, scopes);
-				await this.$setTrustedExtension(providerId, session.account.label, extensionId, extensionName);
+				await this.$setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
 				return session;
 			} else {
 				await this.$requestNewSession(providerId, scopes, extensionId, extensionName);
@@ -427,11 +427,13 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return choice === 0;
 	}
 
-	async $setTrustedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<void> {
+	async $setTrustedExtensionAndAccountPreference(providerId: string, accountName: string, extensionId: string, extensionName: string, sessionId: string): Promise<void> {
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		if (!allowList.find(allowed => allowed.id === extensionId)) {
 			allowList.push({ id: extensionId, name: extensionName });
 			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
 		}
+
+		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL);
 	}
 }
