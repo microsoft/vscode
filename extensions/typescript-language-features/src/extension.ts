@@ -5,14 +5,15 @@
 
 import * as rimraf from 'rimraf';
 import * as vscode from 'vscode';
-import { NodeLogDirectoryProvider } from './utils/logDirectoryProvider.electron';
 import { Api, getExtensionApi } from './api';
 import { registerCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
 import * as task from './features/task';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
+import { NodeRequestCanceller } from './tsServer/cancellation.electron';
 import { CommandManager } from './utils/commandManager';
 import * as electron from './utils/electron';
+import { NodeLogDirectoryProvider } from './utils/logDirectoryProvider.electron';
 import { PluginManager } from './utils/plugins';
 
 export function activate(
@@ -29,7 +30,9 @@ export function activate(
 
 	const logDirectoryProvider = new NodeLogDirectoryProvider(context);
 
-	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, logDirectoryProvider, item => {
+	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, logDirectoryProvider, {
+		create: (kind, tracer) => new NodeRequestCanceller(kind, tracer)
+	}, item => {
 		onCompletionAccepted.fire(item);
 	});
 

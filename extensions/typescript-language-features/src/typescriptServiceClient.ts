@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { onCaseInsenitiveFileSystem } from './utils/fileSystem';
+import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
 import * as Proto from './protocol';
@@ -20,6 +20,7 @@ import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
+import { onCaseInsenitiveFileSystem } from './utils/fileSystem';
 import { ILogDirectoryProvider } from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
@@ -125,6 +126,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		private readonly workspaceState: vscode.Memento,
 		public readonly pluginManager: PluginManager,
 		private readonly logDirectoryProvider: ILogDirectoryProvider,
+		private readonly cancellerFactory: OngoingRequestCancellerFactory,
 		allModeIds: readonly string[]
 	) {
 		super();
@@ -348,7 +350,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		const apiVersion = version.apiVersion || API.defaultVersion;
 		let mytoken = ++this.token;
-		const handle = this.typescriptServerSpawner.spawn(version, this.capabilities, this.configuration, this.pluginManager, {
+		const handle = this.typescriptServerSpawner.spawn(version, this.capabilities, this.configuration, this.pluginManager, this.cancellerFactory, {
 			onFatalError: (command, err) => this.fatalError(command, err),
 		});
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);

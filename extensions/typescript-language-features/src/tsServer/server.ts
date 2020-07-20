@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { EventName } from '../protocol.const';
 import { CallbackMap } from '../tsServer/callbackMap';
+import { OngoingRequestCanceller } from './cancellation';
 import { RequestItem, RequestQueue, RequestQueueingType } from '../tsServer/requestQueue';
 import { TypeScriptServerError } from '../tsServer/serverError';
 import { ServerResponse, TypeScriptRequests } from '../typescriptService';
@@ -16,30 +16,6 @@ import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion } from '../utils/versionProvider';
 
-export interface OngoingRequestCanceller {
-	tryCancelOngoingRequest(seq: number): boolean;
-}
-
-export class PipeRequestCanceller implements OngoingRequestCanceller {
-	public constructor(
-		private readonly _serverId: string,
-		private readonly _cancellationPipeName: string | undefined,
-		private readonly _tracer: Tracer,
-	) { }
-
-	public tryCancelOngoingRequest(seq: number): boolean {
-		if (!this._cancellationPipeName) {
-			return false;
-		}
-		this._tracer.logTrace(this._serverId, `TypeScript Server: trying to cancel ongoing request with sequence number ${seq}`);
-		try {
-			fs.writeFileSync(this._cancellationPipeName + seq, '');
-		} catch {
-			// noop
-		}
-		return true;
-	}
-}
 
 export interface ITypeScriptServer {
 	readonly onEvent: vscode.Event<Proto.Event>;

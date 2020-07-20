@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { flatten } from './utils/arrays';
 import { CommandManager } from './utils/commandManager';
@@ -20,6 +21,7 @@ export function createLazyClientHost(
 	pluginManager: PluginManager,
 	commandManager: CommandManager,
 	logDirectoryProvider: ILogDirectoryProvider,
+	cancellerFactory: OngoingRequestCancellerFactory,
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
 	return lazy(() => {
@@ -29,6 +31,7 @@ export function createLazyClientHost(
 			pluginManager,
 			commandManager,
 			logDirectoryProvider,
+			cancellerFactory,
 			onCompletionAccepted);
 
 		context.subscriptions.push(clientHost);
