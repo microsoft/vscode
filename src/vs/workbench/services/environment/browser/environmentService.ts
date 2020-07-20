@@ -133,6 +133,12 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
 
+	@memoize
+	get globalStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'globalStorage'); }
+
+	@memoize
+	get workspaceStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
+
 	/*
 	 * In Web every workspace can potentially have scoped user-data and/or extensions and if Sync state is shared then it can make
 	 * Sync error prone - say removing extensions from another workspace. Hence scope Sync state per workspace.

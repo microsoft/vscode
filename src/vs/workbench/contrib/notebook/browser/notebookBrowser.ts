@@ -23,9 +23,10 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { CellLanguageStatusBarItem, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { IMenu } from 'vs/platform/actions/common/actions';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -34,6 +35,7 @@ export const NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', '
 
 // Editor keys
 export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
+export const NOTEBOOK_CELL_LIST_FOCUSED = new RawContextKey<boolean>('notebookCellListFocused', false);
 export const NOTEBOOK_OUTPUT_FOCUSED = new RawContextKey<boolean>('notebookOutputFocused', false);
 export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>('notebookEditable', true);
 export const NOTEBOOK_EDITOR_RUNNABLE = new RawContextKey<boolean>('notebookRunnable', true);
@@ -64,6 +66,13 @@ export interface NotebookLayoutChangeEvent {
 	fontInfo?: boolean;
 }
 
+export enum CodeCellLayoutState {
+	Uninitialized,
+	Estimated,
+	FromCache,
+	Measured
+}
+
 export interface CodeCellLayoutInfo {
 	readonly fontInfo: BareFontInfo | null;
 	readonly editorHeight: number;
@@ -73,6 +82,7 @@ export interface CodeCellLayoutInfo {
 	readonly outputTotalHeight: number;
 	readonly indicatorHeight: number;
 	readonly bottomToolbarOffset: number;
+	readonly layoutState: CodeCellLayoutState;
 }
 
 export interface CodeCellLayoutChangeEvent {
@@ -117,6 +127,7 @@ export interface ICellViewModel {
 	resolveTextModel(): Promise<ITextModel>;
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
 	getSelectionsStartPosition(): IPosition[] | undefined;
+	getCellDecorations(): INotebookCellDecorationOptions[];
 }
 
 export interface IEditableCellViewModel extends ICellViewModel {
@@ -143,7 +154,19 @@ export interface INotebookEditorContribution {
 	restoreViewState?(state: unknown): void;
 }
 
+export interface INotebookCellDecorationOptions {
+	className?: string;
+	outputClassName?: string;
+}
+
+export interface INotebookDeltaDecoration {
+	handle: number;
+	options: INotebookCellDecorationOptions;
+}
+
 export interface INotebookEditor extends IEditor {
+
+	cursorNavigationMode: boolean;
 
 	/**
 	 * Notebook view model attached to the current editor
@@ -157,7 +180,8 @@ export interface INotebookEditor extends IEditor {
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
 	isNotebookEditor: boolean;
-	activeKernel: INotebookKernelInfo | undefined;
+	activeKernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined;
+	multipleKernelsAvailable: boolean;
 	readonly onDidChangeKernel: Event<void>;
 
 	isDisposed: boolean;
@@ -287,6 +311,8 @@ export interface INotebookEditor extends IEditor {
 	 */
 	removeClassName(className: string): void;
 
+	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]): void;
+
 	/**
 	 * Trigger the editor to scroll from scroll event programmatically
 	 */
@@ -348,7 +374,7 @@ export interface INotebookEditor extends IEditor {
 	 * Change the decorations on cells.
 	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
 	 */
-	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
+	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 
 	/**
 	 * An event emitted on a "mouseup".
@@ -435,6 +461,7 @@ export interface BaseCellRenderTemplate {
 	currentRenderedCell?: ICellViewModel;
 	statusBarContainer: HTMLElement;
 	languageStatusBarItem: CellLanguageStatusBarItem;
+	titleMenu: IMenu;
 	toJSON: () => object;
 }
 

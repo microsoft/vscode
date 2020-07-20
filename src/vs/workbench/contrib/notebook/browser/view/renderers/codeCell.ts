@@ -24,9 +24,14 @@ interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
 }
 
+interface IRenderedOutput {
+	element: HTMLElement;
+	renderResult: IRenderOutput;
+}
+
 export class CodeCell extends Disposable {
 	private outputResizeListeners = new Map<IProcessedOutput, DisposableStore>();
-	private outputElements = new Map<IProcessedOutput, HTMLElement>();
+	private outputElements = new Map<IProcessedOutput, IRenderedOutput>();
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: CodeCellViewModel,
@@ -40,14 +45,14 @@ export class CodeCell extends Disposable {
 		const width = this.viewCell.layoutInfo.editorWidth;
 		const lineNum = this.viewCell.lineCount;
 		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-		const totalHeight = this.viewCell.layoutInfo.editorHeight === 0
+		const editorHeight = this.viewCell.layoutInfo.editorHeight === 0
 			? lineNum * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING
 			: this.viewCell.layoutInfo.editorHeight;
 
 		this.layoutEditor(
 			{
 				width: width,
-				height: totalHeight
+				height: editorHeight
 			}
 		);
 
@@ -57,16 +62,16 @@ export class CodeCell extends Disposable {
 			if (model && templateData.editor) {
 				templateData.editor.setModel(model);
 				viewCell.attachTextEditor(templateData.editor);
-				if (notebookEditor.getActiveCell() === viewCell && viewCell.focusMode === CellFocusMode.Editor) {
+				if (notebookEditor.getActiveCell() === viewCell && viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasFocus()) {
 					templateData.editor?.focus();
 				}
 
 				const realContentHeight = templateData.editor?.getContentHeight();
-				if (realContentHeight !== undefined && realContentHeight !== totalHeight) {
+				if (realContentHeight !== undefined && realContentHeight !== editorHeight) {
 					this.onCellHeightChange(realContentHeight);
 				}
 
-				if (this.notebookEditor.getActiveCell() === this.viewCell && viewCell.focusMode === CellFocusMode.Editor) {
+				if (this.notebookEditor.getActiveCell() === this.viewCell && viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasFocus()) {
 					templateData.editor?.focus();
 				}
 			}
@@ -162,7 +167,7 @@ export class CodeCell extends Disposable {
 					// already removed
 					removedKeys.push(key);
 					// remove element from DOM
-					this.templateData?.outputContainer?.removeChild(value);
+					this.templateData?.outputContainer?.removeChild(value.element);
 					this.notebookEditor.removeInset(key);
 				}
 			});
@@ -179,14 +184,14 @@ export class CodeCell extends Disposable {
 			[...this.viewCell.outputs].reverse().forEach(output => {
 				if (this.outputElements.has(output)) {
 					// already exist
-					prevElement = this.outputElements.get(output);
+					prevElement = this.outputElements.get(output)!.element;
 					return;
 				}
 
 				// newly added element
 				let currIndex = this.viewCell.outputs.indexOf(output);
 				this.renderOutput(output, currIndex, prevElement);
-				prevElement = this.outputElements.get(output);
+				prevElement = this.outputElements.get(output)!.element;
 			});
 
 			let editorHeight = templateData.editor!.getContentHeight();
@@ -205,11 +210,44 @@ export class CodeCell extends Disposable {
 				const index = viewCell.outputs.indexOf(key);
 				if (index >= 0) {
 					const top = this.viewCell.getOutputOffsetInContainer(index);
-					value.style.top = `${top}px`;
+					value.element.style.top = `${top}px`;
 				}
 			});
 
 		}));
+
+		this._register(viewCell.onCellDecorationsChanged((e) => {
+			e.added.forEach(options => {
+				if (options.className) {
+					DOM.addClass(templateData.container, options.className);
+				}
+
+				if (options.outputClassName) {
+					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.outputClassName], []);
+				}
+			});
+
+			e.removed.forEach(options => {
+				if (options.className) {
+					DOM.removeClass(templateData.container, options.className);
+				}
+
+				if (options.outputClassName) {
+					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [], [options.outputClassName]);
+				}
+			});
+		}));
+		// apply decorations
+
+		viewCell.getCellDecorations().forEach(options => {
+			if (options.className) {
+				DOM.addClass(templateData.container, options.className);
+			}
+
+			if (options.outputClassName) {
+				this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.outputClassName], []);
+			}
+		});
 
 		const updateFocusMode = () => viewCell.focusMode = templateData.editor!.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
 		this._register(templateData.editor!.onDidFocusEditorWidget(() => {
@@ -224,7 +262,7 @@ export class CodeCell extends Disposable {
 
 		if (viewCell.outputs.length > 0) {
 			let layoutCache = false;
-			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.totalHeight > totalHeight) {
+			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.editorHeight > editorHeight) {
 				layoutCache = true;
 				this.relayoutCell();
 			}
@@ -239,7 +277,7 @@ export class CodeCell extends Disposable {
 				this.renderOutput(currOutput, index, undefined);
 			}
 
-			viewCell.editorHeight = totalHeight;
+			viewCell.editorHeight = editorHeight;
 			if (layoutCache) {
 				this.relayoutCellDebounced();
 			} else {
@@ -247,7 +285,7 @@ export class CodeCell extends Disposable {
 			}
 		} else {
 			// noop
-			viewCell.editorHeight = totalHeight;
+			viewCell.editorHeight = editorHeight;
 			this.relayoutCell();
 			this.templateData.outputContainer!.style.display = 'none';
 		}
@@ -260,6 +298,9 @@ export class CodeCell extends Disposable {
 
 	private onCellWidthChange(): void {
 		const realContentHeight = this.templateData.editor!.getContentHeight();
+		this.viewCell.editorHeight = realContentHeight;
+		this.relayoutCell();
+
 		this.layoutEditor(
 			{
 				width: this.viewCell.layoutInfo.editorWidth,
@@ -267,24 +308,27 @@ export class CodeCell extends Disposable {
 			}
 		);
 
-		this.viewCell.editorHeight = realContentHeight;
-		this.relayoutCell();
+		this.viewCell.outputs.forEach((o, i) => {
+			const renderedOutput = this.outputElements.get(o);
+			if (renderedOutput && !renderedOutput.renderResult.hasDynamicHeight && !renderedOutput.renderResult.shadowContent) {
+				this.viewCell.updateOutputHeight(i, renderedOutput.element.clientHeight);
+			}
+		});
 	}
 
 	private onCellHeightChange(newHeight: number): void {
 		const viewLayout = this.templateData.editor!.getLayoutInfo();
+		this.viewCell.editorHeight = newHeight;
+		this.relayoutCell();
 		this.layoutEditor(
 			{
 				width: viewLayout.width,
 				height: newHeight
 			}
 		);
-
-		this.viewCell.editorHeight = newHeight;
-		this.relayoutCell();
 	}
 
-	renderOutput(currOutput: IProcessedOutput, index: number, beforeElement?: HTMLElement) {
+	private renderOutput(currOutput: IProcessedOutput, index: number, beforeElement?: HTMLElement) {
 		if (!this.outputResizeListeners.has(currOutput)) {
 			this.outputResizeListeners.set(currOutput, new DisposableStore());
 		}
@@ -344,7 +388,7 @@ export class CodeCell extends Disposable {
 			return;
 		}
 
-		this.outputElements.set(currOutput, outputItemDiv);
+		this.outputElements.set(currOutput, { element: outputItemDiv, renderResult: result });
 
 		if (beforeElement) {
 			this.templateData.outputContainer?.insertBefore(outputItemDiv, beforeElement);
@@ -451,9 +495,9 @@ export class CodeCell extends Disposable {
 		if (pick !== currIndex) {
 			// user chooses another mimetype
 			let index = this.viewCell.outputs.indexOf(output);
-			let nextElement = index + 1 < this.viewCell.outputs.length ? this.outputElements.get(this.viewCell.outputs[index + 1]) : undefined;
+			let nextElement = index + 1 < this.viewCell.outputs.length ? this.outputElements.get(this.viewCell.outputs[index + 1])?.element : undefined;
 			this.outputResizeListeners.get(output)?.clear();
-			let element = this.outputElements.get(output);
+			let element = this.outputElements.get(output)?.element;
 			if (element) {
 				this.templateData?.outputContainer?.removeChild(element);
 				this.notebookEditor.removeInset(output);

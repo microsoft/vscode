@@ -18,13 +18,13 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, ICellRange, ICellViewModel, NotebookLayoutInfo, IEditableCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, ICellRange, ICellViewModel, NotebookLayoutInfo, IEditableCellViewModel, INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
@@ -248,6 +248,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	get focused() {
 		return this._focused;
 	}
+
+	private _decorationIdToCellMap = new Map<string, number>();
 
 	constructor(
 		public viewType: string,
@@ -596,6 +598,31 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return result;
 	}
 
+	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[] {
+		oldDecorations.forEach(id => {
+			const handle = this._decorationIdToCellMap.get(id);
+
+			if (handle !== undefined) {
+				const cell = this.getCellByHandle(handle);
+				cell?.deltaCellDecorations([id], []);
+			}
+		});
+
+		let result: string[] = [];
+
+		newDecorations.forEach(decoration => {
+			const cell = this.getCellByHandle(decoration.handle);
+			const ret = cell?.deltaCellDecorations([], [decoration.options]) || [];
+			ret.forEach(id => {
+				this._decorationIdToCellMap.set(id, decoration.handle);
+			});
+
+			result.push(...ret);
+		});
+
+		return result;
+	}
+
 	createCell(index: number, source: string | string[], language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean = true) {
 		this._notebook.createCell2(index, source, language, type, metadata, synchronous, pushUndoStop, undefined, undefined);
 		// TODO, rely on createCell to be sync
@@ -827,7 +854,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 			this.selectionHandles = endSelections;
 
-			return { cell: above, deletedCells: [above] };
+			return { cell: above, deletedCells: [cell] };
 		} else {
 			const below = this.viewCells[index + 1] as CellViewModel;
 			if (constraint && below.cellKind !== constraint) {
@@ -918,10 +945,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	 * Editor decorations across cells. For example, find decorations for multiple code cells
 	 * The reason that we can't completely delegate this to CodeEditorWidget is most of the time, the editors for cells are not created yet but we already have decorations for them.
 	 */
-	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
+	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
 		const changeAccessor: IModelDecorationsChangeAccessor = {
 			deltaDecorations: (oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]): ICellModelDecorations[] => {
-				return this.deltaDecorationsImpl(oldDecorations, newDecorations);
+				return this._deltaModelDecorationsImpl(oldDecorations, newDecorations);
 			}
 		};
 
@@ -937,7 +964,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return result;
 	}
 
-	deltaDecorationsImpl(oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]): ICellModelDecorations[] {
+	private _deltaModelDecorationsImpl(oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]): ICellModelDecorations[] {
 
 		const mapping = new Map<number, { cell: CellViewModel; oldDecorations: string[]; newDecorations: IModelDeltaDecoration[] }>();
 		oldDecorations.forEach(oldDecoration => {
@@ -975,7 +1002,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		const ret: ICellModelDecorations[] = [];
 		mapping.forEach((value, ownerId) => {
-			const cellRet = value.cell.deltaDecorations(value.oldDecorations, value.newDecorations);
+			const cellRet = value.cell.deltaModelDecorations(value.oldDecorations, value.newDecorations);
 			ret.push({
 				ownerId: ownerId,
 				decorations: cellRet
@@ -990,10 +1017,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	 * Search in notebook text model
 	 * @param value
 	 */
-	find(value: string): CellFindMatch[] {
+	find(value: string, options: INotebookSearchOptions): CellFindMatch[] {
 		const matches: CellFindMatch[] = [];
 		this._viewCells.forEach(cell => {
-			const cellMatches = cell.startFind(value);
+			const cellMatches = cell.startFind(value, options);
 			if (cellMatches) {
 				matches.push(cellMatches);
 			}

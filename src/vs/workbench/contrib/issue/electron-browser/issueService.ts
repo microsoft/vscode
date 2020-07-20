@@ -15,6 +15,7 @@ import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-brow
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { platform } from 'process';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
@@ -67,7 +68,8 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 				hoverBackground: getColor(theme, listHoverBackground),
 				hoverForeground: getColor(theme, listHoverForeground),
 				highlightForeground: getColor(theme, listHighlightForeground),
-			}
+			},
+			platform
 		};
 		return this.issueService.openProcessExplorer(data);
 	}

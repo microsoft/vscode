@@ -277,9 +277,6 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 (function () {
 
-	// Mark start of workbench
-	performance.mark('workbench-start');
-
 	// Find config by checking for DOM
 	const configElement = document.getElementById('vscode-workbench-web-configuration');
 	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;

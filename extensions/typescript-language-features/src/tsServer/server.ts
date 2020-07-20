@@ -4,19 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as stream from 'stream';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
+import { EventName } from '../protocol.const';
+import { CallbackMap } from '../tsServer/callbackMap';
+import { RequestItem, RequestQueue, RequestQueueingType } from '../tsServer/requestQueue';
+import { TypeScriptServerError } from '../tsServer/serverError';
 import { ServerResponse, TypeScriptRequests } from '../typescriptService';
 import { Disposable } from '../utils/dispose';
 import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion } from '../utils/versionProvider';
-import { Reader } from '../utils/wireProtocol';
-import { CallbackMap } from './callbackMap';
-import { RequestItem, RequestQueue, RequestQueueingType } from './requestQueue';
-import { TypeScriptServerError } from './serverError';
-import { EventName } from '../protocol.const';
 
 export interface OngoingRequestCanceller {
 	tryCancelOngoingRequest(seq: number): boolean;
@@ -47,7 +45,6 @@ export interface ITypeScriptServer {
 	readonly onEvent: vscode.Event<Proto.Event>;
 	readonly onExit: vscode.Event<any>;
 	readonly onError: vscode.Event<any>;
-	readonly onReaderError: vscode.Event<Error>;
 
 	readonly tsServerLogFile: string | undefined;
 
@@ -65,17 +62,17 @@ export interface TsServerDelegate {
 }
 
 export interface TsServerProcess {
-	readonly stdout: stream.Readable;
 	write(serverRequest: Proto.Request): void;
 
-	on(name: 'exit', handler: (code: number | null) => void): void;
-	on(name: 'error', handler: (error: Error) => void): void;
+	onData(handler: (data: Proto.Response) => void): void;
+	onExit(handler: (code: number | null) => void): void;
+	onError(handler: (error: Error) => void): void;
 
 	kill(): void;
 }
 
+
 export class ProcessBasedTsServer extends Disposable implements ITypeScriptServer {
-	private readonly _reader: Reader<Proto.Response>;
 	private readonly _requestQueue = new RequestQueue();
 	private readonly _callbacks = new CallbackMap<Proto.Response>();
 	private readonly _pendingResponses = new Set<number>();
@@ -90,14 +87,17 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		private readonly _tracer: Tracer,
 	) {
 		super();
-		this._reader = this._register(new Reader<Proto.Response>(this._process.stdout!));
-		this._reader.onData(msg => this.dispatchMessage(msg));
 
-		this._process.on('exit', code => {
+		this._process.onData(msg => {
+			this.dispatchMessage(msg);
+		});
+
+		this._process.onExit(code => {
 			this._onExit.fire(code);
 			this._callbacks.destroy('server exited');
 		});
-		this._process.on('error', error => {
+
+		this._process.onError(error => {
 			this._onError.fire(error);
 			this._callbacks.destroy('server errored');
 		});
@@ -111,8 +111,6 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 
 	private readonly _onError = this._register(new vscode.EventEmitter<any>());
 	public readonly onError = this._onError.event;
-
-	public get onReaderError() { return this._reader.onError; }
 
 	public get tsServerLogFile() { return this._tsServerLogFile; }
 
@@ -439,8 +437,6 @@ export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServ
 	private readonly _onError = this._register(new vscode.EventEmitter<any>());
 	public readonly onError = this._onError.event;
 
-	public get onReaderError() { return this.mainServer.onReaderError; }
-
 	public get tsServerLogFile() { return this.mainServer.tsServerLogFile; }
 
 	public kill(): void {
@@ -576,8 +572,6 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 
 	private readonly _onError = this._register(new vscode.EventEmitter<any>());
 	public readonly onError = this._onError.event;
-
-	public get onReaderError() { return this.semanticServer.onReaderError; }
 
 	public get tsServerLogFile() { return this.semanticServer.tsServerLogFile; }
 

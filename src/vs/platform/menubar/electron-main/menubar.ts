@@ -49,6 +49,7 @@ export class Menubar {
 	private willShutdown: boolean | undefined;
 	private appMenuInstalled: boolean | undefined;
 	private closedLastWindow: boolean;
+	private noActiveWindow: boolean;
 
 	private menuUpdater: RunOnceScheduler;
 	private menuGC: RunOnceScheduler;
@@ -89,6 +90,7 @@ export class Menubar {
 		this.addFallbackHandlers();
 
 		this.closedLastWindow = false;
+		this.noActiveWindow = false;
 
 		this.oldMenus = [];
 
@@ -168,6 +170,8 @@ export class Menubar {
 
 		// // Listen to some events from window service to update menu
 		this.windowsMainService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
+		this.electronMainService.onWindowBlur(() => this.onWindowFocusChange());
+		this.electronMainService.onWindowFocus(() => this.onWindowFocusChange());
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
@@ -232,6 +236,15 @@ export class Menubar {
 			this.closedLastWindow = e.newCount === 0;
 			this.scheduleUpdateMenu();
 		}
+	}
+
+	private onWindowFocusChange(): void {
+		if (!isMacintosh) {
+			return;
+		}
+
+		this.noActiveWindow = !BrowserWindow.getFocusedWindow();
+		this.scheduleUpdateMenu();
 	}
 
 	private install(): void {
@@ -412,12 +425,12 @@ export class Menubar {
 			case 'File':
 			case 'Help':
 				if (isMacintosh) {
-					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || (!!this.menubarMenus && !!this.menubarMenus[menuId]);
+					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || (this.windowsMainService.getWindowCount() > 0 && this.noActiveWindow) || (!!this.menubarMenus && !!this.menubarMenus[menuId]);
 				}
 
 			case 'Window':
 				if (isMacintosh) {
-					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || !!this.menubarMenus;
+					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || (this.windowsMainService.getWindowCount() > 0 && this.noActiveWindow) || !!this.menubarMenus;
 				}
 
 			default:
@@ -443,7 +456,8 @@ export class Menubar {
 				}
 
 				if (isMacintosh) {
-					if (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) {
+					if ((this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) ||
+						(this.windowsMainService.getWindowCount() > 0 && this.noActiveWindow)) {
 						// In the fallback scenario, we are either disabled or using a fallback handler
 						if (this.fallbackMenuHandlers[item.id]) {
 							menu.append(new MenuItem(this.likeAction(item.id, { label: this.mnemonicLabel(item.label), click: this.fallbackMenuHandlers[item.id] })));

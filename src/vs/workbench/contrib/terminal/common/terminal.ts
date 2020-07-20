@@ -10,7 +10,6 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -238,7 +237,7 @@ export interface ITerminalNativeService {
 
 	readonly linuxDistro: LinuxDistro;
 
-	readonly onOpenFileRequest: Event<IOpenFileRequest>;
+	readonly onRequestFocusActiveInstance: Event<void>;
 	readonly onOsResume: Event<void>;
 
 	getWindowsBuildNumber(): number;

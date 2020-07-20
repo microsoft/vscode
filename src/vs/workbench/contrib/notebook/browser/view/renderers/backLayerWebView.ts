@@ -155,6 +155,13 @@ export interface IUpdatePreloadResourceMessage {
 	source: 'renderer' | 'kernel';
 }
 
+export interface IUpdateDecorationsMessage {
+	type: 'decorations';
+	cellId: string;
+	addedClassNames: string[];
+	removedClassNames: string[];
+}
+
 export interface ICustomRendererMessage {
 	__vscode_notebook_message: boolean;
 	type: 'customRendererMessage';
@@ -184,6 +191,7 @@ export type ToWebviewMessage =
 	| IShowOutputMessage
 	| IUpdatePreloadResourceMessage
 	| IFocusOutputMessage
+	| IUpdateDecorationsMessage
 	| ICustomRendererMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
@@ -260,11 +268,49 @@ export class BackLayerWebView extends Disposable {
 						box-sizing: border-box;
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
 					}
+
+					#container > div.nb-symbolHighlight > div {
+						background-color: var(--vscode-notebook-symbolHighlightBackground);
+					}
+
 					body {
 						padding: 0px;
 						height: 100%;
 						width: 100%;
 					}
+
+					table, thead, tr, th, td, tbody {
+						border: none !important;
+						border-color: transparent;
+						border-spacing: 0;
+						border-collapse: collapse;
+					}
+
+					table {
+						width: 100%;
+					}
+
+					table, th, tr {
+						text-align: left !important;
+					}
+
+					thead {
+						font-weight: bold;
+						background-color: rgba(130, 130, 130, 0.16);
+					}
+
+					th, td {
+						padding: 4px 8px;
+					}
+
+					tr:nth-child(even) {
+						background-color: rgba(130, 130, 130, 0.08);
+					}
+
+					tbody th {
+						font-weight: normal;
+					}
+
 				</style>
 			</head>
 			<body style="overflow: hidden;">
@@ -683,6 +729,16 @@ ${loaderJs}
 				cellId,
 			});
 		}, 50);
+	}
+
+	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
+		this._sendMessageToWebview({
+			type: 'decorations',
+			cellId,
+			addedClassNames: added,
+			removedClassNames: removed
+		});
+
 	}
 
 	async updateKernelPreloads(extensionLocations: URI[], preloads: URI[]) {

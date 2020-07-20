@@ -41,8 +41,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'perfview.show',
-			title: localize('show.label', "Startup Performance"),
-			category: localize({ key: 'show.cat', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"),
+			title: { value: localize('show.label', "Startup Performance"), original: 'Startup Performance' },
+			category: { value: localize({ key: 'show.cat', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' },
 			f1: true
 		});
 	}

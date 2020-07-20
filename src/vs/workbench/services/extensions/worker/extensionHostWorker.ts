@@ -10,7 +10,9 @@ import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import 'vs/workbench/services/extensions/worker/extHost.services';
+
+import 'vs/workbench/api/common/extHost.common.services';
+import 'vs/workbench/api/worker/extHost.worker.services';
 
 //#region --- Define, capture, and override some globals
 

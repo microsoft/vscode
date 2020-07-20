@@ -12,7 +12,6 @@ import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeServ
 import { overviewRulerWarning, overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
-import { keys } from 'vs/base/common/map';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { Schemas } from 'vs/base/common/network';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -32,7 +31,7 @@ class MarkerDecorations extends Disposable {
 	) {
 		super();
 		this._register(toDisposable(() => {
-			this.model.deltaDecorations(keys(this._markersData), []);
+			this.model.deltaDecorations([...this._markersData.keys()], []);
 			this._markersData.clear();
 		}));
 	}
@@ -42,7 +41,7 @@ class MarkerDecorations extends Disposable {
 	}
 
 	public update(markers: IMarker[], newDecorations: IModelDeltaDecoration[]): boolean {
-		const oldIds = keys(this._markersData);
+		const oldIds = [...this._markersData.keys()];
 		this._markersData.clear();
 		const ids = this.model.deltaDecorations(oldIds, newDecorations);
 		for (let index = 0; index < ids.length; index++) {

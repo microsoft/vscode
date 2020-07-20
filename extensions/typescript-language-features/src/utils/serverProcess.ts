@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChildProcess } from 'child_process';
 import * as stream from 'stream';
 import * as vscode from 'vscode';
+import type * as Proto from '../protocol';
+import { TsServerProcess } from '../tsServer/server';
 import { Disposable } from './dispose';
 
 const defaultSize: number = 8192;
@@ -80,7 +83,7 @@ class ProtocolBuffer {
 	}
 }
 
-export class Reader<T> extends Disposable {
+class Reader<T> extends Disposable {
 
 	private readonly buffer: ProtocolBuffer = new ProtocolBuffer();
 	private nextMessageLength: number = -1;
@@ -121,5 +124,38 @@ export class Reader<T> extends Disposable {
 		} catch (e) {
 			this._onError.fire(e);
 		}
+	}
+}
+
+export class ChildServerProcess extends Disposable implements TsServerProcess {
+	private readonly _reader: Reader<Proto.Response>;
+
+	public constructor(
+		private readonly _process: ChildProcess,
+	) {
+		super();
+		this._reader = this._register(new Reader<Proto.Response>(this._process.stdout!));
+	}
+
+	write(serverRequest: Proto.Request): void {
+		this._process.stdin!.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
+	}
+
+	onData(handler: (data: Proto.Response) => void): void {
+		this._reader.onData(handler);
+	}
+
+	onExit(handler: (code: number | null) => void): void {
+		this._process.on('exit', handler);
+	}
+
+	onError(handler: (err: Error) => void): void {
+		this._process.on('error', handler);
+		this._reader.onError(handler);
+	}
+
+	kill(): void {
+		this._process.kill();
+		this._reader.dispose();
 	}
 }

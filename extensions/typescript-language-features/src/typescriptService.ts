@@ -85,6 +85,23 @@ export type ExecConfig = {
 	readonly cancelOnResourceChange?: vscode.Uri
 };
 
+export enum ClientCapability {
+	Syntax,
+	Semantic,
+}
+
+export class ClientCapabilities {
+	private readonly capabilities: ReadonlySet<ClientCapability>;
+
+	constructor(...capabilities: ClientCapability[]) {
+		this.capabilities = new Set(capabilities);
+	}
+
+	public has(capability: ClientCapability): boolean {
+		return this.capabilities.has(capability);
+	}
+}
+
 export interface ITypeScriptServiceClient {
 	/**
 	 * Convert a resource (VS Code) to a normalized path (TypeScript).
@@ -119,6 +136,9 @@ export interface ITypeScriptServiceClient {
 	readonly onDidBeginInstallTypings: vscode.Event<Proto.BeginInstallTypesEventBody>;
 	readonly onDidEndInstallTypings: vscode.Event<Proto.EndInstallTypesEventBody>;
 	readonly onTypesInstallerInitializationFailed: vscode.Event<Proto.TypesInstallerInitializationFailedEventBody>;
+
+	readonly capabilities: ClientCapabilities;
+	readonly onDidChangeCapabilities: vscode.Event<ClientCapabilities>;
 
 	onReady(f: () => void): Promise<void>;
 

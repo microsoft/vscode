@@ -35,8 +35,10 @@ interface ISyncContent {
 export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implements IUserDataSynchroniser {
 
 	protected readonly version: number = 1;
-	protected readonly localPreviewResource: URI = joinPath(this.syncPreviewFolder, 'keybindings.json');
-	protected readonly remotePreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME });
+	private readonly previewResource: URI = joinPath(this.syncPreviewFolder, 'keybindings.json');
+	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
+	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
+	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
 
 	constructor(
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
@@ -58,13 +60,15 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		const previewContent = remoteUserData.syncData !== null ? this.getKeybindingsContentFromSyncContent(remoteUserData.syncData.content) : null;
 
 		return [{
-			localResource: this.file,
+			localResource: this.localResource,
 			fileContent,
 			localContent: fileContent ? fileContent.value.toString() : null,
-			remoteResource: this.remotePreviewResource,
+			remoteResource: this.remoteResource,
 			remoteContent: previewContent,
-			previewResource: this.localPreviewResource,
+			previewResource: this.previewResource,
 			previewContent,
+			acceptedResource: this.acceptedResource,
+			acceptedContent: previewContent,
 			localChange: previewContent !== null ? Change.Modified : Change.None,
 			remoteChange: Change.None,
 			hasConflicts: false,
@@ -76,13 +80,15 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		const previewContent: string | null = fileContent ? fileContent.value.toString() : null;
 
 		return [{
-			localResource: this.file,
+			localResource: this.localResource,
 			fileContent,
 			localContent: fileContent ? fileContent.value.toString() : null,
-			remoteResource: this.remotePreviewResource,
+			remoteResource: this.remoteResource,
 			remoteContent: remoteUserData.syncData !== null ? this.getKeybindingsContentFromSyncContent(remoteUserData.syncData.content) : null,
-			previewResource: this.localPreviewResource,
+			previewResource: this.previewResource,
 			previewContent,
+			acceptedResource: this.acceptedResource,
+			acceptedContent: previewContent,
 			localChange: Change.None,
 			remoteChange: previewContent !== null ? Change.Modified : Change.None,
 			hasConflicts: false,
@@ -94,13 +100,15 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		const previewContent = this.getKeybindingsContentFromSyncContent(syncData.content);
 
 		return [{
-			localResource: this.file,
+			localResource: this.localResource,
 			fileContent,
 			localContent: fileContent ? fileContent.value.toString() : null,
-			remoteResource: this.remotePreviewResource,
+			remoteResource: this.remoteResource,
 			remoteContent: remoteUserData.syncData !== null ? this.getKeybindingsContentFromSyncContent(remoteUserData.syncData.content) : null,
-			previewResource: this.localPreviewResource,
+			previewResource: this.previewResource,
 			previewContent,
+			acceptedResource: this.acceptedResource,
+			acceptedContent: previewContent,
 			localChange: previewContent !== null ? Change.Modified : Change.None,
 			remoteChange: previewContent !== null ? Change.Modified : Change.None,
 			hasConflicts: false,
@@ -150,25 +158,27 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		}
 
 		if (previewContent && !token.isCancellationRequested) {
-			await this.fileService.writeFile(this.localPreviewResource, VSBuffer.fromString(previewContent));
+			await this.fileService.writeFile(this.previewResource, VSBuffer.fromString(previewContent));
 		}
 
 		return [{
-			localResource: this.file,
+			localResource: this.localResource,
 			fileContent,
 			localContent: fileContent ? fileContent.value.toString() : null,
-			remoteResource: this.remotePreviewResource,
+			remoteResource: this.remoteResource,
 			remoteContent,
-			previewResource: this.localPreviewResource,
+			previewResource: this.previewResource,
 			previewContent,
+			acceptedResource: this.acceptedResource,
+			acceptedContent: previewContent,
 			hasConflicts,
-			localChange: hasLocalChanged ? Change.Modified : Change.None,
+			localChange: hasLocalChanged ? fileContent ? Change.Modified : Change.Added : Change.None,
 			remoteChange: hasRemoteChanged ? Change.Modified : Change.None,
 		}];
 	}
 
-	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: IFileResourcePreview[], forcePush: boolean): Promise<void> {
-		let { fileContent, previewContent: content, localChange, remoteChange } = resourcePreviews[0];
+	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: IFileResourcePreview[], force: boolean): Promise<void> {
+		let { fileContent, acceptedContent: content, localChange, remoteChange } = resourcePreviews[0];
 
 		if (content !== null) {
 			if (this.hasErrors(content)) {
@@ -180,20 +190,20 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 				if (fileContent) {
 					await this.backupLocal(this.toSyncContent(fileContent.value.toString(), null));
 				}
-				await this.updateLocalFileContent(content, fileContent);
+				await this.updateLocalFileContent(content, fileContent, force);
 				this.logService.info(`${this.syncResourceLogLabel}: Updated local keybindings`);
 			}
 
 			if (remoteChange !== Change.None) {
 				this.logService.trace(`${this.syncResourceLogLabel}: Updating remote keybindings...`);
 				const remoteContents = this.toSyncContent(content, remoteUserData.syncData ? remoteUserData.syncData.content : null);
-				remoteUserData = await this.updateRemoteUserData(remoteContents, forcePush ? null : remoteUserData.ref);
+				remoteUserData = await this.updateRemoteUserData(remoteContents, force ? null : remoteUserData.ref);
 				this.logService.info(`${this.syncResourceLogLabel}: Updated remote keybindings`);
 			}
 
 			// Delete the preview
 			try {
-				await this.fileService.del(this.localPreviewResource);
+				await this.fileService.del(this.previewResource);
 			} catch (e) { /* ignore */ }
 		} else {
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing keybindings.`);
@@ -230,7 +240,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
-		if (isEqual(this.remotePreviewResource, uri) || isEqual(this.localPreviewResource, uri)) {
+		if (isEqual(this.remoteResource, uri) || isEqual(this.localResource, uri) || isEqual(this.acceptedResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}
 		let content = await super.resolveContent(uri);

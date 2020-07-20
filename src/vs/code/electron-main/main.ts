@@ -178,8 +178,8 @@ class CodeMain {
 			environmentService.extensionsPath,
 			environmentService.nodeCachedDataDir,
 			environmentService.logsPath,
-			environmentService.globalStorageHome,
-			environmentService.workspaceStorageHome,
+			environmentService.globalStorageHome.fsPath,
+			environmentService.workspaceStorageHome.fsPath,
 			environmentService.backupHome.fsPath
 		].map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
 

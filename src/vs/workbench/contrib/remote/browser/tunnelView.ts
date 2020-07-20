@@ -208,7 +208,7 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 	}
 
 	renderTemplate(container: HTMLElement): ITunnelTemplateData {
-		dom.addClass(container, 'custom-view-tree-node-item');
+		container.classList.add('custom-view-tree-node-item');
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
 		// dom.addClass(iconLabel.element, 'tunnel-view-label');
 		const actionsContainer = dom.append(iconLabel.element, dom.$('.actions'));
@@ -488,8 +488,7 @@ export class TunnelPanel extends ViewPane {
 
 		const panelContainer = dom.append(container, dom.$('.tree-explorer-viewlet-tree-view'));
 		const treeContainer = dom.append(panelContainer, dom.$('.customview-tree'));
-		dom.addClass(treeContainer, 'file-icon-themable-tree');
-		dom.addClass(treeContainer, 'show-file-icons');
+		treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 
 		const renderer = new TunnelTreeRenderer(TunnelPanel.ID, this.menuService, this.contextKeyService, this.instantiationService, this.contextViewService, this.themeService, this.remoteExplorerService);
 		this.tree = this.instantiationService.createInstance(TunnelDataTree,
@@ -548,13 +547,13 @@ export class TunnelPanel extends ViewPane {
 			const isEditing = !!this.remoteExplorerService.getEditableData(e);
 
 			if (!isEditing) {
-				dom.removeClass(treeContainer, 'highlight');
+				treeContainer.classList.remove('highlight');
 			}
 
 			await this.tree.updateChildren(undefined, false);
 
 			if (isEditing) {
-				dom.addClass(treeContainer, 'highlight');
+				treeContainer.classList.add('highlight');
 				if (!e) {
 					// When we are in editing mode for a new forward, rather than updating an existing one we need to reveal the input box since it might be out of view.
 					this.tree.reveal(this.viewModel.input);

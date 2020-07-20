@@ -17,6 +17,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IStartupMetrics, AbstractTimerService, Writeable } from 'vs/workbench/services/timer/browser/timerService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class TimerService extends AbstractTimerService {
 
@@ -30,9 +31,10 @@ export class TimerService extends AbstractTimerService {
 		@IViewletService viewletService: IViewletService,
 		@IPanelService panelService: IPanelService,
 		@IEditorService editorService: IEditorService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(lifecycleService, contextService, extensionService, updateService, viewletService, panelService, editorService, accessibilityService);
+		super(lifecycleService, contextService, extensionService, updateService, viewletService, panelService, editorService, accessibilityService, telemetryService);
 	}
 
 	protected _isInitialStartup(): boolean {

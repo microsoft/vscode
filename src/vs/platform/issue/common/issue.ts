@@ -85,6 +85,7 @@ export interface ProcessExplorerStyles extends WindowStyles {
 export interface ProcessExplorerData extends WindowData {
 	pid: number;
 	styles: ProcessExplorerStyles;
+	platform: string;
 }
 
 export interface ICommonIssueService {

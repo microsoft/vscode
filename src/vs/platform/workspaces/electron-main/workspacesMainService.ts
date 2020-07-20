@@ -217,7 +217,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			rimrafSync(dirname(configPath));
 
 			// Mark Workspace Storage to be deleted
-			const workspaceStoragePath = join(this.environmentService.workspaceStorageHome, workspace.id);
+			const workspaceStoragePath = join(this.environmentService.workspaceStorageHome.fsPath, workspace.id);
 			if (existsSync(workspaceStoragePath)) {
 				writeFileSync(join(workspaceStoragePath, 'obsolete'), '');
 			}

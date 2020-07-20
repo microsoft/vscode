@@ -9,7 +9,6 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { joinPath, extUri, dirname } from 'vs/base/common/resources';
-import { values } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
 
 export abstract class KeyValueFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
@@ -97,7 +96,7 @@ export abstract class KeyValueFileSystemProvider extends Disposable implements I
 				}
 			}
 		}
-		return values(files);
+		return [...files.values()];
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
