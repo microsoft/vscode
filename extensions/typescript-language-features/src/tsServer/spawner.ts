@@ -10,7 +10,7 @@ import { ClientCapabilities, ClientCapability } from '../typescriptService';
 import API from '../utils/api';
 import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import * as electron from '../utils/electron';
-import { ILogDirectoryProvider } from '../utils/logDirectoryProvider';
+import { ILogDirectoryProvider } from './logDirectoryProvider';
 import Logger from '../utils/logger';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';

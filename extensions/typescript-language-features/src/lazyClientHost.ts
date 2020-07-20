@@ -12,7 +12,7 @@ import * as fileSchemes from './utils/fileSchemes';
 import { standardLanguageDescriptions } from './utils/languageDescription';
 import * as ProjectStatus from './utils/largeProjectStatus';
 import { lazy, Lazy } from './utils/lazy';
-import { ILogDirectoryProvider } from './utils/logDirectoryProvider';
+import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { PluginManager } from './utils/plugins';
 

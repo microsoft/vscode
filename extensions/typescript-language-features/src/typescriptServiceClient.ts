@@ -21,7 +21,7 @@ import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/config
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
 import { onCaseInsenitiveFileSystem } from './utils/fileSystem';
-import { ILogDirectoryProvider } from './utils/logDirectoryProvider';
+import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
