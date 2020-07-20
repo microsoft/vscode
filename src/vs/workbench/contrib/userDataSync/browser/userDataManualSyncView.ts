@@ -36,7 +36,8 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Severity } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export class UserDataManualSyncViewPane extends TreeViewPane {
 
@@ -51,7 +52,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 	constructor(
 		options: IViewletViewOptions,
 		@IEditorService private readonly editorService: IEditorService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncWorkbenchService userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
@@ -79,7 +80,14 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 
 	protected renderTreeView(container: HTMLElement): void {
 		super.renderTreeView(DOM.append(container, DOM.$('')));
+		this.createButtons(container);
 
+		const that = this;
+		this.treeView.message = localize('explanation', "Please go through each entry and accept the change to enable sync.");
+		this.treeView.dataProvider = { getChildren() { return that.getTreeItems(); } };
+	}
+
+	private createButtons(container: HTMLElement): void {
 		this.buttonsContainer = DOM.append(container, DOM.$('.manual-sync-buttons-container'));
 
 		this.syncButton = this._register(new Button(this.buttonsContainer));
@@ -92,17 +100,16 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		this.cancelButton.label = localize('cancel', "Cancel");
 		this._register(attachButtonStyler(this.cancelButton, this.themeService));
 		this._register(this.cancelButton.onDidClick(() => this.cancel()));
-
-		const that = this;
-		this.treeView.dataProvider = { getChildren() { return that.getTreeItems(); } };
 	}
 
 	protected layoutTreeView(height: number, width: number): void {
-		const buttonContainerHeight = 117;
+		const buttonContainerHeight = 78;
 		this.buttonsContainer.style.height = `${buttonContainerHeight}px`;
 		this.buttonsContainer.style.width = `${width}px`;
+
 		const numberOfChanges = this.userDataSyncPreview.resources.filter(r => r.syncResource !== SyncResource.GlobalState && (r.localChange !== Change.None || r.remoteChange !== Change.None)).length;
-		super.layoutTreeView(Math.min(height - buttonContainerHeight, 22 * numberOfChanges), width);
+		const messageHeight = 44;
+		super.layoutTreeView(Math.min(height - buttonContainerHeight, ((22 * numberOfChanges) + messageHeight)), width);
 	}
 
 	private updateSyncButtonEnablement(): void {
@@ -261,10 +268,12 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 	private async mergeResource(previewResource: IUserDataSyncResource): Promise<void> {
 		await this.withProgress(() => this.userDataSyncPreview.merge(previewResource.merged));
 		previewResource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local))!;
-		if (previewResource.mergeState === MergeState.Conflict) {
-			this.notificationService.warn(localize('conflicts detected', "Unable to merge due to conflicts. Please resolve them to continue."));
-		}
 		await this.reopen(previewResource);
+		if (previewResource.mergeState === MergeState.Conflict) {
+			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected."), [], {
+				detail: localize('resolve', "Unable to merge due to conflicts. Please resolve them to continue.")
+			});
+		}
 	}
 
 	private async discardResource(previewResource: IUserDataSyncResource): Promise<void> {
