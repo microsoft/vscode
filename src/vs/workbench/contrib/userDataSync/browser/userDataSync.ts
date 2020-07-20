@@ -140,6 +140,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				this.updateGlobalActivityBadge();
 			}));
 			this._register(userDataSyncService.onDidChangeConflicts(() => this.onDidChangeConflicts(this.userDataSyncService.conflicts)));
+			this._register(userDataAutoSyncService.onDidChangeEnablement(() => this.onDidChangeConflicts(this.userDataSyncService.conflicts)));
 			this._register(userDataSyncService.onSyncErrors(errors => this.onSynchronizerErrors(errors)));
 			this._register(userDataAutoSyncService.onError(error => this.onAutoSyncError(error)));
 
@@ -389,7 +390,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		let clazz: string | undefined;
 		let priority: number | undefined = undefined;
 
-		if (this.userDataSyncService.conflicts.length) {
+		if (this.userDataSyncService.conflicts.length && this.userDataAutoSyncService.isEnabled()) {
 			badge = new NumberBadge(this.userDataSyncService.conflicts.reduce((result, [, conflicts]) => { return result + conflicts.length; }, 0), () => localize('has conflicts', "Preferences Sync: Conflicts Detected"));
 		} else if (this.turningOnSync) {
 			badge = new ProgressBadge(() => localize('turning on syncing', "Turning on Preferences Sync..."));
