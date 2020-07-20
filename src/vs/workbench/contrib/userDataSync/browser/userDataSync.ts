@@ -308,7 +308,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			case UserDataSyncErrorCode.IncompatibleRemoteContent:
 				this.notificationService.notify({
 					severity: Severity.Error,
-					message: localize('error reset required', "Preferences sync is disabled because your data in the cloud is older than that of in the client. Please reset your data in the cloud before turning on sync."),
+					message: localize('error reset required', "Preferences sync is disabled because your data in the cloud is older than that of the client. Please reset your data in the cloud before turning on sync."),
 					actions: {
 						primary: [
 							new Action('reset', localize('reset', "Reset Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
