@@ -62,7 +62,7 @@
 
 		// Enable ASAR support (TODO@sandbox non-sandboxed only)
 		if (!sandbox) {
-			globalThis.MonacoBootstrap.enableASARSupport();
+			globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
 		}
 
 		if (options && typeof options.canModifyDOM === 'function') {
