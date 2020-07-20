@@ -64,7 +64,6 @@ export class ProxyAuthHandler extends Disposable {
 				contextIsolation: true,
 				enableWebSQL: false,
 				enableRemoteModule: false,
-				nativeWindowOpen: true,
 				devTools: false,
 				v8CacheOptions: 'bypassHeatCheck'
 			}
