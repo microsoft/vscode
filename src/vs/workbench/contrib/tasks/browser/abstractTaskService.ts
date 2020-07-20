@@ -334,7 +334,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this.setExecutionContexts();
 	}
 
-	protected setExecutionContexts(custom: boolean = true, shell: boolean = false, process: boolean = false): void {
+	protected setExecutionContexts(custom: boolean = true, shell: boolean = true, process: boolean = true): void {
 		const customContext = CustomExecutionSupportedContext.bindTo(this.contextKeyService);
 		customContext.set(custom);
 		const shellContext = ShellExecutionSupportedContext.bindTo(this.contextKeyService);
@@ -530,6 +530,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
+		if (info.platform === Platform.Platform.Web) {
+			this.setExecutionContexts(true, false, false);
+		}
 		this._taskSystemInfos.set(key, info);
 	}
 

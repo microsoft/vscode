@@ -130,10 +130,10 @@ export function createServer(nonce: string) {
 				}
 				break;
 			case '/':
-				sendFile(res, path.join(__dirname, '../../../media/auth.html'), 'text/html; charset=utf-8');
+				sendFile(res, path.join(__dirname, '../media/auth.html'), 'text/html; charset=utf-8');
 				break;
 			case '/auth.css':
-				sendFile(res, path.join(__dirname, '../../../media/auth.css'), 'text/css; charset=utf-8');
+				sendFile(res, path.join(__dirname, '../media/auth.css'), 'text/css; charset=utf-8');
 				break;
 			case '/callback':
 				deferredCode.resolve(callback(nonce, reqUrl)
