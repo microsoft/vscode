@@ -1205,7 +1205,7 @@ export function asDomUri(uri: URI): URI {
 		return RemoteAuthorities.rewrite(uri);
 	}
 	if (platform.isNative && Schemas.file === uri.scheme) {
-		return uri.with({ scheme: 'vscode-file' });
+		return uri.with({ scheme: Schemas.vscodeFileResource });
 	}
 	return uri;
 }

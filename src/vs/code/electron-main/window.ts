@@ -35,6 +35,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -691,7 +692,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Load URL
 		perf.mark('main:loadWindow');
-		this._win.loadURL('vscode-file://localhost' + this.getUrl(configuration).slice(7));
+		this._win.loadURL(this.getUrl(configuration));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
 		// Only do this when running out of sources and not when running tests
@@ -799,7 +800,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private doGetUrl(config: object): string {
-		return `${require.toUrl('vs/code/electron-browser/workbench/workbench.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		const url = `${require.toUrl('vs/code/electron-browser/workbench/workbench.html')}`;
+		const fileUrl = URI.parse(url).with({
+			scheme: Schemas.vscodeFileResource,
+			authority: 'localhost',
+			query: `config=${encodeURIComponent(JSON.stringify(config))}`
+		}).toString();
+		return fileUrl;
 	}
 
 	private doGetPreloadUrl(): string {

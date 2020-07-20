@@ -21,6 +21,7 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { Schemas } from 'vs/base/common/network';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -423,5 +424,11 @@ function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
 		}
 	}
 
-	return `${require.toUrl(pathToHtml)}?config=${encodeURIComponent(JSON.stringify(config))}`;
+	const url = `${require.toUrl(pathToHtml)}`;
+	const fileUrl = URI.parse(url).with({
+		scheme: Schemas.vscodeFileResource,
+		authority: 'localhost',
+		query: `config=${encodeURIComponent(JSON.stringify(config))}`
+	}).toString();
+	return fileUrl;
 }

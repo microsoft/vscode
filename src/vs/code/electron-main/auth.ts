@@ -7,6 +7,7 @@ import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 import { BrowserWindow, BrowserWindowConstructorOptions, app, AuthInfo, WebContents, Event as ElectronEvent } from 'electron';
 
 type LoginEvent = {
@@ -76,6 +77,7 @@ export class ProxyAuthHandler extends Disposable {
 
 		const win = new BrowserWindow(opts);
 		const url = require.toUrl('vs/code/electron-sandbox/proxy/auth.html');
+		const fileUrl = URI.parse(url).with({ scheme: Schemas.vscodeFileResource, authority: 'localhost' }).toString();
 		const proxyUrl = `${authInfo.host}:${authInfo.port}`;
 		const title = localize('authRequire', "Proxy Authentication Required");
 		const message = localize('proxyauth', "The proxy {0} requires authentication.", proxyUrl);
@@ -96,6 +98,6 @@ export class ProxyAuthHandler extends Disposable {
 			win.removeListener('close', onWindowClose);
 			win.close();
 		});
-		win.loadURL(url);
+		win.loadURL(fileUrl);
 	}
 }

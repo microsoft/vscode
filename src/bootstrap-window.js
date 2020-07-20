@@ -89,7 +89,7 @@
 		window['MonacoEnvironment'] = {};
 
 		const loaderConfig = {
-			baseUrl: 'vscode-file://localhost/' + `${uriFromPath(configuration.appRoot)}/out`.substr(8),
+			baseUrl: `${uriFromPath(configuration.appRoot)}/out`,
 			'vs/nls': nlsConfig,
 			amdModulesPattern: /^vs\//,
 			preferScriptTags: true,
@@ -235,7 +235,7 @@
 		if (safeProcess.platform === 'win32' && pathName.startsWith('//')) { // specially handle Windows UNC paths
 			uri = encodeURI(`file:${pathName}`);
 		} else {
-			uri = encodeURI(`file://${pathName}`);
+			uri = encodeURI(`vscode-file://localhost/${pathName}`);
 		}
 
 		return uri.replace(/#/g, '%23');

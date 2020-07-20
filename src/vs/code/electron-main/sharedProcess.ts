@@ -15,6 +15,7 @@ import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainServ
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { Schemas } from 'vs/base/common/network';
 
 export class SharedProcess implements ISharedProcess {
 
@@ -60,8 +61,13 @@ export class SharedProcess implements ISharedProcess {
 			windowId: this.window.id
 		};
 
-		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
-		this.window.loadURL('vscode-file://localhost' + url.slice(7));
+		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess/sharedProcess.html')}`;
+		const fileUrl = URI.parse(url).with({
+			scheme: Schemas.vscodeFileResource,
+			authority: 'localhost',
+			query: `config=${encodeURIComponent(JSON.stringify(config))}`
+		}).toString();
+		this.window.loadURL(fileUrl);
 
 		// Prevent the window from dying
 		const onClose = (e: ElectronEvent) => {

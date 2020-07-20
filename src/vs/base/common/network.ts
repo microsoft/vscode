@@ -76,6 +76,11 @@ export namespace Schemas {
 	 * Scheme used for extension pages
 	 */
 	export const extension = 'extension';
+
+	/**
+	 * Scheme used to load top level resources for the app
+	 */
+	export const vscodeFileResource = 'vscode-file';
 }
 
 class RemoteAuthoritiesImpl {

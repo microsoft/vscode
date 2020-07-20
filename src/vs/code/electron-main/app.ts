@@ -34,6 +34,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { getDelayedChannel, StaticRouter, createChannelReceiver } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
+import { FileProtocolHandler } from 'vs/code/electron-main/protocol';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { ActiveWindowManager } from 'vs/platform/windows/electron-main/windowTracker';
@@ -352,6 +353,9 @@ export class CodeApplication extends Disposable {
 		} catch (error) {
 			this.logService.error(error);
 		}
+
+		// Setup Protocol Handler
+		this._register(new FileProtocolHandler(this.environmentService));
 
 		// Create Electron IPC Server
 		const electronIpcServer = new ElectronIPCServer();
