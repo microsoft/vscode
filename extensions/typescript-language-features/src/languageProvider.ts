@@ -8,7 +8,6 @@ import * as vscode from 'vscode';
 import { DiagnosticKind } from './features/diagnostics';
 import FileConfigurationManager from './features/fileConfigurationManager';
 import { CachedResponse } from './tsServer/cachedResponse';
-import { ClientCapability } from './typescriptService';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
@@ -50,12 +49,7 @@ export default class LanguageProvider extends Disposable {
 			}
 		}
 
-		if (this.client.capabilities.has(ClientCapability.EnhancedSyntax)) {
-			return { semantic, syntax };
-		}
-
-		// If we don't have a
-		return { semantic, syntax: semantic };
+		return { semantic, syntax };
 	}
 
 	private async registerProviders(): Promise<void> {
