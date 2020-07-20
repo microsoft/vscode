@@ -1193,7 +1193,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 							: localize('Sync accept merges', "Preferences Sync: {0}", acceptMergesLabel),
 						message: isRemote
 							? localize('confirm replace and overwrite local', "Would you like to accept remote {0} and replace local {1}?", syncAreaLabel.toLowerCase(), syncAreaLabel.toLowerCase())
-							: localize('confirm replace and overwrite remote', "Would you like to accept merges and replace remote {1}?", syncAreaLabel.toLowerCase()),
+							: localize('confirm replace and overwrite remote', "Would you like to accept merges and replace remote {0}?", syncAreaLabel.toLowerCase()),
 						primaryButton: isRemote ? acceptRemoteLabel : acceptMergesLabel
 					});
 					if (result.confirmed) {
