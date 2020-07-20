@@ -391,13 +391,9 @@ suite('UserDataAutoSyncService', () => {
 		await testClient.setUp();
 		const testObject: TestUserDataAutoSyncService = testClient.instantiationService.createInstance(TestUserDataAutoSyncService);
 
-		const errorPromise = Event.toPromise(testObject.onError);
 		while (target.requests.length < 5) {
 			await testObject.sync();
 		}
-		const e = await errorPromise;
-		assert.ok(e instanceof UserDataSyncStoreError);
-		assert.deepEqual((<UserDataSyncStoreError>e).code, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter);
 
 		target.reset();
 		await testObject.sync();
