@@ -70,12 +70,13 @@ export interface ParsedArgs {
 	'file-chmod'?: boolean;
 	'driver'?: string;
 	'driver-verbose'?: boolean;
-	remote?: string;
+	'remote'?: string;
 	'disable-user-env-probe'?: boolean;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;
 	'force-user-env'?: boolean;
 	'sync'?: 'on' | 'off';
+	'__sandbox'?: boolean;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;
@@ -195,6 +196,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'trace-options': { type: 'string' },
 	'force-user-env': { type: 'boolean' },
 	'open-devtools': { type: 'boolean' },
+	'__sandbox': { type: 'boolean' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
