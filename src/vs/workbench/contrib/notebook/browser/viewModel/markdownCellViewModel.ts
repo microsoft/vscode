@@ -18,7 +18,7 @@ import { CellKind, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/
 import { NotebookEventDispatcher, NotebookCellStateChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
-	cellKind: CellKind.Markdown = CellKind.Markdown;
+	readonly cellKind = CellKind.Markdown;
 	private _html: HTMLElement | null = null;
 	private _layoutInfo: MarkdownCellLayoutInfo;
 

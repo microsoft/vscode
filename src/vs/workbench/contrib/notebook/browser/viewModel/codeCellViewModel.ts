@@ -16,7 +16,7 @@ import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
-	cellKind: CellKind.Code = CellKind.Code;
+	readonly cellKind = CellKind.Code;
 	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 	private _outputCollection: number[] = [];
