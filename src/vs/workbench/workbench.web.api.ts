@@ -295,6 +295,11 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 
+	/**
+	 * Optional configuration default overrides contributed to the workbench.
+	 */
+	readonly configurationDefaults?: Record<string, any>;
+
 	//#endregion
 
 
