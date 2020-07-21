@@ -199,8 +199,8 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		}];
 	}
 
-	protected async updateResourcePreview(resourcePreview: IFileResourcePreview, resource: URI, acceptedContent: string): Promise<IFileResourcePreview> {
-		if (acceptedContent && isEqual(resource, this.previewResource) || isEqual(resource, this.remoteResource)) {
+	protected async updateResourcePreview(resourcePreview: IFileResourcePreview, resource: URI, acceptedContent: string | null): Promise<IFileResourcePreview> {
+		if (acceptedContent && (isEqual(resource, this.previewResource) || isEqual(resource, this.remoteResource))) {
 			const formatUtils = await this.getFormattingOptions();
 			// Add ignored settings from local file content
 			const ignoredSettings = await this.getIgnoredSettings();

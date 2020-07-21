@@ -256,7 +256,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
-	async accept(syncResource: SyncResource, resource: URI, content: string, apply: boolean): Promise<void> {
+	async accept(syncResource: SyncResource, resource: URI, content: string | null, apply: boolean): Promise<void> {
 		await this.checkEnablement();
 		const synchroniser = this.getSynchroniser(syncResource);
 		await synchroniser.accept(resource, content);
@@ -456,7 +456,7 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 		return this.previews;
 	}
 
-	async accept(resource: URI, content: string): Promise<[SyncResource, ISyncResourcePreview][]> {
+	async accept(resource: URI, content: string | null): Promise<[SyncResource, ISyncResourcePreview][]> {
 		return this.performAction(resource, sychronizer => sychronizer.accept(resource, content));
 	}
 
@@ -555,7 +555,7 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 			this._onSynchronizeResources.fire(this.synchronizingResources);
 			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
 			for (const resourcePreview of preview.resourcePreviews) {
-				const content = await synchroniser.resolveContent(resourcePreview.remoteResource) || '';
+				const content = await synchroniser.resolveContent(resourcePreview.remoteResource);
 				await synchroniser.accept(resourcePreview.remoteResource, content);
 			}
 			await synchroniser.apply(true, this.syncHeaders);
@@ -577,7 +577,7 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 			this._onSynchronizeResources.fire(this.synchronizingResources);
 			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
 			for (const resourcePreview of preview.resourcePreviews) {
-				const content = await synchroniser.resolveContent(resourcePreview.localResource) || '';
+				const content = await synchroniser.resolveContent(resourcePreview.localResource);
 				await synchroniser.accept(resourcePreview.localResource, content);
 			}
 			await synchroniser.apply(true, this.syncHeaders);
