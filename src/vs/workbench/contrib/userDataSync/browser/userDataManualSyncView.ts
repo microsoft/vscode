@@ -201,7 +201,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 				super({
 					id: `workbench.actions.sync.merge`,
 					title: localize('workbench.actions.sync.merge', "Merge"),
-					icon: Codicon.gitMerge,
+					icon: Codicon.merge,
 					menu: {
 						id: MenuId.ViewItemContext,
 						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', MANUAL_SYNC_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
