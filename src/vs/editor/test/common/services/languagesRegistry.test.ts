@@ -245,11 +245,6 @@ suite('LanguagesRegistry', () => {
 		}]);
 
 		assert.deepEqual(registry.getExtensions('a')[0], 'aExt');
-
-		registry._registerLanguages([{
-			id: 'a',
-			extensions: ['aExt2']
-		}]);
 	});
 
 	test('filenames', () => {
