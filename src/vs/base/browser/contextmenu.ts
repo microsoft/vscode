@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionRunner, SubmenuAction } from 'vs/base/common/actions';
+import { IAction, IActionRunner, SubmenuAction, SubmenuActions } from 'vs/base/common/actions';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -16,8 +16,8 @@ export interface IContextMenuEvent {
 }
 
 export class ContextSubMenu extends SubmenuAction {
-	constructor(label: string, public entries: Array<ContextSubMenu | IAction>) {
-		super(label, entries, 'contextsubmenu');
+	constructor(label: string, public actions: SubmenuActions) {
+		super(label, actions, 'contextsubmenu');
 	}
 }
 

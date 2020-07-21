@@ -38,7 +38,7 @@ export interface IMenuBarOptions {
 }
 
 export interface MenuBarMenu {
-	actions: ReadonlyArray<IAction>;
+	actions: IAction[];
 	label: string;
 }
 
@@ -57,7 +57,7 @@ export class MenuBar extends Disposable {
 		buttonElement: HTMLElement;
 		titleElement: HTMLElement;
 		label: string;
-		actions?: ReadonlyArray<IAction>;
+		actions?: IAction[];
 	}[];
 
 	private overflowMenu!: {

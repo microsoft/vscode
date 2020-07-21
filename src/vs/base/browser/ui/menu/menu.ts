@@ -293,7 +293,8 @@ export class Menu extends ActionBar {
 		if (action instanceof Separator) {
 			return new MenuSeparatorActionViewItem(options.context, action, { icon: true });
 		} else if (action instanceof SubmenuAction) {
-			const menuActionViewItem = new SubmenuMenuActionViewItem(action, action.entries, parentData, options);
+			const actions = Array.isArray(action.actions) ? action.actions : action.actions();
+			const menuActionViewItem = new SubmenuMenuActionViewItem(action, actions, parentData, options);
 
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionViewItem.getMnemonic();

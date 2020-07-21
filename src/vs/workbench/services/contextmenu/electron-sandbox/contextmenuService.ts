@@ -138,9 +138,10 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 		// Submenu
 		if (entry instanceof ContextSubMenu) {
+			const actions = Array.isArray(entry.actions) ? entry.actions : entry.actions();
 			return {
 				label: unmnemonicLabel(stripCodicons(entry.label)).trim(),
-				submenu: this.createMenu(delegate, entry.entries, onHide)
+				submenu: this.createMenu(delegate, actions, onHide)
 			};
 		}
 

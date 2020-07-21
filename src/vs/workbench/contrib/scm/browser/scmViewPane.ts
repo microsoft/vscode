@@ -1102,7 +1102,7 @@ class ViewModel {
 		const viewAction = new SCMViewSubMenuAction(this);
 
 		if (this.repositories.elements.length !== 1) {
-			return viewAction.entries;
+			return Array.isArray(viewAction.actions) ? viewAction.actions : viewAction.actions();
 		}
 
 		const menus = this.menus.getRepositoryMenus(this.repositories.elements[0].provider);
