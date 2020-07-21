@@ -12,12 +12,12 @@ import * as task from './features/task';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
+import { ChildServerProcess } from './tsServer/serverProcess';
+import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
 import { CommandManager } from './utils/commandManager';
 import * as electron from './utils/electron';
 import { onCaseInsenitiveFileSystem } from './utils/fileSystem';
 import { PluginManager } from './utils/plugins';
-import { ChildServerProcess } from './utils/serverProcess';
-import { DiskTypeScriptVersionProvider } from './utils/versionProvider.electron';
 
 export function activate(
 	context: vscode.ExtensionContext

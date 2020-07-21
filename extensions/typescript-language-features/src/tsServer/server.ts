@@ -14,9 +14,9 @@ import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
-import { TypeScriptVersionManager } from '../utils/versionManager';
-import { TypeScriptVersion } from '../utils/versionProvider';
 import { OngoingRequestCanceller } from './cancellation';
+import { TypeScriptVersionManager } from './versionManager';
+import { TypeScriptVersion } from './versionProvider';
 
 export enum ExectuionTarget {
 	Semantic,

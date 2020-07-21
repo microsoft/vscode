@@ -17,6 +17,8 @@ import * as PConst from './protocol.const';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';
+import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
+import VersionStatus from './tsServer/versionStatus';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { coalesce, flatten } from './utils/arrays';
 import { CommandManager } from './utils/commandManager';
@@ -26,8 +28,6 @@ import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescrip
 import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
-import { ITypeScriptVersionProvider } from './utils/versionProvider';
-import VersionStatus from './utils/versionStatus';
 
 namespace Experimental {
 	export interface Diagnostic extends Proto.Diagnostic {

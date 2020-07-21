@@ -14,10 +14,10 @@ import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
 import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
-import { TypeScriptVersionManager } from '../utils/versionManager';
-import { ITypeScriptVersionProvider, TypeScriptVersion } from '../utils/versionProvider';
 import { ILogDirectoryProvider } from './logDirectoryProvider';
 import { GetErrRoutingTsServer, ITypeScriptServer, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerProcessFactory, TsServerProcessKind } from './server';
+import { TypeScriptVersionManager } from './versionManager';
+import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */

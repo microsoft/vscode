@@ -9,11 +9,11 @@ import type { Readable } from 'stream';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
-import { TsServerProcess, TsServerProcessKind } from '../tsServer/server';
+import { TsServerProcess, TsServerProcessKind } from './server';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { fork } from '../utils/electron';
-import { TypeScriptVersionManager } from '../utils/versionManager';
-import { Disposable } from './dispose';
+import { TypeScriptVersionManager } from './versionManager';
+import { Disposable } from '../utils/dispose';
 
 const localize = nls.loadMessageBundle();
 

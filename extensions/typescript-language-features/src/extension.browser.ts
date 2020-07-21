@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { WorkerServerProcess } from './tsServer/workerServerProcess';
 import { Api, getExtensionApi } from './api';
 import { registerCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { noopRequestCancellerFactory } from './tsServer/cancellation';
 import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './tsServer/versionProvider';
+import { WorkerServerProcess } from './tsServer/workerServerProcess';
 import API from './utils/api';
 import { CommandManager } from './utils/commandManager';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { PluginManager } from './utils/plugins';
-import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './utils/versionProvider';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 

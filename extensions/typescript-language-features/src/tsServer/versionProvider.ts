@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vscode-nls';
-import API from './api';
-import { TypeScriptServiceConfiguration } from './configuration';
+import API from '../utils/api';
+import { TypeScriptServiceConfiguration } from '../utils/configuration';
 
 export const localize = nls.loadMessageBundle();
 

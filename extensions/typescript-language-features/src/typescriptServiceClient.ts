@@ -15,6 +15,8 @@ import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { ITypeScriptServer, TsServerProcessFactory } from './tsServer/server';
 import { TypeScriptServerError } from './tsServer/serverError';
 import { TypeScriptServerSpawner } from './tsServer/spawner';
+import { TypeScriptVersionManager } from './tsServer/versionManager';
+import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
@@ -27,8 +29,6 @@ import { PluginManager } from './utils/plugins';
 import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
-import { TypeScriptVersionManager } from './utils/versionManager';
-import { ITypeScriptVersionProvider, TypeScriptVersion } from './utils/versionProvider';
 
 const localize = nls.loadMessageBundle();
 

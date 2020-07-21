@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TsServerProcessFactory } from './tsServer/server';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import { TsServerProcessFactory } from './tsServer/server';
+import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { flatten } from './utils/arrays';
 import { CommandManager } from './utils/commandManager';
@@ -15,7 +16,6 @@ import * as ProjectStatus from './utils/largeProjectStatus';
 import { lazy, Lazy } from './utils/lazy';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { PluginManager } from './utils/plugins';
-import { ITypeScriptVersionProvider } from './utils/versionProvider';
 
 export function createLazyClientHost(
 	context: vscode.ExtensionContext,
