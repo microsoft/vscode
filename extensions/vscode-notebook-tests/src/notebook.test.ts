@@ -905,6 +905,8 @@ suite('regression', () => {
 	test('#102411 - untitled notebook creation failed', async function () {
 		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: 'notebookCoreTest' });
 		assert.notEqual(vscode.notebook.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
+
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
 	test('#102423 - copy/paste shares the same text buffer', async function () {
@@ -926,6 +928,8 @@ suite('regression', () => {
 
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.length, 2);
 		assert.notEqual(vscode.notebook.activeNotebookEditor!.document.cells[0].document.getText(), vscode.notebook.activeNotebookEditor!.document.cells[1].document.getText());
+
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 });
 
