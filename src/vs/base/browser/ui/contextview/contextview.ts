@@ -148,49 +148,7 @@ export class ContextView extends Disposable {
 				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'closed' });
 				this.shadowRoot.innerHTML = `
 					<style>
-						:host {
-							all: initial; /* 1st rule so subsequent properties are reset. */
-						}
-
-						* {
-							color: red !important;
-						}
-
-						@font-face {
-							font-family: "codicon";
-							src: url("./codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
-						}
-
-						.codicon[class*='codicon-'] {
-							font: normal normal normal 16px/1 codicon;
-							display: inline-block;
-							text-decoration: none;
-							text-rendering: auto;
-							text-align: center;
-							-webkit-font-smoothing: antialiased;
-							-moz-osx-font-smoothing: grayscale;
-							user-select: none;
-							-webkit-user-select: none;
-							-ms-user-select: none;
-						}
-
-						:host-context(.mac) { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-						.mac:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
-						.mac:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
-						.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
-						.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
-
-						:host-context(.windows) { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
-						:host-context(.windows:lang(zh-Hans)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
-						:host-context(.windows:lang(zh-Hant)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
-						:host-context(.windows:lang(ja)) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
-						:host-context(.windows:lang(ko)) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
-
-						.linux { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
-						.linux:lang(zh-Hans) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-						.linux:lang(zh-Hant) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
-						.linux:lang(ja) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
-						.linux:lang(ko) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+						${SHADOW_ROOT_CSS}
 					</style>
 				`;
 				this.shadowRoot.appendChild(this.view);
@@ -368,3 +326,45 @@ export class ContextView extends Disposable {
 		super.dispose();
 	}
 }
+
+let SHADOW_ROOT_CSS = /* css */ `
+	:host {
+		all: initial; /* 1st rule so subsequent properties are reset. */
+	}
+
+	@font-face {
+		font-family: "codicon";
+		src: url("./codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
+	}
+
+	.codicon[class*='codicon-'] {
+		font: normal normal normal 16px/1 codicon;
+		display: inline-block;
+		text-decoration: none;
+		text-rendering: auto;
+		text-align: center;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		user-select: none;
+		-webkit-user-select: none;
+		-ms-user-select: none;
+	}
+
+	:host-context(.mac) { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+	.mac:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
+	.mac:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
+	.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
+	.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
+
+	:host-context(.windows) { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
+	:host-context(.windows:lang(zh-Hans)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
+	:host-context(.windows:lang(zh-Hant)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
+	:host-context(.windows:lang(ja)) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
+	:host-context(.windows:lang(ko)) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
+
+	.linux { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
+	.linux:lang(zh-Hans) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+	.linux:lang(zh-Hant) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
+	.linux:lang(ja) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
+	.linux:lang(ko) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+`;
