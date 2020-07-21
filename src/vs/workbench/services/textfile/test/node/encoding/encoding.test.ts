@@ -11,7 +11,6 @@ import * as streams from 'vs/base/common/stream';
 import * as iconv from 'iconv-lite-umd';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from 'vs/base/common/buffer';
-import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { isWindows } from 'vs/base/common/platform';
 
 export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
@@ -298,7 +297,6 @@ suite('Encoding', () => {
 		assert.equal(content, '');
 	});
 
-
 	test('toDecodeStream - encoding, utf16be', async function () {
 		const path = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
 		const source = streamToBufferReadableStream(fs.createReadStream(path));
@@ -312,7 +310,6 @@ suite('Encoding', () => {
 		const actual = await readAllAsString(stream);
 		assert.equal(actual, expected);
 	});
-
 
 	test('toDecodeStream - empty file', async function () {
 		const path = getPathFromAmdModule(require, './fixtures/empty.txt');
@@ -429,7 +426,7 @@ suite('Encoding', () => {
 	});
 
 	test('encodingExists', async function () {
-		for (const enc in SUPPORTED_ENCODINGS) {
+		for (const enc in encoding.SUPPORTED_ENCODINGS) {
 			if (enc === encoding.UTF8_with_bom) {
 				continue; // skip over encodings from us
 			}

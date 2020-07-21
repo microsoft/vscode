@@ -108,7 +108,6 @@ function normalizeRequestPath(requestUri: URI) {
 				return `${scheme}://`; // Url has own authority.
 			}
 		}));
-
 		return resourceUri.with({
 			query: requestUri.query,
 			fragment: requestUri.fragment

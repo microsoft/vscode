@@ -125,7 +125,7 @@ suite('Notebook API tests', () => {
 		await firstEditorClose;
 	});
 
-	test('editor open/close event', async function () {
+	test('editor open/close event 2', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		let count = 0;
 		const disposables: vscode.Disposable[] = [];
@@ -438,7 +438,7 @@ suite('notebook workflow', () => {
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 
-	test.skip('notebook join cells', async function () {
+	test('notebook join cells', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
@@ -453,7 +453,7 @@ suite('notebook workflow', () => {
 		await vscode.commands.executeCommand('notebook.cell.joinAbove');
 		await cellsChangeEvent;
 
-		assert.deepEqual(vscode.notebook.activeNotebookEditor!.selection?.document.getText().split(/\r|\n|\r\n/), ['test', 'var abc = 0;']);
+		assert.deepEqual(vscode.notebook.activeNotebookEditor!.selection?.document.getText().split(/\r\n|\r|\n/), ['test', 'var abc = 0;']);
 
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
@@ -890,7 +890,7 @@ suite('regression', () => {
 	});
 
 	test('#102411 - untitled notebook creation failed', async function () {
-		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: "notebookCoreTest" });
+		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: 'notebookCoreTest' });
 		assert.notEqual(vscode.notebook.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
 	});
 
@@ -910,7 +910,7 @@ suite('regression', () => {
 		await vscode.commands.executeCommand('default:type', { text: 'var abc = 0;' });
 
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.length, 2);
-		assert.notEqual(vscode.notebook.activeNotebookEditor!.document.cells[0].document.getText(), vscode.notebook.activeNotebookEditor!.document.cells[1].document.getText())
+		assert.notEqual(vscode.notebook.activeNotebookEditor!.document.cells[0].document.getText(), vscode.notebook.activeNotebookEditor!.document.cells[1].document.getText());
 	});
 });
 

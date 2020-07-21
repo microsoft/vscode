@@ -4,20 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/processExplorer';
-import { clipboard } from 'electron';
-import { totalmem } from 'os';
+import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import product from 'vs/platform/product/common/product';
 import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
-import * as platform from 'vs/base/common/platform';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
+import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
@@ -40,7 +38,12 @@ class ProcessExplorer {
 
 	private listeners = new DisposableStore();
 
-	constructor(data: ProcessExplorerData) {
+	private electronService: IElectronService;
+
+	constructor(windowId: number, private data: ProcessExplorerData) {
+		const mainProcessService = new MainProcessService(windowId);
+		this.electronService = new ElectronService(windowId, mainProcessService) as IElectronService;
+
 		this.applyStyles(data.styles);
 
 		// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
@@ -59,24 +62,24 @@ class ProcessExplorer {
 		ipcRenderer.send('vscode:listProcesses');
 	}
 
-	private getProcessList(rootProcess: ProcessItem, isLocal: boolean): FormattedProcessItem[] {
+	private getProcessList(rootProcess: ProcessItem, isLocal: boolean, totalMem: number): FormattedProcessItem[] {
 		const processes: FormattedProcessItem[] = [];
 
 		if (rootProcess) {
-			this.getProcessItem(processes, rootProcess, 0, isLocal);
+			this.getProcessItem(processes, rootProcess, 0, isLocal, totalMem);
 		}
 
 		return processes;
 	}
 
-	private getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, indent: number, isLocal: boolean): void {
+	private getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, indent: number, isLocal: boolean, totalMem: number): void {
 		const isRoot = (indent === 0);
 
 		const MB = 1024 * 1024;
 
 		let name = item.name;
 		if (isRoot) {
-			name = isLocal ? `${product.applicationName} main` : 'remote agent';
+			name = isLocal ? `${this.data.applicationName} main` : 'remote agent';
 		}
 
 		if (name === 'window') {
@@ -86,7 +89,7 @@ class ProcessExplorer {
 
 		// Format name with indent
 		const formattedName = isRoot ? name : `${'    '.repeat(indent)} ${name}`;
-		const memory = process.platform === 'win32' ? item.mem : (totalmem() * (item.mem / 100));
+		const memory = this.data.platform === 'win32' ? item.mem : (totalMem * (item.mem / 100));
 		processes.push({
 			cpu: item.load,
 			memory: (memory / MB),
@@ -100,7 +103,7 @@ class ProcessExplorer {
 		if (Array.isArray(item.children)) {
 			item.children.forEach(child => {
 				if (child) {
-					this.getProcessItem(processes, child, indent + 1, isLocal);
+					this.getProcessItem(processes, child, indent + 1, isLocal, totalMem);
 				}
 			});
 		}
@@ -258,7 +261,7 @@ class ProcessExplorer {
 		container.appendChild(body);
 	}
 
-	private updateProcessInfo(processLists: [{ name: string, rootProcess: ProcessItem | IRemoteDiagnosticError }]): void {
+	private async updateProcessInfo(processLists: [{ name: string, rootProcess: ProcessItem | IRemoteDiagnosticError }]): Promise<void> {
 		const container = document.getElementById('process-list');
 		if (!container) {
 			return;
@@ -271,19 +274,20 @@ class ProcessExplorer {
 		tableHead.innerHTML = `<tr>
 			<th scope="col" class="cpu">${localize('cpu', "CPU %")}</th>
 			<th scope="col" class="memory">${localize('memory', "Memory (MB)")}</th>
-			<th scope="col" class="pid">${localize('pid', "pid")}</th>
+			<th scope="col" class="pid">${localize('pid', "PID")}</th>
 			<th scope="col" class="nameLabel">${localize('name', "Name")}</th>
 		</tr>`;
 
 		container.append(tableHead);
 
 		const hasMultipleMachines = Object.keys(processLists).length > 1;
+		const totalMem = await this.electronService.getTotalMem();
 		processLists.forEach((remote, i) => {
 			const isLocal = i === 0;
 			if (isRemoteDiagnosticError(remote.rootProcess)) {
 				this.renderProcessFetchError(remote.name, remote.rootProcess.errorMessage);
 			} else {
-				this.renderTableSection(remote.name, this.getProcessList(remote.rootProcess, isLocal), hasMultipleMachines, isLocal);
+				this.renderTableSection(remote.name, this.getProcessList(remote.rootProcess, isLocal, totalMem), hasMultipleMachines, isLocal);
 			}
 		});
 	}
@@ -322,15 +326,15 @@ class ProcessExplorer {
 		if (isLocal) {
 			items.push({
 				label: localize('killProcess', "Kill Process"),
-				click() {
-					process.kill(pid, 'SIGTERM');
+				click: () => {
+					this.electronService.killProcess(pid, 'SIGTERM');
 				}
 			});
 
 			items.push({
 				label: localize('forceKillProcess', "Force Kill Process"),
-				click() {
-					process.kill(pid, 'SIGKILL');
+				click: () => {
+					this.electronService.killProcess(pid, 'SIGKILL');
 				}
 			});
 
@@ -341,20 +345,20 @@ class ProcessExplorer {
 
 		items.push({
 			label: localize('copy', "Copy"),
-			click() {
+			click: () => {
 				const row = document.getElementById(pid.toString());
 				if (row) {
-					clipboard.writeText(row.innerText);
+					this.electronService.writeClipboardText(row.innerText);
 				}
 			}
 		});
 
 		items.push({
 			label: localize('copyAll', "Copy All"),
-			click() {
+			click: () => {
 				const processList = document.getElementById('process-list');
 				if (processList) {
-					clipboard.writeText(processList.innerText);
+					this.electronService.writeClipboardText(processList.innerText);
 				}
 			}
 		});
@@ -398,15 +402,15 @@ class ProcessExplorer {
 
 
 
-export function startup(data: ProcessExplorerData): void {
-	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
+export function startup(windowId: number, data: ProcessExplorerData): void {
+	const platformClass = data.platform === 'win32' ? 'windows' : data.platform === 'linux' ? 'linux' : 'mac';
 	addClass(document.body, platformClass); // used by our fonts
 	applyZoom(data.zoomLevel);
 
-	const processExplorer = new ProcessExplorer(data);
+	const processExplorer = new ProcessExplorer(windowId, data);
 
 	document.onkeydown = (e: KeyboardEvent) => {
-		const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
+		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
 
 		// Cmd/Ctrl + zooms in
 		if (cmdOrCtrlKey && e.keyCode === 187) {
@@ -421,7 +425,7 @@ export function startup(data: ProcessExplorerData): void {
 
 	// Cmd/Ctrl + w closes process explorer
 	window.addEventListener('keydown', e => {
-		const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
+		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
 		if (cmdOrCtrlKey && e.keyCode === 87) {
 			processExplorer.dispose();
 			ipcRenderer.send('vscode:closeProcessExplorer');

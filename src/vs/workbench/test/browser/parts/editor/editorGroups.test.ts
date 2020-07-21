@@ -150,14 +150,14 @@ class NonSerializableTestEditorInput extends EditorInput {
 
 class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
-	readonly label = this.resource;
+	readonly preferredResource = this.resource;
 
 	constructor(public id: string, public resource: URI) {
 		super();
 	}
 	getTypeId() { return 'testFileEditorInputForGroups'; }
 	resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
-	setLabel(label: URI): void { }
+	setPreferredResource(resource: URI): void { }
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
 	setPreferredEncoding(encoding: string) { }

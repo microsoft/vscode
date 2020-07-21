@@ -3,26 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { ITypeScriptServiceClient, ExecConfig, ServerResponse } from '../typescriptService';
-import * as Proto from '../protocol';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
-import API from '../utils/api';
-
 // all constants are const
-import { TokenType, TokenModifier, TokenEncodingConsts, VersionRequirement } from 'typescript-vscode-sh-plugin/lib/constants';
+import { TokenEncodingConsts, TokenModifier, TokenType, VersionRequirement } from 'typescript-vscode-sh-plugin/lib/constants';
+import * as vscode from 'vscode';
+import * as Proto from '../protocol';
+import { ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
+import API from '../utils/api';
+import { conditionalRegistration, requireSomeCapability, requireMinVersion } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
+
 
 const minTypeScriptVersion = API.fromVersionString(`${VersionRequirement.major}.${VersionRequirement.minor}`);
 
 // as we don't do deltas, for performance reasons, don't compute semantic tokens for documents above that limit
 const CONTENT_LENGTH_LIMIT = 100000;
 
-export function register(selector: vscode.DocumentSelector, client: ITypeScriptServiceClient) {
-	return new VersionDependentRegistration(client, minTypeScriptVersion, () => {
+export function register(
+	selector: DocumentSelector,
+	client: ITypeScriptServiceClient,
+) {
+	return conditionalRegistration([
+		requireMinVersion(client, minTypeScriptVersion),
+		requireSomeCapability(client, ClientCapability.Semantic),
+	], () => {
 		const provider = new DocumentSemanticTokensProvider(client);
 		return vscode.Disposable.from(
 			// register only as a range provider
-			vscode.languages.registerDocumentRangeSemanticTokensProvider(selector, provider, provider.getLegend()),
+			vscode.languages.registerDocumentRangeSemanticTokensProvider(selector.semantic, provider, provider.getLegend()),
 		);
 	});
 }

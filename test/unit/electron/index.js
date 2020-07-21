@@ -112,14 +112,12 @@ app.on('ready', () => {
 		width: 800,
 		show: false,
 		webPreferences: {
-			backgroundThrottling: false,
-			nodeIntegration: true,
-			webSecurity: false,
-			webviewTag: true,
 			preload: path.join(__dirname, '..', '..', '..', 'src', 'vs', 'base', 'parts', 'sandbox', 'electron-browser', 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
+			nodeIntegration: true,
 			enableWebSQL: false,
 			enableRemoteModule: false,
-			nativeWindowOpen: true
+			nativeWindowOpen: true,
+			webviewTag: true
 		}
 	});
 

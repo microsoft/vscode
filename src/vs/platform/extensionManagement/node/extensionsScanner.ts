@@ -23,7 +23,6 @@ import { CancellationToken } from 'vscode';
 import { extract, ExtractError } from 'vs/base/node/zip';
 import { isWindows } from 'vs/base/common/platform';
 import { flatten } from 'vs/base/common/arrays';
-import { Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
@@ -41,10 +40,8 @@ export class ExtensionsScanner extends Disposable {
 	private readonly uninstalledPath: string;
 	private readonly uninstalledFileLimiter: Queue<any>;
 
-	private _onDidRemoveExtension = new Emitter<ILocalExtension>();
-	readonly onDidRemoveExtension = this._onDidRemoveExtension.event;
-
 	constructor(
+		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IProductService private readonly productService: IProductService,
@@ -280,7 +277,7 @@ export class ExtensionsScanner extends Disposable {
 		await Promise.all(byExtension.map(async e => {
 			const latest = e.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0];
 			if (!installed.has(latest.identifier.id.toLowerCase())) {
-				this._onDidRemoveExtension.fire(latest);
+				await this.beforeRemovingExtension(latest);
 			}
 		}));
 		const toRemove: ILocalExtension[] = extensions.filter(e => uninstalled[new ExtensionIdentifierWithVersion(e.identifier, e.manifest.version).key()]);

@@ -62,6 +62,8 @@ export class TestNotebookEditor implements INotebookEditor {
 	constructor(
 	) { }
 
+	multipleKernelsAvailable: boolean = false;
+
 	uri?: URI | undefined;
 	textModel?: NotebookTextModel | undefined;
 

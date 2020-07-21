@@ -5,7 +5,9 @@
 
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
 import { markdownDocumentation } from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
 
@@ -51,9 +53,13 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	client: ITypeScriptServiceClient
 ): vscode.Disposable {
-	return vscode.languages.registerHoverProvider(selector,
-		new TypeScriptHoverProvider(client));
+	return conditionalRegistration([
+		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
+	], () => {
+		return vscode.languages.registerHoverProvider(selector.syntax,
+			new TypeScriptHoverProvider(client));
+	});
 }

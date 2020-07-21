@@ -600,7 +600,7 @@ function registerCloseEditorCommands() {
 						.filter(context => context.groupId === groupId)
 						.map(context => typeof context.editorIndex === 'number' ? group.getEditorByIndex(context.editorIndex) : group.activeEditor);
 
-					const editorsToClose = group.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(editor => editors.indexOf(editor) === -1);
+					const editorsToClose = group.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(editor => !editors.includes(editor));
 
 					if (group.activeEditor) {
 						group.pinEditor(group.activeEditor);

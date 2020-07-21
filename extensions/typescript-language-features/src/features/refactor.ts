@@ -7,11 +7,12 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { LearnMoreAboutRefactoringsCommand } from '../commands/learnMoreAboutRefactorings';
 import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { Command, CommandManager } from '../utils/commandManager';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireSomeCapability, requireMinVersion } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
 import * as fileSchemes from '../utils/fileSchemes';
 import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
@@ -396,14 +397,17 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
 	formattingOptionsManager: FormattingOptionsManager,
 	commandManager: CommandManager,
 	telemetryReporter: TelemetryReporter,
 ) {
-	return new VersionDependentRegistration(client, TypeScriptRefactorProvider.minVersion, () => {
-		return vscode.languages.registerCodeActionsProvider(selector,
+	return conditionalRegistration([
+		requireMinVersion(client, TypeScriptRefactorProvider.minVersion),
+		requireSomeCapability(client, ClientCapability.Semantic),
+	], () => {
+		return vscode.languages.registerCodeActionsProvider(selector.semantic,
 			new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager, telemetryReporter),
 			TypeScriptRefactorProvider.metadata);
 	});

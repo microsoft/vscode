@@ -8,12 +8,13 @@ import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { nulToken } from '../utils/cancellation';
 import { Command, CommandManager } from '../utils/commandManager';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireMinVersion } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
+import { TelemetryReporter } from '../utils/telemetry';
 import * as typeconverts from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
-import { TelemetryReporter } from '../utils/telemetry';
-import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();
 
@@ -99,15 +100,17 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
 	commandManager: CommandManager,
 	fileConfigurationManager: FileConfigurationManager,
 	telemetryReporter: TelemetryReporter,
 ) {
-	return new VersionDependentRegistration(client, OrganizeImportsCodeActionProvider.minVersion, () => {
+	return conditionalRegistration([
+		requireMinVersion(client, OrganizeImportsCodeActionProvider.minVersion)
+	], () => {
 		const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager, telemetryReporter);
-		return vscode.languages.registerCodeActionsProvider(selector,
+		return vscode.languages.registerCodeActionsProvider(selector.syntax,
 			organizeImportsProvider,
 			organizeImportsProvider.metadata);
 	});
