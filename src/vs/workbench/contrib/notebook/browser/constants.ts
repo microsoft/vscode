@@ -26,3 +26,5 @@ export const EDITOR_TOP_PADDING = 12;
 export const EDITOR_BOTTOM_PADDING = 4;
 
 export const CELL_OUTPUT_PADDING = 14;
+
+export const COLLAPSED_INDICATOR_HEIGHT = 40;

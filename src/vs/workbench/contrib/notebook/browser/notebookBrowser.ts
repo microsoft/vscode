@@ -110,6 +110,7 @@ export interface ICellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
+	collapseState: CellCollapseState;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -454,6 +455,8 @@ export interface INotebookCellList {
 }
 
 export interface BaseCellRenderTemplate {
+	editorPart: HTMLElement;
+	collapsedPart: HTMLElement;
 	contextKeyService: IContextKeyService;
 	container: HTMLElement;
 	cellContainer: HTMLElement;
@@ -471,7 +474,6 @@ export interface BaseCellRenderTemplate {
 }
 
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
-	editorPart: HTMLElement;
 	editorContainer: HTMLElement;
 	foldingIndicator: HTMLElement;
 	currentEditor?: ICodeEditor;
@@ -535,6 +537,11 @@ export enum CellEditState {
 	Editing
 }
 
+export enum CellCollapseState {
+	Normal,
+	Collapsed
+}
+
 export enum CellFocusMode {
 	Container,
 	Editor
@@ -553,6 +560,7 @@ export interface CellViewModelStateChangeEvent {
 	focusModeChanged?: boolean;
 	editStateChanged?: boolean;
 	languageChanged?: boolean;
+	collapseStateChanged?: boolean;
 	foldingStateChanged?: boolean;
 	contentChanged?: boolean;
 	outputIsHoveredChanged?: boolean;

@@ -38,7 +38,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CancelCellAction, ChangeCellLanguageAction, ExecuteCellAction, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { BaseCellRenderTemplate, CellEditState, CodeCellRenderTemplate, ICellViewModel, INotebookCellList, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellCollapseState, CellEditState, CodeCellRenderTemplate, ICellViewModel, INotebookCellList, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
@@ -299,6 +299,8 @@ abstract class AbstractCellRenderer {
 				this.notebookEditor.selectElement(templateData.currentRenderedCell);
 			}
 		}, true));
+
+		this.setupCollapsedPart(templateData);
 	}
 
 	protected commonRenderElement(element: ICellViewModel, index: number, templateData: BaseCellRenderTemplate): void {
@@ -307,6 +309,20 @@ abstract class AbstractCellRenderer {
 		} else {
 			templateData.container.classList.remove(DRAGGING_CLASS);
 		}
+	}
+
+	protected setupCollapsedPart(templateData: BaseCellRenderTemplate): void {
+		templateData.collapsedPart.textContent = '...';
+		DOM.hide(templateData.collapsedPart);
+		templateData.disposables.add(domEvent(templateData.container, DOM.EventType.DBLCLICK)(() => {
+			if (!templateData.currentRenderedCell) {
+				return;
+			}
+
+			templateData.currentRenderedCell.collapseState = templateData.currentRenderedCell.collapseState === CellCollapseState.Collapsed ?
+				CellCollapseState.Normal :
+				CellCollapseState.Collapsed;
+		}));
 	}
 }
 
@@ -347,6 +363,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const innerContent = DOM.append(container, $('.cell.markdown'));
 		const foldingIndicator = DOM.append(container, DOM.$('.notebook-folding-indicator'));
 
+		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part'));
+
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 		const betweenCellToolbar = disposables.add(this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService));
 
@@ -354,6 +372,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
 		const templateData: MarkdownCellRenderTemplate = {
+			collapsedPart,
 			contextKeyService,
 			container,
 			cellContainer: innerContent,
@@ -926,6 +945,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		disposables.add(this.editorOptions.onDidChange(newValue => editor.updateOptions(newValue)));
 
+		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part'));
+
 		const progressBar = new ProgressBar(editorPart);
 		progressBar.hide();
 		disposables.add(progressBar);
@@ -947,6 +968,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
 		const templateData: CodeCellRenderTemplate = {
+			editorPart,
+			collapsedPart,
 			contextKeyService,
 			container,
 			cellContainer,

@@ -8,8 +8,8 @@ import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN, BOTTOM_CELL_TOOLBAR_OFFSET } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellViewModel, NotebookLayoutInfo, CodeCellLayoutState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN, BOTTOM_CELL_TOOLBAR_OFFSET, COLLAPSED_INDICATOR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellViewModel, NotebookLayoutInfo, CodeCellLayoutState, CellCollapseState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, NotebookCellOutputsSplice, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
@@ -101,41 +101,60 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._ensureOutputsTop();
 		const outputTotalHeight = this._outputsTop!.getTotalValue();
 
-		let newState: CodeCellLayoutState;
-		let editorHeight: number;
-		let totalHeight: number;
-		if (!state.editorHeight && this._layoutInfo.layoutState === CodeCellLayoutState.FromCache) {
-			// No new editorHeight info - keep cached totalHeight and estimate editorHeight
-			editorHeight = this.estimateEditorHeight(state.font?.lineHeight);
-			totalHeight = this._layoutInfo.totalHeight;
-			newState = CodeCellLayoutState.FromCache;
-		} else if (state.editorHeight || this._layoutInfo.layoutState === CodeCellLayoutState.Measured) {
-			// Editor has been measured
-			editorHeight = this._editorHeight;
-			totalHeight = this.computeTotalHeight(this._editorHeight, outputTotalHeight);
-			newState = CodeCellLayoutState.Measured;
+		if (this.collapseState === CellCollapseState.Normal) {
+			let newState: CodeCellLayoutState;
+			let editorHeight: number;
+			let totalHeight: number;
+			if (!state.editorHeight && this._layoutInfo.layoutState === CodeCellLayoutState.FromCache) {
+				// No new editorHeight info - keep cached totalHeight and estimate editorHeight
+				editorHeight = this.estimateEditorHeight(state.font?.lineHeight);
+				totalHeight = this._layoutInfo.totalHeight;
+				newState = CodeCellLayoutState.FromCache;
+			} else if (state.editorHeight || this._layoutInfo.layoutState === CodeCellLayoutState.Measured) {
+				// Editor has been measured
+				editorHeight = this._editorHeight;
+				totalHeight = this.computeTotalHeight(this._editorHeight, outputTotalHeight);
+				newState = CodeCellLayoutState.Measured;
+			} else {
+				editorHeight = this.estimateEditorHeight(state.font?.lineHeight);
+				totalHeight = this.computeTotalHeight(editorHeight, outputTotalHeight);
+				newState = CodeCellLayoutState.Estimated;
+			}
+
+			const indicatorHeight = editorHeight + CELL_STATUSBAR_HEIGHT + outputTotalHeight;
+			const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN + editorHeight + CELL_STATUSBAR_HEIGHT;
+			const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT - BOTTOM_CELL_TOOLBAR_OFFSET;
+			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo?.editorWidth;
+
+			this._layoutInfo = {
+				fontInfo: state.font || null,
+				editorHeight,
+				editorWidth,
+				outputContainerOffset,
+				outputTotalHeight,
+				totalHeight,
+				indicatorHeight,
+				bottomToolbarOffset,
+				layoutState: newState
+			};
 		} else {
-			editorHeight = this.estimateEditorHeight(state.font?.lineHeight);
-			totalHeight = this.computeTotalHeight(editorHeight, outputTotalHeight);
-			newState = CodeCellLayoutState.Estimated;
+			const indicatorHeight = COLLAPSED_INDICATOR_HEIGHT + outputTotalHeight;
+			const outputContainerOffset = COLLAPSED_INDICATOR_HEIGHT;
+			const totalHeight = COLLAPSED_INDICATOR_HEIGHT + BOTTOM_CELL_TOOLBAR_HEIGHT + CELL_BOTTOM_MARGIN;
+			const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT;
+
+			this._layoutInfo = {
+				fontInfo: state.font || null,
+				editorHeight: this._layoutInfo.editorHeight,
+				editorWidth: this._layoutInfo.editorWidth,
+				outputContainerOffset,
+				outputTotalHeight,
+				totalHeight,
+				indicatorHeight,
+				bottomToolbarOffset,
+				layoutState: this._layoutInfo.layoutState
+			};
 		}
-
-		const indicatorHeight = editorHeight + CELL_STATUSBAR_HEIGHT + outputTotalHeight;
-		const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN + editorHeight + CELL_STATUSBAR_HEIGHT;
-		const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT - BOTTOM_CELL_TOOLBAR_OFFSET;
-		const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo?.editorWidth;
-
-		this._layoutInfo = {
-			fontInfo: state.font || null,
-			editorHeight,
-			editorWidth,
-			outputContainerOffset,
-			outputTotalHeight,
-			totalHeight,
-			indicatorHeight,
-			bottomToolbarOffset,
-			layoutState: newState
-		};
 
 		if (state.editorHeight || state.outputHeight) {
 			state.totalHeight = true;
