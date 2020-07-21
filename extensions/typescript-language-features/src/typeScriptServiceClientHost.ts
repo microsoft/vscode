@@ -15,16 +15,18 @@ import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
+import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import { TsServerProcessFactory } from './tsServer/server';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { coalesce, flatten } from './utils/arrays';
 import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
 import * as errorCodes from './utils/errorCodes';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
-import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
+import { ITypeScriptVersionProvider } from './utils/versionProvider';
 import VersionStatus from './utils/versionStatus';
 
 namespace Experimental {
@@ -59,10 +61,13 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	constructor(
 		descriptions: LanguageDescription[],
 		workspaceState: vscode.Memento,
+		onCaseInsenitiveFileSystem: boolean,
 		pluginManager: PluginManager,
 		private readonly commandManager: CommandManager,
 		logDirectoryProvider: ILogDirectoryProvider,
 		cancellerFactory: OngoingRequestCancellerFactory,
+		versionProvider: ITypeScriptVersionProvider,
+		processFactory: TsServerProcessFactory,
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
 		super();
@@ -70,9 +75,12 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		const allModeIds = this.getAllModeIds(descriptions, pluginManager);
 		this.client = this._register(new TypeScriptServiceClient(
 			workspaceState,
+			onCaseInsenitiveFileSystem,
 			pluginManager,
 			logDirectoryProvider,
 			cancellerFactory,
+			versionProvider,
+			processFactory,
 			allModeIds));
 
 		this.client.onDiagnosticsReceived(({ kind, resource, diagnostics }) => {
@@ -85,7 +93,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this._register(new VersionStatus(this.client, commandManager));
 		this._register(new AtaProgressReporter(this.client));
 		this.typingsStatus = this._register(new TypingsStatus(this.client));
-		this.fileConfigurationManager = this._register(new FileConfigurationManager(this.client));
+		this.fileConfigurationManager = this._register(new FileConfigurationManager(this.client, onCaseInsenitiveFileSystem));
 
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, onCompletionAccepted);

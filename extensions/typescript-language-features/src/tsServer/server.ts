@@ -7,14 +7,16 @@ import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { EventName } from '../protocol.const';
 import { CallbackMap } from '../tsServer/callbackMap';
-import { OngoingRequestCanceller } from './cancellation';
 import { RequestItem, RequestQueue, RequestQueueingType } from '../tsServer/requestQueue';
 import { TypeScriptServerError } from '../tsServer/serverError';
 import { ServerResponse, TypeScriptRequests } from '../typescriptService';
+import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
+import { TypeScriptVersionManager } from '../utils/versionManager';
 import { TypeScriptVersion } from '../utils/versionProvider';
+import { OngoingRequestCanceller } from './cancellation';
 
 export enum ExectuionTarget {
 	Semantic,
@@ -41,6 +43,23 @@ export interface TsServerDelegate {
 	onFatalError(command: string, error: Error): void;
 }
 
+export const enum TsServerProcessKind {
+	Main = 'main',
+	Syntax = 'syntax',
+	Semantic = 'semantic',
+	Diagnostics = 'diagnostics'
+}
+
+export interface TsServerProcessFactory {
+	fork(
+		tsServerPath: string,
+		args: readonly string[],
+		kind: TsServerProcessKind,
+		configuration: TypeScriptServiceConfiguration,
+		versionManager: TypeScriptVersionManager,
+	): TsServerProcess;
+}
+
 export interface TsServerProcess {
 	write(serverRequest: Proto.Request): void;
 
@@ -50,7 +69,6 @@ export interface TsServerProcess {
 
 	kill(): void;
 }
-
 
 export class ProcessBasedTsServer extends Disposable implements ITypeScriptServer {
 	private readonly _requestQueue = new RequestQueue();

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
 import * as Proto from './protocol';
 import { EventName } from './protocol.const';
-import { ITypeScriptServer } from './tsServer/server';
+import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
+import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import { ITypeScriptServer, TsServerProcessFactory } from './tsServer/server';
 import { TypeScriptServerError } from './tsServer/serverError';
 import { TypeScriptServerSpawner } from './tsServer/spawner';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
@@ -20,16 +20,15 @@ import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
-import { onCaseInsenitiveFileSystem } from './utils/fileSystem';
-import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import Logger from './utils/logger';
+import { isWeb } from './utils/platform';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
 import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
 import { TypeScriptVersionManager } from './utils/versionManager';
-import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
+import { ITypeScriptVersionProvider, TypeScriptVersion } from './utils/versionProvider';
 
 const localize = nls.loadMessageBundle();
 
@@ -100,7 +99,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private _configuration: TypeScriptServiceConfiguration;
-	private versionProvider: TypeScriptVersionProvider;
 	private pluginPathsProvider: TypeScriptPluginPathsProvider;
 	private readonly _versionManager: TypeScriptVersionManager;
 
@@ -123,9 +121,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	constructor(
 		private readonly workspaceState: vscode.Memento,
+		onCaseInsenitiveFileSystem: boolean,
 		public readonly pluginManager: PluginManager,
 		private readonly logDirectoryProvider: ILogDirectoryProvider,
 		private readonly cancellerFactory: OngoingRequestCancellerFactory,
+		private readonly versionProvider: ITypeScriptVersionProvider,
+		private readonly processFactory: TsServerProcessFactory,
 		allModeIds: readonly string[]
 	) {
 		super();
@@ -143,17 +144,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.numberRestarts = 0;
 
 		this._configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
-		this.versionProvider = new TypeScriptVersionProvider(this._configuration);
+		this.versionProvider.updateConfiguration(this._configuration);
+
 		this.pluginPathsProvider = new TypeScriptPluginPathsProvider(this._configuration);
 		this._versionManager = this._register(new TypeScriptVersionManager(this._configuration, this.versionProvider, this.workspaceState));
 		this._register(this._versionManager.onDidPickNewVersion(() => {
 			this.restartTsServer();
 		}));
 
-		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds, onCaseInsenitiveFileSystem());
+		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds, onCaseInsenitiveFileSystem);
 		this.onReady(() => { this.bufferSyncSupport.listen(); });
 
-		this.diagnosticsManager = new DiagnosticsManager('typescript', onCaseInsenitiveFileSystem());
+		this.diagnosticsManager = new DiagnosticsManager('typescript', onCaseInsenitiveFileSystem);
 		this.bufferSyncSupport.onDelete(resource => {
 			this.cancelInflightRequestsForResource(resource);
 			this.diagnosticsManager.delete(resource);
@@ -194,7 +196,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return this.apiVersion.fullVersionString;
 		}));
 
-		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer);
+		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this._versionManager, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer, this.processFactory);
 
 		this._register(this.pluginManager.onDidUpdateConfig(update => {
 			this.configurePlugin(update.pluginId, update.config);
@@ -206,12 +208,19 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public get capabilities() {
+		if (isWeb()) {
+			return new ClientCapabilities(
+				ClientCapability.Syntax,
+				ClientCapability.EnhancedSyntax);
+		}
+
 		if (this.apiVersion.gte(API.v400)) {
 			return new ClientCapabilities(
 				ClientCapability.Syntax,
 				ClientCapability.EnhancedSyntax,
 				ClientCapability.Semantic);
 		}
+
 		return new ClientCapabilities(
 			ClientCapability.Syntax,
 			ClientCapability.Semantic);
@@ -345,12 +354,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		let version = this._versionManager.currentVersion;
 
 		this.info(`Using tsserver from: ${version.path}`);
-		if (!fs.existsSync(version.tsServerPath)) {
-			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', version.path));
-
-			this._versionManager.reset();
-			version = this._versionManager.currentVersion;
-		}
 
 		const apiVersion = version.apiVersion || API.defaultVersion;
 		let mytoken = ++this.token;
@@ -433,7 +436,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		handle.onEvent(event => this.dispatchEvent(event));
 
-		if (apiVersion.gte(API.v300)) {
+		if (apiVersion.gte(API.v300) && this.capabilities.has(ClientCapability.Semantic)) {
 			this.loadingIndicator.startedLoadingProject(undefined /* projectName */);
 		}
 
