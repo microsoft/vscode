@@ -876,7 +876,6 @@ suite('regression', () => {
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'default');
 		assert.equal(vscode.window.activeTextEditor?.document.uri.path, resource.path);
 
-		await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
@@ -884,9 +883,8 @@ suite('regression', () => {
 	test('#96105 - dirty editors', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './empty.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'default');
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		const edit = new vscode.WorkspaceEdit();
-		edit.insert(vscode.notebook.activeNotebookEditor!.selection!.uri, new vscode.Position(0, 0), 'var abc = 0;');
+		edit.insert(resource, new vscode.Position(0, 0), 'var abc = 0;');
 		await vscode.workspace.applyEdit(edit);
 
 		// now it's dirty, open the resource with notebook editor should open a new one
@@ -894,7 +892,6 @@ suite('regression', () => {
 		assert.notEqual(vscode.notebook.activeNotebookEditor, undefined, 'notebook first');
 		assert.notEqual(vscode.window.activeTextEditor, undefined);
 
-		await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
