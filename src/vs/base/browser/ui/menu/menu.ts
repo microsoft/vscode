@@ -6,7 +6,7 @@
 import 'vs/css!./menu';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
+import { IActionRunner, IAction, SubmenuAction } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider, ActionsOrientation, Separator, ActionViewItem, IActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses, clearNode } from 'vs/base/browser/dom';
@@ -53,12 +53,6 @@ export interface IMenuStyles {
 	selectionBackgroundColor?: Color;
 	selectionBorderColor?: Color;
 	separatorColor?: Color;
-}
-
-export class SubmenuAction extends Action {
-	constructor(label: string, public entries: ReadonlyArray<SubmenuAction | IAction>, cssClass?: string) {
-		super(!!cssClass ? cssClass : 'submenu', label, '', true);
-	}
 }
 
 interface ISubMenuData {

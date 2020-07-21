@@ -218,3 +218,9 @@ export class RadioGroup extends Disposable {
 		}
 	}
 }
+
+export class SubmenuAction extends Action {
+	constructor(label: string, public entries: ReadonlyArray<SubmenuAction | IAction>, cssClass?: string) {
+		super(!!cssClass ? cssClass : 'submenu', label, '', true);
+	}
+}

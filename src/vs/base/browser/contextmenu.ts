@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionRunner } from 'vs/base/common/actions';
+import { IAction, IActionRunner, SubmenuAction } from 'vs/base/common/actions';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export interface IContextMenuEvent {
