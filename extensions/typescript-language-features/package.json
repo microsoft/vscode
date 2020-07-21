@@ -27,6 +27,8 @@
     "@types/node": "^12.11.7",
     "@types/rimraf": "2.0.2",
     "@types/semver": "^5.5.0",
+    "copy-webpack-plugin": "^6.0.3",
+    "typescript-web-server": "git://github.com/mjbvz/ts-server-web-build",
     "vscode": "^1.1.36"
   },
   "scripts": {

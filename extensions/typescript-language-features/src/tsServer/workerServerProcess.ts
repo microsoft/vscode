@@ -13,12 +13,12 @@ declare type Worker = any;
 export class WorkerServerProcess implements TsServerProcess {
 
 	public static fork(
-		_tsServerPath: string,
+		tsServerPath: string,
 		args: readonly string[],
 		_kind: TsServerProcessKind,
 		_configuration: TypeScriptServiceConfiguration,
 	) {
-		const worker = new Worker('/builtin-extension/typescript-language-features/node_modules/typescript/tsserver.js');
+		const worker = new Worker(tsServerPath);
 		return new WorkerServerProcess(worker, args);
 	}
 

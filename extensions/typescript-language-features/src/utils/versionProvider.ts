@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as nls from 'vscode-nls';
 import API from './api';
 import { TypeScriptServiceConfiguration } from './configuration';
@@ -28,7 +27,7 @@ export class TypeScriptVersion {
 	) { }
 
 	public get tsServerPath(): string {
-		return path.join(this.path, 'tsserver.js');
+		return this.path;
 	}
 
 	public get pathLabel(): string {

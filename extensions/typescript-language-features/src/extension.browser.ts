@@ -48,7 +48,10 @@ export function activate(
 	context.subscriptions.push(onCompletionAccepted);
 
 	const versionProvider = new StaticVersionProvider(
-		new TypeScriptVersion(TypeScriptVersionSource.Bundled, 'todo', API.v400));
+		new TypeScriptVersion(
+			TypeScriptVersionSource.Bundled,
+			'/builtin-extension/typescript-language-features/dist/browser/typescript-web/tsserver.js',
+			API.v400));
 
 	const lazyClientHost = createLazyClientHost(context, false, pluginManager, commandManager, noopLogDirectoryProvider, noopRequestCancellerFactory, versionProvider, WorkerServerProcess, item => {
 		onCompletionAccepted.fire(item);

@@ -83,7 +83,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 			const extension = vscode.extensions.getExtension(extensionId);
 			if (extension) {
 				const typescriptPath = path.join(extension.extensionPath, ...pathToTs, 'typescript', 'lib');
-				const bundledVersion = new TypeScriptVersion(source, typescriptPath, DiskTypeScriptVersionProvider.getApiVersion(typescriptPath), '');
+				const bundledVersion = new TypeScriptVersion(source, path.join(typescriptPath, 'tsserver.js'), DiskTypeScriptVersionProvider.getApiVersion(typescriptPath), '');
 				if (bundledVersion.isValid) {
 					return bundledVersion;
 				}
@@ -101,12 +101,21 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 
 	private loadVersionsFromSetting(source: TypeScriptVersionSource, tsdkPathSetting: string): TypeScriptVersion[] {
 		if (path.isAbsolute(tsdkPathSetting)) {
-			return [new TypeScriptVersion(source, tsdkPathSetting, DiskTypeScriptVersionProvider.getApiVersion(tsdkPathSetting))];
+			return [
+				new TypeScriptVersion(source,
+					path.join(tsdkPathSetting, 'tsserver.js'),
+					DiskTypeScriptVersionProvider.getApiVersion(tsdkPathSetting))
+			];
 		}
 
 		const workspacePath = RelativeWorkspacePathResolver.asAbsoluteWorkspacePath(tsdkPathSetting);
 		if (workspacePath !== undefined) {
-			return [new TypeScriptVersion(source, workspacePath, DiskTypeScriptVersionProvider.getApiVersion(tsdkPathSetting), tsdkPathSetting)];
+			return [
+				new TypeScriptVersion(source,
+					path.join(workspacePath, 'tsserver.js'),
+					DiskTypeScriptVersionProvider.getApiVersion(tsdkPathSetting),
+					tsdkPathSetting)
+			];
 		}
 
 		return this.loadTypeScriptVersionsFromPath(source, tsdkPathSetting);
@@ -130,7 +139,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 			}
 
 			const serverPath = path.join(root.uri.fsPath, relativePath);
-			versions.push(new TypeScriptVersion(source, serverPath, DiskTypeScriptVersionProvider.getApiVersion(serverPath), label));
+			versions.push(new TypeScriptVersion(source, path.join(serverPath, 'tsserver.js'), DiskTypeScriptVersionProvider.getApiVersion(serverPath), label));
 		}
 		return versions;
 	}
