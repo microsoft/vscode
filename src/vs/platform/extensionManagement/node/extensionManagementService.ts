@@ -93,7 +93,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner));
+		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
+		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
 		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader));
 
@@ -103,9 +104,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			this.installingExtensions.clear();
 			this.uninstallingExtensions.clear();
 		}));
-
-		const extensionLifecycle = this._register(new ExtensionsLifecycle(environmentService, this.logService));
-		this._register(this.extensionsScanner.onDidRemoveExtension(extension => extensionLifecycle.postUninstall(extension)));
 	}
 
 	zip(extension: ILocalExtension): Promise<URI> {

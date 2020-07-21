@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
 import DefinitionProviderBase from './definitionProviderBase';
 
 class TypeScriptImplementationProvider extends DefinitionProviderBase implements vscode.ImplementationProvider {
@@ -14,9 +16,13 @@ class TypeScriptImplementationProvider extends DefinitionProviderBase implements
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
-	return vscode.languages.registerImplementationProvider(selector,
-		new TypeScriptImplementationProvider(client));
+	return conditionalRegistration([
+		requireSomeCapability(client, ClientCapability.Semantic),
+	], () => {
+		return vscode.languages.registerImplementationProvider(selector.semantic,
+			new TypeScriptImplementationProvider(client));
+	});
 }

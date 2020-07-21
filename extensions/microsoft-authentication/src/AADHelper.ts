@@ -6,7 +6,7 @@
 import * as randomBytes from 'randombytes';
 import * as querystring from 'querystring';
 import * as vscode from 'vscode';
-import { createServer, startServer } from './env/node/authServer';
+import { createServer, startServer } from './authServer';
 
 import { v4 as uuid } from 'uuid';
 import { keychain } from './keychain';

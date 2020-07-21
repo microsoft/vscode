@@ -933,10 +933,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeVisibleNotebookEditors;
 			},
-			get activeNotebookKernel() {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.activeNotebookKernel;
-			},
 			get onDidChangeActiveNotebookKernel() {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeActiveNotebookKernel;
@@ -1112,7 +1108,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TimelineItem: extHostTypes.TimelineItem,
 			CellKind: extHostTypes.CellKind,
 			CellOutputKind: extHostTypes.CellOutputKind,
-			NotebookCellRunState: extHostTypes.NotebookCellRunState
+			NotebookCellRunState: extHostTypes.NotebookCellRunState,
+			NotebookRunState: extHostTypes.NotebookRunState
 		};
 	};
 }

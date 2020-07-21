@@ -1423,6 +1423,11 @@ declare module 'vscode' {
 		Error = 4
 	}
 
+	export enum NotebookRunState {
+		Running = 1,
+		Idle = 2
+	}
+
 	export interface NotebookCellMetadata {
 		/**
 		 * Controls if the content of a cell is editable or not.
@@ -1525,6 +1530,11 @@ declare module 'vscode' {
 		 * Additional attributes of the document metadata.
 		 */
 		custom?: { [key: string]: any };
+
+		/**
+		 * The document's current run state
+		 */
+		runState?: NotebookRunState;
 	}
 
 	export interface NotebookDocument {
@@ -1592,6 +1602,11 @@ declare module 'vscode' {
 		 * Fired when the panel is disposed.
 		 */
 		readonly onDidDispose: Event<void>;
+
+		/**
+		 * Active kernel used in the editor
+		 */
+		readonly kernel?: NotebookKernel;
 
 		/**
 		 * Fired when the output hosting webview posts a message.
@@ -1822,12 +1837,15 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookKernel {
+		readonly id?: string;
 		label: string;
 		description?: string;
 		isPreferred?: boolean;
 		preloads?: Uri[];
-		executeCell(document: NotebookDocument, cell: NotebookCell, token: CancellationToken): Promise<void>;
-		executeAllCells(document: NotebookDocument, token: CancellationToken): Promise<void>;
+		executeCell(document: NotebookDocument, cell: NotebookCell): void;
+		cancelCellExecution(document: NotebookDocument, cell: NotebookCell): void;
+		executeAllCells(document: NotebookDocument): void;
+		cancelAllCellsExecution(document: NotebookDocument): void;
 	}
 
 	export interface NotebookDocumentFilter {
@@ -1890,8 +1908,7 @@ declare module 'vscode' {
 		 */
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 
-		export let activeNotebookKernel: NotebookKernel | undefined;
-		export const onDidChangeActiveNotebookKernel: Event<void>;
+		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined }>;
 	}
 
 	//#endregion

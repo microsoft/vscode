@@ -14,13 +14,14 @@ import FileConfigurationManager from './features/fileConfigurationManager';
 import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
+import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { coalesce, flatten } from './utils/arrays';
 import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
 import * as errorCodes from './utils/errorCodes';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
-import LogDirectoryProvider from './utils/logDirectoryProvider';
+import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
@@ -60,7 +61,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		workspaceState: vscode.Memento,
 		pluginManager: PluginManager,
 		private readonly commandManager: CommandManager,
-		logDirectoryProvider: LogDirectoryProvider,
+		logDirectoryProvider: ILogDirectoryProvider,
+		cancellerFactory: OngoingRequestCancellerFactory,
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
 		super();
@@ -70,6 +72,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			workspaceState,
 			pluginManager,
 			logDirectoryProvider,
+			cancellerFactory,
 			allModeIds));
 
 		this.client.onDiagnosticsReceived(({ kind, resource, diagnostics }) => {

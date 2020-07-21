@@ -9868,11 +9868,12 @@ declare module 'vscode' {
 	export interface ConfigurationChangeEvent {
 
 		/**
-		 * Returns `true` if the given section is affected in the provided scope.
+		 * Checks if the given section has changed.
+		 * If scope is provided, checks if the section has changed for resources under the given scope.
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @param scope A scope in which to check.
-		 * @return `true` if the given section is affected in the provided scope.
+		 * @return `true` if the given section has changed.
 		 */
 		affectsConfiguration(section: string, scope?: ConfigurationScope): boolean;
 	}

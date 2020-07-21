@@ -68,11 +68,16 @@ type BufferOperation = CloseOperation | OpenOperation | ChangeOperation;
  */
 class BufferSynchronizer {
 
-	private readonly _pending = new ResourceMap<BufferOperation>();
+	private readonly _pending: ResourceMap<BufferOperation>;
 
 	constructor(
-		private readonly client: ITypeScriptServiceClient
-	) { }
+		private readonly client: ITypeScriptServiceClient,
+		onCaseInsenitiveFileSystem: boolean
+	) {
+		this._pending = new ResourceMap<BufferOperation>(undefined, {
+			onCaseInsenitiveFileSystem
+		});
+	}
 
 	public open(resource: vscode.Uri, args: Proto.OpenRequestArgs) {
 		if (this.supportsBatching) {
@@ -275,7 +280,7 @@ class PendingDiagnostics extends ResourceMap<number> {
 			.sort((a, b) => a.value - b.value)
 			.map(entry => entry.resource);
 
-		const map = new ResourceMap<void>();
+		const map = new ResourceMap<void>(undefined, this.config);
 		for (const resource of orderedResources) {
 			map.set(resource, undefined);
 		}
@@ -347,7 +352,8 @@ export default class BufferSyncSupport extends Disposable {
 
 	constructor(
 		client: ITypeScriptServiceClient,
-		modeIds: readonly string[]
+		modeIds: readonly string[],
+		onCaseInsenitiveFileSystem: boolean
 	) {
 		super();
 		this.client = client;
@@ -356,9 +362,9 @@ export default class BufferSyncSupport extends Disposable {
 		this.diagnosticDelayer = new Delayer<any>(300);
 
 		const pathNormalizer = (path: vscode.Uri) => this.client.normalizedPath(path);
-		this.syncedBuffers = new SyncedBufferMap(pathNormalizer);
-		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer);
-		this.synchronizer = new BufferSynchronizer(client);
+		this.syncedBuffers = new SyncedBufferMap(pathNormalizer, { onCaseInsenitiveFileSystem });
+		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer, { onCaseInsenitiveFileSystem });
+		this.synchronizer = new BufferSynchronizer(client, onCaseInsenitiveFileSystem);
 
 		this.updateConfiguration();
 		vscode.workspace.onDidChangeConfiguration(this.updateConfiguration, this, this._disposables);

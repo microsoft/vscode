@@ -7,12 +7,13 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
-import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { applyCodeAction } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
-import { conditionalRegistration, requireConfiguration } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireSomeCapability, requireConfiguration } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
 import { parseKindModifier } from '../utils/modifiers';
 import * as Previewer from '../utils/previewer';
 import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
@@ -795,7 +796,7 @@ function shouldExcludeCompletionEntry(
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	modeId: string,
 	client: ITypeScriptServiceClient,
 	typingsStatus: TypingsStatus,
@@ -806,8 +807,9 @@ export function register(
 ) {
 	return conditionalRegistration([
 		requireConfiguration(modeId, 'suggest.enabled'),
+		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
 	], () => {
-		return vscode.languages.registerCompletionItemProvider(selector,
+		return vscode.languages.registerCompletionItemProvider(selector.syntax,
 			new TypeScriptCompletionItemProvider(client, modeId, typingsStatus, fileConfigurationManager, commandManager, telemetryReporter, onCompletionAccepted),
 			...TypeScriptCompletionItemProvider.triggerCharacters);
 	});

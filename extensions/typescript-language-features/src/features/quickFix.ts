@@ -18,7 +18,8 @@ import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
 import { equals } from '../utils/objects';
-import { conditionalRegistration, requireCapability } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
 
 const localize = nls.loadMessageBundle();
 
@@ -403,7 +404,7 @@ function isPreferredFix(
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
 	fileConfigurationManager: FileConfigurationManager,
 	commandManager: CommandManager,
@@ -411,9 +412,9 @@ export function register(
 	telemetryReporter: TelemetryReporter
 ) {
 	return conditionalRegistration([
-		requireCapability(client, ClientCapability.Semantic),
+		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
-		return vscode.languages.registerCodeActionsProvider(selector,
+		return vscode.languages.registerCodeActionsProvider(selector.semantic,
 			new TypeScriptQuickFixProvider(client, fileConfigurationManager, commandManager, diagnosticsManager, telemetryReporter),
 			TypeScriptQuickFixProvider.metadata);
 	});

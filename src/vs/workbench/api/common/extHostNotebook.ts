@@ -16,7 +16,7 @@ import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { CellEditType, diff, ICellEditOperation, ICellInsertEdit, INotebookDisplayOrder, INotebookEditData, NotebookCellsChangedEvent, NotebookCellsSplice2, ICellDeleteEdit, notebookDocumentMetadataDefaults, NotebookCellsChangeType, NotebookDataDto, IOutputRenderRequest, IOutputRenderResponse, IOutputRenderResponseOutputInfo, IOutputRenderResponseCellInfo, IRawOutput, CellOutputKind, IProcessedOutput, INotebookKernelInfoDto2, IMainCellDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { NotImplementedProxy } from 'vs/base/common/types';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
@@ -617,6 +617,16 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		this._active = value;
 	}
 
+	private _kernel?: vscode.NotebookKernel;
+
+	get kernel() {
+		return this._kernel;
+	}
+
+	set kernel(_kernel: vscode.NotebookKernel | undefined) {
+		throw readonly('kernel');
+	}
+
 	private _onDidDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 	private _onDidReceiveMessage = new Emitter<any>();
@@ -692,6 +702,9 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		throw readonly('viewColumn');
 	}
 
+	updateActiveKernel(kernel?: vscode.NotebookKernel) {
+		this._kernel = kernel;
+	}
 	async postMessage(message: any): Promise<boolean> {
 		return this._webComm.postMessage(message);
 	}
@@ -767,11 +780,18 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 		const data = await this._provider.provideKernels(document, token) || [];
 
 		const newMap = new Map<vscode.NotebookKernel, string>();
+		let kernel_unique_pool = 0;
+		let kernelIdCache = new Set<string>();
 
 		const transformedData: INotebookKernelInfoDto2[] = data.map(kernel => {
 			let id = this._kernelToId.get(kernel);
 			if (id === undefined) {
-				id = UUID.generateUuid();
+				if (kernel.id && kernelIdCache.has(kernel.id)) {
+					id = `${this._extension.identifier.value}_${kernel.id}_${kernel_unique_pool++}`;
+				} else {
+					id = `${this._extension.identifier.value}_${kernel.id || UUID.generateUuid()}`;
+				}
+
 				this._kernelToId.set(kernel, id);
 			}
 
@@ -798,6 +818,10 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 		return transformedData;
 	}
 
+	getKernel(kernelId: string) {
+		return this._idToKernel.get(kernelId);
+	}
+
 	async resolveNotebook(kernelId: string, document: ExtHostNotebookDocument, webview: vscode.NotebookCommunication, token: CancellationToken) {
 		const kernel = this._idToKernel.get(kernelId);
 
@@ -806,7 +830,7 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 		}
 	}
 
-	async executeNotebook(kernelId: string, document: ExtHostNotebookDocument, cell: ExtHostCell | undefined, token: CancellationToken) {
+	async executeNotebook(kernelId: string, document: ExtHostNotebookDocument, cell: ExtHostCell | undefined) {
 		const kernel = this._idToKernel.get(kernelId);
 
 		if (!kernel) {
@@ -814,10 +838,34 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 		}
 
 		if (cell) {
-			return kernel.executeCell(document, cell, token);
+			return withToken(token => (kernel.executeCell as any)(document, cell, token));
 		} else {
-			return kernel.executeAllCells(document, token);
+			return withToken(token => (kernel.executeAllCells as any)(document, token));
 		}
+	}
+
+	async cancelNotebook(kernelId: string, document: ExtHostNotebookDocument, cell: ExtHostCell | undefined) {
+		const kernel = this._idToKernel.get(kernelId);
+
+		if (!kernel) {
+			return;
+		}
+
+		if (cell) {
+			return kernel.cancelCellExecution(document, cell);
+		} else {
+			return kernel.cancelAllCellsExecution(document);
+		}
+	}
+}
+
+// TODO@roblou remove 'token' passed to all execute APIs once extensions are updated
+async function withToken(cb: (token: CancellationToken) => any) {
+	const source = new CancellationTokenSource();
+	try {
+		await cb(source.token);
+	} finally {
+		source.dispose();
 	}
 }
 
@@ -864,9 +912,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>();
 	onDidCloseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
 	visibleNotebookEditors: ExtHostNotebookEditor[] = [];
-	activeNotebookKernel?: vscode.NotebookKernel;
-
-	private _onDidChangeActiveNotebookKernel = new Emitter<void>();
+	private _onDidChangeActiveNotebookKernel = new Emitter<{ document: ExtHostNotebookDocument, kernel: vscode.NotebookKernel | undefined }>();
 	onDidChangeActiveNotebookKernel = this._onDidChangeActiveNotebookKernel.event;
 	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>();
 	onDidChangeVisibleNotebookEditors = this._onDidChangeVisibleNotebookEditors.event;
@@ -912,7 +958,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		let extHostRenderer = new ExtHostNotebookOutputRenderer(type, filter, renderer);
 		this._notebookOutputRenderers.set(extHostRenderer.type, extHostRenderer);
-		this._proxy.$registerNotebookRenderer({ id: extension.identifier, location: extension.extensionLocation }, type, filter, renderer.preloads || []);
+		this._proxy.$registerNotebookRenderer({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, type, filter, renderer.preloads || []);
 		return new extHostTypes.Disposable(() => {
 			this._notebookOutputRenderers.delete(extHostRenderer.type);
 			this._proxy.$unregisterNotebookRenderer(extHostRenderer.type);
@@ -1037,7 +1083,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		const supportBackup = !!provider.backupNotebook;
 
-		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, supportBackup, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
+		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, supportBackup, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
 
 		return new extHostTypes.Disposable(() => {
 			listener.dispose();
@@ -1050,7 +1096,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		const handle = ExtHostNotebookController._notebookKernelProviderHandlePool++;
 		const adapter = new ExtHostNotebookKernelProviderAdapter(this._proxy, handle, extension, provider);
 		this._notebookKernelProviders.set(handle, adapter);
-		this._proxy.$registerNotebookKernelProvider({ id: extension.identifier, location: extension.extensionLocation }, handle, {
+		this._proxy.$registerNotebookKernelProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, handle, {
 			viewType: selector.viewType,
 			filenamePattern: selector.filenamePattern ? typeConverters.GlobPattern.from(selector.filenamePattern) : undefined,
 			excludeFileNamePattern: selector.excludeFileNamePattern ? typeConverters.GlobPattern.from(selector.excludeFileNamePattern) : undefined,
@@ -1103,7 +1149,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._notebookKernels.set(id, { kernel, extension });
 		const transformedSelectors = selectors.map(selector => typeConverters.GlobPattern.from(selector));
 
-		this._proxy.$registerNotebookKernel({ id: extension.identifier, location: extension.extensionLocation }, id, kernel.label, transformedSelectors, kernel.preloads || []);
+		this._proxy.$registerNotebookKernel({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, id, kernel.label, transformedSelectors, kernel.preloads || []);
 		return new extHostTypes.Disposable(() => {
 			this._notebookKernels.delete(id);
 			this._proxy.$unregisterNotebookKernel(id);
@@ -1198,7 +1244,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 	}
 
-	async $executeNotebookByAttachedKernel(viewType: string, uri: UriComponents, cellHandle: number | undefined, token: CancellationToken): Promise<void> {
+	async $executeNotebookByAttachedKernel(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void> {
 		let document = this._documents.get(URI.revive(uri).toString());
 
 		if (!document) {
@@ -1211,23 +1257,44 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 			if (provider.kernel) {
 				if (cell) {
-					return provider.kernel.executeCell(document, cell, token);
+					return withToken(token => (provider.kernel!.executeCell as any)(document, cell, token));
 				} else {
-					return provider.kernel.executeAllCells(document, token);
+					return withToken(token => (provider.kernel!.executeAllCells as any)(document, token));
 				}
 			}
 		}
 	}
 
-	async $executeNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined, token: CancellationToken): Promise<void> {
+	async $cancelNotebookByAttachedKernel(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void> {
+		const document = this._documents.get(URI.revive(uri).toString());
+
+		if (!document) {
+			return;
+		}
+
+		if (this._notebookContentProviders.has(viewType)) {
+			const cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
+			const provider = this._notebookContentProviders.get(viewType)!.provider;
+
+			if (provider.kernel) {
+				if (cell) {
+					return provider.kernel.cancelCellExecution(document, cell);
+				} else {
+					return provider.kernel.cancelAllCellsExecution(document);
+				}
+			}
+		}
+	}
+
+	async $executeNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined): Promise<void> {
 		await this._withAdapter(handle, uri, async (adapter, document) => {
 			let cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
 
-			return adapter.executeNotebook(kernelId, document, cell, token);
+			return adapter.executeNotebook(kernelId, document, cell);
 		});
 	}
 
-	async $executeNotebook2(kernelId: string, viewType: string, uri: UriComponents, cellHandle: number | undefined, token: CancellationToken): Promise<void> {
+	async $executeNotebook2(kernelId: string, viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void> {
 		let document = this._documents.get(URI.revive(uri).toString());
 
 		if (!document || document.viewType !== viewType) {
@@ -1243,9 +1310,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		let cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
 
 		if (cell) {
-			return kernelInfo.kernel.executeCell(document, cell, token);
+			return withToken(token => (kernelInfo!.kernel.executeCell as any)(document, cell, token));
 		} else {
-			return kernelInfo.kernel.executeAllCells(document, token);
+			return withToken(token => (kernelInfo!.kernel.executeAllCells as any)(document, token));
 		}
 	}
 
@@ -1312,6 +1379,20 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void {
 		this._outputDisplayOrder = displayOrder;
+	}
+
+	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelId: string | undefined }) {
+		if (event.providerHandle !== undefined) {
+			this._withAdapter(event.providerHandle, event.uri, async (adapter, document) => {
+				const kernel = event.kernelId ? adapter.getKernel(event.kernelId) : undefined;
+				this._editors.forEach(editor => {
+					if (editor.editor.document === document) {
+						editor.editor.updateActiveKernel(kernel);
+					}
+				});
+				this._onDidChangeActiveNotebookKernel.fire({ document, kernel });
+			});
+		}
 	}
 
 	// TODO: remove document - editor one on one mapping
