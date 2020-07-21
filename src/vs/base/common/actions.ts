@@ -219,6 +219,17 @@ export class RadioGroup extends Disposable {
 	}
 }
 
+export class Separator extends Action {
+
+	static readonly ID = 'vs.actions.separator';
+
+	constructor(label?: string) {
+		super(Separator.ID, label, label ? 'separator text' : 'separator');
+		this.checked = false;
+		this.enabled = false;
+	}
+}
+
 export class SubmenuAction extends Action {
 	constructor(label: string, public entries: ReadonlyArray<SubmenuAction | IAction>, cssClass?: string) {
 		super(!!cssClass ? cssClass : 'submenu', label, '', true);

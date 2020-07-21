@@ -5,8 +5,8 @@
 
 import { addClasses, createCSSRule, removeClasses, asCSSUrl } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
-import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction } from 'vs/base/common/actions';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';

@@ -6,8 +6,8 @@
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
-import { Action, IAction } from 'vs/base/common/actions';
-import { IActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
