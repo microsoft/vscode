@@ -127,6 +127,9 @@
 	margin: 0 10px;
 	text-transform: uppercase;
 	align-self: center;
+	font-size: 0.8em;
+	background-color: rgba(136, 136, 136, 0.27);
+	color: #cccccc;
 }
 
 .debug-pane .debug-call-stack .monaco-list-row:hover .label {
@@ -160,14 +163,6 @@
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
-}
-
-.debug-pane .debug-call-stack .session > .label,
-.debug-pane .debug-call-stack .session > .label {
-	font-size: 0.8em;
-	min-height: auto;
-	background-color: rgba(136, 136, 136, 0.27);
-	color: #cccccc;
 }
 
 .debug-pane .debug-call-stack .stack-frame {
