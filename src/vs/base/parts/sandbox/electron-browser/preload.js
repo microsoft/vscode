@@ -74,9 +74,7 @@
 		},
 
 		/**
-		 * Support for methods of crashReporter type.
-		 *
-		 * @type {typeof import('../electron-sandbox/globals').crashReporter}
+		 * Support for subset of methods of Electron's `crashReporter` type.
 		 */
 		crashReporter: {
 
