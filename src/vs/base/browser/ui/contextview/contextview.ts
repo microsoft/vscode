@@ -109,7 +109,7 @@ export class ContextView extends Disposable {
 	private toDisposeOnClean: IDisposable = Disposable.None;
 	private toDisposeOnSetContainer: IDisposable = Disposable.None;
 	private shadowRoot: ShadowRoot | null = null;
-	private shadowRootHostElement: HTMLElement | null;
+	private shadowRootHostElement: HTMLElement | null = null;
 
 	constructor(container: HTMLElement, useFixedPosition: boolean) {
 		super();
