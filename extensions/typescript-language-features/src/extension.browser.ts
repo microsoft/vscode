@@ -10,9 +10,29 @@ import { LanguageConfigurationManager } from './features/languageConfiguration';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { noopRequestCancellerFactory } from './tsServer/cancellation';
 import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import API from './utils/api';
 import { CommandManager } from './utils/commandManager';
+import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { PluginManager } from './utils/plugins';
-import { TypeScriptVersionProvider } from './utils/versionProvider';
+import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './utils/versionProvider';
+
+class StaticVersionProvider implements ITypeScriptVersionProvider {
+
+	constructor(
+		private readonly _version: TypeScriptVersion
+	) { }
+
+	updateConfiguration(_configuration: TypeScriptServiceConfiguration): void {
+		// noop
+	}
+
+	get defaultVersion() { return this._version; }
+	get bundledVersion() { return this._version; }
+
+	readonly globalVersion = undefined;
+	readonly localVersion = undefined;
+	readonly localVersions = [];
+}
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -26,7 +46,8 @@ export function activate(
 	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
 	context.subscriptions.push(onCompletionAccepted);
 
-	const versionProvider = new TypeScriptVersionProvider();
+	const versionProvider = new StaticVersionProvider(
+		new TypeScriptVersion(TypeScriptVersionSource.Bundled, 'todo', API.v400));
 
 	const lazyClientHost = createLazyClientHost(context, false, pluginManager, commandManager, noopLogDirectoryProvider, noopRequestCancellerFactory, versionProvider, item => {
 		onCompletionAccepted.fire(item);

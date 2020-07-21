@@ -16,7 +16,7 @@ import { CommandManager } from './utils/commandManager';
 import * as electron from './utils/electron';
 import { onCaseInsenitiveFileSystem } from './utils/fileSystem';
 import { PluginManager } from './utils/plugins';
-import { TypeScriptVersionProvider } from './utils/versionProvider';
+import { DiskTypeScriptVersionProvider } from './utils/versionProvider.electron';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -32,7 +32,7 @@ export function activate(
 
 	const logDirectoryProvider = new NodeLogDirectoryProvider(context);
 
-	const versionProvider = new TypeScriptVersionProvider();
+	const versionProvider = new DiskTypeScriptVersionProvider();
 
 	const lazyClientHost = createLazyClientHost(context, onCaseInsenitiveFileSystem(), pluginManager, commandManager, logDirectoryProvider, nodeRequestCancellerFactory, versionProvider, item => {
 		onCompletionAccepted.fire(item);
