@@ -107,7 +107,8 @@ export function register(
 	telemetryReporter: TelemetryReporter,
 ) {
 	return conditionalRegistration([
-		requireMinVersion(client, OrganizeImportsCodeActionProvider.minVersion)
+		requireMinVersion(client, OrganizeImportsCodeActionProvider.minVersion),
+
 	], () => {
 		const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager, telemetryReporter);
 		return vscode.languages.registerCodeActionsProvider(selector.syntax,
