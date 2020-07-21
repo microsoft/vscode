@@ -4,12 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ChildProcess } from 'child_process';
+import * as fs from 'fs';
 import type { Readable } from 'stream';
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import { TsServerProcess, TsServerProcessKind } from '../tsServer/server';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
+import { fork } from '../utils/electron';
+import { TypeScriptVersionManager } from '../utils/versionManager';
 import { Disposable } from './dispose';
+
+const localize = nls.loadMessageBundle();
 
 const defaultSize: number = 8192;
 const contentLength: string = 'Content-Length: ';
@@ -136,8 +142,13 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 		args: readonly string[],
 		kind: TsServerProcessKind,
 		configuration: TypeScriptServiceConfiguration,
+		versionManager: TypeScriptVersionManager,
 	): ChildServerProcess {
-		const fork = require('../utils/electron');
+		if (!fs.existsSync(tsServerPath)) {
+			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', tsServerPath));
+			versionManager.reset();
+			tsServerPath = versionManager.currentVersion.tsServerPath;
+		}
 		const childProcess = fork(tsServerPath, args, this.getForkOptions(kind, configuration));
 		return new ChildServerProcess(childProcess);
 	}

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { WorkerServerProcess } from './tsServer/workerServerProcess';
 import { Api, getExtensionApi } from './api';
 import { registerCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
@@ -49,7 +50,7 @@ export function activate(
 	const versionProvider = new StaticVersionProvider(
 		new TypeScriptVersion(TypeScriptVersionSource.Bundled, 'todo', API.v400));
 
-	const lazyClientHost = createLazyClientHost(context, false, pluginManager, commandManager, noopLogDirectoryProvider, noopRequestCancellerFactory, versionProvider, item => {
+	const lazyClientHost = createLazyClientHost(context, false, pluginManager, commandManager, noopLogDirectoryProvider, noopRequestCancellerFactory, versionProvider, WorkerServerProcess, item => {
 		onCompletionAccepted.fire(item);
 	});
 

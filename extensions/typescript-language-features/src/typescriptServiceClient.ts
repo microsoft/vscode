@@ -12,7 +12,7 @@ import * as Proto from './protocol';
 import { EventName } from './protocol.const';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
-import { ITypeScriptServer } from './tsServer/server';
+import { ITypeScriptServer, TsServerProcessFactory } from './tsServer/server';
 import { TypeScriptServerError } from './tsServer/serverError';
 import { TypeScriptServerSpawner } from './tsServer/spawner';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
@@ -126,6 +126,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		private readonly logDirectoryProvider: ILogDirectoryProvider,
 		private readonly cancellerFactory: OngoingRequestCancellerFactory,
 		private readonly versionProvider: ITypeScriptVersionProvider,
+		private readonly processFactory: TsServerProcessFactory,
 		allModeIds: readonly string[]
 	) {
 		super();
@@ -195,7 +196,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return this.apiVersion.fullVersionString;
 		}));
 
-		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer);
+		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this._versionManager, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer, this.processFactory);
 
 		this._register(this.pluginManager.onDidUpdateConfig(update => {
 			this.configurePlugin(update.pluginId, update.config);
@@ -353,12 +354,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		let version = this._versionManager.currentVersion;
 
 		this.info(`Using tsserver from: ${version.path}`);
-		// if (!fs.existsSync(version.tsServerPath)) {
-		// 	vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', version.path));
-
-		// 	this._versionManager.reset();
-		// 	version = this._versionManager.currentVersion;
-		// }
 
 		const apiVersion = version.apiVersion || API.defaultVersion;
 		let mytoken = ++this.token;

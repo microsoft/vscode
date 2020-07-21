@@ -6,19 +6,18 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { OngoingRequestCancellerFactory } from '../tsServer/cancellation';
-import { WorkerServerProcess } from '../tsServer/workerServerProcess';
 import { ClientCapabilities, ClientCapability } from '../typescriptService';
 import API from '../utils/api';
 import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import Logger from '../utils/logger';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
-//import { ChildServerProcess } from '../utils/serverProcess';
 import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
+import { TypeScriptVersionManager } from '../utils/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from '../utils/versionProvider';
 import { ILogDirectoryProvider } from './logDirectoryProvider';
-import { GetErrRoutingTsServer, ITypeScriptServer, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerProcess, TsServerProcessKind } from './server';
+import { GetErrRoutingTsServer, ITypeScriptServer, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerProcessFactory, TsServerProcessKind } from './server';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */
@@ -37,11 +36,13 @@ const enum CompositeServerType {
 export class TypeScriptServerSpawner {
 	public constructor(
 		private readonly _versionProvider: ITypeScriptVersionProvider,
+		private readonly _versionManager: TypeScriptVersionManager,
 		private readonly _logDirectoryProvider: ILogDirectoryProvider,
 		private readonly _pluginPathsProvider: TypeScriptPluginPathsProvider,
 		private readonly _logger: Logger,
 		private readonly _telemetryReporter: TelemetryReporter,
 		private readonly _tracer: Tracer,
+		private readonly _factory: TsServerProcessFactory,
 	) { }
 
 	public spawn(
@@ -136,14 +137,9 @@ export class TypeScriptServerSpawner {
 			}
 		}
 
-		let process: TsServerProcess;
-		if (version.apiVersion?.gte(API.v400)) {
-			process = WorkerServerProcess.fork(args);
-		} else {
-			this._logger.info(`<${kind}> Forking...`);
-			//	process = ChildServerProcess.fork(version.tsServerPath, args, kind, configuration);
-			this._logger.info(`<${kind}> Starting...`);
-		}
+		this._logger.info(`<${kind}> Forking...`);
+		const process = this._factory.fork(version.tsServerPath, args, kind, configuration, this._versionManager);
+		this._logger.info(`<${kind}> Starting...`);
 
 		return new ProcessBasedTsServer(
 			kind,

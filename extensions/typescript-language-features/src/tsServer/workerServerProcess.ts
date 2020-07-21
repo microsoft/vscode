@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as Proto from '../protocol';
-import { TsServerProcess } from './server';
+import { TypeScriptServiceConfiguration } from '../utils/configuration';
+import { TsServerProcess, TsServerProcessKind } from './server';
 
 declare const Worker: any;
 declare type Worker = any;
@@ -12,7 +13,10 @@ declare type Worker = any;
 export class WorkerServerProcess implements TsServerProcess {
 
 	public static fork(
-		args: readonly string[]
+		_tsServerPath: string,
+		args: readonly string[],
+		_kind: TsServerProcessKind,
+		_configuration: TypeScriptServiceConfiguration,
 	) {
 		const worker = new Worker('/builtin-extension/typescript-language-features/node_modules/typescript/tsserver.js');
 		return new WorkerServerProcess(worker, args);

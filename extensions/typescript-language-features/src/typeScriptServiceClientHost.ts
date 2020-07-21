@@ -16,6 +16,7 @@ import * as Proto from './protocol';
 import * as PConst from './protocol.const';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import { TsServerProcessFactory } from './tsServer/server';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { coalesce, flatten } from './utils/arrays';
 import { CommandManager } from './utils/commandManager';
@@ -66,6 +67,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		logDirectoryProvider: ILogDirectoryProvider,
 		cancellerFactory: OngoingRequestCancellerFactory,
 		versionProvider: ITypeScriptVersionProvider,
+		processFactory: TsServerProcessFactory,
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
 		super();
@@ -78,6 +80,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			logDirectoryProvider,
 			cancellerFactory,
 			versionProvider,
+			processFactory,
 			allModeIds));
 
 		this.client.onDiagnosticsReceived(({ kind, resource, diagnostics }) => {
