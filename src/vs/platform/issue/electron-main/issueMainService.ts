@@ -200,6 +200,7 @@ export class IssueMainService implements ICommonIssueService {
 							nodeIntegration: true,
 							enableWebSQL: false,
 							enableRemoteModule: false,
+							spellcheck: false,
 							nativeWindowOpen: true,
 							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel)
 						}
@@ -253,6 +254,7 @@ export class IssueMainService implements ICommonIssueService {
 							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
 							enableWebSQL: false,
 							enableRemoteModule: false,
+							spellcheck: false,
 							nativeWindowOpen: true,
 							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
 							...this.environmentService.sandbox ?
