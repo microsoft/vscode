@@ -31,14 +31,6 @@ interface ISettingsListCacheItem {
 	template: ISettingItemTemplate;
 }
 
-function isGroupElement(element: SettingsTreeElement): element is SettingsTreeGroupElement {
-	return element instanceof SettingsTreeGroupElement;
-}
-
-function isSettingElement(element: SettingsTreeElement): element is SettingsTreeSettingElement {
-	return element instanceof SettingsTreeSettingElement;
-}
-
 class SettingsListPaginator {
 	readonly PAGE_SIZE = 20;
 
@@ -60,34 +52,31 @@ class SettingsListPaginator {
 		);
 	}
 
-	constructor(private onPageChange: () => void) { }
+	constructor(private onPageChange: (shouldScroll: boolean) => void) { }
 
-	setSettings(settings: SettingsTreeSettingElement[]): void {
+	setSettings(settings: SettingsTreeSettingElement[], shouldScroll: boolean): void {
 		this.settings = settings;
-		this.page = 1;
-		this.onPageChange();
+		this.setPage(1, shouldScroll);
 	}
 
 	nextPage(): void {
 		const nextStartIdx = this.page * this.PAGE_SIZE;
 
 		if (this.settings.length > nextStartIdx) {
-			this.page++;
-			this.onPageChange();
+			this.setPage(this.page + 1, true);
 		}
 	}
 
 	previousPage(): void {
 		if (this.page > 1) {
-			this.page--;
-			this.onPageChange();
+			this.setPage(this.page - 1, true);
 		}
 	}
 
-	setPage(page: number): void {
+	setPage(page: number, shouldScroll = true): void {
 		if (1 <= page && page <= this.totalPages) {
 			this.page = page;
-			this.onPageChange();
+			this.onPageChange(shouldScroll);
 		}
 	}
 }
@@ -100,6 +89,7 @@ export class SettingsList extends Disposable {
 	private freePool = new Map<string, ISettingsListCacheItem[]>();
 	private usedPool = new Map<string, ISettingsListCacheItem[]>();
 	private pageDisposables = new DisposableStore();
+	private currentView?: ISettingsListView;
 
 	dispose() {
 		for (const items of this.usedPool.values()) {
@@ -208,12 +198,30 @@ export class SettingsList extends Disposable {
 		return this.container;
 	}
 
-	render(group: SettingsTreeGroupElement): void {
-		const view = this.getSettingsFromGroup(group);
-		this.paginator.setSettings(view.settings);
+	refresh(rootGroup: SettingsTreeGroupElement): void {
+		let shouldScroll = true;
+
+		if (isDefined(this.currentView)) {
+			const refreshedGroup = findGroup(rootGroup, this.currentView.group.id);
+
+			if (isDefined(refreshedGroup)) {
+				this.currentView = this.getSettingsFromGroup(refreshedGroup);
+				shouldScroll = false;
+			} else {
+				this.currentView = undefined;
+			}
+		}
+
+		this.currentView = this.currentView ?? this.getSettingsFromGroup(rootGroup);
+		this.paginator.setSettings(this.currentView.settings, shouldScroll);
 	}
 
-	private renderPage(): void {
+	render(group: SettingsTreeGroupElement): void {
+		this.currentView = this.getSettingsFromGroup(group);
+		this.paginator.setSettings(this.currentView.settings, true);
+	}
+
+	private renderPage(shouldScroll: boolean): void {
 		DOM.clearNode(this.container);
 		this.pageDisposables.clear();
 		this.container.append(...this.paginator.settingsOnPage.map(setting => this.renderSetting(setting)));
@@ -222,7 +230,9 @@ export class SettingsList extends Disposable {
 			this.renderPaginatorControls();
 		}
 
-		this.container.scrollTop = 0;
+		if (shouldScroll) {
+			this.container.scrollTop = 0;
+		}
 	}
 
 	private renderPaginatorControls(): void {
@@ -328,4 +338,30 @@ export class SettingsList extends Disposable {
 	layout(...args: any[]) {
 		// TODO@9at8 STUB
 	}
+}
+
+function isGroupElement(element: SettingsTreeElement): element is SettingsTreeGroupElement {
+	return element instanceof SettingsTreeGroupElement;
+}
+
+function isSettingElement(element: SettingsTreeElement): element is SettingsTreeSettingElement {
+	return element instanceof SettingsTreeSettingElement;
+}
+
+function findGroup(rootGroup: SettingsTreeGroupElement, id: string): SettingsTreeGroupElement | undefined {
+	if (rootGroup.id === id) {
+		return rootGroup;
+	}
+
+	for (const child of rootGroup.children) {
+		if (child instanceof SettingsTreeGroupElement) {
+			const result = findGroup(child, id);
+
+			if (isDefined(result)) {
+				return result;
+			}
+		}
+	}
+
+	return;
 }

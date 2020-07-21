@@ -1046,7 +1046,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private refreshTree(): void {
 		if (this.isVisible()) {
-			this.settingsTree.render(this.currentSettingsModel.root);
+			this.settingsTree.refresh(this.currentSettingsModel.root);
 		}
 	}
 
