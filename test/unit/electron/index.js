@@ -12,6 +12,10 @@ const events = require('events');
 // const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 
+// Disable render process reuse, we still have
+// non-context aware native modules in the renderer.
+app.allowRendererProcessReuse = false;
+
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
 
 const optimist = require('optimist')
