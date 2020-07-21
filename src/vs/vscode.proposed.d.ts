@@ -102,7 +102,7 @@ declare module 'vscode' {
 		clearSessionPreference?: boolean;
 	}
 
-	export interface AuthenticationProviderAuthenticationSessionsChangeEvent extends AuthenticationSessionsChangeEvent {
+	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
 		/**
 		 * The [authenticationProvider](#AuthenticationProvider) that has had its sessions change.
 		 */
