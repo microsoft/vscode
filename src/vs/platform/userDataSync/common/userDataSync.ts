@@ -122,7 +122,10 @@ export function isAuthenticationProvider(thing: any): thing is IAuthenticationPr
 }
 
 export function getUserDataSyncStore(productService: IProductService, configurationService: IConfigurationService): IUserDataSyncStore | undefined {
-	const value = configurationService.getValue<ConfigurationSyncStore>(CONFIGURATION_SYNC_STORE_KEY) || productService[CONFIGURATION_SYNC_STORE_KEY];
+	const value = {
+		...(productService[CONFIGURATION_SYNC_STORE_KEY] || {}),
+		...(configurationService.getValue<ConfigurationSyncStore>(CONFIGURATION_SYNC_STORE_KEY) || {})
+	};
 	if (value
 		&& isString(value.url)
 		&& isObject(value.authenticationProviders)
