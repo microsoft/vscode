@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { DocumentSelector } from '../utils/documentSelector';
 
 const localize = nls.loadMessageBundle();
 
@@ -80,10 +81,10 @@ class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvide
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
-	return vscode.languages.registerCompletionItemProvider(selector,
+	return vscode.languages.registerCompletionItemProvider(selector.syntax,
 		new DirectiveCommentCompletionProvider(client),
 		'@');
 }

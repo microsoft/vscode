@@ -9,6 +9,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { conditionalRegistration, requireMinVersion, requireConfiguration, Condition } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
+import { DocumentSelector } from '../utils/documentSelector';
 import * as typeConverters from '../utils/typeConverters';
 
 class TagClosing extends Disposable {
@@ -151,13 +152,13 @@ function requireActiveDocument(
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	modeId: string,
 	client: ITypeScriptServiceClient,
 ) {
 	return conditionalRegistration([
 		requireMinVersion(client, TagClosing.minVersion),
 		requireConfiguration(modeId, 'autoClosingTags'),
-		requireActiveDocument(selector)
+		requireActiveDocument(selector.syntax)
 	], () => new TagClosing(client));
 }

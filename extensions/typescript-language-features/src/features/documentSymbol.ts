@@ -6,10 +6,11 @@
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import * as typeConverters from '../utils/typeConverters';
 import { CachedResponse } from '../tsServer/cachedResponse';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { DocumentSelector } from '../utils/documentSelector';
 import { parseKindModifier } from '../utils/modifiers';
+import * as typeConverters from '../utils/typeConverters';
 
 const getSymbolKind = (kind: string): vscode.SymbolKind => {
 	switch (kind) {
@@ -111,10 +112,10 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
-	return vscode.languages.registerDocumentSymbolProvider(selector,
+	return vscode.languages.registerDocumentSymbolProvider(selector.syntax,
 		new TypeScriptDocumentSymbolProvider(client, cachedResponse), { label: 'TypeScript' });
 }

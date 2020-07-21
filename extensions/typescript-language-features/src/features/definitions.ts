@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
 import * as typeConverters from '../utils/typeConverters';
 import DefinitionProviderBase from './definitionProviderBase';
 
@@ -58,9 +60,13 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
-	return vscode.languages.registerDefinitionProvider(selector,
-		new TypeScriptDefinitionProvider(client));
+	return conditionalRegistration([
+		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
+	], () => {
+		return vscode.languages.registerDefinitionProvider(selector.syntax,
+			new TypeScriptDefinitionProvider(client));
+	});
 }

@@ -1319,11 +1319,9 @@ registerAction2(class extends NotebookAction {
 });
 
 async function splitCell(context: INotebookCellActionContext): Promise<void> {
-	if (context.cell.cellKind === CellKind.Code) {
-		const newCells = await context.notebookEditor.splitNotebookCell(context.cell);
-		if (newCells) {
-			context.notebookEditor.focusNotebookCell(newCells[newCells.length - 1], 'editor');
-		}
+	const newCells = await context.notebookEditor.splitNotebookCell(context.cell);
+	if (newCells) {
+		context.notebookEditor.focusNotebookCell(newCells[newCells.length - 1], 'editor');
 	}
 }
 
@@ -1335,13 +1333,13 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebookActions.splitCell', "Split Cell"),
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, InputFocusedContext),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, InputFocusedContext),
 					order: CellToolbarOrder.SplitCell,
 					group: CELL_TITLE_GROUP_ID
 				},
 				icon: { id: 'codicon/split-vertical' },
 				keybinding: {
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, InputFocusedContext),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, InputFocusedContext),
 					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH),
 					weight: KeybindingWeight.WorkbenchContrib
 				},

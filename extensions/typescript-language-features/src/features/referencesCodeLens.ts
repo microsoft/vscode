@@ -8,8 +8,10 @@ import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { CachedResponse } from '../tsServer/cachedResponse';
-import { ITypeScriptServiceClient, ClientCapability } from '../typescriptService';
-import { conditionalRegistration, requireConfiguration, requireCapability } from '../utils/dependentRegistration';
+import { ExectuionTarget } from '../tsServer/server';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
 import * as typeConverters from '../utils/typeConverters';
 import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 
@@ -27,7 +29,11 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 	public async resolveCodeLens(inputCodeLens: vscode.CodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
-		const response = await this.client.execute('references', args, token, { lowPriority: true, cancelOnResourceChange: codeLens.document });
+		const response = await this.client.execute('references', args, token, {
+			lowPriority: true,
+			executionTarget: ExectuionTarget.Semantic,
+			cancelOnResourceChange: codeLens.document,
+		});
 		if (response.type !== 'response' || !response.body) {
 			codeLens.command = response.type === 'cancelled'
 				? TypeScriptBaseCodeLensProvider.cancelledCommand
@@ -122,16 +128,16 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	modeId: string,
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
 	return conditionalRegistration([
 		requireConfiguration(modeId, 'referencesCodeLens.enabled'),
-		requireCapability(client, ClientCapability.Semantic),
+		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
-		return vscode.languages.registerCodeLensProvider(selector,
+		return vscode.languages.registerCodeLensProvider(selector.semantic,
 			new TypeScriptReferencesCodeLensProvider(client, cachedResponse, modeId));
 	});
 }

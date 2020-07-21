@@ -6,9 +6,10 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import { conditionalRegistration, requireMinVersion } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireSomeCapability, requireMinVersion } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
 import * as errorCodes from '../utils/errorCodes';
 import * as fixNames from '../utils/fixNames';
 import * as typeConverters from '../utils/typeConverters';
@@ -249,15 +250,16 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
 	fileConfigurationManager: FileConfigurationManager,
 	diagnosticsManager: DiagnosticsManager,
 ) {
 	return conditionalRegistration([
-		requireMinVersion(client, API.v300)
+		requireMinVersion(client, API.v300),
+		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		const provider = new TypeScriptAutoFixProvider(client, fileConfigurationManager, diagnosticsManager);
-		return vscode.languages.registerCodeActionsProvider(selector, provider, provider.metadata);
+		return vscode.languages.registerCodeActionsProvider(selector.semantic, provider, provider.metadata);
 	});
 }

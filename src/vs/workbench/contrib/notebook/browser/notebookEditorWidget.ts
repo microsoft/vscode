@@ -37,7 +37,7 @@ import { CellDragAndDropController, CodeCellRenderer, MarkdownCellRenderer, Note
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, IProcessedOutput, INotebookKernelInfo, INotebookKernelInfoDto, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, INotebookKernelInfo, INotebookKernelInfoDto, INotebookKernelInfo2, NotebookRunState, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -49,6 +49,8 @@ import { URI } from 'vs/base/common/uri';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
+import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+import { notebookKernelProviderAssociationsSettingId, NotebookKernelProviderAssociations } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 
 const $ = DOM.$;
 
@@ -90,7 +92,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _outputFocus: IContextKey<boolean> | null = null;
 	private _editorEditable: IContextKey<boolean> | null = null;
 	private _editorRunnable: IContextKey<boolean> | null = null;
-	private _editorExecutingNotebook: IContextKey<boolean> | null = null;
+	private _notebookExecuting: IContextKey<boolean> | null = null;
 	private _notebookHasMultipleKernels: IContextKey<boolean> | null = null;
 	private _outputRenderer: OutputRenderer;
 	protected readonly _contributions: { [key: string]: INotebookEditorContribution; };
@@ -270,7 +272,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._editorEditable.set(true);
 		this._editorRunnable = NOTEBOOK_EDITOR_RUNNABLE.bindTo(this.contextKeyService);
 		this._editorRunnable.set(true);
-		this._editorExecutingNotebook = NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.bindTo(this.contextKeyService);
+		this._notebookExecuting = NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.bindTo(this.contextKeyService);
 		this._notebookHasMultipleKernels = NOTEBOOK_HAS_MULTIPLE_KERNELS.bindTo(this.contextKeyService);
 		this._notebookHasMultipleKernels.set(false);
 
@@ -586,6 +588,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.multipleKernelsAvailable = false;
 		}
 
+		// @deprecated
 		if (provider && provider.kernel) {
 			// it has a builtin kernel, don't automatically choose a kernel
 			this._loadKernelPreloads(provider.providerExtensionLocation, provider.kernel);
@@ -596,25 +599,61 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const activeKernelStillExist = [...availableKernels2, ...availableKernels].find(kernel => kernel.id === this.activeKernel?.id && this.activeKernel?.id !== undefined);
 
 		if (activeKernelStillExist) {
+			// the kernel still exist, we don't want to modify the selection otherwise user's temporary preference is lost
 			return;
 		}
 
-		// choose a preferred kernel
-		const kernelsFromSameExtension = availableKernels2.filter(kernel => kernel.extension.value === provider.providerId);
-		if (kernelsFromSameExtension.length) {
-			const preferedKernel = kernelsFromSameExtension.find(kernel => kernel.isPreferred) || kernelsFromSameExtension[0];
-			this.activeKernel = preferedKernel;
-			await preferedKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
-
-			tokenSource.dispose();
-			return;
+		if (availableKernels2.length) {
+			return this._setKernelsFromProviders(provider, availableKernels2, tokenSource);
 		}
-
 
 		// the provider doesn't have a builtin kernel, choose a kernel
 		this.activeKernel = availableKernels[0];
 		if (this.activeKernel) {
 			this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+		}
+
+		tokenSource.dispose();
+	}
+
+	private async _setKernelsFromProviders(provider: NotebookProviderInfo, kernels: INotebookKernelInfo2[], tokenSource: CancellationTokenSource) {
+		const rawAssociations = this.configurationService.getValue<NotebookKernelProviderAssociations>(notebookKernelProviderAssociationsSettingId) || [];
+		const userSetKernelProvider = rawAssociations.filter(e => e.viewType === this.viewModel?.viewType)[0]?.kernelProvider;
+
+		if (userSetKernelProvider) {
+			const filteredKernels = kernels.filter(kernel => kernel.extension.value === userSetKernelProvider);
+
+			if (filteredKernels.length) {
+				this.activeKernel = filteredKernels.find(kernel => kernel.isPreferred) || filteredKernels[0];
+			} else {
+				this.activeKernel = undefined;
+			}
+
+			if (this.activeKernel) {
+				this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+				await this.activeKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
+			}
+
+			tokenSource.dispose();
+			return;
+		}
+
+		// choose a preferred kernel
+		const kernelsFromSameExtension = kernels.filter(kernel => kernel.extension.value === provider.providerExtensionId);
+		if (kernelsFromSameExtension.length) {
+			const preferedKernel = kernelsFromSameExtension.find(kernel => kernel.isPreferred) || kernelsFromSameExtension[0];
+			this.activeKernel = preferedKernel;
+			this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			await preferedKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
+			tokenSource.dispose();
+			return;
+		}
+
+		// the provider doesn't have a builtin kernel, choose a kernel
+		this.activeKernel = kernels[0];
+		if (this.activeKernel) {
+			this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			await this.activeKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
 		}
 
 		tokenSource.dispose();
@@ -627,10 +666,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private _updateForMetadata(): void {
-		this._editorEditable?.set(!!this.viewModel!.metadata?.editable);
-		this._editorRunnable?.set(!!this.viewModel!.metadata?.runnable);
-		DOM.toggleClass(this._overlayContainer, 'notebook-editor-editable', !!this.viewModel!.metadata?.editable);
-		DOM.toggleClass(this.getDomNode(), 'notebook-editor-editable', !!this.viewModel!.metadata?.editable);
+		const notebookMetadata = this.viewModel!.metadata;
+		this._editorEditable?.set(!!notebookMetadata?.editable);
+		this._editorRunnable?.set(!!notebookMetadata?.runnable);
+		DOM.toggleClass(this._overlayContainer, 'notebook-editor-editable', !!notebookMetadata?.editable);
+		DOM.toggleClass(this.getDomNode(), 'notebook-editor-editable', !!notebookMetadata?.editable);
+
+		this._notebookExecuting?.set(notebookMetadata.runState === NotebookRunState.Running);
 	}
 
 	private async _createWebview(id: string, resource: URI): Promise<void> {
@@ -1148,14 +1190,26 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return undefined;
 	}
 
-	cancelNotebookExecution(): void {
-		if (!this._notebookViewModel!.currentTokenSource) {
-			throw new Error('Notebook is not executing');
+	async cancelNotebookExecution(): Promise<void> {
+		if (this._notebookViewModel?.metadata.runState !== NotebookRunState.Running) {
+			return;
 		}
 
+		return this._cancelNotebookExecution();
+	}
 
-		this._notebookViewModel!.currentTokenSource.cancel();
-		this._notebookViewModel!.currentTokenSource = undefined;
+	private async _cancelNotebookExecution(): Promise<void> {
+		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
+		if (provider) {
+			const viewType = provider.id;
+			const notebookUri = this._notebookViewModel!.uri;
+
+			if (this._activeKernel) {
+				await (this._activeKernel as INotebookKernelInfo2).cancelNotebookCell!(this._notebookViewModel!.uri, undefined);
+			} else if (provider.kernel) {
+				return await this.notebookService.cancelNotebook(viewType, notebookUri);
+			}
+		}
 	}
 
 	async executeNotebook(): Promise<void> {
@@ -1166,46 +1220,54 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._executeNotebook();
 	}
 
-	async _executeNotebook(): Promise<void> {
-		if (this._notebookViewModel!.currentTokenSource) {
-			return;
-		}
+	private async _executeNotebook(): Promise<void> {
+		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
+		if (provider) {
+			const viewType = provider.id;
+			const notebookUri = this._notebookViewModel!.uri;
 
-		const tokenSource = new CancellationTokenSource();
-		try {
-			this._editorExecutingNotebook!.set(true);
-			this._notebookViewModel!.currentTokenSource = tokenSource;
-			const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-			if (provider) {
-				const viewType = provider.id;
-				const notebookUri = this._notebookViewModel!.uri;
-
-				if (this._activeKernel) {
-					// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
-					if ((this._activeKernel as INotebookKernelInfo2).executeNotebookCell) {
-						await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, undefined, tokenSource.token);
-					} else {
-						await this.notebookService.executeNotebook2(this._notebookViewModel!.viewType, this._notebookViewModel!.uri, this._activeKernel.id, tokenSource.token);
-					}
-				} else if (provider.kernel) {
-					return await this.notebookService.executeNotebook(viewType, notebookUri, tokenSource.token);
+			if (this._activeKernel) {
+				// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
+				if ((this._activeKernel as INotebookKernelInfo2).executeNotebookCell) {
+					await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, undefined);
+				} else {
+					await this.notebookService.executeNotebook2(this._notebookViewModel!.viewType, this._notebookViewModel!.uri, this._activeKernel.id);
 				}
+			} else if (provider.kernel) {
+				return await this.notebookService.executeNotebook(viewType, notebookUri);
 			}
-
-		} finally {
-			this._editorExecutingNotebook!.set(false);
-			this._notebookViewModel!.currentTokenSource = undefined;
-			tokenSource.dispose();
 		}
 	}
 
-	cancelNotebookCellExecution(cell: ICellViewModel): void {
-		if (!cell.currentTokenSource) {
-			throw new Error('Cell is not executing');
+	async cancelNotebookCellExecution(cell: ICellViewModel): Promise<void> {
+		if (cell.cellKind !== CellKind.Code) {
+			return;
 		}
 
-		cell.currentTokenSource.cancel();
-		cell.currentTokenSource = undefined;
+		const metadata = cell.getEvaluatedMetadata(this._notebookViewModel!.metadata);
+		if (!metadata.runnable) {
+			return;
+		}
+
+		if (metadata.runState !== NotebookCellRunState.Running) {
+			return;
+		}
+
+		await this._cancelNotebookCell(cell);
+	}
+
+	private async _cancelNotebookCell(cell: ICellViewModel): Promise<void> {
+		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
+		if (provider) {
+			const viewType = provider.id;
+			const notebookUri = this._notebookViewModel!.uri;
+
+			if (this._activeKernel) {
+				return await (this._activeKernel as INotebookKernelInfo2).cancelNotebookCell!(this._notebookViewModel!.uri, cell.handle);
+			} else if (provider.kernel) {
+				return await this.notebookService.cancelNotebookCell(viewType, notebookUri, cell.handle);
+			}
+		}
 	}
 
 	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
@@ -1218,37 +1280,26 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		const tokenSource = new CancellationTokenSource();
-		try {
-			await this._executeNotebookCell(cell, tokenSource);
-		} finally {
-			tokenSource.dispose();
-		}
+		await this._executeNotebookCell(cell);
 	}
 
-	private async _executeNotebookCell(cell: ICellViewModel, tokenSource: CancellationTokenSource): Promise<void> {
-		try {
-			cell.currentTokenSource = tokenSource;
+	private async _executeNotebookCell(cell: ICellViewModel): Promise<void> {
+		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
+		if (provider) {
+			const viewType = provider.id;
+			const notebookUri = this._notebookViewModel!.uri;
 
-			const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-			if (provider) {
-				const viewType = provider.id;
-				const notebookUri = this._notebookViewModel!.uri;
+			if (this._activeKernel) {
+				// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
+				if ((this._activeKernel as INotebookKernelInfo2).executeNotebookCell) {
+					await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, cell.handle);
+				} else {
 
-				if (this._activeKernel) {
-					// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
-					if ((this._activeKernel as INotebookKernelInfo2).executeNotebookCell) {
-						await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, cell.handle, tokenSource.token);
-					} else {
-
-						return await this.notebookService.executeNotebookCell2(viewType, notebookUri, cell.handle, this._activeKernel.id, tokenSource.token);
-					}
-				} else if (provider.kernel) {
-					return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle, tokenSource.token);
+					return await this.notebookService.executeNotebookCell2(viewType, notebookUri, cell.handle, this._activeKernel.id);
 				}
+			} else if (provider.kernel) {
+				return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle);
 			}
-		} finally {
-			cell.currentTokenSource = undefined;
 		}
 	}
 

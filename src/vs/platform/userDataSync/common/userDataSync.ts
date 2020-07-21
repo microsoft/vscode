@@ -164,6 +164,9 @@ export interface IUserDataSyncStoreService {
 	readonly _serviceBrand: undefined;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
 
+	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
+	readonly donotMakeRequestsUntil: Date | undefined;
+
 	readonly onTokenFailed: Event<void>;
 	readonly onTokenSucceed: Event<void>;
 	setAuthToken(token: string, type: string): void;
@@ -207,6 +210,7 @@ export enum UserDataSyncErrorCode {
 	UpgradeRequired = 'UpgradeRequired', /* 426 */
 	PreconditionRequired = 'PreconditionRequired', /* 428 */
 	TooManyRequests = 'RemoteTooManyRequests', /* 429 */
+	TooManyRequestsAndRetryAfter = 'TooManyRequestsAndRetryAfter', /* 429 + Retry-After */
 
 	// Local Errors
 	ConnectionRefused = 'ConnectionRefused',

@@ -6,9 +6,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { memoize } from './memoize';
+import { ILogDirectoryProvider } from './logDirectoryProvider';
+import { memoize } from '../utils/memoize';
 
-export default class LogDirectoryProvider {
+export class NodeLogDirectoryProvider implements ILogDirectoryProvider {
 	public constructor(
 		private readonly context: vscode.ExtensionContext
 	) { }
