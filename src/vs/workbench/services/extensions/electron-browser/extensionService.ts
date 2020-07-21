@@ -582,8 +582,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
 
-		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
-		localProcessExtensionHost.start(localProcessExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
+		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
+		if (localProcessExtensionHost) {
+			localProcessExtensionHost.start(localProcessExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
+		}
 
 		const localWebWorkerExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalWebWorker);
 		if (localWebWorkerExtensionHost) {
