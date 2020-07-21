@@ -3,18 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as rimraf from 'rimraf';
 import * as vscode from 'vscode';
-import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
+import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { Api, getExtensionApi } from './api';
 import { registerCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
-import * as task from './features/task';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
-import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { CommandManager } from './utils/commandManager';
-import * as electron from './utils/electron';
 import { PluginManager } from './utils/plugins';
+import { noopRequestCancellerFactory } from './tsServer/cancellation';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -28,14 +25,12 @@ export function activate(
 	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
 	context.subscriptions.push(onCompletionAccepted);
 
-	const logDirectoryProvider = new NodeLogDirectoryProvider(context);
-
-	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, logDirectoryProvider, nodeRequestCancellerFactory, item => {
+	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, noopLogDirectoryProvider, noopRequestCancellerFactory, item => {
 		onCompletionAccepted.fire(item);
 	});
 
 	registerCommands(commandManager, lazyClientHost, pluginManager);
-	context.subscriptions.push(task.register(lazyClientHost.map(x => x.serviceClient)));
+	// context.subscriptions.push(task.register(lazyClientHost.map(x => x.serviceClient)));
 	context.subscriptions.push(new LanguageConfigurationManager());
 
 	import('./features/tsconfig').then(module => {
@@ -47,6 +42,3 @@ export function activate(
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }
 
-export function deactivate() {
-	rimraf.sync(electron.getInstanceDir());
-}

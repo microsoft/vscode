@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const file = 'file';
-export const untitled = 'untitled';
-export const git = 'git';
-export const walkThroughSnippet = 'walkThroughSnippet';
+export interface ILogDirectoryProvider {
+	getNewLogDirectory(): string | undefined;
+}
 
-export const semanticSupportedSchemes = [
-	file,
-	untitled,
-];
+export const noopLogDirectoryProvider = new class implements ILogDirectoryProvider {
+	public getNewLogDirectory(): undefined {
+		return undefined;
+	}
+};
