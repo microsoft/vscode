@@ -56,6 +56,20 @@ async function splitEditor() {
 	await once;
 }
 
+async function saveFileAndCloseAll(resource: vscode.Uri) {
+	const documentClosed = new Promise((resolve, _reject) => {
+		const d = vscode.notebook.onDidCloseNotebookDocument(e => {
+			if (e.uri.toString() === resource.toString()) {
+				d.dispose();
+				resolve();
+			}
+		});
+	});
+	await vscode.commands.executeCommand('workbench.action.files.save');
+	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	await documentClosed;
+}
+
 suite('Notebook API tests', () => {
 	// test.only('crash', async function () {
 	// 	for (let i = 0; i < 200; i++) {
@@ -574,8 +588,7 @@ suite('notebook dirty state', () => {
 		assert.deepEqual(vscode.notebook.activeNotebookEditor?.document.cells[1], vscode.notebook.activeNotebookEditor?.selection);
 		assert.equal(vscode.notebook.activeNotebookEditor?.selection?.document.getText(), 'var abc = 0;');
 
-		await vscode.commands.executeCommand('workbench.action.files.save');
-		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+		await saveFileAndCloseAll(resource);
 	});
 });
 
@@ -619,8 +632,7 @@ suite('notebook undo redo', () => {
 		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(vscode.notebook.activeNotebookEditor!.selection!), 1);
 		// assert.equal(vscode.notebook.activeNotebookEditor?.selection?.document.getText(), 'test');
 
-		await vscode.commands.executeCommand('workbench.action.files.save');
-		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+		await saveFileAndCloseAll(resource);
 	});
 
 	test.skip('execute and then undo redo', async function () {
@@ -682,8 +694,7 @@ suite('notebook undo redo', () => {
 		});
 		assert.equal(cellOutputsAddedRet.cells[0].outputs.length, 0);
 
-		await vscode.commands.executeCommand('workbench.action.files.save');
-		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		await saveFileAndCloseAll(resource);
 	});
 
 });
@@ -752,8 +763,7 @@ suite('notebook working copy', () => {
 		assert.deepEqual(vscode.notebook.activeNotebookEditor?.document.cells.length, 3);
 		assert.equal(vscode.notebook.activeNotebookEditor?.selection?.document.getText(), 'var abc = 0;');
 
-		await vscode.commands.executeCommand('workbench.action.files.save');
-		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+		await saveFileAndCloseAll(resource);
 	});
 
 	test('multiple tabs: two dirty tabs and switching', async function () {
@@ -825,8 +835,7 @@ suite('metadata', () => {
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.metadata.custom!['testCellMetadata'] as number, 123);
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
 
-		await vscode.commands.executeCommand('workbench.action.files.saveAll');
-		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		await saveFileAndCloseAll(resource);
 	});
 
 
@@ -845,8 +854,7 @@ suite('metadata', () => {
 		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
 		// assert.equal(activeCell?.metadata.custom!['testCellMetadata'] as number, 123);
 
-		await vscode.commands.executeCommand('workbench.action.files.saveAll');
-		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		await saveFileAndCloseAll(resource);
 	});
 });
 
@@ -857,8 +865,7 @@ suite('regression', () => {
 		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.document.getText(), '');
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
-		await vscode.commands.executeCommand('workbench.action.files.saveAll');
-		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		await saveFileAndCloseAll(resource);
 	});
 
 	test('#97830, #97764. Support switch to other editor types', async function () {
