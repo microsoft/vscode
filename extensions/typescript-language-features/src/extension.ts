@@ -5,16 +5,18 @@
 
 import * as rimraf from 'rimraf';
 import * as vscode from 'vscode';
-import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
 import { Api, getExtensionApi } from './api';
 import { registerCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
 import * as task from './features/task';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
+import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
 import { CommandManager } from './utils/commandManager';
 import * as electron from './utils/electron';
+import { onCaseInsenitiveFileSystem } from './utils/fileSystem';
 import { PluginManager } from './utils/plugins';
+import { TypeScriptVersionProvider } from './utils/versionProvider';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -30,7 +32,9 @@ export function activate(
 
 	const logDirectoryProvider = new NodeLogDirectoryProvider(context);
 
-	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, logDirectoryProvider, nodeRequestCancellerFactory, item => {
+	const versionProvider = new TypeScriptVersionProvider();
+
+	const lazyClientHost = createLazyClientHost(context, onCaseInsenitiveFileSystem(), pluginManager, commandManager, logDirectoryProvider, nodeRequestCancellerFactory, versionProvider, item => {
 		onCompletionAccepted.fire(item);
 	});
 

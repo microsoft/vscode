@@ -9,7 +9,6 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../utils/fileSchemes';
-import { onCaseInsenitiveFileSystem } from '../utils/fileSystem';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
@@ -34,10 +33,11 @@ export default class FileConfigurationManager extends Disposable {
 	private readonly formatOptions: ResourceMap<Promise<FileConfiguration | undefined>>;
 
 	public constructor(
-		private readonly client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient,
+		onCaseInsenitiveFileSystem: boolean
 	) {
 		super();
-		this.formatOptions = new ResourceMap(undefined, { onCaseInsenitiveFileSystem: onCaseInsenitiveFileSystem() });
+		this.formatOptions = new ResourceMap(undefined, { onCaseInsenitiveFileSystem });
 		vscode.workspace.onDidCloseTextDocument(textDocument => {
 			// When a document gets closed delete the cached formatting options.
 			// This is necessary since the tsserver now closed a project when its

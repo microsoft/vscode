@@ -5,9 +5,9 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { TypeScriptVersion, TypeScriptVersionProvider } from './versionProvider';
-import { Disposable } from './dispose';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
+import { Disposable } from './dispose';
+import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
 
 const localize = nls.loadMessageBundle();
 
@@ -24,7 +24,7 @@ export class TypeScriptVersionManager extends Disposable {
 
 	public constructor(
 		private configuration: TypeScriptServiceConfiguration,
-		private readonly versionProvider: TypeScriptVersionProvider,
+		private readonly versionProvider: ITypeScriptVersionProvider,
 		private readonly workspaceState: vscode.Memento
 	) {
 		super();

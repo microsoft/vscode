@@ -41,6 +41,13 @@ export interface TsServerDelegate {
 	onFatalError(command: string, error: Error): void;
 }
 
+export const enum TsServerProcessKind {
+	Main = 'main',
+	Syntax = 'syntax',
+	Semantic = 'semantic',
+	Diagnostics = 'diagnostics'
+}
+
 export interface TsServerProcess {
 	write(serverRequest: Proto.Request): void;
 
@@ -50,7 +57,6 @@ export interface TsServerProcess {
 
 	kill(): void;
 }
-
 
 export class ProcessBasedTsServer extends Disposable implements ITypeScriptServer {
 	private readonly _requestQueue = new RequestQueue();

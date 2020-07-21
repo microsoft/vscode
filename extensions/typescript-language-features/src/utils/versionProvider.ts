@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as fs from 'fs';
+
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
@@ -27,9 +27,10 @@ export class TypeScriptVersion {
 	constructor(
 		public readonly source: TypeScriptVersionSource,
 		public readonly path: string,
-		private readonly _pathLabel?: string
+		private readonly _pathLabel?: string,
+		apiVersion?: API,
 	) {
-		this.apiVersion = TypeScriptVersion.getApiVersion(this.tsServerPath);
+		this.apiVersion = apiVersion ?? TypeScriptVersion.getApiVersion(this.tsServerPath);
 	}
 
 	public get tsServerPath(): string {
@@ -64,7 +65,7 @@ export class TypeScriptVersion {
 			'couldNotLoadTsVersion', 'Could not load the TypeScript version at this path');
 	}
 
-	public static getApiVersion(serverPath: string): API | undefined {
+	private static getApiVersion(serverPath: string): API | undefined {
 		const version = TypeScriptVersion.getTypeScriptVersion(serverPath);
 		if (version) {
 			return version;
@@ -79,7 +80,10 @@ export class TypeScriptVersion {
 		return undefined;
 	}
 
-	private static getTypeScriptVersion(serverPath: string): API | undefined {
+	private static getTypeScriptVersion(_serverPath: string): API | undefined {
+		return API.v400;
+		/*const fs = require('fs');
+
 		if (!fs.existsSync(serverPath)) {
 			return undefined;
 		}
@@ -111,14 +115,24 @@ export class TypeScriptVersion {
 		if (!desc || !desc.version) {
 			return undefined;
 		}
-		return desc.version ? API.fromVersionString(desc.version) : undefined;
+		return desc.version ? API.fromVersionString(desc.version) : undefined;*/
 	}
 }
 
-export class TypeScriptVersionProvider {
+export interface ITypeScriptVersionProvider {
+	updateConfiguration(configuration: TypeScriptServiceConfiguration): void;
+
+	readonly defaultVersion: TypeScriptVersion;
+	readonly globalVersion: TypeScriptVersion | undefined;
+	readonly localVersion: TypeScriptVersion | undefined;
+	readonly localVersions: readonly TypeScriptVersion[];
+	readonly bundledVersion: TypeScriptVersion;
+}
+
+export class TypeScriptVersionProvider implements ITypeScriptVersionProvider {
 
 	public constructor(
-		private configuration: TypeScriptServiceConfiguration
+		private configuration?: TypeScriptServiceConfiguration,
 	) { }
 
 	public updateConfiguration(configuration: TypeScriptServiceConfiguration): void {
@@ -130,7 +144,7 @@ export class TypeScriptVersionProvider {
 	}
 
 	public get globalVersion(): TypeScriptVersion | undefined {
-		if (this.configuration.globalTsdk) {
+		if (this.configuration?.globalTsdk) {
 			const globals = this.loadVersionsFromSetting(TypeScriptVersionSource.UserSetting, this.configuration.globalTsdk);
 			if (globals && globals.length) {
 				return globals[0];
@@ -197,7 +211,7 @@ export class TypeScriptVersionProvider {
 	}
 
 	private get localTsdkVersions(): TypeScriptVersion[] {
-		const localTsdk = this.configuration.localTsdk;
+		const localTsdk = this.configuration?.localTsdk;
 		return localTsdk ? this.loadVersionsFromSetting(TypeScriptVersionSource.WorkspaceSetting, localTsdk) : [];
 	}
 

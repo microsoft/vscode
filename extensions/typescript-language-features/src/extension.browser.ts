@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { Api, getExtensionApi } from './api';
 import { registerCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
+import { noopRequestCancellerFactory } from './tsServer/cancellation';
+import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { CommandManager } from './utils/commandManager';
 import { PluginManager } from './utils/plugins';
-import { noopRequestCancellerFactory } from './tsServer/cancellation';
+import { TypeScriptVersionProvider } from './utils/versionProvider';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -25,7 +26,9 @@ export function activate(
 	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
 	context.subscriptions.push(onCompletionAccepted);
 
-	const lazyClientHost = createLazyClientHost(context, pluginManager, commandManager, noopLogDirectoryProvider, noopRequestCancellerFactory, item => {
+	const versionProvider = new TypeScriptVersionProvider();
+
+	const lazyClientHost = createLazyClientHost(context, false, pluginManager, commandManager, noopLogDirectoryProvider, noopRequestCancellerFactory, versionProvider, item => {
 		onCompletionAccepted.fire(item);
 	});
 

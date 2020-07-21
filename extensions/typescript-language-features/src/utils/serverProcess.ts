@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess } from 'child_process';
-import * as stream from 'stream';
+import type { ChildProcess } from 'child_process';
+import type { Readable } from 'stream';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
-import { TsServerProcess } from '../tsServer/server';
+import { TsServerProcess, TsServerProcessKind } from '../tsServer/server';
+import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from './dispose';
 
 const defaultSize: number = 8192;
@@ -88,7 +89,7 @@ class Reader<T> extends Disposable {
 	private readonly buffer: ProtocolBuffer = new ProtocolBuffer();
 	private nextMessageLength: number = -1;
 
-	public constructor(readable: stream.Readable) {
+	public constructor(readable: Readable) {
 		super();
 		readable.on('data', data => this.onLengthData(data));
 	}
@@ -130,7 +131,45 @@ class Reader<T> extends Disposable {
 export class ChildServerProcess extends Disposable implements TsServerProcess {
 	private readonly _reader: Reader<Proto.Response>;
 
-	public constructor(
+	public static fork(
+		tsServerPath: string,
+		args: readonly string[],
+		kind: TsServerProcessKind,
+		configuration: TypeScriptServiceConfiguration,
+	): ChildServerProcess {
+		const fork = require('../utils/electron');
+		const childProcess = fork(tsServerPath, args, this.getForkOptions(kind, configuration));
+		return new ChildServerProcess(childProcess);
+	}
+
+	private static getForkOptions(kind: TsServerProcessKind, configuration: TypeScriptServiceConfiguration) {
+		const debugPort = this.getDebugPort(kind);
+		const inspectFlag = process.env['TSS_DEBUG_BRK'] ? '--inspect-brk' : '--inspect';
+		const tsServerForkOptions: any = {
+			execArgv: [
+				...(debugPort ? [`${inspectFlag}=${debugPort}`] : []),
+				...(configuration.maxTsServerMemory ? [`--max-old-space-size=${configuration.maxTsServerMemory}`] : [])
+			]
+		};
+		return tsServerForkOptions;
+	}
+
+	private static getDebugPort(kind: TsServerProcessKind): number | undefined {
+		if (kind === TsServerProcessKind.Syntax) {
+			// We typically only want to debug the main semantic server
+			return undefined;
+		}
+		const value = process.env['TSS_DEBUG_BRK'] || process.env['TSS_DEBUG'];
+		if (value) {
+			const port = parseInt(value);
+			if (!isNaN(port)) {
+				return port;
+			}
+		}
+		return undefined;
+	}
+
+	private constructor(
 		private readonly _process: ChildProcess,
 	) {
 		super();

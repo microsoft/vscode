@@ -14,23 +14,28 @@ import * as ProjectStatus from './utils/largeProjectStatus';
 import { lazy, Lazy } from './utils/lazy';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { PluginManager } from './utils/plugins';
+import { ITypeScriptVersionProvider } from './utils/versionProvider';
 
 export function createLazyClientHost(
 	context: vscode.ExtensionContext,
+	onCaseInsenitiveFileSystem: boolean,
 	pluginManager: PluginManager,
 	commandManager: CommandManager,
 	logDirectoryProvider: ILogDirectoryProvider,
 	cancellerFactory: OngoingRequestCancellerFactory,
+	versionProvider: ITypeScriptVersionProvider,
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
 	return lazy(() => {
 		const clientHost = new TypeScriptServiceClientHost(
 			standardLanguageDescriptions,
 			context.workspaceState,
+			onCaseInsenitiveFileSystem,
 			pluginManager,
 			commandManager,
 			logDirectoryProvider,
 			cancellerFactory,
+			versionProvider,
 			onCompletionAccepted);
 
 		context.subscriptions.push(clientHost);
@@ -45,7 +50,6 @@ export function createLazyClientHost(
 		return clientHost;
 	});
 }
-
 
 export function lazilyActivateClient(
 	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
