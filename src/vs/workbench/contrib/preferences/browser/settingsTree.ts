@@ -529,7 +529,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
 		const titleElement = DOM.append(container, $('.setting-item-title', {
 			'role': 'heading',
-			'aria-level': 3,
+			'aria-level': 2,
 		}));
 		const labelCategoryContainer = DOM.append(titleElement, $('.setting-item-cat-label-container'));
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
@@ -826,6 +826,8 @@ export class SettingGroupRenderer implements ITreeRenderer<SettingsTreeGroupElem
 		templateData.parent.innerHTML = '';
 		const labelElement = DOM.append(templateData.parent, $('div.settings-group-title-label'));
 		labelElement.classList.add(`settings-group-level-${element.element.level}`);
+		labelElement.setAttribute('role', 'heading');
+		labelElement.setAttribute('aria-level', '1');
 		labelElement.textContent = element.element.label;
 
 		if (element.element.isFirstGroup) {

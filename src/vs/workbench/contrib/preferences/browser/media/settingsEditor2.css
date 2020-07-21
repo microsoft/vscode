@@ -284,7 +284,7 @@
 	overflow: visible !important; /* Allow validation errors to flow out of the tree container. Override inline style from ScrollableElement. */
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents,
+.settings-editor > .settings-body .settings-tree-container .setting-group-heading,
 .settings-editor > .settings-body .settings-tree-container .setting-item,
 .settings-editor > .settings-body .settings-tree-container .settings-paginator {
 	max-width: 1000px;

@@ -12,7 +12,7 @@ import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupElement
 import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { isDefined } from 'vs/base/common/types';
 import { SettingsTreeDelegate, ISettingItemTemplate, SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
-import { focusBorder, foreground, errorForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarSliderBackground } from 'vs/platform/theme/common/colorRegistry';
+import { focusBorder, foreground, errorForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarSliderBackground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
 import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import 'vs/css!./media/settingsListScrollbar';
@@ -144,6 +144,12 @@ export class SettingsList extends Disposable {
 				collector.addRule(`.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) { color: ${fgWithOpacity}; }`);
 			}
 
+			const editorBackgroundColor = theme.getColor(editorBackground);
+			if (editorBackgroundColor) {
+				// -webkit-background-clip makes the heading clip the background color
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container > * { background-color: ${editorBackgroundColor}; }`);
+			}
+
 			const errorColor = theme.getColor(errorForeground);
 			if (errorColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-deprecation-message { color: ${errorColor}; }`);
@@ -224,6 +230,14 @@ export class SettingsList extends Disposable {
 	private renderPage(shouldScroll: boolean): void {
 		DOM.clearNode(this.container);
 		this.pageDisposables.clear();
+
+		if (this.currentView?.group.label) {
+			const headingContainer = DOM.append(this.container, $('.setting-group-heading'));
+			const groupElement = this.currentView!.group;
+			const groupRenderer = this.templateToRenderer.get(this.getTemplateId(groupElement))!;
+			groupRenderer.renderElement({ element: groupElement } as any, 0, groupRenderer.renderTemplate(headingContainer), undefined);
+		}
+
 		this.container.append(...this.paginator.settingsOnPage.map(setting => this.renderSetting(setting)));
 
 		if (this.paginator.totalPages > 1) {
