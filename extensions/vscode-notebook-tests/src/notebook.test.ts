@@ -933,7 +933,7 @@ suite('webview', () => {
 	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 	// 	assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
 	// 	const uri = vscode.notebook.activeNotebookEditor!.asWebviewUri(vscode.Uri.file('./hello.png'));
-	// 	assert.equal(uri.scheme, 'vscode-resource');
+	// 	assert.equal(uri.scheme, 'vscode-webview-resource');
 	// 	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	// });
 
