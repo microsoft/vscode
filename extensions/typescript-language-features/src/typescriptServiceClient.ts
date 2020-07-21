@@ -627,6 +627,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					// Both \ and / must be escaped in regular expressions
 					return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
 				}
+			case fileSchemes.git:
+				{
+					return undefined;
+				}
 			default:
 				{
 					return this.inMemoryResourcePrefix + resource.toString(true);
