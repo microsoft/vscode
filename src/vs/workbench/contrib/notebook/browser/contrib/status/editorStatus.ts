@@ -166,8 +166,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 		const activeEditor = getActiveNotebookEditor(this._editorService);
 
-		if (activeEditor && activeEditor.multipleKernelsAvailable) {
-			this.showKernelStatus(activeEditor.activeKernel);
+		if (activeEditor) {
 			this._editorDisposable.add(activeEditor.onDidChangeKernel(() => {
 				if (activeEditor.multipleKernelsAvailable) {
 					this.showKernelStatus(activeEditor.activeKernel);
@@ -175,6 +174,18 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					this.kernelInfoElement.clear();
 				}
 			}));
+
+			this._editorDisposable.add(activeEditor.onDidChangeAvailableKernels(() => {
+				if (activeEditor.multipleKernelsAvailable) {
+					this.showKernelStatus(activeEditor.activeKernel);
+				} else {
+					this.kernelInfoElement.clear();
+				}
+			}));
+		}
+
+		if (activeEditor && activeEditor.multipleKernelsAvailable) {
+			this.showKernelStatus(activeEditor.activeKernel);
 		} else {
 			this.kernelInfoElement.clear();
 		}

@@ -139,6 +139,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _activeKernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined = undefined;
 	private readonly _onDidChangeKernel = this._register(new Emitter<void>());
 	readonly onDidChangeKernel: Event<void> = this._onDidChangeKernel.event;
+	private readonly _onDidChangeAvailableKernels = this._register(new Emitter<void>());
+	readonly onDidChangeAvailableKernels: Event<void> = this._onDidChangeAvailableKernels.event;
 
 	get activeKernel() {
 		return this._activeKernel;
@@ -154,7 +156,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private _currentKernelTokenSource: CancellationTokenSource | undefined = undefined;
-	multipleKernelsAvailable: boolean = false;
+	private _multipleKernelsAvailable: boolean = false;
+
+	get multipleKernelsAvailable() {
+		return this._multipleKernelsAvailable;
+	}
+
+	set multipleKernelsAvailable(state: boolean) {
+		this._multipleKernelsAvailable = state;
+		this._onDidChangeAvailableKernels.fire();
+	}
 
 	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
 	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
