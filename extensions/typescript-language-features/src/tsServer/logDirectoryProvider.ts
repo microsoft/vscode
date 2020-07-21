@@ -3,8 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .on-type-rename-decoration {
-	border-left: 1px solid transparent;
-	/* So border can be transparent */
-	background-clip: padding-box;
+export interface ILogDirectoryProvider {
+	getNewLogDirectory(): string | undefined;
 }
+
+export const noopLogDirectoryProvider = new class implements ILogDirectoryProvider {
+	public getNewLogDirectory(): undefined {
+		return undefined;
+	}
+};

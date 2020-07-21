@@ -337,7 +337,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.waitForActiveSyncViews();
 		await this.viewsService.openView(MANUAL_SYNC_VIEW_ID);
 
-		const completed = await Event.toPromise(this.userDataSyncPreview.onDidCompleteManualSync);
+		const error = await Event.toPromise(this.userDataSyncPreview.onDidCompleteManualSync);
 		this.userDataSyncPreview.unsetManualSyncPreview();
 
 		this.manualSyncViewEnablementContext.set(false);
@@ -348,8 +348,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			this.viewsService.closeViewContainer(viewContainer!.id);
 		}
 
-		if (!completed) {
-			throw canceled();
+		if (error) {
+			throw error;
 		}
 	}
 
@@ -567,7 +567,7 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 	private _onDidChangeConflicts = this._register(new Emitter<ReadonlyArray<IUserDataSyncResource>>());
 	readonly onDidChangeConflicts = this._onDidChangeConflicts.event;
 
-	private _onDidCompleteManualSync = this._register(new Emitter<boolean>());
+	private _onDidCompleteManualSync = this._register(new Emitter<Error | undefined>());
 	readonly onDidCompleteManualSync = this._onDidCompleteManualSync.event;
 	private manualSync: { preview: [SyncResource, ISyncResourcePreview][], task: IManualSyncTask, disposables: DisposableStore } | undefined;
 
@@ -623,10 +623,16 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 			throw new Error('Can apply only while syncing manually');
 		}
 
-		const syncPreview = await this.manualSync.task.apply();
-		this.updatePreview(syncPreview);
-		if (!this._resources.length) {
-			this._onDidCompleteManualSync.fire(true);
+		try {
+			const syncPreview = await this.manualSync.task.apply();
+			this.updatePreview(syncPreview);
+			if (!this._resources.length) {
+				this._onDidCompleteManualSync.fire(undefined);
+			}
+		} catch (error) {
+			await this.manualSync.task.stop();
+			this.updatePreview([]);
+			this._onDidCompleteManualSync.fire(error);
 		}
 	}
 
@@ -636,7 +642,7 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 		}
 		await this.manualSync.task.stop();
 		this.updatePreview([]);
-		this._onDidCompleteManualSync.fire(false);
+		this._onDidCompleteManualSync.fire(canceled());
 	}
 
 	async pull(): Promise<void> {

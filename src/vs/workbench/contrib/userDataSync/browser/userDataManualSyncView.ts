@@ -282,19 +282,16 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 	}
 
 	private async apply(): Promise<void> {
+		this.closeAll();
 		this.syncButton.label = localize('turning on', "Turning on...");
 		this.syncButton.enabled = false;
 		this.cancelButton.enabled = false;
-		return this.withProgress(async () => {
-			for (const resource of this.userDataSyncPreview.resources) {
-				if (resource.syncResource === SyncResource.GlobalState) {
-					await this.userDataSyncPreview.merge(resource.merged);
-				} else {
-					this.close(resource);
-				}
-			}
-			await this.userDataSyncPreview.apply();
-		});
+		try {
+			await this.withProgress(async () => this.userDataSyncPreview.apply());
+		} catch (error) {
+			this.syncButton.enabled = false;
+			this.cancelButton.enabled = true;
+		}
 	}
 
 	private async cancel(): Promise<void> {
@@ -340,7 +337,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		}
 	}
 
-	private close(previewResource: IUserDataSyncResource) {
+	private close(previewResource: IUserDataSyncResource): void {
 		for (const input of this.editorService.editors) {
 			if (input instanceof DiffEditorInput) {
 				// Close all diff editors
@@ -366,6 +363,12 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 					}
 				}
 			}
+		}
+	}
+
+	private closeAll() {
+		for (const previewResource of this.userDataSyncPreview.resources) {
+			this.close(previewResource);
 		}
 	}
 

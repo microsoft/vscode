@@ -3,8 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .on-type-rename-decoration {
-	border-left: 1px solid transparent;
-	/* So border can be transparent */
-	background-clip: padding-box;
+import * as vscode from 'vscode';
+
+export interface DocumentSelector {
+	/**
+	 * Selector for files which only require a basic syntax server.
+	 */
+	readonly syntax: vscode.DocumentFilter[];
+
+	/**
+	 * Selector for files which require semantic server support.
+	 */
+	readonly semantic: vscode.DocumentFilter[];
 }

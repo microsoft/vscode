@@ -6,7 +6,6 @@
 import 'vs/css!./media/processExplorer';
 import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import product from 'vs/platform/product/common/product';
 import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
@@ -80,7 +79,7 @@ class ProcessExplorer {
 
 		let name = item.name;
 		if (isRoot) {
-			name = isLocal ? `${product.applicationName} main` : 'remote agent';
+			name = isLocal ? `${this.data.applicationName} main` : 'remote agent';
 		}
 
 		if (name === 'window') {
