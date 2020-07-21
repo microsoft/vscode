@@ -94,7 +94,11 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			});
 		}));
 
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidSchemaChange(e => this.registerConfigurationSchemas()));
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		if (environmentService.options?.configurationDefaults) {
+			configurationRegistry.registerDefaultConfigurations([environmentService.options.configurationDefaults]);
+		}
+		this._register(configurationRegistry.onDidSchemaChange(e => this.registerConfigurationSchemas()));
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDefaultConfigurationChanged(configurationProperties)));
 
 		this.workspaceEditingQueue = new Queue<void>();
