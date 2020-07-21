@@ -958,7 +958,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		let extHostRenderer = new ExtHostNotebookOutputRenderer(type, filter, renderer);
 		this._notebookOutputRenderers.set(extHostRenderer.type, extHostRenderer);
-		this._proxy.$registerNotebookRenderer({ id: extension.identifier, location: extension.extensionLocation }, type, filter, renderer.preloads || []);
+		this._proxy.$registerNotebookRenderer({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, type, filter, renderer.preloads || []);
 		return new extHostTypes.Disposable(() => {
 			this._notebookOutputRenderers.delete(extHostRenderer.type);
 			this._proxy.$unregisterNotebookRenderer(extHostRenderer.type);
@@ -1083,7 +1083,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		const supportBackup = !!provider.backupNotebook;
 
-		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, supportBackup, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
+		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, supportBackup, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
 
 		return new extHostTypes.Disposable(() => {
 			listener.dispose();
@@ -1096,7 +1096,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		const handle = ExtHostNotebookController._notebookKernelProviderHandlePool++;
 		const adapter = new ExtHostNotebookKernelProviderAdapter(this._proxy, handle, extension, provider);
 		this._notebookKernelProviders.set(handle, adapter);
-		this._proxy.$registerNotebookKernelProvider({ id: extension.identifier, location: extension.extensionLocation }, handle, {
+		this._proxy.$registerNotebookKernelProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, handle, {
 			viewType: selector.viewType,
 			filenamePattern: selector.filenamePattern ? typeConverters.GlobPattern.from(selector.filenamePattern) : undefined,
 			excludeFileNamePattern: selector.excludeFileNamePattern ? typeConverters.GlobPattern.from(selector.excludeFileNamePattern) : undefined,
@@ -1149,7 +1149,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._notebookKernels.set(id, { kernel, extension });
 		const transformedSelectors = selectors.map(selector => typeConverters.GlobPattern.from(selector));
 
-		this._proxy.$registerNotebookKernel({ id: extension.identifier, location: extension.extensionLocation }, id, kernel.label, transformedSelectors, kernel.preloads || []);
+		this._proxy.$registerNotebookKernel({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, id, kernel.label, transformedSelectors, kernel.preloads || []);
 		return new extHostTypes.Disposable(() => {
 			this._notebookKernels.delete(id);
 			this._proxy.$unregisterNotebookKernel(id);

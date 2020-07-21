@@ -663,6 +663,8 @@ export interface INotebookKernelInfo2 extends INotebookKernelInfoDto2 {
 }
 
 export interface INotebookKernelProvider {
+	providerExtensionId: string;
+	providerDescription?: string;
 	selector: INotebookDocumentFilter;
 	onDidChangeKernels: Event<void>;
 	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;

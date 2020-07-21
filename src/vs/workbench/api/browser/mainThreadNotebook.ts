@@ -529,6 +529,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		const emitter = new Emitter<void>();
 		const that = this;
 		const provider = this._notebookService.registerNotebookKernelProvider({
+			providerExtensionId: extension.id.value,
+			providerDescription: extension.description,
 			onDidChangeKernels: emitter.event,
 			selector: documentFilter,
 			provideKernels: async (uri: URI, token: CancellationToken) => {

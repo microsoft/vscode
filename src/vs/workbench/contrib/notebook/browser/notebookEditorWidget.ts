@@ -49,6 +49,8 @@ import { URI } from 'vs/base/common/uri';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
+import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+import { notebookKernelProviderAssociationsSettingId, NotebookKernelProviderAssociations } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 
 const $ = DOM.$;
 
@@ -586,6 +588,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.multipleKernelsAvailable = false;
 		}
 
+		// @deprecated
 		if (provider && provider.kernel) {
 			// it has a builtin kernel, don't automatically choose a kernel
 			this._loadKernelPreloads(provider.providerExtensionLocation, provider.kernel);
@@ -596,25 +599,61 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const activeKernelStillExist = [...availableKernels2, ...availableKernels].find(kernel => kernel.id === this.activeKernel?.id && this.activeKernel?.id !== undefined);
 
 		if (activeKernelStillExist) {
+			// the kernel still exist, we don't want to modify the selection otherwise user's temporary preference is lost
 			return;
 		}
 
-		// choose a preferred kernel
-		const kernelsFromSameExtension = availableKernels2.filter(kernel => kernel.extension.value === provider.providerId);
-		if (kernelsFromSameExtension.length) {
-			const preferedKernel = kernelsFromSameExtension.find(kernel => kernel.isPreferred) || kernelsFromSameExtension[0];
-			this.activeKernel = preferedKernel;
-			await preferedKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
-
-			tokenSource.dispose();
-			return;
+		if (availableKernels2.length) {
+			return this._setKernelsFromProviders(provider, availableKernels2, tokenSource);
 		}
-
 
 		// the provider doesn't have a builtin kernel, choose a kernel
 		this.activeKernel = availableKernels[0];
 		if (this.activeKernel) {
 			this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+		}
+
+		tokenSource.dispose();
+	}
+
+	private async _setKernelsFromProviders(provider: NotebookProviderInfo, kernels: INotebookKernelInfo2[], tokenSource: CancellationTokenSource) {
+		const rawAssociations = this.configurationService.getValue<NotebookKernelProviderAssociations>(notebookKernelProviderAssociationsSettingId) || [];
+		const userSetKernelProvider = rawAssociations.filter(e => e.viewType === this.viewModel?.viewType)[0]?.kernelProvider;
+
+		if (userSetKernelProvider) {
+			const filteredKernels = kernels.filter(kernel => kernel.extension.value === userSetKernelProvider);
+
+			if (filteredKernels.length) {
+				this.activeKernel = filteredKernels.find(kernel => kernel.isPreferred) || filteredKernels[0];
+			} else {
+				this.activeKernel = undefined;
+			}
+
+			if (this.activeKernel) {
+				this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+				await this.activeKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
+			}
+
+			tokenSource.dispose();
+			return;
+		}
+
+		// choose a preferred kernel
+		const kernelsFromSameExtension = kernels.filter(kernel => kernel.extension.value === provider.providerExtensionId);
+		if (kernelsFromSameExtension.length) {
+			const preferedKernel = kernelsFromSameExtension.find(kernel => kernel.isPreferred) || kernelsFromSameExtension[0];
+			this.activeKernel = preferedKernel;
+			this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			await preferedKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
+			tokenSource.dispose();
+			return;
+		}
+
+		// the provider doesn't have a builtin kernel, choose a kernel
+		this.activeKernel = kernels[0];
+		if (this.activeKernel) {
+			this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			await this.activeKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
 		}
 
 		tokenSource.dispose();
