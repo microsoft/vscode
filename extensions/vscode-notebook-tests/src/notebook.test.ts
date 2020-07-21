@@ -335,8 +335,7 @@ suite('Notebook API tests', () => {
 		assert.deepEqual(cellChangeEventRet.changes[0].deletedCount, 0);
 		assert.equal(cellChangeEventRet.changes[0].items[0], vscode.notebook.activeNotebookEditor!.document.cells[1]);
 
-		await vscode.commands.executeCommand('workbench.action.files.save');
-		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		await saveFileAndCloseAll(resource);
 	});
 
 	test('initialzation should not emit cell change events.', async function () {
@@ -352,8 +351,8 @@ suite('Notebook API tests', () => {
 		assert.equal(count, 0);
 
 		disposables.forEach(d => d.dispose());
-		await vscode.commands.executeCommand('workbench.action.files.save');
-		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+		await saveFileAndCloseAll(resource);
 	});
 });
 
@@ -489,9 +488,8 @@ suite('notebook workflow', () => {
 
 		const newActiveCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.deepEqual(activeCell, newActiveCell);
-		await vscode.commands.executeCommand('workbench.action.files.saveAll');
-		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 
+		await saveFileAndCloseAll(resource);
 		// TODO@rebornix, there are still some events order issue.
 		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(newActiveCell!), 2);
 	});
