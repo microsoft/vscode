@@ -11,7 +11,6 @@ import { Constants } from 'vs/base/common/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDimension } from 'vs/editor/common/editorCommon';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 //#region typed options
@@ -600,13 +599,6 @@ export interface IEditorOptions {
 	showDeprecated?: boolean;
 }
 
-export interface IEditorConstructionOptions extends IEditorOptions {
-	/**
-	 * The initial editor dimension (to avoid measuring the container).
-	 */
-	dimension?: IDimension;
-}
-
 /**
  * @internal
  * The width of the minimap gutter, in pixels.
@@ -647,6 +639,16 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Defaults to false.
 	 */
 	originalEditable?: boolean;
+	/**
+	 * Original editor should be have code lens enabled?
+	 * Defaults to false.
+	 */
+	originalCodeLens?: boolean;
+	/**
+	 * Modified editor should be have code lens enabled?
+	 * Defaults to false.
+	 */
+	modifiedCodeLens?: boolean;
 }
 
 //#endregion
@@ -2570,9 +2572,9 @@ class EditorPixelRatio extends ComputedEditorOption<EditorOption.pixelRatio, num
  * Configuration options for quick suggestions
  */
 export interface IQuickSuggestionsOptions {
-	other: boolean;
-	comments: boolean;
-	strings: boolean;
+	other?: boolean;
+	comments?: boolean;
+	strings?: boolean;
 }
 
 export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;

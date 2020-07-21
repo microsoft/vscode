@@ -310,13 +310,13 @@ export class StatefullMarkdownCell extends Disposable {
 			let viewLayout = this.editor!.getLayoutInfo();
 
 			if (e.contentHeightChanged) {
+				this.viewCell.editorHeight = e.contentHeight;
 				this.editor!.layout(
 					{
 						width: viewLayout.width,
 						height: e.contentHeight
 					}
 				);
-				this.viewCell.editorHeight = e.contentHeight;
 			}
 		}));
 

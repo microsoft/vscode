@@ -410,9 +410,7 @@ export class OutlinePane extends ViewPane {
 
 	getActions(): IAction[] {
 		return [
-			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action codicon-collapse-all', true, () => {
-				return new CollapseAction(() => this._tree, true, undefined).run();
-			})
+			new CollapseAction(() => this._tree, true, 'explorer-action codicon-collapse-all')
 		];
 	}
 

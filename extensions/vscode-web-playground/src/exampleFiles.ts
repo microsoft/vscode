@@ -282,7 +282,7 @@ Or discuss debug adapters on Gitter:
 
 You can now 'step through' the 'readme.md' file, set and hit breakpoints, and run into exceptions (if the word exception appears in a line).
 
-![Mock Debug](images/mock-debug.gif)
+![Mock Debug](file.jpg)
 
 ## Build and Run
 

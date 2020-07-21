@@ -142,17 +142,21 @@ class DiagnosticSettings {
 }
 
 export class DiagnosticsManager extends Disposable {
-	private readonly _diagnostics = new ResourceMap<FileDiagnostics>();
+	private readonly _diagnostics: ResourceMap<FileDiagnostics>;
 	private readonly _settings = new DiagnosticSettings();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
-	private readonly _pendingUpdates = new ResourceMap<any>();
+	private readonly _pendingUpdates: ResourceMap<any>;
 
 	private readonly _updateDelay = 50;
 
 	constructor(
-		owner: string
+		owner: string,
+		onCaseInsenitiveFileSystem: boolean
 	) {
 		super();
+		this._diagnostics = new ResourceMap<FileDiagnostics>(undefined, { onCaseInsenitiveFileSystem });
+		this._pendingUpdates = new ResourceMap<any>(undefined, { onCaseInsenitiveFileSystem });
+
 		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
 	}
 

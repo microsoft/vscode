@@ -17,6 +17,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { fromNow } from 'vs/base/common/date';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser'];
 
@@ -213,21 +214,22 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
 
 		this._register(this.authenticationService.onDidChangeSessions(e => {
-			this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.event);
+			this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label, e.event);
 		}));
 
-		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(providerId => {
-			this._proxy.$onDidChangeAuthenticationProviders([providerId], []);
+		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(info => {
+			this._proxy.$onDidChangeAuthenticationProviders([info], []);
 		}));
 
-		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(providerId => {
-			this._proxy.$onDidChangeAuthenticationProviders([], [providerId]);
+		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(info => {
+			this._proxy.$onDidChangeAuthenticationProviders([], [info]);
 		}));
 	}
 
@@ -292,7 +294,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				}
 
 				const session = await this.authenticationService.login(providerId, scopes);
-				await this.$setTrustedExtension(providerId, session.account.label, extensionId, extensionName);
+				await this.$setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
 				return session;
 			} else {
 				await this.$requestNewSession(providerId, scopes, extensionId, extensionName);
@@ -378,6 +380,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
+		await this.extensionService.activateByEvent(`onAuthenticationRequest:${providerId}`);
+
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		const extensionData = allowList.find(extension => extension.id === extensionId);
 		if (extensionData) {
@@ -423,11 +427,13 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return choice === 0;
 	}
 
-	async $setTrustedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<void> {
+	async $setTrustedExtensionAndAccountPreference(providerId: string, accountName: string, extensionId: string, extensionName: string, sessionId: string): Promise<void> {
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		if (!allowList.find(allowed => allowed.id === extensionId)) {
 			allowList.push({ id: extensionId, name: extensionName });
 			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
 		}
+
+		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL);
 	}
 }

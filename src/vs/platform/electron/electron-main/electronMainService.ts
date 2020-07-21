@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app, clipboard, powerMonitor } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor } from 'electron';
 import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
@@ -20,9 +20,9 @@ import { dirExists } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
+import { totalmem } from 'os';
 
 export interface IElectronMainService extends AddFirstParameterToFunctions<ICommonElectronService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -37,8 +37,7 @@ export class ElectronMainService implements IElectronMainService {
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 	}
 
@@ -313,6 +312,19 @@ export class ElectronMainService implements IElectronMainService {
 		return isAdmin;
 	}
 
+	async getTotalMem(): Promise<number> {
+		return totalmem();
+	}
+
+	//#endregion
+
+
+	//#region Process
+
+	async killProcess(windowId: number | undefined, pid: number, code: string): Promise<void> {
+		process.kill(pid, code);
+	}
+
 	//#endregion
 
 
@@ -463,12 +475,6 @@ export class ElectronMainService implements IElectronMainService {
 				contents.toggleDevTools();
 			}
 		}
-	}
-
-	async startCrashReporter(windowId: number | undefined, options: CrashReporterStartOptions): Promise<void> {
-		this.logService.trace('ElectronMainService#crashReporter', JSON.stringify(options));
-
-		crashReporter.start(options);
 	}
 
 	async sendInputEvent(windowId: number | undefined, event: MouseInputEvent): Promise<void> {

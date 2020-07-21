@@ -49,6 +49,10 @@ import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/
 import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from 'vs/workbench/contrib/extensions/browser/extensionsQuickAccess';
 import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 import { CONTEXT_SYNC_ENABLEMENT } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { MultiCommand } from 'vs/editor/browser/editorExtensions';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -462,6 +466,25 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
+
+function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
+	command?.addImplementation(105, (accessor) => {
+		const editorService = accessor.get(IEditorService);
+		const editor = editorService.activeEditorPane;
+		if (editor instanceof ExtensionEditor) {
+			if (editor.activeWebview) {
+				f(editor.activeWebview);
+				return true;
+			}
+		}
+		return false;
+	});
+}
+
+overrideActionForActiveExtensionEditorWebview(CopyAction, webview => webview.copy());
+overrideActionForActiveExtensionEditorWebview(CutAction, webview => webview.cut());
+overrideActionForActiveExtensionEditorWebview(PasteAction, webview => webview.paste());
+
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 

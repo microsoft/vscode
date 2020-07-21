@@ -75,7 +75,7 @@ export class GitHubApi implements Disposable {
 			if (!providers.includes('github')) {
 				await new Promise(resolve => {
 					authentication.onDidChangeAuthenticationProviders(e => {
-						if (e.added.includes('github')) {
+						if (e.added.find(provider => provider.id === 'github')) {
 							resolve();
 						}
 					});

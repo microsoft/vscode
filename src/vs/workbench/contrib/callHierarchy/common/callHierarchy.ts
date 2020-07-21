@@ -19,8 +19,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export const enum CallHierarchyDirection {
-	CallsTo = 1,
-	CallsFrom = 2
+	CallsTo = 'incomingCalls',
+	CallsFrom = 'outgoingCalls'
 }
 
 export interface CallHierarchyItem {

@@ -13,6 +13,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ResourceMap } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextDocument {
 
@@ -27,6 +29,8 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	readonly uri = URI.from({ scheme: 'vscode-concat-doc', path: generateUuid() });
 
 	constructor(
 		extHostNotebooks: ExtHostNotebookController,

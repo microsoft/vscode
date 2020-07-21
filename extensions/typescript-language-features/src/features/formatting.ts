@@ -6,7 +6,8 @@
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireConfiguration } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 
@@ -84,16 +85,18 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 }
 
 export function register(
-	selector: vscode.DocumentSelector,
+	selector: DocumentSelector,
 	modeId: string,
 	client: ITypeScriptServiceClient,
 	fileConfigurationManager: FileConfigurationManager
 ) {
-	return new ConfigurationDependentRegistration(modeId, 'format.enable', () => {
+	return conditionalRegistration([
+		requireConfiguration(modeId, 'format.enable'),
+	], () => {
 		const formattingProvider = new TypeScriptFormattingProvider(client, fileConfigurationManager);
 		return vscode.Disposable.from(
-			vscode.languages.registerOnTypeFormattingEditProvider(selector, formattingProvider, ';', '}', '\n'),
-			vscode.languages.registerDocumentRangeFormattingEditProvider(selector, formattingProvider),
+			vscode.languages.registerOnTypeFormattingEditProvider(selector.syntax, formattingProvider, ';', '}', '\n'),
+			vscode.languages.registerDocumentRangeFormattingEditProvider(selector.syntax, formattingProvider),
 		);
 	});
 }

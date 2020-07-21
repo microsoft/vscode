@@ -9,11 +9,13 @@ import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userData
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isWeb } from 'vs/base/common/platform';
-import { RequestsSession } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { RequestsSession, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { newWriteableBufferStream } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { Event } from 'vs/base/common/event';
 
 suite('UserDataSyncStoreService', () => {
 
@@ -321,6 +323,71 @@ suite('UserDataSyncStoreService', () => {
 		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
+	test('test rate limit on server with retry after', async () => {
+		const target = new UserDataSyncTestServer(1, 1);
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+
+		await testObject.manifest();
+
+		const promise = Event.toPromise(testObject.onDidChangeDonotMakeRequestsUntil);
+		try {
+			await testObject.manifest();
+			assert.fail('should fail');
+		} catch (e) {
+			assert.ok(e instanceof UserDataSyncStoreError);
+			assert.deepEqual((<UserDataSyncStoreError>e).code, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter);
+			await promise;
+			assert.ok(!!testObject.donotMakeRequestsUntil);
+		}
+	});
+
+	test('test donotMakeRequestsUntil is reset after retry time is finished', async () => {
+		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 0.25)));
+		await client.setUp();
+		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+
+		await testObject.manifest();
+		try {
+			await testObject.manifest();
+		} catch (e) { }
+
+		const promise = Event.toPromise(testObject.onDidChangeDonotMakeRequestsUntil);
+		await timeout(300);
+		await promise;
+		assert.ok(!testObject.donotMakeRequestsUntil);
+	});
+
+	test('test donotMakeRequestsUntil is retrieved', async () => {
+		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 1)));
+		await client.setUp();
+		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+
+		await testObject.manifest();
+		try {
+			await testObject.manifest();
+		} catch (e) { }
+
+		const target = client.instantiationService.createInstance(UserDataSyncStoreService);
+		assert.equal(target.donotMakeRequestsUntil?.getTime(), testObject.donotMakeRequestsUntil?.getTime());
+	});
+
+	test('test donotMakeRequestsUntil is checked and reset after retreived', async () => {
+		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 0.25)));
+		await client.setUp();
+		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+
+		await testObject.manifest();
+		try {
+			await testObject.manifest();
+		} catch (e) { }
+
+		await timeout(300);
+		const target = client.instantiationService.createInstance(UserDataSyncStoreService);
+		assert.ok(!target.donotMakeRequestsUntil);
+	});
+
 });
 
 suite('UserDataSyncRequestsSession', () => {
@@ -332,7 +399,7 @@ suite('UserDataSyncRequestsSession', () => {
 	};
 
 	test('too many requests are thrown when limit exceeded', async () => {
-		const testObject = new RequestsSession(1, 500, requestService);
+		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
 		await testObject.request({}, CancellationToken.None);
 
 		try {
@@ -346,14 +413,14 @@ suite('UserDataSyncRequestsSession', () => {
 	});
 
 	test('requests are handled after session is expired', async () => {
-		const testObject = new RequestsSession(1, 500, requestService);
+		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
 		await testObject.request({}, CancellationToken.None);
 		await timeout(600);
 		await testObject.request({}, CancellationToken.None);
 	});
 
 	test('too many requests are thrown after session is expired', async () => {
-		const testObject = new RequestsSession(1, 500, requestService);
+		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
 		await testObject.request({}, CancellationToken.None);
 		await timeout(600);
 		await testObject.request({}, CancellationToken.None);

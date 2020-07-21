@@ -15,7 +15,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-const helpCategory = nls.localize('help', "Help");
+const helpCategory = { value: nls.localize('help', "Help"), original: 'Help' };
 
 class KeybindingsReferenceAction extends Action2 {
 
@@ -25,7 +25,7 @@ class KeybindingsReferenceAction extends Action2 {
 	constructor() {
 		super({
 			id: KeybindingsReferenceAction.ID,
-			title: { value: nls.localize('keybindingsReference', "Keyboard Shortcuts Reference"), original: 'Help: Keyboard Shortcuts Reference' },
+			title: { value: nls.localize('keybindingsReference', "Keyboard Shortcuts Reference"), original: 'Keyboard Shortcuts Reference' },
 			category: helpCategory,
 			f1: true,
 			keybinding: {
@@ -55,7 +55,7 @@ class OpenDocumentationUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenDocumentationUrlAction.ID,
-			title: { value: nls.localize('openDocumentationUrl', "Documentation"), original: 'Help: Documentation' },
+			title: { value: nls.localize('openDocumentationUrl', "Documentation"), original: 'Documentation' },
 			category: helpCategory,
 			f1: true
 		});
@@ -79,7 +79,7 @@ class OpenIntroductoryVideosUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenIntroductoryVideosUrlAction.ID,
-			title: { value: nls.localize('openIntroductoryVideosUrl', "Introductory Videos"), original: 'Help: Introductory Videos' },
+			title: { value: nls.localize('openIntroductoryVideosUrl', "Introductory Videos"), original: 'Introductory Videos' },
 			category: helpCategory,
 			f1: true
 		});
@@ -103,7 +103,7 @@ class OpenTipsAndTricksUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenTipsAndTricksUrlAction.ID,
-			title: { value: nls.localize('openTipsAndTricksUrl', "Tips and Tricks"), original: 'Help: Tips and Tricks' },
+			title: { value: nls.localize('openTipsAndTricksUrl', "Tips and Tricks"), original: 'Tips and Tricks' },
 			category: helpCategory,
 			f1: true
 		});
@@ -127,7 +127,7 @@ class OpenNewsletterSignupUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenNewsletterSignupUrlAction.ID,
-			title: { value: nls.localize('newsletterSignup', "Signup for the VS Code Newsletter"), original: 'Help: Signup for the VS Code Newsletter' },
+			title: { value: nls.localize('newsletterSignup', "Signup for the VS Code Newsletter"), original: 'Signup for the VS Code Newsletter' },
 			category: helpCategory,
 			f1: true
 		});
@@ -152,7 +152,7 @@ class OpenTwitterUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenTwitterUrlAction.ID,
-			title: { value: nls.localize('openTwitterUrl', "Join Us on Twitter"), original: 'Help: Join Us on Twitter' },
+			title: { value: nls.localize('openTwitterUrl', "Join Us on Twitter"), original: 'Join Us on Twitter' },
 			category: helpCategory,
 			f1: true
 		});
@@ -176,7 +176,7 @@ class OpenRequestFeatureUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenRequestFeatureUrlAction.ID,
-			title: { value: nls.localize('openUserVoiceUrl', "Search Feature Requests"), original: 'Help: Search Feature Requests' },
+			title: { value: nls.localize('openUserVoiceUrl', "Search Feature Requests"), original: 'Search Feature Requests' },
 			category: helpCategory,
 			f1: true
 		});
@@ -200,7 +200,7 @@ class OpenLicenseUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenLicenseUrlAction.ID,
-			title: { value: nls.localize('openLicenseUrl', "View License"), original: 'Help: View License' },
+			title: { value: nls.localize('openLicenseUrl', "View License"), original: 'View License' },
 			category: helpCategory,
 			f1: true
 		});
@@ -229,7 +229,7 @@ class OpenPrivacyStatementUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenPrivacyStatementUrlAction.ID,
-			title: { value: nls.localize('openPrivacyStatement', "Privacy Statement"), original: 'Help: Privacy Statement' },
+			title: { value: nls.localize('openPrivacyStatement', "Privacy Statement"), original: 'Privacy Statement' },
 			category: helpCategory,
 			f1: true
 		});

@@ -211,7 +211,7 @@ CommandsRegistry.registerCommand(
 //#endregion
 
 //#region Actions
-const category = localize('search', "Search Editor");
+const category = { value: localize('search', "Search Editor"), original: 'Search Editor' };
 
 export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean, focusResults: boolean }>;
 const openArgDescription = {
@@ -240,7 +240,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'search.searchEditor.action.deleteFileResults',
-			title: localize('searchEditor.deleteResultBlock', "Delete File Results"),
+			title: { value: localize('searchEditor.deleteResultBlock', "Delete File Results"), original: 'Delete File Results' },
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,
 				when: SearchEditorConstants.InSearchEditor,
@@ -264,7 +264,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SearchEditorConstants.OpenNewEditorCommandId,
-			title: localize('search.openNewSearchEditor', "Open new Search Editor"),
+			title: { value: localize('search.openNewSearchEditor', "Open new Search Editor"), original: 'Open new Search Editor' },
 			category,
 			f1: true,
 			description: openArgDescription
@@ -279,7 +279,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: OpenNewEditorToSideCommandId,
-			title: localize('search.openNewEditorToSide', "Open new Search Editor to the Side"),
+			title: { value: localize('search.openNewEditorToSide', "Open new Search Editor to the Side"), original: 'Open new Search Editor to the Side' },
 			category,
 			f1: true,
 			description: openArgDescription
@@ -294,7 +294,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: OpenInEditorCommandId,
-			title: localize('search.openResultsInEditor', "Open Results in Editor"),
+			title: { value: localize('search.openResultsInEditor', "Open Results in Editor"), original: 'Open Results in Editor' },
 			category,
 			f1: true,
 			keybinding: {
@@ -321,7 +321,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: RerunSearchEditorSearchCommandId,
-			title: localize('search.rerunSearchInEditor', "Search Again"),
+			title: { value: localize('search.rerunSearchInEditor', "Search Again"), original: 'Search Again' },
 			category,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
@@ -353,7 +353,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: FocusQueryEditorWidgetCommandId,
-			title: localize('search.action.focusQueryEditorWidget', "Focus Search Editor Input"),
+			title: { value: localize('search.action.focusQueryEditorWidget', "Focus Search Editor Input"), original: 'Focus Search Editor Input' },
 			category,
 			menu: {
 				id: MenuId.CommandPalette,

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -24,7 +23,7 @@ import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbe
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
@@ -153,16 +152,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _viewCells: CellViewModel[] = [];
 	private _handleToViewCellMapping = new Map<number, CellViewModel>();
-
-	private _currentTokenSource: CancellationTokenSource | undefined;
-
-	get currentTokenSource(): CancellationTokenSource | undefined {
-		return this._currentTokenSource;
-	}
-
-	set currentTokenSource(v: CancellationTokenSource | undefined) {
-		this._currentTokenSource = v;
-	}
 
 	get viewCells(): ICellViewModel[] {
 		return this._viewCells;
@@ -854,7 +843,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 			this.selectionHandles = endSelections;
 
-			return { cell: above, deletedCells: [above] };
+			return { cell: above, deletedCells: [cell] };
 		} else {
 			const below = this.viewCells[index + 1] as CellViewModel;
 			if (constraint && below.cellKind !== constraint) {
@@ -1017,10 +1006,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	 * Search in notebook text model
 	 * @param value
 	 */
-	find(value: string): CellFindMatch[] {
+	find(value: string, options: INotebookSearchOptions): CellFindMatch[] {
 		const matches: CellFindMatch[] = [];
 		this._viewCells.forEach(cell => {
-			const cellMatches = cell.startFind(value);
+			const cellMatches = cell.startFind(value, options);
 			if (cellMatches) {
 				matches.push(cellMatches);
 			}

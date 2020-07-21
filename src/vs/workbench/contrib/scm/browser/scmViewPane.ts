@@ -50,7 +50,7 @@ import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, PANEL_BACKGROUND, PANEL_INPUT_BORDER } from 'vs/workbench/common/theme';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -152,6 +152,7 @@ interface ISCMLayout {
 }
 
 interface RepositoryTemplate {
+	readonly label: HTMLElement;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly countContainer: HTMLElement;
@@ -192,7 +193,7 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const disposable = Disposable.None;
 		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar, badgeStyler);
 
-		return { name, description, countContainer, count, toolBar, disposable, templateDisposable };
+		return { label, name, description, countContainer, count, toolBar, disposable, templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
@@ -202,9 +203,11 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const repository = node.element;
 
 		if (repository.provider.rootUri) {
+			templateData.label.title = `${repository.provider.label}: ${repository.provider.rootUri.fsPath}`;
 			templateData.name.textContent = basename(repository.provider.rootUri);
 			templateData.description.textContent = repository.provider.label;
 		} else {
+			templateData.label.title = repository.provider.label;
 			templateData.name.textContent = repository.provider.label;
 			templateData.description.textContent = '';
 		}
@@ -316,19 +319,14 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 			}
 		};
 
-		const initialRender = () => {
+		const startListeningContentHeightChange = () => {
 			disposables.add(templateData.inputWidget.onDidChangeContentHeight(onDidChangeContentHeight));
 			onDidChangeContentHeight();
 		};
 
-		const contentHeight = templateData.inputWidget.getContentHeight();
-
-		if (contentHeight !== InputRenderer.DEFAULT_HEIGHT) {
-			const timeout = setTimeout(initialRender, 0);
-			disposables.add({ dispose: () => clearTimeout(timeout) });
-		} else {
-			initialRender();
-		}
+		// Setup height change listener on next tick
+		const timeout = disposableTimeout(startListeningContentHeightChange, 0);
+		disposables.add(timeout);
 
 		// Layout the editor whenever the outer layout happens
 		const layoutEditor = () => templateData.inputWidget.layout();
@@ -1022,7 +1020,7 @@ class ViewModel {
 			}
 
 			const collapsed = this.repositoryCollapseStates?.get(item.element);
-			return { element: item.element, children, incompressible: true, collapsed, collapsible: hasSomeChanges };
+			return { element: item.element, children, incompressible: true, collapsed, collapsible: true };
 		} else {
 			const children = this.mode === ViewModelMode.List
 				? Iterable.map(item.resources, element => ({ element, incompressible: true }))

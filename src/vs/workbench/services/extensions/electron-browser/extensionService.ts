@@ -17,7 +17,7 @@ import { IRemoteExtensionHostDataProvider, RemoteExtensionHost, IRemoteExtension
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -34,10 +34,7 @@ import { flatten } from 'vs/base/common/arrays';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { Action } from 'vs/base/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
@@ -729,23 +726,20 @@ function filterByRunningLocation(extensions: IExtensionDescription[], runningLoc
 
 registerSingleton(IExtensionService, ExtensionService);
 
-class RestartExtensionHostAction extends Action {
+class RestartExtensionHostAction extends Action2 {
 
-	public static readonly ID = 'workbench.action.restartExtensionHost';
-	public static readonly LABEL = nls.localize('restartExtensionHost', "Restart Extension Host");
-
-	constructor(
-		id: string,
-		label: string,
-		@IExtensionService private readonly _extensionService: IExtensionService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.restartExtensionHost',
+			title: { value: nls.localize('restartExtensionHost', "Restart Extension Host"), original: 'Restart Extension Host' },
+			category: { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' },
+			f1: true
+		});
 	}
 
-	public async run() {
-		this._extensionService.restartExtensionHost();
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IExtensionService).restartExtensionHost();
 	}
 }
 
-const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(RestartExtensionHostAction), 'Developer: Restart Extension Host', nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"));
+registerAction2(RestartExtensionHostAction);

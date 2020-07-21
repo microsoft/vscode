@@ -982,6 +982,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				this.updateViewHeaders();
 			}
 		});
+
+		this._register(this.viewContainerModel.onDidChangeActiveViewDescriptors(() => this._onTitleAreaUpdate.fire()));
 	}
 
 	getTitle(): string {

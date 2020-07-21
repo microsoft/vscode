@@ -16,11 +16,13 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 	private _providerIds: string[] = [];
 
+	private _providers: vscode.AuthenticationProviderInformation[] = [];
+
 	private _onDidChangeAuthenticationProviders = new Emitter<vscode.AuthenticationProvidersChangeEvent>();
 	readonly onDidChangeAuthenticationProviders: Event<vscode.AuthenticationProvidersChangeEvent> = this._onDidChangeAuthenticationProviders.event;
 
-	private _onDidChangeSessions = new Emitter<{ [providerId: string]: vscode.AuthenticationSessionsChangeEvent }>();
-	readonly onDidChangeSessions: Event<{ [providerId: string]: vscode.AuthenticationSessionsChangeEvent }> = this._onDidChangeSessions.event;
+	private _onDidChangeSessions = new Emitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
+	readonly onDidChangeSessions: Event<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
@@ -34,23 +36,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return this._providerIds;
 	}
 
-	private async resolveSessions(providerId: string): Promise<ReadonlyArray<modes.AuthenticationSession>> {
-		const provider = this._authenticationProviders.get(providerId);
-
-		let sessions;
-		if (!provider) {
-			sessions = await this._proxy.$getSessions(providerId);
-		} else {
-			sessions = await provider.getSessions();
-		}
-
-		return sessions;
-	}
-
-	async hasSessions(providerId: string, scopes: string[]): Promise<boolean> {
-		const orderedScopes = scopes.sort().join(' ');
-		const sessions = await this.resolveSessions(providerId);
-		return !!(sessions.filter(session => session.scopes.slice().sort().join(' ') === orderedScopes).length);
+	get providers(): ReadonlyArray<vscode.AuthenticationProviderInformation> {
+		return Object.freeze(this._providers.slice());
 	}
 
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions & { createIfNone: true }): Promise<vscode.AuthenticationSession>;
@@ -88,7 +75,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				}
 
 				const session = await provider.login(scopes);
-				await this._proxy.$setTrustedExtension(providerId, session.account.label, extensionId, extensionName);
+				await this._proxy.$setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
 				return session;
 			} else {
 				await this._proxy.$requestNewSession(providerId, scopes, extensionId, extensionName);
@@ -116,6 +103,13 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			this._providerIds.push(provider.id);
 		}
 
+		if (!this._providers.find(p => p.id === provider.id)) {
+			this._providers.push({
+				id: provider.id,
+				label: provider.label
+			});
+		}
+
 		const listener = provider.onDidChangeSessions(e => {
 			this._proxy.$sendDidChangeSessions(provider.id, e);
 		});
@@ -129,6 +123,12 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			if (index > -1) {
 				this._providerIds.splice(index);
 			}
+
+			const i = this._providers.findIndex(p => p.id === provider.id);
+			if (i > -1) {
+				this._providers.splice(i);
+			}
+
 			this._proxy.$unregisterAuthenticationProvider(provider.id);
 		});
 	}
@@ -175,22 +175,22 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
 	}
 
-	$onDidChangeAuthenticationSessions(providerId: string, event: modes.AuthenticationSessionsChangeEvent) {
-		this._onDidChangeSessions.fire({ [providerId]: event });
+	$onDidChangeAuthenticationSessions(id: string, label: string, event: modes.AuthenticationSessionsChangeEvent) {
+		this._onDidChangeSessions.fire({ provider: { id, label }, ...event });
 		return Promise.resolve();
 	}
 
-	$onDidChangeAuthenticationProviders(added: string[], removed: string[]) {
+	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]) {
 		added.forEach(id => {
-			if (!this._providerIds.includes(id)) {
-				this._providerIds.push(id);
+			if (!this._providers.includes(id)) {
+				this._providers.push(id);
 			}
 		});
 
-		removed.forEach(id => {
-			const index = this._providerIds.findIndex(provider => provider === id);
+		removed.forEach(p => {
+			const index = this._providers.findIndex(provider => provider.id === p.id);
 			if (index > -1) {
-				this._providerIds.splice(index);
+				this._providers.splice(index);
 			}
 		});
 

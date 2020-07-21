@@ -14,6 +14,6 @@ const bootstrapWindow = (() => {
 	return window.MonacoBootstrapWindow;
 })();
 
-bootstrapWindow.load(['vs/code/electron-browser/processExplorer/processExplorerMain'], function (processExplorer, configuration) {
-	processExplorer.startup(configuration.data);
+bootstrapWindow.load(['vs/code/electron-sandbox/processExplorer/processExplorerMain'], function (processExplorer, configuration) {
+	processExplorer.startup(configuration.windowId, configuration.data);
 }, { forceEnableDeveloperKeybindings: true });

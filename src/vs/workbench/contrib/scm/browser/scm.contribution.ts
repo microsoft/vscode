@@ -7,38 +7,23 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { VIEWLET_ID, ISCMRepository, ISCMService, VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { SCMStatusController } from './activity';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
-import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from 'vs/workbench/common/views';
+import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
 import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
-
-class OpenSCMViewletAction extends ShowViewletAction {
-
-	static readonly ID = VIEWLET_ID;
-	static readonly LABEL = localize('toggleSCMViewlet', "Show SCM");
-
-	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
-	}
-}
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -73,23 +58,32 @@ viewsRegistry.registerViews([{
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	workspace: true,
-	canMoveView: true
+	canMoveView: true,
+	containerIcon: Codicon.sourceControl.classNames
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
 
-// Register Action to Open Viewlet
-Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	SyncActionDescriptor.from(OpenSCMViewletAction, {
-		primary: 0,
-		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-		mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G }
-	}),
-	'View: Show SCM',
-	localize('view', "View")
-);
+// Register Action to Open View
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: VIEWLET_ID,
+	description: { description: localize('toggleSCMViewlet', "Show SCM"), args: [] },
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: 0,
+	win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G },
+	handler: accessor => {
+		const viewsService = accessor.get(IViewsService);
+
+		if (viewsService.isViewVisible(VIEW_PANE_ID)) {
+			viewsService.closeView(VIEW_PANE_ID);
+		} else {
+			viewsService.openView(VIEW_PANE_ID);
+		}
+	}
+});
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'scm',

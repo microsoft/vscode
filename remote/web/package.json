@@ -7,7 +7,7 @@
 		"semver-umd": "^5.5.7",
 		"vscode-oniguruma": "1.3.1",
 		"vscode-textmate": "5.2.0",
-		"xterm": "4.7.0-beta.3",
+		"xterm": "4.8.1",
 		"xterm-addon-search": "0.7.0",
 		"xterm-addon-unicode11": "0.2.0",
 		"xterm-addon-webgl": "0.7.0"

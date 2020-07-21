@@ -12,7 +12,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWo
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { isEqual, basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
+import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
@@ -141,21 +141,18 @@ export class LabelService extends Disposable implements ILabelService {
 		const baseResource = this.contextService?.getWorkspaceFolder(resource);
 
 		if (options.relative && baseResource) {
-			const rootName = baseResource?.name ?? basenameOrAuthority(baseResource.uri);
+			const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
+			let relativeLabel = this.formatUri(resource, formatting, options.noPrefix);
 
-			let relativeLabel: string;
-			if (isEqual(baseResource.uri, resource)) {
-				relativeLabel = ''; // no label if resources are identical
-			} else {
-				const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
-				relativeLabel = this.formatUri(resource, formatting, options.noPrefix).substring(baseResourceLabel.lastIndexOf(formatting.separator) + 1);
-				if (relativeLabel.startsWith(rootName)) {
-					relativeLabel = relativeLabel.substring(rootName.length + (relativeLabel[rootName.length] === formatting.separator ? 1 : 0));
-				}
+			let overlap = 0;
+			while (relativeLabel[overlap] && relativeLabel[overlap] === baseResourceLabel[overlap]) { overlap++; }
+			if (!relativeLabel[overlap] || relativeLabel[overlap] === formatting.separator) {
+				relativeLabel = relativeLabel.substring(1 + overlap);
 			}
 
 			const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
 			if (hasMultipleRoots && !options.noPrefix) {
+				const rootName = baseResource?.name ?? basenameOrAuthority(baseResource.uri);
 				relativeLabel = relativeLabel ? (rootName + ' • ' + relativeLabel) : rootName; // always show root basename if there are multiple
 			}
 

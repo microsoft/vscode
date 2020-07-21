@@ -27,9 +27,11 @@ class UserDataSyncReportIssueContribution extends Disposable implements IWorkben
 		switch (error.code) {
 			case UserDataSyncErrorCode.LocalTooManyRequests:
 			case UserDataSyncErrorCode.TooManyRequests:
+				const operationId = error.operationId ? localize('operationId', "Operation Id: {0}", error.operationId) : undefined;
+				const message = localize('too many requests', "Turned off syncing preferences on this device because it is making too many requests.");
 				this.notificationService.notify({
 					severity: Severity.Error,
-					message: localize('too many requests', "Turned off syncing preferences on this device because it is making too many requests."),
+					message: operationId ? `${message} ${operationId}` : message,
 				});
 				return;
 		}

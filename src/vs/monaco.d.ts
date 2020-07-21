@@ -3138,13 +3138,6 @@ declare namespace monaco.editor {
 		showDeprecated?: boolean;
 	}
 
-	export interface IEditorConstructionOptions extends IEditorOptions {
-		/**
-		 * The initial editor dimension (to avoid measuring the container).
-		 */
-		dimension?: IDimension;
-	}
-
 	/**
 	 * Configuration options for the diff editor.
 	 */
@@ -3179,6 +3172,16 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		originalEditable?: boolean;
+		/**
+		 * Original editor should be have code lens enabled?
+		 * Defaults to false.
+		 */
+		originalCodeLens?: boolean;
+		/**
+		 * Modified editor should be have code lens enabled?
+		 * Defaults to false.
+		 */
+		modifiedCodeLens?: boolean;
 	}
 
 	/**
@@ -3554,9 +3557,9 @@ declare namespace monaco.editor {
 	 * Configuration options for quick suggestions
 	 */
 	export interface IQuickSuggestionsOptions {
-		other: boolean;
-		comments: boolean;
-		strings: boolean;
+		other?: boolean;
+		comments?: boolean;
+		strings?: boolean;
 	}
 
 	export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
@@ -4393,6 +4396,18 @@ declare namespace monaco.editor {
 	export interface IPasteEvent {
 		readonly range: Range;
 		readonly mode: string | null;
+	}
+
+	export interface IEditorConstructionOptions extends IEditorOptions {
+		/**
+		 * The initial editor dimension (to avoid measuring the container).
+		 */
+		dimension?: IDimension;
+		/**
+		 * Place overflow widgets inside an external DOM node.
+		 * Defaults to an internal DOM node.
+		 */
+		overflowWidgetsDomNode?: HTMLElement;
 	}
 
 	/**

@@ -15,7 +15,7 @@ import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
 export abstract class BaseCellViewModel extends Disposable {
@@ -94,16 +94,17 @@ export abstract class BaseCellViewModel extends Disposable {
 	}>();
 	private _lastDecorationId: number = 0;
 
+	private _textModel: model.ITextModel | undefined = undefined;
 	get textModel(): model.ITextModel | undefined {
-		return this.model.textModel;
+		return this._textModel;
 	}
 
 	set textModel(m: model.ITextModel | undefined) {
-		this.model.textModel = m;
+		this._textModel = m;
 	}
 
 	hasModel(): this is IEditableCellViewModel {
-		return !!this.model.textModel;
+		return !!this._textModel;
 	}
 
 	private _dragging: boolean = false;
@@ -307,7 +308,9 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	setSelections(selections: Selection[]) {
-		this._textEditor?.setSelections(selections);
+		if (selections.length) {
+			this._textEditor?.setSelections(selections);
+		}
 	}
 
 	getSelections() {
@@ -382,15 +385,21 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	abstract resolveTextModel(): Promise<model.ITextModel>;
 
-	protected cellStartFind(value: string): model.FindMatch[] | null {
+	protected cellStartFind(value: string, options: INotebookSearchOptions): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
 
 		if (this.assertTextModelAttached()) {
-			cellMatches = this.textModel!.findMatches(value, false, false, false, null, false);
+			cellMatches = this.textModel!.findMatches(
+				value,
+				false,
+				options.regex || false,
+				options.caseSensitive || false,
+				options.wholeWord ? options.wordSeparators || null : null,
+				false);
 		} else {
 			const lineCount = this.textBuffer.getLineCount();
 			const fullRange = new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
-			const searchParams = new SearchParams(value, false, false, null);
+			const searchParams = new SearchParams(value, options.regex || false, options.caseSensitive || false, options.wholeWord ? options.wordSeparators || null : null,);
 			const searchData = searchParams.parseSearchRequest();
 
 			if (!searchData) {

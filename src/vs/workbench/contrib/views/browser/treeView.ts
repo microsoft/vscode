@@ -342,8 +342,7 @@ export class TreeView extends Disposable implements ITreeView {
 		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
 		this.messageElement = DOM.append(this.domNode, DOM.$('.message'));
 		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
-		DOM.addClass(this.treeContainer, 'file-icon-themable-tree');
-		DOM.addClass(this.treeContainer, 'show-file-icons');
+		this.treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 		const focusTracker = this._register(DOM.trackFocus(this.domNode));
 		this._register(focusTracker.onDidFocus(() => this.focused = true));
 		this._register(focusTracker.onDidBlur(() => this.focused = false));
@@ -475,7 +474,7 @@ export class TreeView extends Disposable implements ITreeView {
 	}
 
 	private showMessage(message: string): void {
-		DOM.removeClass(this.messageElement, 'hide');
+		this.messageElement.classList.remove('hide');
 		this.resetMessageElement();
 		this._messageValue = message;
 		if (!isFalsyOrWhitespace(this._message)) {
@@ -486,7 +485,7 @@ export class TreeView extends Disposable implements ITreeView {
 
 	private hideMessage(): void {
 		this.resetMessageElement();
-		DOM.addClass(this.messageElement, 'hide');
+		this.messageElement.classList.add('hide');
 		this.layout(this._height, this._width);
 	}
 
@@ -597,10 +596,10 @@ export class TreeView extends Disposable implements ITreeView {
 		const isTreeEmpty = !this.root.children || this.root.children.length === 0;
 		// Hide tree container only when there is a message and tree is empty and not refreshing
 		if (this._messageValue && isTreeEmpty && !this.refreshing) {
-			DOM.addClass(this.treeContainer, 'hide');
+			this.treeContainer.classList.add('hide');
 			this.domNode.setAttribute('tabindex', '0');
 		} else {
-			DOM.removeClass(this.treeContainer, 'hide');
+			this.treeContainer.classList.remove('hide');
 			this.domNode.removeAttribute('tabindex');
 		}
 	}
@@ -709,7 +708,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	renderTemplate(container: HTMLElement): ITreeExplorerTemplateData {
-		DOM.addClass(container, 'custom-view-tree-node-item');
+		container.classList.add('custom-view-tree-node-item');
 
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
@@ -756,9 +755,23 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
-			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, { fileKind: this.getFileKind(node), title, hideIcon: !!iconUrl, fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches: matches ? matches : createMatches(element.filterData) });
+			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, {
+				fileKind: this.getFileKind(node),
+				title,
+				hideIcon: !!iconUrl,
+				fileDecorations,
+				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
+				matches: matches ? matches : createMatches(element.filterData),
+				strikethrough: treeItemLabel?.strikethrough,
+			});
 		} else {
-			templateData.resourceLabel.setResource({ name: label, description }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches: matches ? matches : createMatches(element.filterData) });
+			templateData.resourceLabel.setResource({ name: label, description }, {
+				title,
+				hideIcon: true,
+				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
+				matches: matches ? matches : createMatches(element.filterData),
+				strikethrough: treeItemLabel?.strikethrough,
+			});
 		}
 
 		templateData.icon.title = title ? title : '';
@@ -789,7 +802,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private setupHovers(node: ITreeItem, htmlElement: HTMLElement, disposableStore: DisposableStore, label: string | undefined): void {
-		if ((node.tooltip && isString(node.tooltip)) || !(node instanceof ResolvableTreeItem) || !node.hasResolve) {
+		if (!(node instanceof ResolvableTreeItem) || (node.tooltip && isString(node.tooltip)) || (!node.tooltip && !node.hasResolve)) {
 			return;
 		}
 		const resolvableNode: ResolvableTreeItem = node;

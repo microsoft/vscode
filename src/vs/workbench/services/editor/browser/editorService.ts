@@ -874,16 +874,21 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Derive the label from the path if not provided explicitly
 			const label = resourceEditorInput.label || basename(resourceEditorInput.resource);
 
+			// We keep track of the preferred resource this input is to be created
+			// with but it may be different from the canonical resource (see below)
+			const preferredResource = resourceEditorInput.resource;
+
 			// From this moment on, only operate on the canonical resource
 			// to ensure we reduce the chance of opening the same resource
 			// with different resource forms (e.g. path casing on Windows)
-			const canonicalResource = this.asCanonicalEditorResource(resourceEditorInput.resource);
+			const canonicalResource = this.asCanonicalEditorResource(preferredResource);
+
 
 			return this.createOrGetCached(canonicalResource, () => {
 
 				// File
-				if (resourceEditorInput.forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(canonicalResource)) {
-					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, resourceEditorInput.resource, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
+				if (resourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
+					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
 				}
 
 				// Resource
@@ -897,7 +902,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// Files
 				else if (!(cachedInput instanceof ResourceEditorInput)) {
-					cachedInput.setLabel(resourceEditorInput.resource);
+					cachedInput.setPreferredResource(preferredResource);
 
 					if (resourceEditorInput.encoding) {
 						cachedInput.setPreferredEncoding(resourceEditorInput.encoding);

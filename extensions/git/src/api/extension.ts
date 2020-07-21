@@ -42,6 +42,10 @@ export class GitExtensionImpl implements GitExtension {
 		this._onDidChangeEnablement.fire(this.enabled);
 	}
 
+	get model(): Model | undefined {
+		return this._model;
+	}
+
 	constructor(model?: Model) {
 		if (model) {
 			this.enabled = true;

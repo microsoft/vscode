@@ -62,6 +62,8 @@ export class TestNotebookEditor implements INotebookEditor {
 	constructor(
 	) { }
 
+	multipleKernelsAvailable: boolean = false;
+
 	uri?: URI | undefined;
 	textModel?: NotebookTextModel | undefined;
 
@@ -77,6 +79,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		return 'notebook.testEditor';
 	}
 
+	cursorNavigationMode = false;
 	activeKernel: INotebookKernelInfo | undefined;
 	onDidChangeKernel: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveEditor: Event<ICompositeCodeEditor> = new Emitter<ICompositeCodeEditor>().event;

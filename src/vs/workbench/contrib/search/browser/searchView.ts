@@ -973,7 +973,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private reLayout(): void {
-		if (this.isDisposed) {
+		if (this.isDisposed || !this.size) {
 			return;
 		}
 

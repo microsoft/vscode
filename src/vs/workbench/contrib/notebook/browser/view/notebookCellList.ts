@@ -25,6 +25,15 @@ import { diff, IProcessedOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind } fro
 import { clamp } from 'vs/base/common/numbers';
 import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
 
+export interface IFocusNextPreviousDelegate {
+	onFocusNext(applyFocusNext: () => void): void;
+	onFocusPrevious(applyFocusPrevious: () => void): void;
+}
+
+export interface INotebookCellListOptions extends IWorkbenchListOptions<CellViewModel> {
+	focusNextPreviousDelegate: IFocusNextPreviousDelegate;
+}
+
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 
@@ -51,19 +60,22 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return this._isDisposed;
 	}
 
+	private readonly _focusNextPreviousDelegate: IFocusNextPreviousDelegate;
+
 	constructor(
 		private listUser: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<CellViewModel>,
 		renderers: IListRenderer<CellViewModel, BaseCellRenderTemplate>[],
 		contextKeyService: IContextKeyService,
-		options: IWorkbenchListOptions<CellViewModel>,
+		options: INotebookCellListOptions,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
+		this._focusNextPreviousDelegate = options.focusNextPreviousDelegate;
 		this._previousFocusedElements = this.getFocusedElements();
 		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
 			this._previousFocusedElements.forEach(element => {
@@ -420,6 +432,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			this.setSelection([index]);
 			this.setFocus([index]);
 		}
+	}
+
+	focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
+		this._focusNextPreviousDelegate.onFocusNext(() => super.focusNext(n, loop, browserEvent, filter));
+	}
+
+	focusPrevious(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
+		this._focusNextPreviousDelegate.onFocusPrevious(() => super.focusPrevious(n, loop, browserEvent, filter));
 	}
 
 	setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {

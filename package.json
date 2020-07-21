@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.48.0",
-  "distro": "e2e6ce8fbcd5fa421f73db1369cf733699550c8e",
+  "distro": "1d85c4798ac6dbc3b2a4774e52085017aa496089",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -69,7 +69,7 @@
     "vscode-ripgrep": "^1.8.0",
     "vscode-sqlite3": "4.0.10",
     "vscode-textmate": "5.2.0",
-    "xterm": "4.7.0-beta.3",
+    "xterm": "4.8.1",
     "xterm-addon-search": "0.7.0",
     "xterm-addon-unicode11": "0.2.0",
     "xterm-addon-webgl": "0.7.0",
@@ -108,7 +108,7 @@
     "css-loader": "^3.2.0",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "8.3.3",
+    "electron": "9.1.0",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
     "event-stream": "3.3.4",
@@ -163,7 +163,7 @@
     "source-map": "^0.4.4",
     "style-loader": "^1.0.0",
     "ts-loader": "^4.4.2",
-    "typescript": "^4.0.0-dev.20200708",
+    "typescript": "^4.0.0-dev.20200715",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",
