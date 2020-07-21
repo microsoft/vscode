@@ -66,7 +66,7 @@ export class SharedProcess implements ISharedProcess {
 			scheme: Schemas.vscodeFileResource,
 			authority: 'localhost',
 			query: `config=${encodeURIComponent(JSON.stringify(config))}`
-		}).toString();
+		}).toString(true);
 		this.window.loadURL(fileUrl);
 
 		// Prevent the window from dying

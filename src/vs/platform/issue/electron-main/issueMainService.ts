@@ -429,6 +429,6 @@ function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
 		scheme: Schemas.vscodeFileResource,
 		authority: 'localhost',
 		query: `config=${encodeURIComponent(JSON.stringify(config))}`
-	}).toString();
+	}).toString(true);
 	return fileUrl;
 }

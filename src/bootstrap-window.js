@@ -235,7 +235,7 @@
 		if (safeProcess.platform === 'win32' && pathName.startsWith('//')) { // specially handle Windows UNC paths
 			uri = encodeURI(`file:${pathName}`);
 		} else {
-			uri = encodeURI(`vscode-file://localhost/${pathName}`);
+			uri = encodeURI(`vscode-file://localhost${pathName}`);
 		}
 
 		return uri.replace(/#/g, '%23');
