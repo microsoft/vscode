@@ -4,5 +4,5 @@
  *--------------------------------------------------------------------------------------------*/
 
 export function isWeb(): boolean {
-	return typeof process !== 'undefined';
+	return typeof process === 'undefined';
 }
