@@ -123,9 +123,9 @@ export function register(
 ) {
 	return conditionalRegistration([
 		requireMinVersion(client, TypeScriptCallHierarchySupport.minVersion),
-		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
+		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
-		return vscode.languages.registerCallHierarchyProvider(selector.syntax,
+		return vscode.languages.registerCallHierarchyProvider(selector.semantic,
 			new TypeScriptCallHierarchySupport(client));
 	});
 }
