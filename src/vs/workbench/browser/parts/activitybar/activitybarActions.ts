@@ -33,6 +33,7 @@ import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -98,6 +99,8 @@ export class ViewContainerActivityAction extends ActivityAction {
 	}
 }
 
+export const ACCOUNTS_VISIBILITY_PREFERENCE_KEY = 'workbench.activity.showAccounts';
+
 export class AccountsActionViewItem extends ActivityActionViewItem {
 	constructor(
 		action: ActivityAction,
@@ -107,7 +110,8 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		@IMenuService protected menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -189,6 +193,15 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 				menus.push(new Separator());
 			}
 		});
+
+		if (menus.length) {
+			menus.push(new Separator());
+		}
+
+		menus.push(new Action('hide', nls.localize('hide', "Hide"), undefined, true, _ => {
+			this.storageService.store(ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL);
+			return Promise.resolve();
+		}));
 
 		return menus;
 	}
