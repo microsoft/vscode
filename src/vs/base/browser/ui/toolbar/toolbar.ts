@@ -73,12 +73,14 @@ export class ToolBar extends Disposable {
 						action,
 						(<ToggleMenuAction>action).menuActions,
 						contextMenuProvider,
-						this.options.actionViewItemProvider,
-						this.actionRunner,
-						this.options.getKeyBinding,
-						toolBarMoreIcon.classNames,
-						this.options.anchorAlignmentProvider,
-						true
+						{
+							actionViewItemProvider: this.options.actionViewItemProvider,
+							actionRunner: this.actionRunner,
+							keybindingProvider: this.options.getKeyBinding,
+							clazz: toolBarMoreIcon.classNames,
+							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
+							menuAsChild: true
+						}
 					);
 					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
 

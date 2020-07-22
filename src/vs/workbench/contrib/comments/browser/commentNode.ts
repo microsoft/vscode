@@ -155,13 +155,12 @@ export class CommentNode extends Disposable {
 						action,
 						(<ToggleReactionsAction>action).menuActions,
 						this.contextMenuService,
-						action => {
-							return this.actionViewItemProvider(action as Action);
-						},
-						this.actionRunner!,
-						undefined,
-						'toolbar-toggle-pickReactions codicon codicon-reactions',
-						() => { return AnchorAlignment.RIGHT; }
+						{
+							actionViewItemProvider: action => this.actionViewItemProvider(action as Action),
+							actionRunner: this.actionRunner,
+							clazz: 'toolbar-toggle-pickReactions codicon codicon-reactions',
+							anchorAlignmentProvider: () => AnchorAlignment.RIGHT
+						}
 					);
 				}
 				return this.actionViewItemProvider(action as Action);
@@ -260,16 +259,17 @@ export class CommentNode extends Disposable {
 			toggleReactionAction,
 			(<ToggleReactionsAction>toggleReactionAction).menuActions,
 			this.contextMenuService,
-			action => {
-				if (action.id === ToggleReactionsAction.ID) {
-					return toggleReactionActionViewItem;
-				}
-				return this.actionViewItemProvider(action as Action);
-			},
-			this.actionRunner!,
-			undefined,
-			'toolbar-toggle-pickReactions',
-			() => { return AnchorAlignment.RIGHT; }
+			{
+				actionViewItemProvider: action => {
+					if (action.id === ToggleReactionsAction.ID) {
+						return toggleReactionActionViewItem;
+					}
+					return this.actionViewItemProvider(action as Action);
+				},
+				actionRunner: this.actionRunner,
+				clazz: 'toolbar-toggle-pickReactions',
+				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
+			}
 		);
 
 		return toggleReactionAction;
@@ -284,13 +284,12 @@ export class CommentNode extends Disposable {
 						action,
 						(<ToggleReactionsAction>action).menuActions,
 						this.contextMenuService,
-						action => {
-							return this.actionViewItemProvider(action as Action);
-						},
-						this.actionRunner!,
-						undefined,
-						'toolbar-toggle-pickReactions',
-						() => { return AnchorAlignment.RIGHT; }
+						{
+							actionViewItemProvider: action => this.actionViewItemProvider(action as Action),
+							actionRunner: this.actionRunner,
+							clazz: 'toolbar-toggle-pickReactions',
+							anchorAlignmentProvider: () => AnchorAlignment.RIGHT
+						}
 					);
 				}
 				return this.actionViewItemProvider(action as Action);

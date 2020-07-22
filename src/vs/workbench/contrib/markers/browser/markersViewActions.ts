@@ -180,11 +180,12 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		super(action,
 			{ getActions: () => this.getActions() },
 			contextMenuService,
-			action => undefined,
-			actionRunner!,
-			undefined,
-			action.class,
-			() => { return AnchorAlignment.RIGHT; });
+			{
+				actionRunner,
+				clazz: action.class,
+				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
+			}
+		);
 	}
 
 	render(container: HTMLElement): void {
