@@ -9,8 +9,8 @@
  * ------------------------------------------------------------------------------------------ */
 
 import * as vscode from 'vscode';
-import { DiagnosticKind } from './features/diagnostics';
-import FileConfigurationManager from './features/fileConfigurationManager';
+import { DiagnosticKind } from './languageFeatures/diagnostics';
+import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
 import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
@@ -58,29 +58,31 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 	private reportStyleCheckAsWarnings: boolean = true;
 
+	private readonly commandManager: CommandManager;
+
 	constructor(
 		descriptions: LanguageDescription[],
 		workspaceState: vscode.Memento,
 		onCaseInsenitiveFileSystem: boolean,
-		pluginManager: PluginManager,
-		private readonly commandManager: CommandManager,
-		logDirectoryProvider: ILogDirectoryProvider,
-		cancellerFactory: OngoingRequestCancellerFactory,
-		versionProvider: ITypeScriptVersionProvider,
-		processFactory: TsServerProcessFactory,
+		services: {
+			pluginManager: PluginManager,
+			commandManager: CommandManager,
+			logDirectoryProvider: ILogDirectoryProvider,
+			cancellerFactory: OngoingRequestCancellerFactory,
+			versionProvider: ITypeScriptVersionProvider,
+			processFactory: TsServerProcessFactory,
+		},
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
 		super();
 
-		const allModeIds = this.getAllModeIds(descriptions, pluginManager);
+		this.commandManager = services.commandManager;
+
+		const allModeIds = this.getAllModeIds(descriptions, services.pluginManager);
 		this.client = this._register(new TypeScriptServiceClient(
 			workspaceState,
 			onCaseInsenitiveFileSystem,
-			pluginManager,
-			logDirectoryProvider,
-			cancellerFactory,
-			versionProvider,
-			processFactory,
+			services,
 			allModeIds));
 
 		this.client.onDiagnosticsReceived(({ kind, resource, diagnostics }) => {
@@ -90,7 +92,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this._disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this._disposables);
 
-		this._register(new VersionStatus(this.client, commandManager));
+		this._register(new VersionStatus(this.client, services.commandManager));
 		this._register(new AtaProgressReporter(this.client));
 		this.typingsStatus = this._register(new TypingsStatus(this.client));
 		this.fileConfigurationManager = this._register(new FileConfigurationManager(this.client, onCaseInsenitiveFileSystem));
@@ -102,16 +104,16 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			this.languagePerId.set(description.id, manager);
 		}
 
-		import('./features/updatePathsOnRename').then(module =>
+		import('./languageFeatures/updatePathsOnRename').then(module =>
 			this._register(module.register(this.client, this.fileConfigurationManager, uri => this.handles(uri))));
 
-		import('./features/workspaceSymbols').then(module =>
+		import('./languageFeatures/workspaceSymbols').then(module =>
 			this._register(module.register(this.client, allModeIds)));
 
 		this.client.ensureServiceStarted();
 		this.client.onReady(() => {
 			const languages = new Set<string>();
-			for (const plugin of pluginManager.plugins) {
+			for (const plugin of services.pluginManager.plugins) {
 				if (plugin.configNamespace && plugin.languages.length) {
 					this.registerExtensionLanguageProvider({
 						id: plugin.configNamespace,

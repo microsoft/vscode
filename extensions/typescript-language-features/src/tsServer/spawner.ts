@@ -9,7 +9,7 @@ import { OngoingRequestCancellerFactory } from '../tsServer/cancellation';
 import { ClientCapabilities, ClientCapability } from '../typescriptService';
 import API from '../utils/api';
 import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
-import Logger from '../utils/logger';
+import { Logger } from '../utils/logger';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
 import { TelemetryReporter } from '../utils/telemetry';

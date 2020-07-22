@@ -20,12 +20,14 @@ import { PluginManager } from './utils/plugins';
 export function createLazyClientHost(
 	context: vscode.ExtensionContext,
 	onCaseInsenitiveFileSystem: boolean,
-	pluginManager: PluginManager,
-	commandManager: CommandManager,
-	logDirectoryProvider: ILogDirectoryProvider,
-	cancellerFactory: OngoingRequestCancellerFactory,
-	versionProvider: ITypeScriptVersionProvider,
-	processFactory: TsServerProcessFactory,
+	services: {
+		pluginManager: PluginManager,
+		commandManager: CommandManager,
+		logDirectoryProvider: ILogDirectoryProvider,
+		cancellerFactory: OngoingRequestCancellerFactory,
+		versionProvider: ITypeScriptVersionProvider,
+		processFactory: TsServerProcessFactory,
+	},
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
 	return lazy(() => {
@@ -33,12 +35,7 @@ export function createLazyClientHost(
 			standardLanguageDescriptions,
 			context.workspaceState,
 			onCaseInsenitiveFileSystem,
-			pluginManager,
-			commandManager,
-			logDirectoryProvider,
-			cancellerFactory,
-			versionProvider,
-			processFactory,
+			services,
 			onCompletionAccepted);
 
 		context.subscriptions.push(clientHost);
@@ -57,7 +54,7 @@ export function createLazyClientHost(
 export function lazilyActivateClient(
 	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
 	pluginManager: PluginManager,
-) {
+): vscode.Disposable {
 	const disposables: vscode.Disposable[] = [];
 
 	const supportedLanguage = flatten([

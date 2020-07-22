@@ -12,6 +12,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ISocket, Protocol, Client, ChunkStream } from 'vs/base/parts/ipc/common/ipc.net';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class NodeSocket implements ISocket {
 	public readonly socket: Socket;
@@ -57,7 +58,20 @@ export class NodeSocket implements ISocket {
 		// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
 		// > However, the false return value is only advisory and the writable stream will unconditionally
 		// > accept and buffer chunk even if it has not been allowed to drain.
-		this.socket.write(<Buffer>buffer.buffer);
+		try {
+			this.socket.write(<Buffer>buffer.buffer);
+		} catch (err) {
+			if (err.code === 'EPIPE') {
+				// An EPIPE exception at the wrong time can lead to a renderer process crash
+				// so ignore the error since the socket will fire the close event soon anyways:
+				// > https://nodejs.org/api/errors.html#errors_common_system_errors
+				// > EPIPE (Broken pipe): A write on a pipe, socket, or FIFO for which there is no
+				// > process to read the data. Commonly encountered at the net and http layers,
+				// > indicative that the remote side of the stream being written to has been closed.
+				return;
+			}
+			onUnexpectedError(err);
+		}
 	}
 
 	public end(): void {

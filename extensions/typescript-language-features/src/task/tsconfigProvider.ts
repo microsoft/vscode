@@ -12,7 +12,7 @@ export interface TSConfig {
 	readonly workspaceFolder?: vscode.WorkspaceFolder;
 }
 
-export default class TsConfigProvider {
+export class TsConfigProvider {
 	public async getConfigsForWorkspace(): Promise<Iterable<TSConfig>> {
 		if (!vscode.workspace.workspaceFolders) {
 			return [];

@@ -16,7 +16,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
-import { IUserDataSyncWorkbenchService, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, MANUAL_SYNC_VIEW_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, SYNC_MERGES_VIEW_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { isEqual, basename } from 'vs/base/common/resources';
 import { IDecorationsProvider, IDecorationData, IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -39,7 +39,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
-export class UserDataManualSyncViewPane extends TreeViewPane {
+export class UserDataSyncMergesViewPane extends TreeViewPane {
 
 	private userDataSyncPreview: IUserDataSyncPreview;
 
@@ -83,7 +83,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		this.createButtons(container);
 
 		const that = this;
-		this.treeView.message = localize('explanation', "Please go through each entry and accept the change to enable sync.");
+		this.treeView.message = localize('explanation', "Please go through each entry and merge to enable sync.");
 		this.treeView.dataProvider = { getChildren() { return that.getTreeItems(); } };
 	}
 
@@ -164,7 +164,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 					icon: Codicon.cloudDownload,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', MANUAL_SYNC_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
 						group: 'inline',
 						order: 1,
 					},
@@ -184,7 +184,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 					icon: Codicon.cloudUpload,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', MANUAL_SYNC_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
 						group: 'inline',
 						order: 2,
 					},
@@ -204,7 +204,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 					icon: Codicon.merge,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', MANUAL_SYNC_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
 						group: 'inline',
 						order: 3,
 					},
@@ -224,7 +224,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 					icon: Codicon.discard,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', MANUAL_SYNC_VIEW_ID), ContextKeyExpr.or(ContextKeyExpr.equals('viewItem', 'sync-resource-accepted'), ContextKeyExpr.equals('viewItem', 'sync-resource-conflict'))),
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.or(ContextKeyExpr.equals('viewItem', 'sync-resource-accepted'), ContextKeyExpr.equals('viewItem', 'sync-resource-conflict'))),
 						group: 'inline',
 						order: 3,
 					},
@@ -270,7 +270,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		previewResource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local))!;
 		await this.reopen(previewResource);
 		if (previewResource.mergeState === MergeState.Conflict) {
-			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected."), [], {
+			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected"), [], {
 				detail: localize('resolve', "Unable to merge due to conflicts. Please resolve them to continue.")
 			});
 		}
@@ -373,7 +373,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 	}
 
 	private withProgress(task: () => Promise<void>): Promise<void> {
-		return this.progressService.withProgress({ location: MANUAL_SYNC_VIEW_ID, delay: 500 }, task);
+		return this.progressService.withProgress({ location: SYNC_MERGES_VIEW_ID, delay: 500 }, task);
 	}
 
 }

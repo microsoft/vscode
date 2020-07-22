@@ -6,8 +6,8 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import BufferSyncSupport from './features/bufferSyncSupport';
-import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
+import BufferSyncSupport from './languageFeatures/bufferSyncSupport';
+import { DiagnosticKind, DiagnosticsManager } from './languageFeatures/diagnostics';
 import * as Proto from './protocol';
 import { EventName } from './protocol.const';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
@@ -22,7 +22,7 @@ import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
-import Logger from './utils/logger';
+import { Logger } from './utils/logger';
 import { isWeb } from './utils/platform';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
@@ -119,17 +119,32 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	public readonly bufferSyncSupport: BufferSyncSupport;
 	public readonly diagnosticsManager: DiagnosticsManager;
 
+	public readonly pluginManager: PluginManager;
+	private readonly logDirectoryProvider: ILogDirectoryProvider;
+	private readonly cancellerFactory: OngoingRequestCancellerFactory;
+	private readonly versionProvider: ITypeScriptVersionProvider;
+	private readonly processFactory: TsServerProcessFactory;
+
 	constructor(
 		private readonly workspaceState: vscode.Memento,
 		onCaseInsenitiveFileSystem: boolean,
-		public readonly pluginManager: PluginManager,
-		private readonly logDirectoryProvider: ILogDirectoryProvider,
-		private readonly cancellerFactory: OngoingRequestCancellerFactory,
-		private readonly versionProvider: ITypeScriptVersionProvider,
-		private readonly processFactory: TsServerProcessFactory,
+		services: {
+			pluginManager: PluginManager,
+			logDirectoryProvider: ILogDirectoryProvider,
+			cancellerFactory: OngoingRequestCancellerFactory,
+			versionProvider: ITypeScriptVersionProvider,
+			processFactory: TsServerProcessFactory,
+		},
 		allModeIds: readonly string[]
 	) {
 		super();
+
+		this.pluginManager = services.pluginManager;
+		this.logDirectoryProvider = services.logDirectoryProvider;
+		this.cancellerFactory = services.cancellerFactory;
+		this.versionProvider = services.versionProvider;
+		this.processFactory = services.processFactory;
+
 		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();
 
