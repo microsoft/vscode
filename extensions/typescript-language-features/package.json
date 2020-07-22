@@ -686,6 +686,22 @@
           "description": "%typescript.preferences.importModuleSpecifierEnding%",
           "scope": "resource"
         },
+        "typescript.preferences.includePackageJsonAutoImports": {
+          "type": "string",
+          "enum": [
+            "all",
+            "exclude-dev",
+            "none"
+          ],
+          "enumDescriptions": [
+            "%typescript.preferences.includePackageJsonAutoImports.all%",
+            "%typescript.preferences.includePackageJsonAutoImports.excludeDev%",
+            "%typescript.preferences.includePackageJsonAutoImports.none%"
+          ],
+          "default": "exclude-dev",
+          "markdownDescription": "%typescript.preferences.includePackageJsonAutoImports%",
+          "scope": "window"
+        },
         "javascript.preferences.renameShorthandProperties": {
           "type": "boolean",
           "default": true,
