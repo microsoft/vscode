@@ -41,7 +41,7 @@ export function activate(
 
 	registerBaseCommands(commandManager, lazyClientHost, pluginManager);
 
-	import('./languageFeatures/task').then(module => {
+	import('./task/taskProvider').then(module => {
 		context.subscriptions.push(module.register(lazyClientHost.map(x => x.serviceClient)));
 	});
 

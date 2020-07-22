@@ -11,7 +11,7 @@ import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { isTsConfigFileName } from '../utils/languageDescription';
 import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
-import TsConfigProvider, { TSConfig } from '../utils/tsconfigProvider';
+import { TSConfig, TsConfigProvider } from './tsconfigProvider';
 
 const localize = nls.loadMessageBundle();
 
