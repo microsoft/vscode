@@ -25,7 +25,7 @@ import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction, InstallLocalExtensionsInRemoteAction, getContextMenuActions } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction, InstallLocalExtensionsInRemoteAction, getContextMenuActions, ExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { WorkbenchPagedList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -246,7 +246,11 @@ export class ExtensionsListView extends ViewPane {
 				});
 			} else if (e.element) {
 				const groups = getContextMenuActions(this.menuService, this.contextKeyService.createScoped(), this.instantiationService, e.element);
-				groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = e.element!));
+				groups.forEach(group => group.forEach(extensionAction => {
+					if (extensionAction instanceof ExtensionAction) {
+						extensionAction.extension = e.element!;
+					}
+				}));
 				let actions: IAction[] = [];
 				for (const menuActions of groups) {
 					actions = [...actions, ...menuActions, new Separator()];

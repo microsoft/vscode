@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
-import { IAction, Action, Separator } from 'vs/base/common/actions';
+import { IAction, Action, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -710,7 +710,7 @@ export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
 	}
 }
 
-export function getContextMenuActions(menuService: IMenuService, contextKeyService: IContextKeyService, instantiationService: IInstantiationService, extension: IExtension | undefined | null): ExtensionAction[][] {
+export function getContextMenuActions(menuService: IMenuService, contextKeyService: IContextKeyService, instantiationService: IInstantiationService, extension: IExtension | undefined | null): IAction[][] {
 	const scopedContextKeyService = contextKeyService.createScoped();
 	if (extension) {
 		scopedContextKeyService.createKey<string>('extension', extension.identifier.id);
@@ -721,9 +721,14 @@ export function getContextMenuActions(menuService: IMenuService, contextKeyServi
 		}
 	}
 
-	const groups: ExtensionAction[][] = [];
+	const groups: IAction[][] = [];
 	const menu = menuService.createMenu(MenuId.ExtensionContext, scopedContextKeyService);
-	menu.getActions({ shouldForwardArgs: true }).forEach(([, actions]) => groups.push(actions.map(action => instantiationService.createInstance(MenuItemExtensionAction, action))));
+	menu.getActions({ shouldForwardArgs: true }).forEach(([, actions]) => groups.push(actions.map(action => {
+		if (action instanceof SubmenuAction) {
+			return action;
+		}
+		return instantiationService.createInstance(MenuItemExtensionAction, action);
+	})));
 	menu.dispose();
 
 	return groups;
@@ -752,7 +757,7 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 	}
 
 	async getActionGroups(runningExtensions: IExtensionDescription[]): Promise<IAction[][]> {
-		const groups: ExtensionAction[][] = [];
+		const groups: IAction[][] = [];
 		if (this.extension) {
 			const actions = await Promise.all([
 				SetColorThemeAction.create(this.workbenchThemeService, this.instantiationService, this.extension),
@@ -783,7 +788,11 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 
 		getContextMenuActions(this.menuService, this.contextKeyService, this.instantiationService, this.extension).forEach(actions => groups.push(actions));
 
-		groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = this.extension));
+		groups.forEach(group => group.forEach(extensionAction => {
+			if (extensionAction instanceof ExtensionAction) {
+				extensionAction.extension = this.extension;
+			}
+		}));
 
 		return groups;
 	}
