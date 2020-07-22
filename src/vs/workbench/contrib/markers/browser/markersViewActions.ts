@@ -23,11 +23,11 @@ import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedH
 import { Marker } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IViewsService } from 'vs/workbench/common/views';
 import { Codicon } from 'vs/base/common/codicons';
 import { BaseActionViewItem, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 
 export class ShowProblemsPanelAction extends Action {
 
