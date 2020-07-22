@@ -83,7 +83,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		this.createButtons(container);
 
 		const that = this;
-		this.treeView.message = localize('explanation', "Please go through each entry and merge to enable sync.");
+		this.treeView.message = localize('explanation', "Go through each entry and merge to enable sync.");
 		this.treeView.dataProvider = { getChildren() { return that.getTreeItems(); } };
 	}
 
