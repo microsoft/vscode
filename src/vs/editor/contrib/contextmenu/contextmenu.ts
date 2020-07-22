@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { IAction, Separator } from 'vs/base/common/actions';
+import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { KeyCode, KeyMod, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -23,7 +23,6 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ITextModel } from 'vs/editor/common/model';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 
 export class ContextMenuController implements IEditorContribution {
 
@@ -153,7 +152,7 @@ export class ContextMenuController implements IEditorContribution {
 				if (action instanceof SubmenuItemAction) {
 					const subActions = this._getMenuActions(model, action.item.submenu);
 					if (subActions.length > 0) {
-						result.push(new ContextSubMenu(action.label, subActions));
+						result.push(new SubmenuAction(action.label, subActions));
 						addedItems++;
 					}
 				} else {
@@ -174,7 +173,7 @@ export class ContextMenuController implements IEditorContribution {
 		return result;
 	}
 
-	private _doShowContextMenu(actions: ReadonlyArray<IAction>, anchor: IAnchor | null = null): void {
+	private _doShowContextMenu(actions: IAction[], anchor: IAnchor | null = null): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator } from 'vs/base/common/actions';
+import { IAction, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, SubmenuAction } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -12,7 +12,7 @@ import { getZoomFactor } from 'vs/base/browser/browser';
 import { unmnemonicLabel } from 'vs/base/common/labels';
 import { Event, Emitter } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IContextMenuDelegate, ContextSubMenu, IContextMenuEvent } from 'vs/base/browser/contextmenu';
+import { IContextMenuDelegate, IContextMenuEvent } from 'vs/base/browser/contextmenu';
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
@@ -123,13 +123,13 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		}
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: ReadonlyArray<IAction | ContextSubMenu>, onHide: () => void): IContextMenuItem[] {
+	private createMenu(delegate: IContextMenuDelegate, entries: IAction[], onHide: () => void): IContextMenuItem[] {
 		const actionRunner = delegate.actionRunner || new ActionRunner();
 
 		return entries.map(entry => this.createMenuItem(delegate, entry, actionRunner, onHide));
 	}
 
-	private createMenuItem(delegate: IContextMenuDelegate, entry: IAction | ContextSubMenu, actionRunner: IActionRunner, onHide: () => void): IContextMenuItem {
+	private createMenuItem(delegate: IContextMenuDelegate, entry: IAction, actionRunner: IActionRunner, onHide: () => void): IContextMenuItem {
 
 		// Separator
 		if (entry instanceof Separator) {
@@ -137,7 +137,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		}
 
 		// Submenu
-		if (entry instanceof ContextSubMenu) {
+		if (entry instanceof SubmenuAction) {
 			const actions = Array.isArray(entry.actions) ? entry.actions : entry.actions();
 			return {
 				label: unmnemonicLabel(stripCodicons(entry.label)).trim(),

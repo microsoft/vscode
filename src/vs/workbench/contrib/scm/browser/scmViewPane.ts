@@ -20,7 +20,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
-import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator } from 'vs/base/common/actions';
+import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { SCMMenus } from './menus';
 import { ActionBar, IActionViewItemProvider, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -72,7 +72,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { Command } from 'vs/editor/common/modes';
@@ -1167,7 +1166,7 @@ class ViewModel {
 	}
 }
 
-class SCMViewSubMenuAction extends ContextSubMenu {
+class SCMViewSubMenuAction extends SubmenuAction {
 	constructor(viewModel: ViewModel) {
 		super(localize('sortAction', "View & Sort"),
 			[

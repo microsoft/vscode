@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
 import { SyncActionDescriptor, IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
@@ -29,7 +29,6 @@ import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/men
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { isMacintosh } from 'vs/base/common/platform';
-import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -159,7 +158,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		});
 
 		const result = await Promise.all(allSessions);
-		let menus: (IAction | ContextSubMenu)[] = [];
+		let menus: IAction[] = [];
 		result.forEach(sessionInfo => {
 			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
 			Object.keys(sessionInfo.sessions).forEach(accountName => {
@@ -173,7 +172,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 
 				const actions = hasEmbedderAccountSession ? [manageExtensionsAction] : [manageExtensionsAction, signOutAction];
 
-				const menu = new ContextSubMenu(`${accountName} (${providerDisplayName})`, actions);
+				const menu = new SubmenuAction(`${accountName} (${providerDisplayName})`, actions);
 				menus.push(menu);
 			});
 		});

@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
@@ -26,7 +26,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
-import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { Event } from 'vs/base/common/event';
 
 export abstract class Viewlet extends PaneComposite implements IViewlet {
@@ -78,7 +77,7 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 		}
 
 		return [
-			new ContextSubMenu(nls.localize('views', "Views"), viewSecondaryActions),
+			new SubmenuAction(nls.localize('views', "Views"), viewSecondaryActions),
 			new Separator(),
 			...secondaryActions
 		];
