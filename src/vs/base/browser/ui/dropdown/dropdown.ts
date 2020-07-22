@@ -5,8 +5,7 @@
 
 import 'vs/css!./dropdown';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
-import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionRunner, IAction, IActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextViewProvider, IAnchor, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';

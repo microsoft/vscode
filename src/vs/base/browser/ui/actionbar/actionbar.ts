@@ -5,7 +5,7 @@
 
 import 'vs/css!./actionbar';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { IAction, IActionRunner, ActionRunner, IRunEvent, Separator, IActionViewItem } from 'vs/base/common/actions';
+import { IAction, IActionRunner, ActionRunner, IRunEvent, Separator, IActionViewItem, IActionViewItemProvider } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -23,10 +23,6 @@ export const enum ActionsOrientation {
 export interface ActionTrigger {
 	keys: KeyCode[];
 	keyDown: boolean;
-}
-
-export interface IActionViewItemProvider {
-	(action: IAction): IActionViewItem | undefined;
 }
 
 export interface IActionBarOptions {

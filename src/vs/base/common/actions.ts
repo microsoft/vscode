@@ -47,6 +47,10 @@ export interface IActionViewItem extends IDisposable {
 	blur(): void;
 }
 
+export interface IActionViewItemProvider {
+	(action: IAction): IActionViewItem | undefined;
+}
+
 export interface IActionChangeEvent {
 	readonly label?: string;
 	readonly tooltip?: string;

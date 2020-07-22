@@ -5,8 +5,8 @@
 
 import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
-import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
-import { ActionBar, ActionsOrientation, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action, IActionRunner, IAction, IActionViewItemProvider } from 'vs/base/common/actions';
+import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuProvider, DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
