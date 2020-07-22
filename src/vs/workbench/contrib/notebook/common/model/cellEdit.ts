@@ -95,7 +95,7 @@ export class DeleteCellEdit implements IResourceUndoRedoElement {
 
 export class MoveCellEdit implements IResourceUndoRedoElement {
 	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
-	label: string = 'Delete Cell';
+	label: string = 'Move Cell';
 
 	constructor(
 		public resource: URI,

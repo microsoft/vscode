@@ -160,6 +160,10 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
+	moveCellToIdx(cell: ICellViewModel, index: number): Promise<ICellViewModel | null> {
+		throw new Error('Method not implemented.');
+	}
+
 	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<ICellViewModel | null> {
 		throw new Error('Method not implemented.');
 	}

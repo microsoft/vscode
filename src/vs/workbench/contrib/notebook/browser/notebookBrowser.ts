@@ -241,9 +241,15 @@ export interface INotebookEditor extends IEditor {
 	moveCellDown(cell: ICellViewModel): Promise<ICellViewModel | null>;
 
 	/**
+	 * @deprecated Note that this method doesn't support batch operations, use #moveCellToIdx instead.
 	 * Move a cell above or below another cell
 	 */
 	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<ICellViewModel | null>;
+
+	/**
+	 * Move a cell to a specific position
+	 */
+	moveCellToIdx(cell: ICellViewModel, index: number): Promise<ICellViewModel | null>;
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).

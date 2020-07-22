@@ -1182,6 +1182,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._moveCellToIndex(originalIdx, newIdx);
 	}
 
+	async moveCellToIdx(cell: ICellViewModel, index: number): Promise<ICellViewModel | null> {
+		if (!this._notebookViewModel!.metadata.editable) {
+			return null;
+		}
+
+		const originalIdx = this._notebookViewModel!.getCellIndex(cell);
+		return this._moveCellToIndex(originalIdx, index);
+	}
+
 	private async _moveCellToIndex(index: number, newIdx: number): Promise<ICellViewModel | null> {
 		if (index === newIdx) {
 			return null;

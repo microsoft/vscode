@@ -687,10 +687,14 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	private async moveCells(draggedCells: ICellViewModel[], ontoCell: ICellViewModel, direction: 'above' | 'below') {
+		const relativeToIndex = this.notebookEditor!.viewModel!.getCellIndex(ontoCell);
+		const newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
+
 		this.notebookEditor.textModel!.pushStackElement('Move Cells');
-		for (let i = 0; i < draggedCells.length; i++) {
-			await this.notebookEditor.moveCell(draggedCells[i], ontoCell, direction);
+		for (let i = draggedCells.length - 1; i >= 0; i--) {
+			await this.notebookEditor.moveCellToIdx(draggedCells[i], newIdx);
 		}
+
 		this.notebookEditor.textModel!.pushStackElement('Move Cells');
 	}
 
@@ -699,7 +703,7 @@ export class CellDragAndDropController extends Disposable {
 		let firstNewCell: ICellViewModel | undefined = undefined;
 		let firstNewCellState: CellEditState = CellEditState.Preview;
 		for (let i = 0; i < draggedCells.length; i++) {
-			const draggedCell = draggedCells[0];
+			const draggedCell = draggedCells[i];
 			const newCell = this.notebookEditor.insertNotebookCell(ontoCell, draggedCell.cellKind, direction, draggedCell.getText());
 
 			if (newCell && !firstNewCell) {
