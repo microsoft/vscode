@@ -612,6 +612,18 @@ export class CellDragAndDropController extends Disposable {
 
 	private onCellDrop(event: CellDragEvent): void {
 		const draggedCell = this.currentDraggedCell!;
+		let draggedCells: ICellViewModel[] = [draggedCell];
+
+		if (draggedCell.cellKind === CellKind.Markdown) {
+			const currCellIndex = this.notebookEditor.viewModel!.getCellIndex(draggedCell);
+			const nextVisibleCellIndex = this.notebookEditor.viewModel!.getNextVisibleCellIndex(currCellIndex);
+
+			if (nextVisibleCellIndex > currCellIndex + 1) {
+				// folding ;)
+				draggedCells = this.notebookEditor.viewModel!.viewCells.slice(currCellIndex, nextVisibleCellIndex);
+			}
+		}
+
 		this.dragCleanup();
 
 		const isCopy = (event.browserEvent.ctrlKey && !platform.isMacintosh) || (event.browserEvent.altKey && platform.isMacintosh);
@@ -626,9 +638,9 @@ export class CellDragAndDropController extends Disposable {
 		}
 
 		if (isCopy) {
-			this.copyCell(draggedCell, event.draggedOverCell, dropDirection);
+			this.copyCells(draggedCells, event.draggedOverCell, dropDirection);
 		} else {
-			this.moveCell(draggedCell, event.draggedOverCell, dropDirection);
+			this.moveCells(draggedCells, event.draggedOverCell, dropDirection);
 		}
 	}
 
@@ -674,16 +686,33 @@ export class CellDragAndDropController extends Disposable {
 		}));
 	}
 
-	private async moveCell(draggedCell: ICellViewModel, ontoCell: ICellViewModel, direction: 'above' | 'below') {
-		await this.notebookEditor.moveCell(draggedCell, ontoCell, direction);
+	private async moveCells(draggedCells: ICellViewModel[], ontoCell: ICellViewModel, direction: 'above' | 'below') {
+		this.notebookEditor.textModel!.pushStackElement('Move Cells');
+		for (let i = 0; i < draggedCells.length; i++) {
+			await this.notebookEditor.moveCell(draggedCells[i], ontoCell, direction);
+		}
+		this.notebookEditor.textModel!.pushStackElement('Move Cells');
 	}
 
-	private copyCell(draggedCell: ICellViewModel, ontoCell: ICellViewModel, direction: 'above' | 'below') {
-		const editState = draggedCell.editState;
-		const newCell = this.notebookEditor.insertNotebookCell(ontoCell, draggedCell.cellKind, direction, draggedCell.getText());
-		if (newCell) {
-			this.notebookEditor.focusNotebookCell(newCell, editState === CellEditState.Editing ? 'editor' : 'container');
+	private copyCells(draggedCells: ICellViewModel[], ontoCell: ICellViewModel, direction: 'above' | 'below') {
+		this.notebookEditor.textModel!.pushStackElement('Copy Cells');
+		let firstNewCell: ICellViewModel | undefined = undefined;
+		let firstNewCellState: CellEditState = CellEditState.Preview;
+		for (let i = 0; i < draggedCells.length; i++) {
+			const draggedCell = draggedCells[0];
+			const newCell = this.notebookEditor.insertNotebookCell(ontoCell, draggedCell.cellKind, direction, draggedCell.getText());
+
+			if (newCell && !firstNewCell) {
+				firstNewCell = newCell;
+				firstNewCellState = draggedCell.editState;
+			}
 		}
+
+		if (firstNewCell) {
+			this.notebookEditor.focusNotebookCell(firstNewCell, firstNewCellState === CellEditState.Editing ? 'editor' : 'container');
+		}
+
+		this.notebookEditor.textModel!.pushStackElement('Copy Cells');
 	}
 }
 
