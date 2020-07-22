@@ -883,7 +883,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					resolve(undefined);
 				}
 			} else {
-				resolve(this.executeTask(task, resolver));
+				resolve(this.executeTask(task, resolver, runSource));
 			}
 		}).then((value) => {
 			if (runSource === TaskRunSource.User) {
@@ -1452,7 +1452,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		};
 	}
 
-	private executeTask(task: Task, resolver: ITaskResolver): Promise<ITaskSummary> {
+	private executeTask(task: Task, resolver: ITaskResolver, runSource?: TaskRunSource): Promise<ITaskSummary> {
 		enum SaveBeforeRunConfigOptions {
 			Always = 'always',
 			Never = 'never',
@@ -1464,7 +1464,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const execTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
 			return ProblemMatcherRegistry.onReady().then(() => {
 				let executeResult = this.getTaskSystem().run(task, resolver);
-				return this.handleExecuteResult(executeResult);
+				return this.handleExecuteResult(executeResult, runSource);
 			});
 		};
 
@@ -1501,7 +1501,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private async handleExecuteResult(executeResult: ITaskExecuteResult): Promise<ITaskSummary> {
+	private async handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
 		if (executeResult.task.taskLoadMessages && executeResult.task.taskLoadMessages.length > 0) {
 			executeResult.task.taskLoadMessages.forEach(loadMessage => {
 				this._outputChannel.append(loadMessage + '\n');
@@ -1509,7 +1509,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.showOutput();
 		}
 
-		await this.setRecentlyUsedTask(executeResult.task);
+		if (runSource === TaskRunSource.User) {
+			await this.setRecentlyUsedTask(executeResult.task);
+		}
 		if (executeResult.kind === TaskExecuteKind.Active) {
 			let active = executeResult.active;
 			if (active && active.same) {
