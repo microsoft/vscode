@@ -11,7 +11,8 @@ import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { append, $, addClasses } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IActionProvider, DropdownMenu, IContextMenuProvider, IDropdownMenuOptions, ILabelRenderer } from 'vs/base/browser/ui/dropdown/dropdown';
+import { IActionProvider, DropdownMenu, IDropdownMenuOptions, ILabelRenderer } from 'vs/base/browser/ui/dropdown/dropdown';
+import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 
 export interface IKeybindingProvider {
 	(action: IAction): ResolvedKeybinding | undefined;

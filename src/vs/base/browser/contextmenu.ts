@@ -28,3 +28,7 @@ export interface IContextMenuDelegate {
 	anchorAlignment?: AnchorAlignment;
 	anchorAsContainer?: boolean;
 }
+
+export interface IContextMenuProvider {
+	showContextMenu(delegate: IContextMenuDelegate): void;
+}

@@ -11,7 +11,7 @@ import { IContextViewProvider, IAnchor, AnchorAlignment } from 'vs/base/browser/
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EventHelper, EventType, removeClass, addClass, append, $, addDisposableListener, DOMEvent } from 'vs/base/browser/dom';
-import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
+import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter } from 'vs/base/common/event';
 
@@ -198,10 +198,6 @@ export class Dropdown extends BaseDropdown {
 	protected renderContents(container: HTMLElement): IDisposable | null {
 		return null;
 	}
-}
-
-export interface IContextMenuProvider {
-	showContextMenu(delegate: IContextMenuDelegate): void;
 }
 
 export interface IActionProvider {
