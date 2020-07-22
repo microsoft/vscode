@@ -5,13 +5,13 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import type * as Proto from '../protocol';
-import * as PConst from '../protocol.const';
-import { CachedResponse } from '../tsServer/cachedResponse';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireSomeCapability, requireConfiguration } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
+import type * as Proto from '../../protocol';
+import * as PConst from '../../protocol.const';
+import { CachedResponse } from '../../tsServer/cachedResponse';
+import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
+import { conditionalRegistration, requireSomeCapability, requireConfiguration } from '../../utils/dependentRegistration';
+import { DocumentSelector } from '../../utils/documentSelector';
+import * as typeConverters from '../../utils/typeConverters';
 import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 
 const localize = nls.loadMessageBundle();
