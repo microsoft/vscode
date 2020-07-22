@@ -10,7 +10,7 @@ import type * as Proto from '../protocol';
 import { NodeRequestCanceller } from '../tsServer/cancellation.electron';
 import { ProcessBasedTsServer, TsServerProcess } from '../tsServer/server';
 import { nulToken } from '../utils/cancellation';
-import Logger from '../utils/logger';
+import { Logger } from '../utils/logger';
 import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 

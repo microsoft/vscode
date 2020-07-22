@@ -55,7 +55,14 @@ export function activate(
 			'/builtin-extension/typescript-language-features/dist/browser/typescript-web/tsserver.js',
 			API.v400));
 
-	const lazyClientHost = createLazyClientHost(context, false, pluginManager, commandManager, noopLogDirectoryProvider, noopRequestCancellerFactory, versionProvider, WorkerServerProcess, item => {
+	const lazyClientHost = createLazyClientHost(context, false, {
+		pluginManager,
+		commandManager,
+		logDirectoryProvider: noopLogDirectoryProvider,
+		cancellerFactory: noopRequestCancellerFactory,
+		versionProvider,
+		processFactory: WorkerServerProcess
+	}, item => {
 		onCompletionAccepted.fire(item);
 	});
 

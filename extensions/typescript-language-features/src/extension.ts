@@ -35,7 +35,14 @@ export function activate(
 
 	context.subscriptions.push(new LanguageConfigurationManager());
 
-	const lazyClientHost = createLazyClientHost(context, onCaseInsenitiveFileSystem(), pluginManager, commandManager, logDirectoryProvider, nodeRequestCancellerFactory, versionProvider, ChildServerProcess, item => {
+	const lazyClientHost = createLazyClientHost(context, onCaseInsenitiveFileSystem(), {
+		pluginManager,
+		commandManager,
+		logDirectoryProvider,
+		cancellerFactory: nodeRequestCancellerFactory,
+		versionProvider,
+		processFactory: ChildServerProcess,
+	}, item => {
 		onCompletionAccepted.fire(item);
 	});
 
