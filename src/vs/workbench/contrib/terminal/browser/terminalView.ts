@@ -110,6 +110,8 @@ export class TerminalViewPane extends ViewPane {
 				} else {
 					this.layoutBody(this._bodyDimensions.height, this._bodyDimensions.width);
 				}
+			} else {
+				this._terminalService.getActiveTab()?.setVisible(false);
 			}
 		}));
 
