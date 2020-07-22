@@ -77,7 +77,7 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 		}
 
 		return [
-			new SubmenuAction(nls.localize('views', "Views"), viewSecondaryActions),
+			new SubmenuAction('workbench.views', nls.localize('views', "Views"), viewSecondaryActions),
 			new Separator(),
 			...secondaryActions
 		];

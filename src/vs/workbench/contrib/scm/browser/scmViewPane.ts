@@ -1168,7 +1168,9 @@ class ViewModel {
 
 class SCMViewSubMenuAction extends SubmenuAction {
 	constructor(viewModel: ViewModel) {
-		super(localize('sortAction', "View & Sort"),
+		super(
+			'scm.viewsort',
+			localize('sortAction', "View & Sort"),
 			[
 				...new RadioGroup([
 					new SCMViewModeListAction(viewModel),

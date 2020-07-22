@@ -504,7 +504,7 @@ export class MenuBar extends Disposable {
 
 			this.overflowMenu.actions = [];
 			for (let idx = this.numMenusShown; idx < this.menuCache.length; idx++) {
-				this.overflowMenu.actions.push(new SubmenuAction(this.menuCache[idx].label, this.menuCache[idx].actions || []));
+				this.overflowMenu.actions.push(new SubmenuAction(`menubar.submenu.${this.menuCache[idx].label}`, this.menuCache[idx].label, this.menuCache[idx].actions || []));
 			}
 
 			if (this.overflowMenu.buttonElement.nextElementSibling !== this.menuCache[this.numMenusShown].buttonElement) {

@@ -172,7 +172,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 
 				const actions = hasEmbedderAccountSession ? [manageExtensionsAction] : [manageExtensionsAction, signOutAction];
 
-				const menu = new SubmenuAction(`${accountName} (${providerDisplayName})`, actions);
+				const menu = new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, actions);
 				menus.push(menu);
 			});
 		});

@@ -303,7 +303,7 @@ export class SubmenuItemAction extends SubmenuAction {
 		contextKeyService: IContextKeyService,
 		options?: IMenuActionOptions
 	) {
-		super(typeof item.title === 'string' ? item.title : item.title.value, () => {
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, () => {
 			const result: IAction[] = [];
 			const menu = menuService.createMenu(item.submenu, contextKeyService);
 			const groups = menu.getActions(options);

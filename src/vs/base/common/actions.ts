@@ -233,7 +233,7 @@ export class Separator extends Action {
 export type SubmenuActions = IAction[] | (() => IAction[]);
 
 export class SubmenuAction extends Action {
-	constructor(label: string, readonly actions: SubmenuActions, cssClass?: string) {
-		super(!!cssClass ? cssClass : 'submenu', label, '', true);
+	constructor(id: string, label: string, readonly actions: SubmenuActions, cssClass?: string) {
+		super(id, label, cssClass, true);
 	}
 }
