@@ -330,10 +330,25 @@ class CompletionAcceptedCommand implements Command {
 
 	public constructor(
 		private readonly onCompletionAccepted: (item: vscode.CompletionItem) => void,
+		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
 	public execute(item: vscode.CompletionItem) {
 		this.onCompletionAccepted(item);
+		if (item instanceof MyCompletionItem) {
+			/* __GDPR__
+				"completions.accept" : {
+					"isPackageJsonImport" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+					"${include}": [
+						"${TypeScriptCommonProperties}"
+					]
+				}
+			*/
+			this.telemetryReporter.logTelemetry('completions.accept', {
+				// @ts-expect-error - remove after TS 4.0 protocol update
+				isPackageJsonImport: item.tsEntry.isPackageJsonImport ? 'true' : undefined,
+			});
+		}
 	}
 }
 
@@ -422,7 +437,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 	) {
 		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
 		commandManager.register(new CompositeCommand());
-		commandManager.register(new CompletionAcceptedCommand(onCompletionAccepted));
+		commandManager.register(new CompletionAcceptedCommand(onCompletionAccepted, this.telemetryReporter));
 	}
 
 	public async provideCompletionItems(
@@ -471,34 +486,18 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		let dotAccessorContext: DotAccessorContext | undefined;
 		let entries: ReadonlyArray<Proto.CompletionEntry>;
 		let metadata: any | undefined;
+		let response: ServerResponse.Response<Proto.CompletionInfoResponse> | undefined;
+		let duration: number | undefined;
 		if (this.client.apiVersion.gte(API.v300)) {
 			const startTime = Date.now();
-			let response: ServerResponse.Response<Proto.CompletionInfoResponse> | undefined;
 			try {
 				response = await this.client.interruptGetErr(() => this.client.execute('completionInfo', args, token));
 			} finally {
-				const duration: number = Date.now() - startTime;
-
-				/* __GDPR__
-					"completions.execute" : {
-						"duration" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-						"type" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-						"count" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-						"updateGraphDurationMs" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-						"${include}": [
-							"${TypeScriptCommonProperties}"
-						]
-					}
-				*/
-				this.telemetryReporter.logTelemetry('completions.execute', {
-					duration: duration,
-					type: response?.type ?? 'unknown',
-					count: response?.type === 'response' && response.body ? response.body.entries.length : 0,
-					updateGraphDurationMs: response?.type === 'response' ? response.performanceData?.updateGraphDurationMs : undefined,
-				});
+				duration = Date.now() - startTime;
 			}
 
 			if (response.type !== 'response' || !response.body) {
+				this.logCompletionsTelemetry(duration, response);
 				return null;
 			}
 			isNewIdentifierLocation = response.body.isNewIdentifierLocation;
@@ -536,13 +535,45 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			useFuzzyWordRangeLogic: this.client.apiVersion.lt(API.v390),
 		};
 
+		let includesPackageJsonImport = false;
 		const items: MyCompletionItem[] = [];
 		for (let entry of entries) {
 			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
 				items.push(new MyCompletionItem(position, document, entry, completionContext, metadata));
+				// @ts-expect-error - remove after TS 4.0 protocol update
+				includesPackageJsonImport = !!entry.isPackageJsonImport;
 			}
 		}
+		if (duration !== undefined) {
+			this.logCompletionsTelemetry(duration, response, includesPackageJsonImport);
+		}
 		return new vscode.CompletionList(items, isIncomplete);
+	}
+
+	private logCompletionsTelemetry(
+		duration: number,
+		response: ServerResponse.Response<Proto.CompletionInfoResponse> | undefined,
+		includesPackageJsonImport?: boolean
+	) {
+		/* __GDPR__
+			"completions.execute" : {
+				"duration" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+				"type" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+				"count" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+				"updateGraphDurationMs" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+				"includesPackageJsonImport" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+				"${include}": [
+					"${TypeScriptCommonProperties}"
+				]
+			}
+		*/
+		this.telemetryReporter.logTelemetry('completions.execute', {
+			duration: duration,
+			type: response?.type ?? 'unknown',
+			count: response?.type === 'response' && response.body ? response.body.entries.length : 0,
+			updateGraphDurationMs: response?.type === 'response' ? response.performanceData?.updateGraphDurationMs : undefined,
+			includesPackageJsonImport: includesPackageJsonImport ? 'true' : undefined,
+		});
 	}
 
 	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
