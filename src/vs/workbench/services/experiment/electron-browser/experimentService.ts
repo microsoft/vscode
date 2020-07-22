@@ -36,6 +36,8 @@ class MementoKeyValueStorage implements IKeyValueStorage {
 class ExperimentServiceTelemetry implements IExperimentationTelemetry {
 	constructor(private telemetryService: ITelemetryService) { }
 
+	// __GDPR__COMMON__ "VSCode.ABExp.Features" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "abexp.assignmentcontext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	setSharedProperty(name: string, value: string): void {
 		this.telemetryService.setExperimentProperty(name, value);
 	}
@@ -46,6 +48,11 @@ class ExperimentServiceTelemetry implements IExperimentationTelemetry {
 			data[key] = value;
 		}
 
+		/* __GDPR__
+			"query-expfeature" : {
+				"ABExp.queriedFeature": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog(eventName, data);
 	}
 }
