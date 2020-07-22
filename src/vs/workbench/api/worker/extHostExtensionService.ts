@@ -51,7 +51,10 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// fetch JS sources as text and create a new function around it
 		const source = await response.text();
-		const initFn = new Function('module', 'exports', 'require', `${source}\n//# sourceURL=${module.toString(true)}`);
+		// Here we append #vscode-extension to serve as a marker, such that source maps
+		// can be adjusted for the extra wrapping function.
+		const sourceURL = `${module.toString(true)}#vscode-extension`;
+		const initFn = new Function('module', 'exports', 'require', `${source}\n//# sourceURL=${sourceURL}`);
 
 		// define commonjs globals: `module`, `exports`, and `require`
 		const _exports = {};
