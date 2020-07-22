@@ -120,7 +120,6 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.not('hasInstalledExtensions')),
 			weight: 60,
 			order: 1,
-			canToggleVisibility: true
 		});
 
 		/*
