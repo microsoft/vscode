@@ -13,7 +13,7 @@ import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
 import { ChildServerProcess } from './tsServer/serverProcess.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
-import { CommandManager } from './utils/commandManager';
+import { CommandManager } from './commands/commandManager';
 import { onCaseInsenitiveFileSystem } from './utils/fileSystem.electron';
 import { PluginManager } from './utils/plugins';
 import * as temp from './utils/temp.electron';

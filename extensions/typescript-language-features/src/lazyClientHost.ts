@@ -10,7 +10,7 @@ import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { flatten } from './utils/arrays';
-import { CommandManager } from './utils/commandManager';
+import { CommandManager } from './commands/commandManager';
 import { standardLanguageDescriptions } from './utils/languageDescription';
 import * as ProjectStatus from './utils/largeProjectStatus';
 import { lazy, Lazy } from './utils/lazy';
