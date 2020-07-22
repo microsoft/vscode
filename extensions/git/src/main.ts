@@ -74,7 +74,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 		new GitTimelineProvider(model)
 	);
 
-	await checkGitVersion(info);
+	checkGitVersion(info);
 
 	return model;
 }
