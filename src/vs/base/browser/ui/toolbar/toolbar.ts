@@ -7,7 +7,6 @@ import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
 import { Action, IActionRunner, IAction, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IContextMenuProvider } from 'vs/base/browser/ui/dropdown/dropdown';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -15,6 +14,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 
 export const CONTEXT = 'context.toolbar';
 
