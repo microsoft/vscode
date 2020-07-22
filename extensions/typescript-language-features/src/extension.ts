@@ -7,7 +7,7 @@ import * as rimraf from 'rimraf';
 import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { registerBaseCommands } from './commands/index';
-import { LanguageConfigurationManager } from './features/languageConfiguration';
+import { LanguageConfigurationManager } from './languageFeatures/languageConfiguration';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
@@ -41,11 +41,11 @@ export function activate(
 
 	registerBaseCommands(commandManager, lazyClientHost, pluginManager);
 
-	import('./features/task').then(module => {
+	import('./languageFeatures/task').then(module => {
 		context.subscriptions.push(module.register(lazyClientHost.map(x => x.serviceClient)));
 	});
 
-	import('./features/tsconfig').then(module => {
+	import('./languageFeatures/tsconfig').then(module => {
 		context.subscriptions.push(module.register());
 	});
 

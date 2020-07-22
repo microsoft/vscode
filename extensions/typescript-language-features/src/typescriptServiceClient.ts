@@ -6,8 +6,8 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import BufferSyncSupport from './features/bufferSyncSupport';
-import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
+import BufferSyncSupport from './languageFeatures/bufferSyncSupport';
+import { DiagnosticKind, DiagnosticsManager } from './languageFeatures/diagnostics';
 import * as Proto from './protocol';
 import { EventName } from './protocol.const';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';

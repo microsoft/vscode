@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { registerBaseCommands } from './commands/index';
-import { LanguageConfigurationManager } from './features/languageConfiguration';
+import { LanguageConfigurationManager } from './languageFeatures/languageConfiguration';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { noopRequestCancellerFactory } from './tsServer/cancellation';
 import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
@@ -63,7 +63,7 @@ export function activate(
 
 	// context.subscriptions.push(task.register(lazyClientHost.map(x => x.serviceClient)));
 
-	import('./features/tsconfig').then(module => {
+	import('./languageFeatures/tsconfig').then(module => {
 		context.subscriptions.push(module.register());
 	});
 

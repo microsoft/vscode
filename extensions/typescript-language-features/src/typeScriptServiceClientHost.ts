@@ -9,8 +9,8 @@
  * ------------------------------------------------------------------------------------------ */
 
 import * as vscode from 'vscode';
-import { DiagnosticKind } from './features/diagnostics';
-import FileConfigurationManager from './features/fileConfigurationManager';
+import { DiagnosticKind } from './languageFeatures/diagnostics';
+import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
 import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
@@ -102,10 +102,10 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			this.languagePerId.set(description.id, manager);
 		}
 
-		import('./features/updatePathsOnRename').then(module =>
+		import('./languageFeatures/updatePathsOnRename').then(module =>
 			this._register(module.register(this.client, this.fileConfigurationManager, uri => this.handles(uri))));
 
-		import('./features/workspaceSymbols').then(module =>
+		import('./languageFeatures/workspaceSymbols').then(module =>
 			this._register(module.register(this.client, allModeIds)));
 
 		this.client.ensureServiceStarted();
