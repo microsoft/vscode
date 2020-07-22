@@ -5,6 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { regExpFlags } from 'vs/base/common/strings';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export function stringify(obj: any): string {
 	return JSON.stringify(obj, replacer);
@@ -42,6 +43,13 @@ export function revive(obj: any, depth = 0): any {
 		switch ((<MarshalledObject>obj).$mid) {
 			case 1: return URI.revive(obj);
 			case 2: return new RegExp(obj.source, obj.flags);
+		}
+
+		if (
+			obj instanceof VSBuffer
+			|| obj instanceof Uint8Array
+		) {
+			return obj;
 		}
 
 		// walk object (or array)
