@@ -26,25 +26,16 @@ export interface ActionTrigger {
 }
 
 export interface IActionBarOptions {
-	orientation?: ActionsOrientation;
-	context?: any;
-	actionViewItemProvider?: IActionViewItemProvider;
-	actionRunner?: IActionRunner;
-	ariaLabel?: string;
-	animated?: boolean;
-	triggerKeys?: ActionTrigger;
-	allowContextMenu?: boolean;
-	preventLoopNavigation?: boolean;
+	readonly orientation?: ActionsOrientation;
+	readonly context?: any;
+	readonly actionViewItemProvider?: IActionViewItemProvider;
+	readonly actionRunner?: IActionRunner;
+	readonly ariaLabel?: string;
+	readonly animated?: boolean;
+	readonly triggerKeys?: ActionTrigger;
+	readonly allowContextMenu?: boolean;
+	readonly preventLoopNavigation?: boolean;
 }
-
-const defaultOptions: IActionBarOptions = {
-	orientation: ActionsOrientation.HORIZONTAL,
-	context: null,
-	triggerKeys: {
-		keys: [KeyCode.Enter, KeyCode.Space],
-		keyDown: false
-	}
-};
 
 export interface IActionOptions extends IActionViewItemOptions {
 	index?: number;
@@ -52,10 +43,12 @@ export interface IActionOptions extends IActionViewItemOptions {
 
 export class ActionBar extends Disposable implements IActionRunner {
 
-	options: IActionBarOptions;
+	private readonly options: IActionBarOptions;
 
 	private _actionRunner: IActionRunner;
 	private _context: unknown;
+	private _orientation: ActionsOrientation;
+	private _triggerKeys: ActionTrigger;
 
 	// View Items
 	viewItems: IActionViewItem[];
@@ -78,15 +71,16 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private _onDidBeforeRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidBeforeRun: Event<IRunEvent> = this._onDidBeforeRun.event;
 
-	constructor(container: HTMLElement, options: IActionBarOptions = defaultOptions) {
+	constructor(container: HTMLElement, options: IActionBarOptions = {}) {
 		super();
 
 		this.options = options;
-		this._context = options.context;
-
-		if (!this.options.triggerKeys) {
-			this.options.triggerKeys = defaultOptions.triggerKeys;
-		}
+		this._context = options.context ?? null;
+		this._orientation = this.options.orientation ?? ActionsOrientation.HORIZONTAL;
+		this._triggerKeys = this.options.triggerKeys ?? {
+			keys: [KeyCode.Enter, KeyCode.Space],
+			keyDown: false
+		};
 
 		if (this.options.actionRunner) {
 			this._actionRunner = this.options.actionRunner;
@@ -111,7 +105,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		let previousKey: KeyCode;
 		let nextKey: KeyCode;
 
-		switch (this.options.orientation) {
+		switch (this._orientation) {
 			case ActionsOrientation.HORIZONTAL:
 				previousKey = KeyCode.LeftArrow;
 				nextKey = KeyCode.RightArrow;
@@ -145,7 +139,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 				this._onDidCancel.fire();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
-				if (this.options.triggerKeys && this.options.triggerKeys.keyDown) {
+				if (this._triggerKeys.keyDown) {
 					this.doTrigger(event);
 				}
 			} else {
@@ -163,7 +157,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			// Run action on Enter/Space
 			if (this.isTriggerKeyEvent(event)) {
-				if (this.options.triggerKeys && !this.options.triggerKeys.keyDown) {
+				if (!this._triggerKeys.keyDown) {
 					this.doTrigger(event);
 				}
 
@@ -210,11 +204,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private isTriggerKeyEvent(event: StandardKeyboardEvent): boolean {
 		let ret = false;
-		if (this.options.triggerKeys) {
-			this.options.triggerKeys.keys.forEach(keyCode => {
-				ret = ret || event.equals(keyCode);
-			});
-		}
+		this._triggerKeys.keys.forEach(keyCode => {
+			ret = ret || event.equals(keyCode);
+		});
 
 		return ret;
 	}
