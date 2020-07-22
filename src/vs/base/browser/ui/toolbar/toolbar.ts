@@ -8,11 +8,11 @@ import * as nls from 'vs/nls';
 import { Action, IActionRunner, IAction, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
-import { Emitter } from 'vs/base/common/event';
+import { EventMultiplexer } from 'vs/base/common/event';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 
@@ -38,12 +38,12 @@ export class ToolBar extends Disposable {
 	private actionBar: ActionBar;
 	private toggleMenuAction: ToggleMenuAction;
 	private toggleMenuActionViewItem: DropdownMenuActionViewItem | undefined;
-	private toggleMenuActionViewItemDisposable: IDisposable = Disposable.None;
 	private hasSecondaryActions: boolean = false;
 	private lookupKeybindings: boolean;
 
-	private _onDidChangeDropdownVisibility = this._register(new Emitter<boolean>());
+	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
 	readonly onDidChangeDropdownVisibility = this._onDidChangeDropdownVisibility.event;
+	private dropdownMenuDisposables = new Set<IDisposable>();
 
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
 		super();
@@ -62,13 +62,7 @@ export class ToolBar extends Disposable {
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
 			actionViewItemProvider: (action: IAction) => {
-
-				// Return special action item for the toggle menu action
 				if (action.id === ToggleMenuAction.ID) {
-
-					this.toggleMenuActionViewItemDisposable.dispose();
-
-					// Create new
 					this.toggleMenuActionViewItem = new DropdownMenuActionViewItem(
 						action,
 						(<ToggleMenuAction>action).menuActions,
@@ -83,11 +77,7 @@ export class ToolBar extends Disposable {
 						}
 					);
 					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
-
-					this.toggleMenuActionViewItemDisposable = combinedDisposable(
-						this.toggleMenuActionViewItem,
-						this.toggleMenuActionViewItem.onDidChangeVisibility(e => this._onDidChangeDropdownVisibility.fire(e))
-					);
+					this.dropdownMenuDisposables.add(this._onDidChangeDropdownVisibility.add(this.toggleMenuActionViewItem.onDidChangeVisibility));
 
 					return this.toggleMenuActionViewItem;
 				}
@@ -129,6 +119,8 @@ export class ToolBar extends Disposable {
 	}
 
 	setActions(primaryActions: ReadonlyArray<IAction>, secondaryActions?: ReadonlyArray<IAction>): void {
+		this.clear();
+
 		let primaryActionsToSet = primaryActions ? primaryActions.slice(0) : [];
 
 		// Inject additional action to open secondary actions if present
@@ -137,8 +129,6 @@ export class ToolBar extends Disposable {
 			this.toggleMenuAction.menuActions = secondaryActions.slice(0);
 			primaryActionsToSet.push(this.toggleMenuAction);
 		}
-
-		this.actionBar.clear();
 
 		primaryActionsToSet.forEach(action => {
 			this.actionBar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) });
@@ -167,9 +157,18 @@ export class ToolBar extends Disposable {
 		};
 	}
 
+	private clear(): void {
+		for (const disposable of this.dropdownMenuDisposables) {
+			disposable.dispose();
+		}
+
+		this.dropdownMenuDisposables.clear();
+		this.actionBar.clear();
+	}
+
 	dispose(): void {
+		this.clear();
 		super.dispose();
-		this.toggleMenuActionViewItemDisposable.dispose();
 	}
 }
 
