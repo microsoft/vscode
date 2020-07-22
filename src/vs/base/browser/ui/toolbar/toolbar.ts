@@ -5,10 +5,10 @@
 
 import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
-import { Action, IActionRunner, IAction, IActionViewItemProvider } from 'vs/base/common/actions';
+import { Action, IActionRunner, IAction, IActionViewItemProvider, SubmenuAction } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
@@ -38,12 +38,13 @@ export class ToolBar extends Disposable {
 	private actionBar: ActionBar;
 	private toggleMenuAction: ToggleMenuAction;
 	private toggleMenuActionViewItem: DropdownMenuActionViewItem | undefined;
+	private submenuActionViewItems: DropdownMenuActionViewItem[] = [];
 	private hasSecondaryActions: boolean = false;
 	private lookupKeybindings: boolean;
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
 	readonly onDidChangeDropdownVisibility = this._onDidChangeDropdownVisibility.event;
-	private dropdownMenuDisposables = new Set<IDisposable>();
+	private disposables = new DisposableStore();
 
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
 		super();
@@ -62,6 +63,28 @@ export class ToolBar extends Disposable {
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
 			actionViewItemProvider: (action: IAction) => {
+				if (action instanceof SubmenuAction) {
+					const actions = Array.isArray(action.actions) ? action.actions : action.actions();
+					const result = new DropdownMenuActionViewItem(
+						action,
+						actions,
+						contextMenuProvider,
+						{
+							actionViewItemProvider: this.options.actionViewItemProvider,
+							actionRunner: this.actionRunner,
+							keybindingProvider: this.options.getKeyBinding,
+							clazz: action.class,
+							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
+							menuAsChild: true
+						}
+					);
+					result.setActionContext(this.actionBar.context);
+					this.submenuActionViewItems.push(result);
+					this.disposables.add(this._onDidChangeDropdownVisibility.add(result.onDidChangeVisibility));
+
+					return result;
+				}
+
 				if (action.id === ToggleMenuAction.ID) {
 					this.toggleMenuActionViewItem = new DropdownMenuActionViewItem(
 						action,
@@ -77,7 +100,7 @@ export class ToolBar extends Disposable {
 						}
 					);
 					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
-					this.dropdownMenuDisposables.add(this._onDidChangeDropdownVisibility.add(this.toggleMenuActionViewItem.onDidChangeVisibility));
+					this.disposables.add(this._onDidChangeDropdownVisibility.add(this.toggleMenuActionViewItem.onDidChangeVisibility));
 
 					return this.toggleMenuActionViewItem;
 				}
@@ -99,6 +122,9 @@ export class ToolBar extends Disposable {
 		this.actionBar.context = context;
 		if (this.toggleMenuActionViewItem) {
 			this.toggleMenuActionViewItem.setActionContext(context);
+		}
+		for (const actionViewItem of this.submenuActionViewItems) {
+			actionViewItem.setActionContext(context);
 		}
 	}
 
@@ -142,11 +168,8 @@ export class ToolBar extends Disposable {
 	}
 
 	private clear(): void {
-		for (const disposable of this.dropdownMenuDisposables) {
-			disposable.dispose();
-		}
-
-		this.dropdownMenuDisposables.clear();
+		this.submenuActionViewItems = [];
+		this.disposables.clear();
 		this.actionBar.clear();
 	}
 
