@@ -25,6 +25,7 @@ import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contex
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { stripCodicons } from 'vs/base/common/codicons';
+import { coalesce } from 'vs/base/common/arrays';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
@@ -123,14 +124,12 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		}
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: IAction[], onHide: () => void): IContextMenuItem[] {
+	private createMenu(delegate: IContextMenuDelegate, entries: IAction[], onHide: () => void, submenuIds = new Set<string>()): IContextMenuItem[] {
 		const actionRunner = delegate.actionRunner || new ActionRunner();
-
-		return entries.map(entry => this.createMenuItem(delegate, entry, actionRunner, onHide));
+		return coalesce(entries.map(entry => this.createMenuItem(delegate, entry, actionRunner, onHide, submenuIds)));
 	}
 
-	private createMenuItem(delegate: IContextMenuDelegate, entry: IAction, actionRunner: IActionRunner, onHide: () => void): IContextMenuItem {
-
+	private createMenuItem(delegate: IContextMenuDelegate, entry: IAction, actionRunner: IActionRunner, onHide: () => void, submenuIds: Set<string>): IContextMenuItem | undefined {
 		// Separator
 		if (entry instanceof Separator) {
 			return { type: 'separator' };
@@ -138,10 +137,15 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 		// Submenu
 		if (entry instanceof SubmenuAction) {
+			if (submenuIds.has(entry.id)) {
+				console.warn(`Found submenu cycle: ${entry.id}`);
+				return undefined;
+			}
+
 			const actions = Array.isArray(entry.actions) ? entry.actions : entry.actions();
 			return {
 				label: unmnemonicLabel(stripCodicons(entry.label)).trim(),
-				submenu: this.createMenu(delegate, actions, onHide)
+				submenu: this.createMenu(delegate, actions, onHide, new Set([...submenuIds, entry.id]))
 			};
 		}
 

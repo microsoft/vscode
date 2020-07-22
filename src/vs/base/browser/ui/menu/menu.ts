@@ -42,6 +42,7 @@ export interface IMenuOptions {
 	anchorAlignment?: AnchorAlignment;
 	expandDirection?: Direction;
 	useEventAsContext?: boolean;
+	submenuIds?: Set<string>;
 }
 
 export interface IMenuStyles {
@@ -199,6 +200,15 @@ export class Menu extends ActionBar {
 
 		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 30)}px`;
 
+		actions = actions.filter(a => {
+			if (options.submenuIds?.has(a.id)) {
+				console.warn(`Found submenu cycle: ${a.id}`);
+				return false;
+			}
+
+			return true;
+		});
+
 		this.push(actions, { icon: true, label: true, isMenu: true });
 
 		container.appendChild(this.scrollableElement.getDomNode());
@@ -294,7 +304,7 @@ export class Menu extends ActionBar {
 			return new MenuSeparatorActionViewItem(options.context, action, { icon: true });
 		} else if (action instanceof SubmenuAction) {
 			const actions = Array.isArray(action.actions) ? action.actions : action.actions();
-			const menuActionViewItem = new SubmenuMenuActionViewItem(action, actions, parentData, options);
+			const menuActionViewItem = new SubmenuMenuActionViewItem(action, actions, parentData, { ...options, submenuIds: new Set([...(options.submenuIds || []), action.id]) });
 
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionViewItem.getMnemonic();
