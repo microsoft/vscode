@@ -59,7 +59,7 @@ export interface ForkOptions {
 
 export function fork(
 	modulePath: string,
-	args: string[],
+	args: readonly string[],
 	options: ForkOptions,
 ): cp.ChildProcess {
 	const newEnv = generatePatchedEnv(process.env, modulePath);

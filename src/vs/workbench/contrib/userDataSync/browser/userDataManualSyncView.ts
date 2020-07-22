@@ -270,7 +270,7 @@ export class UserDataManualSyncViewPane extends TreeViewPane {
 		previewResource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local))!;
 		await this.reopen(previewResource);
 		if (previewResource.mergeState === MergeState.Conflict) {
-			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected."), [], {
+			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected"), [], {
 				detail: localize('resolve', "Unable to merge due to conflicts. Please resolve them to continue.")
 			});
 		}

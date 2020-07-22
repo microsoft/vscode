@@ -8,9 +8,9 @@ import * as nls from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { coalesce } from '../utils/arrays';
 import { Command, CommandManager } from '../utils/commandManager';
+import { Disposable } from '../utils/dispose';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
-import { isImplicitProjectConfigFile, openOrCreateConfig, openProjectConfigOrPromptToCreate, openProjectConfigForFile, ProjectType } from '../utils/tsconfig';
-import { Disposable } from './dispose';
+import { isImplicitProjectConfigFile, openOrCreateConfig, openProjectConfigForFile, openProjectConfigOrPromptToCreate, ProjectType } from '../utils/tsconfig';
 import { TypeScriptVersion } from './versionProvider';
 
 const localize = nls.loadMessageBundle();
