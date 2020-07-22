@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
+
 export function isWeb(): boolean {
-	return typeof process === 'undefined';
+	// @ts-expect-error
+	return typeof navigator !== 'undefined' && vscode.env.uiKind === vscode.UIKind.Web;
 }
