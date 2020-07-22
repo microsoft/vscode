@@ -338,7 +338,7 @@ class CompletionAcceptedCommand implements Command {
 		if (item instanceof MyCompletionItem) {
 			/* __GDPR__
 				"completions.accept" : {
-					"isPackageJsonImport" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					"isPackageJsonImport" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
 					"${include}": [
 						"${TypeScriptCommonProperties}"
 					]
@@ -557,11 +557,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 	) {
 		/* __GDPR__
 			"completions.execute" : {
-				"duration" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"type" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"count" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"updateGraphDurationMs" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"includesPackageJsonImport" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"duration" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+				"type" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+				"count" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+				"updateGraphDurationMs" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+				"includesPackageJsonImport" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				]
