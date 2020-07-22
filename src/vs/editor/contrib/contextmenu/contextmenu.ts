@@ -205,6 +205,8 @@ export class ContextMenuController implements IEditorContribution {
 		// Show menu
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
+			domForShadowRoot: this._editor.getDomNode(),
+
 			getAnchor: () => anchor!,
 
 			getActions: () => actions,

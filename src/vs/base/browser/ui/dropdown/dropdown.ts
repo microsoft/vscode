@@ -270,7 +270,7 @@ export class DropdownMenu extends BaseDropdown {
 			onHide: () => this.onHide(),
 			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : undefined,
 			anchorAlignment: this.menuOptions ? this.menuOptions.anchorAlignment : AnchorAlignment.LEFT,
-			anchorAsContainer: this.menuAsChild
+			domForShadowRoot: this.menuAsChild ? this.element : undefined
 		});
 	}
 
