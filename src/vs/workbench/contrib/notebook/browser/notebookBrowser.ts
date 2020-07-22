@@ -180,6 +180,7 @@ export interface INotebookEditor extends IEditor {
 	isNotebookEditor: boolean;
 	activeKernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined;
 	multipleKernelsAvailable: boolean;
+	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;
 
 	isDisposed: boolean;

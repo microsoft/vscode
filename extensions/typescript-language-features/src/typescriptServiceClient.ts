@@ -6,10 +6,10 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import BufferSyncSupport from './languageFeatures/bufferSyncSupport';
 import { DiagnosticKind, DiagnosticsManager } from './languageFeatures/diagnostics';
 import * as Proto from './protocol';
 import { EventName } from './protocol.const';
+import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { ITypeScriptServer, TsServerProcessFactory } from './tsServer/server';

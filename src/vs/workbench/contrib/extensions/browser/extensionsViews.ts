@@ -197,6 +197,7 @@ export class ExtensionsListView extends ViewPane {
 			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
 			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
+			case 'publishedDate': options = assign(options, { sortBy: SortBy.PublishedDate }); break;
 		}
 
 		const successCallback = (model: IPagedModel<IExtension>) => {
@@ -804,16 +805,21 @@ export class ExtensionsListView extends ViewPane {
 		this.list = null;
 	}
 
-	static isBuiltInExtensionsQuery(query: string): boolean {
-		return /^\s*@builtin\s*$/i.test(query);
-	}
-
 	static isLocalExtensionsQuery(query: string): boolean {
 		return this.isInstalledExtensionsQuery(query)
 			|| this.isOutdatedExtensionsQuery(query)
 			|| this.isEnabledExtensionsQuery(query)
 			|| this.isDisabledExtensionsQuery(query)
-			|| this.isBuiltInExtensionsQuery(query);
+			|| this.isBuiltInExtensionsQuery(query)
+			|| this.isSearchBuiltInExtensionsQuery(query);
+	}
+
+	static isSearchBuiltInExtensionsQuery(query: string): boolean {
+		return /@builtin\s.+/i.test(query);
+	}
+
+	static isBuiltInExtensionsQuery(query: string): boolean {
+		return /@builtin$/i.test(query.trim());
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
@@ -894,7 +900,7 @@ export class ServerExtensionsView extends ExtensionsListView {
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query ? query : '@installed';
-		if (!ExtensionsListView.isLocalExtensionsQuery(query) && !ExtensionsListView.isBuiltInExtensionsQuery(query)) {
+		if (!ExtensionsListView.isLocalExtensionsQuery(query)) {
 			query = query += ' @installed';
 		}
 		return super.show(query.trim());
@@ -926,7 +932,29 @@ export class DisabledExtensionsView extends ExtensionsListView {
 	}
 }
 
-export class BuiltInExtensionsView extends ExtensionsListView {
+export class OutdatedExtensionsView extends ExtensionsListView {
+
+	async show(query: string): Promise<IPagedModel<IExtension>> {
+		query = query || '@outdated';
+		return ExtensionsListView.isOutdatedExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
+	}
+}
+
+export class InstalledExtensionsView extends ExtensionsListView {
+
+	async show(query: string): Promise<IPagedModel<IExtension>> {
+		query = query || '@installed';
+		return ExtensionsListView.isInstalledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
+	}
+}
+
+export class SearchBuiltInExtensionsView extends ExtensionsListView {
+	async show(query: string): Promise<IPagedModel<IExtension>> {
+		return ExtensionsListView.isSearchBuiltInExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
+	}
+}
+
+export class BuiltInFeatureExtensionsView extends ExtensionsListView {
 	async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:features');
 	}
@@ -938,7 +966,7 @@ export class BuiltInThemesExtensionsView extends ExtensionsListView {
 	}
 }
 
-export class BuiltInBasicsExtensionsView extends ExtensionsListView {
+export class BuiltInProgrammingLanguageExtensionsView extends ExtensionsListView {
 	async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:basics');
 	}

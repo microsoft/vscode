@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ChildProcess } from 'child_process';
+import * as child_process from 'child_process';
 import * as fs from 'fs';
+import * as path from 'path';
 import type { Readable } from 'stream';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
-import { TsServerProcess, TsServerProcessKind } from './server';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
-import { fork } from '../utils/electron';
-import { TypeScriptVersionManager } from './versionManager';
 import { Disposable } from '../utils/dispose';
+import { TsServerProcess, TsServerProcessKind } from './server';
+import { TypeScriptVersionManager } from './versionManager';
 
 const localize = nls.loadMessageBundle();
 
@@ -149,20 +149,36 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 			versionManager.reset();
 			tsServerPath = versionManager.currentVersion.tsServerPath;
 		}
-		const childProcess = fork(tsServerPath, args, this.getForkOptions(kind, configuration));
+
+		const childProcess = child_process.fork(tsServerPath, args, {
+			silent: true,
+			cwd: undefined,
+			env: this.generatePatchedEnv(process.env, tsServerPath),
+			execArgv: this.getExecArgv(kind, configuration),
+		});
+
 		return new ChildServerProcess(childProcess);
 	}
 
-	private static getForkOptions(kind: TsServerProcessKind, configuration: TypeScriptServiceConfiguration) {
+	private static generatePatchedEnv(env: any, modulePath: string): any {
+		const newEnv = Object.assign({}, env);
+
+		newEnv['ELECTRON_RUN_AS_NODE'] = '1';
+		newEnv['NODE_PATH'] = path.join(modulePath, '..', '..', '..');
+
+		// Ensure we always have a PATH set
+		newEnv['PATH'] = newEnv['PATH'] || process.env.PATH;
+
+		return newEnv;
+	}
+
+	private static getExecArgv(kind: TsServerProcessKind, configuration: TypeScriptServiceConfiguration): string[] {
 		const debugPort = this.getDebugPort(kind);
 		const inspectFlag = process.env['TSS_DEBUG_BRK'] ? '--inspect-brk' : '--inspect';
-		const tsServerForkOptions: any = {
-			execArgv: [
-				...(debugPort ? [`${inspectFlag}=${debugPort}`] : []),
-				...(configuration.maxTsServerMemory ? [`--max-old-space-size=${configuration.maxTsServerMemory}`] : [])
-			]
-		};
-		return tsServerForkOptions;
+		return [
+			...(debugPort ? [`${inspectFlag}=${debugPort}`] : []),
+			...(configuration.maxTsServerMemory ? [`--max-old-space-size=${configuration.maxTsServerMemory}`] : [])
+		];
 	}
 
 	private static getDebugPort(kind: TsServerProcessKind): number | undefined {
@@ -181,7 +197,7 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 	}
 
 	private constructor(
-		private readonly _process: ChildProcess,
+		private readonly _process: child_process.ChildProcess,
 	) {
 		super();
 		this._reader = this._register(new Reader<Proto.Response>(this._process.stdout!));

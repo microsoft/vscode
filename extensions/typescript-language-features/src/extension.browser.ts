@@ -11,9 +11,9 @@ import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { noopRequestCancellerFactory } from './tsServer/cancellation';
 import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './tsServer/versionProvider';
-import { WorkerServerProcess } from './tsServer/workerServerProcess';
+import { WorkerServerProcess } from './tsServer/serverProcess.browser';
 import API from './utils/api';
-import { CommandManager } from './utils/commandManager';
+import { CommandManager } from './commands/commandManager';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { PluginManager } from './utils/plugins';
 

@@ -41,7 +41,7 @@ import { CancelCellAction, ChangeCellLanguageAction, ExecuteCellAction, INoteboo
 import { BaseCellRenderTemplate, CellEditState, CodeCellRenderTemplate, ICellViewModel, INotebookCellList, INotebookEditor, MarkdownCellRenderTemplate, isCodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
-import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
+import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -439,7 +439,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		this.setBetweenCellToolbarContext(templateData, element, toolbarContext);
 
-		const markdownCell = this.instantiationService.createInstance(StatefullMarkdownCell, this.notebookEditor, element, templateData, this.editorOptions.value, this.renderedEditors);
+		const scopedInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService]));
+		const markdownCell = scopedInstaService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, this.editorOptions.value, this.renderedEditors);
 		elementDisposables.add(this.editorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
 		elementDisposables.add(markdownCell);
 

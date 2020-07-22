@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
-import { CommandManager } from '../utils/commandManager';
 import { Lazy } from '../utils/lazy';
 import { PluginManager } from '../utils/plugins';
+import { CommandManager } from './commandManager';
 import { ConfigurePluginCommand } from './configurePlugin';
 import { JavaScriptGoToProjectConfigCommand, TypeScriptGoToProjectConfigCommand } from './goToProjectConfiguration';
 import { LearnMoreAboutRefactoringsCommand } from './learnMoreAboutRefactorings';

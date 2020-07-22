@@ -219,7 +219,7 @@ export interface INotebookWebviewMessage {
 let version = 0;
 export class BackLayerWebView extends Disposable {
 	element: HTMLElement;
-	webview!: WebviewElement;
+	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IProcessedOutput, ICachedInset> = new Map();
 	hiddenInsetMapping: Set<IProcessedOutput> = new Set();
 	reversedInsetMapping: Map<string, IProcessedOutput> = new Map();
@@ -714,7 +714,7 @@ ${loaderJs}
 			return;
 		}
 
-		this.webview.focus();
+		this.webview?.focus();
 	}
 
 	focusOutput(cellId: string) {
@@ -722,7 +722,7 @@ ${loaderJs}
 			return;
 		}
 
-		this.webview.focus();
+		this.webview?.focus();
 		setTimeout(() => { // Need this, or focus decoration is not shown. No clue.
 			this._sendMessageToWebview({
 				type: 'focus-output',
@@ -814,6 +814,10 @@ ${loaderJs}
 	}
 
 	private _updatePreloads(resources: IPreloadResource[], source: 'renderer' | 'kernel') {
+		if (!this.webview) {
+			return;
+		}
+
 		const mixedResourceRoots = [...(this.localResourceRootsCache || []), ...this.rendererRootsCache, ...this.kernelRootsCache];
 
 		this.webview.localResourcesRoot = mixedResourceRoots;
@@ -830,7 +834,7 @@ ${loaderJs}
 			return;
 		}
 
-		this.webview.postMessage(message);
+		this.webview?.postMessage(message);
 	}
 
 	clearPreloadsCache() {
@@ -839,7 +843,7 @@ ${loaderJs}
 
 	dispose() {
 		this._disposed = true;
-		this.webview.dispose();
+		this.webview?.dispose();
 		super.dispose();
 	}
 }

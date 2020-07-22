@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import BufferSyncSupport from './languageFeatures/bufferSyncSupport';
 import * as Proto from './protocol';
+import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { ExectuionTarget } from './tsServer/server';
 import { TypeScriptVersion } from './tsServer/versionProvider';
 import API from './utils/api';

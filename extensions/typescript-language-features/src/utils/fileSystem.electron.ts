@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { getTempFile } from '../utils/temp';
+import { getTempFile } from './temp.electron';
 
 export const onCaseInsenitiveFileSystem = (() => {
 	let value: boolean | undefined;

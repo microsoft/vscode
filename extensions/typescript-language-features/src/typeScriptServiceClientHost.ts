@@ -21,7 +21,7 @@ import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import VersionStatus from './tsServer/versionStatus';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { coalesce, flatten } from './utils/arrays';
-import { CommandManager } from './utils/commandManager';
+import { CommandManager } from './commands/commandManager';
 import { Disposable } from './utils/dispose';
 import * as errorCodes from './utils/errorCodes';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';

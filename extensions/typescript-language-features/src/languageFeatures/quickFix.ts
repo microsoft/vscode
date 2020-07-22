@@ -5,21 +5,21 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { Command, CommandManager } from '../commands/commandManager';
 import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient, ClientCapability } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { applyCodeActionCommands, getEditForCodeAction } from '../utils/codeAction';
-import { Command, CommandManager } from '../utils/commandManager';
+import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
+import { DocumentSelector } from '../utils/documentSelector';
 import * as fixNames from '../utils/fixNames';
 import { memoize } from '../utils/memoize';
+import { equals } from '../utils/objects';
 import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
-import { equals } from '../utils/objects';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
 
 const localize = nls.loadMessageBundle();
 

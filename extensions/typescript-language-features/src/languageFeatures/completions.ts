@@ -5,14 +5,14 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { Command, CommandManager } from '../commands/commandManager';
 import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { applyCodeAction } from '../utils/codeAction';
-import { Command, CommandManager } from '../utils/commandManager';
-import { conditionalRegistration, requireSomeCapability, requireConfiguration } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import { parseKindModifier } from '../utils/modifiers';
 import * as Previewer from '../utils/previewer';
