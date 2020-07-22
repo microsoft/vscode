@@ -7,10 +7,10 @@ import * as vscode from 'vscode';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import * as Proto from './protocol';
 import { ExectuionTarget } from './tsServer/server';
+import { TypeScriptVersion } from './tsServer/versionProvider';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { PluginManager } from './utils/plugins';
-import { TypeScriptVersion } from './utils/versionProvider';
 
 export namespace ServerResponse {
 
