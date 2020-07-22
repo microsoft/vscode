@@ -661,7 +661,7 @@ menusExtensionPoint.setHandler(extensions => {
 						continue;
 					}
 
-					if (!submenuSupport) {
+					if (!isSubmenu && !submenuSupport) {
 						collector.error(localize('proposedAPI.unsupported.submenureference', "Menu item references a submenu for a menu which doesn't have submenu support."));
 						continue;
 					}
