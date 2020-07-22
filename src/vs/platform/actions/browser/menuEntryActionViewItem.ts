@@ -5,7 +5,6 @@
 
 import { addClasses, createCSSRule, removeClasses, asCSSUrl } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { IdGenerator } from 'vs/base/common/idGenerator';
@@ -17,6 +16,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 // The alternative key on all platforms is alt. On windows we also support shift as an alternative key #44136
 class AlternativeKeyEmitter extends Emitter<boolean> {

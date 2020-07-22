@@ -6,7 +6,7 @@
 import 'vs/css!./dropdown';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
-import { BaseActionViewItem, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextViewProvider, IAnchor, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
@@ -15,6 +15,7 @@ import { EventHelper, EventType, removeClass, addClass, append, $, addDisposable
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter } from 'vs/base/common/event';
+import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable | null;

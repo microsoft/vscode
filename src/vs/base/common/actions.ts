@@ -39,11 +39,11 @@ export interface IActionRunner extends IDisposable {
 }
 
 export interface IActionViewItem extends IDisposable {
-	readonly actionRunner: IActionRunner;
+	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: any /* HTMLElement */): void;
 	isEnabled(): boolean;
-	focus(): void;
+	focus(fromRight?: boolean): void; // TODO@isidorn what is this?
 	blur(): void;
 }
 

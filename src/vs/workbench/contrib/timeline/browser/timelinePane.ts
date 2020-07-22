@@ -36,10 +36,11 @@ import { IThemeService, LIGHT, ThemeIcon } from 'vs/platform/theme/common/themeS
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IActionViewItemProvider, ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItemProvider, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ContextAwareMenuEntryActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const ItemHeight = 22;
 
