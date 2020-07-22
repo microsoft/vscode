@@ -75,6 +75,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _overlayContainer!: HTMLElement;
 	private _body!: HTMLElement;
 	private _webview: BackLayerWebView | null = null;
+	private _webviewResolved: boolean = false;
+	private _webviewResolvePromise: Promise<BackLayerWebView | null> | null = null;
 	private _webviewTransparentCover: HTMLElement | null = null;
 	private _list: INotebookCellList | undefined;
 	private _dndController: CellDragAndDropController | null = null;
@@ -135,6 +137,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _activeKernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined = undefined;
 	private readonly _onDidChangeKernel = this._register(new Emitter<void>());
 	readonly onDidChangeKernel: Event<void> = this._onDidChangeKernel.event;
+	private readonly _onDidChangeAvailableKernels = this._register(new Emitter<void>());
+	readonly onDidChangeAvailableKernels: Event<void> = this._onDidChangeAvailableKernels.event;
 
 	get activeKernel() {
 		return this._activeKernel;
@@ -150,7 +154,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private _currentKernelTokenSource: CancellationTokenSource | undefined = undefined;
-	multipleKernelsAvailable: boolean = false;
+	private _multipleKernelsAvailable: boolean = false;
+
+	get multipleKernelsAvailable() {
+		return this._multipleKernelsAvailable;
+	}
+
+	set multipleKernelsAvailable(state: boolean) {
+		this._multipleKernelsAvailable = state;
+		this._onDidChangeAvailableKernels.fire();
+	}
 
 	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
 	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
@@ -571,7 +584,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// @deprecated
 		if (provider && provider.kernel) {
 			// it has a builtin kernel, don't automatically choose a kernel
-			this._loadKernelPreloads(provider.providerExtensionLocation, provider.kernel);
+			await this._loadKernelPreloads(provider.providerExtensionLocation, provider.kernel);
 			tokenSource.dispose();
 			return;
 		}
@@ -590,7 +603,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// the provider doesn't have a builtin kernel, choose a kernel
 		this.activeKernel = availableKernels[0];
 		if (this.activeKernel) {
-			this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
 		}
 
 		tokenSource.dispose();
@@ -610,7 +623,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 
 			if (this.activeKernel) {
-				this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+				await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
 				await this.activeKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
 			}
 
@@ -623,7 +636,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (kernelsFromSameExtension.length) {
 			const preferedKernel = kernelsFromSameExtension.find(kernel => kernel.isPreferred) || kernelsFromSameExtension[0];
 			this.activeKernel = preferedKernel;
-			this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
 			await preferedKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
 			tokenSource.dispose();
 			return;
@@ -632,15 +645,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// the provider doesn't have a builtin kernel, choose a kernel
 		this.activeKernel = kernels[0];
 		if (this.activeKernel) {
-			this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
 			await this.activeKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
 		}
 
 		tokenSource.dispose();
 	}
 
-	private _loadKernelPreloads(extensionLocation: URI, kernel: INotebookKernelInfoDto) {
-		if (kernel.preloads) {
+	private async _loadKernelPreloads(extensionLocation: URI, kernel: INotebookKernelInfoDto) {
+		if (kernel.preloads && kernel.preloads.length) {
+			await this._resolveWebview();
 			this._webview?.updateKernelPreloads([extensionLocation], kernel.preloads.map(preload => URI.revive(preload)));
 		}
 	}
@@ -655,34 +669,63 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._notebookExecuting?.set(notebookMetadata.runState === NotebookRunState.Running);
 	}
 
+	private async _resolveWebview(): Promise<BackLayerWebView | null> {
+		if (!this.textModel) {
+			return null;
+		}
+
+		if (this._webviewResolvePromise) {
+			return this._webviewResolvePromise;
+		}
+
+		if (!this._webview) {
+			this._webview = this.instantiationService.createInstance(BackLayerWebView, this, this.getId(), this.textModel!.uri);
+			// attach the webview container to the DOM tree first
+			this._list?.rowsContainer.insertAdjacentElement('afterbegin', this._webview.element);
+		}
+
+		this._webviewResolvePromise = new Promise(async resolve => {
+			await this._webview!.createWebview();
+			this._webview!.webview!.onDidBlur(() => {
+				this._outputFocus?.set(false);
+				this.updateEditorFocus();
+
+				if (this._overlayContainer.contains(document.activeElement)) {
+					this._webiewFocused = false;
+				}
+			});
+			this._webview!.webview!.onDidFocus(() => {
+				this._outputFocus?.set(true);
+				this.updateEditorFocus();
+				this._onDidFocusEmitter.fire();
+
+				if (this._overlayContainer.contains(document.activeElement)) {
+					this._webiewFocused = true;
+				}
+			});
+
+			this._localStore.add(this._webview!.onMessage(({ message, forRenderer }) => {
+				if (this.viewModel) {
+					this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), forRenderer, message);
+				}
+			}));
+
+			if (this.viewModel && this.viewModel!.renderers.size) {
+				this._webview?.updateRendererPreloads(this.viewModel!.renderers);
+			}
+
+			this._webviewResolved = true;
+
+			resolve(this._webview!);
+		});
+
+		return this._webviewResolvePromise;
+	}
+
 	private async _createWebview(id: string, resource: URI): Promise<void> {
 		this._webview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource);
 		// attach the webview container to the DOM tree first
 		this._list?.rowsContainer.insertAdjacentElement('afterbegin', this._webview.element);
-		await this._webview.createWebview();
-		this._webview.webview.onDidBlur(() => {
-			this._outputFocus?.set(false);
-			this.updateEditorFocus();
-
-			if (this._overlayContainer.contains(document.activeElement)) {
-				this._webiewFocused = false;
-			}
-		});
-		this._webview.webview.onDidFocus(() => {
-			this._outputFocus?.set(true);
-			this.updateEditorFocus();
-			this._onDidFocusEmitter.fire();
-
-			if (this._overlayContainer.contains(document.activeElement)) {
-				this._webiewFocused = true;
-			}
-		});
-
-		this._localStore.add(this._webview.onMessage(({ message, forRenderer }) => {
-			if (this.viewModel) {
-				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), forRenderer, message);
-			}
-		}));
 	}
 
 	private async _attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined) {
@@ -716,10 +759,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 		}
 
-		this._webview?.updateRendererPreloads(this.viewModel.renderers);
+		if (this.viewModel.renderers.size) {
+			await this._resolveWebview();
+			this._webview?.updateRendererPreloads(this.viewModel.renderers);
+		}
 
 		this._localStore.add(this._list!.onWillScroll(e => {
-			this._webview!.updateViewScrollTop(-e.scrollTop, []);
+			if (!this._webviewResolved) {
+				return;
+			}
+
+			this._webview?.updateViewScrollTop(-e.scrollTop, []);
 			this._webviewTransparentCover!.style.top = `${e.scrollTop}px`;
 		}));
 
@@ -731,6 +781,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 				const scrollTop = this._list?.scrollTop || 0;
 				const scrollHeight = this._list?.scrollHeight || 0;
+
+				if (!this._webviewResolved) {
+					return;
+				}
+
 				this._webview!.element.style.height = `${scrollHeight}px`;
 
 				if (this._webview?.insetMapping) {
@@ -1355,6 +1410,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
+		await this._resolveWebview();
+
 		let preloads = this._notebookViewModel!.renderers;
 
 		if (!this._webview!.insetMapping.has(output)) {
@@ -1369,7 +1426,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	removeInset(output: IProcessedOutput) {
-		if (!this._webview) {
+		if (!this._webview || !this._webviewResolved) {
 			return;
 		}
 
@@ -1377,7 +1434,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	hideInset(output: IProcessedOutput) {
-		if (!this._webview) {
+		if (!this._webview || !this._webviewResolved) {
 			return;
 		}
 
@@ -1389,10 +1446,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	postMessage(forRendererId: string | undefined, message: any) {
+		if (!this._webview || !this._webviewResolved) {
+			return;
+		}
+
 		if (forRendererId === undefined) {
-			this._webview?.webview.postMessage(message);
+			this._webview.webview?.postMessage(message);
 		} else {
-			this._webview?.postRendererMessage(forRendererId, message);
+			this._webview.postRendererMessage(forRendererId, message);
 		}
 	}
 
