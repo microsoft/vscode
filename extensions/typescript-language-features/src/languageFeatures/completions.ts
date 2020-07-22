@@ -346,7 +346,7 @@ class CompletionAcceptedCommand implements Command {
 			*/
 			this.telemetryReporter.logTelemetry('completions.accept', {
 				// @ts-expect-error - remove after TS 4.0 protocol update
-				isPackageJsonImport: !!item.tsEntry.isPackageJsonImport,
+				isPackageJsonImport: item.tsEntry.isPackageJsonImport ? 'true' : undefined,
 			});
 		}
 	}
