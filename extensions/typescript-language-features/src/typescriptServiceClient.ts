@@ -115,11 +115,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private readonly loadingIndicator = new ServerInitializingIndicator();
 
 	public readonly telemetryReporter: TelemetryReporter;
-
 	public readonly bufferSyncSupport: BufferSyncSupport;
 	public readonly diagnosticsManager: DiagnosticsManager;
-
 	public readonly pluginManager: PluginManager;
+
 	private readonly logDirectoryProvider: ILogDirectoryProvider;
 	private readonly cancellerFactory: OngoingRequestCancellerFactory;
 	private readonly versionProvider: ITypeScriptVersionProvider;

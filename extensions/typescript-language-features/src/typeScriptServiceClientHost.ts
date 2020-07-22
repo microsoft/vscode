@@ -28,6 +28,7 @@ import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescrip
 import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
+import * as ProjectStatus from './utils/largeProjectStatus';
 
 namespace Experimental {
 	export interface Diagnostic extends Proto.Diagnostic {
@@ -95,6 +96,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this._register(new VersionStatus(this.client, services.commandManager));
 		this._register(new AtaProgressReporter(this.client));
 		this.typingsStatus = this._register(new TypingsStatus(this.client));
+		this._register(ProjectStatus.create(this.client));
+
 		this.fileConfigurationManager = this._register(new FileConfigurationManager(this.client, onCaseInsenitiveFileSystem));
 
 		for (const description of descriptions) {

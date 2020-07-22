@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { CommandManager } from './commands/commandManager';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { flatten } from './utils/arrays';
-import { CommandManager } from './commands/commandManager';
 import { standardLanguageDescriptions } from './utils/languageDescription';
-import * as ProjectStatus from './utils/largeProjectStatus';
 import { lazy, Lazy } from './utils/lazy';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { PluginManager } from './utils/plugins';
@@ -39,13 +38,6 @@ export function createLazyClientHost(
 			onCompletionAccepted);
 
 		context.subscriptions.push(clientHost);
-
-		clientHost.serviceClient.onReady(() => {
-			context.subscriptions.push(
-				ProjectStatus.create(
-					clientHost.serviceClient,
-					clientHost.serviceClient.telemetryReporter));
-		});
 
 		return clientHost;
 	});
