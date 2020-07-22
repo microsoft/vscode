@@ -6,9 +6,8 @@
 import * as rimraf from 'rimraf';
 import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
-import { registerCommands } from './commands/index';
+import { registerBaseCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
-import * as task from './features/task';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
@@ -32,16 +31,19 @@ export function activate(
 	context.subscriptions.push(onCompletionAccepted);
 
 	const logDirectoryProvider = new NodeLogDirectoryProvider(context);
-
 	const versionProvider = new DiskTypeScriptVersionProvider();
+
+	context.subscriptions.push(new LanguageConfigurationManager());
 
 	const lazyClientHost = createLazyClientHost(context, onCaseInsenitiveFileSystem(), pluginManager, commandManager, logDirectoryProvider, nodeRequestCancellerFactory, versionProvider, ChildServerProcess, item => {
 		onCompletionAccepted.fire(item);
 	});
 
-	registerCommands(commandManager, lazyClientHost, pluginManager);
-	context.subscriptions.push(task.register(lazyClientHost.map(x => x.serviceClient)));
-	context.subscriptions.push(new LanguageConfigurationManager());
+	registerBaseCommands(commandManager, lazyClientHost, pluginManager);
+
+	import('./features/task').then(module => {
+		context.subscriptions.push(module.register(lazyClientHost.map(x => x.serviceClient)));
+	});
 
 	import('./features/tsconfig').then(module => {
 		context.subscriptions.push(module.register());

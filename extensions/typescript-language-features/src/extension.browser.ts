@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
-import { registerCommands } from './commands/index';
+import { registerBaseCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { noopRequestCancellerFactory } from './tsServer/cancellation';
@@ -44,6 +44,8 @@ export function activate(
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
 
+	context.subscriptions.push(new LanguageConfigurationManager());
+
 	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
 	context.subscriptions.push(onCompletionAccepted);
 
@@ -57,9 +59,9 @@ export function activate(
 		onCompletionAccepted.fire(item);
 	});
 
-	registerCommands(commandManager, lazyClientHost, pluginManager);
+	registerBaseCommands(commandManager, lazyClientHost, pluginManager);
+
 	// context.subscriptions.push(task.register(lazyClientHost.map(x => x.serviceClient)));
-	context.subscriptions.push(new LanguageConfigurationManager());
 
 	import('./features/tsconfig').then(module => {
 		context.subscriptions.push(module.register());
