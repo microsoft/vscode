@@ -699,7 +699,7 @@
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
 	visibility: visible;
-	padding: 8px 0 0 10px;
+	padding: 10px 0 0 10px;
 }
 
 /** Theming */
