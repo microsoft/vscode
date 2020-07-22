@@ -141,22 +141,6 @@ export class ToolBar extends Disposable {
 		return withNullAsUndefined(key?.getLabel());
 	}
 
-	addPrimaryAction(primaryAction: IAction): () => void {
-		return () => {
-
-			// Add after the "..." action if we have secondary actions
-			if (this.hasSecondaryActions) {
-				let itemCount = this.actionBar.length();
-				this.actionBar.push(primaryAction, { icon: true, label: false, index: itemCount, keybinding: this.getKeybindingLabel(primaryAction) });
-			}
-
-			// Otherwise just add to the end
-			else {
-				this.actionBar.push(primaryAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(primaryAction) });
-			}
-		};
-	}
-
 	private clear(): void {
 		for (const disposable of this.dropdownMenuDisposables) {
 			disposable.dispose();
