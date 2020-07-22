@@ -21,7 +21,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 
-export class StatefullMarkdownCell extends Disposable {
+export class StatefulMarkdownCell extends Disposable {
 
 	private editor: CodeEditorWidget | null = null;
 	private markdownContainer: HTMLElement;
