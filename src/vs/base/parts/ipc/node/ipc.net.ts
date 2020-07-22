@@ -77,6 +77,28 @@ export class NodeSocket implements ISocket {
 	public end(): void {
 		this.socket.end();
 	}
+
+	public drain(): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			if (this.socket.bufferSize === 0) {
+				resolve();
+				return;
+			}
+			const finished = () => {
+				this.socket.off('close', finished);
+				this.socket.off('end', finished);
+				this.socket.off('error', finished);
+				this.socket.off('timeout', finished);
+				this.socket.off('drain', finished);
+				resolve();
+			};
+			this.socket.on('close', finished);
+			this.socket.on('end', finished);
+			this.socket.on('error', finished);
+			this.socket.on('timeout', finished);
+			this.socket.on('drain', finished);
+		});
+	}
 }
 
 const enum Constants {
@@ -242,6 +264,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				this._onData.fire(body);
 			}
 		}
+	}
+
+	public drain(): Promise<void> {
+		return this.socket.drain();
 	}
 }
 

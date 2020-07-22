@@ -557,7 +557,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					}
 
 					// after tests have run, we shutdown the host
-					this._gracefulExit(error || (typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
+					this._testRunnerExit(error || (typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
 				};
 
 				const runResult = testRunner!.run(extensionTestsPath, oldTestRunnerCallback);
@@ -567,11 +567,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					runResult
 						.then(() => {
 							c();
-							this._gracefulExit(0);
+							this._testRunnerExit(0);
 						})
 						.catch((err: Error) => {
 							e(err.toString());
-							this._gracefulExit(1);
+							this._testRunnerExit(1);
 						});
 				}
 			});
@@ -579,24 +579,20 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		// Otherwise make sure to shutdown anyway even in case of an error
 		else {
-			this._gracefulExit(1 /* ERROR */);
+			this._testRunnerExit(1 /* ERROR */);
 		}
 
 		return Promise.reject(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsPath)));
 	}
 
-	private _gracefulExit(code: number): void {
-		// to give the PH process a chance to flush any outstanding console
-		// messages to the main process, we delay the exit() by some time
-		setTimeout(() => {
-			// If extension tests are running, give the exit code to the renderer
-			if (this._initData.remote.isRemote && !!this._initData.environment.extensionTestsLocationURI) {
-				this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
-				return;
-			}
-
+	private _testRunnerExit(code: number): void {
+		// wait at most 5000ms for the renderer to confirm our exit request and for the renderer socket to drain
+		// (this is to ensure all outstanding messages reach the renderer)
+		const exitPromise = this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
+		const drainPromise = this._extHostContext.drain();
+		Promise.race([Promise.all([exitPromise, drainPromise]), timeout(5000)]).then(() => {
 			this._hostUtils.exit(code);
-		}, 500);
+		});
 	}
 
 	private _startExtensionHost(): Promise<void> {
