@@ -24,12 +24,12 @@ class MementoKeyValueStorage implements IKeyValueStorage {
 	constructor(private mementoObj: MementoObject) { }
 
 	async getValue<T>(key: string, defaultValue?: T | undefined): Promise<T | undefined> {
-		const value = await this.mementoObj.get(key);
+		const value = await this.mementoObj[key];
 		return value || defaultValue;
 	}
 
 	setValue<T>(key: string, value: T): void {
-		this.mementoObj.update(key, value);
+		this.mementoObj[key] = value;
 	}
 }
 
@@ -194,5 +194,5 @@ export class ExperimentService implements ITASExperimentService {
 	}
 }
 
-registerSingleton(ITASExperimentService, ExperimentService, true);
+registerSingleton(ITASExperimentService, ExperimentService, false);
 
