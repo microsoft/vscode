@@ -14,7 +14,7 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer, IDebugAdapterNamedPipeServer } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { AbstractDebugAdapter } from '../common/abstractDebugAdapter';
 
@@ -106,6 +106,51 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 		return new Promise<void>((resolve, reject) => {
 			let connected = false;
 			this.socket = net.createConnection(this.adapterServer.port, this.adapterServer.host || '127.0.0.1', () => {
+				this.connect(this.socket!, this.socket!);
+				resolve();
+				connected = true;
+			});
+			this.socket.on('close', () => {
+				if (connected) {
+					this._onError.fire(new Error('connection closed'));
+				} else {
+					reject(new Error('connection closed'));
+				}
+			});
+			this.socket.on('error', error => {
+				if (connected) {
+					this._onError.fire(error);
+				} else {
+					reject(error);
+				}
+			});
+		});
+	}
+
+	async stopSession(): Promise<void> {
+		await this.cancelPendingRequests();
+		if (this.socket) {
+			this.socket.end();
+			this.socket = undefined;
+		}
+	}
+}
+
+/**
+ * An implementation that connects to a debug adapter via a NamedPipe (on Windows)/UNIX Domain Socket (on non-Windows).
+ */
+export class NamedPipeDebugAdapter extends StreamDebugAdapter {
+
+	private socket?: net.Socket;
+
+	constructor(private adapterServer: IDebugAdapterNamedPipeServer) {
+		super();
+	}
+
+	startSession(): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			let connected = false;
+			this.socket = net.createConnection(this.adapterServer.path, () => {
 				this.connect(this.socket!, this.socket!);
 				resolve();
 				connected = true;
