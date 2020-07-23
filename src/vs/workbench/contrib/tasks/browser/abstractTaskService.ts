@@ -844,7 +844,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask2', 'No build task defined. Mark a task with as a \'build\' group in the tasks.json file.'), TaskErrors.NoBuildTask);
 				}
 			}
-			return this.executeTask(runnable.task, runnable.resolver);
+			return this.executeTask(runnable.task, runnable.resolver, TaskRunSource.User);
 		}).then(value => value, (error) => {
 			this.handleError(error);
 			return Promise.reject(error);
@@ -861,7 +861,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					throw new TaskError(Severity.Info, nls.localize('TaskService.noTestTask2', 'No test task defined. Mark a task with as a \'test\' group in the tasks.json file.'), TaskErrors.NoTestTask);
 				}
 			}
-			return this.executeTask(runnable.task, runnable.resolver);
+			return this.executeTask(runnable.task, runnable.resolver, TaskRunSource.User);
 		}).then(value => value, (error) => {
 			this.handleError(error);
 			return Promise.reject(error);
@@ -878,7 +878,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(task) && !InMemoryTask.is(task)) {
 				const toExecute = await this.attachProblemMatcher(task);
 				if (toExecute) {
-					resolve(this.executeTask(toExecute, resolver));
+					resolve(this.executeTask(toExecute, resolver, runSource));
 				} else {
 					resolve(undefined);
 				}
@@ -1452,7 +1452,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		};
 	}
 
-	private executeTask(task: Task, resolver: ITaskResolver, runSource?: TaskRunSource): Promise<ITaskSummary> {
+	private executeTask(task: Task, resolver: ITaskResolver, runSource: TaskRunSource): Promise<ITaskSummary> {
 		enum SaveBeforeRunConfigOptions {
 			Always = 'always',
 			Never = 'never',
