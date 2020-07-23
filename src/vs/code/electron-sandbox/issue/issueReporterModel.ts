@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assign } from 'vs/base/common/objects';
 import { IssueType, ISettingSearchResult, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
 import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 
@@ -49,7 +48,7 @@ export class IssueReporterModel {
 			allExtensions: []
 		};
 
-		this._data = initialData ? assign(defaultData, initialData) : defaultData;
+		this._data = initialData ? Object.assign(defaultData, initialData) : defaultData;
 	}
 
 	getData(): IssueReporterData {
@@ -57,7 +56,7 @@ export class IssueReporterModel {
 	}
 
 	update(newData: Partial<IssueReporterData>): void {
-		assign(this._data, newData);
+		Object.assign(this._data, newData);
 	}
 
 	serialize(): string {

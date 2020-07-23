@@ -5,9 +5,8 @@
 
 import 'vs/css!./media/issueReporter';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import * as os from 'os';
 import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import { $, windowOpenNoOpener, addClass } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -17,29 +16,15 @@ import { debounce } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
-import { getDelayedChannel, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
-import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
-import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
-import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
+import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-sandbox/issue/issueReporterModel';
+import BaseHtml from 'vs/code/electron-sandbox/issue/issueReporterPage';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
-import { getLogLevel, ILogService } from 'vs/platform/log/common/log';
-import { FollowerLogService, LoggerChannelClient } from 'vs/platform/log/common/logIpc';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
-import product from 'vs/platform/product/common/product';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { combinedAppender, LogAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
-import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -49,9 +34,23 @@ interface SearchResult {
 	state?: string;
 }
 
-export interface IssueReporterConfiguration extends INativeWindowConfiguration {
+export interface IssueReporterConfiguration extends IWindowConfiguration {
+	windowId: number;
+	disableExtensions: boolean;
 	data: IssueReporterData;
 	features: IssueReporterFeatures;
+	os: {
+		type: string;
+		arch: string;
+		release: string;
+	},
+	product: {
+		nameShort: string;
+		version: string;
+		commit: string | undefined;
+		date: string | undefined;
+		reportIssueUrl: string | undefined;
+	}
 }
 
 export function startup(configuration: IssueReporterConfiguration) {
@@ -66,10 +65,7 @@ export function startup(configuration: IssueReporterConfiguration) {
 }
 
 export class IssueReporter extends Disposable {
-	private environmentService!: INativeEnvironmentService;
 	private electronService!: IElectronService;
-	private telemetryService!: ITelemetryService;
-	private logService!: ILogService;
 	private readonly issueReporterModel: IssueReporterModel;
 	private numberOfSearchResultsDisplayed = 0;
 	private receivedSystemInfo = false;
@@ -79,7 +75,7 @@ export class IssueReporter extends Disposable {
 
 	private readonly previewButton!: Button;
 
-	constructor(configuration: IssueReporterConfiguration) {
+	constructor(private readonly configuration: IssueReporterConfiguration) {
 		super();
 
 		this.initServices(configuration);
@@ -90,10 +86,10 @@ export class IssueReporter extends Disposable {
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
-				vscodeVersion: `${product.nameShort} ${product.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
-				os: `${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
+				vscodeVersion: `${configuration.product.nameShort} ${configuration.product.version} (${configuration.product.commit || 'Commit unknown'}, ${configuration.product.date || 'Date unknown'})`,
+				os: `${this.configuration.os.type} ${this.configuration.os.arch} ${this.configuration.os.release}${isSnap ? ' snap' : ''}`
 			},
-			extensionsDisabled: !!this.environmentService.disableExtensions,
+			extensionsDisabled: !!configuration.disableExtensions,
 			fileOnExtension: configuration.data.extensionId ? !targetExtension?.isBuiltin : undefined,
 			selectedExtension: targetExtension,
 		});
@@ -121,7 +117,6 @@ export class IssueReporter extends Disposable {
 		}
 
 		ipcRenderer.on('vscode:issuePerformanceInfoResponse', (_: unknown, info: Partial<IssueReporterData>) => {
-			this.logService.trace('issueReporter: Received performance data');
 			this.issueReporterModel.update(info);
 			this.receivedPerformanceInfo = true;
 
@@ -132,7 +127,6 @@ export class IssueReporter extends Disposable {
 		});
 
 		ipcRenderer.on('vscode:issueSystemInfoResponse', (_: unknown, info: SystemInfo) => {
-			this.logService.trace('issueReporter: Received system data');
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
 
@@ -144,7 +138,6 @@ export class IssueReporter extends Disposable {
 		if (configuration.data.issueType === IssueType.PerformanceIssue) {
 			ipcRenderer.send('vscode:issuePerformanceInfoRequest');
 		}
-		this.logService.trace('issueReporter: Sent data requests');
 
 		if (window.document.documentElement.lang !== 'en') {
 			show(this.getElementById('english'));
@@ -266,7 +259,7 @@ export class IssueReporter extends Disposable {
 		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes, allExtensions: installedExtensions });
 		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
 
-		if (this.environmentService.disableExtensions || installedExtensions.length === 0) {
+		if (this.configuration.disableExtensions || installedExtensions.length === 0) {
 			(<HTMLButtonElement>this.getElementById('disableExtensions')).disabled = true;
 		}
 
@@ -314,40 +307,13 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
-	private initServices(configuration: INativeWindowConfiguration): void {
+	private initServices(configuration: IssueReporterConfiguration): void {
 		const serviceCollection = new ServiceCollection();
 		const mainProcessService = new MainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		this.electronService = new ElectronService(configuration.windowId, mainProcessService) as IElectronService;
 		serviceCollection.set(IElectronService, this.electronService);
-
-		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
-
-		const logService = new SpdLogService(`issuereporter${configuration.windowId}`, this.environmentService.logsPath, getLogLevel(this.environmentService));
-		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));
-		this.logService = new FollowerLogService(loggerClient, logService);
-
-		const sharedProcessService = createChannelSender<ISharedProcessService>(mainProcessService.getChannel('sharedProcess'));
-
-		const sharedProcess = sharedProcessService.whenSharedProcessReady()
-			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${configuration.windowId}`));
-
-		const instantiationService = new InstantiationService(serviceCollection, true);
-		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
-			const channel = getDelayedChannel(sharedProcess.then(c => c.getChannel('telemetryAppender')));
-			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService));
-			const commonProperties = resolveCommonProperties(product.commit || 'Commit unknown', product.version, configuration.machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
-			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
-			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, sendErrorTelemetry: true };
-
-			const telemetryService = instantiationService.createInstance(TelemetryService, config);
-			this._register(telemetryService);
-
-			this.telemetryService = telemetryService;
-		} else {
-			this.telemetryService = NullTelemetryService;
-		}
 	}
 
 	private setEventHandlers(): void {
@@ -617,11 +583,11 @@ export class IssueReporter extends Disposable {
 						}, timeToWait * 1000);
 					}
 				}
-			}).catch(e => {
-				this.logSearchError(e);
+			}).catch(_ => {
+				// Ignore
 			});
-		}).catch(e => {
-			this.logSearchError(e);
+		}).catch(_ => {
+			// Ignore
 		});
 	}
 
@@ -648,11 +614,11 @@ export class IssueReporter extends Disposable {
 				} else {
 					throw new Error('Unexpected response, no candidates property');
 				}
-			}).catch((error) => {
-				this.logSearchError(error);
+			}).catch(_ => {
+				// Ignore
 			});
-		}).catch((error) => {
-			this.logSearchError(error);
+		}).catch(_ => {
+			// Ignore
 		});
 	}
 
@@ -703,18 +669,6 @@ export class IssueReporter extends Disposable {
 			message.textContent = localize('noSimilarIssues', "No similar issues found");
 			similarIssues.appendChild(message);
 		}
-	}
-
-	private logSearchError(error: Error) {
-		this.logService.warn('issueReporter#search ', error.message);
-		type IssueReporterSearchErrorClassification = {
-			message: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' }
-		};
-
-		type IssueReporterSearchError = {
-			message: string;
-		};
-		this.telemetryService.publicLogError2<IssueReporterSearchError, IssueReporterSearchErrorClassification>('issueReporterSearchError', { message: error.message });
 	}
 
 	private setUpTypes(): void {
@@ -910,15 +864,6 @@ export class IssueReporter extends Disposable {
 			return false;
 		}
 
-		type IssueReporterSubmitClassification = {
-			issueType: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			numSimilarIssuesDisplayed: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-		};
-		type IssueReporterSubmitEvent = {
-			issueType: any;
-			numSimilarIssuesDisplayed: number;
-		};
-		this.telemetryService.publicLog2<IssueReporterSubmitEvent, IssueReporterSubmitClassification>('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
 		this.hasBeenSubmitted = true;
 
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value);
@@ -967,7 +912,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private getIssueUrlWithTitle(issueTitle: string): string {
-		let repositoryUrl = product.reportIssueUrl;
+		let repositoryUrl = this.configuration.product.reportIssueUrl;
 		if (this.issueReporterModel.fileOnExtension()) {
 			const extensionGitHubUrl = this.getExtensionGitHubUrl();
 			if (extensionGitHubUrl) {
@@ -975,7 +920,7 @@ export class IssueReporter extends Disposable {
 			}
 		}
 
-		const queryStringPrefix = product.reportIssueUrl && product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
+		const queryStringPrefix = this.configuration.product.reportIssueUrl && this.configuration.product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
 		return `${repositoryUrl}${queryStringPrefix}title=${encodeURIComponent(issueTitle)}`;
 	}
 
@@ -1136,7 +1081,7 @@ export class IssueReporter extends Disposable {
 	private updateExtensionTable(extensions: IssueReporterExtensionData[], numThemeExtensions: number): void {
 		const target = document.querySelector('.block-extensions .block-info');
 		if (target) {
-			if (this.environmentService.disableExtensions) {
+			if (this.configuration.disableExtensions) {
 				target.innerHTML = localize('disabledExtensions', "Extensions are disabled");
 				return;
 			}
@@ -1193,7 +1138,6 @@ export class IssueReporter extends Disposable {
 		// Exclude right click
 		if (event.which < 3) {
 			windowOpenNoOpener((<HTMLAnchorElement>event.target).href);
-			this.telemetryService.publicLog2('issueReporterViewSimilarIssue');
 		}
 	}
 
