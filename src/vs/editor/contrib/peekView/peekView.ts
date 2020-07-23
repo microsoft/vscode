@@ -26,8 +26,8 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerColor, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Codicon } from 'vs/base/common/codicons';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
 export interface IPeekViewService {
@@ -205,7 +205,15 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	protected _getActionBarOptions(): IActionBarOptions {
 		return {
-			actionViewItemProvider: action => action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action) : undefined
+			actionViewItemProvider: action => {
+				if (action instanceof MenuItemAction) {
+					return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+				} else if (action instanceof SubmenuItemAction) {
+					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
+				}
+
+				return undefined;
+			}
 		};
 	}
 
