@@ -124,7 +124,7 @@ async function getDefaultExtensionInfos() {
 
 	let extensionArg = args['extension'];
 	if (!extensionArg) {
-		return { extensions, locations }
+		return { extensions, locations };
 	}
 
 	const extensionPaths = Array.isArray(extensionArg) ? extensionArg : [extensionArg];
@@ -164,7 +164,6 @@ async function getExtensionPackageJSON(extensionPath) {
 					fancyLog(`${ansiColors.yellow('Warning')}: Could not find ${mainFilePath}. Use ${ansiColors.cyan('yarn gulp watch-web')} to build the built-in extensions.`);
 				}
 			}
-			packageJSON.extensionKind = ['web']; // enable for Web
 
 			const packageNLSPath = path.join(extensionPath, 'package.nls.json');
 			const packageNLSExists = await exists(packageNLSPath);
