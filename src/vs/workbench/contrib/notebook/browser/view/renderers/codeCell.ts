@@ -249,6 +249,14 @@ export class CodeCell extends Disposable {
 			}
 		});
 
+		this._register(templateData.editor!.onMouseDown(e => {
+			// prevent default on right mouse click, otherwise it will trigger unexpected focus changes
+			// the catch is, it means we don't allow customization of right button mouse down handlers other than the built in ones.
+			if (e.event.rightButton) {
+				e.event.preventDefault();
+			}
+		}));
+
 		const updateFocusMode = () => viewCell.focusMode = templateData.editor!.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
 		this._register(templateData.editor!.onDidFocusEditorWidget(() => {
 			updateFocusMode();
