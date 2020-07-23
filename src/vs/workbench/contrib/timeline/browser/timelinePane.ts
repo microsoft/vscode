@@ -37,8 +37,8 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { MenuEntryActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuEntryActionViewItem, createAndFillInContextMenuActions, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
@@ -1093,9 +1093,15 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
-		this.actionViewItemProvider = (action: IAction) => action instanceof MenuItemAction
-			? this.instantiationService.createInstance(MenuEntryActionViewItem, action)
-			: undefined;
+		this.actionViewItemProvider = (action: IAction) => {
+			if (action instanceof MenuItemAction) {
+				return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+			} else if (action instanceof SubmenuItemAction) {
+				return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
+			}
+
+			return undefined;
+		};
 	}
 
 	private uri: URI | undefined;
@@ -1240,7 +1246,6 @@ class TimelinePaneCommands extends Disposable {
 		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 		menu.dispose();
-		scoped.dispose();
 
 		return result;
 	}

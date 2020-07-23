@@ -28,8 +28,7 @@ import { ToggleReactionsAction, ReactionAction, ReactionActionViewItem } from '.
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { MenuItemAction, SubmenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
@@ -80,7 +79,6 @@ export class CommentNode extends Disposable {
 		@ICommentService private commentService: ICommentService,
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@INotificationService private notificationService: INotificationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
@@ -221,8 +219,9 @@ export class CommentNode extends Disposable {
 			let item = new ReactionActionViewItem(action);
 			return item;
 		} else if (action instanceof MenuItemAction) {
-			let item = new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
-			return item;
+			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+		} else if (action instanceof SubmenuItemAction) {
+			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
 		} else {
 			let item = new ActionViewItem({}, action, options);
 			return item;
