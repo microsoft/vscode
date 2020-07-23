@@ -12,8 +12,3 @@
 	bottom: -15px;
 	z-index: 20;
 }
-
-.monaco-resizable-element {
-	min-width: 100px;
-	min-height: 50px;
-}

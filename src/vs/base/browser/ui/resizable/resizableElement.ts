@@ -7,30 +7,32 @@ import 'vs/css!./media/resizer';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { ResizeEvent, Resizer } from 'vs/base/browser/ui/resizable/resizer';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IDimension } from 'vs/base/browser/dom';
 
 export class ResizableElement extends Widget {
 	private readonly _domNode: HTMLElement;
 	private readonly _element: HTMLElement;
 	private readonly _resizer: Resizer;
-	private _initialWidth: number;
-	private _currentWidth: number;
-	private _initialHeight: number;
-	private _currentHeight: number;
+	private _currentDimensions: IDimension;
+	private _initialDimensions: IDimension;
 	private _isResizing: boolean;
-
-	private _savedWidth?: number;
-	private _savedHeight?: number;
 
 	private _onResize = this._register(new Emitter<void>());
 	public readonly onResize: Event<void> = this._onResize.event;
+	private _onResizeEnd = this._register(new Emitter<IDimension>());
+	public readonly onResizeEnd: Event<IDimension> = this._onResizeEnd.event;
 
 	constructor(element: HTMLElement) {
 		super();
 		this._resizer = new Resizer();
-		this._initialWidth = 0;
-		this._currentWidth = 0;
-		this._initialHeight = 0;
-		this._currentHeight = 0;
+		this._currentDimensions = {
+			width: 0,
+			height: 0
+		};
+		this._initialDimensions = {
+			width: 0,
+			height: 0
+		};
 		this._isResizing = false;
 		this._element = element;
 
@@ -39,9 +41,9 @@ export class ResizableElement extends Widget {
 		this._domNode.appendChild(this._element);
 		this._domNode.appendChild(this._resizer.domNode.domNode);
 
-		this._register(this._resizer.onResizeStart(() => this._onResizeStart()));
-		this._register(this._resizer.onResize((e) => this._onResizeGoing(e)));
-		this._register(this._resizer.onResizeEnd(() => this._onResizeEnd()));
+		this._register(this._resizer.onResizeStart(() => this._handleResizeStart()));
+		this._register(this._resizer.onResize((e) => this._handleResize(e)));
+		this._register(this._resizer.onResizeEnd(() => this._handleResizeEnd()));
 	}
 
 	public get isResizing() {
@@ -52,43 +54,42 @@ export class ResizableElement extends Widget {
 		return this._domNode;
 	}
 
-	private _onResizeStart() {
-		this._initialWidth = this._domNode.clientWidth;
-		this._initialHeight = this._domNode.clientHeight;
+	private _handleResizeStart() {
+		this._initialDimensions = {
+			width: this._domNode.clientWidth,
+			height: this._domNode.clientHeight
+		};
 		this._isResizing = true;
 	}
 
-	private _onResizeGoing(e: ResizeEvent) {
+	private _handleResize(e: ResizeEvent) {
 		if (e.widthChange === 0 && e.heightChange === 0) {
 			return;
 		}
 		this._element.style.removeProperty('maxHeight');
 		this._element.style.removeProperty('maxWidth');
-		this._currentWidth = this._initialWidth + e.widthChange;
-		this._currentHeight = this._initialHeight + e.heightChange;
-		this._domNode.style.width = `${this._currentWidth}px`;
-		this._domNode.style.height = `${this._currentHeight}px`;
+		const { width, height } = this._initialDimensions;
+		this._currentDimensions = {
+			width: width + e.widthChange,
+			height: height + e.heightChange
+		};
+		this.setDimensions(this._currentDimensions);
 		this._onResize.fire();
 	}
 
-	private _onResizeEnd() {
+	private _handleResizeEnd() {
 		this._isResizing = false;
+		this._onResizeEnd.fire(this._currentDimensions);
+	}
+
+	public setDimensions(dimensions: IDimension) {
+		const { width, height } = dimensions;
+		this._domNode.style.width = `${width}px`;
+		this._domNode.style.height = `${height}px`;
 	}
 
 	public clearResize() {
 		this._domNode.style.removeProperty('width');
 		this._domNode.style.removeProperty('height');
-	}
-
-	public saveResize() {
-		this._savedWidth = this._currentWidth;
-		this._savedHeight = this._currentHeight;
-	}
-
-	public restoreResize() {
-		if (this._savedWidth && this._savedHeight) {
-			this._domNode.style.width = `${this._savedWidth}px`;
-			this._domNode.style.height = `${this._savedHeight}px`;
-		}
 	}
 }

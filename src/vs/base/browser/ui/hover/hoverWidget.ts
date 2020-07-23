@@ -31,6 +31,7 @@ export class HoverWidget extends Disposable {
 
 		this.resizable = this._register(new ResizableElement(this.contentsDomNode));
 		this._register(this.resizable.onResize(() => this.onContentsChanged()));
+		this._register(this.resizable.onResizeEnd(() => this.onContentsChanged()));
 		this._scrollbar = this._register(new DomScrollableElement(this.resizable.getDomNode(), {
 			consumeMouseWheelIfScrollbarIsNeeded: true
 		}));

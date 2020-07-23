@@ -31,6 +31,7 @@ import { MarkerHover, MarkerHoverParticipant } from 'vs/editor/contrib/hover/mar
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
 import { Event, Emitter } from 'vs/base/common/event';
+import { ResizableElement } from 'vs/base/browser/ui/resizable/resizableElement';
 
 export interface IHoverPart {
 	readonly range: Range;
@@ -320,8 +321,8 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		}));
 	}
 
-	get isResizing(): boolean {
-		return this._hover.resizable.isResizing;
+	get resizable(): ResizableElement {
+		return this._hover.resizable;
 	}
 
 	public dispose(): void {
@@ -449,9 +450,6 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		this._lastRange = range;
 		this._lastKeyModifiers = keyModifiers;
 		this._sticky = !!sticky;
-		if (this._sticky) {
-			this._hover.resizable.restoreResize();
-		}
 		this._computer.setRange(range);
 		this._computer.setContext({
 			keyModifiers: keyModifiers,
@@ -464,12 +462,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	public hide(): void {
 		this._lastRange = null;
 		this._hoverOperation.cancel();
-
 		if (this._isVisible) {
-			if (this._sticky) {
-				this._hover.resizable.saveResize();
-			}
-
 			setTimeout(() => {
 				// Give commands a chance to see the key
 				if (!this._isVisible) {
