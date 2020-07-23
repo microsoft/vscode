@@ -16,8 +16,6 @@ import { EventMultiplexer } from 'vs/base/common/event';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 
-export const CONTEXT = 'context.toolbar';
-
 const toolBarMoreIcon = registerIcon('toolbar-more', Codicon.more);
 
 export interface IToolBarOptions {
