@@ -24,7 +24,7 @@ import {
 	ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
 	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction, SearchCategoryAction, RecentlyPublishedExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ShowDisabledExtensionsAction, ShowEnabledExtensionsAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInFeatureExtensionsView, BuiltInThemesExtensionsView, BuiltInProgrammingLanguageExtensionsView, ServerExtensionsView, DefaultRecommendedExtensionsView, OutdatedExtensionsView, InstalledExtensionsView, SearchBuiltInExtensionsView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
@@ -347,6 +347,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IThemeService themeService: IThemeService,
@@ -505,20 +506,26 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === 'workbench.extensions.action.filterExtensions') {
-			return new DropdownMenuActionViewItem(action,
-				[
+			const filterActions: IAction[] = [];
+
+			// Local extensions filters
+			filterActions.push(...[
+				this.instantiationService.createInstance(ShowBuiltInExtensionsAction, ShowBuiltInExtensionsAction.ID, localize('builtin filter', "Built-in")),
+				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, localize('installed filter', "Installed")),
+				this.instantiationService.createInstance(ShowEnabledExtensionsAction, ShowEnabledExtensionsAction.ID, localize('enabled filter', "Enabled")),
+				this.instantiationService.createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, localize('disabled filter', "Disabled")),
+				this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, localize('outdated filter', "Outdated")),
+			]);
+
+			if (this.extensionGalleryService.isEnabled()) {
+				filterActions.splice(0, 0, ...[
 					this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, localize('most popular filter', "Most Popular")),
 					this.instantiationService.createInstance(RecentlyPublishedExtensionsAction, RecentlyPublishedExtensionsAction.ID, localize('recently published filter', "Recently Published")),
 					this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('recomended filter', "Recommended")),
 					new ContextSubMenu(localize('filter by category', "Category"), EXTENSION_CATEGORIES.map(category => this.instantiationService.createInstance(SearchCategoryAction, `extensions.actions.searchByCategory.${category}`, category, category))),
-
 					new Separator(),
-					this.instantiationService.createInstance(ShowBuiltInExtensionsAction, ShowBuiltInExtensionsAction.ID, localize('builtin filter', "Built-in")),
-					this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, localize('installed filter', "Installed")),
-					this.instantiationService.createInstance(ShowEnabledExtensionsAction, ShowEnabledExtensionsAction.ID, localize('enabled filter', "Enabled")),
-					this.instantiationService.createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, localize('disabled filter', "Disabled")),
-					this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, localize('outdated filter', "Outdated")),
-
+				]);
+				filterActions.push(...[
 					new Separator(),
 					new ContextSubMenu(localize('sorty by', "Sort By"), [
 						this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Install Count"), this.onSearchChange, 'installs'),
@@ -526,7 +533,10 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 						this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.name', localize('sort by name', "Name"), this.onSearchChange, 'name'),
 						this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.publishedDate', localize('sort by date', "Published Date"), this.onSearchChange, 'publishedDate'),
 					]),
-				],
+				]);
+			}
+
+			return new DropdownMenuActionViewItem(action, filterActions,
 				this.contextMenuService, undefined, undefined, undefined, 'codicon-filter', undefined, true);
 		}
 		return super.getActionViewItem(action);
