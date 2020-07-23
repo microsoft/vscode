@@ -14,6 +14,158 @@ import { MenuId, MenuRegistry, ILocalizedString, IMenuItem, ICommandAction, ISub
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { Iterable } from 'vs/base/common/iterator';
+import { index } from 'vs/base/common/arrays';
+
+interface IAPIMenu {
+	readonly key: string;
+	readonly id: MenuId;
+	readonly description: string;
+	readonly proposed?: boolean; // defaults to false
+	readonly supportsSubmenus?: boolean; // defaults to true
+}
+
+const apiMenus: IAPIMenu[] = [
+	{
+		key: 'commandPalette',
+		id: MenuId.CommandPalette,
+		description: localize('menus.commandPalette', "The Command Palette"),
+		supportsSubmenus: false
+	},
+	{
+		key: 'touchBar',
+		id: MenuId.TouchBarContext,
+		description: localize('menus.touchBar', "The touch bar (macOS only)"),
+		supportsSubmenus: false
+	},
+	{
+		key: 'editor/title',
+		id: MenuId.EditorTitle,
+		description: localize('menus.editorTitle', "The editor title menu")
+	},
+	{
+		key: 'editor/context',
+		id: MenuId.EditorContext,
+		description: localize('menus.editorContext', "The editor context menu")
+	},
+	{
+		key: 'explorer/context',
+		id: MenuId.ExplorerContext,
+		description: localize('menus.explorerContext', "The file explorer context menu")
+	},
+	{
+		key: 'editor/title/context',
+		id: MenuId.EditorTitleContext,
+		description: localize('menus.editorTabContext', "The editor tabs context menu")
+	},
+	{
+		key: 'debug/callstack/context',
+		id: MenuId.DebugCallStackContext,
+		description: localize('menus.debugCallstackContext', "The debug callstack context menu")
+	},
+	{
+		key: 'debug/toolBar',
+		id: MenuId.DebugToolBar,
+		description: localize('menus.debugToolBar', "The debug toolbar menu")
+	},
+	{
+		key: 'menuBar/webNavigation',
+		id: MenuId.MenubarWebNavigationMenu,
+		description: localize('menus.webNavigation', "The top level navigational menu (web only)"),
+		proposed: true,
+		supportsSubmenus: false
+	},
+	{
+		key: 'scm/title',
+		id: MenuId.SCMTitle,
+		description: localize('menus.scmTitle', "The Source Control title menu")
+	},
+	{
+		key: 'scm/sourceControl',
+		id: MenuId.SCMSourceControl,
+		description: localize('menus.scmSourceControl', "The Source Control menu")
+	},
+	{
+		key: 'scm/resourceState/context',
+		id: MenuId.SCMResourceContext,
+		description: localize('menus.resourceGroupContext', "The Source Control resource group context menu")
+	},
+	{
+		key: 'scm/resourceFolder/context',
+		id: MenuId.SCMResourceFolderContext,
+		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
+	},
+	{
+		key: 'scm/resourceGroup/context',
+		id: MenuId.SCMResourceGroupContext,
+		description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu")
+	},
+	{
+		key: 'scm/change/title',
+		id: MenuId.SCMChangeContext,
+		description: localize('menus.changeTitle', "The Source Control inline change menu")
+	},
+	{
+		key: 'statusBar/windowIndicator',
+		id: MenuId.StatusBarWindowIndicatorMenu,
+		description: localize('menus.statusBarWindowIndicator', "The window indicator menu in the status bar"),
+		proposed: true,
+		supportsSubmenus: false
+	},
+	{
+		key: 'view/title',
+		id: MenuId.ViewTitle,
+		description: localize('view.viewTitle', "The contributed view title menu")
+	},
+	{
+		key: 'view/item/context',
+		id: MenuId.ViewItemContext,
+		description: localize('view.itemContext', "The contributed view item context menu")
+	},
+	{
+		key: 'comments/commentThread/title',
+		id: MenuId.CommentThreadTitle,
+		description: localize('commentThread.title', "The contributed comment thread title menu")
+	},
+	{
+		key: 'comments/commentThread/context',
+		id: MenuId.CommentThreadActions,
+		description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
+		supportsSubmenus: false
+	},
+	{
+		key: 'comments/comment/title',
+		id: MenuId.CommentTitle,
+		description: localize('comment.title', "The contributed comment title menu")
+	},
+	{
+		key: 'comments/comment/context',
+		id: MenuId.CommentActions,
+		description: localize('comment.actions', "The contributed comment context menu, rendered as buttons below the comment editor"),
+		supportsSubmenus: false
+	},
+	{
+		key: 'notebook/cell/title',
+		id: MenuId.NotebookCellTitle,
+		description: localize('notebook.cell.title', "The contributed notebook cell title menu"),
+		proposed: true
+	},
+	{
+		key: 'extension/context',
+		id: MenuId.ExtensionContext,
+		description: localize('menus.extensionContext', "The extension context menu")
+	},
+	{
+		key: 'timeline/title',
+		id: MenuId.TimelineTitle,
+		description: localize('view.timelineTitle', "The Timeline view title menu")
+	},
+	{
+		key: 'timeline/item/context',
+		id: MenuId.TimelineItemContext,
+		description: localize('view.timelineContext', "The Timeline view item context menu")
+	},
+];
 
 namespace schema {
 
@@ -36,62 +188,6 @@ namespace schema {
 		id: string;
 		label: string;
 		icon?: IUserFriendlyIcon;
-	}
-
-	export function parseMenuId(value: string): MenuId | undefined {
-		switch (value) {
-			case 'commandPalette': return MenuId.CommandPalette;
-			case 'touchBar': return MenuId.TouchBarContext;
-			case 'editor/title': return MenuId.EditorTitle;
-			case 'editor/context': return MenuId.EditorContext;
-			case 'explorer/context': return MenuId.ExplorerContext;
-			case 'editor/title/context': return MenuId.EditorTitleContext;
-			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
-			case 'debug/toolBar': return MenuId.DebugToolBar;
-			case 'menuBar/webNavigation': return MenuId.MenubarWebNavigationMenu;
-			case 'scm/title': return MenuId.SCMTitle;
-			case 'scm/sourceControl': return MenuId.SCMSourceControl;
-			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
-			case 'scm/resourceFolder/context': return MenuId.SCMResourceFolderContext;
-			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
-			case 'scm/change/title': return MenuId.SCMChangeContext;
-			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu; // TODO@aeschli this is missing schema
-			case 'view/title': return MenuId.ViewTitle;
-			case 'view/item/context': return MenuId.ViewItemContext;
-			case 'comments/commentThread/title': return MenuId.CommentThreadTitle;
-			case 'comments/commentThread/context': return MenuId.CommentThreadActions;
-			case 'comments/comment/title': return MenuId.CommentTitle;
-			case 'comments/comment/context': return MenuId.CommentActions;
-			case 'notebook/cell/title': return MenuId.NotebookCellTitle;
-			case 'extension/context': return MenuId.ExtensionContext;
-			case 'timeline/title': return MenuId.TimelineTitle;
-			case 'timeline/item/context': return MenuId.TimelineItemContext;
-		}
-
-		return undefined;
-	}
-
-	export function isProposedAPI(menuId: MenuId): boolean {
-		switch (menuId) {
-			case MenuId.StatusBarWindowIndicatorMenu:
-			case MenuId.MenubarWebNavigationMenu:
-			case MenuId.NotebookCellTitle:
-				return true;
-		}
-		return false;
-	}
-
-	export function supportsSubmenus(menuId: MenuId): boolean {
-		switch (menuId) {
-			case MenuId.CommandPalette:
-			case MenuId.TouchBarContext:
-			case MenuId.MenubarWebNavigationMenu:
-			case MenuId.StatusBarWindowIndicatorMenu:
-			case MenuId.CommentThreadActions:
-			case MenuId.CommentActions:
-				return false;
-		}
-		return true;
 	}
 
 	export function isMenuItem(item: IUserFriendlyMenuItem | IUserFriendlySubmenuItem): item is IUserFriendlyMenuItem {
@@ -251,133 +347,11 @@ namespace schema {
 	export const menusContribution: IJSONSchema = {
 		description: localize('vscode.extension.contributes.menus', "Contributes menu items to the editor"),
 		type: 'object',
-		properties: {
-			'commandPalette': {
-				description: localize('menus.commandPalette', "The Command Palette"),
-				type: 'array',
-				items: menuItem
-			},
-			'touchBar': {
-				description: localize('menus.touchBar', "The touch bar (macOS only)"),
-				type: 'array',
-				items: menuItem
-			},
-			'editor/title': {
-				description: localize('menus.editorTitle', "The editor title menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'editor/context': {
-				description: localize('menus.editorContext', "The editor context menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'explorer/context': {
-				description: localize('menus.explorerContext', "The file explorer context menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'editor/title/context': {
-				description: localize('menus.editorTabContext', "The editor tabs context menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'debug/callstack/context': {
-				description: localize('menus.debugCallstackContext', "The debug callstack context menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'debug/toolBar': {
-				description: localize('menus.debugToolBar', "The debug toolbar menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'menuBar/webNavigation': {
-				description: localize('menus.webNavigation', "The top level navigational menu (web only)"),
-				type: 'array',
-				items: menuItem
-			},
-			'scm/title': {
-				description: localize('menus.scmTitle', "The Source Control title menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'scm/sourceControl': {
-				description: localize('menus.scmSourceControl', "The Source Control menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'scm/resourceGroup/context': {
-				description: localize('menus.resourceGroupContext', "The Source Control resource group context menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'scm/resourceState/context': {
-				description: localize('menus.resourceStateContext', "The Source Control resource state context menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'scm/resourceFolder/context': {
-				description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'scm/change/title': {
-				description: localize('menus.changeTitle', "The Source Control inline change menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'view/title': {
-				description: localize('view.viewTitle', "The contributed view title menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'view/item/context': {
-				description: localize('view.itemContext', "The contributed view item context menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'comments/commentThread/title': {
-				description: localize('commentThread.title', "The contributed comment thread title menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'comments/commentThread/context': {
-				description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
-				type: 'array',
-				items: menuItem
-			},
-			'comments/comment/title': {
-				description: localize('comment.title', "The contributed comment title menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'comments/comment/context': {
-				description: localize('comment.actions', "The contributed comment context menu, rendered as buttons below the comment editor"),
-				type: 'array',
-				items: menuItem
-			},
-			'notebook/cell/title': {
-				description: localize('notebook.cell.title', "The contributed notebook cell title menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'extension/context': {
-				description: localize('menus.extensionContext', "The extension context menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'timeline/title': {
-				description: localize('view.timelineTitle', "The Timeline view title menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-			'timeline/item/context': {
-				description: localize('view.timelineContext', "The Timeline view item context menu"),
-				type: 'array',
-				items: [menuItem, submenuItem]
-			},
-		}
+		properties: index(apiMenus, menu => menu.key, menu => ({
+			description: menu.description,
+			type: 'array',
+			items: menu.supportsSubmenus === false ? menuItem : [menuItem, submenuItem]
+		}))
 	};
 
 	export const submenusContribution: IJSONSchema = {
@@ -626,6 +600,7 @@ submenusExtensionPoint.setHandler(extensions => {
 	}
 });
 
+const _apiMenusByKey = new Map(Iterable.map(Iterable.from(apiMenus), menu => ([menu.key, menu])));
 const _menuRegistrations = new DisposableStore();
 
 const menusExtensionPoint = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: (schema.IUserFriendlyMenuItem | schema.IUserFriendlySubmenuItem)[] }>({
@@ -649,20 +624,28 @@ menusExtensionPoint.setHandler(extensions => {
 				return;
 			}
 
-			let id = schema.parseMenuId(entry.key);
+			let menu = _apiMenusByKey.get(entry.key);
 			let isSubmenu = false;
 
-			if (!id) {
-				id = _submenus.get(entry.key)?.id;
-				isSubmenu = true;
+			if (!menu) {
+				const submenu = _submenus.get(entry.key);
+
+				if (submenu) {
+					menu = {
+						key: entry.key,
+						id: submenu.id,
+						description: ''
+					};
+					isSubmenu = true;
+				}
 			}
 
-			if (!id) {
+			if (!menu) {
 				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
 				return;
 			}
 
-			if (schema.isProposedAPI(id) && !extension.description.enableProposedApi) {
+			if (menu.proposed && !extension.description.enableProposedApi) {
 				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier and is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", entry.key, extension.description.identifier.value));
 				return;
 			}
@@ -671,8 +654,6 @@ menusExtensionPoint.setHandler(extensions => {
 				collector.error(localize('proposedAPI.invalid.submenu', "{0} is a submenu identifier and is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", entry.key, extension.description.identifier.value));
 				return;
 			}
-
-			const submenuSupport = schema.supportsSubmenus(id);
 
 			for (const menuItem of entry.value) {
 				let item: IMenuItem | ISubmenuItem;
@@ -699,7 +680,7 @@ menusExtensionPoint.setHandler(extensions => {
 						continue;
 					}
 
-					if (!isSubmenu && !submenuSupport) {
+					if (menu.supportsSubmenus === false) {
 						collector.error(localize('proposedAPI.unsupported.submenureference', "Menu item references a submenu for a menu which doesn't have submenu support."));
 						continue;
 					}
@@ -725,7 +706,7 @@ menusExtensionPoint.setHandler(extensions => {
 				}
 
 				item.when = ContextKeyExpr.deserialize(menuItem.when);
-				items.push({ id, item });
+				items.push({ id: menu.id, item });
 			}
 		});
 	}
