@@ -47,7 +47,6 @@ namespace schema {
 			case 'explorer/context': return MenuId.ExplorerContext;
 			case 'editor/title/context': return MenuId.EditorTitleContext;
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
-			case 'debug/toolbar': return MenuId.DebugToolBar;
 			case 'debug/toolBar': return MenuId.DebugToolBar;
 			case 'menuBar/webNavigation': return MenuId.MenubarWebNavigationMenu;
 			case 'scm/title': return MenuId.SCMTitle;
