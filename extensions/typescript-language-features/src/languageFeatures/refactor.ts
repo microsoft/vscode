@@ -269,7 +269,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		if (!context.only) {
 			return actions;
 		}
-		return this.appendInvalidActions(actions);
+		return this.pruneInvalidActions(actions, context.only, /* numberOfInvalid = */ 5);
 	}
 
 	private toTsTriggerReason(context: vscode.CodeActionContext): Experimental.RefactorTriggerReason | undefined {
@@ -368,31 +368,32 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		return false;
 	}
 
-	private appendInvalidActions(actions: vscode.CodeAction[]): vscode.CodeAction[] {
-		if (!actions.some(action => action.kind && Extract_Constant.kind.contains(action.kind))) {
-			const disabledAction = new vscode.CodeAction(
-				localize('extractConstant.disabled.title', "Extract to constant"),
-				Extract_Constant.kind);
+	private pruneInvalidActions(actions: vscode.CodeAction[], only?: vscode.CodeActionKind, numberOfInvalid?: number): vscode.CodeAction[] {
+		const availableActions: vscode.CodeAction[] = [];
+		const invalidCommonActions: vscode.CodeAction[] = [];
+		const invalidUncommonActions: vscode.CodeAction[] = [];
+		for (const action of actions) {
+			if (!action.disabled) {
+				availableActions.push(action);
+				continue;
+			}
 
-			disabledAction.disabled = {
-				reason: localize('extractConstant.disabled.reason', "The current selection cannot be extracted"),
-			};
-			disabledAction.isPreferred = true;
+			// These are the common refactors that we should always show if applicable.
+			if (action.kind && (Extract_Constant.kind.contains(action.kind) || Extract_Function.kind.contains(action.kind))) {
+				invalidCommonActions.push(action);
+				continue;
+			}
 
-			actions.push(disabledAction);
+			// These are the remaining refactors that we can show if we haven't reached the max limit with just common refactors.
+			invalidUncommonActions.push(action);
 		}
 
-		if (!actions.some(action => action.kind && Extract_Function.kind.contains(action.kind))) {
-			const disabledAction = new vscode.CodeAction(
-				localize('extractFunction.disabled.title', "Extract to function"),
-				Extract_Function.kind);
-
-			disabledAction.disabled = {
-				reason: localize('extractFunction.disabled.reason', "The current selection cannot be extracted"),
-			};
-			actions.push(disabledAction);
-		}
-		return actions;
+		const prioritizedActions: vscode.CodeAction[] = [];
+		prioritizedActions.push(...invalidCommonActions);
+		prioritizedActions.push(...invalidUncommonActions);
+		const topNInvalid = prioritizedActions.filter(action => !only || (action.kind && only.contains(action.kind))).slice(0, numberOfInvalid);
+		availableActions.push(...topNInvalid);
+		return availableActions;
 	}
 }
 
