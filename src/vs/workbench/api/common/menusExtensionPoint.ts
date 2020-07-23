@@ -273,6 +273,7 @@ namespace schema {
 
 	const menuItem: IJSONSchema = {
 		type: 'object',
+		required: ['command'],
 		properties: {
 			command: {
 				description: localize('vscode.extension.contributes.menuItem.command', 'Identifier of the command to execute. The command must be declared in the \'commands\'-section'),
@@ -295,6 +296,7 @@ namespace schema {
 
 	const submenuItem: IJSONSchema = {
 		type: 'object',
+		required: ['submenu'],
 		properties: {
 			submenu: {
 				description: localize('vscode.extension.contributes.menuItem.submenu', 'Identifier of the submenu to display in this item.'),
@@ -313,6 +315,7 @@ namespace schema {
 
 	const submenu: IJSONSchema = {
 		type: 'object',
+		required: ['id', 'label'],
 		properties: {
 			id: {
 				description: localize('vscode.extension.contributes.submenu.id', 'Identifier of the menu to display as a submenu.'),
@@ -348,14 +351,14 @@ namespace schema {
 		description: localize('vscode.extension.contributes.menus', "Contributes menu items to the editor"),
 		type: 'object',
 		properties: index(apiMenus, menu => menu.key, menu => ({
-			description: menu.description,
+			description: menu.proposed ? `(${localize('proposed', "Proposed API")}) ${menu.description}` : menu.description,
 			type: 'array',
-			items: menu.supportsSubmenus === false ? menuItem : [menuItem, submenuItem]
+			items: menu.supportsSubmenus === false ? menuItem : { oneOf: [menuItem, submenuItem] }
 		}))
 	};
 
 	export const submenusContribution: IJSONSchema = {
-		description: localize('vscode.extension.contributes.submenus', "Contributes submenu items to the editor"),
+		description: localize('vscode.extension.contributes.submenus', "(Proposed API) Contributes submenu items to the editor"),
 		type: 'array',
 		items: submenu
 	};
