@@ -371,6 +371,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		const kernelChangeEventListener = provider.onDidChangeKernels(() => {
 			this._onDidChangeKernels.fire();
 		});
+
+		this._onDidChangeKernels.fire();
 		return toDisposable(() => {
 			kernelChangeEventListener.dispose();
 			d.dispose();
