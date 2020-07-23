@@ -80,6 +80,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
 import { ILogService } from 'vs/platform/log/common/log';
+import { once } from 'vs/base/common/functional';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -223,6 +224,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<TaskEvent>;
+	private _waitForSupportedExecutions: Promise<void>;
+	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -332,7 +335,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return task._label;
 		});
 
-		this.registerSupportedExecutions(true, false, false);
+		this._waitForSupportedExecutions = new Promise(resolve => {
+			once(this._onDidRegisterSupportedExecutions.event)(() => resolve());
+		});
 	}
 
 	public registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean) {
@@ -348,6 +353,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const processContext = ProcessExecutionSupportedContext.bindTo(this.contextKeyService);
 			processContext.set(process);
 		}
+		this._onDidRegisterSupportedExecutions.fire();
 	}
 
 	public get onDidStateChange(): Event<TaskEvent> {
@@ -838,7 +844,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=733558'));
 	}
 
-	public build(): Promise<ITaskSummary> {
+	public async build(): Promise<ITaskSummary> {
 		return this.getGroupedTasks().then((tasks) => {
 			let runnable = this.createRunnableTask(tasks, TaskGroup.Build);
 			if (!runnable || !runnable.task) {
@@ -1835,7 +1841,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return result;
 	}
 
-	public getWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, WorkspaceFolderTaskResult>> {
+	public async getWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, WorkspaceFolderTaskResult>> {
+		await this._waitForSupportedExecutions;
 		if (this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;
 		}
