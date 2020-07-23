@@ -21,7 +21,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
 import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, SubmenuAction, IActionViewItemProvider } from 'vs/base/common/actions';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { SCMMenus } from './menus';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
@@ -1770,11 +1769,7 @@ export class SCMViewPane extends ViewPane {
 			return new StatusBarActionViewItem(action);
 		}
 
-		if (!(action instanceof MenuItemAction)) {
-			return undefined;
-		}
-
-		return new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+		return super.getActionViewItem(action);
 	}
 
 	getActionsContext(): any {

@@ -648,10 +648,6 @@ export class TunnelPanel extends ViewPane {
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
-
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return action instanceof MenuItemAction ? new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService) : undefined;
-	}
 }
 
 export class TunnelPanelDescriptor implements IViewDescriptor {
