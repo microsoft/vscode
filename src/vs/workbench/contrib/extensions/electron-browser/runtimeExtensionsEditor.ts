@@ -164,16 +164,17 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
 	}
 
-	private _updateExtensions(): void {
-		this._elements = this._resolveExtensions();
+	private async _updateExtensions(): Promise<void> {
+		this._elements = await this._resolveExtensions();
 		if (this._list) {
 			this._list.splice(0, this._list.length, this._elements);
 		}
 	}
 
-	private _resolveExtensions(): IRuntimeExtension[] {
+	private async _resolveExtensions(): Promise<IRuntimeExtension[]> {
 		let marketplaceMap: { [id: string]: IExtension; } = Object.create(null);
-		for (let extension of this._extensionsWorkbenchService.local) {
+		const marketPlaceExtensions = await this._extensionsWorkbenchService.queryLocal();
+		for (let extension of marketPlaceExtensions) {
 			marketplaceMap[ExtensionIdentifier.toKey(extension.identifier.id)] = extension;
 		}
 
@@ -328,7 +329,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				} else {
 					data.icon.style.visibility = 'inherit';
 				}
-				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName || '';
+				data.name.textContent = element.marketplaceInfo.displayName;
 				data.version.textContent = element.description.version;
 
 				const activationTimes = element.status.activationTimes!;
@@ -462,11 +463,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			actions.push(new ReportExtensionIssueAction(e.element, this._openerService, this._clipboardService, this._productService));
 			actions.push(new Separator());
 
-			if (e.element.marketplaceInfo) {
-				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledWorkspace)));
-				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledGlobally)));
-				actions.push(new Separator());
-			}
+			actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledWorkspace)));
+			actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledGlobally)));
+			actions.push(new Separator());
+
 			const state = this._extensionHostProfileService.state;
 			if (state === ProfileSessionState.Running) {
 				actions.push(this._instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL));
