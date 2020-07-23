@@ -686,7 +686,9 @@
 	top: 0;
 	left: 0;
 	right: 0;
-	height: 100%;
+	width: 26px;
+	height: 26px;
+	cursor: pointer;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {

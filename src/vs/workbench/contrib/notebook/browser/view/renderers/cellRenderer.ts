@@ -345,7 +345,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		editorPart.style.display = 'none';
 
 		const innerContent = DOM.append(container, $('.cell.markdown'));
-		const foldingIndicator = DOM.append(focusIndicator, DOM.$('.notebook-folding-indicator'));
+		const foldingIndicator = DOM.append(container, DOM.$('.notebook-folding-indicator'));
 
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 		const betweenCellToolbar = disposables.add(this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService));
