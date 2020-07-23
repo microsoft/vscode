@@ -24,9 +24,6 @@ import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/com
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
-import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 const MAX_URL_LENGTH = 2045;
@@ -69,8 +66,6 @@ export function startup(configuration: IssueReporterConfiguration) {
 
 export class IssueReporter extends Disposable {
 	private electronService!: IElectronService;
-	private telemetryService!: ITelemetryService;
-	private logService!: ILogService;
 	private readonly issueReporterModel: IssueReporterModel;
 	private numberOfSearchResultsDisplayed = 0;
 	private receivedSystemInfo = false;
@@ -122,7 +117,6 @@ export class IssueReporter extends Disposable {
 		}
 
 		ipcRenderer.on('vscode:issuePerformanceInfoResponse', (_: unknown, info: Partial<IssueReporterData>) => {
-			this.logService.trace('issueReporter: Received performance data');
 			this.issueReporterModel.update(info);
 			this.receivedPerformanceInfo = true;
 
@@ -133,7 +127,6 @@ export class IssueReporter extends Disposable {
 		});
 
 		ipcRenderer.on('vscode:issueSystemInfoResponse', (_: unknown, info: SystemInfo) => {
-			this.logService.trace('issueReporter: Received system data');
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
 
@@ -145,7 +138,6 @@ export class IssueReporter extends Disposable {
 		if (configuration.data.issueType === IssueType.PerformanceIssue) {
 			ipcRenderer.send('vscode:issuePerformanceInfoRequest');
 		}
-		this.logService.trace('issueReporter: Sent data requests');
 
 		if (window.document.documentElement.lang !== 'en') {
 			show(this.getElementById('english'));
@@ -322,12 +314,6 @@ export class IssueReporter extends Disposable {
 
 		this.electronService = new ElectronService(configuration.windowId, mainProcessService) as IElectronService;
 		serviceCollection.set(IElectronService, this.electronService);
-
-		// TODO@rachel figure out log service needs
-		this.logService = new ConsoleLogService();
-
-		// TODO@rachel figure out telemetry service needs
-		this.telemetryService = NullTelemetryService;
 	}
 
 	private setEventHandlers(): void {
@@ -597,11 +583,11 @@ export class IssueReporter extends Disposable {
 						}, timeToWait * 1000);
 					}
 				}
-			}).catch(e => {
-				this.logSearchError(e);
+			}).catch(_ => {
+				// Ignore
 			});
-		}).catch(e => {
-			this.logSearchError(e);
+		}).catch(_ => {
+			// Ignore
 		});
 	}
 
@@ -628,11 +614,11 @@ export class IssueReporter extends Disposable {
 				} else {
 					throw new Error('Unexpected response, no candidates property');
 				}
-			}).catch((error) => {
-				this.logSearchError(error);
+			}).catch(_ => {
+				// Ignore
 			});
-		}).catch((error) => {
-			this.logSearchError(error);
+		}).catch(_ => {
+			// Ignore
 		});
 	}
 
@@ -683,18 +669,6 @@ export class IssueReporter extends Disposable {
 			message.textContent = localize('noSimilarIssues', "No similar issues found");
 			similarIssues.appendChild(message);
 		}
-	}
-
-	private logSearchError(error: Error) {
-		this.logService.warn('issueReporter#search ', error.message);
-		type IssueReporterSearchErrorClassification = {
-			message: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' }
-		};
-
-		type IssueReporterSearchError = {
-			message: string;
-		};
-		this.telemetryService.publicLogError2<IssueReporterSearchError, IssueReporterSearchErrorClassification>('issueReporterSearchError', { message: error.message });
 	}
 
 	private setUpTypes(): void {
@@ -890,15 +864,6 @@ export class IssueReporter extends Disposable {
 			return false;
 		}
 
-		type IssueReporterSubmitClassification = {
-			issueType: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			numSimilarIssuesDisplayed: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-		};
-		type IssueReporterSubmitEvent = {
-			issueType: any;
-			numSimilarIssuesDisplayed: number;
-		};
-		this.telemetryService.publicLog2<IssueReporterSubmitEvent, IssueReporterSubmitClassification>('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
 		this.hasBeenSubmitted = true;
 
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value);
@@ -1173,7 +1138,6 @@ export class IssueReporter extends Disposable {
 		// Exclude right click
 		if (event.which < 3) {
 			windowOpenNoOpener((<HTMLAnchorElement>event.target).href);
-			this.telemetryService.publicLog2('issueReporterViewSimilarIssue');
 		}
 	}
 
