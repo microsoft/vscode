@@ -114,13 +114,13 @@ export class CodeCell extends Disposable {
 
 			if (e.collapseStateChanged) {
 				// meh
-				this.viewCell.layoutChange({ });
+				this.viewCell.layoutChange({});
 				this.relayoutCell();
 			}
 		}));
 
 		this._register(viewCell.onDidChangeLayout((e) => {
-			if (e.outerWidth === undefined) {
+			if (e.outerWidth !== undefined) {
 				const layoutInfo = templateData.editor!.getLayoutInfo();
 				if (layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
 					this.onCellWidthChange();

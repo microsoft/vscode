@@ -70,6 +70,16 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._onDidChangeState.fire({ collapseStateChanged: true });
 	}
 
+	private _outputCollapseState: CellCollapseState = CellCollapseState.Normal;
+	public get outputCollapseState(): CellCollapseState {
+		return this._outputCollapseState;
+	}
+
+	public set outputCollapseState(v: CellCollapseState) {
+		this._collapseState = v;
+		this._onDidChangeState.fire({ collapseStateChanged: true });
+	}
+
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
 	get focusMode() {
 		return this._focusMode;
