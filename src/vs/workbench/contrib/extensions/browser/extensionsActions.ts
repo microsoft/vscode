@@ -1757,7 +1757,28 @@ export class ShowPopularExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
-				viewlet.search('@sort:installs ');
+				viewlet.search('@popular ');
+				viewlet.focus();
+			});
+	}
+}
+
+export class PredefinedExtensionFilterAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private readonly filter: string,
+		@IViewletService private readonly viewletService: IViewletService
+	) {
+		super(id, label, undefined, true);
+	}
+
+	run(): Promise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
+			.then(viewlet => {
+				viewlet.search(`${this.filter} `);
 				viewlet.focus();
 			});
 	}
