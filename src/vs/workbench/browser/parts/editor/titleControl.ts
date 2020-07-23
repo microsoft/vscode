@@ -15,8 +15,8 @@ import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { getCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ExecuteCommandAction, IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { createAndFillInActionBarActions, createAndFillInContextMenuActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { ExecuteCommandAction, IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -163,17 +163,22 @@ export abstract class TitleControl extends Themable {
 		const activeEditorPane = this.group.activeEditorPane;
 
 		// Check Active Editor
-		let actionViewItem: IActionViewItem | undefined = undefined;
 		if (activeEditorPane instanceof BaseEditor) {
-			actionViewItem = activeEditorPane.getActionViewItem(action);
+			const result = activeEditorPane.getActionViewItem(action);
+
+			if (result) {
+				return result;
+			}
 		}
 
 		// Check extensions
-		if (!actionViewItem && action instanceof MenuItemAction) {
-			actionViewItem = new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+		if (action instanceof MenuItemAction) {
+			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+		} else if (action instanceof SubmenuItemAction) {
+			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
 		}
 
-		return actionViewItem;
+		return undefined;
 	}
 
 	protected updateEditorActionsToolbar(): void {
