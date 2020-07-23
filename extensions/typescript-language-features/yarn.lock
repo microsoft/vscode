@@ -1153,7 +1153,7 @@ typescript-vscode-sh-plugin@^0.6.14:
 
 "typescript-web-server@git://github.com/mjbvz/ts-server-web-build":
   version "0.0.0"
-  resolved "git://github.com/mjbvz/ts-server-web-build#6018bbd0049444cccee29c57ddabf394564fbf35"
+  resolved "git://github.com/mjbvz/ts-server-web-build#1d85be25043f9b5e36a531941ea345dd5a2ca007"
 
 unique-filename@^1.1.1:
   version "1.1.1"
