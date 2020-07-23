@@ -29,7 +29,6 @@ import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
 import { ISequence, ISplice, SimpleSequence } from 'vs/base/common/sequence';
@@ -1592,7 +1591,6 @@ export class SCMViewPane extends ViewPane {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IContextViewService protected contextViewService: IContextViewService,
 		@ICommandService protected commandService: ICommandService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService protected editorService: IEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
