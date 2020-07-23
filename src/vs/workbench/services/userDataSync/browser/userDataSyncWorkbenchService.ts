@@ -6,7 +6,7 @@
 import { IUserDataSyncService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_MANUAL_SYNC_VIEW, MANUAL_SYNC_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -79,7 +79,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private readonly syncEnablementContext: IContextKey<boolean>;
 	private readonly syncStatusContext: IContextKey<string>;
 	private readonly accountStatusContext: IContextKey<string>;
-	private readonly manualSyncViewEnablementContext: IContextKey<boolean>;
+	private readonly mergesViewEnablementContext: IContextKey<boolean>;
 	private readonly activityViewsEnablementContext: IContextKey<boolean>;
 
 	readonly userDataSyncPreview: UserDataSyncPreview = this._register(new UserDataSyncPreview(this.userDataSyncService));
@@ -110,7 +110,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
 		this.accountStatusContext = CONTEXT_ACCOUNT_STATE.bindTo(contextKeyService);
 		this.activityViewsEnablementContext = CONTEXT_ENABLE_ACTIVITY_VIEWS.bindTo(contextKeyService);
-		this.manualSyncViewEnablementContext = CONTEXT_ENABLE_MANUAL_SYNC_VIEW.bindTo(contextKeyService);
+		this.mergesViewEnablementContext = CONTEXT_ENABLE_SYNC_MERGES_VIEW.bindTo(contextKeyService);
 
 		if (this.authenticationProviders.length) {
 
@@ -302,16 +302,16 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		const result = await this.dialogService.show(
 			Severity.Info,
-			localize('preferences sync', "Preferences Sync"),
+			localize('merge or replace', "Merge or Replace"),
 			[
 				localize('merge', "Merge"),
 				localize('replace local', "Replace Local"),
-				localize('sync manually', "Sync Manually..."),
+				localize('merge Manually', "Merge Manually..."),
 				localize('cancel', "Cancel"),
 			],
 			{
 				cancelId: 3,
-				detail: localize('first time sync detail', "It looks like you last synced from another machine.\nWould you like to replace or merge with your data in the cloud or sync manually?"),
+				detail: localize('first time sync detail', "It looks like you last synced from another machine.\nWould you like to merge or replace with your data in the cloud?"),
 			}
 		);
 		switch (result.choice) {
@@ -333,18 +333,18 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		const visibleViewContainer = this.viewsService.getVisibleViewContainer(ViewContainerLocation.Sidebar);
 		this.userDataSyncPreview.setManualSyncPreview(task, preview);
 
-		this.manualSyncViewEnablementContext.set(true);
+		this.mergesViewEnablementContext.set(true);
 		await this.waitForActiveSyncViews();
-		await this.viewsService.openView(MANUAL_SYNC_VIEW_ID);
+		await this.viewsService.openView(SYNC_MERGES_VIEW_ID);
 
 		const error = await Event.toPromise(this.userDataSyncPreview.onDidCompleteManualSync);
 		this.userDataSyncPreview.unsetManualSyncPreview();
 
-		this.manualSyncViewEnablementContext.set(false);
+		this.mergesViewEnablementContext.set(false);
 		if (visibleViewContainer) {
 			this.viewsService.openViewContainer(visibleViewContainer.id);
 		} else {
-			const viewContainer = this.viewDescriptorService.getViewContainerByViewId(MANUAL_SYNC_VIEW_ID);
+			const viewContainer = this.viewDescriptorService.getViewContainerByViewId(SYNC_MERGES_VIEW_ID);
 			this.viewsService.closeViewContainer(viewContainer!.id);
 		}
 

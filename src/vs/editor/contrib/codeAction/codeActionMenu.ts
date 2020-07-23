@@ -89,6 +89,7 @@ export class CodeActionMenu extends Disposable {
 		const resolver = this._keybindingResolver.getResolver();
 
 		this._contextMenuService.showContextMenu({
+			domForShadowRoot: this._editor.getDomNode()!,
 			getAnchor: () => anchor,
 			getActions: () => menuActions,
 			onHide: () => {

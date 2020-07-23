@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./menubar';
 import * as browser from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import * as strings from 'vs/base/common/strings';

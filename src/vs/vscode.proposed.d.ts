@@ -868,22 +868,6 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
-	export interface DebugSession {
-
-		/**
-		 * Terminates the session.
-		 */
-		terminate(): Thenable<void>;
-	}
-
-	export interface DebugSession {
-
-		/**
-		 * Terminates the session.
-		 */
-		terminate(): Thenable<void>;
-	}
-
 	export namespace debug {
 
 		/**

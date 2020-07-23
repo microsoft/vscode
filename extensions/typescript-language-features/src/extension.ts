@@ -11,12 +11,12 @@ import { LanguageConfigurationManager } from './languageFeatures/languageConfigu
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
-import { ChildServerProcess } from './tsServer/serverProcess';
+import { ChildServerProcess } from './tsServer/serverProcess.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
-import { CommandManager } from './utils/commandManager';
-import * as electron from './utils/electron';
-import { onCaseInsenitiveFileSystem } from './utils/fileSystem';
+import { CommandManager } from './commands/commandManager';
+import { onCaseInsenitiveFileSystem } from './utils/fileSystem.electron';
 import { PluginManager } from './utils/plugins';
+import * as temp from './utils/temp.electron';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -62,5 +62,5 @@ export function activate(
 }
 
 export function deactivate() {
-	rimraf.sync(electron.getInstanceDir());
+	rimraf.sync(temp.getInstanceTempDir());
 }

@@ -6,10 +6,10 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import BufferSyncSupport from './languageFeatures/bufferSyncSupport';
 import { DiagnosticKind, DiagnosticsManager } from './languageFeatures/diagnostics';
 import * as Proto from './protocol';
 import { EventName } from './protocol.const';
+import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { ITypeScriptServer, TsServerProcessFactory } from './tsServer/server';
@@ -115,11 +115,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private readonly loadingIndicator = new ServerInitializingIndicator();
 
 	public readonly telemetryReporter: TelemetryReporter;
-
 	public readonly bufferSyncSupport: BufferSyncSupport;
 	public readonly diagnosticsManager: DiagnosticsManager;
-
 	public readonly pluginManager: PluginManager;
+
 	private readonly logDirectoryProvider: ILogDirectoryProvider;
 	private readonly cancellerFactory: OngoingRequestCancellerFactory;
 	private readonly versionProvider: ITypeScriptVersionProvider;
@@ -527,6 +526,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			preferences: {
 				providePrefixAndSuffixTextForRename: true,
 				allowRenameOfImportPath: true,
+				// @ts-expect-error, remove after 4.0 protocol update
+				includePackageJsonAutoImports: this._configuration.includePackageJsonAutoImports,
 			},
 			watchOptions
 		};

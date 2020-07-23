@@ -66,18 +66,18 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 	}
 
 	getSecondaryActions(): IAction[] {
-		const viewSecondaryActions = this.viewPaneContainer.getViewsVisibilityActions();
+		const viewVisibilityActions = this.viewPaneContainer.getViewsVisibilityActions();
 		const secondaryActions = this.viewPaneContainer.getSecondaryActions();
-		if (viewSecondaryActions.length <= 1) {
+		if (viewVisibilityActions.length <= 1 || viewVisibilityActions.every(({ enabled }) => !enabled)) {
 			return secondaryActions;
 		}
 
 		if (secondaryActions.length === 0) {
-			return viewSecondaryActions;
+			return viewVisibilityActions;
 		}
 
 		return [
-			new SubmenuAction('workbench.views', nls.localize('views', "Views"), viewSecondaryActions),
+			new SubmenuAction('workbench.views', nls.localize('views', "Views"), viewVisibilityActions),
 			new Separator(),
 			...secondaryActions
 		];

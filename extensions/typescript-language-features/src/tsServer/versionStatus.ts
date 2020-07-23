@@ -5,9 +5,9 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { Command, CommandManager } from '../commands/commandManager';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { coalesce } from '../utils/arrays';
-import { Command, CommandManager } from '../utils/commandManager';
 import { Disposable } from '../utils/dispose';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { isImplicitProjectConfigFile, openOrCreateConfig, openProjectConfigForFile, openProjectConfigOrPromptToCreate, ProjectType } from '../utils/tsconfig';

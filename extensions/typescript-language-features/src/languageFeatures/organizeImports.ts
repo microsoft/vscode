@@ -9,7 +9,7 @@ import type * as Proto from '../protocol';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
-import { Command, CommandManager } from '../utils/commandManager';
+import { Command, CommandManager } from '../commands/commandManager';
 import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import { TelemetryReporter } from '../utils/telemetry';

@@ -21,7 +21,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 
-export class StatefullMarkdownCell extends Disposable {
+export class StatefulMarkdownCell extends Disposable {
 
 	private editor: CodeEditorWidget | null = null;
 	private markdownContainer: HTMLElement;
@@ -95,7 +95,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 		this._register(viewCell.onDidChangeLayout((e) => {
 			const layoutInfo = this.editor?.getLayoutInfo();
-			if (e.outerWidth && layoutInfo && layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
+			if (e.outerWidth && this.viewCell.editState === CellEditState.Editing && layoutInfo && layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
 				this.onCellEditorWidthChange();
 			} else if (e.totalHeight || e.outerWidth) {
 				this.relayoutCell();

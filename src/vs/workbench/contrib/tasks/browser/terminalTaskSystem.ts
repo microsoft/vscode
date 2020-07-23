@@ -528,7 +528,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private resolveVariablesFromSet(taskSystemInfo: TaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, variables: Set<string>, alreadyResolved: Map<string, string>): Promise<ResolvedVariables> {
+	private resolveVariablesFromSet(taskSystemInfo: TaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, variables: Set<string>, alreadyResolved: Map<string, string>): Promise<ResolvedVariables | undefined> {
 		let isProcess = task.command && task.command.runtime === RuntimeType.Process;
 		let options = task.command && task.command.options ? task.command.options : undefined;
 		let cwd = options ? options.cwd : undefined;
@@ -544,7 +544,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 		}
 		const unresolved = this.findUnresolvedVariables(variables, alreadyResolved);
-		let resolvedVariables: Promise<ResolvedVariables>;
+		let resolvedVariables: Promise<ResolvedVariables | undefined>;
 		if (taskSystemInfo && workspaceFolder) {
 			let resolveSet: ResolveSet = {
 				variables: unresolved
@@ -560,6 +560,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 			resolvedVariables = taskSystemInfo.resolveVariables(workspaceFolder, resolveSet, TaskSourceKind.toConfigurationTarget(task._source.kind)).then(async (resolved) => {
+				if (!resolved) {
+					return undefined;
+				}
+
 				this.mergeMaps(alreadyResolved, resolved.variables);
 				resolved.variables = new Map(alreadyResolved);
 				if (isProcess) {
@@ -569,14 +573,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 					}
 					resolved.variables.set(TerminalTaskSystem.ProcessVarName, process);
 				}
-				return Promise.resolve(resolved);
+				return resolved;
 			});
 			return resolvedVariables;
 		} else {
 			let variablesArray = new Array<string>();
 			unresolved.forEach(variable => variablesArray.push(variable));
 
-			return new Promise((resolve, reject) => {
+			return new Promise<ResolvedVariables | undefined>((resolve, reject) => {
 				this.configurationResolverService.resolveWithInteraction(workspaceFolder, variablesArray, 'tasks', undefined, TaskSourceKind.toConfigurationTarget(task._source.kind)).then(async (resolvedVariablesMap: Map<string, string> | undefined) => {
 					if (resolvedVariablesMap) {
 						this.mergeMaps(alreadyResolved, resolvedVariablesMap);
@@ -657,6 +661,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		if (!hasAllVariables) {
 			return this.resolveVariablesFromSet(lastTask.getVerifiedTask().systemInfo, lastTask.getVerifiedTask().workspaceFolder, task, variables, alreadyResolved).then((resolvedVariables) => {
+				if (!resolvedVariables) {
+					return { exitCode: 0 };
+				}
 				this.currentTask.resolvedVariables = resolvedVariables;
 				return this.executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, lastTask.getVerifiedTask().systemInfo, resolvedVariables.variables, this.configurationResolverService), workspaceFolder!);
 			}, reason => {

@@ -26,7 +26,7 @@ export interface IContextMenuDelegate {
 	actionRunner?: IActionRunner;
 	autoSelectFirstItem?: boolean;
 	anchorAlignment?: AnchorAlignment;
-	anchorAsContainer?: boolean;
+	domForShadowRoot?: HTMLElement;
 }
 
 export interface IContextMenuProvider {

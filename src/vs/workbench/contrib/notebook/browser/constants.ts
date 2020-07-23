@@ -13,7 +13,8 @@ export const CELL_RUN_GUTTER = 28;
 export const CODE_CELL_LEFT_MARGIN = 32;
 
 export const EDITOR_TOOLBAR_HEIGHT = 0;
-export const BOTTOM_CELL_TOOLBAR_HEIGHT = 28;
+export const BOTTOM_CELL_TOOLBAR_HEIGHT = 18;
+export const BOTTOM_CELL_TOOLBAR_OFFSET = 12;
 export const CELL_STATUSBAR_HEIGHT = 22;
 
 // Margin above editor

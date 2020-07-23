@@ -15,7 +15,7 @@ export function activate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
 		onDidChangeNotebook: _onDidChangeNotebook.event,
 		openNotebook: async (_resource: vscode.Uri) => {
-			if (_resource.path.endsWith('empty.vsctestnb')) {
+			if (/.*empty\-.*\.vsctestnb$/.test(_resource.path)) {
 				return {
 					languages: ['typescript'],
 					metadata: {},
