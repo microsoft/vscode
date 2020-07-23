@@ -256,7 +256,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			// icon path
 			let iconClass: string;
 
-			if (icon?.dark?.scheme) {
+			if (icon.dark?.scheme) {
 
 				const iconPathMapKey = icon.dark.toString();
 
