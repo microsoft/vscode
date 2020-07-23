@@ -37,7 +37,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ContextAwareMenuEntryActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuEntryActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
@@ -1094,7 +1094,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IThemeService private themeService: IThemeService
 	) {
 		this.actionViewItemProvider = (action: IAction) => action instanceof MenuItemAction
-			? this.instantiationService.createInstance(ContextAwareMenuEntryActionViewItem, action)
+			? this.instantiationService.createInstance(MenuEntryActionViewItem, action)
 			: undefined;
 	}
 

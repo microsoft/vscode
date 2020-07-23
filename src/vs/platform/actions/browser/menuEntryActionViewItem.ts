@@ -124,14 +124,6 @@ function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActi
 	}
 }
 
-
-export function createActionViewItem(action: IAction, keybindingService: IKeybindingService, notificationService: INotificationService, contextMenuService: IContextMenuService): ActionViewItem | undefined {
-	if (action instanceof MenuItemAction) {
-		return new MenuEntryActionViewItem(action, keybindingService, notificationService, contextMenuService);
-	}
-	return undefined;
-}
-
 const ids = new IdGenerator('menu-item-action-item-icon-');
 
 export class MenuEntryActionViewItem extends ActionViewItem {
@@ -164,7 +156,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			this._altKey.suppressAltKeyUp();
 		}
 
-		this.actionRunner.run(this._commandAction)
+		this.actionRunner.run(this._commandAction, this._context)
 			.then(undefined, err => this._notificationService.error(err));
 	}
 
@@ -280,19 +272,5 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				}
 			}
 		}
-	}
-}
-
-// Need to subclass MenuEntryActionViewItem in order to respect
-// the action context coming from any action bar, without breaking
-// existing users
-export class ContextAwareMenuEntryActionViewItem extends MenuEntryActionViewItem {
-
-	onClick(event: MouseEvent): void {
-		event.preventDefault();
-		event.stopPropagation();
-
-		this.actionRunner.run(this._commandAction, this._context)
-			.then(undefined, err => this._notificationService.error(err));
 	}
 }

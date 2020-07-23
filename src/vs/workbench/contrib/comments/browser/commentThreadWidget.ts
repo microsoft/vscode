@@ -26,7 +26,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/peekView';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import * as nls from 'vs/nls';
-import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -240,7 +240,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._actionbarWidget = new ActionBar(actionsContainer, {
 			actionViewItemProvider: (action: IAction) => {
 				if (action instanceof MenuItemAction) {
-					let item = new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+					let item = new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 					return item;
 				} else {
 					let item = new ActionViewItem({}, action, { label: false, icon: true });

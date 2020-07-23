@@ -34,7 +34,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Component } from 'vs/workbench/common/component';
 import { MenuId, MenuItemAction, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
-import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -482,7 +482,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(ContextAwareMenuEntryActionViewItem, action);
+			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
 		}
 		return undefined;
 	}
