@@ -787,6 +787,7 @@ export interface MainThreadTaskShape extends IDisposable {
 	$terminateTask(id: string): Promise<void>;
 	$registerTaskSystem(scheme: string, info: tasks.TaskSystemInfoDTO): void;
 	$customExecutionComplete(id: string, result?: number): Promise<void>;
+	$registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void>;
 }
 
 export interface MainThreadExtensionServiceShape extends IDisposable {

@@ -331,16 +331,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return task._label;
 		});
-		this.setExecutionContexts();
+
+		this.registerSupportedExecutions(true, false, false);
 	}
 
-	protected setExecutionContexts(custom: boolean = true, shell: boolean = true, process: boolean = true): void {
-		const customContext = CustomExecutionSupportedContext.bindTo(this.contextKeyService);
-		customContext.set(custom);
-		const shellContext = ShellExecutionSupportedContext.bindTo(this.contextKeyService);
-		shellContext.set(shell);
-		const processContext = ProcessExecutionSupportedContext.bindTo(this.contextKeyService);
-		processContext.set(process);
+	public registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean) {
+		if (custom !== undefined) {
+			const customContext = CustomExecutionSupportedContext.bindTo(this.contextKeyService);
+			customContext.set(custom);
+		}
+		if (shell !== undefined) {
+			const shellContext = ShellExecutionSupportedContext.bindTo(this.contextKeyService);
+			shellContext.set(shell);
+		}
+		if (process !== undefined) {
+			const processContext = ProcessExecutionSupportedContext.bindTo(this.contextKeyService);
+			processContext.set(process);
+		}
 	}
 
 	public get onDidStateChange(): Event<TaskEvent> {
@@ -530,9 +537,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
-		if (info.platform === Platform.Platform.Web) {
-			this.setExecutionContexts(true, false, false);
-		}
 		this._taskSystemInfos.set(key, info);
 	}
 

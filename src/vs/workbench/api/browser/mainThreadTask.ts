@@ -681,4 +681,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 			}
 		});
 	}
+
+	async $registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void> {
+		return this._taskService.registerSupportedExecutions(custom, shell, process);
+	}
+
 }
