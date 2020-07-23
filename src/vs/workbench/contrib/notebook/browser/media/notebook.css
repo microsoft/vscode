@@ -423,7 +423,6 @@
 	position: absolute;
 	box-sizing: border-box;
 	top: 0px;
-	opacity: 0;
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side {
@@ -693,7 +692,7 @@
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
 	visibility: visible;
-	padding: 10px 0 0 10px;
+	padding: 8px 0 0 10px;
 }
 
 /** Theming */
