@@ -35,6 +35,7 @@ namespace schema {
 	export interface IUserFriendlySubmenu {
 		id: string;
 		label: string;
+		icon?: IUserFriendlyIcon;
 	}
 
 	export function parseMenuId(value: string): MenuId | undefined {
@@ -214,12 +215,31 @@ namespace schema {
 		type: 'object',
 		properties: {
 			id: {
-				description: localize('submenu.id', 'Identifier of the menu to display as a submenu.'),
+				description: localize('vscode.extension.contributes.submenu.id', 'Identifier of the menu to display as a submenu.'),
 				type: 'string'
 			},
 			label: {
-				description: localize('submenu.label', 'The label of the menu item which leads to this submenu.'),
+				description: localize('vscode.extension.contributes.submenu.label', 'The label of the menu item which leads to this submenu.'),
 				type: 'string'
+			},
+			icon: {
+				description: localize('vscode.extension.contributes.submenu.icon', '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				anyOf: [{
+					type: 'string'
+				},
+				{
+					type: 'object',
+					properties: {
+						light: {
+							description: localize('vscode.extension.contributes.submenu.icon.light', 'Icon path when a light theme is used'),
+							type: 'string'
+						},
+						dark: {
+							description: localize('vscode.extension.contributes.submenu.icon.dark', 'Icon path when a dark theme is used'),
+							type: 'string'
+						}
+					}
+				}]
 			}
 		}
 	};
@@ -543,6 +563,7 @@ commandsExtensionPoint.setHandler(extensions => {
 interface IRegisteredSubmenu {
 	readonly id: MenuId;
 	readonly label: string;
+	readonly icon?: { dark: URI; light?: URI; } | ThemeIcon;
 }
 
 const _submenus = new Map<string, IRegisteredSubmenu>();
@@ -578,9 +599,22 @@ submenusExtensionPoint.setHandler(extensions => {
 				return;
 			}
 
+			let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
+			if (entry.value.icon) {
+				if (typeof entry.value.icon === 'string') {
+					absoluteIcon = ThemeIcon.fromString(entry.value.icon) || { dark: resources.joinPath(extension.description.extensionLocation, entry.value.icon) };
+				} else {
+					absoluteIcon = {
+						dark: resources.joinPath(extension.description.extensionLocation, entry.value.icon.dark),
+						light: resources.joinPath(extension.description.extensionLocation, entry.value.icon.light)
+					};
+				}
+			}
+
 			const item: IRegisteredSubmenu = {
 				id: new MenuId(`api:${entry.value.id}`),
-				label: entry.value.label
+				label: entry.value.label,
+				icon: absoluteIcon
 			};
 
 			_submenus.set(entry.value.id, item);
@@ -673,7 +707,7 @@ menusExtensionPoint.setHandler(extensions => {
 						continue;
 					}
 
-					item = { submenu: submenu.id, title: submenu.label, group: undefined, order: undefined, when: undefined };
+					item = { submenu: submenu.id, icon: submenu.icon, title: submenu.label, group: undefined, order: undefined, when: undefined };
 				}
 
 				if (menuItem.group) {

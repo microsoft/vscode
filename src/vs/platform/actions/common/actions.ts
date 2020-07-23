@@ -47,6 +47,7 @@ export interface IMenuItem {
 export interface ISubmenuItem {
 	title: string | ILocalizedString;
 	submenu: MenuId;
+	icon?: Icon;
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
