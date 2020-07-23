@@ -205,9 +205,6 @@ abstract class AbstractCellRenderer {
 			}
 		});
 
-		toolbar.getContainer().style.height = `${BOTTOM_CELL_TOOLBAR_HEIGHT}px`;
-		container.style.height = `${BOTTOM_CELL_TOOLBAR_HEIGHT}px`;
-
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
 		const menu = disposables.add(cellMenu.getCellInsertionMenu(contextKeyService));
 
@@ -221,15 +218,13 @@ abstract class AbstractCellRenderer {
 		templateData.betweenCellToolbar.context = context;
 
 		const container = templateData.bottomCellContainer;
-		if (element instanceof CodeCellViewModel) {
+		const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
+		container.style.top = `${bottomToolbarOffset}px`;
+
+		templateData.elementDisposables.add(element.onDidChangeLayout(() => {
 			const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
 			container.style.top = `${bottomToolbarOffset}px`;
-
-			templateData.elementDisposables.add(element.onDidChangeLayout(() => {
-				const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
-				container.style.top = `${bottomToolbarOffset}px`;
-			}));
-		}
+		}));
 	}
 
 	protected createToolbar(container: HTMLElement): ToolBar {
@@ -352,9 +347,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const foldingIndicator = DOM.append(focusIndicator, DOM.$('.notebook-folding-indicator'));
 
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
-		DOM.append(bottomCellContainer, $('.separator'));
 		const betweenCellToolbar = disposables.add(this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService));
-		DOM.append(bottomCellContainer, $('.separator'));
 
 		const statusBar = this.instantiationService.createInstance(CellEditorStatusBar, editorPart);
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
@@ -947,11 +940,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const focusSinkElement = DOM.append(container, $('.cell-editor-focus-sink'));
 		focusSinkElement.setAttribute('tabindex', '0');
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
-		DOM.append(bottomCellContainer, $('.separator'));
-		const betweenCellToolbar = this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService);
-		DOM.append(bottomCellContainer, $('.separator'));
-
 		const focusIndicatorBottom = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom'));
+		const betweenCellToolbar = this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService);
 
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
