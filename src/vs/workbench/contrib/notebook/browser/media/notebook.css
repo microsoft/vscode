@@ -739,3 +739,11 @@
 .monaco-workbench.vs-dark .monaco-workbench .notebookOverlay .cell.markdown table > tbody > tr > td {
 	border-color: rgba(255, 255, 255, 0.18);
 } */
+
+.monaco-action-bar .action-item.verticalSeparator {
+	width: 1px !important;
+	background-color: #bbb;
+	height: 16px !important;
+	margin: 5px 4px !important;
+	cursor: none;
+}

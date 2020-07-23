@@ -27,7 +27,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ContextAwareMenuEntryActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -47,6 +47,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, NotebookCellMetadata, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { VerticalSeparator, createAndFillInActionBarActionsWithVerticalSeparators, VerticalSeparatorViewItem } from './cellActionView';
 
 const $ = DOM.$;
 
@@ -240,6 +241,10 @@ abstract class AbstractCellRenderer {
 					return item;
 				}
 
+				if (action.id === VerticalSeparator.ID) {
+					return new VerticalSeparatorViewItem(undefined, action);
+				}
+
 				return undefined;
 			}
 		});
@@ -252,7 +257,7 @@ abstract class AbstractCellRenderer {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
+		createAndFillInActionBarActionsWithVerticalSeparators(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 		return result;
 	}
