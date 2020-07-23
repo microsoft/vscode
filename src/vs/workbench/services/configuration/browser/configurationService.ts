@@ -94,7 +94,11 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			});
 		}));
 
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidSchemaChange(e => this.registerConfigurationSchemas()));
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		if (environmentService.options?.configurationDefaults) {
+			configurationRegistry.registerDefaultConfigurations([environmentService.options.configurationDefaults]);
+		}
+		this._register(configurationRegistry.onDidSchemaChange(e => this.registerConfigurationSchemas()));
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDefaultConfigurationChanged(configurationProperties)));
 
 		this.workspaceEditingQueue = new Queue<void>();
@@ -503,10 +507,18 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 				this._configuration.updateRemoteUserConfiguration(this.remoteUserConfiguration.reprocess());
 			}
 			if (this.getWorkbenchState() === WorkbenchState.FOLDER) {
-				this._configuration.updateWorkspaceConfiguration(this.cachedFolderConfigs.get(this.workspace.folders[0].uri)!.reprocess());
+				const folderConfiguration = this.cachedFolderConfigs.get(this.workspace.folders[0].uri);
+				if (folderConfiguration) {
+					this._configuration.updateWorkspaceConfiguration(folderConfiguration.reprocess());
+				}
 			} else {
 				this._configuration.updateWorkspaceConfiguration(this.workspaceConfiguration.reprocessWorkspaceSettings());
-				this.workspace.folders.forEach(folder => this._configuration.updateFolderConfiguration(folder.uri, this.cachedFolderConfigs.get(folder.uri)!.reprocess()));
+				for (const folder of this.workspace.folders) {
+					const folderConfiguration = this.cachedFolderConfigs.get(folder.uri);
+					if (folderConfiguration) {
+						this._configuration.updateFolderConfiguration(folder.uri, folderConfiguration.reprocess());
+					}
+				}
 			}
 			this.triggerConfigurationChange(change, { data: previousData, workspace: this.workspace }, ConfigurationTarget.DEFAULT);
 		}

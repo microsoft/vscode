@@ -9,5 +9,5 @@ import { ICommonMenubarService } from 'vs/platform/menubar/common/menubar';
 export const IMenubarService = createDecorator<IMenubarService>('menubarService');
 
 export interface IMenubarService extends ICommonMenubarService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 }

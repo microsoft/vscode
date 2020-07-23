@@ -157,6 +157,7 @@ export interface IDebugSessionOptions {
 	parentSession?: IDebugSession;
 	repl?: IDebugSessionReplMode;
 	compoundRoot?: DebugCompoundRoot;
+	compact?: boolean;
 }
 
 export interface IDebugSession extends ITreeElement {
@@ -167,6 +168,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly root: IWorkspaceFolder | undefined;
 	readonly parentSession: IDebugSession | undefined;
 	readonly subId: string | undefined;
+	readonly compact: boolean;
 
 	setSubId(subId: string | undefined): void;
 
@@ -487,6 +489,8 @@ export interface IGlobalConfig {
 
 export interface IEnvConfig {
 	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
+	preRestartTask?: string | TaskIdentifier;
+	postRestartTask?: string | TaskIdentifier;
 	preLaunchTask?: string | TaskIdentifier;
 	postDebugTask?: string | TaskIdentifier;
 	debugServer?: number;
@@ -731,7 +735,7 @@ export interface ILaunch {
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 
 export interface IDebugService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Gets the current debug state.
@@ -866,7 +870,7 @@ export interface IDebugService {
 	restartSession(session: IDebugSession, restartData?: any): Promise<any>;
 
 	/**
-	 * Stops the session. If the session does not exist then stops all sessions.
+	 * Stops the session. If no session is specified then all sessions are stopped.
 	 */
 	stopSession(session: IDebugSession | undefined): Promise<any>;
 
@@ -909,7 +913,7 @@ export const DEBUG_HELPER_SERVICE_ID = 'debugHelperService';
 export const IDebugHelperService = createDecorator<IDebugHelperService>(DEBUG_HELPER_SERVICE_ID);
 
 export interface IDebugHelperService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined;
 }

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as network from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
@@ -18,9 +19,8 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorInput, GroupIdentifier, IEditorInput, IMoveResult, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { EditorInput, GroupIdentifier, IEditorInput, IMoveResult, IRevertOptions, ISaveOptions, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { SearchEditorFindMatchClass, SearchEditorScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditorModel } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
 import { defaultSearchConfig, extractSearchQueryFromModel, parseSavedSearchEditor, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
@@ -43,7 +43,7 @@ export type SearchConfiguration = {
 	showIncludesExcludes: boolean,
 };
 
-const SEARCH_EDITOR_EXT = '.code-search';
+export const SEARCH_EDITOR_EXT = '.code-search';
 
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
@@ -69,6 +69,8 @@ export class SearchEditorInput extends EditorInput {
 		this.memento.getMemento(StorageScope.WORKSPACE).searchConfig = value;
 		this._onDidChangeLabel.fire();
 	}
+
+	private readonly fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileEditorInputFactory();
 
 	get resource() {
 		return this.backingUri || this.modelUri;
@@ -108,7 +110,7 @@ export class SearchEditorInput extends EditorInput {
 
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
-			readonly resource = input.backingUri ?? input.modelUri;
+			readonly resource = input.modelUri;
 			get name() { return input.getName(); }
 			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : 0;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
@@ -178,10 +180,6 @@ export class SearchEditorInput extends EditorInput {
 		return localize('searchTitle', "Search");
 	}
 
-	async resolve() {
-		return null;
-	}
-
 	setDirty(dirty: boolean) {
 		this.dirty = dirty;
 		this._onDidChangeDirty.fire();
@@ -215,7 +213,7 @@ export class SearchEditorInput extends EditorInput {
 		return !this.backingUri;
 	}
 
-	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		if (this._cachedModel && extname(target) === SEARCH_EDITOR_EXT) {
 			return {
 				editor: this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: this.config, text: this._cachedModel.getValue(), backingUri: target })
@@ -235,7 +233,7 @@ export class SearchEditorInput extends EditorInput {
 
 		if (other instanceof SearchEditorInput) {
 			return !!(other.modelUri.fragment && other.modelUri.fragment === this.modelUri.fragment);
-		} else if (other instanceof FileEditorInput) {
+		} else if (this.fileEditorInputFactory.isFileEditorInput(other)) {
 			return other.resource?.toString() === this.backingUri?.toString();
 		}
 		return false;
@@ -282,7 +280,7 @@ export class SearchEditorInput extends EditorInput {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? network.Schemas.vscodeRemote : network.Schemas.file;
 
-		return joinPath(this.fileDialogService.defaultFilePath(schemeFilter) || (await this.pathService.userHome), searchFileName);
+		return joinPath(this.fileDialogService.defaultFilePath(schemeFilter) || (await this.pathService.userHome()), searchFileName);
 	}
 }
 
@@ -302,15 +300,19 @@ export const getOrMakeSearchEditorInput = (
 	const searchEditorSettings = configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor;
 
 	const reuseOldSettings = searchEditorSettings.reusePriorSearchConfiguration;
-	const defaultShowContextValue = searchEditorSettings.defaultShowContextValue;
+	const defaultNumberOfContextLines = searchEditorSettings.defaultNumberOfContextLines;
 
 	const priorConfig: SearchConfiguration = reuseOldSettings ? new Memento(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE).searchConfig : {};
 	const defaultConfig = defaultSearchConfig();
 
 	let config = { ...defaultConfig, ...priorConfig, ...existingData.config };
 
-	if (defaultShowContextValue !== null && defaultShowContextValue !== undefined) {
-		config.contextLines = defaultShowContextValue;
+	if (defaultNumberOfContextLines !== null && defaultNumberOfContextLines !== undefined) {
+		config.contextLines = existingData.config.contextLines ?? defaultNumberOfContextLines;
+	}
+
+	if (existingData.text) {
+		config.contextLines = 0;
 	}
 
 	const modelUri = existingData.modelUri ?? URI.from({ scheme: SearchEditorScheme, fragment: `${Math.random()}` });

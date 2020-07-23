@@ -40,7 +40,7 @@ namespace schema {
 			case 'menuBar/webNavigation': return MenuId.MenubarWebNavigationMenu;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/sourceControl': return MenuId.SCMSourceControl;
-			case 'scm/resourceState/context': return MenuId.SCMResourceContext;//
+			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
 			case 'scm/resourceFolder/context': return MenuId.SCMResourceFolderContext;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/change/title': return MenuId.SCMChangeContext;//
@@ -64,6 +64,7 @@ namespace schema {
 		switch (menuId) {
 			case MenuId.StatusBarWindowIndicatorMenu:
 			case MenuId.MenubarWebNavigationMenu:
+			case MenuId.NotebookCellTitle:
 				return true;
 		}
 		return false;
@@ -337,7 +338,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `$(zap)`'),
+				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
 				anyOf: [{
 					type: 'string'
 				},

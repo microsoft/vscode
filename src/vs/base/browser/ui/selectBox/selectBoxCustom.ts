@@ -464,6 +464,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		// Track initial selection the case user escape, blur
 		this._currentSelection = this.selected;
 		this._isVisible = true;
+		this.selectElement.setAttribute('aria-expanded', 'true');
 	}
 
 	private hideSelectDropDown(focusSelect: boolean) {
@@ -472,6 +473,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		this._isVisible = false;
+		this.selectElement.setAttribute('aria-expanded', 'false');
 
 		if (focusSelect) {
 			this.selectElement.focus();

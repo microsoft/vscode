@@ -166,6 +166,9 @@ export interface IPathData {
 
 	// Specifies if the file should be only be opened if it exists
 	openOnlyIfExists?: boolean;
+
+	// Specifies an optional id to override the editor used to edit the resource, e.g. custom editor.
+	overrideId?: string;
 }
 
 export interface IOpenFileRequest {
@@ -183,4 +186,12 @@ export interface IWindowConfiguration {
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
+}
+
+/**
+ * According to Electron docs: `scale := 1.2 ^ level`.
+ * https://github.com/electron/electron/blob/master/docs/api/web-contents.md#contentssetzoomlevellevel
+ */
+export function zoomLevelToZoomFactor(zoomLevel = 0): number {
+	return Math.pow(1.2, zoomLevel);
 }

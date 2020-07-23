@@ -155,7 +155,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 }
 
 export class SimpleEditorProgressService implements IEditorProgressService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static NULL_PROGRESS_RUNNER: IProgressRunner = {
 		done: () => { },
@@ -251,7 +251,7 @@ export class SimpleNotificationService implements INotificationService {
 }
 
 export class StandaloneCommandService implements ICommandService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _instantiationService: IInstantiationService;
 
@@ -420,7 +420,7 @@ function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides 
 
 export class SimpleConfigurationService implements IConfigurationService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
@@ -498,7 +498,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 export class SimpleResourceConfigurationService implements ITextResourceConfigurationService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeConfiguration = new Emitter<ITextResourceConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
@@ -527,7 +527,7 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 
 export class SimpleResourcePropertiesService implements ITextResourcePropertiesService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -544,7 +544,7 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 }
 
 export class StandaloneTelemetryService implements ITelemetryService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	public isOptedIn = false;
 	public sendErrorTelemetry = false;
@@ -648,7 +648,7 @@ export function applyConfigurationValues(configurationService: IConfigurationSer
 }
 
 export class SimpleBulkEditService implements IBulkEditService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(private readonly _modelService: IModelService) {
 		//
@@ -703,7 +703,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 
 export class SimpleUriLabelService implements ILabelService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	public readonly onDidChangeFormatters: Event<IFormatterChangeEvent> = Event.None;
 
@@ -736,7 +736,7 @@ export class SimpleUriLabelService implements ILabelService {
 }
 
 export class SimpleLayoutService implements ILayoutService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	public onLayout = Event.None;
 

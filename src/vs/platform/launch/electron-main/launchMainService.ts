@@ -51,7 +51,7 @@ function parseOpenUrl(args: ParsedArgs): URI[] {
 }
 
 export interface ILaunchMainService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
 	getMainProcessId(): Promise<number>;
 	getMainProcessInfo(): Promise<IMainProcessInfo>;
@@ -60,7 +60,7 @@ export interface ILaunchMainService {
 
 export class LaunchMainService implements ILaunchMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -70,14 +70,18 @@ export class LaunchMainService implements ILaunchMainService {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
+	async start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
 
-		const urlsToOpen = parseOpenUrl(args);
+		// Since we now start to open a window, make sure the app has focus.
+		// Focussing a window will not ensure that the application itself
+		// has focus, so we use the `steal: true` hint to force focus.
+		app.focus({ steal: true });
 
 		// Check early for open-url which is handled in URL service
+		const urlsToOpen = parseOpenUrl(args);
 		if (urlsToOpen.length) {
-			let whenWindowReady: Promise<any> = Promise.resolve<any>(null);
+			let whenWindowReady: Promise<unknown> = Promise.resolve();
 
 			// Create a window if there is none
 			if (this.windowsMainService.getWindowCount() === 0) {
@@ -91,12 +95,12 @@ export class LaunchMainService implements ILaunchMainService {
 					this.urlService.open(url);
 				}
 			});
-
-			return Promise.resolve(undefined);
 		}
 
 		// Otherwise handle in windows service
-		return this.startOpenWindow(args, userEnv);
+		else {
+			return this.startOpenWindow(args, userEnv);
+		}
 	}
 
 	private startOpenWindow(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void> {

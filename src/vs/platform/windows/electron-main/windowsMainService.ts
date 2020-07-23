@@ -15,7 +15,7 @@ import { ParsedArgs } from 'vs/platform/environment/node/argv';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, screen, BrowserWindow, MessageBoxOptions, Display, app, nativeTheme } from 'electron';
+import { screen, BrowserWindow, MessageBoxOptions, Display, app, nativeTheme } from 'electron';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -30,7 +30,7 @@ import { IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, hasWorkspaceFi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { getComparisonKey, isEqual, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
+import { normalizePath, originalFSPath, removeTrailingPathSeparator, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/platform/windows/electron-main/windowsStateStorage';
 import { getWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
@@ -152,7 +152,7 @@ interface IWorkspacePathToOpen {
 
 export class WindowsMainService extends Disposable implements IWindowsMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly windowsStateStorageKey = 'windowsState';
 
@@ -212,19 +212,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private registerListeners(): void {
 
-		// React to workbench ready events from windows
-		ipc.on('vscode:workbenchReady', (event: Event, windowId: number) => {
-			this.logService.trace('IPC#vscode-workbenchReady');
-
-			const win = this.getWindowById(windowId);
-			if (win) {
-				win.setReady();
-
-				// Event
-				this._onWindowReady.fire(win);
-			}
-		});
-
 		// React to HC color scheme changes (Windows)
 		if (isWindows) {
 			nativeTheme.on('updated', () => {
@@ -265,13 +252,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	// Note that onBeforeShutdown() and onBeforeWindowClose() are fired in different order depending on the OS:
 	// - macOS: since the app will not quit when closing the last window, you will always first get
-	//          the onBeforeShutdown() event followed by N onbeforeWindowClose() events for each window
+	//          the onBeforeShutdown() event followed by N onBeforeWindowClose() events for each window
 	// - other: on other OS, closing the last window will quit the app so the order depends on the
 	//          user interaction: closing the last window will first trigger onBeforeWindowClose()
 	//          and then onBeforeShutdown(). Using the quit action however will first issue onBeforeShutdown()
 	//          and then onBeforeWindowClose().
 	//
-	// Here is the behaviour on different OS dependig on action taken (Electron 1.7.x):
+	// Here is the behavior on different OS depending on action taken (Electron 1.7.x):
 	//
 	// Legend
 	// -  quit(N): quit application with N windows opened
@@ -333,7 +320,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// 3.) All windows (except extension host) for N >= 2 to support restoreWindows: all or for auto update
 		//
-		// Carefull here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
+		// Careful here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
 		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
 		// to come from the stored lastClosedWindowState on Win/Linux at least
 		if (this.getWindowCount() > 1) {
@@ -365,7 +352,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		else if (!win.isExtensionDevelopmentHost && (!!win.openedWorkspace || !!win.openedFolderUri)) {
 			this.windowsState.openedWindows.forEach(o => {
 				const sameWorkspace = win.openedWorkspace && o.workspace && o.workspace.id === win.openedWorkspace.id;
-				const sameFolder = win.openedFolderUri && o.folderUri && isEqual(o.folderUri, win.openedFolderUri);
+				const sameFolder = win.openedFolderUri && o.folderUri && extUriBiasedIgnorePathCase.isEqual(o.folderUri, win.openedFolderUri);
 
 				if (sameWorkspace || sameFolder) {
 					o.uiState = state.uiState;
@@ -673,7 +660,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// Handle folders to open (instructed and to restore)
-		const allFoldersToOpen = arrays.distinct(foldersToOpen, folder => getComparisonKey(folder.folderUri)); // prevent duplicates
+		const allFoldersToOpen = arrays.distinct(foldersToOpen, folder => extUriBiasedIgnorePathCase.getComparisonKey(folder.folderUri)); // prevent duplicates
 		if (allFoldersToOpen.length > 0) {
 
 			// Check for existing instances
@@ -696,7 +683,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Open remaining ones
 			allFoldersToOpen.forEach(folderToOpen => {
 
-				if (windowsOnFolderPath.some(win => isEqual(win.openedFolderUri, folderToOpen.folderUri))) {
+				if (windowsOnFolderPath.some(win => extUriBiasedIgnorePathCase.isEqual(win.openedFolderUri, folderToOpen.folderUri))) {
 					return; // ignore folders that are already open
 				}
 
@@ -1022,7 +1009,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			restoreWindows = windowConfig?.restoreWindows || 'all'; // by default restore all windows
 
-			if (['all', 'folders', 'one', 'none'].indexOf(restoreWindows) === -1) {
+			if (!['all', 'folders', 'one', 'none'].includes(restoreWindows)) {
 				restoreWindows = 'all'; // by default restore all windows
 			}
 		}
@@ -1130,6 +1117,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		if (remoteAuthority) {
 			const first = anyPath.charCodeAt(0);
+
 			// make absolute
 			if (first !== CharCode.Slash) {
 				if (isWindowsDriveLetter(first) && anyPath.charCodeAt(anyPath.charCodeAt(1)) === CharCode.Colon) {
@@ -1434,24 +1422,25 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (options.forceNewTabbedWindow) {
 				const activeWindow = this.getLastActiveWindow();
 				if (activeWindow) {
-					activeWindow.addTabbedWindow(window);
+					activeWindow.addTabbedWindow(createdWindow);
 				}
 			}
 
 			// Add to our list of windows
-			WindowsMainService.WINDOWS.push(window);
+			WindowsMainService.WINDOWS.push(createdWindow);
 
 			// Indicate number change via event
 			this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length - 1, newCount: WindowsMainService.WINDOWS.length });
 
 			// Window Events
-			once(window.onClose)(() => this.onWindowClosed(createdWindow));
-			once(window.onDestroy)(() => this.onBeforeWindowClose(createdWindow)); // try to save state before destroy because close will not fire
-			window.win.webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
-			window.win.webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
+			once(createdWindow.onReady)(() => this._onWindowReady.fire(createdWindow));
+			once(createdWindow.onClose)(() => this.onWindowClosed(createdWindow));
+			once(createdWindow.onDestroy)(() => this.onBeforeWindowClose(createdWindow)); // try to save state before destroy because close will not fire
+			createdWindow.win.webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
+			createdWindow.win.webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
 
 			// Lifecycle
-			(this.lifecycleMainService as LifecycleMainService).registerWindow(window);
+			(this.lifecycleMainService as LifecycleMainService).registerWindow(createdWindow);
 		}
 
 		// Existing window
@@ -1526,7 +1515,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Known Folder - load from stored settings
 			if (configuration.folderUri) {
-				const stateForFolder = this.windowsState.openedWindows.filter(o => o.folderUri && isEqual(o.folderUri, configuration.folderUri)).map(o => o.uiState);
+				const stateForFolder = this.windowsState.openedWindows.filter(o => o.folderUri && extUriBiasedIgnorePathCase.isEqual(o.folderUri, configuration.folderUri)).map(o => o.uiState);
 				if (stateForFolder.length) {
 					return stateForFolder[0];
 				}

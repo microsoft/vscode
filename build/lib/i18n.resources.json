@@ -219,6 +219,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/views",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/actions",
 			"project": "vscode-workbench"
 		},
@@ -240,10 +244,6 @@
 		},
 		{
 			"name": "vs/workbench/services/configurationResolver",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/services/crashReporter",
 			"project": "vscode-workbench"
 		},
 		{

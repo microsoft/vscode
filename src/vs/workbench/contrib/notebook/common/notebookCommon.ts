@@ -14,9 +14,10 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { GlobPattern } from 'vs/workbench/api/common/extHost.protocol';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
+import { IRevertOptions } from 'vs/workbench/common/editor';
+import { basename } from 'vs/base/common/path';
 
 export enum CellKind {
 	Markdown = 1,
@@ -52,6 +53,11 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
 
 export const BUILTIN_RENDERER_ID = '_builtin';
 
+export enum NotebookRunState {
+	Running = 1,
+	Idle = 2
+}
+
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
 	editable: true,
 	runnable: true,
@@ -59,7 +65,8 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	cellRunnable: true,
 	cellHasExecutionOrder: true,
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
-	custom: {}
+	custom: {},
+	runState: NotebookRunState.Idle
 };
 
 export interface NotebookDocumentMetadata {
@@ -68,8 +75,9 @@ export interface NotebookDocumentMetadata {
 	cellEditable: boolean;
 	cellRunnable: boolean;
 	cellHasExecutionOrder: boolean;
-	displayOrder?: GlobPattern[];
-	custom?: { [key: string]: any };
+	displayOrder?: (string | glob.IRelativePattern)[];
+	custom?: { [key: string]: unknown };
+	runState?: NotebookRunState;
 }
 
 export enum NotebookCellRunState {
@@ -89,7 +97,7 @@ export interface NotebookCellMetadata {
 	runState?: NotebookCellRunState;
 	runStartTime?: number;
 	lastRunDuration?: number;
-	custom?: { [key: string]: any };
+	custom?: { [key: string]: unknown };
 }
 
 export interface INotebookDisplayOrder {
@@ -98,8 +106,7 @@ export interface INotebookDisplayOrder {
 }
 
 export interface INotebookMimeTypeSelector {
-	type: string;
-	subTypes?: string[];
+	mimeTypes?: string[];
 }
 
 export interface INotebookRendererInfo {
@@ -118,7 +125,9 @@ export interface INotebookKernelInfo {
 	extension: ExtensionIdentifier;
 	extensionLocation: URI,
 	preloads: URI[];
-	executeNotebook(viewType: string, uri: URI, handle: number | undefined, token: CancellationToken): Promise<void>;
+	providerHandle?: number;
+	executeNotebook(viewType: string, uri: URI, handle: number | undefined): Promise<void>;
+
 }
 
 export interface INotebookKernelInfoDto {
@@ -153,12 +162,21 @@ export interface IErrorOutput {
 	traceback?: string[];
 }
 
+export interface NotebookCellOutputMetadata {
+	/**
+	 * Additional attributes of a cell metadata.
+	 */
+	custom?: { [key: string]: unknown };
+}
+
 export interface IDisplayOutput {
 	outputKind: CellOutputKind.Rich;
 	/**
 	 * { mime_type: value }
 	 */
-	data: { [key: string]: any; }
+	data: { [key: string]: unknown; }
+
+	metadata?: NotebookCellOutputMetadata;
 }
 
 export enum MimeTypeRendererResolver {
@@ -176,7 +194,9 @@ export interface IOrderedMimeType {
 
 export interface ITransformedDisplayOutputDto {
 	outputKind: CellOutputKind.Rich;
-	data: { [key: string]: any; }
+	outputId: string;
+	data: { [key: string]: unknown; }
+	metadata?: NotebookCellOutputMetadata;
 
 	orderedMimeTypes?: IOrderedMimeType[];
 	pickedMimeTypeIndex?: number;
@@ -195,6 +215,7 @@ export type IRawOutput = IDisplayOutput | IStreamOutput | IErrorOutput;
 
 export interface IOutputRenderRequestOutputInfo {
 	index: number;
+	outputId: string;
 	handlerId: string;
 	mimeType: string;
 	output?: IRawOutput;
@@ -211,6 +232,7 @@ export interface IOutputRenderRequest<T> {
 
 export interface IOutputRenderResponseOutputInfo {
 	index: number;
+	outputId: string;
 	mimeType: string;
 	handlerId: string;
 	transformedOutput: string;
@@ -250,15 +272,14 @@ export interface IMetadata {
 export interface INotebookTextModel {
 	handle: number;
 	viewType: string;
-	// metadata: IMetadata;
+	metadata: NotebookDocumentMetadata
 	readonly uri: URI;
 	readonly versionId: number;
 	languages: string[];
 	cells: ICell[];
 	renderers: Set<string>;
-	onDidChangeCells?: Event<NotebookCellTextModelSplice[]>;
+	onDidChangeCells?: Event<{ synchronous: boolean, splices: NotebookCellTextModelSplice[] }>;
 	onDidChangeContent: Event<void>;
-	onDidChangeUnknown: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }
 
@@ -283,6 +304,7 @@ export interface IMainCellDto {
 	handle: number;
 	uri: UriComponents,
 	source: string[];
+	eol: string;
 	language: string;
 	cellKind: CellKind;
 	outputs: IProcessedOutput[];
@@ -300,7 +322,14 @@ export enum NotebookCellsChangeType {
 	Move = 2,
 	CellClearOutput = 3,
 	CellsClearOutput = 4,
-	ChangeLanguage = 5
+	ChangeLanguage = 5,
+	Initialize = 6
+}
+
+export interface NotebookCellsInitializeEvent {
+	readonly kind: NotebookCellsChangeType.Initialize;
+	readonly changes: NotebookCellsSplice2[];
+	readonly versionId: number;
 }
 
 export interface NotebookCellsModelChangedEvent {
@@ -334,7 +363,7 @@ export interface NotebookCellsChangeLanguageEvent {
 	readonly language: string;
 }
 
-export type NotebookCellsChangedEvent = NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent;
+export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent;
 export enum CellEditType {
 	Insert = 1,
 	Delete = 2
@@ -378,11 +407,12 @@ export interface NotebookDataDto {
 export namespace CellUri {
 
 	export const scheme = 'vscode-notebook-cell';
+	const _regex = /^\d{7,}/;
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
 			scheme,
-			fragment: `${handle}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+			fragment: `${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
 		});
 	}
 
@@ -390,14 +420,15 @@ export namespace CellUri {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
-		const handle = parseInt(cell.fragment);
-		if (isNaN(handle)) {
+		const match = _regex.exec(cell.fragment);
+		if (!match) {
 			return undefined;
 		}
+		const handle = Number(match[0]);
 		return {
 			handle,
 			notebook: cell.with({
-				scheme: cell.fragment.substr(handle.toString().length) || Schemas.file,
+				scheme: cell.fragment.substr(match[0].length) || Schemas.file,
 				fragment: null
 			})
 		};
@@ -540,15 +571,28 @@ export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' 
 
 
 export interface INotebookEditorModel extends IEditorModel {
-	notebook: NotebookTextModel;
+	readonly onDidChangeDirty: Event<void>;
+	readonly resource: URI;
+	readonly viewType: string;
+	readonly notebook: NotebookTextModel;
 	isDirty(): boolean;
+	isUntitled(): boolean;
 	save(): Promise<boolean>;
+	saveAs(target: URI): Promise<boolean>;
+	revert(options?: IRevertOptions | undefined): Promise<void>;
 }
 
 export interface INotebookTextModelBackup {
 	metadata: NotebookDocumentMetadata;
 	languages: string[];
 	cells: ICellDto2[]
+}
+
+export interface NotebookDocumentBackupData {
+	readonly viewType: string;
+	readonly name: string;
+	readonly backupId?: string;
+	readonly mtime?: number;
 }
 
 export interface IEditor extends editorCommon.ICompositeCodeEditor {
@@ -560,4 +604,70 @@ export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	getId(): string;
 	hasFocus(): boolean;
 	hasModel(): boolean;
+}
+
+export enum NotebookEditorPriority {
+	default = 'default',
+	option = 'option',
+}
+
+export interface INotebookSearchOptions {
+	regex?: boolean;
+	wholeWord?: boolean;
+	caseSensitive?: boolean
+	wordSeparators?: string;
+}
+
+export interface INotebookDocumentFilter {
+	viewType?: string;
+	filenamePattern?: string | glob.IRelativePattern;
+	excludeFileNamePattern?: string | glob.IRelativePattern;
+}
+
+//TODO@rebornix test
+export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, viewType: string, resource: URI): boolean {
+	if (filter.viewType === viewType) {
+		return true;
+	}
+
+	if (filter.filenamePattern) {
+		if (glob.match(filter.filenamePattern, basename(resource.fsPath).toLowerCase())) {
+			if (filter.excludeFileNamePattern) {
+				if (glob.match(filter.excludeFileNamePattern, basename(resource.fsPath).toLowerCase())) {
+					// should exclude
+
+					return false;
+				}
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+export interface INotebookKernelInfoDto2 {
+	id: string;
+	label: string;
+	extension: ExtensionIdentifier;
+	extensionLocation: URI;
+	providerHandle?: number;
+	description?: string;
+	isPreferred?: boolean;
+	preloads?: UriComponents[];
+}
+
+export interface INotebookKernelInfo2 extends INotebookKernelInfoDto2 {
+	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
+	executeNotebookCell?(uri: URI, handle: number | undefined): Promise<void>;
+	cancelNotebookCell?(uri: URI, handle: number | undefined): Promise<void>;
+}
+
+export interface INotebookKernelProvider {
+	providerExtensionId: string;
+	providerDescription?: string;
+	selector: INotebookDocumentFilter;
+	onDidChangeKernels: Event<void>;
+	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
+	resolveKernel(editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
+	executeNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
 }

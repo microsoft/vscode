@@ -285,7 +285,7 @@ export function isRootOrDriveLetter(path: string): boolean {
 	return pathNormalized === posix.sep;
 }
 
-export function indexOfPath(path: string, candidate: string, ignoreCase: boolean): number {
+export function indexOfPath(path: string, candidate: string, ignoreCase?: boolean): number {
 	if (candidate.length > path.length) {
 		return -1;
 	}

@@ -15,7 +15,7 @@ export const ISnippetsService = createDecorator<ISnippetsService>('snippetServic
 
 export interface ISnippetsService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	getSnippetFiles(): Promise<Iterable<SnippetFile>>;
 

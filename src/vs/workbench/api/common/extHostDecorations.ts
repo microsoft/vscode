@@ -52,17 +52,20 @@ export class ExtHostDecorations implements IExtHostDecorations {
 		});
 	}
 
-	$provideDecorations(requests: DecorationRequest[], token: CancellationToken): Promise<DecorationReply> {
+	async $provideDecorations(handle: number, requests: DecorationRequest[], token: CancellationToken): Promise<DecorationReply> {
+
+		if (!this._provider.has(handle)) {
+			// might have been unregistered in the meantime
+			return Object.create(null);
+		}
+
 		const result: DecorationReply = Object.create(null);
-		return Promise.all(requests.map(request => {
-			const { handle, uri, id } = request;
-			const entry = this._provider.get(handle);
-			if (!entry) {
-				// might have been unregistered in the meantime
-				return undefined;
-			}
-			const { provider, extensionId } = entry;
-			return Promise.resolve(provider.provideDecoration(URI.revive(uri), token)).then(data => {
+		const { provider, extensionId } = this._provider.get(handle)!;
+
+		await Promise.all(requests.map(async request => {
+			try {
+				const { uri, id } = request;
+				const data = await Promise.resolve(provider.provideDecoration(URI.revive(uri), token));
 				if (!data) {
 					return;
 				}
@@ -72,13 +75,12 @@ export class ExtHostDecorations implements IExtHostDecorations {
 				} catch (e) {
 					this._logService.warn(`INVALID decoration from extension '${extensionId.value}': ${e}`);
 				}
-			}, err => {
+			} catch (err) {
 				this._logService.error(err);
-			});
+			}
+		}));
 
-		})).then(() => {
-			return result;
-		});
+		return result;
 	}
 }
 

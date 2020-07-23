@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./menubar';
 import * as browser from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import * as strings from 'vs/base/common/strings';
@@ -326,7 +327,15 @@ export class MenuBar extends Disposable {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
 
-			if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter) || (this.options.compactMode !== undefined && event.equals(KeyCode.Space))) && !this.isOpen) {
+			const triggerKeys = [KeyCode.Enter];
+			if (this.options.compactMode === undefined) {
+				triggerKeys.push(KeyCode.DownArrow);
+			} else {
+				triggerKeys.push(KeyCode.Space);
+				triggerKeys.push(this.options.compactMode === Direction.Right ? KeyCode.RightArrow : KeyCode.LeftArrow);
+			}
+
+			if ((triggerKeys.some(k => event.equals(k)) && !this.isOpen)) {
 				this.focusedMenu = { index: MenuBar.OVERFLOW_INDEX };
 				this.openedViaKeyboard = true;
 				this.focusState = MenubarState.OPEN;
@@ -444,6 +453,16 @@ export class MenuBar extends Disposable {
 
 	getHeight(): number {
 		return this.container.clientHeight;
+	}
+
+	toggleFocus(): void {
+		if (!this.isFocused && this.options.visibility !== 'hidden') {
+			this.mnemonicsInUse = true;
+			this.focusedMenu = { index: this.numMenusShown > 0 ? 0 : MenuBar.OVERFLOW_INDEX };
+			this.focusState = MenubarState.FOCUSED;
+		} else if (!this.isOpen) {
+			this.setUnfocusedState();
+		}
 	}
 
 	private updateOverflowAction(): void {
@@ -932,7 +951,6 @@ export class MenuBar extends Disposable {
 			menuHolder.style.top = `0px`;
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
-			console.log(customMenu.buttonElement.getBoundingClientRect().right - this.container.clientWidth);
 		} else {
 			menuHolder.style.top = `${this.container.clientHeight}px`;
 			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left}px`;

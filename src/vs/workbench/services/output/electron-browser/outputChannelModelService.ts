@@ -200,7 +200,7 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 
 export class OutputChannelModelService extends AsbtractOutputChannelModelService implements IOutputChannelModelService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,

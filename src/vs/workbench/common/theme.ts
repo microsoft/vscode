@@ -318,13 +318,13 @@ export const PANEL_SECTION_HEADER_BORDER = registerColor('panelSectionHeader.bor
 	dark: contrastBorder,
 	light: contrastBorder,
 	hc: contrastBorder
-}, nls.localize('panelSectionHeaderBorder', "Panel section header border color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+}, nls.localize('panelSectionHeaderBorder', "Panel section header border color used when multiple views are stacked vertically in the panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
 	dark: PANEL_BORDER,
 	light: PANEL_BORDER,
 	hc: PANEL_BORDER
-}, nls.localize('panelSectionBorder', "Panel section border color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+}, nls.localize('panelSectionBorder', "Panel section border color used when multiple views are stacked horizontally in the panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 
 // < --- Status --- >

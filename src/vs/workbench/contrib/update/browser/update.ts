@@ -50,12 +50,13 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), undefined, true);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		if (this.productService.releaseNotesUrl) {
 			const uri = URI.parse(this.productService.releaseNotesUrl);
-			return this.openerService.open(uri);
+			await this.openerService.open(uri);
+		} else {
+			throw new Error(nls.localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", this.productService.nameLong));
 		}
-		return Promise.resolve(false);
 	}
 }
 
@@ -70,18 +71,22 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		super(id, label, undefined, true);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		if (!this.enabled) {
-			return Promise.resolve(false);
+			return;
 		}
-
 		this.enabled = false;
 
-		return showReleaseNotes(this.instantiationService, this.version)
-			.then(undefined, () => {
-				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
-				return action.run().then(() => false);
-			});
+		try {
+			await showReleaseNotes(this.instantiationService, this.version);
+		} catch (err) {
+			const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
+			try {
+				await action.run();
+			} catch (err2) {
+				throw new Error(`${err.message} and ${err2.message}`);
+			}
+		}
 	}
 }
 
@@ -177,7 +182,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IActivityService private readonly activityService: IActivityService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
@@ -217,7 +222,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			case StateType.Idle:
 				if (state.error) {
 					this.onError(state.error);
-				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context === this.workbenchEnvironmentService.configuration.sessionId) {
+				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context === this.environmentService.configuration.sessionId) {
 					this.onUpdateNotAvailable();
 				}
 				break;
@@ -402,7 +407,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerGlobalActivityActions(): void {
-		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(this.workbenchEnvironmentService.configuration.sessionId));
+		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(this.environmentService.configuration.sessionId));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '6_update',
 			command: {
@@ -474,6 +479,50 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
 		});
+	}
+}
+
+export class SwitchProductQualityContribution extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@IProductService private readonly productService: IProductService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+	) {
+		super();
+
+		this.registerGlobalActivityActions();
+	}
+
+	private registerGlobalActivityActions(): void {
+		const quality = this.productService.quality;
+		const productQualityChangeHandler = this.environmentService.options?.productQualityChangeHandler;
+		if (productQualityChangeHandler && (quality === 'stable' || quality === 'insider')) {
+			const newQuality = quality === 'stable' ? 'insider' : 'stable';
+			const commandId = `update.switchQuality.${newQuality}`;
+			CommandsRegistry.registerCommand(commandId, async accessor => {
+				const dialogService = accessor.get(IDialogService);
+
+				const res = await dialogService.confirm({
+					type: 'info',
+					message: nls.localize('relaunchMessage', "Changing the version requires a reload to take effect"),
+					detail: newQuality === 'insider' ?
+						nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the nightly pre-production version of VSCode.") :
+						nls.localize('relaunchDetailStable', "Press the reload button to switch to the monthly released stable version of VSCode."),
+					primaryButton: nls.localize('reload', "&&Reload")
+				});
+
+				if (res.confirmed) {
+					productQualityChangeHandler(newQuality);
+				}
+			});
+			MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+				group: '6_update',
+				command: {
+					id: commandId,
+					title: newQuality === 'insider' ? nls.localize('switchToInsiders', "Switch to Insiders Version...") : nls.localize('switchToStable', "Switch to Stable Version...")
+				}
+			});
+		}
 	}
 }
 

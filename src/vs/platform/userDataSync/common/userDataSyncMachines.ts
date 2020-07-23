@@ -8,10 +8,12 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUserDataSyncStoreService, IUserData, IUserDataSyncLogService, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { PlatformToString, isWeb, Platform, platform } from 'vs/base/common/platform';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 interface IMachineData {
 	id: string;
@@ -26,19 +28,19 @@ interface IMachinesData {
 
 export type IUserDataSyncMachine = Readonly<IMachineData> & { readonly isCurrent: boolean };
 
-
 export const IUserDataSyncMachinesService = createDecorator<IUserDataSyncMachinesService>('IUserDataSyncMachinesService');
 export interface IUserDataSyncMachinesService {
 	_serviceBrand: any;
 
 	getMachines(manifest?: IUserDataManifest): Promise<IUserDataSyncMachine[]>;
 
-	addCurrentMachine(name: string, manifest?: IUserDataManifest): Promise<void>;
+	addCurrentMachine(manifest?: IUserDataManifest): Promise<void>;
 	removeCurrentMachine(manifest?: IUserDataManifest): Promise<void>;
-
 	renameMachine(machineId: string, name: string): Promise<void>;
-	disableMachine(machineId: string): Promise<void>
+	setEnablement(machineId: string, enabled: boolean): Promise<void>;
 }
+
+const currentMachineNameKey = 'sync.currentMachineName';
 
 export class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMachinesService {
 
@@ -53,7 +55,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IProductService private readonly productService: IProductService,
@@ -68,16 +70,13 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		return machineData.machines.map<IUserDataSyncMachine>(machine => ({ ...machine, ...{ isCurrent: machine.id === currentMachineId } }));
 	}
 
-	async addCurrentMachine(name: string, manifest?: IUserDataManifest): Promise<void> {
+	async addCurrentMachine(manifest?: IUserDataManifest): Promise<void> {
 		const currentMachineId = await this.currentMachineIdPromise;
 		const machineData = await this.readMachinesData(manifest);
-		let currentMachine = machineData.machines.find(({ id }) => id === currentMachineId);
-		if (currentMachine) {
-			currentMachine.name = name;
-		} else {
-			machineData.machines.push({ id: currentMachineId, name });
+		if (!machineData.machines.some(({ id }) => id === currentMachineId)) {
+			machineData.machines.push({ id: currentMachineId, name: this.computeCurrentMachineName(machineData.machines) });
+			await this.writeMachinesData(machineData);
 		}
-		await this.writeMachinesData(machineData);
 	}
 
 	async removeCurrentMachine(manifest?: IUserDataManifest): Promise<void> {
@@ -91,21 +90,42 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 	}
 
 	async renameMachine(machineId: string, name: string, manifest?: IUserDataManifest): Promise<void> {
+		const currentMachineId = await this.currentMachineIdPromise;
 		const machineData = await this.readMachinesData(manifest);
-		const currentMachine = machineData.machines.find(({ id }) => id === machineId);
-		if (currentMachine) {
-			currentMachine.name = name;
+		const machine = machineData.machines.find(({ id }) => id === machineId);
+		if (machine) {
+			machine.name = name;
+			await this.writeMachinesData(machineData);
+			if (machineData.machines.some(({ id }) => id === currentMachineId)) {
+				this.storageService.store(currentMachineNameKey, name, StorageScope.GLOBAL);
+			}
+		}
+	}
+
+	async setEnablement(machineId: string, enabled: boolean): Promise<void> {
+		const machineData = await this.readMachinesData();
+		const machine = machineData.machines.find(({ id }) => id === machineId);
+		if (machine) {
+			machine.disabled = enabled ? undefined : true;
 			await this.writeMachinesData(machineData);
 		}
 	}
 
-	async disableMachine(machineId: string): Promise<void> {
-		const machineData = await this.readMachinesData();
-		const machine = machineData.machines.find(({ id }) => id === machineId);
-		if (machine) {
-			machine.disabled = true;
-			await this.writeMachinesData(machineData);
+	private computeCurrentMachineName(machines: IMachineData[]): string {
+		const previousName = this.storageService.get(currentMachineNameKey, StorageScope.GLOBAL);
+		if (previousName) {
+			return previousName;
 		}
+
+		const namePrefix = `${this.productService.nameLong} (${PlatformToString(isWeb ? Platform.Web : platform)})`;
+		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s#(\\d)`);
+		let nameIndex = 0;
+		for (const machine of machines) {
+			const matches = nameRegEx.exec(machine.name);
+			const index = matches ? parseInt(matches[1]) : 0;
+			nameIndex = index > nameIndex ? index : nameIndex;
+		}
+		return `${namePrefix} #${nameIndex + 1}`;
 	}
 
 	private async readMachinesData(manifest?: IUserDataManifest): Promise<IMachinesData> {

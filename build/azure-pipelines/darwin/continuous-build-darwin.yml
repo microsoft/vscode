@@ -1,7 +1,7 @@
 steps:
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -28,10 +28,6 @@ steps:
 - script: |
     yarn electron x64
   displayName: Download Electron
-
-- script: |
-    yarn gulp hygiene
-  displayName: Run Hygiene Checks
 
 - script: |
     yarn monaco-compile-check

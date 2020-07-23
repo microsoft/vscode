@@ -7,6 +7,7 @@ import { distinct, mergeSort } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { posix } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -89,6 +90,11 @@ export interface CustomEditorDescriptor {
 
 export class CustomEditorInfo implements CustomEditorDescriptor {
 
+	private static readonly excludedSchemes = new Set([
+		Schemas.extension,
+		Schemas.webviewPanel,
+	]);
+
 	public readonly id: string;
 	public readonly displayName: string;
 	public readonly providerDisplayName: string;
@@ -108,6 +114,10 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 	}
 
 	static selectorMatches(selector: CustomEditorSelector, resource: URI): boolean {
+		if (CustomEditorInfo.excludedSchemes.has(resource.scheme)) {
+			return false;
+		}
+
 		if (selector.filenamePattern) {
 			const matchOnPath = selector.filenamePattern.indexOf(posix.sep) >= 0;
 			const target = matchOnPath ? resource.path : basename(resource);

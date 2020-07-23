@@ -298,7 +298,7 @@ export class StackFrame implements IStackFrame {
 	) { }
 
 	getId(): string {
-		return `stackframe:${this.thread.getId()}:${this.frameId}:${this.index}`;
+		return `stackframe:${this.thread.getId()}:${this.index}:${this.source.name}`;
 	}
 
 	getScopes(): Promise<IScope[]> {
@@ -689,7 +689,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
 	toJSON(): any {
 		const result = super.toJSON();
-		result.uri = this.uri;
+		result.uri = this._uri;
 		result.lineNumber = this._lineNumber;
 		result.column = this._column;
 		result.adapterData = this.adapterData;

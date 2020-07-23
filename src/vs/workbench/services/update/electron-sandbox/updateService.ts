@@ -11,7 +11,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class NativeUpdateService implements IUpdateService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;

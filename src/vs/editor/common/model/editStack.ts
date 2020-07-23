@@ -168,6 +168,16 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 		this._data = SingleModelEditStackData.create(model, beforeCursorState);
 	}
 
+	public toString(): string {
+		const data = (this._data instanceof SingleModelEditStackData ? this._data : SingleModelEditStackData.deserialize(this._data));
+		return data.changes.map(change => change.toString()).join(', ');
+	}
+
+	public matchesResource(resource: URI): boolean {
+		const uri = (URI.isUri(this.model) ? this.model : this.model.uri);
+		return (uri.toString() === resource.toString());
+	}
+
 	public setModel(model: ITextModel | URI): void {
 		this.model = model;
 	}
@@ -270,6 +280,11 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 		return result;
 	}
 
+	public matchesResource(resource: URI): boolean {
+		const key = uriGetComparisonKey(resource);
+		return (this._editStackElementsMap.has(key));
+	}
+
 	public setModel(model: ITextModel | URI): void {
 		const key = uriGetComparisonKey(URI.isUri(model) ? model : model.uri);
 		if (this._editStackElementsMap.has(key)) {
@@ -338,7 +353,7 @@ function getModelEOL(model: ITextModel): EndOfLineSequence {
 	}
 }
 
-function isKnownStackElement(element: IResourceUndoRedoElement | IWorkspaceUndoRedoElement | null): element is EditStackElement {
+export function isEditStackElement(element: IResourceUndoRedoElement | IWorkspaceUndoRedoElement | null): element is EditStackElement {
 	if (!element) {
 		return false;
 	}
@@ -357,7 +372,7 @@ export class EditStack {
 
 	public pushStackElement(): void {
 		const lastElement = this._undoRedoService.getLastElement(this._model.uri);
-		if (isKnownStackElement(lastElement)) {
+		if (isEditStackElement(lastElement)) {
 			lastElement.close();
 		}
 	}
@@ -368,7 +383,7 @@ export class EditStack {
 
 	private _getOrCreateEditStackElement(beforeCursorState: Selection[] | null): EditStackElement {
 		const lastElement = this._undoRedoService.getLastElement(this._model.uri);
-		if (isKnownStackElement(lastElement) && lastElement.canAppend(this._model)) {
+		if (isEditStackElement(lastElement) && lastElement.canAppend(this._model)) {
 			return lastElement;
 		}
 		const newElement = new SingleModelEditStackElement(this._model, beforeCursorState);
