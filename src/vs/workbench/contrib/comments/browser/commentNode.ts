@@ -158,7 +158,7 @@ export class CommentNode extends Disposable {
 						{
 							actionViewItemProvider: action => this.actionViewItemProvider(action as Action),
 							actionRunner: this.actionRunner,
-							clazz: 'toolbar-toggle-pickReactions codicon codicon-reactions',
+							classNames: ['toolbar-toggle-pickReactions', 'codicon', 'codicon-reactions'],
 							anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 						}
 					);
@@ -267,7 +267,7 @@ export class CommentNode extends Disposable {
 					return this.actionViewItemProvider(action as Action);
 				},
 				actionRunner: this.actionRunner,
-				clazz: 'toolbar-toggle-pickReactions',
+				classNames: 'toolbar-toggle-pickReactions',
 				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 			}
 		);
@@ -287,7 +287,7 @@ export class CommentNode extends Disposable {
 						{
 							actionViewItemProvider: action => this.actionViewItemProvider(action as Action),
 							actionRunner: this.actionRunner,
-							clazz: 'toolbar-toggle-pickReactions',
+							classNames: 'toolbar-toggle-pickReactions',
 							anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 						}
 					);

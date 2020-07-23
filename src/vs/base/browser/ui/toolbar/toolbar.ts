@@ -61,6 +61,34 @@ export class ToolBar extends Disposable {
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
 			actionViewItemProvider: (action: IAction) => {
+				if (action.id === ToggleMenuAction.ID) {
+					this.toggleMenuActionViewItem = new DropdownMenuActionViewItem(
+						action,
+						(<ToggleMenuAction>action).menuActions,
+						contextMenuProvider,
+						{
+							actionViewItemProvider: this.options.actionViewItemProvider,
+							actionRunner: this.actionRunner,
+							keybindingProvider: this.options.getKeyBinding,
+							classNames: toolBarMoreIcon.classNames,
+							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
+							menuAsChild: true
+						}
+					);
+					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
+					this.disposables.add(this._onDidChangeDropdownVisibility.add(this.toggleMenuActionViewItem.onDidChangeVisibility));
+
+					return this.toggleMenuActionViewItem;
+				}
+
+				if (options.actionViewItemProvider) {
+					const result = options.actionViewItemProvider(action);
+
+					if (result) {
+						return result;
+					}
+				}
+
 				if (action instanceof SubmenuAction) {
 					const actions = Array.isArray(action.actions) ? action.actions : action.actions();
 					const result = new DropdownMenuActionViewItem(
@@ -71,7 +99,7 @@ export class ToolBar extends Disposable {
 							actionViewItemProvider: this.options.actionViewItemProvider,
 							actionRunner: this.actionRunner,
 							keybindingProvider: this.options.getKeyBinding,
-							clazz: action.class,
+							classNames: action.class,
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
 							menuAsChild: true
 						}
@@ -83,27 +111,7 @@ export class ToolBar extends Disposable {
 					return result;
 				}
 
-				if (action.id === ToggleMenuAction.ID) {
-					this.toggleMenuActionViewItem = new DropdownMenuActionViewItem(
-						action,
-						(<ToggleMenuAction>action).menuActions,
-						contextMenuProvider,
-						{
-							actionViewItemProvider: this.options.actionViewItemProvider,
-							actionRunner: this.actionRunner,
-							keybindingProvider: this.options.getKeyBinding,
-							clazz: toolBarMoreIcon.classNames,
-							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
-							menuAsChild: true
-						}
-					);
-					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
-					this.disposables.add(this._onDidChangeDropdownVisibility.add(this.toggleMenuActionViewItem.onDidChangeVisibility));
-
-					return this.toggleMenuActionViewItem;
-				}
-
-				return options.actionViewItemProvider ? options.actionViewItemProvider(action) : undefined;
+				return undefined;
 			}
 		}));
 	}

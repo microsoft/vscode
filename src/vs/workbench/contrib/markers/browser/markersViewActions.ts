@@ -182,7 +182,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 			contextMenuService,
 			{
 				actionRunner,
-				clazz: action.class,
+				classNames: action.class,
 				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 			}
 		);
