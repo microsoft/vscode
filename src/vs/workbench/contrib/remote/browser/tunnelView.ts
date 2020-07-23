@@ -23,7 +23,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { Disposable, IDisposable, toDisposable, MutableDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { ActionRunner, IAction, IActionViewItem } from 'vs/base/common/actions';
+import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IRemoteExplorerService, TunnelModel, MakeAddress, TunnelType, ITunnelItem, Tunnel } from 'vs/workbench/services/remote/common/remoteExplorerService';
@@ -452,7 +452,6 @@ export class TunnelPanel extends ViewPane {
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ICommandService protected commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService themeService: IThemeService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
