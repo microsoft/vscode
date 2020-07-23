@@ -13,10 +13,6 @@ import { ITelemetryData } from 'vs/base/common/actions';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-const endpoint: string = 'https://default.exp-tas.com/vscode/ab';
-const telemetryEventName = 'query-expfeature';
-const featuresTelemetryPropertyName = 'VSCode.ABExp.Features';
-const assignmentContextTelemetryPropertyName = 'abexp.assignmentcontext';
 const storageKey = 'VSCode.ABExp.FeatureData';
 const refetchInterval = 1000 * 60 * 30; // By default it's set up to 30 minutes.
 
@@ -153,7 +149,7 @@ enum TargetPopulation {
 
 export class ExperimentService implements ITASExperimentService {
 	_serviceBrand: undefined;
-	private tasClient: Promise<TASClient>;
+	private tasClient: Promise<TASClient> | undefined;
 	private static MEMENTO_ID = 'experiment.service.memento';
 
 	constructor(
@@ -161,10 +157,17 @@ export class ExperimentService implements ITASExperimentService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IStorageService private storageService: IStorageService
 	) {
-		this.tasClient = this.setupTASClient();
+
+		if (this.productService.tasConfig) {
+			this.tasClient = this.setupTASClient();
+		}
 	}
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		if (!this.tasClient) {
+			return undefined;
+		}
+
 		return (await this.tasClient).getTreatmentVariable<T>('vscode', name);
 	}
 
@@ -184,15 +187,16 @@ export class ExperimentService implements ITASExperimentService {
 
 		const telemetry = new ExperimentServiceTelemetry(this.telemetryService);
 
+		const tasConfig = this.productService.tasConfig!;
 		const tasClient = new TASClient({
 			filterProviders: [filterProvider],
 			telemetry: telemetry,
 			storageKey: storageKey,
 			keyValueStorage: keyValueStorage,
-			featuresTelemetryPropertyName: featuresTelemetryPropertyName,
-			assignmentContextTelemetryPropertyName: assignmentContextTelemetryPropertyName,
-			telemetryEventName: telemetryEventName,
-			endpoint: endpoint,
+			featuresTelemetryPropertyName: tasConfig.featuresTelemetryPropertyName,
+			assignmentContextTelemetryPropertyName: tasConfig.assignmentContextTelemetryPropertyName,
+			telemetryEventName: tasConfig.telemetryEventName,
+			endpoint: tasConfig.endpoint,
 			refetchInterval: refetchInterval,
 		});
 
