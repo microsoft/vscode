@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as crypto from 'crypto';
 import * as net from 'net';
 import * as platform from 'vs/base/common/platform';
 import { tmpdir } from 'os';
@@ -14,10 +15,6 @@ function rndPort(): number {
 	const min = 8000;
 	const max = 9000;
 	return Math.floor(Math.random() * (max - min) + min);
-}
-
-function rndName(): string {
-	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
 }
 
 function sendInitializeRequest(debugAdapter: StreamDebugAdapter): Promise<DebugProtocol.Response> {
@@ -52,7 +49,7 @@ function serverConnection(socket: net.Socket) {
 
 suite('Debug - StreamDebugAdapter', () => {
 	const port = rndPort();
-	const pipeName = rndName();
+	const pipeName = crypto.randomBytes(10).toString('utf8');
 	const pipePath = platform.isWindows ? join('\\\\.\\pipe\\', pipeName) : join(tmpdir(), pipeName);
 
 	const testCases: { testName: string, debugAdapter: StreamDebugAdapter, connectionDetail: string | number }[] = [

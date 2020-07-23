@@ -91,12 +91,25 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 	}
 }
 
+export abstract class NetworkDebugAdapter extends StreamDebugAdapter {
+
+	protected socket?: net.Socket;
+
+	abstract startSession(): Promise<void>;
+
+	async stopSession(): Promise<void> {
+		await this.cancelPendingRequests();
+		if (this.socket) {
+			this.socket.end();
+			this.socket = undefined;
+		}
+	}
+}
+
 /**
  * An implementation that connects to a debug adapter via a socket.
 */
-export class SocketDebugAdapter extends StreamDebugAdapter {
-
-	private socket?: net.Socket;
+export class SocketDebugAdapter extends NetworkDebugAdapter {
 
 	constructor(private adapterServer: IDebugAdapterServer) {
 		super();
@@ -126,22 +139,12 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 			});
 		});
 	}
-
-	async stopSession(): Promise<void> {
-		await this.cancelPendingRequests();
-		if (this.socket) {
-			this.socket.end();
-			this.socket = undefined;
-		}
-	}
 }
 
 /**
  * An implementation that connects to a debug adapter via a NamedPipe (on Windows)/UNIX Domain Socket (on non-Windows).
  */
-export class NamedPipeDebugAdapter extends StreamDebugAdapter {
-
-	private socket?: net.Socket;
+export class NamedPipeDebugAdapter extends NetworkDebugAdapter {
 
 	constructor(private adapterServer: IDebugAdapterNamedPipeServer) {
 		super();
@@ -170,14 +173,6 @@ export class NamedPipeDebugAdapter extends StreamDebugAdapter {
 				}
 			});
 		});
-	}
-
-	async stopSession(): Promise<void> {
-		await this.cancelPendingRequests();
-		if (this.socket) {
-			this.socket.end();
-			this.socket = undefined;
-		}
 	}
 }
 
