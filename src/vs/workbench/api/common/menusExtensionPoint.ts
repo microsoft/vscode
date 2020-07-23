@@ -54,8 +54,8 @@ namespace schema {
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
 			case 'scm/resourceFolder/context': return MenuId.SCMResourceFolderContext;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
-			case 'scm/change/title': return MenuId.SCMChangeContext;//
-			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu;
+			case 'scm/change/title': return MenuId.SCMChangeContext;
+			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu; // TODO@aeschli this is missing schema
 			case 'view/title': return MenuId.ViewTitle;
 			case 'view/item/context': return MenuId.ViewItemContext;
 			case 'comments/commentThread/title': return MenuId.CommentThreadTitle;
@@ -83,10 +83,15 @@ namespace schema {
 
 	export function supportsSubmenus(menuId: MenuId): boolean {
 		switch (menuId) {
-			case MenuId.EditorContext:
-				return true;
+			case MenuId.CommandPalette:
+			case MenuId.TouchBarContext:
+			case MenuId.MenubarWebNavigationMenu:
+			case MenuId.StatusBarWindowIndicatorMenu:
+			case MenuId.CommentThreadActions:
+			case MenuId.CommentActions:
+				return false;
 		}
-		return false;
+		return true;
 	}
 
 	export function isMenuItem(item: IUserFriendlyMenuItem | IUserFriendlySubmenuItem): item is IUserFriendlyMenuItem {
@@ -260,7 +265,7 @@ namespace schema {
 			'editor/title': {
 				description: localize('menus.editorTitle', "The editor title menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'editor/context': {
 				description: localize('menus.editorContext', "The editor context menu"),
@@ -270,22 +275,22 @@ namespace schema {
 			'explorer/context': {
 				description: localize('menus.explorerContext', "The file explorer context menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'editor/title/context': {
 				description: localize('menus.editorTabContext', "The editor tabs context menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'debug/callstack/context': {
 				description: localize('menus.debugCallstackContext', "The debug callstack context menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'debug/toolBar': {
 				description: localize('menus.debugToolBar', "The debug toolbar menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'menuBar/webNavigation': {
 				description: localize('menus.webNavigation', "The top level navigational menu (web only)"),
@@ -295,47 +300,47 @@ namespace schema {
 			'scm/title': {
 				description: localize('menus.scmTitle', "The Source Control title menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'scm/sourceControl': {
 				description: localize('menus.scmSourceControl', "The Source Control menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'scm/resourceGroup/context': {
 				description: localize('menus.resourceGroupContext', "The Source Control resource group context menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'scm/resourceState/context': {
 				description: localize('menus.resourceStateContext', "The Source Control resource state context menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'scm/resourceFolder/context': {
 				description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'scm/change/title': {
 				description: localize('menus.changeTitle', "The Source Control inline change menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'view/title': {
 				description: localize('view.viewTitle', "The contributed view title menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'view/item/context': {
 				description: localize('view.itemContext', "The contributed view item context menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'comments/commentThread/title': {
 				description: localize('commentThread.title', "The contributed comment thread title menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'comments/commentThread/context': {
 				description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
@@ -345,7 +350,7 @@ namespace schema {
 			'comments/comment/title': {
 				description: localize('comment.title', "The contributed comment title menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'comments/comment/context': {
 				description: localize('comment.actions', "The contributed comment context menu, rendered as buttons below the comment editor"),
@@ -355,22 +360,22 @@ namespace schema {
 			'notebook/cell/title': {
 				description: localize('notebook.cell.title', "The contributed notebook cell title menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'extension/context': {
 				description: localize('menus.extensionContext', "The extension context menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'timeline/title': {
 				description: localize('view.timelineTitle', "The Timeline view title menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 			'timeline/item/context': {
 				description: localize('view.timelineContext', "The Timeline view item context menu"),
 				type: 'array',
-				items: menuItem
+				items: [menuItem, submenuItem]
 			},
 		}
 	};
