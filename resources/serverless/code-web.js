@@ -154,8 +154,6 @@ async function getExtensionPackageJSON(extensionPath) {
 			}
 
 			if (packageJSON.browser) {
-				packageJSON.main = packageJSON.browser;
-
 				let mainFilePath = path.join(extensionPath, packageJSON.browser);
 				if (path.extname(mainFilePath) !== '.js') {
 					mainFilePath += '.js';
