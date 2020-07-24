@@ -15,6 +15,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest${id}`; }
 
@@ -69,6 +70,11 @@ export interface SessionRequest {
 export interface SessionRequestInfo {
 	[scopes: string]: SessionRequest;
 }
+
+CommandsRegistry.registerCommand('workbench.getCodeExchangeProxyEndpoints', function (accessor, _) {
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	return environmentService.options?.codeExchangeProxyEndpoints;
+});
 
 export class AuthenticationService extends Disposable implements IAuthenticationService {
 	declare readonly _serviceBrand: undefined;

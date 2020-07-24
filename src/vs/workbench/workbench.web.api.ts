@@ -345,6 +345,11 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly driver?: boolean;
 
+	/**
+	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
+	 */
+	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
+
 	//#endregion
 }
 
