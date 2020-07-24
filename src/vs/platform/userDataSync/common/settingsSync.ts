@@ -193,7 +193,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			previewContent,
 			acceptedResource: this.acceptedResource,
 			acceptedContent,
-			localChange: hasLocalChanged ? fileContent ? Change.Modified : Change.Added : Change.None,
+			localChange: hasLocalChanged ? Change.Modified : Change.None,
 			remoteChange: hasRemoteChanged ? Change.Modified : Change.None,
 			hasConflicts,
 		}];
@@ -206,42 +206,48 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			const ignoredSettings = await this.getIgnoredSettings();
 			acceptedContent = updateIgnoredSettings(acceptedContent, resourcePreview.fileContent ? resourcePreview.fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
 		}
-		return super.updateResourcePreview(resourcePreview, resource, acceptedContent) as Promise<IFileResourcePreview>;
+		return {
+			...resourcePreview,
+			acceptedContent,
+			localChange: isEqual(resource, this.localResource) ? Change.None : Change.Modified,
+			remoteChange: isEqual(resource, this.remoteResource) ? Change.None : Change.Modified,
+		};
 	}
 
 	protected async applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: IFileResourcePreview[], force: boolean): Promise<void> {
 		let { fileContent, acceptedContent: content, localChange, remoteChange } = resourcePreviews[0];
 
-		if (content !== null) {
-
-			this.validateContent(content);
-
-			if (localChange !== Change.None) {
-				this.logService.trace(`${this.syncResourceLogLabel}: Updating local settings...`);
-				if (fileContent) {
-					await this.backupLocal(JSON.stringify(this.toSettingsSyncContent(fileContent.value.toString())));
-				}
-				await this.updateLocalFileContent(content, fileContent, force);
-				this.logService.info(`${this.syncResourceLogLabel}: Updated local settings`);
-			}
-			if (remoteChange !== Change.None) {
-				const formatUtils = await this.getFormattingOptions();
-				// Update ignored settings from remote
-				const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
-				const ignoredSettings = await this.getIgnoredSettings(content);
-				content = updateIgnoredSettings(content, remoteSettingsSyncContent ? remoteSettingsSyncContent.settings : '{}', ignoredSettings, formatUtils);
-				this.logService.trace(`${this.syncResourceLogLabel}: Updating remote settings...`);
-				remoteUserData = await this.updateRemoteUserData(JSON.stringify(this.toSettingsSyncContent(content)), force ? null : remoteUserData.ref);
-				this.logService.info(`${this.syncResourceLogLabel}: Updated remote settings`);
-			}
-
-			// Delete the preview
-			try {
-				await this.fileService.del(this.previewResource);
-			} catch (e) { /* ignore */ }
-		} else {
+		if (localChange === Change.None && remoteChange === Change.None) {
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing settings.`);
 		}
+
+		content = content !== null ? content : '{}';
+		this.validateContent(content);
+
+		if (localChange !== Change.None) {
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating local settings...`);
+			if (fileContent) {
+				await this.backupLocal(JSON.stringify(this.toSettingsSyncContent(fileContent.value.toString())));
+			}
+			await this.updateLocalFileContent(content, fileContent, force);
+			this.logService.info(`${this.syncResourceLogLabel}: Updated local settings`);
+		}
+
+		if (remoteChange !== Change.None) {
+			const formatUtils = await this.getFormattingOptions();
+			// Update ignored settings from remote
+			const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
+			const ignoredSettings = await this.getIgnoredSettings(content);
+			content = updateIgnoredSettings(content, remoteSettingsSyncContent ? remoteSettingsSyncContent.settings : '{}', ignoredSettings, formatUtils);
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote settings...`);
+			remoteUserData = await this.updateRemoteUserData(JSON.stringify(this.toSettingsSyncContent(content)), force ? null : remoteUserData.ref);
+			this.logService.info(`${this.syncResourceLogLabel}: Updated remote settings`);
+		}
+
+		// Delete the preview
+		try {
+			await this.fileService.del(this.previewResource);
+		} catch (e) { /* ignore */ }
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized settings...`);

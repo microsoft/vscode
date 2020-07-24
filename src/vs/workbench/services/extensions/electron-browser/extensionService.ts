@@ -706,10 +706,6 @@ function determineRunningLocation(productService: IProductService, configuration
 			}
 			if (extensionKind === 'web' && isInstalledLocally && hasLocalWebWorker) {
 				// web worker extensions run in the local web worker if possible
-				if (typeof extension.browser !== 'undefined') {
-					// The "browser" field determines the entry point
-					(<any>extension).main = extension.browser;
-				}
 				return ExtensionRunningLocation.LocalWebWorker;
 			}
 		}

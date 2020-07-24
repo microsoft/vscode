@@ -446,7 +446,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					let promise = this.activeTasks[key] ? this.activeTasks[key].promise : undefined;
 					if (!promise) {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
-						promise = this.executeTask(dependencyTask, resolver, trigger, alreadyResolved);
+						promise = this.executeDependencyTask(dependencyTask, resolver, trigger, alreadyResolved);
 					}
 					promises.push(promise);
 					if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
@@ -494,6 +494,24 @@ export class TerminalTaskSystem implements ITaskSystem {
 				return { exitCode: 0 };
 			});
 		}
+	}
+
+	private async executeDependencyTask(task: Task, resolver: ITaskResolver, trigger: string, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
+		// If the task is a background task with a watching problem matcher, we don't wait for the whole task to finish,
+		// just for the problem matcher to go inactive.
+		if (!task.configurationProperties.isBackground) {
+			return this.executeTask(task, resolver, trigger, alreadyResolved);
+		}
+
+		const inactivePromise = new Promise<ITaskSummary>(resolve => {
+			const taskInactiveDisposable = this._onDidStateChange.event(taskEvent => {
+				if ((taskEvent.kind === TaskEventKind.Inactive) && (taskEvent.__task === task)) {
+					taskInactiveDisposable.dispose();
+					resolve({ exitCode: 0 });
+				}
+			});
+		});
+		return Promise.race([inactivePromise, this.executeTask(task, resolver, trigger, alreadyResolved)]);
 	}
 
 	private async resolveAndFindExecutable(systemInfo: TaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined): Promise<string> {
