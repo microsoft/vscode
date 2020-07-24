@@ -305,10 +305,20 @@
 	margin: 0 8px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .settings-paginator .settings-paginator-go-to-page-button {
+.settings-editor > .settings-body .settings-tree-container .settings-paginator .settings-paginator-go-to-page-button,
+.settings-editor > .settings-body .settings-tree-container .settings-paginator .settings-paginator-ellipses {
 	height: 26px;
 	width: 26px;
 	margin: 0 2px;
+	text-align: center;
+}
+
+.settings-editor > .settings-body .settings-tree-container .settings-paginator .settings-paginator-go-to-page-button .monaco-button {
+	border-radius: 5px;
+}
+.settings-editor > .settings-body .settings-tree-container .settings-paginator .settings-paginator-go-to-page-button:not(.settings-current-page-button) .monaco-button:hover {
+	border: 2px solid;
+	padding: 2px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents {

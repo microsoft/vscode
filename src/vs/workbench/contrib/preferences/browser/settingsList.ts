@@ -12,12 +12,13 @@ import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupElement
 import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { isDefined } from 'vs/base/common/types';
 import { SettingsTreeDelegate, ISettingItemTemplate, SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
-import { focusBorder, foreground, errorForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarSliderBackground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { focusBorder, foreground, errorForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarSliderBackground, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
 import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import 'vs/css!./media/settingsListScrollbar';
 import { localize } from 'vs/nls';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 
 const $ = DOM.$;
 
@@ -56,7 +57,7 @@ class SettingsListPaginator {
 
 	setSettings(settings: SettingsTreeSettingElement[], shouldScroll: boolean): void {
 		this.settings = settings;
-		this.setPage(1, shouldScroll);
+		this.setPage(shouldScroll ? 1 : this.page, shouldScroll);
 	}
 
 	nextPage(): void {
@@ -112,7 +113,7 @@ export class SettingsList extends Disposable {
 		private container: HTMLElement,
 		viewState: ISettingsEditorViewState,
 		renderers: ITreeRenderer<SettingsTreeElement, never, any>[],
-		@IThemeService themeService: IThemeService,
+		@IThemeService private themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -260,21 +261,49 @@ export class SettingsList extends Disposable {
 			title: localize('previousPageTitle', "Previous page")
 		}));
 
-		previousButton.label = localize('previousPageLabel', "Previous");
-		this.pageDisposables.add(previousButton.onDidClick(() => this.paginator.previousPage()));
+		const { currentPage, totalPages } = this.paginator;
 
-		for (let pageNumber = 1; pageNumber <= this.paginator.totalPages; pageNumber++) {
+		previousButton.label = localize('previousPageLabel', "Previous");
+		previousButton.enabled = currentPage !== 1;
+		this.pageDisposables.add(previousButton.onDidClick(() => this.paginator.previousPage()));
+		this.pageDisposables.add(attachButtonStyler(previousButton, this.themeService));
+
+		const pagesToRender =
+			[...new Set([
+				1, 2, 3,
+				currentPage - 1, currentPage, currentPage + 1,
+				totalPages - 2, totalPages - 1, totalPages,
+			])].filter(pageNumber => 1 <= pageNumber && pageNumber <= totalPages).sort((a, b) => a - b);
+
+		pagesToRender.forEach((pageNumber, idx) => {
+			if (idx !== 0 && pagesToRender[idx - 1] !== pageNumber - 1) {
+				const ellipses = DOM.append(paginatorContainer, $('.settings-paginator-ellipses'));
+				ellipses.textContent = '...';
+			}
+
 			const goToPageButtonContainer = DOM.append(paginatorContainer, $('.settings-paginator-go-to-page-button'));
 			const goToPageButton = this.pageDisposables.add(new Button(goToPageButtonContainer, {
-				title: pageNumber === this.paginator.currentPage
+				title: pageNumber === currentPage
 					? localize('currentPage', "Current page, {0}", pageNumber)
 					: localize('goToPage', "Go to page {0}", pageNumber),
 			}));
 
 			goToPageButton.label = pageNumber.toString();
 
+			if (pageNumber === currentPage) {
+				goToPageButtonContainer.classList.add('settings-current-page-button');
+			}
+
 			this.pageDisposables.add(goToPageButton.onDidClick(() => this.paginator.setPage(pageNumber)));
-		}
+			this.pageDisposables.add(attachButtonStyler(goToPageButton, this.themeService, pageNumber === currentPage
+				? {}
+				: {
+					buttonBackground: editorBackground,
+					buttonHoverBackground: editorBackground,
+					buttonForeground: editorForeground,
+				},
+			));
+		});
 
 		const nextButtonContainer = DOM.append(paginatorContainer, $('.settings-paginator-control-button'));
 		const nextButton = this.pageDisposables.add(new Button(nextButtonContainer, {
@@ -282,7 +311,9 @@ export class SettingsList extends Disposable {
 		}));
 
 		nextButton.label = localize('nextPageLabel', "Next");
+		nextButton.enabled = currentPage !== totalPages;
 		this.pageDisposables.add(nextButton.onDidClick(() => this.paginator.nextPage()));
+		this.pageDisposables.add(attachButtonStyler(nextButton, this.themeService));
 	}
 
 	private getSettingsFromGroup(group: SettingsTreeGroupElement): ISettingsListView {
