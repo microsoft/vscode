@@ -484,19 +484,9 @@ export class SettingsEditor2 extends BaseEditor {
 	private onDidClickSetting(evt: ISettingLinkClickEvent, recursed?: boolean): void {
 		const elements = this.currentSettingsModel.getElementsByName(evt.targetKey);
 		if (elements && elements[0]) {
-			let sourceTop = 0.5;
-			try {
-				const _sourceTop = this.settingsTree.getRelativeTop(evt.source);
-				if (_sourceTop !== null) {
-					sourceTop = _sourceTop;
-				}
-			} catch {
-				// e.g. clicked a searched element, now the search has been cleared
-			}
+			this.settingsList.jumpToSetting(elements[0]);
 
-			this.settingsTree.reveal(elements[0], sourceTop);
-
-			const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
+			const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsList.getHTMLElement(), evt.targetKey);
 			if (domElements && domElements[0]) {
 				const control = domElements[0].querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
 				if (control) {
@@ -631,8 +621,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(this.settingRenderers.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingRenderers.onDidFocusSetting(element => {
 			this.lastFocusedSettingElement = element.setting.key;
-			// TODO@9at8 Scroll to the setting
-			// this.settingsList.reveal(element);
 		}));
 		this._register(this.settingRenderers.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
 			if (element.scope.toLowerCase() === 'workspace') {

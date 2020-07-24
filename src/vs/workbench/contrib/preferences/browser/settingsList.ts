@@ -10,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { isDefined } from 'vs/base/common/types';
+import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { SettingsTreeDelegate, ISettingItemTemplate, SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { focusBorder, foreground, errorForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarSliderBackground, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
@@ -21,16 +21,6 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 
 const $ = DOM.$;
-
-interface ISettingsListView {
-	group: SettingsTreeGroupElement;
-	settings: SettingsTreeSettingElement[];
-}
-
-interface ISettingsListCacheItem {
-	container: HTMLElement;
-	template: ISettingItemTemplate;
-}
 
 class SettingsListPaginator {
 	readonly PAGE_SIZE = 20;
@@ -55,9 +45,9 @@ class SettingsListPaginator {
 
 	constructor(private onPageChange: (shouldScroll: boolean) => void) { }
 
-	setSettings(settings: SettingsTreeSettingElement[], shouldScroll: boolean): void {
+	setSettings(settings: SettingsTreeSettingElement[], scrollToPage?: number): void {
 		this.settings = settings;
-		this.setPage(shouldScroll ? 1 : this.page, shouldScroll);
+		this.setPage(scrollToPage ?? this.page);
 	}
 
 	nextPage(): void {
@@ -80,6 +70,17 @@ class SettingsListPaginator {
 			this.onPageChange(shouldScroll);
 		}
 	}
+}
+
+interface ISettingsListView {
+	group: SettingsTreeGroupElement;
+	settings: SettingsTreeSettingElement[];
+	focusedSetting?: SettingsTreeSettingElement;
+}
+
+interface ISettingsListCacheItem {
+	container: HTMLElement;
+	template: ISettingItemTemplate;
 }
 
 export class SettingsList extends Disposable {
@@ -202,26 +203,44 @@ export class SettingsList extends Disposable {
 	}
 
 	refresh(rootGroup: SettingsTreeGroupElement): void {
-		let shouldScroll = true;
+		let scrollToPage: number | undefined = 1;
 
 		if (isDefined(this.currentView)) {
 			const refreshedGroup = findGroup(rootGroup, this.currentView.group.id);
 
 			if (isDefined(refreshedGroup)) {
 				this.currentView = this.getSettingsFromGroup(refreshedGroup);
-				shouldScroll = false;
+				scrollToPage = undefined;
 			} else {
 				this.currentView = undefined;
 			}
 		}
 
 		this.currentView = this.currentView ?? this.getSettingsFromGroup(rootGroup);
-		this.paginator.setSettings(this.currentView.settings, shouldScroll);
+		this.paginator.setSettings(this.currentView.settings, scrollToPage);
 	}
 
 	render(group: SettingsTreeGroupElement): void {
 		this.currentView = this.getSettingsFromGroup(group);
-		this.paginator.setSettings(this.currentView.settings, true);
+		this.paginator.setSettings(this.currentView.settings, 1);
+	}
+
+	jumpToSetting(element: SettingsTreeSettingElement): void {
+		if (isUndefinedOrNull(element.parent)) {
+			return;
+		}
+
+		this.currentView = this.getSettingsFromGroup(element.parent);
+		this.currentView.focusedSetting = element;
+
+		const idxInView = this.currentView.settings.findIndex(setting => setting.id === element.id);
+		if (idxInView < 0) {
+			return;
+		}
+
+		// idxInView + 1: if idx is 0, then ceil is 0. But page numbers start at 1.
+		const scrollToPage = Math.ceil((idxInView + 1) / this.paginator.PAGE_SIZE);
+		this.paginator.setSettings(this.currentView.settings, scrollToPage);
 	}
 
 	private renderPage(shouldScroll: boolean): void {
@@ -244,13 +263,25 @@ export class SettingsList extends Disposable {
 			groupRenderer.renderElement({ element: groupElement } as any, 0, groupRenderer.renderTemplate(headingContainer), undefined);
 		}
 
-		this.container.append(...this.paginator.settingsOnPage.map(setting => this.renderSetting(setting)));
+		let elementToFocus: HTMLElement | undefined;
+
+		this.container.append(...this.paginator.settingsOnPage.map(setting => {
+			const renderedSetting = this.renderSetting(setting);
+
+			if (setting.id === this.currentView?.focusedSetting?.id) {
+				elementToFocus = renderedSetting;
+			}
+
+			return renderedSetting;
+		}));
 
 		if (this.paginator.totalPages > 1) {
 			this.renderPaginatorControls();
 		}
 
-		if (shouldScroll) {
+		if (isDefined(elementToFocus)) {
+			elementToFocus.scrollIntoView();
+		} else if (shouldScroll) {
 			this.container.scrollTop = 0;
 		}
 	}
