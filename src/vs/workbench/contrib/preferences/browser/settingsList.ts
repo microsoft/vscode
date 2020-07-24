@@ -125,77 +125,7 @@ export class SettingsList extends Disposable {
 
 		this.searchFilter = element => instantiationService.createInstance(SettingsTreeFilter, viewState).filter(element, null as any);
 
-		this._register(registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-			const activeBorderColor = theme.getColor(focusBorder);
-			if (activeBorderColor) {
-				// TODO@rob - why isn't this applied when added to the stylesheet from tocTree.ts? Seems like a chromium glitch.
-				collector.addRule(`.settings-editor > .settings-body > .settings-toc-container .monaco-list:focus .monaco-list-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px;  }`);
-			}
-
-			const foregroundColor = theme.getColor(foreground);
-			if (foregroundColor) {
-				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
-				// applying an opacity to the link color.
-				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.9));
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
-
-				collector.addRule(`.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) { color: ${fgWithOpacity}; }`);
-			}
-
-			const editorBackgroundColor = theme.getColor(editorBackground);
-			if (editorBackgroundColor) {
-				// -webkit-background-clip makes the heading clip the background color
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container > * { background-color: ${editorBackgroundColor}; }`);
-			}
-
-			const errorColor = theme.getColor(errorForeground);
-			if (errorColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-deprecation-message { color: ${errorColor}; }`);
-			}
-
-			const invalidInputBackground = theme.getColor(inputValidationErrorBackground);
-			if (invalidInputBackground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
-			}
-
-			const invalidInputForeground = theme.getColor(inputValidationErrorForeground);
-			if (invalidInputForeground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-validation-message { color: ${invalidInputForeground}; }`);
-			}
-
-			const invalidInputBorder = theme.getColor(inputValidationErrorBorder);
-			if (invalidInputBorder) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-validation-message { border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item.invalid-input .setting-item-control .monaco-inputbox.idle { outline-width: 0; border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
-			}
-
-			const headerForegroundColor = theme.getColor(settingsHeaderForeground);
-			if (headerForegroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .settings-group-title-label { color: ${headerForegroundColor}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-label { color: ${headerForegroundColor}; }`);
-			}
-
-			const focusBorderColor = theme.getColor(focusBorder);
-			if (focusBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
-			}
-
-			// Scrollbar
-			const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
-			if (scrollbarSliderBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body .settings-list-container:hover { background-color: ${scrollbarSliderBackgroundColor}; }`);
-			}
-
-			const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
-			if (scrollbarSliderHoverBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body .settings-list-container::-webkit-scrollbar-thumb:hover { background-color: ${scrollbarSliderHoverBackgroundColor}; }`);
-			}
-
-			const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
-			if (scrollbarSliderActiveBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body .settings-list-container::-webkit-scrollbar-thumb:active { background-color: ${scrollbarSliderActiveBackgroundColor}; }`);
-			}
-		}));
+		this._register(registerThemingParticipant(themingParticipant));
 	}
 
 	getHTMLElement(): HTMLElement {
@@ -428,4 +358,76 @@ function findGroup(rootGroup: SettingsTreeGroupElement, id: string): SettingsTre
 	}
 
 	return;
+}
+
+function themingParticipant(theme: IColorTheme, collector: ICssStyleCollector) {
+	const activeBorderColor = theme.getColor(focusBorder);
+	if (activeBorderColor) {
+		// TODO@rob - why isn't this applied when added to the stylesheet from tocTree.ts? Seems like a chromium glitch.
+		collector.addRule(`.settings-editor > .settings-body > .settings-toc-container .monaco-list:focus .monaco-list-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px;  }`);
+	}
+
+	const foregroundColor = theme.getColor(foreground);
+	if (foregroundColor) {
+		// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
+		// applying an opacity to the link color.
+		const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.9));
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
+
+		collector.addRule(`.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) { color: ${fgWithOpacity}; }`);
+	}
+
+	const editorBackgroundColor = theme.getColor(editorBackground);
+	if (editorBackgroundColor) {
+		// -webkit-background-clip makes the heading clip the background color
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container > * { background-color: ${editorBackgroundColor}; }`);
+	}
+
+	const errorColor = theme.getColor(errorForeground);
+	if (errorColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-deprecation-message { color: ${errorColor}; }`);
+	}
+
+	const invalidInputBackground = theme.getColor(inputValidationErrorBackground);
+	if (invalidInputBackground) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
+	}
+
+	const invalidInputForeground = theme.getColor(inputValidationErrorForeground);
+	if (invalidInputForeground) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-validation-message { color: ${invalidInputForeground}; }`);
+	}
+
+	const invalidInputBorder = theme.getColor(inputValidationErrorBorder);
+	if (invalidInputBorder) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-validation-message { border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item.invalid-input .setting-item-control .monaco-inputbox.idle { outline-width: 0; border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
+	}
+
+	const headerForegroundColor = theme.getColor(settingsHeaderForeground);
+	if (headerForegroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .settings-group-title-label { color: ${headerForegroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-label { color: ${headerForegroundColor}; }`);
+	}
+
+	const focusBorderColor = theme.getColor(focusBorder);
+	if (focusBorderColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
+	}
+
+	// Scrollbar
+	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
+	if (scrollbarSliderBackgroundColor) {
+		collector.addRule(`.settings-editor > .settings-body .settings-list-container:hover { background-color: ${scrollbarSliderBackgroundColor}; }`);
+	}
+
+	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
+	if (scrollbarSliderHoverBackgroundColor) {
+		collector.addRule(`.settings-editor > .settings-body .settings-list-container::-webkit-scrollbar-thumb:hover { background-color: ${scrollbarSliderHoverBackgroundColor}; }`);
+	}
+
+	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
+	if (scrollbarSliderActiveBackgroundColor) {
+		collector.addRule(`.settings-editor > .settings-body .settings-list-container::-webkit-scrollbar-thumb:active { background-color: ${scrollbarSliderActiveBackgroundColor}; }`);
+	}
 }
