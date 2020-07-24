@@ -63,19 +63,7 @@ function fromLocal(extensionPath, forWeb) {
     let input = isWebPacked
         ? fromLocalWebpack(extensionPath, webpackConfigFileName)
         : fromLocalNormal(extensionPath);
-    if (forWeb) {
-        input = updateExtensionPackageJSON(input, (data) => {
-            delete data.scripts;
-            delete data.dependencies;
-            delete data.devDependencies;
-            if (data.browser) {
-                data.main = data.browser;
-            }
-            data.extensionKind = ['web'];
-            return data;
-        });
-    }
-    else if (isWebPacked) {
+    if (isWebPacked) {
         input = updateExtensionPackageJSON(input, (data) => {
             delete data.scripts;
             delete data.dependencies;
