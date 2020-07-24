@@ -156,7 +156,7 @@ export class ContextView extends Disposable {
 			if (this.useShadowDOM) {
 				this.shadowRootHostElement = DOM.$('.shadow-root-host');
 				this.container.appendChild(this.shadowRootHostElement);
-				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'closed' });
+				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'open' });
 				this.shadowRoot.innerHTML = `
 					<style>
 						${SHADOW_ROOT_CSS}

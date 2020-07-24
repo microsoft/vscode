@@ -173,7 +173,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this.focusTracker = this._register(DOM.trackFocus(this.domNode));
 		this._register(this.focusTracker.onDidBlur(() => {
-			if (document.activeElement === this.domNode || !DOM.isAncestor(document.activeElement, this.domNode)) {
+			if (DOM.getActiveElement() === this.domNode || !DOM.isAncestor(DOM.getActiveElement(), this.domNode)) {
 				this._onDidBlur.fire();
 				this.focusedItem = undefined;
 			}
@@ -214,7 +214,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private updateFocusedItem(): void {
 		for (let i = 0; i < this.actionsList.children.length; i++) {
 			const elem = this.actionsList.children[i];
-			if (DOM.isAncestor(document.activeElement, elem)) {
+			if (DOM.isAncestor(DOM.getActiveElement(), elem)) {
 				this.focusedItem = i;
 				break;
 			}

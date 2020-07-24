@@ -8,7 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import { IActionRunner, IAction, SubmenuAction, Separator, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses, clearNode, createStyleSheet, isInShadowDOM } from 'vs/base/browser/dom';
+import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses, clearNode, createStyleSheet, isInShadowDOM, isShadowRoot, getActiveElement } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -679,7 +679,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}, 250);
 
 		this.hideScheduler = new RunOnceScheduler(() => {
-			if (this.element && (!isAncestor(document.activeElement, this.element) && this.parentData.submenu === this.mysubmenu)) {
+			if (this.element && (!isAncestor(getActiveElement(), this.element) && this.parentData.submenu === this.mysubmenu)) {
 				this.parentData.parent.focus(false);
 				this.cleanupExistingSubmenu(true);
 			}
@@ -713,7 +713,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {
 			let event = new StandardKeyboardEvent(e);
 
-			if (document.activeElement === this.item) {
+			if (getActiveElement() === this.item) {
 				if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
 					EventHelper.stop(e, true);
 				}
@@ -733,7 +733,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.FOCUS_OUT, e => {
-			if (this.element && !isAncestor(document.activeElement, this.element)) {
+			if (this.element && !isAncestor(getActiveElement(), this.element)) {
 				this.hideScheduler.schedule();
 			}
 		}));
