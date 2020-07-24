@@ -52,7 +52,7 @@ export function activate(
 	const versionProvider = new StaticVersionProvider(
 		new TypeScriptVersion(
 			TypeScriptVersionSource.Bundled,
-			'/builtin-extension/typescript-language-features/dist/browser/typescript-web/tsserver.web.js',
+			context.asAbsolutePath('dist/browser/typescript-web/tsserver.web.js'),
 			API.v400));
 
 	const lazyClientHost = createLazyClientHost(context, false, {
