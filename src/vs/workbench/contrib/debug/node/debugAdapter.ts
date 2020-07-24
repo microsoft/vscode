@@ -95,7 +95,35 @@ export abstract class NetworkDebugAdapter extends StreamDebugAdapter {
 
 	protected socket?: net.Socket;
 
-	abstract startSession(): Promise<void>;
+	protected abstract createConnection(connectionListener: () => void): net.Socket;
+
+	startSession(): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			let connected = false;
+
+			this.socket = this.createConnection(() => {
+				this.connect(this.socket!, this.socket!);
+				resolve();
+				connected = true;
+			});
+
+			this.socket.on('close', () => {
+				if (connected) {
+					this._onError.fire(new Error('connection closed'));
+				} else {
+					reject(new Error('connection closed'));
+				}
+			});
+
+			this.socket.on('error', error => {
+				if (connected) {
+					this._onError.fire(error);
+				} else {
+					reject(error);
+				}
+			});
+		});
+	}
 
 	async stopSession(): Promise<void> {
 		await this.cancelPendingRequests();
@@ -115,29 +143,8 @@ export class SocketDebugAdapter extends NetworkDebugAdapter {
 		super();
 	}
 
-	startSession(): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
-			let connected = false;
-			this.socket = net.createConnection(this.adapterServer.port, this.adapterServer.host || '127.0.0.1', () => {
-				this.connect(this.socket!, this.socket!);
-				resolve();
-				connected = true;
-			});
-			this.socket.on('close', () => {
-				if (connected) {
-					this._onError.fire(new Error('connection closed'));
-				} else {
-					reject(new Error('connection closed'));
-				}
-			});
-			this.socket.on('error', error => {
-				if (connected) {
-					this._onError.fire(error);
-				} else {
-					reject(error);
-				}
-			});
-		});
+	protected createConnection(connectionListener: () => void): net.Socket {
+		return net.createConnection(this.adapterServer.port, this.adapterServer.host || '127.0.0.1', connectionListener);
 	}
 }
 
@@ -150,29 +157,8 @@ export class NamedPipeDebugAdapter extends NetworkDebugAdapter {
 		super();
 	}
 
-	startSession(): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
-			let connected = false;
-			this.socket = net.createConnection(this.adapterServer.path, () => {
-				this.connect(this.socket!, this.socket!);
-				resolve();
-				connected = true;
-			});
-			this.socket.on('close', () => {
-				if (connected) {
-					this._onError.fire(new Error('connection closed'));
-				} else {
-					reject(new Error('connection closed'));
-				}
-			});
-			this.socket.on('error', error => {
-				if (connected) {
-					this._onError.fire(error);
-				} else {
-					reject(error);
-				}
-			});
-		});
+	protected createConnection(connectionListener: () => void): net.Socket {
+		return net.createConnection(this.adapterServer.path, connectionListener);
 	}
 }
 
