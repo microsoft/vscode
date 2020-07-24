@@ -59,6 +59,10 @@ export function getExtensionKind(manifest: IExtensionManifest, productService: I
 		return toArray(result);
 	}
 
+	return deduceExtensionKind(manifest);
+}
+
+export function deduceExtensionKind(manifest: IExtensionManifest): ExtensionKind[] {
 	// Not an UI extension if it has main
 	if (manifest.main) {
 		if (manifest.browser) {
