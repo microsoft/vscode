@@ -27,7 +27,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { localize } from 'vs/nls';
 import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -37,7 +36,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, CELL_TOP_MARGIN, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CELL_TOP_MARGIN, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CancelCellAction, ChangeCellLanguageAction, ExecuteCellAction, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { BaseCellRenderTemplate, CellCollapseState, CellEditState, CodeCellRenderTemplate, ICellViewModel, INotebookCellList, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
@@ -313,7 +312,7 @@ abstract class AbstractCellRenderer {
 	}
 
 	protected setupCollapsedPart(templateData: BaseCellRenderTemplate): void {
-		templateData.collapsedPart.textContent = localize('collapsedCellShowLabel', "Reveal");
+		templateData.collapsedPart.innerHTML = renderCodicons('$(unfold)');
 		DOM.hide(templateData.collapsedPart);
 		templateData.disposables.add(domEvent(templateData.collapsedPart, DOM.EventType.CLICK)(() => {
 			if (!templateData.currentRenderedCell) {

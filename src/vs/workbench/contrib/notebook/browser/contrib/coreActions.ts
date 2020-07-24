@@ -1537,11 +1537,11 @@ registerAction2(class extends NotebookCellAction {
 				primary: KeyChord(KeyCode.KEY_C, KeyCode.KEY_C),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED),
-				group: '3_collapse',
-			}
+			// menu: {
+			// 	id: MenuId.NotebookCellTitle,
+			// 	when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED),
+			// 	group: '3_collapse',
+			// }
 		});
 	}
 

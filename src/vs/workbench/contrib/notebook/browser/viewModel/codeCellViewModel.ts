@@ -139,7 +139,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			};
 		} else {
 			const indicatorHeight = COLLAPSED_INDICATOR_HEIGHT + outputTotalHeight;
-			const outputContainerOffset = COLLAPSED_INDICATOR_HEIGHT;
+			const outputContainerOffset = CELL_TOP_MARGIN + COLLAPSED_INDICATOR_HEIGHT;
 			const totalHeight = CELL_TOP_MARGIN + COLLAPSED_INDICATOR_HEIGHT + CELL_BOTTOM_MARGIN + BOTTOM_CELL_TOOLBAR_HEIGHT + outputTotalHeight;
 			const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT - BOTTOM_CELL_TOOLBAR_OFFSET;
 

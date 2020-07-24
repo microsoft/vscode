@@ -1699,6 +1699,7 @@ registerThemingParticipant((theme, collector) => {
 	if (cellToolbarSeperator) {
 		collector.addRule(`.notebookOverlay .monaco-list-row > .monaco-toolbar { border: solid 1px ${cellToolbarSeperator}; }`);
 		collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container .action-item { border: solid 1px ${cellToolbarSeperator} }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-collapsed-part { border-bottom: solid 1px ${cellToolbarSeperator} }`);
 	}
 
 	const focusedCellBackgroundColor = theme.getColor(focusedCellBackground);
@@ -1713,6 +1714,8 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .code-cell-row:not(.focused):hover .cell-focus-indicator,
 			.notebookOverlay .code-cell-row:not(.focused).cell-output-hover .cell-focus-indicator,
 			.notebookOverlay .markdown-cell-row:not(.focused):hover { background-color: ${cellHoverBackgroundColor} !important; }`);
+		collector.addRule(`.notebookOverlay .code-cell-row:not(.focused).cell-output-hover .cell-collapsed-part,
+		.notebookOverlay .code-cell-row:not(.focused):hover.collapsed .cell-collapsed-part { background-color: ${cellHoverBackgroundColor} !important; }`);
 	}
 
 	const focusedCellBorderColor = theme.getColor(focusedCellBorder);
