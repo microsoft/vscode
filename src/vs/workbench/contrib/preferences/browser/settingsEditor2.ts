@@ -485,6 +485,7 @@ export class SettingsEditor2 extends BaseEditor {
 		const elements = this.currentSettingsModel.getElementsByName(evt.targetKey);
 		if (elements && elements[0]) {
 			this.settingsList.jumpToSetting(elements[0]);
+			this.updateTreeScrollSync();
 
 			const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsList.getHTMLElement(), evt.targetKey);
 			if (domElements && domElements[0]) {
@@ -674,11 +675,7 @@ export class SettingsEditor2 extends BaseEditor {
 			return;
 		}
 
-		// TODO@9at8 Sync scroll in settings list
-		const elementToSync: any = null;
-		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
-			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
-				null;
+		const element = this.settingsList.renderedGroup;
 
 		// It's possible for this to be called when the TOC and settings tree are out of sync - e.g. when the settings tree has deferred a refresh because
 		// it is focused. So, bail if element doesn't exist in the TOC.

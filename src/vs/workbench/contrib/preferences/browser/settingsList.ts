@@ -93,6 +93,10 @@ export class SettingsList extends Disposable {
 	private pageDisposables = new DisposableStore();
 	private currentView?: ISettingsListView;
 
+	get renderedGroup(): SettingsTreeGroupElement | undefined {
+		return this.currentView?.group;
+	}
+
 	dispose() {
 		[...this.usedPool.values(), ...this.freePool.values()].forEach(ts => ts.forEach(({ template }) => {
 			template.toDispose.dispose();
