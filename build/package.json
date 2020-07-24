@@ -39,6 +39,7 @@
     "gulp-sourcemaps": "^1.11.0",
     "gulp-uglify": "^3.0.0",
     "iconv-lite-umd": "0.6.8",
+    "jsonc-parser": "^2.3.0",
     "mime": "^1.3.4",
     "minimatch": "3.0.4",
     "minimist": "^1.2.3",
