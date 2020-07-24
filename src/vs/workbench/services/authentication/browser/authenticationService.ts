@@ -16,6 +16,8 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
+export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest${id}`; }
+
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
 
 export interface IAuthenticationService {

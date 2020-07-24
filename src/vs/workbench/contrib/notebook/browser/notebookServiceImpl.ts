@@ -31,6 +31,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { flatten } from 'vs/base/common/arrays';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookKernelProviderAssociationRegistry, updateNotebookKernelProvideAssociationSchema, NotebookViewTypesExtensionRegistry } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
+import { PureNotebookOutputRenderer } from 'vs/workbench/contrib/notebook/browser/notebookPureOutputRenderer';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -287,8 +288,12 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					this.notebookRenderersInfoStore.add(new NotebookOutputRendererInfo({
 						id: notebookContribution.viewType,
 						displayName: notebookContribution.displayName,
-						mimeTypes: notebookContribution.mimeTypes || []
+						mimeTypes: notebookContribution.mimeTypes || [],
 					}));
+
+					if (notebookContribution.entrypoint) {
+						this._notebookRenderers.set(notebookContribution.viewType, new PureNotebookOutputRenderer(notebookContribution.viewType, extension.description, notebookContribution.entrypoint));
+					}
 				}
 			}
 
@@ -371,6 +376,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		const kernelChangeEventListener = provider.onDidChangeKernels(() => {
 			this._onDidChangeKernels.fire();
 		});
+
+		this._onDidChangeKernels.fire();
 		return toDisposable(() => {
 			kernelChangeEventListener.dispose();
 			d.dispose();
@@ -688,7 +695,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		let orderMimeTypes: IOrderedMimeType[] = [];
 
 		sorted.forEach(mimeType => {
-			let handlers = this.findBestMatchedRenderer(mimeType);
+			let handlers = this._findBestMatchedRenderer(mimeType);
 
 			if (handlers.length) {
 				const handler = handlers[0];
@@ -732,7 +739,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		};
 	}
 
-	findBestMatchedRenderer(mimeType: string): readonly NotebookOutputRendererInfo[] {
+	private _findBestMatchedRenderer(mimeType: string): readonly NotebookOutputRendererInfo[] {
 		return this.notebookRenderersInfoStore.getContributedRenderer(mimeType);
 	}
 

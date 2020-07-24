@@ -339,7 +339,7 @@ export class AzureActiveDirectoryService {
 	}
 
 	private getCallbackEnvironment(callbackUri: vscode.Uri): string {
-		if (callbackUri.authority.endsWith('.workspaces.github.com')) {
+		if (callbackUri.authority.endsWith('.workspaces.github.com') || callbackUri.authority.endsWith('.github.dev')) {
 			return `${callbackUri.authority},`;
 		}
 

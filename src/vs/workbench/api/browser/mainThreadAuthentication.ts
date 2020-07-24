@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IAuthenticationService, AllowedExtension, readAllowedExtensions } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService, AllowedExtension, readAllowedExtensions, getAuthenticationProviderActivationEvent } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { ExtHostAuthenticationShape, ExtHostContext, IExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -18,6 +18,7 @@ import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { fromNow } from 'vs/base/common/date';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Platform, platform } from 'vs/base/common/platform';
 
 const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser'];
 
@@ -380,7 +381,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
-		await this.extensionService.activateByEvent(`onAuthenticationRequest:${providerId}`);
+		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId));
 
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		const extensionData = allowList.find(extension => extension.id === extensionId);
@@ -390,7 +391,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 
 		const remoteConnection = this.remoteAgentService.getConnection();
-		if (remoteConnection && remoteConnection.remoteAuthority && remoteConnection.remoteAuthority.startsWith('vsonline') && VSO_ALLOWED_EXTENSIONS.includes(extensionId)) {
+		const isVSO = remoteConnection !== null
+			? remoteConnection.remoteAuthority.startsWith('vsonline')
+			: platform === Platform.Web;
+
+		if (isVSO && VSO_ALLOWED_EXTENSIONS.includes(extensionId)) {
 			addAccountUsage(this.storageService, providerId, accountName, extensionId, extensionName);
 			return true;
 		}

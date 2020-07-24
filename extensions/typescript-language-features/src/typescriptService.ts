@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import BufferSyncSupport from './features/bufferSyncSupport';
 import * as Proto from './protocol';
+import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { ExectuionTarget } from './tsServer/server';
+import { TypeScriptVersion } from './tsServer/versionProvider';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { PluginManager } from './utils/plugins';
-import { TypeScriptVersion } from './utils/versionProvider';
+import { TelemetryReporter } from './utils/telemetry';
 
 export namespace ServerResponse {
 
@@ -159,9 +160,11 @@ export interface ITypeScriptServiceClient {
 	showVersionPicker(): void;
 
 	readonly apiVersion: API;
+
 	readonly pluginManager: PluginManager;
 	readonly configuration: TypeScriptServiceConfiguration;
 	readonly bufferSyncSupport: BufferSyncSupport;
+	readonly telemetryReporter: TelemetryReporter;
 
 	execute<K extends keyof StandardTsServerRequests>(
 		command: K,

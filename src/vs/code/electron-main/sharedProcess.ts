@@ -46,6 +46,7 @@ export class SharedProcess implements ISharedProcess {
 				nodeIntegration: true,
 				enableWebSQL: false,
 				enableRemoteModule: false,
+				spellcheck: false,
 				nativeWindowOpen: true,
 				images: false,
 				webgl: false,

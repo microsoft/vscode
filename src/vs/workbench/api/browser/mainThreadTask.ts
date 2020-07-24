@@ -634,7 +634,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 				return URI.parse(`${info.scheme}://${info.authority}${path}`);
 			},
 			context: this._extHostContext,
-			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet, target: ConfigurationTarget): Promise<ResolvedVariables> => {
+			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet, target: ConfigurationTarget): Promise<ResolvedVariables | undefined> => {
 				const vars: string[] = [];
 				toResolve.variables.forEach(item => vars.push(item));
 				return Promise.resolve(this._proxy.$resolveVariables(workspaceFolder.uri, { process: toResolve.process, variables: vars })).then(values => {
@@ -642,8 +642,12 @@ export class MainThreadTask implements MainThreadTaskShape {
 					forEach(values.variables, (entry) => {
 						partiallyResolvedVars.push(entry.value);
 					});
-					return new Promise<ResolvedVariables>((resolve, reject) => {
+					return new Promise<ResolvedVariables | undefined>((resolve, reject) => {
 						this._configurationResolverService.resolveWithInteraction(workspaceFolder, partiallyResolvedVars, 'tasks', undefined, target).then(resolvedVars => {
+							if (!resolvedVars) {
+								resolve(undefined);
+							}
+
 							const result: ResolvedVariables = {
 								process: undefined,
 								variables: new Map<string, string>()
@@ -677,4 +681,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 			}
 		});
 	}
+
+	async $registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void> {
+		return this._taskService.registerSupportedExecutions(custom, shell, process);
+	}
+
 }

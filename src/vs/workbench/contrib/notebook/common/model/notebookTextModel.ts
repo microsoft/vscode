@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IProcessedOutput, notebookDocumentMetadataDefaults, diff, ICellDeleteEdit, NotebookCellsChangeType, ICellDto2, IMainCellDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextSnapshot } from 'vs/editor/common/model';
-import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { InsertCellEdit, DeleteCellEdit, MoveCellEdit, SpliceCellsEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
@@ -66,6 +66,53 @@ export class NotebookTextModelSnapshot implements ITextSnapshot {
 
 }
 
+class StackOperation implements IResourceUndoRedoElement {
+	type: UndoRedoElementType.Resource;
+
+	private _operations: IUndoRedoElement[] = [];
+
+	constructor(readonly resource: URI, readonly label: string) {
+		this.type = UndoRedoElementType.Resource;
+	}
+
+	pushEditOperation(element: IUndoRedoElement) {
+		this._operations.push(element);
+	}
+
+	undo(): void {
+		this._operations.reverse().forEach(o => o.undo());
+	}
+	redo(): void | Promise<void> {
+		this._operations.forEach(o => o.redo());
+	}
+}
+
+export class NotebookOperationManager {
+	private _pendingStackOperation: StackOperation | null = null;
+	constructor(private _undoService: IUndoRedoService, private _resource: URI) {
+
+	}
+
+	pushStackElement(label: string) {
+		if (this._pendingStackOperation) {
+			this._undoService.pushElement(this._pendingStackOperation);
+			this._pendingStackOperation = null;
+			return;
+		}
+
+		this._pendingStackOperation = new StackOperation(this._resource, label);
+	}
+
+	pushEditOperation(element: IUndoRedoElement) {
+		if (this._pendingStackOperation) {
+			this._pendingStackOperation.pushEditOperation(element);
+			return;
+		}
+
+		this._undoService.pushElement(element);
+	}
+}
+
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
 
 	private _cellhandlePool: number = 0;
@@ -112,6 +159,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
+	private _operationManager: NotebookOperationManager;
+
 	constructor(
 		public handle: number,
 		public viewType: string,
@@ -122,6 +171,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	) {
 		super();
 		this.cells = [];
+
+		this._operationManager = new NotebookOperationManager(this._undoService, uri);
 	}
 
 	get isDirty() {
@@ -171,6 +222,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this.cells.splice(0, 0, ...mainCells);
 		this._increaseVersionId();
+	}
+
+	pushStackElement(label: string) {
+		this._operationManager.pushStackElement(label);
 	}
 
 	$applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], synchronous: boolean): boolean {
@@ -255,7 +310,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return [diff[0], deletedCells, diff[2]] as [number, NotebookCellTextModel[], NotebookCellTextModel[]];
 		});
 
-		this._undoService.pushElement(new SpliceCellsEdit(this.uri, undoDiff, {
+		this._operationManager.pushEditOperation(new SpliceCellsEdit(this.uri, undoDiff, {
 			insertCell: this._insertCellDelegate.bind(this),
 			deleteCell: this._deleteCellDelegate.bind(this),
 			emitSelections: this._emitSelectionsDelegate.bind(this)
@@ -266,7 +321,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	$handleEdit(label: string | undefined, undo: () => void, redo: () => void): void {
-		this._undoService.pushElement({
+		this._operationManager.pushEditOperation({
 			type: UndoRedoElementType.Resource,
 			resource: this.uri,
 			label: label ?? nls.localize('defaultEditLabel', "Edit"),
@@ -502,7 +557,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const cell = this.createCellTextModel(source, language, type, [], metadata);
 
 		if (pushUndoStop) {
-			this._undoService.pushElement(new InsertCellEdit(this.uri, index, cell, {
+			this._operationManager.pushEditOperation(new InsertCellEdit(this.uri, index, cell, {
 				insertCell: this._insertCellDelegate.bind(this),
 				deleteCell: this._deleteCellDelegate.bind(this),
 				emitSelections: this._emitSelectionsDelegate.bind(this)
@@ -522,7 +577,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	insertCell2(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean): void {
 		if (pushUndoStop) {
-			this._undoService.pushElement(new InsertCellEdit(this.uri, index, cell, {
+			this._operationManager.pushEditOperation(new InsertCellEdit(this.uri, index, cell, {
 				insertCell: this._insertCellDelegate.bind(this),
 				deleteCell: this._deleteCellDelegate.bind(this),
 				emitSelections: this._emitSelectionsDelegate.bind(this)
@@ -536,7 +591,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	deleteCell2(index: number, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined) {
 		const cell = this.cells[index];
 		if (pushUndoStop) {
-			this._undoService.pushElement(new DeleteCellEdit(this.uri, index, cell, {
+			this._operationManager.pushEditOperation(new DeleteCellEdit(this.uri, index, cell, {
 				insertCell: this._insertCellDelegate.bind(this),
 				deleteCell: this._deleteCellDelegate.bind(this),
 				emitSelections: this._emitSelectionsDelegate.bind(this)
@@ -553,7 +608,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	moveCellToIdx2(index: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): boolean {
 		const cell = this.cells[index];
 		if (pushedToUndoStack) {
-			this._undoService.pushElement(new MoveCellEdit(this.uri, index, newIdx, {
+			this._operationManager.pushEditOperation(new MoveCellEdit(this.uri, index, newIdx, {
 				moveCell: (fromIndex: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined) => {
 					this.moveCellToIdx2(fromIndex, toIndex, true, false, beforeSelections, endSelections);
 				},

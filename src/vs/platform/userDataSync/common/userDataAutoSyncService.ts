@@ -32,6 +32,7 @@ type AutoSyncErrorClassification = {
 const enablementKey = 'sync.enable';
 const disableMachineEventuallyKey = 'sync.disableMachineEventually';
 const sessionIdKey = 'sync.sessionId';
+const storeUrlKey = 'sync.storeUrl';
 
 export class UserDataAutoSyncEnablementService extends Disposable {
 
@@ -97,15 +98,20 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		this.syncTriggerDelayer = this._register(new Delayer<void>(0));
 
 		if (userDataSyncStoreService.userDataSyncStore) {
+
+			storageService.store(storeUrlKey, userDataSyncStoreService.userDataSyncStore.url.toString(), StorageScope.GLOBAL);
+
 			if (this.isEnabled()) {
 				this.logService.info('Auto Sync is enabled.');
 			} else {
 				this.logService.info('Auto Sync is disabled.');
 			}
 			this.updateAutoSync();
+
 			if (this.hasToDisableMachineEventually()) {
 				this.disableMachineEventually();
 			}
+
 			this._register(userDataSyncAccountService.onDidChangeAccount(() => this.updateAutoSync()));
 			this._register(userDataSyncStoreService.onDidChangeDonotMakeRequestsUntil(() => this.updateAutoSync()));
 			this._register(Event.debounce<string, string[]>(userDataSyncService.onDidChangeLocal, (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, false)));

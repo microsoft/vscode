@@ -48,6 +48,8 @@ export const NOTEBOOK_CELL_RUNNABLE = new RawContextKey<boolean>('notebookCellRu
 export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('notebookCellMarkdownEditMode', false); // bool
 export const NOTEBOOK_CELL_RUN_STATE = new RawContextKey<string>('notebookCellRunState', undefined); // idle, running
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false); // bool
+export const NOTEBOOK_CELL_CONTENT_COLLAPSED = new RawContextKey<boolean>('notebookCellContentIsCollapsed', false); // bool
+export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
 
 // Kernels
 
@@ -110,6 +112,8 @@ export interface ICellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
+	collapseState: CellCollapseState;
+	outputCollapseState: CellCollapseState;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -180,6 +184,7 @@ export interface INotebookEditor extends IEditor {
 	isNotebookEditor: boolean;
 	activeKernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined;
 	multipleKernelsAvailable: boolean;
+	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;
 
 	isDisposed: boolean;
@@ -240,9 +245,15 @@ export interface INotebookEditor extends IEditor {
 	moveCellDown(cell: ICellViewModel): Promise<ICellViewModel | null>;
 
 	/**
+	 * @deprecated Note that this method doesn't support batch operations, use #moveCellToIdx instead.
 	 * Move a cell above or below another cell
 	 */
 	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<ICellViewModel | null>;
+
+	/**
+	 * Move a cell to a specific position
+	 */
+	moveCellToIdx(cell: ICellViewModel, index: number): Promise<ICellViewModel | null>;
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
@@ -447,6 +458,8 @@ export interface INotebookCellList {
 }
 
 export interface BaseCellRenderTemplate {
+	editorPart: HTMLElement;
+	collapsedPart: HTMLElement;
 	contextKeyService: IContextKeyService;
 	container: HTMLElement;
 	cellContainer: HTMLElement;
@@ -464,7 +477,6 @@ export interface BaseCellRenderTemplate {
 }
 
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
-	editorPart: HTMLElement;
 	editorContainer: HTMLElement;
 	foldingIndicator: HTMLElement;
 	currentEditor?: ICodeEditor;
@@ -528,6 +540,11 @@ export enum CellEditState {
 	Editing
 }
 
+export enum CellCollapseState {
+	Normal,
+	Collapsed
+}
+
 export enum CellFocusMode {
 	Container,
 	Editor
@@ -546,6 +563,7 @@ export interface CellViewModelStateChangeEvent {
 	focusModeChanged?: boolean;
 	editStateChanged?: boolean;
 	languageChanged?: boolean;
+	collapseStateChanged?: boolean;
 	foldingStateChanged?: boolean;
 	contentChanged?: boolean;
 	outputIsHoveredChanged?: boolean;
