@@ -44,7 +44,9 @@ export const IUserDataSyncWorkbenchService = createDecorator<IUserDataSyncWorkbe
 export interface IUserDataSyncWorkbenchService {
 	_serviceBrand: any;
 
+	readonly enabled: boolean;
 	readonly authenticationProviders: IAuthenticationProvider[];
+
 	readonly all: IUserDataSyncAccount[];
 	readonly current: IUserDataSyncAccount | undefined;
 

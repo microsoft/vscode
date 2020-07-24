@@ -124,7 +124,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.turningOnSyncContext = CONTEXT_TURNING_ON_STATE.bindTo(contextKeyService);
 		this.conflictsSources = CONTEXT_CONFLICTS_SOURCES.bindTo(contextKeyService);
 
-		if (this.userDataSyncWorkbenchService.authenticationProviders.length) {
+		if (userDataSyncWorkbenchService.enabled) {
 			registerConfiguration();
 
 			this.updateAccountBadge();

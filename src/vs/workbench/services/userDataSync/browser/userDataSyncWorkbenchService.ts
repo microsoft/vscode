@@ -11,7 +11,7 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/edi
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { flatten, equals } from 'vs/base/common/arrays';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { getAuthenticationProviderActivationEvent, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
@@ -64,7 +64,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private static DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY = 'userDataSyncAccount.donotUseWorkbenchSession';
 	private static CACHED_SESSION_STORAGE_KEY = 'userDataSyncAccountPreference';
 
-	readonly authenticationProviders: IAuthenticationProvider[];
+	private _authenticationProviders: IAuthenticationProvider[] = [];
+	get enabled() { return this._authenticationProviders.length > 0; }
+
+	private availableAuthenticationProviders: IAuthenticationProvider[] = [];
+	get authenticationProviders() { return this.availableAuthenticationProviders; }
 
 	private _accountStatus: AccountStatus = AccountStatus.Uninitialized;
 	get accountStatus(): AccountStatus { return this._accountStatus; }
@@ -95,7 +99,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@ILogService private readonly logService: ILogService,
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IExtensionService extensionService: IExtensionService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProgressService private readonly progressService: IProgressService,
@@ -105,33 +109,34 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
-		this.authenticationProviders = getUserDataSyncStore(productService, configurationService)?.authenticationProviders || [];
+		this._authenticationProviders = getUserDataSyncStore(productService, configurationService)?.authenticationProviders || [];
 		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
 		this.accountStatusContext = CONTEXT_ACCOUNT_STATE.bindTo(contextKeyService);
 		this.activityViewsEnablementContext = CONTEXT_ENABLE_ACTIVITY_VIEWS.bindTo(contextKeyService);
 		this.mergesViewEnablementContext = CONTEXT_ENABLE_SYNC_MERGES_VIEW.bindTo(contextKeyService);
 
-		if (this.authenticationProviders.length) {
-
+		if (this._authenticationProviders.length) {
 			this.syncStatusContext.set(this.userDataSyncService.status);
 			this._register(userDataSyncService.onDidChangeStatus(status => this.syncStatusContext.set(status)));
 			this.syncEnablementContext.set(userDataAutoSyncService.isEnabled());
 			this._register(userDataAutoSyncService.onDidChangeEnablement(enabled => this.syncEnablementContext.set(enabled)));
 
-			extensionService.whenInstalledExtensionsRegistered().then(() => {
-				if (this.authenticationProviders.every(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {
-					this.initialize();
-				} else {
-					const disposable = this.authenticationService.onDidRegisterAuthenticationProvider(() => {
-						if (this.authenticationProviders.every(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {
-							disposable.dispose();
-							this.initialize();
-						}
-					});
-				}
-			});
+			this.waitAndInitialize();
 		}
+	}
+
+	private isSupportedAuthenticationProviderId(authenticationProviderId: string): boolean {
+		return this._authenticationProviders.some(({ id }) => id === authenticationProviderId);
+	}
+
+	private async waitAndInitialize(): Promise<void> {
+		if (this._authenticationProviders.every(({ id }) => !this.authenticationService.isAuthenticationProviderRegistered(id))) {
+			/* None of the providers are registered -> activate providers and wait until one of them is availabe */
+			await Promise.all(this._authenticationProviders.map(({ id }) => this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id))));
+			await Event.toPromise(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, ({ id }) => this.isSupportedAuthenticationProviderId(id)));
+		}
+		await this.initialize();
 	}
 
 	private async initialize(): Promise<void> {
@@ -158,8 +163,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async update(): Promise<void> {
+
+		this.availableAuthenticationProviders = this._authenticationProviders.filter(({ id }) => this.authenticationService.isAuthenticationProviderRegistered(id));
+
 		const allAccounts: Map<string, UserDataSyncAccount[]> = new Map<string, UserDataSyncAccount[]>();
-		for (const { id } of this.authenticationProviders) {
+		for (const { id } of this.availableAuthenticationProviders) {
 			const accounts = await this.getAccounts(id);
 			allAccounts.set(id, accounts);
 		}
@@ -167,7 +175,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this._all = allAccounts;
 		const current = this.current;
 		await this.updateToken(current);
-		this.updateAccountStatus(current);
+		this.updateAccountStatus(current ? AccountStatus.Available : AccountStatus.Unavailable);
 	}
 
 	private async getAccounts(authenticationProviderId: string): Promise<UserDataSyncAccount[]> {
@@ -206,10 +214,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.userDataSyncAccountService.updateAccount(value);
 	}
 
-	private updateAccountStatus(current: UserDataSyncAccount | undefined): void {
-		// set status
-		const accountStatus: AccountStatus = current ? AccountStatus.Available : AccountStatus.Unavailable;
-
+	private updateAccountStatus(accountStatus: AccountStatus): void {
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
 			this.logService.debug('Sync account status changed', previous, accountStatus);
@@ -381,10 +386,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 	}
 
-	private isSupportedAuthenticationProviderId(authenticationProviderId: string): boolean {
-		return this.authenticationProviders.some(({ id }) => id === authenticationProviderId);
-	}
-
 	private isCurrentAccount(account: UserDataSyncAccount): boolean {
 		return account.sessionId === this.currentSessionId;
 	}
@@ -414,15 +415,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async doPick(): Promise<UserDataSyncAccount | IAuthenticationProvider | undefined> {
-		if (this.authenticationProviders.length === 0) {
+		if (this.availableAuthenticationProviders.length === 0) {
 			return undefined;
 		}
 
 		await this.update();
 
 		// Single auth provider and no accounts available
-		if (this.authenticationProviders.length === 1 && !this.all.length) {
-			return this.authenticationProviders[0];
+		if (this.availableAuthenticationProviders.length === 1 && !this.all.length) {
+			return this.availableAuthenticationProviders[0];
 		}
 
 		return new Promise<UserDataSyncAccount | IAuthenticationProvider | undefined>(async (c, e) => {
@@ -454,7 +455,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		// Signed in Accounts
 		if (this.all.length) {
-			const authenticationProviders = [...this.authenticationProviders].sort(({ id }) => id === this.current?.authenticationProviderId ? -1 : 1);
+			const authenticationProviders = [...this.availableAuthenticationProviders].sort(({ id }) => id === this.current?.authenticationProviderId ? -1 : 1);
 			quickPickItems.push({ type: 'separator', label: localize('signed in', "Signed in") });
 			for (const authenticationProvider of authenticationProviders) {
 				const accounts = (this._all.get(authenticationProvider.id) || []).sort(({ sessionId }) => sessionId === this.current?.sessionId ? -1 : 1);
@@ -472,7 +473,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		// Account proviers
-		for (const authenticationProvider of this.authenticationProviders) {
+		for (const authenticationProvider of this.availableAuthenticationProviders) {
 			const signedInForProvider = this.all.some(account => account.authenticationProviderId === authenticationProvider.id);
 			if (!signedInForProvider || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {
 				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
