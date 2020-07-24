@@ -149,7 +149,18 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 			textModelResolverService.registerTextModelContentProvider(USER_DATA_SYNC_SCHEME, instantiationService.createInstance(UserDataRemoteContentProvider));
 			registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution);
+
+			this._register(Event.any(userDataSyncService.onDidChangeStatus, userDataAutoSyncService.onDidChangeEnablement)(() => this.turningOnSync = !userDataAutoSyncService.isEnabled() && userDataSyncService.status !== SyncStatus.Idle));
 		}
+	}
+
+	private get turningOnSync(): boolean {
+		return !!this.turningOnSyncContext.get();
+	}
+
+	private set turningOnSync(turningOn: boolean) {
+		this.turningOnSyncContext.set(turningOn);
+		this.updateGlobalActivityBadge();
 	}
 
 	private readonly conflictsDisposables = new Map<SyncResource, IDisposable>();
@@ -417,17 +428,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private get turningOnSync(): boolean {
-		return !!this.turningOnSyncContext.get();
-	}
-
-	private set turningOnSync(turningOn: boolean) {
-		this.turningOnSyncContext.set(turningOn);
-		this.updateGlobalActivityBadge();
-	}
-
 	private async turnOn(): Promise<void> {
-		this.turningOnSync = true;
 		try {
 			if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
 				if (!await this.askForConfirmation()) {
@@ -477,8 +478,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				}
 			}
 			this.notificationService.error(localize('turn on failed', "Error while starting Sync: {0}", toErrorMessage(e)));
-		} finally {
-			this.turningOnSync = false;
 		}
 	}
 
