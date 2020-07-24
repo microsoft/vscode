@@ -267,10 +267,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				preview = await manualSyncTask.preview();
 				const hasRemoteData = manualSyncTask.manifest !== null;
 				const hasLocalData = await this.userDataSyncService.hasLocalData();
-				const hasChanges = preview.some(([, { resourcePreviews }]) => resourcePreviews.some(r => r.localChange !== Change.None || r.remoteChange !== Change.None));
-				const isLastSyncFromCurrentMachine = preview.every(([, { isLastSyncFromCurrentMachine }]) => isLastSyncFromCurrentMachine);
+				const hasMergesFromAnotherMachine = preview.some(([syncResource, { isLastSyncFromCurrentMachine, resourcePreviews }]) =>
+					syncResource !== SyncResource.GlobalState && !isLastSyncFromCurrentMachine
+					&& resourcePreviews.some(r => r.localChange !== Change.None || r.remoteChange !== Change.None));
 
-				action = await this.getFirstTimeSyncAction(hasRemoteData, hasLocalData, hasChanges, isLastSyncFromCurrentMachine);
+				action = await this.getFirstTimeSyncAction(hasRemoteData, hasLocalData, hasMergesFromAnotherMachine);
 				const progressDisposable = manualSyncTask.onSynchronizeResources(synchronizingResources =>
 					synchronizingResources.length ? progress.report({ message: localize('syncing resource', "Syncing {0}...", getSyncAreaLabel(synchronizingResources[0][0])) }) : undefined);
 				try {
@@ -295,12 +296,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 	}
 
-	private async getFirstTimeSyncAction(hasRemoteData: boolean, hasLocalData: boolean, hasChanges: boolean, isLastSyncFromCurrentMachine: boolean): Promise<FirstTimeSyncAction> {
+	private async getFirstTimeSyncAction(hasRemoteData: boolean, hasLocalData: boolean, hasMergesFromAnotherMachine: boolean): Promise<FirstTimeSyncAction> {
 
 		if (!hasLocalData /* no data on local */
 			|| !hasRemoteData /* no data on remote */
-			|| !hasChanges /* no changes  */
-			|| isLastSyncFromCurrentMachine /* has changes but last sync is from current machine */
+			|| !hasMergesFromAnotherMachine /* no merges with another machine  */
 		) {
 			return 'merge';
 		}
