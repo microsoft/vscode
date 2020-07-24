@@ -54,17 +54,6 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { SettingsList } from 'vs/workbench/contrib/preferences/browser/settingsList';
 
-// function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
-// 	return Iterable.map(group.children, g => {
-// 		return {
-// 			element: g,
-// 			children: g instanceof SettingsTreeGroupElement ?
-// 				createGroupIterator(g) :
-// 				undefined
-// 		};
-// 	});
-// }
-
 const $ = DOM.$;
 
 interface IFocusEventFromScroll extends KeyboardEvent {
@@ -109,8 +98,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private controlsElement!: HTMLElement;
 	private settingsTargetsWidget!: SettingsTargetsWidget;
 
-	private settingsTreeContainer!: HTMLElement;
-	private settingsTree!: SettingsList;
+	private settingsListContainer!: HTMLElement;
+	private settingsList!: SettingsList;
 	private settingRenderers!: SettingTreeRenderers;
 	private tocTreeModel!: TOCTreeModel;
 	private settingsTreeModel!: SettingsTreeModel;
@@ -149,7 +138,6 @@ export class SettingsEditor2 extends BaseEditor {
 	private editorMemento: IEditorMemento<ISettingsEditor2State>;
 
 	private tocFocusedElement: SettingsTreeGroupElement | null = null;
-	// private settingsTreeScrollTop = 0;
 	private dimension!: DOM.Dimension;
 
 	constructor(
@@ -325,7 +313,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	focus(): void {
 		if (this.lastFocusedSettingElement) {
-			const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), this.lastFocusedSettingElement);
+			const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsList.getHTMLElement(), this.lastFocusedSettingElement);
 			if (elements.length) {
 				const control = elements[0].querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
 				if (control) {
@@ -356,7 +344,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
-		const firstFocusable = this.settingsTree.getHTMLElement().querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
+		const firstFocusable = this.settingsList.getHTMLElement().querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
 		if (firstFocusable) {
 			(<HTMLElement>firstFocusable).focus();
 		}
@@ -568,7 +556,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 
 		this.createTOC(bodyContainer);
-		this.createSettingsTree(bodyContainer);
+		this.createSettingsList(bodyContainer);
 	}
 
 	private addCtrlAInterceptor(container: HTMLElement): void {
@@ -609,11 +597,9 @@ export class SettingsEditor2 extends BaseEditor {
 				if (this.viewState.filterToCategory !== element) {
 					this.viewState.filterToCategory = withNullAsUndefined(element);
 					this.renderTree();
-					this.settingsTree.scrollTop = 0;
 				}
 			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
-				this.settingsTree.reveal(element, 0);
-				this.settingsTree.render(element);
+				this.settingsList.render(element);
 			}
 		}));
 
@@ -626,11 +612,11 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 	}
 
-	private createSettingsTree(parent: HTMLElement): void {
-		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
+	private createSettingsList(parent: HTMLElement): void {
+		this.settingsListContainer = DOM.append(parent, $('.settings-list-container'));
 
 		// Add  ARIA extra labels div
-		this.settingsAriaExtraLabelsContainer = DOM.append(this.settingsTreeContainer, $('.settings-aria-extra-labels'));
+		this.settingsAriaExtraLabelsContainer = DOM.append(this.settingsListContainer, $('.settings-aria-extra-labels'));
 		this.settingsAriaExtraLabelsContainer.id = 'settings_aria_extra_labels';
 		// Add global labels here
 		const labelDiv = DOM.append(this.settingsAriaExtraLabelsContainer, $('.settings-aria-extra-label'));
@@ -645,7 +631,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(this.settingRenderers.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingRenderers.onDidFocusSetting(element => {
 			this.lastFocusedSettingElement = element.setting.key;
-			this.settingsTree.reveal(element);
+			// TODO@9at8 Scroll to the setting
+			// this.settingsList.reveal(element);
 		}));
 		this._register(this.settingRenderers.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
 			if (element.scope.toLowerCase() === 'workspace') {
@@ -659,26 +646,12 @@ export class SettingsEditor2 extends BaseEditor {
 			this.searchWidget.setValue(element.targetKey);
 		}));
 
-		this.settingsTree = this._register(this.instantiationService.createInstance(
+		this.settingsList = this._register(this.instantiationService.createInstance(
 			SettingsList,
-			this.settingsTreeContainer,
+			this.settingsListContainer,
 			this.viewState,
 			this.settingRenderers.allRenderers,
 		));
-
-		// this._register(this.settingsTree.onDidScroll(() => {
-		// 	if (this.settingsTree.scrollTop === this.settingsTreeScrollTop) {
-		// 		return;
-		// 	}
-
-		// 	this.settingsTreeScrollTop = this.settingsTree.scrollTop;
-
-		// 	// setTimeout because calling setChildren on the settingsTree can trigger onDidScroll, so it fires when
-		// 	// setChildren has called on the settings tree but not the toc tree yet, so their rendered elements are out of sync
-		// 	setTimeout(() => {
-		// 		this.updateTreeScrollSync();
-		// 	}, 0);
-		// }));
 	}
 
 	private notifyNoSaveNeeded() {
@@ -713,7 +686,8 @@ export class SettingsEditor2 extends BaseEditor {
 			return;
 		}
 
-		const elementToSync = this.settingsTree.firstVisibleElement;
+		// TODO@9at8 Sync scroll in settings list
+		const elementToSync: any = null;
 		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
 			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
 				null;
@@ -980,7 +954,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private getActiveElementInSettingsTree(): HTMLElement | null {
-		return (document.activeElement && DOM.isAncestor(document.activeElement, this.settingsTree.getHTMLElement())) ?
+		return (document.activeElement && DOM.isAncestor(document.activeElement, this.settingsList.getHTMLElement())) ?
 			<HTMLElement>document.activeElement :
 			null;
 	}
@@ -1046,7 +1020,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private refreshTree(): void {
 		if (this.isVisible()) {
-			this.settingsTree.refresh(this.currentSettingsModel.root);
+			this.settingsList.refresh(this.currentSettingsModel.root);
 		}
 	}
 
@@ -1060,7 +1034,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private updateModifiedLabelForKey(key: string): void {
 		const dataElements = this.currentSettingsModel.getElementsByName(key);
 		const isModified = dataElements && dataElements[0] && dataElements[0].isConfigured; // all elements are either configured or not
-		const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), key);
+		const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsList.getHTMLElement(), key);
 		if (elements && elements[0]) {
 			DOM.toggleClass(elements[0], 'is-configured', !!isModified);
 		}
@@ -1323,8 +1297,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private layoutTrees(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (76 + 11 /* header height + padding*/);
 		const settingsTreeHeight = listHeight - 14;
-		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
-		this.settingsTree.layout(settingsTreeHeight, dimension.width);
+		this.settingsListContainer.style.height = `${settingsTreeHeight}px`;
 
 		const tocTreeHeight = listHeight - 16;
 		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
