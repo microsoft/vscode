@@ -7,8 +7,5 @@
   },
   "scripts": {
     "postinstall": "node ./postinstall"
-  },
-  "devDependencies": {
-    "rimraf": "^3.0.2"
   }
 }
