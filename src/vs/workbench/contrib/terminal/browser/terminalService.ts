@@ -25,9 +25,6 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
-// TODO@daniel code layering
-// eslint-disable-next-line code-layering, code-import-patterns
-import { INativeOpenFileRequest } from 'vs/platform/windows/node/window';
 import { find } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
@@ -109,6 +106,8 @@ export class TerminalService implements ITerminalService {
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IViewsService private _viewsService: IViewsService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		// HACK: Ideally TerminalNativeService would depend on TerminalService and inject the
+		// additional native functionality into it.
 		@optional(ITerminalNativeService) terminalNativeService: ITerminalNativeService
 	) {
 		// @optional could give undefined and properly typing it breaks service registration
@@ -120,7 +119,14 @@ export class TerminalService implements ITerminalService {
 		lifecycleService.onBeforeShutdown(async event => event.veto(this._onBeforeShutdown()));
 		lifecycleService.onShutdown(() => this._onShutdown());
 		if (this._terminalNativeService) {
-			this._terminalNativeService.onOpenFileRequest(e => this._onOpenFileRequest(e));
+			this._terminalNativeService.onRequestFocusActiveInstance(() => {
+				if (this.terminalInstances.length > 0) {
+					const terminal = this.getActiveInstance();
+					if (terminal) {
+						terminal.focus();
+					}
+				}
+			});
 			this._terminalNativeService.onOsResume(() => this._onOsResume());
 		}
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
@@ -218,22 +224,6 @@ export class TerminalService implements ITerminalService {
 	private _onShutdown(): void {
 		// Dispose of all instances
 		this.terminalInstances.forEach(instance => instance.dispose(true));
-	}
-
-	private async _onOpenFileRequest(request: INativeOpenFileRequest): Promise<void> {
-		// if the request to open files is coming in from the integrated terminal (identified though
-		// the termProgram variable) and we are instructed to wait for editors close, wait for the
-		// marker file to get deleted and then focus back to the integrated terminal.
-		if (request.termProgram === 'vscode' && request.filesToWait && this._terminalNativeService) {
-			const waitMarkerFileUri = URI.revive(request.filesToWait.waitMarkerFileUri);
-			await this._terminalNativeService.whenFileDeleted(waitMarkerFileUri);
-			if (this.terminalInstances.length > 0) {
-				const terminal = this.getActiveInstance();
-				if (terminal) {
-					terminal.focus();
-				}
-			}
-		}
 	}
 
 	private _onOsResume(): void {

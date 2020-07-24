@@ -9,40 +9,32 @@
 'use strict';
 
 const perf = (function () {
-	let sharedObj;
-	if (typeof global === 'object') {
-		// nodejs
-		sharedObj = global;
-	} else if (typeof self === 'object') {
-		// browser
-		sharedObj = self;
-	} else {
-		sharedObj = {};
-	}
-	// @ts-ignore
-	sharedObj._performanceEntries = sharedObj._performanceEntries || [];
+	globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
 	return {
 		/**
 		 * @param {string} name
 		 */
 		mark(name) {
-			sharedObj._performanceEntries.push(name, Date.now());
+			globalThis.MonacoPerformanceMarks.push(name, Date.now());
 		}
 	};
 })();
 
 perf.mark('renderer/started');
 
-// Setup shell environment
-process['lazyEnv'] = getLazyEnv();
-
 /**
- * @type {{ load: (modules: string[], resultCallback: (result, configuration: object) => any, options: object) => unknown }}
+ * @type {{
+ *   load: (modules: string[], resultCallback: (result, configuration: object) => any, options: object) => unknown,
+ *   globals: () => typeof import('../../../base/parts/sandbox/electron-sandbox/globals')
+ * }}
  */
 const bootstrapWindow = (() => {
 	// @ts-ignore (defined in bootstrap-window.js)
 	return window.MonacoBootstrapWindow;
 })();
+
+// Setup shell environment
+process['lazyEnv'] = getLazyEnv();
 
 // Load workbench main JS, CSS and NLS all in parallel. This is an
 // optimization to prevent a waterfall of loading to happen, because
@@ -184,8 +176,7 @@ function showPartsSplash(configuration) {
  * @returns {Promise<void>}
  */
 function getLazyEnv() {
-
-	const ipc = require.__$__nodeRequire('electron').ipcRenderer;
+	const ipcRenderer = bootstrapWindow.globals().ipcRenderer;
 
 	return new Promise(function (resolve) {
 		const handle = setTimeout(function () {
@@ -193,13 +184,13 @@ function getLazyEnv() {
 			console.warn('renderer did not receive lazyEnv in time');
 		}, 10000);
 
-		ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
+		ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
 			clearTimeout(handle);
 			Object.assign(process.env, shellEnv);
 			// @ts-ignore
 			resolve(process.env);
 		});
 
-		ipc.send('vscode:fetchShellEnv');
+		ipcRenderer.send('vscode:fetchShellEnv');
 	});
 }

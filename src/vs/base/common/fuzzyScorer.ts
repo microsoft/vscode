@@ -42,8 +42,7 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, fu
 	// When not searching fuzzy, we require the query to be contained fully
 	// in the target string contiguously.
 	if (!fuzzy) {
-		const indexOfQueryInTarget = targetLower.indexOf(queryLower);
-		if (indexOfQueryInTarget === -1) {
+		if (!targetLower.includes(queryLower)) {
 			// if (DEBUG) {
 			// 	console.log(`Characters not matching consecutively ${queryLower} within ${targetLower}`);
 			// }

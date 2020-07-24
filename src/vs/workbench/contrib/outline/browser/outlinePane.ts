@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
+import { Action, IAction, RadioGroup, Separator } from 'vs/base/common/actions';
 import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -410,9 +409,7 @@ export class OutlinePane extends ViewPane {
 
 	getActions(): IAction[] {
 		return [
-			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action codicon-collapse-all', true, () => {
-				return new CollapseAction(() => this._tree, true, undefined).run();
-			})
+			new CollapseAction(() => this._tree, true, 'explorer-action codicon-collapse-all')
 		];
 	}
 

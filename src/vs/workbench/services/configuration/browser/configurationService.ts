@@ -94,7 +94,11 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			});
 		}));
 
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidSchemaChange(e => this.registerConfigurationSchemas()));
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		if (environmentService.options?.configurationDefaults) {
+			configurationRegistry.registerDefaultConfigurations([environmentService.options.configurationDefaults]);
+		}
+		this._register(configurationRegistry.onDidSchemaChange(e => this.registerConfigurationSchemas()));
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDefaultConfigurationChanged(configurationProperties)));
 
 		this.workspaceEditingQueue = new Queue<void>();
@@ -523,12 +527,13 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private registerConfigurationSchemas(): void {
 		if (this.workspace) {
 			const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+			const defaultSettingsSchema: IJSONSchema = { additionalProperties: true, allowTrailingCommas: true, allowComments: true };
 			const allSettingsSchema: IJSONSchema = { properties: allSettings.properties, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
 			const userSettingsSchema: IJSONSchema = this.remoteUserConfiguration ? { properties: { ...applicationSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true } : allSettingsSchema;
 			const machineSettingsSchema: IJSONSchema = { properties: { ...machineSettings.properties, ...machineOverridableSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
 			const workspaceSettingsSchema: IJSONSchema = { properties: { ...machineOverridableSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
 
-			jsonRegistry.registerSchema(defaultSettingsSchemaId, allSettingsSchema);
+			jsonRegistry.registerSchema(defaultSettingsSchemaId, defaultSettingsSchema);
 			jsonRegistry.registerSchema(userSettingsSchemaId, userSettingsSchema);
 			jsonRegistry.registerSchema(machineSettingsSchemaId, machineSettingsSchema);
 

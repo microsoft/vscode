@@ -19,6 +19,7 @@ import { prefersExecuteOnUI, canExecuteOnWorkspace, prefersExecuteOnWorkspace, c
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { IDownloadService } from 'vs/platform/download/common/download';
+import { flatten } from 'vs/base/common/arrays';
 
 export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
 
@@ -55,11 +56,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		this.onDidUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidUninstallExtension); return emitter; }, new EventMultiplexer<DidUninstallExtensionEvent>())).event;
 	}
 
-	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		const installedExtensions: ILocalExtension[] = [];
-		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type).then(extensions => installedExtensions.push(...extensions))))
-			.then(_ => installedExtensions)
-			.catch(e => installedExtensions);
+	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
+		const result = await Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type)));
+		return flatten(result);
 	}
 
 	async uninstall(extension: ILocalExtension): Promise<void> {

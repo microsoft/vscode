@@ -598,7 +598,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 
 		let storageRoot: URI | undefined;
 		if (this.supportEditing(entry.provider) && this._extensionStoragePaths) {
-			storageRoot = URI.file(this._extensionStoragePaths.workspaceValue(entry.extension) ?? this._extensionStoragePaths.globalValue(entry.extension));
+			storageRoot = this._extensionStoragePaths.workspaceValue(entry.extension) ?? this._extensionStoragePaths.globalValue(entry.extension);
 		}
 		this._documents.add(viewType, document, storageRoot);
 

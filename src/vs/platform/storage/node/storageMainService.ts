@@ -117,7 +117,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
 		}
 
-		return join(this.environmentService.globalStorageHome, StorageMainService.STORAGE_NAME);
+		return join(this.environmentService.globalStorageHome.fsPath, StorageMainService.STORAGE_NAME);
 	}
 
 	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {

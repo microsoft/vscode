@@ -9,27 +9,6 @@ import { compareSubstringIgnoreCase, compare, compareSubstring } from 'vs/base/c
 import { Schemas } from 'vs/base/common/network';
 import { isLinux } from 'vs/base/common/platform';
 
-/**
- * @deprecated ES6: use `[...SetOrMap.values()]`
- */
-export function values<V = any>(set: Set<V>): V[];
-export function values<K = any, V = any>(map: Map<K, V>): V[];
-export function values<V>(forEachable: { forEach(callback: (value: V, ...more: any[]) => any): void }): V[] {
-	const result: V[] = [];
-	forEachable.forEach(value => result.push(value));
-	return result;
-}
-
-/**
- * @deprecated ES6: use `[...map.keys()]`
- */
-export function keys<K, V>(map: Map<K, V>): K[] {
-	const result: K[] = [];
-	map.forEach((_value, key) => result.push(key));
-
-	return result;
-}
-
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
 	if (result === undefined) {

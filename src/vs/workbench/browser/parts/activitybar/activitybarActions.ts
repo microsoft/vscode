@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
 import { SyncActionDescriptor, IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
@@ -26,13 +26,13 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Codicon } from 'vs/base/common/codicons';
-import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { isMacintosh } from 'vs/base/common/platform';
-import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { distinct } from 'vs/base/common/arrays';
+import { AuthenticationSession } from 'vs/editor/common/modes';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -98,6 +98,8 @@ export class ViewContainerActivityAction extends ActivityAction {
 	}
 }
 
+export const ACCOUNTS_VISIBILITY_PREFERENCE_KEY = 'workbench.activity.showAccounts';
+
 export class AccountsActionViewItem extends ActivityActionViewItem {
 	constructor(
 		action: ActivityAction,
@@ -106,7 +108,9 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IMenuService protected menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -141,32 +145,43 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		const providers = this.authenticationService.getProviderIds();
 		const allSessions = providers.map(async id => {
 			const sessions = await this.authenticationService.getSessions(id);
-			const uniqueSessions = distinct(sessions, session => session.account.displayName);
+
+			const groupedSessions: { [label: string]: AuthenticationSession[] } = {};
+			sessions.forEach(session => {
+				if (groupedSessions[session.account.label]) {
+					groupedSessions[session.account.label].push(session);
+				} else {
+					groupedSessions[session.account.label] = [session];
+				}
+			});
+
 			return {
 				providerId: id,
-				sessions: uniqueSessions
+				sessions: groupedSessions
 			};
 		});
 
 		const result = await Promise.all(allSessions);
-		let menus: (IAction | ContextSubMenu)[] = [];
+		let menus: IAction[] = [];
 		result.forEach(sessionInfo => {
-			const providerDisplayName = this.authenticationService.getDisplayName(sessionInfo.providerId);
-			sessionInfo.sessions.forEach(session => {
-				const accountName = session.account.displayName;
-				const menu = new ContextSubMenu(`${accountName} (${providerDisplayName})`, [
-					new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
-						return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
-					}),
-					new Action('signOut', nls.localize('signOut', "Sign Out"), '', true, _ => {
-						return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
-					})
-				]);
+			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
+			Object.keys(sessionInfo.sessions).forEach(accountName => {
+				const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === this.environmentService.options?.authenticationSessionId);
+				const manageExtensionsAction = new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
+					return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
+				});
+				const signOutAction = new Action('signOut', nls.localize('signOut', "Sign Out"), '', true, _ => {
+					return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
+				});
+
+				const actions = hasEmbedderAccountSession ? [manageExtensionsAction] : [manageExtensionsAction, signOutAction];
+
+				const menu = new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, actions);
 				menus.push(menu);
 			});
 		});
 
-		if (menus.length) {
+		if (menus.length && otherCommands.length) {
 			menus.push(new Separator());
 		}
 
@@ -177,6 +192,15 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 				menus.push(new Separator());
 			}
 		});
+
+		if (menus.length) {
+			menus.push(new Separator());
+		}
+
+		menus.push(new Action('hide', nls.localize('hide', "Hide"), undefined, true, _ => {
+			this.storageService.store(ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL);
+			return Promise.resolve();
+		}));
 
 		return menus;
 	}
@@ -367,25 +391,6 @@ export class HomeActionViewItem extends ActionViewItem {
 
 	constructor(action: IAction) {
 		super(undefined, action, { icon: true, label: false, useEventAsContext: true });
-	}
-}
-
-/**
- * @deprecated TODO@ben remove me eventually
- */
-export class DeprecatedHomeAction extends Action {
-
-	constructor(
-		private readonly command: string,
-		name: string,
-		icon: Codicon,
-		@ICommandService private readonly commandService: ICommandService
-	) {
-		super('workbench.action.home', name, icon.classNames);
-	}
-
-	async run(): Promise<void> {
-		this.commandService.executeCommand(this.command);
 	}
 }
 

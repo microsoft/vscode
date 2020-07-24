@@ -75,6 +75,7 @@ import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentica
 import { ExtHostTimeline } from 'vs/workbench/api/common/extHostTimeline';
 import { ExtHostNotebookConcatDocument } from 'vs/workbench/api/common/extHostNotebookConcatDocument';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
+import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -87,6 +88,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 	// services
 	const initData = accessor.get(IExtHostInitDataService);
+	const extHostConsumerFileSystem = accessor.get(IExtHostConsumerFileSystem);
 	const extensionService = accessor.get(IExtHostExtensionService);
 	const extHostWorkspace = accessor.get(IExtHostWorkspace);
 	const extHostConfiguration = accessor.get(IExtHostConfiguration);
@@ -200,8 +202,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get providerIds(): string[] {
 				return extHostAuthentication.providerIds;
 			},
-			hasSessions(providerId: string, scopes: string[]): Thenable<boolean> {
-				return extHostAuthentication.hasSessions(providerId, scopes);
+			get providers(): ReadonlyArray<vscode.AuthenticationProviderInformation> {
+				return extHostAuthentication.providers;
 			},
 			getSession(providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions) {
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
@@ -209,7 +211,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			logout(providerId: string, sessionId: string): Thenable<void> {
 				return extHostAuthentication.logout(providerId, sessionId);
 			},
-			get onDidChangeSessions(): Event<{ [providerId: string]: vscode.AuthenticationSessionsChangeEvent }> {
+			get onDidChangeSessions(): Event<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent> {
 				return extHostAuthentication.onDidChangeSessions;
 			},
 		};
@@ -266,7 +268,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get sessionId() { return initData.telemetryInfo.sessionId; },
 			get language() { return initData.environment.appLanguage; },
 			get appName() { return initData.environment.appName; },
-			get appRoot() { return initData.environment.appRoot?.fsPath ?? '<UNKNOWN_APP_ROOT>'; },
+			get appRoot() { return initData.environment.appRoot?.fsPath ?? ''; },
 			get uriScheme() { return initData.environment.appUriScheme; },
 			get logLevel() {
 				checkProposedApiEnabled(extension);
@@ -746,7 +748,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
 			},
 			get fs() {
-				return extHostFileSystem.fileSystem;
+				return extHostConsumerFileSystem;
 			},
 			registerFileSearchProvider: (scheme: string, provider: vscode.FileSearchProvider) => {
 				checkProposedApiEnabled(extension);
@@ -868,6 +870,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 				return extHostDebugService.startDebugging(folder, nameOrConfig, parentSessionOrOptions || {});
 			},
+			stopDebugging(session: vscode.DebugSession | undefined) {
+				return extHostDebugService.stopDebugging(session);
+			},
 			addBreakpoints(breakpoints: vscode.Breakpoint[]) {
 				return extHostDebugService.addBreakpoints(breakpoints);
 			},
@@ -928,6 +933,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeVisibleNotebookEditors;
 			},
+			get onDidChangeActiveNotebookKernel() {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeActiveNotebookKernel;
+			},
 			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider);
@@ -935,6 +944,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerNotebookKernel: (id: string, selector: vscode.GlobPattern[], kernel: vscode.NotebookKernel) => {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookKernel(extension, id, selector, kernel);
+			},
+			registerNotebookKernelProvider: (selector: vscode.NotebookDocumentFilter, provider: vscode.NotebookKernelProvider) => {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.registerNotebookKernelProvider(extension, selector, provider);
 			},
 			registerNotebookOutputRenderer: (type: string, outputFilter: vscode.NotebookOutputSelector, renderer: vscode.NotebookOutputRenderer) => {
 				checkProposedApiEnabled(extension);
@@ -1096,7 +1109,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CellKind: extHostTypes.CellKind,
 			CellOutputKind: extHostTypes.CellOutputKind,
 			NotebookCellRunState: extHostTypes.NotebookCellRunState,
-			AuthenticationSession: extHostTypes.AuthenticationSession
+			NotebookRunState: extHostTypes.NotebookRunState
 		};
 	};
 }

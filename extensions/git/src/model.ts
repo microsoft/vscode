@@ -12,9 +12,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { APIState as State, RemoteSourceProvider, CredentialsProvider } from './api/git';
+import { APIState as State, RemoteSourceProvider, CredentialsProvider, PushErrorHandler } from './api/git';
 import { Askpass } from './askpass';
 import { IRemoteSourceProviderRegistry } from './remoteProvider';
+import { IPushErrorHandlerRegistry } from './pushError';
 
 const localize = nls.loadMessageBundle();
 
@@ -46,7 +47,7 @@ interface OpenRepository extends Disposable {
 	repository: Repository;
 }
 
-export class Model implements IRemoteSourceProviderRegistry {
+export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
 	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
@@ -93,6 +94,8 @@ export class Model implements IRemoteSourceProviderRegistry {
 
 	private _onDidRemoveRemoteSourceProvider = new EventEmitter<RemoteSourceProvider>();
 	readonly onDidRemoveRemoteSourceProvider = this._onDidRemoveRemoteSourceProvider.event;
+
+	private pushErrorHandlers = new Set<PushErrorHandler>();
 
 	private disposables: Disposable[] = [];
 
@@ -269,7 +272,7 @@ export class Model implements IRemoteSourceProviderRegistry {
 			}
 
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this.globalState, this.outputChannel);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannel);
 
 			this.open(repository);
 			await repository.status();
@@ -483,6 +486,15 @@ export class Model implements IRemoteSourceProviderRegistry {
 
 	getRemoteProviders(): RemoteSourceProvider[] {
 		return [...this.remoteSourceProviders.values()];
+	}
+
+	registerPushErrorHandler(handler: PushErrorHandler): Disposable {
+		this.pushErrorHandlers.add(handler);
+		return toDisposable(() => this.pushErrorHandlers.delete(handler));
+	}
+
+	getPushErrorHandlers(): PushErrorHandler[] {
+		return [...this.pushErrorHandlers];
 	}
 
 	dispose(): void {

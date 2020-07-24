@@ -202,6 +202,10 @@ export class SearchEditor extends BaseTextEditor {
 		}
 	}
 
+	protected getConfigurationOverrides() {
+		return { ...super.getConfigurationOverrides(), links: false };
+	}
+
 	private createResultsEditor(parent: HTMLElement) {
 		const searchResultContainer = DOM.append(parent, DOM.$('.search-results'));
 		super.createEditor(searchResultContainer);
@@ -543,8 +547,10 @@ export class SearchEditor extends BaseTextEditor {
 		this.saveViewState();
 
 		await super.setInput(newInput, options, token);
+		if (token.isCancellationRequested) { return; }
 
 		const { body, config } = await newInput.getModels();
+		if (token.isCancellationRequested) { return; }
 
 		this.searchResultEditor.setModel(body);
 		this.pauseSearching = true;

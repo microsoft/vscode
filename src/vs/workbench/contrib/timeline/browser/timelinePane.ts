@@ -6,7 +6,7 @@
 import 'vs/css!./media/timelinePane';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { IAction, ActionRunner } from 'vs/base/common/actions';
+import { IAction, ActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { fromNow } from 'vs/base/common/date';
 import { debounce } from 'vs/base/common/decorators';
@@ -36,10 +36,11 @@ import { IThemeService, LIGHT, ThemeIcon } from 'vs/platform/theme/common/themeS
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IActionViewItemProvider, ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ContextAwareMenuEntryActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { MenuEntryActionViewItem, createAndFillInContextMenuActions, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const ItemHeight = 22;
 
@@ -293,8 +294,7 @@ export class TimelinePane extends ViewPane {
 
 	get pageSize() {
 		let pageSize = this.configurationService.getValue<number | null | undefined>('timeline.pageSize');
-		// eslint-disable-next-line eqeqeq
-		if (pageSize == null) {
+		if (pageSize === undefined || pageSize === null) {
 			// If we are paging when scrolling, then add an extra item to the end to make sure the "Load more" item is out of view
 			pageSize = Math.max(20, Math.floor((this.tree.renderHeight / ItemHeight) + (this.pageOnScroll ? 1 : -1)));
 		}
@@ -909,8 +909,7 @@ export class TimelinePane extends ViewPane {
 			}
 
 			const item = e.element;
-			// eslint-disable-next-line eqeqeq
-			if (item == null) {
+			if (item === null) {
 				return;
 			}
 
@@ -1094,9 +1093,15 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
-		this.actionViewItemProvider = (action: IAction) => action instanceof MenuItemAction
-			? this.instantiationService.createInstance(ContextAwareMenuEntryActionViewItem, action)
-			: undefined;
+		this.actionViewItemProvider = (action: IAction) => {
+			if (action instanceof MenuItemAction) {
+				return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+			} else if (action instanceof SubmenuItemAction) {
+				return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
+			}
+
+			return undefined;
+		};
 	}
 
 	private uri: URI | undefined;
@@ -1241,7 +1246,6 @@ class TimelinePaneCommands extends Disposable {
 		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 		menu.dispose();
-		scoped.dispose();
 
 		return result;
 	}

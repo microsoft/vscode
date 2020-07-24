@@ -12,7 +12,11 @@
 		}
 	},
 	"overrideCommand": false,
-	"runArgs": ["--init"],
+	"runArgs": [
+		"--init",
+		// seccomp=unconfined is required for Chrome sandboxing
+		"--security-opt", "seccomp=unconfined"
+	],
 
 	"settings": {
 		// zsh is also available

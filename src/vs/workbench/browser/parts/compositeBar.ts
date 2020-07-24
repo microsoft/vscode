@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as arrays from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CompositeActionViewItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionViewItem, ActivityAction, ICompositeBar, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
 import { Dimension, $, addDisposableListener, EventType, EventHelper, toggleClass, isAncestor } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -146,6 +146,7 @@ export interface ICompositeBarOptions {
 	readonly compositeSize: number;
 	readonly overflowActionSize: number;
 	readonly dndHandler: ICompositeDragAndDrop;
+	readonly preventLoopNavigation?: boolean;
 
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => Action;
@@ -225,6 +226,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			orientation: this.options.orientation,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
 			animated: false,
+			preventLoopNavigation: this.options.preventLoopNavigation
 		}));
 
 		// Contextmenu for composites
@@ -293,9 +295,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		return { verticallyBefore: front, horizontallyBefore: front };
 	}
 
-	focus(): void {
+	focus(index?: number): void {
 		if (this.compositeSwitcherBar) {
-			this.compositeSwitcherBar.focus();
+			this.compositeSwitcherBar.focus(index);
 		}
 	}
 
@@ -553,7 +555,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		// Pull out composites that overflow or got hidden
 		const compositesToRemove: number[] = [];
 		this.visibleComposites.forEach((compositeId, index) => {
-			if (compositesToShow.indexOf(compositeId) === -1) {
+			if (!compositesToShow.includes(compositeId)) {
 				compositesToRemove.push(index);
 			}
 		});
@@ -614,8 +616,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			overflowingIds.push(this.model.activeItem.id);
 		}
 
-		overflowingIds = overflowingIds.filter(compositeId => this.visibleComposites.indexOf(compositeId) === -1);
-		return this.model.visibleItems.filter(c => overflowingIds.indexOf(c.id) !== -1).map(item => { return { id: item.id, name: this.getAction(item.id)?.label || item.name }; });
+		overflowingIds = overflowingIds.filter(compositeId => !this.visibleComposites.includes(compositeId));
+		return this.model.visibleItems.filter(c => overflowingIds.includes(c.id)).map(item => { return { id: item.id, name: this.getAction(item.id)?.label || item.name }; });
 	}
 
 	private showContextMenu(e: MouseEvent): void {
@@ -627,7 +629,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		});
 	}
 
-	private getContextMenuActions(): ReadonlyArray<IAction> {
+	private getContextMenuActions(): IAction[] {
 		const actions: IAction[] = this.model.visibleItems
 			.map(({ id, name, activityAction }) => (<IAction>{
 				id,

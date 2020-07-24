@@ -167,7 +167,9 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 				roots: this.content.options.localResourceRoots || [],
 				remoteConnectionData,
 				rewriteUri,
-			}, this.fileService, this.requestService);
+			}, {
+				readFileStream: (resource) => this.fileService.readFileStream(resource).then(x => x.value),
+			}, this.requestService);
 
 			if (result.type === WebviewResourceResponse.Type.Success) {
 				const { buffer } = await streamToBuffer(result.stream);
@@ -178,7 +180,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 					data: buffer,
 				});
 			}
-		} catch  {
+		} catch {
 			// noop
 		}
 

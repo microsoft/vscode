@@ -12,8 +12,9 @@ export namespace Iterables {
 	): Iterable<TMapped> {
 		for (const item of source) {
 			const mapped = predicateMapper(item);
-			// eslint-disable-next-line eqeqeq
-			if (mapped != null) { yield mapped; }
+			if (mapped !== undefined && mapped !== null) {
+				yield mapped;
+			}
 		}
 	}
 

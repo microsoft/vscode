@@ -20,17 +20,15 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
-import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup } from 'vs/base/common/actions';
-import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, SubmenuAction, IActionViewItemProvider } from 'vs/base/common/actions';
 import { SCMMenus } from './menus';
-import { ActionBar, IActionViewItemProvider, Separator, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, connectPrimaryMenu } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
 import { ISequence, ISplice, SimpleSequence } from 'vs/base/common/sequence';
@@ -50,7 +48,7 @@ import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, PANEL_BACKGROUND, PANEL_INPUT_BORDER } from 'vs/workbench/common/theme';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -72,7 +70,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { Command } from 'vs/editor/common/modes';
@@ -81,6 +78,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -152,6 +150,7 @@ interface ISCMLayout {
 }
 
 interface RepositoryTemplate {
+	readonly label: HTMLElement;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly countContainer: HTMLElement;
@@ -192,7 +191,7 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const disposable = Disposable.None;
 		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar, badgeStyler);
 
-		return { name, description, countContainer, count, toolBar, disposable, templateDisposable };
+		return { label, name, description, countContainer, count, toolBar, disposable, templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
@@ -202,9 +201,11 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		const repository = node.element;
 
 		if (repository.provider.rootUri) {
+			templateData.label.title = `${repository.provider.label}: ${repository.provider.rootUri.fsPath}`;
 			templateData.name.textContent = basename(repository.provider.rootUri);
 			templateData.description.textContent = repository.provider.label;
 		} else {
+			templateData.label.title = repository.provider.label;
 			templateData.name.textContent = repository.provider.label;
 			templateData.description.textContent = '';
 		}
@@ -316,19 +317,14 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 			}
 		};
 
-		const initialRender = () => {
+		const startListeningContentHeightChange = () => {
 			disposables.add(templateData.inputWidget.onDidChangeContentHeight(onDidChangeContentHeight));
 			onDidChangeContentHeight();
 		};
 
-		const contentHeight = templateData.inputWidget.getContentHeight();
-
-		if (contentHeight !== InputRenderer.DEFAULT_HEIGHT) {
-			const timeout = setTimeout(initialRender, 0);
-			disposables.add({ dispose: () => clearTimeout(timeout) });
-		} else {
-			initialRender();
-		}
+		// Setup height change listener on next tick
+		const timeout = disposableTimeout(startListeningContentHeightChange, 0);
+		disposables.add(timeout);
 
 		// Layout the editor whenever the outer layout happens
 		const layoutEditor = () => templateData.inputWidget.layout();
@@ -1021,8 +1017,8 @@ class ViewModel {
 				children.push(...item.groupItems.map(i => this.render(i)));
 			}
 
-			const collapsed = this.repositoryCollapseStates?.get(item.element) ?? false;
-			return { element: item.element, children, incompressible: true, collapsed, collapsible: hasSomeChanges };
+			const collapsed = this.repositoryCollapseStates?.get(item.element);
+			return { element: item.element, children, incompressible: true, collapsed, collapsible: true };
 		} else {
 			const children = this.mode === ViewModelMode.List
 				? Iterable.map(item.resources, element => ({ element, incompressible: true }))
@@ -1104,7 +1100,7 @@ class ViewModel {
 		const viewAction = new SCMViewSubMenuAction(this);
 
 		if (this.repositories.elements.length !== 1) {
-			return viewAction.entries;
+			return Array.isArray(viewAction.actions) ? viewAction.actions : viewAction.actions();
 		}
 
 		const menus = this.menus.getRepositoryMenus(this.repositories.elements[0].provider);
@@ -1169,9 +1165,11 @@ class ViewModel {
 	}
 }
 
-class SCMViewSubMenuAction extends ContextSubMenu {
+class SCMViewSubMenuAction extends SubmenuAction {
 	constructor(viewModel: ViewModel) {
-		super(localize('sortAction', "View & Sort"),
+		super(
+			'scm.viewsort',
+			localize('sortAction', "View & Sort"),
 			[
 				...new RadioGroup([
 					new SCMViewModeListAction(viewModel),
@@ -1593,7 +1591,6 @@ export class SCMViewPane extends ViewPane {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IContextViewService protected contextViewService: IContextViewService,
 		@ICommandService protected commandService: ICommandService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService protected editorService: IEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -1770,11 +1767,7 @@ export class SCMViewPane extends ViewPane {
 			return new StatusBarActionViewItem(action);
 		}
 
-		if (!(action instanceof MenuItemAction)) {
-			return undefined;
-		}
-
-		return new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+		return super.getActionViewItem(action);
 	}
 
 	getActionsContext(): any {

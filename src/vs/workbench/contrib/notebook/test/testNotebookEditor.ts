@@ -62,6 +62,10 @@ export class TestNotebookEditor implements INotebookEditor {
 	constructor(
 	) { }
 
+	multipleKernelsAvailable: boolean = false;
+	onDidChangeAvailableKernels: Event<void> = new Emitter<void>().event;
+
+
 	uri?: URI | undefined;
 	textModel?: NotebookTextModel | undefined;
 
@@ -77,6 +81,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		return 'notebook.testEditor';
 	}
 
+	cursorNavigationMode = false;
 	activeKernel: INotebookKernelInfo | undefined;
 	onDidChangeKernel: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveEditor: Event<ICompositeCodeEditor> = new Emitter<ICompositeCodeEditor>().event;
@@ -152,6 +157,10 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 
 	moveCellUp(cell: CellViewModel): Promise<ICellViewModel | null> {
+		throw new Error('Method not implemented.');
+	}
+
+	moveCellToIdx(cell: ICellViewModel, index: number): Promise<ICellViewModel | null> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -245,7 +254,11 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
+	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
+		throw new Error('Method not implemented.');
+	}
+
+	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]): void {
 		throw new Error('Method not implemented.');
 	}
 

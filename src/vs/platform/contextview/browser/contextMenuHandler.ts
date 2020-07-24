@@ -50,7 +50,7 @@ export class ContextMenuHandler {
 
 		let menu: Menu | undefined;
 
-		const anchor = delegate.getAnchor();
+		let shadowRootElement = isHTMLElement(delegate.domForShadowRoot) ? delegate.domForShadowRoot : undefined;
 		this.contextViewService.showContextView({
 			getAnchor: () => delegate.getAnchor(),
 			canRelayout: false,
@@ -133,7 +133,7 @@ export class ContextMenuHandler {
 					this.focusToReturn.focus();
 				}
 			}
-		}, !!delegate.anchorAsContainer && isHTMLElement(anchor) ? anchor : undefined);
+		}, shadowRootElement, !!shadowRootElement);
 	}
 
 	private onActionRun(e: IRunEvent): void {

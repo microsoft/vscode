@@ -33,6 +33,7 @@ export interface ParsedArgs {
 	trace?: boolean;
 	'trace-category-filter'?: string;
 	'trace-options'?: string;
+	'open-devtools'?: boolean;
 	log?: string;
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
@@ -63,18 +64,20 @@ export interface ParsedArgs {
 	'disable-updates'?: boolean;
 	'disable-crash-reporter'?: boolean;
 	'crash-reporter-directory'?: string;
+	'crash-reporter-id'?: string;
 	'skip-add-to-recently-opened'?: boolean;
 	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
 	'driver'?: string;
 	'driver-verbose'?: boolean;
-	remote?: string;
+	'remote'?: string;
 	'disable-user-env-probe'?: boolean;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;
 	'force-user-env'?: boolean;
 	'sync'?: 'on' | 'off';
+	'__sandbox'?: boolean;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;
@@ -180,6 +183,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'disable-updates': { type: 'boolean' },
 	'disable-crash-reporter': { type: 'boolean' },
 	'crash-reporter-directory': { type: 'string' },
+	'crash-reporter-id': { type: 'string' },
 	'disable-user-env-probe': { type: 'boolean' },
 	'skip-add-to-recently-opened': { type: 'boolean' },
 	'unity-launch': { type: 'boolean' },
@@ -193,6 +197,8 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
 	'force-user-env': { type: 'boolean' },
+	'open-devtools': { type: 'boolean' },
+	'__sandbox': { type: 'boolean' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },

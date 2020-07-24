@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
@@ -26,8 +26,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { Event } from 'vs/base/common/event';
 
 export abstract class Viewlet extends PaneComposite implements IViewlet {
@@ -45,7 +43,7 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 		@IConfigurationService protected configurationService: IConfigurationService
 	) {
 		super(id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-		this._register(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews)(() => {
+		this._register(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews, viewPaneContainer.onTitleAreaUpdate)(() => {
 			// Update title area since there is no better way to update secondary actions
 			this.updateTitleArea();
 		}));
@@ -68,18 +66,18 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 	}
 
 	getSecondaryActions(): IAction[] {
-		const viewSecondaryActions = this.viewPaneContainer.getViewsVisibilityActions();
+		const viewVisibilityActions = this.viewPaneContainer.getViewsVisibilityActions();
 		const secondaryActions = this.viewPaneContainer.getSecondaryActions();
-		if (viewSecondaryActions.length <= 1) {
+		if (viewVisibilityActions.length <= 1 || viewVisibilityActions.every(({ enabled }) => !enabled)) {
 			return secondaryActions;
 		}
 
 		if (secondaryActions.length === 0) {
-			return viewSecondaryActions;
+			return viewVisibilityActions;
 		}
 
 		return [
-			new ContextSubMenu(nls.localize('views', "Views"), viewSecondaryActions),
+			new SubmenuAction('workbench.views', nls.localize('views', "Views"), viewVisibilityActions),
 			new Separator(),
 			...secondaryActions
 		];
@@ -169,8 +167,6 @@ export class ShowViewletAction extends Action {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, name);
-
-		this.enabled = !!this.viewletService && !!this.editorGroupService;
 	}
 
 	async run(): Promise<void> {

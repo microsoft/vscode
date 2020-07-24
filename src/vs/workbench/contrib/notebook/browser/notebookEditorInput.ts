@@ -98,7 +98,13 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (!this._textModel) {
+		if (!this._textModel || !this.viewType) {
+			return undefined;
+		}
+
+		const provider = this._notebookService.getContributedNotebookProvider(this.viewType!);
+
+		if (!provider) {
 			return undefined;
 		}
 
@@ -106,6 +112,21 @@ export class NotebookEditorInput extends EditorInput {
 		const target = await this._fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
 		if (!target) {
 			return undefined; // save cancelled
+		}
+
+		if (!provider.matches(target)) {
+			const patterns = provider.selector.map(pattern => {
+				if (pattern.excludeFileNamePattern) {
+					return `${pattern.filenamePattern} (exclude: ${pattern.excludeFileNamePattern})`;
+				}
+
+				return pattern.filenamePattern;
+			}).join(', ');
+			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.
+
+Please make sure the file name matches following patterns:
+${patterns}
+`);
 		}
 
 		if (!await this._textModel.object.saveAs(target)) {

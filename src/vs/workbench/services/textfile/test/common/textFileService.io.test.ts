@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { ITextFileService, snapshotToString, TextFileOperationError, TextFileOperationResult, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
 import { join, basename } from 'vs/base/common/path';
-import { UTF16le, UTF8_with_bom, UTF16be, UTF8 } from 'vs/workbench/services/textfile/common/encoding';
+import { UTF16le, UTF8_with_bom, UTF16be, UTF8, UTF16le_BOM, UTF16be_BOM, UTF8_BOM } from 'vs/workbench/services/textfile/common/encoding';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ITextSnapshot, DefaultEndOfLine } from 'vs/editor/common/model';
@@ -55,7 +55,8 @@ export default function createSuite(params: Params) {
 
 		await service.create(resource);
 
-		assert.equal(await exists(resource.fsPath), true);
+		const res = await readFile(resource.fsPath);
+		assert.equal(res.byteLength, 0 /* no BOM */);
 	});
 
 	test('create - no encoding - content provided (string)', async () => {
@@ -63,8 +64,9 @@ export default function createSuite(params: Params) {
 
 		await service.create(resource, 'Hello World');
 
-		assert.equal(await exists(resource.fsPath), true);
-		assert.equal((await readFile(resource.fsPath)).toString(), 'Hello World');
+		const res = await readFile(resource.fsPath);
+		assert.equal(res.toString(), 'Hello World');
+		assert.equal(res.byteLength, 'Hello World'.length);
 	});
 
 	test('create - no encoding - content provided (snapshot)', async () => {
@@ -72,8 +74,9 @@ export default function createSuite(params: Params) {
 
 		await service.create(resource, stringToSnapshot('Hello World'));
 
-		assert.equal(await exists(resource.fsPath), true);
-		assert.equal((await readFile(resource.fsPath)).toString(), 'Hello World');
+		const res = await readFile(resource.fsPath);
+		assert.equal(res.toString(), 'Hello World');
+		assert.equal(res.byteLength, 'Hello World'.length);
 	});
 
 	test('create - UTF 16 LE - no content', async () => {
@@ -85,6 +88,9 @@ export default function createSuite(params: Params) {
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, UTF16le);
+
+		const res = await readFile(resource.fsPath);
+		assert.equal(res.byteLength, UTF16le_BOM.length);
 	});
 
 	test('create - UTF 16 LE - content provided', async () => {
@@ -96,6 +102,9 @@ export default function createSuite(params: Params) {
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, UTF16le);
+
+		const res = await readFile(resource.fsPath);
+		assert.equal(res.byteLength, 'Hello World'.length * 2 /* UTF16 2bytes per char */ + UTF16le_BOM.length);
 	});
 
 	test('create - UTF 16 BE - no content', async () => {
@@ -107,6 +116,9 @@ export default function createSuite(params: Params) {
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, UTF16be);
+
+		const res = await readFile(resource.fsPath);
+		assert.equal(res.byteLength, UTF16le_BOM.length);
 	});
 
 	test('create - UTF 16 BE - content provided', async () => {
@@ -118,6 +130,9 @@ export default function createSuite(params: Params) {
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, UTF16be);
+
+		const res = await readFile(resource.fsPath);
+		assert.equal(res.byteLength, 'Hello World'.length * 2 /* UTF16 2bytes per char */ + UTF16be_BOM.length);
 	});
 
 	test('create - UTF 8 BOM - no content', async () => {
@@ -129,6 +144,9 @@ export default function createSuite(params: Params) {
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, UTF8_with_bom);
+
+		const res = await readFile(resource.fsPath);
+		assert.equal(res.byteLength, UTF8_BOM.length);
 	});
 
 	test('create - UTF 8 BOM - content provided', async () => {
@@ -140,6 +158,9 @@ export default function createSuite(params: Params) {
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, UTF8_with_bom);
+
+		const res = await readFile(resource.fsPath);
+		assert.equal(res.byteLength, 'Hello World'.length + UTF8_BOM.length);
 	});
 
 	test('create - UTF 8 BOM - empty content - snapshot', async () => {
@@ -151,6 +172,9 @@ export default function createSuite(params: Params) {
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, UTF8_with_bom);
+
+		const res = await readFile(resource.fsPath);
+		assert.equal(res.byteLength, UTF8_BOM.length);
 	});
 
 	test('create - UTF 8 BOM - content provided - snapshot', async () => {
@@ -162,6 +186,9 @@ export default function createSuite(params: Params) {
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, UTF8_with_bom);
+
+		const res = await readFile(resource.fsPath);
+		assert.equal(res.byteLength, 'Hello World'.length + UTF8_BOM.length);
 	});
 
 	test('write - use encoding (UTF 16 BE) - small content as string', async () => {

@@ -30,7 +30,6 @@ import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
 import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { Color } from 'vs/base/common/color';
@@ -3185,8 +3184,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
-		this.hoverMessage = withUndefinedAsNull(options.hoverMessage);
-		this.glyphMarginHoverMessage = withUndefinedAsNull(options.glyphMarginHoverMessage);
+		this.hoverMessage = options.hoverMessage || null;
+		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || null;
 		this.isWholeLine = options.isWholeLine || false;
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;

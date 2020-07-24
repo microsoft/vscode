@@ -92,11 +92,15 @@ function webviewPreloads() {
 		}
 	};
 
-	let observers: ResizeObserver[] = [];
+	let outputObservers = new Map<string, ResizeObserver>();
 
 	const resizeObserve = (container: Element, id: string) => {
 		const resizeObserver = new ResizeObserver(entries => {
 			for (let entry of entries) {
+				if (!document.body.contains(entry.target)) {
+					return;
+				}
+
 				if (entry.target.id === id && entry.contentRect) {
 					vscode.postMessage({
 						__vscode_notebook_message: true,
@@ -111,7 +115,11 @@ function webviewPreloads() {
 		});
 
 		resizeObserver.observe(container);
-		observers.push(resizeObserver);
+		if (outputObservers.has(id)) {
+			outputObservers.get(id)?.disconnect();
+		}
+
+		outputObservers.set(id, resizeObserver);
 	};
 
 	function scrollWillGoToParent(event: WheelEvent) {
@@ -253,6 +261,8 @@ function webviewPreloads() {
 
 	interface ICreateCellInfo {
 		outputId: string;
+		output?: unknown;
+		mimeType?: string;
 		element: HTMLElement;
 	}
 
@@ -366,10 +376,21 @@ function webviewPreloads() {
 					outputNode.innerHTML = content;
 					cellOutputContainer.appendChild(outputNode);
 
+					let pureData: { mimeType: string, output: unknown } | undefined;
+					const outputScript = cellOutputContainer.querySelector('script.vscode-pure-data');
+					if (outputScript) {
+						try { pureData = JSON.parse(outputScript.innerHTML); } catch { }
+					}
+
 					// eval
 					domEval(outputNode);
 					resizeObserve(outputNode, outputId);
-					onDidCreateOutput.fire([data.apiNamespace, { element: outputNode, outputId }]);
+					onDidCreateOutput.fire([data.apiNamespace, {
+						element: outputNode,
+						output: pureData?.output,
+						mimeType: pureData?.mimeType,
+						outputId
+					}]);
 
 					vscode.postMessage({
 						__vscode_notebook_message: true,
@@ -400,11 +421,11 @@ function webviewPreloads() {
 				queuedOuputActions.clear(); // stop all loading outputs
 				onWillDestroyOutput.fire([undefined, undefined]);
 				document.getElementById('container')!.innerHTML = '';
-				for (let i = 0; i < observers.length; i++) {
-					observers[i].disconnect();
-				}
 
-				observers = [];
+				outputObservers.forEach(ob => {
+					ob.disconnect();
+				});
+				outputObservers.clear();
 				break;
 			case 'clearOutput':
 				let output = document.getElementById(event.data.outputId);
@@ -447,6 +468,19 @@ function webviewPreloads() {
 				break;
 			case 'focus-output':
 				focusFirstFocusableInCell(event.data.cellId);
+				break;
+			case 'decorations':
+				{
+					let outputContainer = document.getElementById(event.data.cellId);
+					event.data.addedClassNames.forEach(n => {
+						outputContainer?.classList.add(n);
+					});
+
+					event.data.removedClassNames.forEach(n => {
+						outputContainer?.classList.remove(n);
+					});
+				}
+
 				break;
 			case 'customRendererMessage':
 				onDidReceiveMessage.fire([event.data.rendererId, event.data.message]);

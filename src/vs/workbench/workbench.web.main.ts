@@ -76,6 +76,7 @@ import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/brows
 import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
+import { ITimerService, TimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
@@ -93,6 +94,7 @@ registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
 registerSingleton(IUserDataSyncService, UserDataSyncService);
 registerSingleton(ITitleService, TitlebarPart);
 registerSingleton(IExtensionTipsService, ExtensionTipsService);
+registerSingleton(ITimerService, TimerService);
 
 //#endregion
 

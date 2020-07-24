@@ -99,7 +99,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// since a backup did not happen, we have to confirm for
 		// the working copies that did not successfully backup
 		try {
-			return await this.confirmBeforeShutdown(workingCopies.filter(workingCopy => backups.indexOf(workingCopy) === -1));
+			return await this.confirmBeforeShutdown(workingCopies.filter(workingCopy => !backups.includes(workingCopy)));
 		} catch (error) {
 			this.showErrorDialog(localize('backupTrackerConfirmFailed', "One or more dirty editors could not be saved or reverted."), error);
 
