@@ -10843,7 +10843,7 @@ declare module 'vscode' {
 		constructor(implementation: DebugAdapter);
 	}
 
-	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterInlineImplementation;
+	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterNamedPipeServer | DebugAdapterInlineImplementation;
 
 	export interface DebugAdapterDescriptorFactory {
 		/**
