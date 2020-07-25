@@ -5,14 +5,14 @@
 
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem
+	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem, window
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import minimatch from 'minimatch';
 import { JSONVisitor, visit, ParseErrorCode } from 'jsonc-parser';
-import preferredPM from 'preferred-pm';
+import findPreferredPM from './preferred-pm';
 
 const localize = nls.loadMessageBundle();
 
@@ -112,10 +112,14 @@ export async function getPackageManager(folder: WorkspaceFolder): Promise<string
 	let packageManagerName = workspace.getConfiguration('npm', folder.uri).get<string>('packageManager', 'npm');
 
 	if (packageManagerName === 'auto') {
-		packageManagerName = (await preferredPM(folder.uri.fsPath) || { name: 'npm' }).name;
-	}
+		const { name, multiplePMDetected } = await findPreferredPM(folder.uri.fsPath);
+		packageManagerName = name;
 
-	// TODO: Warn if multiple lock files present AND auto
+		// TODO: localize warning text
+		if (multiplePMDetected) {
+			window.showWarningMessage(`Found multiple lockfiles. Using ${name} as the preferred package manager`);
+		}
+	}
 
 	return packageManagerName;
 }
