@@ -113,7 +113,6 @@ export class CodeCell extends Disposable {
 			}
 
 			if (e.collapseStateChanged) {
-				// meh
 				this.viewCell.layoutChange({});
 				this.relayoutCell();
 			}
@@ -308,17 +307,63 @@ export class CodeCell extends Disposable {
 	}
 
 	private viewUpdate(): void {
-		if (this.viewCell.collapseState === CellCollapseState.Collapsed) {
-			this.viewUpdateCollapsed();
+		if (this.viewCell.collapseState === CellCollapseState.Collapsed && this.viewCell.outputCollapseState === CellCollapseState.Collapsed) {
+			this.viewUpdateAllCollapsed();
+		} else if (this.viewCell.collapseState === CellCollapseState.Collapsed) {
+			this.viewUpdateInputCollapsed();
+		} else if (this.viewCell.outputCollapseState === CellCollapseState.Collapsed && this.viewCell.outputs.length) {
+			this.viewUpdateOutputCollapsed();
 		} else {
 			this.viewUpdateExpanded();
 		}
 	}
 
-	private viewUpdateCollapsed(): void {
+	private viewUpdateShowOutputs(): void {
+		for (let index = 0; index < this.viewCell.outputs.length; index++) {
+			const currOutput = this.viewCell.outputs[index];
+
+			if (currOutput.outputKind === CellOutputKind.Rich) {
+				this.renderOutput(currOutput, index, undefined);
+			}
+		}
+	}
+
+	private viewUpdateInputCollapsed(): void {
 		DOM.hide(this.templateData.cellContainer);
 		DOM.show(this.templateData.collapsedPart);
+		DOM.show(this.templateData.outputContainer);
 		this.templateData.container.classList.toggle('collapsed', true);
+
+		this.viewUpdateShowOutputs();
+
+		this.relayoutCell();
+	}
+
+	private viewUpdateOutputCollapsed(): void {
+		DOM.show(this.templateData.cellContainer);
+		DOM.show(this.templateData.collapsedPart);
+		DOM.hide(this.templateData.outputContainer);
+
+		for (let e of this.outputElements.keys()) {
+			this.notebookEditor.hideInset(e);
+		}
+
+		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('output-collapsed', true);
+
+		this.relayoutCell();
+	}
+
+	private viewUpdateAllCollapsed(): void {
+		DOM.hide(this.templateData.cellContainer);
+		DOM.show(this.templateData.collapsedPart);
+		DOM.hide(this.templateData.outputContainer);
+		this.templateData.container.classList.toggle('collapsed', true);
+		this.templateData.container.classList.toggle('output-collapsed', true);
+
+		for (let e of this.outputElements.keys()) {
+			this.notebookEditor.hideInset(e);
+		}
 
 		this.relayoutCell();
 	}
@@ -326,7 +371,11 @@ export class CodeCell extends Disposable {
 	private viewUpdateExpanded(): void {
 		DOM.show(this.templateData.cellContainer);
 		DOM.hide(this.templateData.collapsedPart);
+		DOM.show(this.templateData.outputContainer);
 		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('output-collapsed', false);
+
+		this.viewUpdateShowOutputs();
 
 		this.relayoutCell();
 	}
@@ -587,7 +636,7 @@ export class CodeCell extends Disposable {
 			value.dispose();
 		});
 
-		this.templateData.focusIndicator!.style.height = 'initial';
+		this.templateData.focusIndicatorLeft!.style.height = 'initial';
 
 		super.dispose();
 	}

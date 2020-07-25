@@ -1510,20 +1510,20 @@ registerAction2(class extends NotebookCellAction {
 			id: COLLAPSE_CELL_OUTPUT_COMMAND_ID,
 			title: localize('notebookActions.collapseCellOutput', "Collapse Cell Output"),
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated()),
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
 				primary: KeyChord(KeyCode.KEY_C, KeyCode.KEY_O),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			menu: {
 				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated()),
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
 				group: '3_collapse',
 			}
 		});
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.cell.collapseState = CellCollapseState.Collapsed;
+		context.cell.outputCollapseState = CellCollapseState.Collapsed;
 	}
 });
 
@@ -1534,18 +1534,18 @@ registerAction2(class extends NotebookCellAction {
 			title: localize('notebookActions.expandCellOutput', "Expand Cell Output"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED),
-				primary: KeyChord(KeyCode.KEY_C, KeyCode.KEY_C),
+				primary: KeyChord(KeyCode.KEY_C, KeyCode.KEY_O),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			// menu: {
-			// 	id: MenuId.NotebookCellTitle,
-			// 	when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED),
-			// 	group: '3_collapse',
-			// }
+			menu: {
+				id: MenuId.NotebookCellTitle,
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED),
+				group: '3_collapse',
+			}
 		});
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.cell.collapseState = CellCollapseState.Normal;
+		context.cell.outputCollapseState = CellCollapseState.Normal;
 	}
 });

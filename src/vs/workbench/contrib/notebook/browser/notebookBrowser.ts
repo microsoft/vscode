@@ -403,6 +403,8 @@ export interface INotebookEditor extends IEditor {
 	 * @return The contribution or null if contribution not found.
 	 */
 	getContribution<T extends INotebookEditorContribution>(id: string): T;
+
+	hideInset(output: IProcessedOutput): void;
 }
 
 export interface INotebookCellList {
@@ -460,12 +462,13 @@ export interface INotebookCellList {
 export interface BaseCellRenderTemplate {
 	editorPart: HTMLElement;
 	collapsedPart: HTMLElement;
+	expandButton: HTMLElement;
 	contextKeyService: IContextKeyService;
 	container: HTMLElement;
 	cellContainer: HTMLElement;
 	toolbar: ToolBar;
 	betweenCellToolbar: ToolBar;
-	focusIndicator: HTMLElement;
+	focusIndicatorLeft: HTMLElement;
 	disposables: DisposableStore;
 	elementDisposables: DisposableStore;
 	bottomCellContainer: HTMLElement;

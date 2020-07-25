@@ -99,7 +99,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	layoutChange(state: CodeCellLayoutChangeEvent) {
 		// recompute
 		this._ensureOutputsTop();
-		const outputTotalHeight = this._outputsTop!.getTotalValue();
+		let outputTotalHeight = this.outputCollapseState === CellCollapseState.Normal ? this._outputsTop!.getTotalValue() : COLLAPSED_INDICATOR_HEIGHT;
 
 		if (this.collapseState === CellCollapseState.Normal) {
 			let newState: CodeCellLayoutState;
@@ -138,6 +138,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				layoutState: newState
 			};
 		} else {
+			outputTotalHeight = this.collapseState === CellCollapseState.Collapsed && this.outputCollapseState === CellCollapseState.Collapsed ? 0 : outputTotalHeight;
 			const indicatorHeight = COLLAPSED_INDICATOR_HEIGHT + outputTotalHeight;
 			const outputContainerOffset = CELL_TOP_MARGIN + COLLAPSED_INDICATOR_HEIGHT;
 			const totalHeight = CELL_TOP_MARGIN + COLLAPSED_INDICATOR_HEIGHT + CELL_BOTTOM_MARGIN + BOTTOM_CELL_TOOLBAR_HEIGHT + outputTotalHeight;
