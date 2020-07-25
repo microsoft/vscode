@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { shorten } from 'vs/base/common/labels';
+import { shorten, template } from 'vs/base/common/labels';
 import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions, SideBySideEditor, computeEditorAriaLabel } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
@@ -45,12 +45,17 @@ import { basenameOrAuthority } from 'vs/base/common/resources';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPath, win32, posix } from 'vs/base/common/path';
+import { match } from 'vs/base/common/glob';
 
 interface IEditorInputLabel {
 	name?: string;
 	description?: string;
 	title?: string;
 	ariaLabel?: string;
+}
+
+interface IEditorOverrideLabel {
+	[pattern: string]: string;
 }
 
 type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput };
@@ -512,7 +517,9 @@ export class TabsTitleControl extends TitleControl {
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 
 		// A change to a label format options requires to recompute all labels
-		if (oldOptions.labelFormat !== newOptions.labelFormat) {
+		if (oldOptions.labelFormat !== newOptions.labelFormat ||
+			oldOptions.tabTitleSeparator !== newOptions.tabTitleSeparator ||
+			oldOptions.tabTitleOverrides !== newOptions.tabTitleOverrides) {
 			this.computeTabLabels();
 		}
 
@@ -523,7 +530,9 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.tabSizing !== newOptions.tabSizing ||
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
-			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs
+			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
+			oldOptions.tabTitleSeparator !== newOptions.tabTitleSeparator ||
+			oldOptions.tabTitleOverrides !== newOptions.tabTitleOverrides
 		) {
 			this.redraw();
 		}
@@ -889,7 +898,7 @@ export class TabsTitleControl extends TitleControl {
 		// Build labels and descriptions for each editor
 		const labels = this.group.editors.map((editor, index) => ({
 			editor,
-			name: editor.getName(),
+			name: this.doComputeTabName(editor),
 			description: editor.getDescription(verbosity),
 			title: withNullAsUndefined(editor.getTitle(Verbosity.LONG)),
 			ariaLabel: computeEditorAriaLabel(editor, index, this.group, this.editorGroupService.count)
@@ -903,6 +912,37 @@ export class TabsTitleControl extends TitleControl {
 		this.tabLabels = labels;
 	}
 
+	private doComputeTabName(editor: IEditorInput) {
+
+
+		let name = editor ? editor.getName() : '';
+		let fullPath = editor ? editor.getTitle() : '';
+		const fileName = name ? this.path.parse(name).name : '';
+		const fileExtension = name ? this.path.parse(name).ext.substr(1) : ''; // without the dot
+		const folderShort = editor ? editor.getDescription(Verbosity.SHORT) : '';
+		const folderMedium = editor ? editor.getDescription(Verbosity.MEDIUM) : '';
+		const separator = this.configurationService.getValue<string>('workbench.editor.tabTitleSeparator');
+
+		const overrides = this.configurationService.getValue<IEditorOverrideLabel>('workbench.editor.tabTitleOverrides');
+
+		//check if name matches pattern; stop after first match
+		for (let pattern in overrides) {
+			if (typeof fullPath === 'string' && match(pattern, fullPath)) {
+				//found match => compute title
+				let tabName = template(overrides[pattern],
+					{
+						fileName,
+						fileExtension,
+						folderShort,
+						folderMedium,
+						separator: { label: separator }
+					});
+				return tabName !== '' ? tabName : name; //fallback
+			}
+		}
+		// no override found => return default name
+		return name;
+	}
 	private shortenTabLabels(labels: AugmentedLabel[]): void {
 
 		// Gather duplicate titles, while filtering out invalid descriptions

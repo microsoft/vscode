@@ -14,6 +14,17 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	// Workbench
+
+	let tabTitleOverridesDescription = nls.localize('tabTitleOverrides', "Configure glob patterns for selecting files whose tab names will be displayed differently (e.g. show the parent folder name instead of the filename in the tab). Define custom names using variables:\n");
+	tabTitleOverridesDescription += '\n' + [
+		nls.localize('fileName', "- `\${fileName}`: the file name (e.g. myFile)."),
+		nls.localize('fileExtension', "- `\${fileExtension}`: the file extension (e.g. .txt)."),
+		nls.localize('folderShort', "- `\${folderShort}`: the name of the folder the file is contained in (e.g. myFileFolder)."),
+		nls.localize('folderMedium', "- `\${folderMedium}`: the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)."),
+		nls.localize('tabSeparator', "- `\${tabSeparator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
+	].join('\n'); // intentionally concatenated to not produce a string that is too long for translations
+
+
 	registry.registerConfiguration({
 		...workbenchConfigurationNodeBase,
 		'properties': {
@@ -31,6 +42,9 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'type': 'boolean',
 				'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
 				'default': true
+			},
+			'workbench.editor.tabTitleOverrides': {
+				'markdownDescription': tabTitleOverridesDescription
 			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
@@ -249,6 +263,11 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 					nls.localize('workbench.fontAliasing.auto', "Applies `default` or `antialiased` automatically based on the DPI of displays.")
 				],
 				'included': isMacintosh
+			},
+			'workbench.editor.tabTitleSeparator': {
+				'type': 'string',
+				'default': isMacintosh ? ' — ' : ' - ',
+				'markdownDescription': nls.localize("workbench.editor.tabTitleSeparator", "Separator used by `workbench.editor.tabTitleOverrides`.")
 			},
 			'workbench.settings.editor': {
 				'type': 'string',

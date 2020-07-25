@@ -1198,6 +1198,8 @@ interface IEditorPartConfiguration {
 	revealIfOpen?: boolean;
 	mouseBackForwardToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
+	tabTitleOverrides?: string;
+	tabTitleSeparator?: string;
 	restoreViewState?: boolean;
 	splitSizing?: 'split' | 'distribute';
 	limit?: {

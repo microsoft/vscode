@@ -23,6 +23,10 @@ export class SettingsDocument {
 			return this.provideWindowTitleCompletionItems(location, range);
 		}
 
+		//workbench.editor.tabTitleOverrides
+		if (location.path[0] === 'workbench.editor.tabTitleOverrides') {
+			return this.provideTabOverridesCompletionItems(location, range);
+		}
 		// files.association
 		if (location.path[0] === 'files.associations') {
 			return this.provideFilesAssociationsCompletionItems(location, range);
@@ -73,6 +77,46 @@ export class SettingsDocument {
 		completions.push(this.newSimpleCompletionItem('${separator}', range, localize('separator', "a conditional separator (' - ') that only shows when surrounded by variables with values")));
 
 		return Promise.resolve(completions);
+	}
+
+	private provideTabOverridesCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
+
+		const completions: vscode.CompletionItem[] = [];
+		// Key: similar to exclude
+		if (location.path.length === 1) {
+			completions.push(this.newSnippetCompletionItem({
+				label: localize('fileLabel', "Files by Extension"),
+				documentation: localize('fileDescription', "Match all files of a specific file extension."),
+				snippet: location.isAtPropertyKey ? '"**/*.${1:extension}": "${folderShort}"' : '{ "**/*.${1:extension}": "${folderShort}" }',
+				range
+			}));
+
+			completions.push(this.newSnippetCompletionItem({
+				label: localize('filesLabel', "Files with Multiple Extensions"),
+				documentation: localize('filesDescription', "Match all files with any of the file extensions."),
+				snippet: location.isAtPropertyKey ? '"**/*.{ext1,ext2,ext3}": "${folderShort}"' : '{ "**/*.{ext1,ext2,ext3}": "${folderShort}" }',
+				range
+			}));
+
+			completions.push(this.newSnippetCompletionItem({
+				label: localize('exactLabel', "Files with the Exact Name"),
+				documentation: localize('exactDescription', "Match files that have the exact name."),
+				snippet: location.isAtPropertyKey ? '"**/${1:fileName}.${2:extension}": "${folderShort}"' : '{ "**/${1:fileName}.${2:ext}": "${folderShort}" }',
+				range
+			}));
+
+		}
+
+		// Value
+		else {
+			completions.push(this.newSimpleCompletionItem('"${fileName}"', range, localize('fileName', "the file name (e.g. myFile)")));
+			completions.push(this.newSimpleCompletionItem('"${fileExtension}"', range, localize('fileExtension', "the file extension (e.g. .txt)")));
+			completions.push(this.newSimpleCompletionItem('"${folderShort}"', range, localize('folderShort', "the name of the folder the file is contained in (e.g. myFileFolder)")));
+			completions.push(this.newSimpleCompletionItem('"${folderMedium}"', range, localize('folderMedium', "the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)")));
+			completions.push(this.newSimpleCompletionItem('"${tabSeparator}"', range, localize('tabSeparator', "a conditional separator (\" - \") that only shows when surrounded by variables with values or static text")));
+		}
+		return Promise.resolve(completions);
+
 	}
 
 	private provideFilesAssociationsCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
