@@ -16,6 +16,8 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+// eslint-disable-next-line code-import-patterns
+import { encrypt, decrypt } from 'vscode-encrypt';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest${id}`; }
 
@@ -102,6 +104,13 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				title: nls.localize('loading', "Loading..."),
 				precondition: ContextKeyExpr.false()
 			},
+		});
+
+		console.log('authentication service');
+		encrypt('machineid', 'hello, from vs code: ').then(encrypted => {
+			decrypt('machineid', encrypted).then(decrypted => {
+				console.log(`Decrypted Value: ${decrypted}`);
+			});
 		});
 	}
 
