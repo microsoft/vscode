@@ -111,7 +111,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IOutputService private readonly outputService: IOutputService,
 		@IUserDataSyncAccountService readonly authTokenService: IUserDataSyncAccountService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextModelService textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService private readonly productService: IProductService,
@@ -253,12 +253,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private async acceptRemote(syncResource: SyncResource, conflicts: IResourcePreview[]) {
 		try {
 			for (const conflict of conflicts) {
-				const modelRef = await this.textModelResolverService.createModelReference(conflict.remoteResource);
-				try {
-					await this.userDataSyncService.accept(syncResource, conflict.remoteResource, modelRef.object.textEditorModel.getValue(), this.userDataAutoSyncService.isEnabled());
-				} finally {
-					modelRef.dispose();
-				}
+				await this.userDataSyncService.accept(syncResource, conflict.remoteResource, undefined, this.userDataAutoSyncService.isEnabled());
 			}
 		} catch (e) {
 			this.notificationService.error(e);
@@ -268,12 +263,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private async acceptLocal(syncResource: SyncResource, conflicts: IResourcePreview[]): Promise<void> {
 		try {
 			for (const conflict of conflicts) {
-				const modelRef = await this.textModelResolverService.createModelReference(conflict.previewResource);
-				try {
-					await this.userDataSyncService.accept(syncResource, conflict.previewResource, modelRef.object.textEditorModel.getValue(), this.userDataAutoSyncService.isEnabled());
-				} finally {
-					modelRef.dispose();
-				}
+				await this.userDataSyncService.accept(syncResource, conflict.previewResource, undefined, this.userDataAutoSyncService.isEnabled());
 			}
 		} catch (e) {
 			this.notificationService.error(e);

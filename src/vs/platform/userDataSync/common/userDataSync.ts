@@ -356,14 +356,12 @@ export interface IUserDataSynchroniser {
 
 	readonly onDidChangeLocal: Event<void>;
 
-	pull(): Promise<void>;
-	push(): Promise<void>;
 	sync(manifest: IUserDataManifest | null, headers: IHeaders): Promise<void>;
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
 	preview(manifest: IUserDataManifest | null, headers: IHeaders): Promise<ISyncResourcePreview | null>;
-	accept(resource: URI, content: string | null): Promise<ISyncResourcePreview | null>;
+	accept(resource: URI, content?: string | null): Promise<ISyncResourcePreview | null>;
 	merge(resource: URI): Promise<ISyncResourcePreview | null>;
 	discard(resource: URI): Promise<ISyncResourcePreview | null>;
 	apply(force: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null>;
@@ -403,7 +401,7 @@ export interface IManualSyncTask extends IDisposable {
 	readonly manifest: IUserDataManifest | null;
 	readonly onSynchronizeResources: Event<[SyncResource, URI[]][]>;
 	preview(): Promise<[SyncResource, ISyncResourcePreview][]>;
-	accept(resource: URI, content: string | null): Promise<[SyncResource, ISyncResourcePreview][]>;
+	accept(resource: URI, content?: string | null): Promise<[SyncResource, ISyncResourcePreview][]>;
 	merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
 	discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
 	apply(): Promise<[SyncResource, ISyncResourcePreview][]>;
@@ -431,7 +429,6 @@ export interface IUserDataSyncService {
 	createSyncTask(): Promise<ISyncTask>;
 	createManualSyncTask(): Promise<IManualSyncTask>;
 
-	pull(): Promise<void>;
 	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;
 	resetRemote(): Promise<void>;
@@ -440,7 +437,7 @@ export interface IUserDataSyncService {
 	hasLocalData(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
-	accept(resource: SyncResource, conflictResource: URI, content: string | null, apply: boolean): Promise<void>;
+	accept(resource: SyncResource, conflictResource: URI, content: string | null | undefined, apply: boolean): Promise<void>;
 
 	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
 	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;

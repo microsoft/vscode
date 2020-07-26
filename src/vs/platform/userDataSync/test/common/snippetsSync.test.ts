@@ -613,35 +613,6 @@ suite('SnippetsSync', () => {
 		assert.deepEqual(actual, { 'typescript.json': tsSnippet1 });
 	});
 
-	test('first time sync - push', async () => {
-		await updateSnippet('html.json', htmlSnippet1, testClient);
-		await updateSnippet('typescript.json', tsSnippet1, testClient);
-
-		await testObject.push();
-		assert.equal(testObject.status, SyncStatus.Idle);
-		assert.deepEqual(testObject.conflicts, []);
-
-		const { content } = await testClient.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
-		assert.deepEqual(actual, { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 });
-	});
-
-	test('first time sync - pull', async () => {
-		await updateSnippet('html.json', htmlSnippet1, client2);
-		await updateSnippet('typescript.json', tsSnippet1, client2);
-		await client2.sync();
-
-		await testObject.pull();
-		assert.equal(testObject.status, SyncStatus.Idle);
-		assert.deepEqual(testObject.conflicts, []);
-
-		const actual1 = await readSnippet('html.json', testClient);
-		assert.equal(actual1, htmlSnippet1);
-		const actual2 = await readSnippet('typescript.json', testClient);
-		assert.equal(actual2, tsSnippet1);
-	});
-
 	test('sync global and language snippet', async () => {
 		await updateSnippet('global.code-snippets', globalSnippet, client2);
 		await updateSnippet('html.json', htmlSnippet1, client2);

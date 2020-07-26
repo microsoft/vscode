@@ -20,7 +20,7 @@ export interface IUserDataSyncPreview {
 	readonly onDidChangeResources: Event<ReadonlyArray<IUserDataSyncResource>>;
 	readonly resources: ReadonlyArray<IUserDataSyncResource>;
 
-	accept(syncResource: SyncResource, resource: URI, content: string | null): Promise<void>;
+	accept(syncResource: SyncResource, resource: URI, content?: string | null): Promise<void>;
 	merge(resource?: URI): Promise<void>;
 	discard(resource?: URI): Promise<void>;
 	pull(): Promise<void>;

@@ -54,7 +54,6 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncWorkbenchService userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -251,16 +250,14 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 
 	private async acceptLocal(userDataSyncResource: IUserDataSyncResource): Promise<void> {
 		await this.withProgress(async () => {
-			const content = await this.userDataSyncService.resolveContent(userDataSyncResource.local);
-			await this.userDataSyncPreview.accept(userDataSyncResource.syncResource, userDataSyncResource.local, content);
+			await this.userDataSyncPreview.accept(userDataSyncResource.syncResource, userDataSyncResource.local);
 		});
 		await this.reopen(userDataSyncResource);
 	}
 
 	private async acceptRemote(userDataSyncResource: IUserDataSyncResource): Promise<void> {
 		await this.withProgress(async () => {
-			const content = await this.userDataSyncService.resolveContent(userDataSyncResource.remote);
-			await this.userDataSyncPreview.accept(userDataSyncResource.syncResource, userDataSyncResource.remote, content);
+			await this.userDataSyncPreview.accept(userDataSyncResource.syncResource, userDataSyncResource.remote);
 		});
 		await this.reopen(userDataSyncResource);
 	}
