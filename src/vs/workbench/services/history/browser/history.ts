@@ -755,10 +755,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private readonly canReopenClosedEditorContextKey = (new RawContextKey<boolean>('canReopenClosedEditor', false)).bindTo(this.contextKeyService);
 
 	private updateContextKeys(): void {
-		this.canNavigateBackContextKey.set(this.navigationStack.length > 0 && this.navigationStackIndex > 0);
-		this.canNavigateForwardContextKey.set(this.navigationStack.length > 0 && this.navigationStackIndex < this.navigationStack.length - 1);
-		this.canNavigateToLastEditLocationContextKey.set(!!this.lastEditLocation);
-		this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
+		this.contextKeyService.bufferChangeEvents(() => {
+			this.canNavigateBackContextKey.set(this.navigationStack.length > 0 && this.navigationStackIndex > 0);
+			this.canNavigateForwardContextKey.set(this.navigationStack.length > 0 && this.navigationStackIndex < this.navigationStack.length - 1);
+			this.canNavigateToLastEditLocationContextKey.set(!!this.lastEditLocation);
+			this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
+		});
 	}
 
 	//#endregion

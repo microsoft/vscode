@@ -14,7 +14,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { URI } from 'vs/base/common/uri';
 import { firstIndex, move } from 'vs/base/common/arrays';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { values } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 
 class CounterSet<T> implements IReadableSet<T> {
@@ -181,7 +180,7 @@ class ViewDescriptorsState extends Disposable {
 		const value = this.storageService.get(this.globalViewsStateStorageId, StorageScope.WORKSPACE, '[]');
 		const { state: workspaceVisibilityStates } = this.parseStoredGlobalState(value);
 		if (workspaceVisibilityStates.size > 0) {
-			for (const { id, isHidden } of values(workspaceVisibilityStates)) {
+			for (const { id, isHidden } of workspaceVisibilityStates.values()) {
 				let viewState = viewStates.get(id);
 				// Not migrated to `viewletStateStorageId`
 				if (viewState) {
@@ -204,7 +203,7 @@ class ViewDescriptorsState extends Disposable {
 		if (hasDuplicates) {
 			this.setStoredGlobalState(state);
 		}
-		for (const { id, isHidden, order } of values(state)) {
+		for (const { id, isHidden, order } of state.values()) {
 			let viewState = viewStates.get(id);
 			if (viewState) {
 				viewState.visibleGlobal = !isHidden;
@@ -229,7 +228,7 @@ class ViewDescriptorsState extends Disposable {
 	}
 
 	private setStoredGlobalState(storedGlobalState: Map<string, IStoredGlobalViewState>): void {
-		this.globalViewsStatesValue = JSON.stringify(values(storedGlobalState));
+		this.globalViewsStatesValue = JSON.stringify([...storedGlobalState.values()]);
 	}
 
 	private parseStoredGlobalState(value: string): { state: Map<string, IStoredGlobalViewState>, hasDuplicates: boolean } {

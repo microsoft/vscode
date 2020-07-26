@@ -195,7 +195,7 @@ var AMDLoader;
             return isEmpty;
         };
         Utilities.recursiveClone = function (obj) {
-            if (!obj || typeof obj !== 'object') {
+            if (!obj || typeof obj !== 'object' || obj instanceof RegExp) {
                 return obj;
             }
             var result = Array.isArray(obj) ? [] : {};
@@ -303,6 +303,9 @@ var AMDLoader;
             }
             if (typeof options.cspNonce !== 'string') {
                 options.cspNonce = '';
+            }
+            if (typeof options.preferScriptTags === 'undefined') {
+                options.preferScriptTags = false;
             }
             if (!Array.isArray(options.nodeModules)) {
                 options.nodeModules = [];
@@ -459,7 +462,9 @@ var AMDLoader;
          * Transform a module id to a location. Appends .js to module ids
          */
         Configuration.prototype.moduleIdToPaths = function (moduleId) {
-            if (this.nodeModulesMap[moduleId] === true) {
+            var isNodeModule = ((this.nodeModulesMap[moduleId] === true)
+                || (this.options.amdModulesPattern instanceof RegExp && !this.options.amdModulesPattern.test(moduleId)));
+            if (isNodeModule) {
                 // This is a node module...
                 if (this.isBuild()) {
                     // ...and we are at build time, drop it
@@ -567,11 +572,24 @@ var AMDLoader;
         OnlyOnceScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
             var _this = this;
             if (!this._scriptLoader) {
-                this._scriptLoader = (this._env.isWebWorker
-                    ? new WorkerScriptLoader()
-                    : this._env.isNode
-                        ? new NodeScriptLoader(this._env)
-                        : new BrowserScriptLoader());
+                if (this._env.isWebWorker) {
+                    this._scriptLoader = new WorkerScriptLoader();
+                }
+                else if (this._env.isElectronRenderer) {
+                    var preferScriptTags = moduleManager.getConfig().getOptionsLiteral().preferScriptTags;
+                    if (preferScriptTags) {
+                        this._scriptLoader = new BrowserScriptLoader();
+                    }
+                    else {
+                        this._scriptLoader = new NodeScriptLoader(this._env);
+                    }
+                }
+                else if (this._env.isNode) {
+                    this._scriptLoader = new NodeScriptLoader(this._env);
+                }
+                else {
+                    this._scriptLoader = new BrowserScriptLoader();
+                }
             }
             var scriptCallbacks = {
                 callback: callback,
@@ -870,6 +888,12 @@ var AMDLoader;
                     }
                     var cachedData = script.createCachedData();
                     if (cachedData.length === 0 || cachedData.length === lastSize || iteration >= 5) {
+                        // done
+                        return;
+                    }
+                    if (cachedData.length < lastSize) {
+                        // less data than before: skip, try again next round
+                        createLoop();
                         return;
                     }
                     lastSize = cachedData.length;

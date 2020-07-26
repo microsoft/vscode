@@ -573,7 +573,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			// Which element should be considered to start selecting all?
 			let start: unknown | undefined = undefined;
 
-			if (focus.length > 0 && (selection.length === 0 || selection.indexOf(focus[0]) === -1)) {
+			if (focus.length > 0 && (selection.length === 0 || !selection.includes(focus[0]))) {
 				start = focus[0];
 			}
 

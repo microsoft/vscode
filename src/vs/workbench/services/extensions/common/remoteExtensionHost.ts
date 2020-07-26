@@ -36,10 +36,9 @@ export interface IRemoteExtensionHostInitData {
 	readonly connectionData: IRemoteConnectionData | null;
 	readonly pid: number;
 	readonly appRoot: URI;
-	readonly appSettingsHome: URI;
 	readonly extensionHostLogsPath: URI;
 	readonly globalStorageHome: URI;
-	readonly userHome: URI;
+	readonly workspaceStorageHome: URI;
 	readonly extensions: IExtensionDescription[];
 	readonly allExtensions: IExtensionDescription[];
 }
@@ -205,8 +204,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		const [telemetryInfo, remoteInitData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 
 		// Collect all identifiers for extension ids which can be considered "resolved"
-		const resolvedExtensions = remoteInitData.allExtensions.filter(extension => !extension.main).map(extension => extension.identifier);
-		const hostExtensions = remoteInitData.allExtensions.filter(extension => extension.main && extension.api === 'none').map(extension => extension.identifier);
+		const resolvedExtensions = remoteInitData.allExtensions.filter(extension => !extension.main && !extension.browser).map(extension => extension.identifier);
+		const hostExtensions = remoteInitData.allExtensions.filter(extension => (extension.main || extension.browser) && extension.api === 'none').map(extension => extension.identifier);
 		const workspace = this._contextService.getWorkspace();
 		return {
 			commit: this._productService.commit,
@@ -215,14 +214,13 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			environment: {
 				isExtensionDevelopmentDebug,
 				appRoot: remoteInitData.appRoot,
-				appSettingsHome: remoteInitData.appSettingsHome,
 				appName: this._productService.nameLong,
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: remoteInitData.globalStorageHome,
-				userHome: remoteInitData.userHome,
+				workspaceStorageHome: remoteInitData.workspaceStorageHome,
 				webviewResourceRoot: this._environmentService.webviewResourceRoot,
 				webviewCspSource: this._environmentService.webviewCspSource,
 			},

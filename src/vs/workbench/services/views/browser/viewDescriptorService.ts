@@ -206,16 +206,18 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private onDidRegisterViews(views: { views: IViewDescriptor[], viewContainer: ViewContainer }[]): void {
-		views.forEach(({ views, viewContainer }) => {
-			// When views are registered, we need to regroup them based on the cache
-			const regroupedViews = this.regroupViews(viewContainer.id, views);
+		this.contextKeyService.bufferChangeEvents(() => {
+			views.forEach(({ views, viewContainer }) => {
+				// When views are registered, we need to regroup them based on the cache
+				const regroupedViews = this.regroupViews(viewContainer.id, views);
 
-			// Once they are grouped, try registering them which occurs
-			// if the container has already been registered within this service
-			// or we can generate the container from the source view id
-			this.registerGroupedViews(regroupedViews);
+				// Once they are grouped, try registering them which occurs
+				// if the container has already been registered within this service
+				// or we can generate the container from the source view id
+				this.registerGroupedViews(regroupedViews);
 
-			views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
+				views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
+			});
 		});
 	}
 
@@ -227,7 +229,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		// When views are registered, we need to regroup them based on the cache
 		const regroupedViews = this.regroupViews(viewContainer.id, views);
 		this.deregisterGroupedViews(regroupedViews);
-		views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(false));
+		this.contextKeyService.bufferChangeEvents(() => {
+			views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(false));
+		});
 	}
 
 	private regroupViews(containerId: string, views: IViewDescriptor[]): Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }> {
@@ -628,7 +632,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			const viewsToRegister = this.getViewsByContainer(viewContainer).filter(view => this.getDefaultContainerById(view.id) !== viewContainer);
 			if (viewsToRegister.length) {
 				this.addViews(viewContainer, viewsToRegister);
-				viewsToRegister.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
+				this.contextKeyService.bufferChangeEvents(() => {
+					viewsToRegister.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
+				});
 			}
 		}
 
@@ -644,8 +650,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private onDidChangeActiveViews({ added, removed }: { added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor>; }): void {
-		added.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(true));
-		removed.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(false));
+		this.contextKeyService.bufferChangeEvents(() => {
+			added.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(true));
+			removed.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(false));
+		});
 	}
 
 	private registerResetViewContainerAction(viewContainer: ViewContainer): IDisposable {
@@ -677,9 +685,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 	private addViews(container: ViewContainer, views: IViewDescriptor[], expandViews?: boolean): void {
 		// Update in memory cache
-		views.forEach(view => {
-			this.cachedViewInfo.set(view.id, { containerId: container.id });
-			this.getOrCreateDefaultViewLocationContextKey(view).set(this.getDefaultContainerById(view.id) === container);
+		this.contextKeyService.bufferChangeEvents(() => {
+			views.forEach(view => {
+				this.cachedViewInfo.set(view.id, { containerId: container.id });
+				this.getOrCreateDefaultViewLocationContextKey(view).set(this.getDefaultContainerById(view.id) === container);
+			});
 		});
 
 		this.getViewContainerModel(container).add(views.map(view => { return { viewDescriptor: view, collapsed: expandViews ? false : undefined }; }));
@@ -687,7 +697,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 	private removeViews(container: ViewContainer, views: IViewDescriptor[]): void {
 		// Set view default location keys to false
-		views.forEach(view => this.getOrCreateDefaultViewLocationContextKey(view).set(false));
+		this.contextKeyService.bufferChangeEvents(() => {
+			views.forEach(view => this.getOrCreateDefaultViewLocationContextKey(view).set(false));
+		});
 
 		// Remove the views
 		this.getViewContainerModel(container).remove(views);

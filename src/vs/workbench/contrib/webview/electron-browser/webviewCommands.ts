@@ -4,19 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WebviewTag } from 'electron';
-import { Action } from 'vs/base/common/actions';
+import { Action2 } from 'vs/platform/actions/common/actions';
 import * as nls from 'vs/nls';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { webviewDeveloperCategory } from 'vs/workbench/contrib/webview/browser/webview';
 
-export class OpenWebviewDeveloperToolsAction extends Action {
-	static readonly ID = 'workbench.action.webview.openDeveloperTools';
-	static readonly ALIAS = 'Open Webview Developer Tools';
-	static readonly LABEL = nls.localize('openToolsLabel', "Open Webview Developer Tools");
+export class OpenWebviewDeveloperToolsAction extends Action2 {
 
-	public constructor(id: string, label: string) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.webview.openDeveloperTools',
+			title: { value: nls.localize('openToolsLabel', "Open Webview Developer Tools"), original: 'Open Webview Developer Tools' },
+			category: webviewDeveloperCategory,
+			f1: true
+		});
 	}
 
-	public async run(): Promise<any> {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const elements = document.querySelectorAll('webview.ready');
 		for (let i = 0; i < elements.length; i++) {
 			try {
@@ -25,6 +29,5 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 				console.error(e);
 			}
 		}
-		return true;
 	}
 }

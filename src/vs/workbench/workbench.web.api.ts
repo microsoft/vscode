@@ -18,6 +18,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
+import { mark } from 'vs/base/common/performance';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -29,7 +30,7 @@ interface IStaticExtension {
 	isBuiltin?: boolean;
 }
 
-interface ICommontTelemetryPropertiesResolver {
+interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
 }
 
@@ -38,10 +39,12 @@ interface IExternalUriResolver {
 }
 
 interface ITunnelProvider {
+
 	/**
 	 * Support for creating tunnels.
 	 */
 	tunnelFactory?: ITunnelFactory;
+
 	/**
 	 * Support for filtering candidate ports
 	 */
@@ -107,11 +110,6 @@ interface IHomeIndicator {
 	href: string;
 
 	/**
-	 * @deprecated use `href` instead.
-	 */
-	command?: string;
-
-	/**
 	 * The icon name for the home indicator. This needs to be one of the existing
 	 * icons from our Codicon icon set. For example `sync`.
 	 */
@@ -174,12 +172,21 @@ interface IDefaultEditor {
 }
 
 interface IDefaultLayout {
-	/** @deprecated Use views instead */
+	/** @deprecated Use views instead (TODO@eamodio remove eventually) */
 	readonly sidebar?: IDefaultSideBarLayout;
-	/** @deprecated Use views instead */
+	/** @deprecated Use views instead (TODO@eamodio remove eventually) */
 	readonly panel?: IDefaultPanelLayout;
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
+}
+
+interface IProductQualityChangeHandler {
+
+	/**
+	 * Handler is being called when the user wants to switch between
+	 * `insider` or `stable` product qualities.
+	 */
+	(newQuality: 'insider' | 'stable'): void;
 }
 
 interface IWorkbenchConstructionOptions {
@@ -271,14 +278,9 @@ interface IWorkbenchConstructionOptions {
 	readonly urlCallbackProvider?: IURLCallbackProvider;
 
 	/**
-	 * Support for update reporting.
-	 */
-	readonly updateProvider?: IUpdateProvider;
-
-	/**
 	 * Support adding additional properties to telemetry.
 	 */
-	readonly resolveCommonTelemetryProperties?: ICommontTelemetryPropertiesResolver;
+	readonly resolveCommonTelemetryProperties?: ICommonTelemetryPropertiesResolver;
 
 	/**
 	 * A set of optional commands that should be registered with the commands
@@ -292,6 +294,26 @@ interface IWorkbenchConstructionOptions {
 	 * Optional default layout to apply on first time the workspace is opened.
 	 */
 	readonly defaultLayout?: IDefaultLayout;
+
+	/**
+	 * Optional configuration default overrides contributed to the workbench.
+	 */
+	readonly configurationDefaults?: Record<string, any>;
+
+	//#endregion
+
+
+	//#region Update/Quality related
+
+	/**
+	 * Support for update reporting
+	 */
+	readonly updateProvider?: IUpdateProvider;
+
+	/**
+	 * Support for product quality switching
+	 */
+	readonly productQualityChangeHandler?: IProductQualityChangeHandler;
 
 	//#endregion
 
@@ -323,6 +345,11 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly driver?: boolean;
 
+	/**
+	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
+	 */
+	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
+
 	//#endregion
 }
 
@@ -342,6 +369,10 @@ let created = false;
 let workbenchPromiseResolve: Function;
 const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
 async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+
+	// Mark start of workbench
+	mark('didLoadWorkbenchMain');
+	performance.mark('workbench-start');
 
 	// Assert that the workbench is not created more than once. We currently
 	// do not support this and require a full context switch to clean-up.
@@ -431,12 +462,13 @@ export {
 	// LogLevel
 	LogLevel,
 
-	// Updates
+	// Updates/Quality
 	IUpdateProvider,
 	IUpdate,
+	IProductQualityChangeHandler,
 
 	// Telemetry
-	ICommontTelemetryPropertiesResolver,
+	ICommonTelemetryPropertiesResolver,
 
 	// External Uris
 	IExternalUriResolver,

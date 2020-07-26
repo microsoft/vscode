@@ -12,6 +12,7 @@ import { request } from 'vs/base/parts/request/browser/request';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
+import { localize } from 'vs/nls';
 
 interface ICredential {
 	service: string;
@@ -277,9 +278,6 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 (function () {
 
-	// Mark start of workbench
-	performance.mark('workbench-start');
-
 	// Find config by checking for DOM
 	const configElement = document.getElementById('vscode-workbench-web-configuration');
 	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
@@ -348,6 +346,11 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	// Finally create workbench
 	create(document.body, {
 		...config,
+		homeIndicator: {
+			href: 'https://github.com/Microsoft/vscode',
+			icon: 'code',
+			title: localize('home', "Home")
+		},
 		workspaceProvider: new WorkspaceProvider(workspace, payload),
 		urlCallbackProvider: new PollingURLCallbackProvider(),
 		credentialsProvider: new LocalStorageCredentialsProvider()

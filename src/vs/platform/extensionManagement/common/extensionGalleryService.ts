@@ -13,7 +13,6 @@ import { IRequestService, asJson, asText } from 'vs/platform/request/common/requ
 import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { values } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -163,7 +162,7 @@ class Query {
 	withFilter(filterType: FilterType, ...values: string[]): Query {
 		const criteria = [
 			...this.state.criteria,
-			...values.map(value => ({ filterType, value }))
+			...values.length ? values.map(value => ({ filterType, value })) : [{ filterType }]
 		];
 
 		return new Query(assign({}, this.state, { criteria }));
@@ -439,6 +438,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			// Use tag filter instead of "tag:debuggers"
 			text = text.replace(/\btag:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedTag, tag) => {
 				query = query.withFilter(FilterType.Tag, tag || quotedTag);
+				return '';
+			});
+
+			// Use featured filter
+			text = text.replace(/\bfeatured(\s+|\b|$)/g, () => {
+				query = query.withFilter(FilterType.Featured);
 				return '';
 			});
 
@@ -759,7 +764,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					}
 				}
 
-				return Promise.resolve(values(map));
+				return [...map.values()];
 			});
 		});
 	}

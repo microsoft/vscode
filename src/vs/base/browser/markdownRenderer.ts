@@ -207,10 +207,13 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		allowedSchemes.push(Schemas.command);
 	}
 
+	// values that are too long will freeze the UI
+	let value = markdown.value ?? '';
+	if (value.length > 100_000) {
+		value = `${value.substr(0, 100_000)}…`;
+	}
 	const renderedMarkdown = marked.parse(
-		markdown.supportThemeIcons
-			? markdownEscapeEscapedCodicons(markdown.value || '')
-			: (markdown.value || ''),
+		markdown.supportThemeIcons ? markdownEscapeEscapedCodicons(value) : value,
 		markedOptions
 	);
 

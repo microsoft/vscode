@@ -11,15 +11,14 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { getBaseLabel, getPathLabel, splitName } from 'vs/base/common/labels';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile, toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile, toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { isEqual, dirname, originalFSPath, basename } from 'vs/base/common/resources';
+import { isEqual, dirname, originalFSPath, basename, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { getSimpleWorkspaceLabel } from 'vs/platform/label/common/label';
 import { exists } from 'vs/base/node/pfs';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -207,8 +206,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			if (loc.scheme === Schemas.file) {
 				const filePath = originalFSPath(loc);
 				if (
-					WorkspacesHistoryMainService.COMMON_FILES_FILTER.indexOf(basename(loc)) !== -1 || // skip some well known file entries
-					workspaceEntries.indexOf(filePath) !== -1								// prefer a workspace entry over a file entry (e.g. for .code-workspace)
+					WorkspacesHistoryMainService.COMMON_FILES_FILTER.includes(basename(loc)) || // skip some well known file entries
+					workspaceEntries.includes(filePath)											// prefer a workspace entry over a file entry (e.g. for .code-workspace)
 				) {
 					continue;
 				}
@@ -356,7 +355,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 				name: nls.localize('recentFolders', "Recent Workspaces"),
 				items: arrays.coalesce(this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(recent => {
 					const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
-					const title = recent.label ? splitName(recent.label).name : getSimpleWorkspaceLabel(workspace, this.environmentService.untitledWorkspacesHome);
+					const title = recent.label ? splitName(recent.label).name : this.getSimpleWorkspaceLabel(workspace, this.environmentService.untitledWorkspacesHome);
 
 					let description;
 					let args;
@@ -391,6 +390,24 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		} catch (error) {
 			this.logService.warn('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
 		}
+	}
+
+	private getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: URI): string {
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			return basename(workspace);
+		}
+
+		// Workspace: Untitled
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(workspace.configPath, workspaceHome)) {
+			return nls.localize('untitledWorkspace', "Untitled (Workspace)");
+		}
+
+		let filename = basename(workspace.configPath);
+		if (filename.endsWith(WORKSPACE_EXTENSION)) {
+			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		}
+
+		return nls.localize('workspaceName', "{0} (Workspace)", filename);
 	}
 }
 

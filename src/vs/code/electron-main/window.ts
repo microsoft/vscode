@@ -15,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs, OPTIONS, ParsedArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product/common/product';
-import { IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
@@ -153,6 +153,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+
 			const options: BrowserWindowConstructorOptions = {
 				width: this.windowState.width,
 				height: this.windowState.height,
@@ -166,10 +168,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				webPreferences: {
 					preload: URI.parse(this.doGetPreloadUrl()).fsPath,
 					nodeIntegration: true,
-					webviewTag: true,
 					enableWebSQL: false,
 					enableRemoteModule: false,
-					nativeWindowOpen: true
+					spellcheck: false,
+					nativeWindowOpen: true,
+					webviewTag: true,
+					zoomFactor: zoomLevelToZoomFactor(windowConfig?.zoomLevel)
 				}
 			};
 
@@ -181,8 +185,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			} else if (isWindows && !this.environmentService.isBuilt) {
 				options.icon = path.join(this.environmentService.appRoot, 'resources/win32/code_150x150.png');
 			}
-
-			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 
 			if (isMacintosh && !this.useNativeFullScreen()) {
 				options.fullscreenable = false; // enables simple fullscreen mode
@@ -213,6 +215,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			// Create the browser window.
 			this._win = new BrowserWindow(options);
 			this._id = this._win.id;
+
+			// Open devtools if instructed from command line args
+			if (this.environmentService.args['open-devtools'] === true) {
+				this._win.webContents.openDevTools();
+			}
 
 			if (isMacintosh && useCustomTitleStyle) {
 				this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any

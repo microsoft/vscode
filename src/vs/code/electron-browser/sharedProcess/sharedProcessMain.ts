@@ -238,7 +238,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			server.registerChannel('userDataSyncAccount', authTokenChannel);
 
 			const userDataSyncService = accessor.get(IUserDataSyncService);
-			const userDataSyncChannel = new UserDataSyncChannel(userDataSyncService, logService);
+			const userDataSyncChannel = new UserDataSyncChannel(server, userDataSyncService, logService);
 			server.registerChannel('userDataSync', userDataSyncChannel);
 
 			const userDataAutoSync = instantiationService2.createInstance(UserDataAutoSyncService);

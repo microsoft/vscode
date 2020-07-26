@@ -256,7 +256,7 @@ export class BreadcrumbsControl {
 			input = input.primary;
 		}
 		if (Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories).getFileEditorInputFactory().isFileEditorInput(input)) {
-			fileInfoUri = input.label;
+			fileInfoUri = input.preferredResource;
 		}
 
 		this.domNode.classList.toggle('hidden', false);

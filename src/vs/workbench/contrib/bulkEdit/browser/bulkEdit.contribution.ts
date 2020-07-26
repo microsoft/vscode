@@ -174,7 +174,7 @@ registerAction2(class ApplyAction extends Action2 {
 		super({
 			id: 'refactorPreview.apply',
 			title: { value: localize('apply', "Apply Refactoring"), original: 'Apply Refactoring' },
-			category: localize('cat', "Refactor Preview"),
+			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
 			icon: { id: 'codicon/check' },
 			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, BulkEditPane.ctxHasCheckedChanges),
 			menu: [{
@@ -208,7 +208,7 @@ registerAction2(class DiscardAction extends Action2 {
 		super({
 			id: 'refactorPreview.discard',
 			title: { value: localize('Discard', "Discard Refactoring"), original: 'Discard Refactoring' },
-			category: localize('cat', "Refactor Preview"),
+			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
 			icon: { id: 'codicon/clear-all' },
 			precondition: BulkEditPreviewContribution.ctxEnabled,
 			menu: [{
@@ -238,7 +238,7 @@ registerAction2(class ToggleAction extends Action2 {
 		super({
 			id: 'refactorPreview.toggleCheckedState',
 			title: { value: localize('toogleSelection', "Toggle Change"), original: 'Toggle Change' },
-			category: localize('cat', "Refactor Preview"),
+			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
 			precondition: BulkEditPreviewContribution.ctxEnabled,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -269,7 +269,7 @@ registerAction2(class GroupByFile extends Action2 {
 		super({
 			id: 'refactorPreview.groupByFile',
 			title: { value: localize('groupByFile', "Group Changes By File"), original: 'Group Changes By File' },
-			category: localize('cat', "Refactor Preview"),
+			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
 			icon: { id: 'codicon/ungroup-by-ref-type' },
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile.negate(), BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
@@ -296,7 +296,7 @@ registerAction2(class GroupByType extends Action2 {
 		super({
 			id: 'refactorPreview.groupByType',
 			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
-			category: localize('cat', "Refactor Preview"),
+			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
 			icon: { id: 'codicon/group-by-ref-type' },
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile, BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
@@ -323,7 +323,7 @@ registerAction2(class ToggleGrouping extends Action2 {
 		super({
 			id: 'refactorPreview.toggleGrouping',
 			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
-			category: localize('cat', "Refactor Preview"),
+			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
 			icon: { id: 'codicon/list-tree' },
 			toggled: BulkEditPane.ctxGroupByFile.negate(),
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPreviewContribution.ctxEnabled),
@@ -365,6 +365,5 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	when: BulkEditPreviewContribution.ctxEnabled,
 	ctorDescriptor: new SyncDescriptor(BulkEditPane),
 	containerIcon: Codicon.lightbulb.classNames,
-	canMoveView: true
 }], container);
 

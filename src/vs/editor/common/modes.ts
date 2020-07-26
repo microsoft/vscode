@@ -1413,19 +1413,27 @@ export interface AuthenticationSession {
 	id: string;
 	accessToken: string;
 	account: {
-		displayName: string;
+		label: string;
 		id: string;
 	}
-	scopes: string[];
+	scopes: ReadonlyArray<string>;
 }
 
 /**
  * @internal
  */
 export interface AuthenticationSessionsChangeEvent {
-	added: string[];
-	removed: string[];
-	changed: string[];
+	added: ReadonlyArray<string>;
+	removed: ReadonlyArray<string>;
+	changed: ReadonlyArray<string>;
+}
+
+/**
+ * @internal
+ */
+export interface AuthenticationProviderInformation {
+	id: string;
+	label: string;
 }
 
 export interface Command {

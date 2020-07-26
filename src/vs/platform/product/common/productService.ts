@@ -49,6 +49,13 @@ export interface IProductConfiguration {
 	readonly settingsSearchBuildId?: number;
 	readonly settingsSearchUrl?: string;
 
+	readonly tasConfig?: {
+		endpoint: string;
+		telemetryEventName: string;
+		featuresTelemetryPropertyName: string;
+		assignmentContextTelemetryPropertyName: string;
+	};
+
 	readonly experimentsUrl?: string;
 
 	readonly extensionsGallery?: {
@@ -131,9 +138,7 @@ export interface IConfigBasedExtensionTip {
 export interface IExeBasedExtensionTip {
 	friendlyName: string;
 	windowsPath?: string;
-	recommendations: readonly string[];
-	important?: boolean;
-	exeFriendlyName?: string;
+	recommendations: IStringDictionary<{ name: string, important?: boolean, isExtensionPack?: boolean }>;
 }
 
 export interface IRemoteExtensionTip {

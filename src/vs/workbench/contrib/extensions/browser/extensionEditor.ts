@@ -528,21 +528,22 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	focus(): void {
-		if (this.activeElement) {
-			this.activeElement.focus();
-		}
+		this.activeElement?.focus();
 	}
 
 	showFind(): void {
-		if (this.activeElement && (<Webview>this.activeElement).showFind) {
-			(<Webview>this.activeElement).showFind();
-		}
+		this.activeWebview?.showFind();
 	}
 
 	runFindAction(previous: boolean): void {
-		if (this.activeElement && (<Webview>this.activeElement).runFindAction) {
-			(<Webview>this.activeElement).runFindAction(previous);
+		this.activeWebview?.runFindAction(previous);
+	}
+
+	public get activeWebview(): Webview | undefined {
+		if (!this.activeElement || !(this.activeElement as Webview).runFindAction) {
+			return undefined;
 		}
+		return this.activeElement as Webview;
 	}
 
 	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null, focus: boolean }, template: IExtensionEditorTemplate): void {

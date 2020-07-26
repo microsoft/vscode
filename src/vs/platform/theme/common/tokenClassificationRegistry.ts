@@ -162,7 +162,7 @@ export namespace SemanticTokenRule {
 			&& TokenStyle.equals(r1.style, r2.style);
 	}
 	export function is(r: any): r is SemanticTokenRule {
-		return r && r.selector && typeof r.selector.selectorString === 'string' && TokenStyle.is(r.style);
+		return r && r.selector && typeof r.selector.id === 'string' && TokenStyle.is(r.style);
 	}
 }
 

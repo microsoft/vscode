@@ -66,14 +66,14 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 
 	private registerListeners(): void {
 		this.lifecycleService.onBeforeShutdown(e => {
-			const saveOperation = this.saveUntitedBeforeShutdown(e.reason);
+			const saveOperation = this.saveUntitledBeforeShutdown(e.reason);
 			if (saveOperation) {
 				e.veto(saveOperation);
 			}
 		});
 	}
 
-	private async saveUntitedBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
+	private async saveUntitledBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
 		if (reason !== ShutdownReason.LOAD && reason !== ShutdownReason.CLOSE) {
 			return false; // only interested when window is closing or loading
 		}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
+import { getZoomFactor } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -209,14 +209,14 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.currentMenubarVisibility === 'hidden') {
-				this.title.style.zoom = `${1 / browser.getZoomFactor()}`;
+				this.title.style.zoom = `${1 / getZoomFactor()}`;
 				if (isWindows || isLinux) {
 					if (this.appIcon) {
-						this.appIcon.style.zoom = `${1 / browser.getZoomFactor()}`;
+						this.appIcon.style.zoom = `${1 / getZoomFactor()}`;
 					}
 
 					if (this.windowControls) {
-						this.windowControls.style.zoom = `${1 / browser.getZoomFactor()}`;
+						this.windowControls.style.zoom = `${1 / getZoomFactor()}`;
 					}
 				}
 			} else {

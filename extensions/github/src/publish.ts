@@ -46,7 +46,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		folder = pick.folder.uri;
 	}
 
-	let quickpick = vscode.window.createQuickPick<vscode.QuickPickItem & { repo?: string, auth?: 'https' | 'ssh' }>();
+	let quickpick = vscode.window.createQuickPick<vscode.QuickPickItem & { repo?: string, auth?: 'https' | 'ssh', isPrivate?: boolean }>();
 	quickpick.ignoreFocusOut = true;
 
 	quickpick.placeholder = 'Repository Name';
@@ -60,6 +60,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 	quickpick.busy = false;
 
 	let repo: string | undefined;
+	let isPrivate: boolean;
 
 	const onDidChangeValue = async () => {
 		const sanitizedRepo = sanitizeRepositoryName(quickpick.value);
@@ -67,7 +68,10 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		if (!sanitizedRepo) {
 			quickpick.items = [];
 		} else {
-			quickpick.items = [{ label: `$(repo) Publish to GitHub private repository`, description: `$(github) ${owner}/${sanitizedRepo}`, alwaysShow: true, repo: sanitizedRepo }];
+			quickpick.items = [
+				{ label: `$(repo) Publish to GitHub private repository`, description: `$(github) ${owner}/${sanitizedRepo}`, alwaysShow: true, repo: sanitizedRepo, isPrivate: true },
+				{ label: `$(repo) Publish to GitHub public repository`, description: `$(github) ${owner}/${sanitizedRepo}`, alwaysShow: true, repo: sanitizedRepo, isPrivate: false },
+			];
 		}
 	};
 
@@ -79,6 +83,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		listener.dispose();
 
 		repo = pick?.repo;
+		isPrivate = pick?.isPrivate ?? true;
 
 		if (repo) {
 			try {
@@ -145,11 +150,11 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 	}
 
 	const githubRepository = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, cancellable: false, title: 'Publish to GitHub' }, async progress => {
-		progress.report({ message: 'Publishing to GitHub private repository', increment: 25 });
+		progress.report({ message: `Publishing to GitHub ${isPrivate ? 'private' : 'public'} repository`, increment: 25 });
 
 		const res = await octokit.repos.createForAuthenticatedUser({
 			name: repo!,
-			private: true
+			private: isPrivate
 		});
 
 		const createdGithubRepository = res.data;
