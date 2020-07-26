@@ -173,12 +173,6 @@ export class TerminalLinkManager extends DisposableStore {
 				return;
 			}
 
-			//Checking if the link matches line and column clause and update it accordingly if it matches (fix for issue #101155)
-			const lineAndColumnRegex = new RegExp(`${lineAndColumnClause}`);
-			const matches: string[] | null = lineAndColumnRegex.exec(link);
-			if (matches) {
-				link = matches[0];
-			}
 
 			// Allow the link to be intercepted if there are listeners
 			if (this._hasBeforeHandleLinkListeners) {
