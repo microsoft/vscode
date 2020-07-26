@@ -594,7 +594,7 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 		this.updateResources();
 	}
 
-	async accept(syncResource: SyncResource, resource: URI, content: string | null): Promise<void> {
+	async accept(syncResource: SyncResource, resource: URI, content?: string | null): Promise<void> {
 		if (this.manualSync) {
 			const syncPreview = await this.manualSync.task.accept(resource, content);
 			this.updatePreview(syncPreview);
