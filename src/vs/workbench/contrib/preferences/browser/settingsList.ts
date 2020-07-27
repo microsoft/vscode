@@ -266,8 +266,8 @@ export class SettingsList extends Disposable {
 
 		pagesToRender.forEach((pageNumber, idx) => {
 			if (idx !== 0 && pagesToRender[idx - 1] !== pageNumber - 1) {
-				const ellipses = DOM.append(paginatorContainer, $('.settings-paginator-ellipses'));
-				ellipses.textContent = '...';
+				const ellipsis = DOM.append(paginatorContainer, $('.settings-paginator-ellipsis'));
+				ellipsis.textContent = '...';
 			}
 
 			const goToPageButtonContainer = DOM.append(paginatorContainer, $('.settings-paginator-go-to-page-button'));
