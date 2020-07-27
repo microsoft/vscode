@@ -178,6 +178,10 @@ export class PieceTreeTextBuffer implements ITextBuffer, IDisposable {
 		return this._pieceTree.getLineCharCode(lineNumber, index);
 	}
 
+	public getCharCode(offset: number): number {
+		return this._pieceTree.getCharCode(offset);
+	}
+
 	public getLineLength(lineNumber: number): number {
 		return this._pieceTree.getLineLength(lineNumber);
 	}

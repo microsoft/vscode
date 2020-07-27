@@ -224,15 +224,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			scrolling = false;
 		}));
 
-		this._localDisposableStore.add(this._cellListGutter.onDidScroll(() => {
-			if (scrolling) {
-				return;
-			}
+		//TODO
 
-			if (this._cellListGutter.scrollTop !== this.scrollTop) {
-				this.scrollTop = this._cellListGutter.scrollTop;
-			}
-		}));
+		// this._localDisposableStore.add(this._cellListGutter.onDidScroll(() => {
+		// 	if (scrolling) {
+		// 		return;
+		// 	}
+
+		// 	if (this._cellListGutter.scrollTop !== this.scrollTop) {
+		// 		this.scrollTop = this._cellListGutter.scrollTop;
+		// 	}
+		// }));
 	}
 
 	elementAt(position: number): ICellViewModel | undefined {

@@ -10,13 +10,30 @@ import { ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { createProviderComparer } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { first } from 'vs/base/common/async';
 import { INotebookService } from '../../../common/notebookService';
-import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel';
-import { diff } from '../../../common/notebookCommon';
+import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel';
+
+class CellSequence implements ISequence {
+
+	constructor(readonly textModel: NotebookTextModel) {
+	}
+
+	getElements(): string[] | number[] | Int32Array {
+		const hashValue = new Int32Array(this.textModel.cells.length);
+		for (let i = 0; i < this.textModel.cells.length; i++) {
+			hashValue[i] = this.textModel.cells[i].getHashValue();
+		}
+
+		return hashValue;
+	}
+}
 
 export class SCMController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.findController';
 	private _lastDecorationId: string[] = [];
 	private _localDisposable = new DisposableStore();
+
+	private _lastVersion = -1;
 
 
 	constructor(
@@ -51,6 +68,12 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 			return;
 		}
 
+		if (this._lastVersion >= modifiedDocument.versionId) {
+			return;
+		}
+
+		this._lastVersion = modifiedDocument.versionId;
+
 		const uri = modifiedDocument.uri;
 		const providers = this._scmService.repositories.map(r => r.provider);
 		const rootedProviders = providers.filter(p => !!p.rootUri);
@@ -71,52 +94,34 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 			return;
 		}
 
-		// naive diff, runCode50
-		// diff: 3.947998046875ms
-		// diff: 2.615966796875ms
-
-		console.time('diff');
-
-		const cellDiffs = diff<NotebookCellTextModel>(originalDocument.cells, modifiedDocument.cells, a => {
-			for (let i = 0; i < originalDocument.cells.length; i++) {
-				const modifiedCell = originalDocument.cells[i];
-
-				if (modifiedCell.getValue() === a.getValue()) {
-					return true;
-				}
-			}
-
-			return false;
-		}, (a, b) => {
-			return a.getValue() === b.getValue();
-		});
-
-		console.timeEnd('diff');
+		const diff = new LcsDiff(new CellSequence(originalDocument), new CellSequence(modifiedDocument));
+		const diffResult = diff.ComputeDiff(false);
 
 		const decorations: INotebookDeltaDecoration[] = [];
-
-		cellDiffs.forEach(diff => {
-			if (diff.deleteCount === 0) {
+		diffResult.changes.forEach(change => {
+			if (change.originalLength === 0) {
 				// doesn't exist in original
-				// insert
-				decorations.push(...diff.toInsert.map(cell => ({
-					handle: cell.handle,
-					options: { gutterClassName: 'nb-gutter-cell-inserted' }
-				})));
+				for (let i = 0; i < change.modifiedLength; i++) {
+					decorations.push({
+						handle: modifiedDocument.cells[change.modifiedStart + i].handle,
+						options: { gutterClassName: 'nb-gutter-cell-inserted' }
+					});
+				}
 			} else {
-				if (diff.toInsert.length === 0) {
+				if (change.modifiedLength === 0) {
 					// diff.deleteCount
 					// removed from original
 				} else {
 					// modification
-					decorations.push(...diff.toInsert.map(cell => ({
-						handle: cell.handle,
-						options: { gutterClassName: 'nb-gutter-cell-changed' }
-					})));
+					for (let i = 0; i < change.modifiedLength; i++) {
+						decorations.push({
+							handle: modifiedDocument.cells[change.modifiedStart + i].handle,
+							options: { gutterClassName: 'nb-gutter-cell-changed' }
+						});
+					}
 				}
 			}
 		});
-
 
 
 		this._lastDecorationId = this._notebookEditor.deltaCellDecorations(this._lastDecorationId, decorations);

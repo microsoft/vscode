@@ -11,6 +11,8 @@ import * as model from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { hash } from 'vs/base/common/hash';
+
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
@@ -39,6 +41,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	set metadata(newMetadata: NotebookCellMetadata | undefined) {
 		this._metadata = newMetadata;
+		this._hash = null;
 		this._onDidChangeMetadata.fire();
 	}
 
@@ -48,6 +51,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	set language(newLanguage: string) {
 		this._language = newLanguage;
+		this._hash = null;
 		this._onDidChangeLanguage.fire(newLanguage);
 	}
 
@@ -64,11 +68,14 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._textBuffer = bufferFactory.create(model.DefaultEndOfLine.LF);
 
 		this._register(this._textBuffer.onDidChangeContent(() => {
+			this._hash = null;
 			this._onDidChangeContent.fire();
 		}));
 
 		return this._textBuffer;
 	}
+
+	private _hash: number | null = null;
 
 
 	constructor(
@@ -94,6 +101,15 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		} else {
 			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.CRLF);
 		}
+	}
+
+	getHashValue(): number {
+		if (this._hash !== null) {
+			return this._hash;
+		}
+
+		this._hash = hash([hash(this.getValue()), this._metadata]);
+		return this._hash;
 	}
 
 	getTextLength(): number {
