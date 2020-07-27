@@ -247,7 +247,22 @@ export class SettingsList extends Disposable {
 				1, 2, 3,
 				currentPage - 1, currentPage, currentPage + 1,
 				totalPages - 2, totalPages - 1, totalPages,
-			])].filter(pageNumber => 1 <= pageNumber && pageNumber <= totalPages).sort((a, b) => a - b);
+			])]
+				.filter(pageNumber => 1 <= pageNumber && pageNumber <= totalPages)
+				.sort((a, b) => a - b)
+				.reduce((pagesSoFar, currentPage) => {
+					if (pagesSoFar.length === 0) {
+						return [currentPage];
+					}
+
+					const previousPage = pagesSoFar[pagesSoFar.length - 1];
+
+					// If there's only one page between the previous page and current page:
+					//  We should not add '...', but add the page itself.
+					return previousPage === currentPage - 2
+						? [...pagesSoFar, previousPage + 1, currentPage]
+						: [...pagesSoFar, currentPage];
+				}, [] as number[]);
 
 		pagesToRender.forEach((pageNumber, idx) => {
 			if (idx !== 0 && pagesToRender[idx - 1] !== pageNumber - 1) {
