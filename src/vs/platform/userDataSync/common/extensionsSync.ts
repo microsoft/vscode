@@ -100,7 +100,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			removed,
 			updated,
 			remote,
-			content: null,
+			content: this.getPreviewContent(localExtensions, added, updated, removed),
 			localChange: added.length > 0 || removed.length > 0 || updated.length > 0 ? Change.Modified : Change.None,
 			remoteChange: remote !== null ? Change.Modified : Change.None,
 		};
@@ -117,6 +117,30 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			localChange: previewResult.localChange,
 			remoteChange: previewResult.remoteChange
 		}];
+	}
+
+	private getPreviewContent(localExtensions: ISyncExtension[], added: ISyncExtension[], updated: ISyncExtension[], removed: IExtensionIdentifier[]): string {
+		const preview: ISyncExtension[] = [...added, ...updated];
+
+		const idsOrUUIDs: Set<string> = new Set<string>();
+		const addIdentifier = (identifier: IExtensionIdentifier) => {
+			idsOrUUIDs.add(identifier.id.toLowerCase());
+			if (identifier.uuid) {
+				idsOrUUIDs.add(identifier.uuid);
+			}
+		};
+		preview.forEach(({ identifier }) => addIdentifier(identifier));
+		removed.forEach(addIdentifier);
+
+		for (const localExtension of localExtensions) {
+			if (idsOrUUIDs.has(localExtension.identifier.id.toLowerCase()) || (localExtension.identifier.uuid && idsOrUUIDs.has(localExtension.identifier.uuid))) {
+				// skip
+				continue;
+			}
+			preview.push(localExtension);
+		}
+
+		return this.format(preview);
 	}
 
 	protected async getMergeResult(resourcePreview: IExtensionResourcePreview, token: CancellationToken): Promise<IMergeResult> {
