@@ -263,7 +263,7 @@ function packageMarketplaceExtensionsStream(forWeb) {
         .pipe(util2.setExecutableBit(['**/*.sh'])));
 }
 exports.packageMarketplaceExtensionsStream = packageMarketplaceExtensionsStream;
-function scanBuiltinExtensions(extensionsRoot) {
+function scanBuiltinExtensions(extensionsRoot, forWeb) {
     const scannedExtensions = [];
     const extensionsFolders = fs.readdirSync(extensionsRoot);
     for (const extensionFolder of extensionsFolders) {
@@ -272,6 +272,9 @@ function scanBuiltinExtensions(extensionsRoot) {
             continue;
         }
         let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
+        if (forWeb && !isWebExtension(packageJSON)) {
+            continue;
+        }
         const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
         const packageNLS = children.filter(child => child === 'package.nls.json')[0];
         const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];

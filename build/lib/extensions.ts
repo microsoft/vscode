@@ -340,7 +340,7 @@ export interface IScannedBuiltinExtension {
 	changelogPath?: string,
 }
 
-export function scanBuiltinExtensions(extensionsRoot: string): IScannedBuiltinExtension[] {
+export function scanBuiltinExtensions(extensionsRoot: string, forWeb: boolean): IScannedBuiltinExtension[] {
 	const scannedExtensions: IScannedBuiltinExtension[] = [];
 	const extensionsFolders = fs.readdirSync(extensionsRoot);
 	for (const extensionFolder of extensionsFolders) {
@@ -349,6 +349,9 @@ export function scanBuiltinExtensions(extensionsRoot: string): IScannedBuiltinEx
 			continue;
 		}
 		let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
+		if (forWeb && !isWebExtension(packageJSON)) {
+			continue;
+		}
 		const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
 		const packageNLS = children.filter(child => child === 'package.nls.json')[0];
 		const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
