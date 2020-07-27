@@ -1383,6 +1383,7 @@ export interface IShellLaunchConfigDto {
 	args?: string[] | string;
 	cwd?: string | UriComponents;
 	env?: { [key: string]: string | null; };
+	hideFromUser?: boolean;
 }
 
 export interface IShellDefinitionDto {
