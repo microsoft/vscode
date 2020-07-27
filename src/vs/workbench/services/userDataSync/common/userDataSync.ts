@@ -79,6 +79,8 @@ export const enum AccountStatus {
 	Available = 'available',
 }
 
+export const SYNC_TITLE = localize('sync category', "Settings Sync");
+
 // Contexts
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
