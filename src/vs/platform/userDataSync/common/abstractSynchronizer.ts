@@ -119,7 +119,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 	constructor(
 		readonly resource: SyncResource,
 		@IFileService protected readonly fileService: IFileService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService protected readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService protected readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,

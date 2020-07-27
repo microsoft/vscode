@@ -49,14 +49,15 @@ export class UserDataSyncClient extends Disposable {
 	}
 
 	async setUp(empty: boolean = false): Promise<void> {
-		const userDataDirectory = URI.file('userdata').with({ scheme: Schemas.inMemory });
-		const userDataSyncHome = joinPath(userDataDirectory, '.sync');
+		const userRoamingDataHome = URI.file('userdata').with({ scheme: Schemas.inMemory });
+		const userDataSyncHome = joinPath(userRoamingDataHome, '.sync');
 		const environmentService = this.instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{
 			userDataSyncHome,
-			settingsResource: joinPath(userDataDirectory, 'settings.json'),
-			keybindingsResource: joinPath(userDataDirectory, 'keybindings.json'),
-			snippetsHome: joinPath(userDataDirectory, 'snippets'),
-			argvResource: joinPath(userDataDirectory, 'argv.json'),
+			userRoamingDataHome,
+			settingsResource: joinPath(userRoamingDataHome, 'settings.json'),
+			keybindingsResource: joinPath(userRoamingDataHome, 'keybindings.json'),
+			snippetsHome: joinPath(userRoamingDataHome, 'snippets'),
+			argvResource: joinPath(userRoamingDataHome, 'argv.json'),
 			sync: 'on',
 		});
 
