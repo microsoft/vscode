@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncResourceEnablementService, IRemoteUserData, Change, USER_DATA_SYNC_SCHEME, IUserDataManifest, MergeState } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncResourceEnablementService, IRemoteUserData, Change, USER_DATA_SYNC_SCHEME, IUserDataManifest, MergeState, IResourcePreview as IBaseResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
@@ -469,11 +469,11 @@ suite('TestSynchronizer', () => {
 		assertConflicts(testObject.conflicts, []);
 	});
 
-	function assertConflicts(actual: IResourcePreview[], expected: URI[]) {
+	function assertConflicts(actual: IBaseResourcePreview[], expected: URI[]) {
 		assert.deepEqual(actual.map(({ previewResource }) => previewResource.toString()), expected.map(uri => uri.toString()));
 	}
 
-	function assertPreviews(actual: IResourcePreview[], expected: URI[]) {
+	function assertPreviews(actual: IBaseResourcePreview[], expected: URI[]) {
 		assert.deepEqual(actual.map(({ previewResource }) => previewResource.toString()), expected.map(uri => uri.toString()));
 	}
 
