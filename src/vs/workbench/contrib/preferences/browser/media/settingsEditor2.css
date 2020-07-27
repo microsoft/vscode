@@ -552,6 +552,7 @@
 
 .settings-editor > .settings-body > .settings-list-container .group-title {
 	cursor: default;
+	line-height: initial;
 }
 
 .settings-editor > .settings-body > .settings-list-container .settings-group-title-label {
