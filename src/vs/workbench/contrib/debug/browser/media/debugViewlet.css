@@ -128,8 +128,6 @@
 	text-transform: uppercase;
 	align-self: center;
 	font-size: 0.8em;
-	background-color: rgba(136, 136, 136, 0.27);
-	color: #cccccc;
 }
 
 .debug-pane .debug-call-stack .monaco-list-row:hover .label {
