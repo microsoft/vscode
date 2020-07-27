@@ -6,10 +6,8 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { SettingsTreeDelegate, ISettingItemTemplate, SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { focusBorder, foreground, errorForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarSliderBackground, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -22,10 +20,12 @@ import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 
 const $ = DOM.$;
 
+type SettingLeafElement = SettingsTreeSettingElement | SettingsTreeNewExtensionsElement;
+
 class SettingsListPaginator {
 	readonly PAGE_SIZE = 20;
 
-	private settings: SettingsTreeSettingElement[] = [];
+	private settings: SettingLeafElement[] = [];
 	private page = 1;
 
 	get currentPage(): number {
@@ -36,7 +36,7 @@ class SettingsListPaginator {
 		return Math.ceil(this.settings.length / this.PAGE_SIZE);
 	}
 
-	get settingsOnPage(): SettingsTreeSettingElement[] {
+	get settingsOnPage(): SettingLeafElement[] {
 		return this.settings.slice(
 			(this.page - 1) * this.PAGE_SIZE,
 			this.page * this.PAGE_SIZE,
@@ -45,7 +45,7 @@ class SettingsListPaginator {
 
 	constructor(private onPageChange: (shouldScroll: boolean) => void) { }
 
-	setSettings(settings: SettingsTreeSettingElement[], scrollToPage?: number): void {
+	setSettings(settings: SettingLeafElement[], scrollToPage?: number): void {
 		this.settings = settings;
 		this.setPage(scrollToPage ?? this.page);
 	}
@@ -74,8 +74,8 @@ class SettingsListPaginator {
 
 interface ISettingsListView {
 	group: SettingsTreeGroupElement;
-	settings: SettingsTreeSettingElement[];
-	focusedSetting?: SettingsTreeSettingElement;
+	settings: SettingLeafElement[];
+	focusedSetting?: SettingLeafElement;
 }
 
 interface ISettingsListCacheItem {
@@ -83,11 +83,19 @@ interface ISettingsListCacheItem {
 	template: ISettingItemTemplate;
 }
 
+interface ISettingListRenderer {
+	templateId: string;
+	renderTemplate(container: HTMLElement): ISettingItemTemplate;
+	renderElement(element: { element: SettingsTreeElement }, index: number, templateData: ISettingItemTemplate, height: number | undefined): void;
+	disposeElement?(element: { element: SettingsTreeElement }, index: number, templateData: ISettingItemTemplate, height: number | undefined): void;
+	disposeTemplate(templateData: ISettingItemTemplate): void;
+}
+
 export class SettingsList extends Disposable {
 	private searchFilter: (element: SettingsTreeElement) => boolean;
-	private getTemplateId = new SettingsTreeDelegate().getTemplateId;
+	private settingsTreeDelegate = new SettingsTreeDelegate();
 	private paginator = new SettingsListPaginator(this.renderPage.bind(this));
-	private templateToRenderer = new Map<string, ITreeRenderer<SettingsTreeElement, never, ISettingItemTemplate>>();
+	private templateToRenderer = new Map<string, ISettingListRenderer>();
 	private freePool = new Map<string, ISettingsListCacheItem[]>();
 	private usedPool = new Map<string, ISettingsListCacheItem[]>();
 	private pageDisposables = new DisposableStore();
@@ -98,10 +106,14 @@ export class SettingsList extends Disposable {
 	}
 
 	dispose() {
-		[...this.usedPool.values(), ...this.freePool.values()].forEach(ts => ts.forEach(({ template }) => {
-			template.toDispose.dispose();
-			template.elementDisposables.dispose();
-		}));
+		[...this.usedPool.entries(), ...this.freePool.entries()].forEach(([templateId, templates]) => {
+			const renderer = this.templateToRenderer.get(templateId);
+
+			templates.forEach(({ template }) => {
+				renderer?.disposeTemplate(template);
+				renderer?.disposeElement?.(null as any, 0, template, undefined);
+			});
+		});
 
 		this.usedPool.clear();
 		this.freePool.clear();
@@ -113,9 +125,8 @@ export class SettingsList extends Disposable {
 	constructor(
 		private container: HTMLElement,
 		viewState: ISettingsEditorViewState,
-		renderers: ITreeRenderer<SettingsTreeElement, never, any>[],
+		renderers: ISettingListRenderer[],
 		@IThemeService private themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -181,19 +192,12 @@ export class SettingsList extends Disposable {
 		DOM.clearNode(this.container);
 		this.pageDisposables.clear();
 
-		// Transfer all used items to the free pool
-		for (const [templateId, usedItems] of this.usedPool.entries()) {
-			const freeItems = this.freePool.get(templateId) ?? [];
-			usedItems.forEach(item => item.template.elementDisposables.clear());
-			this.freePool.set(templateId, [...usedItems, ...freeItems]);
-		}
-
-		this.usedPool.clear();
+		this.recycleTemplates();
 
 		if (this.currentView?.group.label) {
 			const headingContainer = DOM.append(this.container, $('.setting-group-heading'));
 			const groupElement = this.currentView!.group;
-			const groupRenderer = this.templateToRenderer.get(this.getTemplateId(groupElement))!;
+			const groupRenderer = this.templateToRenderer.get(this.settingsTreeDelegate.getTemplateId(groupElement))!;
 			groupRenderer.renderElement({ element: groupElement } as any, 0, groupRenderer.renderTemplate(headingContainer), undefined);
 		}
 
@@ -291,7 +295,7 @@ export class SettingsList extends Disposable {
 			return { group, settings: [] };
 		}
 
-		const settings = group.children.filter(isSettingElement).filter(this.searchFilter);
+		const settings = group.children.filter(isLeafSetting).filter(this.searchFilter);
 
 		if (settings.length > 0) {
 			return { group, settings };
@@ -310,9 +314,9 @@ export class SettingsList extends Disposable {
 		return { group, settings };
 	}
 
-	private renderSetting(element: SettingsTreeSettingElement): HTMLElement {
-		const templateId = this.getTemplateId(element);
-		const renderer = this.templateToRenderer.get(this.getTemplateId(element))!;
+	private renderSetting(element: SettingLeafElement): HTMLElement {
+		const templateId = this.settingsTreeDelegate.getTemplateId(element);
+		const renderer = this.templateToRenderer.get(templateId)!;
 		const freeItems = this.freePool.get(templateId);
 
 		let container: HTMLElement;
@@ -332,9 +336,20 @@ export class SettingsList extends Disposable {
 			{ container, template }
 		]);
 
-		renderer.renderElement({ element } as any, 0, template, undefined);
+		renderer.renderElement({ element }, 0, template, undefined);
 
 		return container;
+	}
+
+	private recycleTemplates(): void {
+		for (const [templateId, usedItems] of this.usedPool.entries()) {
+			const freeItems = this.freePool.get(templateId) ?? [];
+			const renderer = this.templateToRenderer.get(templateId);
+			usedItems.forEach(item => renderer?.disposeElement?.(null as any, 0, item.template, undefined));
+			this.freePool.set(templateId, [...usedItems, ...freeItems]);
+		}
+
+		this.usedPool.clear();
 	}
 }
 
@@ -342,8 +357,8 @@ function isGroupElement(element: SettingsTreeElement): element is SettingsTreeGr
 	return element instanceof SettingsTreeGroupElement;
 }
 
-function isSettingElement(element: SettingsTreeElement): element is SettingsTreeSettingElement {
-	return element instanceof SettingsTreeSettingElement;
+function isLeafSetting(element: SettingsTreeElement): element is SettingLeafElement {
+	return element instanceof SettingsTreeSettingElement || element instanceof SettingsTreeNewExtensionsElement;
 }
 
 function findGroup(rootGroup: SettingsTreeGroupElement, id: string): SettingsTreeGroupElement | undefined {
