@@ -235,6 +235,10 @@ const excludedExtensions = [
 	'vscode-notebook-tests'
 ];
 
+const marketplaceWebExtensions = [
+	'ms-vscode.references-view'
+];
+
 interface IBuiltInExtension {
 	name: string;
 	version: string;
@@ -244,76 +248,83 @@ interface IBuiltInExtension {
 
 const builtInExtensions: IBuiltInExtension[] = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8')).builtInExtensions;
 
-export function packageLocalExtensionsStream(): Stream {
-	const localExtensionDescriptions = (<string[]>glob.sync('extensions/*/package.json'))
-		.map(manifestPath => {
-			const extensionPath = path.dirname(path.join(root, manifestPath));
-			const extensionName = path.basename(extensionPath);
-			return { name: extensionName, path: extensionPath };
-		})
-		.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
-		.filter(({ name }) => builtInExtensions.every(b => b.name !== name));
+type ExtensionKind = 'ui' | 'workspace' | 'web';
+interface IExtensionManifest {
+	main: string;
+	browser: string;
+	extensionKind?: ExtensionKind | ExtensionKind[];
+}
+/**
+ * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionsUtil.ts`
+ */
+function isWebExtension(manifest: IExtensionManifest): boolean {
+	if (typeof manifest.extensionKind !== 'undefined') {
+		const extensionKind = Array.isArray(manifest.extensionKind) ? manifest.extensionKind : [manifest.extensionKind];
+		return (extensionKind.indexOf('web') >= 0);
+	}
+	return (!Boolean(manifest.main) || Boolean(manifest.browser));
+}
 
+export function packageLocalExtensionsStream(forWeb: boolean): Stream {
+	const localExtensionsDescriptions = (
+		(<string[]>glob.sync('extensions/*/package.json'))
+			.map(manifestPath => {
+				const absoluteManifestPath = path.join(root, manifestPath);
+				const extensionPath = path.dirname(path.join(root, manifestPath));
+				const extensionName = path.basename(extensionPath);
+				return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
+			})
+			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
+			.filter(({ name }) => builtInExtensions.every(b => b.name !== name))
+			.filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true))
+	);
+	const localExtensionsStream = minifyExtensionResources(
+		es.merge(
+			...localExtensionsDescriptions.map(extension => {
+				return fromLocal(extension.path, forWeb)
+					.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+			})
+		)
+	);
 
-	const localExtensions = localExtensionDescriptions.map(extension => {
-		return fromLocal(extension.path, false)
-			.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-	});
+	let result: Stream;
+	if (forWeb) {
+		result = localExtensionsStream;
+	} else {
+		// also include shared node modules
+		result = es.merge(localExtensionsStream, gulp.src('extensions/node_modules/**', { base: '.' }));
+	}
 
-	const nodeModules = gulp.src('extensions/node_modules/**', { base: '.' });
-	return minifyExtensionResources(
-		es.merge(nodeModules, ...localExtensions)
-		.pipe(util2.setExecutableBit(['**/*.sh']))
+	return (
+		result
+			.pipe(util2.setExecutableBit(['**/*.sh']))
 	);
 }
 
-export function packageLocalWebExtensionsStream(): Stream {
-	const localExtensionDescriptions = (<string[]>glob.sync('extensions/*/package.json'))
-		.filter(manifestPath => {
-			const packageJsonConfig = require(path.join(root, manifestPath));
-			return !packageJsonConfig.main || packageJsonConfig.browser;
-		})
-		.map(manifestPath => {
-			const extensionPath = path.dirname(path.join(root, manifestPath));
-			const extensionName = path.basename(extensionPath);
-			return { name: extensionName, path: extensionPath };
-		});
-
-	return minifyExtensionResources(
-		es.merge(...localExtensionDescriptions.map(extension => {
-			return fromLocal(extension.path, true)
-				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-		}))
+export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
+	const marketplaceExtensionsDescriptions = (
+		builtInExtensions
+		.filter(({ name }) => (forWeb ? marketplaceWebExtensions.indexOf(name) >= 0 : true))
 	);
-}
-
-export function packageMarketplaceExtensionsStream(): Stream {
-	const extensions = builtInExtensions.map(extension => {
-		return fromMarketplace(extension.name, extension.version, extension.metadata)
-			.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-	});
-
-	return minifyExtensionResources(
-		es.merge(extensions)
-		.pipe(util2.setExecutableBit(['**/*.sh']))
+	const marketplaceExtensionsStream = minifyExtensionResources(
+		es.merge(
+			...marketplaceExtensionsDescriptions
+				.map(extension => {
+					const input = fromMarketplace(extension.name, extension.version, extension.metadata)
+						.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+					return updateExtensionPackageJSON(input, (data: any) => {
+						delete data.scripts;
+						delete data.dependencies;
+						delete data.devDependencies;
+						return data;
+					});
+				})
+		)
 	);
-}
 
-export function packageMarketplaceWebExtensionsStream(builtInExtensions: IBuiltInExtension[]): Stream {
-	const extensions = builtInExtensions
-		.map(extension => {
-			const input = fromMarketplace(extension.name, extension.version, extension.metadata)
-				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-			return updateExtensionPackageJSON(input, (data: any) => {
-				if (data.main) {
-					data.browser = data.main;
-				}
-				data.extensionKind = ['web'];
-				return data;
-			});
-		});
-	return minifyExtensionResources(
-		es.merge(extensions)
+	return (
+		marketplaceExtensionsStream
+			.pipe(util2.setExecutableBit(['**/*.sh']))
 	);
 }
 
@@ -325,7 +336,7 @@ export interface IScannedBuiltinExtension {
 	changelogPath?: string,
 }
 
-export function scanBuiltinExtensions(extensionsRoot: string, forWeb: boolean): IScannedBuiltinExtension[] {
+export function scanBuiltinExtensions(extensionsRoot: string): IScannedBuiltinExtension[] {
 	const scannedExtensions: IScannedBuiltinExtension[] = [];
 	const extensionsFolders = fs.readdirSync(extensionsRoot);
 	for (const extensionFolder of extensionsFolders) {
@@ -334,10 +345,6 @@ export function scanBuiltinExtensions(extensionsRoot: string, forWeb: boolean): 
 			continue;
 		}
 		let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
-		const extensionKind: string[] = packageJSON['extensionKind'] || [];
-		if (forWeb && extensionKind.indexOf('web') === -1) {
-			continue;
-		}
 		const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
 		const packageNLS = children.filter(child => child === 'package.nls.json')[0];
 		const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];

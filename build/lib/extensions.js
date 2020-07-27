@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.translatePackageJSON = exports.scanBuiltinExtensions = exports.packageMarketplaceWebExtensionsStream = exports.packageMarketplaceExtensionsStream = exports.packageLocalWebExtensionsStream = exports.packageLocalExtensionsStream = exports.fromMarketplace = void 0;
+exports.translatePackageJSON = exports.scanBuiltinExtensions = exports.packageMarketplaceExtensionsStream = exports.packageLocalExtensionsStream = exports.fromMarketplace = void 0;
 const es = require("event-stream");
 const fs = require("fs");
 const glob = require("glob");
@@ -200,68 +200,66 @@ const excludedExtensions = [
     'ms-vscode.node-debug2',
     'vscode-notebook-tests'
 ];
+const marketplaceWebExtensions = [
+    'ms-vscode.references-view'
+];
 const builtInExtensions = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8')).builtInExtensions;
-function packageLocalExtensionsStream() {
-    const localExtensionDescriptions = glob.sync('extensions/*/package.json')
+/**
+ * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionsUtil.ts`
+ */
+function isWebExtension(manifest) {
+    if (typeof manifest.extensionKind !== 'undefined') {
+        const extensionKind = Array.isArray(manifest.extensionKind) ? manifest.extensionKind : [manifest.extensionKind];
+        return (extensionKind.indexOf('web') >= 0);
+    }
+    return (!Boolean(manifest.main) || Boolean(manifest.browser));
+}
+function packageLocalExtensionsStream(forWeb) {
+    const localExtensionsDescriptions = (glob.sync('extensions/*/package.json')
         .map(manifestPath => {
+        const absoluteManifestPath = path.join(root, manifestPath);
         const extensionPath = path.dirname(path.join(root, manifestPath));
         const extensionName = path.basename(extensionPath);
-        return { name: extensionName, path: extensionPath };
+        return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
     })
         .filter(({ name }) => excludedExtensions.indexOf(name) === -1)
-        .filter(({ name }) => builtInExtensions.every(b => b.name !== name));
-    const localExtensions = localExtensionDescriptions.map(extension => {
-        return fromLocal(extension.path, false)
+        .filter(({ name }) => builtInExtensions.every(b => b.name !== name))
+        .filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true)));
+    const localExtensionsStream = minifyExtensionResources(es.merge(...localExtensionsDescriptions.map(extension => {
+        return fromLocal(extension.path, forWeb)
             .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-    });
-    const nodeModules = gulp.src('extensions/node_modules/**', { base: '.' });
-    return minifyExtensionResources(es.merge(nodeModules, ...localExtensions)
+    })));
+    let result;
+    if (forWeb) {
+        result = localExtensionsStream;
+    }
+    else {
+        // also include shared node modules
+        result = es.merge(localExtensionsStream, gulp.src('extensions/node_modules/**', { base: '.' }));
+    }
+    return (result
         .pipe(util2.setExecutableBit(['**/*.sh'])));
 }
 exports.packageLocalExtensionsStream = packageLocalExtensionsStream;
-function packageLocalWebExtensionsStream() {
-    const localExtensionDescriptions = glob.sync('extensions/*/package.json')
-        .filter(manifestPath => {
-        const packageJsonConfig = require(path.join(root, manifestPath));
-        return !packageJsonConfig.main || packageJsonConfig.browser;
-    })
-        .map(manifestPath => {
-        const extensionPath = path.dirname(path.join(root, manifestPath));
-        const extensionName = path.basename(extensionPath);
-        return { name: extensionName, path: extensionPath };
-    });
-    return minifyExtensionResources(es.merge(...localExtensionDescriptions.map(extension => {
-        return fromLocal(extension.path, true)
-            .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-    })));
-}
-exports.packageLocalWebExtensionsStream = packageLocalWebExtensionsStream;
-function packageMarketplaceExtensionsStream() {
-    const extensions = builtInExtensions.map(extension => {
-        return fromMarketplace(extension.name, extension.version, extension.metadata)
-            .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-    });
-    return minifyExtensionResources(es.merge(extensions)
-        .pipe(util2.setExecutableBit(['**/*.sh'])));
-}
-exports.packageMarketplaceExtensionsStream = packageMarketplaceExtensionsStream;
-function packageMarketplaceWebExtensionsStream(builtInExtensions) {
-    const extensions = builtInExtensions
+function packageMarketplaceExtensionsStream(forWeb) {
+    const marketplaceExtensionsDescriptions = (builtInExtensions
+        .filter(({ name }) => (forWeb ? marketplaceWebExtensions.indexOf(name) >= 0 : true)));
+    const marketplaceExtensionsStream = minifyExtensionResources(es.merge(...marketplaceExtensionsDescriptions
         .map(extension => {
         const input = fromMarketplace(extension.name, extension.version, extension.metadata)
             .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
         return updateExtensionPackageJSON(input, (data) => {
-            if (data.main) {
-                data.browser = data.main;
-            }
-            data.extensionKind = ['web'];
+            delete data.scripts;
+            delete data.dependencies;
+            delete data.devDependencies;
             return data;
         });
-    });
-    return minifyExtensionResources(es.merge(extensions));
+    })));
+    return (marketplaceExtensionsStream
+        .pipe(util2.setExecutableBit(['**/*.sh'])));
 }
-exports.packageMarketplaceWebExtensionsStream = packageMarketplaceWebExtensionsStream;
-function scanBuiltinExtensions(extensionsRoot, forWeb) {
+exports.packageMarketplaceExtensionsStream = packageMarketplaceExtensionsStream;
+function scanBuiltinExtensions(extensionsRoot) {
     const scannedExtensions = [];
     const extensionsFolders = fs.readdirSync(extensionsRoot);
     for (const extensionFolder of extensionsFolders) {
@@ -270,10 +268,6 @@ function scanBuiltinExtensions(extensionsRoot, forWeb) {
             continue;
         }
         let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
-        const extensionKind = packageJSON['extensionKind'] || [];
-        if (forWeb && extensionKind.indexOf('web') === -1) {
-            continue;
-        }
         const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
         const packageNLS = children.filter(child => child === 'package.nls.json')[0];
         const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
