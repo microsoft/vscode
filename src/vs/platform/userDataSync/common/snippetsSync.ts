@@ -179,7 +179,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				previewResource: joinPath(this.syncPreviewFolder, key),
 				previewResult,
 				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange
+				remoteChange: previewResult.remoteChange,
+				acceptedResource: joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
 			});
 		}
 
@@ -200,7 +201,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				previewResource: joinPath(this.syncPreviewFolder, key),
 				previewResult,
 				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange
+				remoteChange: previewResult.remoteChange,
+				acceptedResource: joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
 			});
 		}
 
@@ -221,7 +223,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				previewResource: joinPath(this.syncPreviewFolder, key),
 				previewResult,
 				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange
+				remoteChange: previewResult.remoteChange,
+				acceptedResource: joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
 			});
 		}
 
@@ -242,7 +245,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				previewResource: joinPath(this.syncPreviewFolder, key),
 				previewResult,
 				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange
+				remoteChange: previewResult.remoteChange,
+				acceptedResource: joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
 			});
 		}
 
@@ -263,7 +267,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				previewResource: joinPath(this.syncPreviewFolder, key),
 				previewResult,
 				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange
+				remoteChange: previewResult.remoteChange,
+				acceptedResource: joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
 			});
 		}
 
@@ -284,7 +289,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				previewResource: joinPath(this.syncPreviewFolder, key),
 				previewResult,
 				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange
+				remoteChange: previewResult.remoteChange,
+				acceptedResource: joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
 			});
 		}
 
@@ -305,7 +311,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 				previewResource: joinPath(this.syncPreviewFolder, key),
 				previewResult,
 				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange
+				remoteChange: previewResult.remoteChange,
+				acceptedResource: joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
 			});
 		}
 
@@ -327,7 +334,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 					previewResource: joinPath(this.syncPreviewFolder, key),
 					previewResult,
 					localChange: previewResult.localChange,
-					remoteChange: previewResult.remoteChange
+					remoteChange: previewResult.remoteChange,
+					acceptedResource: joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
 				});
 			}
 		}

@@ -112,7 +112,8 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			remoteChange: previewResult.remoteChange,
 
 			previewResource: this.previewResource,
-			previewResult
+			previewResult,
+			acceptedResource: this.acceptedResource,
 		}];
 	}
 

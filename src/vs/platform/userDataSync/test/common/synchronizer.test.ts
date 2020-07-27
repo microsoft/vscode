@@ -72,6 +72,7 @@ class TestSynchroniser extends AbstractSynchroniser {
 			ref: remoteUserData.ref,
 			localChange: Change.Modified,
 			remoteChange: Change.Modified,
+			acceptedResource: this.localResource.with(({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })),
 		}];
 	}
 

@@ -111,7 +111,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			previewResource: this.previewResource,
 			previewResult,
 			localChange: previewResult.localChange,
-			remoteChange: previewResult.remoteChange
+			remoteChange: previewResult.remoteChange,
+			acceptedResource: this.acceptedResource,
 		}];
 	}
 

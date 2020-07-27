@@ -115,7 +115,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			previewResource: this.previewResource,
 			previewResult,
 			localChange: previewResult.localChange,
-			remoteChange: previewResult.remoteChange
+			remoteChange: previewResult.remoteChange,
+			acceptedResource: this.acceptedResource,
 		}];
 	}
 

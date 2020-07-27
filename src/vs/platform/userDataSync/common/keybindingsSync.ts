@@ -118,7 +118,8 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 			remoteChange: previewResult.remoteChange,
 
 			previewResource: this.previewResource,
-			previewResult
+			previewResult,
+			acceptedResource: this.acceptedResource,
 		}];
 
 	}

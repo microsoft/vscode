@@ -64,6 +64,7 @@ export interface IResourcePreview {
 	readonly localChange: Change;
 
 	readonly previewResource: URI;
+	readonly acceptedResource: URI;
 }
 
 export interface IAcceptResult {
@@ -590,7 +591,6 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 				resourcePreviews.push({
 					...resourcePreviewResult,
-					acceptedResource: resourcePreviewResult.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' }),
 					acceptResult,
 					mergeState: mergeResult?.hasConflicts ? MergeState.Conflict : acceptResult ? MergeState.Accepted : MergeState.Preview,
 					localChange: acceptResult ? acceptResult.localChange : mergeResult ? mergeResult.localChange : resourcePreviewResult.localChange,
