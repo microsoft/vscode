@@ -12,7 +12,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { EditorModel } from 'vs/workbench/common/editor';
-import { ICellRange, ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellRange, ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -255,6 +255,10 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
+		throw new Error('Method not implemented.');
+	}
+
+	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[] {
 		throw new Error('Method not implemented.');
 	}
 

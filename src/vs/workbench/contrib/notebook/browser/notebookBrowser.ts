@@ -154,6 +154,7 @@ export interface INotebookEditorContribution {
 
 export interface INotebookCellDecorationOptions {
 	className?: string;
+	gutterClassName?: string;
 	outputClassName?: string;
 }
 
@@ -374,6 +375,8 @@ export interface INotebookEditor extends IEditor {
 	setHiddenAreas(_ranges: ICellRange[]): boolean;
 
 	setCellSelection(cell: ICellViewModel, selection: Range): void;
+
+	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[];
 
 	/**
 	 * Change the decorations on cells.

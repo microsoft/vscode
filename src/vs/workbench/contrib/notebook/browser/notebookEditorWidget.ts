@@ -325,6 +325,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._list = this.instantiationService.createInstance(
 			NotebookCellList,
 			'NotebookCellList',
+			this._overlayContainer,
 			this._body,
 			this.instantiationService.createInstance(NotebookCellListDelegate),
 			renderers,
@@ -1640,7 +1641,8 @@ export const cellSymbolHighlight = registerColor('notebook.symbolHighlightBackgr
 }, nls.localize('notebook.symbolHighlightBackground', "Background color of highlighted cell"));
 
 registerThemingParticipant((theme, collector) => {
-	collector.addRule(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element {
+	collector.addRule(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element,
+	.notebookOverlay > .cell-list-container > .notebook-gutter > .monaco-list > .monaco-scrollable-element {
 		padding-top: ${SCROLLABLE_ELEMENT_PADDING_TOP}px;
 		box-sizing: border-box;
 	}`);

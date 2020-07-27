@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
-import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles, IStyleController, IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -24,6 +25,9 @@ import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/
 import { diff, IProcessedOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { clamp } from 'vs/base/common/numbers';
 import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { editorBackground, foreground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { NotebookGutter, NotebookGutterDelegate, GutterRenderer } from 'vs/workbench/contrib/notebook/browser/view/notebookGutter';
 
 export interface IFocusNextPreviousDelegate {
 	onFocusNext(applyFocusNext: () => void): void;
@@ -62,8 +66,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private readonly _focusNextPreviousDelegate: IFocusNextPreviousDelegate;
 
+	private _cellListGutter: WorkbenchList<CellViewModel>;
+
 	constructor(
 		private listUser: string,
+		parentContainer: HTMLElement,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<CellViewModel>,
 		renderers: IListRenderer<CellViewModel, BaseCellRenderTemplate>[],
@@ -72,7 +79,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
@@ -148,6 +156,81 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (focus && focus.cellKind === CellKind.Markdown) {
 				focus.editState = CellEditState.Editing;
 				focus.focusMode = CellFocusMode.Editor;
+			}
+		}));
+
+		const gutterContainer = DOM.append(container, DOM.$('.notebook-gutter'));
+
+		this._cellListGutter = instantiationService.createInstance(
+			NotebookGutter,
+			'NotebookGutter',
+			gutterContainer,
+			instantiationService.createInstance(NotebookGutterDelegate),
+			[instantiationService.createInstance(GutterRenderer, (index, size) => {
+				DOM.scheduleAtNextAnimationFrame(() => {
+					this._cellListGutter?.updateElementHeight(index, size);
+				});
+			})],
+			this.contextKeyService,
+			{
+				setRowLineHeight: false,
+				setRowHeight: false,
+				supportDynamicHeights: true,
+				horizontalScrolling: false,
+				keyboardSupport: false,
+				mouseSupport: false,
+				multipleSelectionSupport: false,
+				enableKeyboardNavigation: false,
+				additionalScrollHeight: 0,
+				transformOptimization: false,
+				styleController: (_suffix: string) => { return this; },
+				overrideStyles: {
+					listBackground: editorBackground,
+					listActiveSelectionBackground: editorBackground,
+					listActiveSelectionForeground: foreground,
+					listFocusAndSelectionBackground: editorBackground,
+					listFocusAndSelectionForeground: foreground,
+					listFocusBackground: editorBackground,
+					listFocusForeground: foreground,
+					listHoverForeground: foreground,
+					listHoverBackground: editorBackground,
+					listHoverOutline: focusBorder,
+					listFocusOutline: focusBorder,
+					listInactiveSelectionBackground: editorBackground,
+					listInactiveSelectionForeground: foreground,
+					listInactiveFocusBackground: editorBackground,
+					listInactiveFocusOutline: editorBackground,
+				},
+				accessibilityProvider: {
+					getAriaLabel() { return null; },
+					getWidgetAriaLabel() {
+						return nls.localize('notebookTreeAriaLabel', "Notebook");
+					}
+				}
+			},
+		);
+
+		let scrolling = false;
+
+		this._localDisposableStore.add(this.onWillScroll(() => {
+			scrolling = true;
+		}));
+
+		this._localDisposableStore.add(this.onDidScroll(() => {
+			if (this._cellListGutter.scrollTop !== this.scrollTop) {
+				this._cellListGutter.scrollTop = this.scrollTop;
+			}
+
+			scrolling = false;
+		}));
+
+		this._localDisposableStore.add(this._cellListGutter.onDidScroll(() => {
+			if (scrolling) {
+				return;
+			}
+
+			if (this._cellListGutter.scrollTop !== this.scrollTop) {
+				this.scrollTop = this._cellListGutter.scrollTop;
 			}
 		}));
 	}
@@ -375,6 +458,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		super.splice(start, deleteCount, elements);
 
+		this._cellListGutter.splice(start, deleteCount, elements);
+
 		const selectionsLeft = [];
 		this._viewModel!.selectionHandles.forEach(handle => {
 			if (this._viewModel!.hasCell(handle)) {
@@ -563,6 +648,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		const focused = this.getFocus();
 		this.view.updateElementHeight(index, size, focused.length ? focused[0] : null);
+		this._cellListGutter.updateElementHeight(index, size);
 	}
 
 	// override
@@ -799,6 +885,19 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		} else {
 			getEditorAttachedPromise(element).then(() => { element.setSelection(range); });
 		}
+	}
+
+	updateOptions(options: IListOptions<ICellViewModel>) {
+		super.updateOptions(options);
+
+		if (options.additionalScrollHeight !== undefined) {
+			this._cellListGutter.updateOptions({ additionalScrollHeight: options.additionalScrollHeight });
+		}
+	}
+
+	layout(height?: number, width?: number): void {
+		super.layout(height, width);
+		this._cellListGutter.layout(height, width);
 	}
 
 

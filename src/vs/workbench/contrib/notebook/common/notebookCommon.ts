@@ -507,7 +507,7 @@ interface IMutableSplice<T> extends ISplice<T> {
 	deleteCount: number;
 }
 
-export function diff<T>(before: T[], after: T[], contains: (a: T) => boolean): ISplice<T>[] {
+export function diff<T>(before: T[], after: T[], contains: (a: T) => boolean, equal: (a: T, b: T) => boolean = (a: T, b: T) => a === b): ISplice<T>[] {
 	const result: IMutableSplice<T>[] = [];
 
 	function pushSplice(start: number, deleteCount: number, toInsert: T[]): void {
@@ -542,7 +542,7 @@ export function diff<T>(before: T[], after: T[], contains: (a: T) => boolean): I
 		const beforeElement = before[beforeIdx];
 		const afterElement = after[afterIdx];
 
-		if (beforeElement === afterElement) {
+		if (equal(beforeElement, afterElement)) {
 			// equal
 			beforeIdx += 1;
 			afterIdx += 1;

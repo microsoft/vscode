@@ -11,6 +11,48 @@
 	position: relative;
 }
 
+.monaco-workbench .notebookOverlay .notebook-gutter {
+	position: absolute;
+	width: 6px;
+	top: 0px;
+	height: 100%;
+}
+
+.monaco-workbench .notebookOverlay .notebook-gutter .monaco-list-row .cell {
+	visibility: hidden;
+	top: -8px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-gutter .monaco-list-row .cell.nb-gutter-cell-changed {
+	position: relative;
+	visibility: visible;
+	width: 2px;
+	transition: width 80ms linear, left 80ms linear;
+	background-color: #66afe0;
+}
+
+.monaco-workbench .notebookOverlay .notebook-gutter .monaco-list-row:hover .cell.nb-gutter-cell-changed {
+	left: 0px;
+	width: 6px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-gutter .monaco-list-row .cell.nb-gutter-cell-inserted {
+	position: relative;
+	visibility: visible;
+	width: 2px;
+	transition: width 80ms linear, left 80ms linear;
+	background-color: #81b88b;
+}
+
+.monaco-workbench .notebookOverlay .notebook-gutter .monaco-list-row:hover .cell.nb-gutter-cell-inserted {
+	left: 0px;
+	width: 6px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-gutter .monaco-scrollable-element > .scrollbar{
+	visibility: hidden;
+}
+
 .monaco-workbench .cell.markdown {
 	user-select: text;
 	-webkit-user-select: text;
@@ -50,6 +92,12 @@
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
+	cursor: default;
+	overflow: visible !important;
+	width: 100%;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .notebook-gutter > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
 	cursor: default;
 	overflow: visible !important;
 	width: 100%;
