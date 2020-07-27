@@ -224,16 +224,19 @@ export function fromMarketplace(extensionName: string, version: string, metadata
 		.pipe(json({ __metadata: metadata }))
 		.pipe(packageJsonFilter.restore);
 }
-
-const excludedExtensions = [
+const excludedCommonExtensions = [
 	'vscode-api-tests',
-	'vscode-web-playground',
 	'vscode-colorize-tests',
 	'vscode-test-resolver',
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',
 	'vscode-notebook-tests'
 ];
+const excludedDesktopExtensions = excludedCommonExtensions.concat([
+	'vscode-web-playground',
+]);
+const excludedWebExtensions = excludedCommonExtensions.concat([
+]);
 
 const marketplaceWebExtensions = [
 	'ms-vscode.references-view'
@@ -266,6 +269,7 @@ function isWebExtension(manifest: IExtensionManifest): boolean {
 }
 
 export function packageLocalExtensionsStream(forWeb: boolean): Stream {
+	const excludedLocalExtensions = (forWeb ? excludedWebExtensions : excludedDesktopExtensions);
 	const localExtensionsDescriptions = (
 		(<string[]>glob.sync('extensions/*/package.json'))
 			.map(manifestPath => {
@@ -274,7 +278,7 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 				const extensionName = path.basename(extensionPath);
 				return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
 			})
-			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
+			.filter(({ name }) => excludedLocalExtensions.indexOf(name) === -1)
 			.filter(({ name }) => builtInExtensions.every(b => b.name !== name))
 			.filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true))
 	);
