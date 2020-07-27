@@ -14,8 +14,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { isEqual } from 'vs/base/common/resources';
 
-const resource = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'testResource', path: `/current.json` });
+const resource = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local', path: `/testResource.json` });
 
 interface ITestResourcePreview extends IResourcePreview {
 	ref: string;
@@ -57,15 +59,20 @@ class TestSynchroniser extends AbstractSynchroniser {
 			throw new Error('failed');
 		}
 
+		let fileContent = null;
+		try {
+			fileContent = await this.fileService.readFile(resource);
+		} catch (error) { }
+
 		return [{
 			localResource: resource,
-			localContent: null,
-			remoteResource: resource,
-			remoteContent: null,
-			previewResource: resource,
-			localChange: Change.Modified,
-			remoteChange: Change.None,
+			localContent: fileContent ? fileContent.value.toString() : null,
+			remoteResource: resource.with(({ authority: 'remote' })),
+			remoteContent: remoteUserData.syncData ? remoteUserData.syncData.content : null,
+			previewResource: resource.with(({ authority: 'preview' })),
 			ref: remoteUserData.ref,
+			localChange: Change.Modified,
+			remoteChange: Change.Modified,
 		}];
 	}
 
@@ -73,27 +80,68 @@ class TestSynchroniser extends AbstractSynchroniser {
 		return {
 			content: resourcePreview.ref,
 			localChange: Change.Modified,
-			remoteChange: Change.None,
+			remoteChange: Change.Modified,
 			hasConflicts: this.syncResult.hasConflicts,
 		};
 	}
 
 	protected async getAcceptResult(resourcePreview: ITestResourcePreview, resource: URI, content: string | null | undefined, token: CancellationToken): Promise<IAcceptResult> {
-		return {
-			content: content === undefined ? resourcePreview.ref : null,
-			localChange: Change.Modified,
-			remoteChange: Change.None,
-		};
+
+		if (isEqual(resource, resourcePreview.localResource)) {
+			return {
+				content: resourcePreview.localContent,
+				localChange: Change.None,
+				remoteChange: resourcePreview.localContent === null ? Change.Deleted : Change.Modified,
+			};
+		}
+
+		if (isEqual(resource, resourcePreview.remoteResource)) {
+			return {
+				content: resourcePreview.remoteContent,
+				localChange: resourcePreview.remoteContent === null ? Change.Deleted : Change.Modified,
+				remoteChange: Change.None,
+			};
+		}
+
+		if (isEqual(resource, resourcePreview.previewResource)) {
+			if (content === undefined) {
+				return {
+					content: resourcePreview.ref,
+					localChange: Change.Modified,
+					remoteChange: Change.Modified,
+				};
+			} else {
+				return {
+					content,
+					localChange: content === null ? Change.Deleted : Change.Modified,
+					remoteChange: content === null ? Change.Deleted : Change.Modified,
+				};
+			}
+		}
+
+		throw new Error(`Invalid Resource: ${resource.toString()}`);
 	}
 
 	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: [IResourcePreview, IAcceptResult][], force: boolean): Promise<void> {
-		if (resourcePreviews[0][1].content) {
-			await this.applyRef(resourcePreviews[0][1].content);
+		if (resourcePreviews[0][1].localChange === Change.Deleted) {
+			await this.fileService.del(resource);
+		}
+
+		if (resourcePreviews[0][1].localChange === Change.Added || resourcePreviews[0][1].localChange === Change.Modified) {
+			await this.fileService.writeFile(resource, VSBuffer.fromString(resourcePreviews[0][1].content!));
+		}
+
+		if (resourcePreviews[0][1].remoteChange === Change.Deleted) {
+			await this.applyRef(null, remoteUserData.ref);
+		}
+
+		if (resourcePreviews[0][1].remoteChange === Change.Added || resourcePreviews[0][1].remoteChange === Change.Modified) {
+			await this.applyRef(resourcePreviews[0][1].content, remoteUserData.ref);
 		}
 	}
 
-	async applyRef(ref: string): Promise<void> {
-		const remoteUserData = await this.updateRemoteUserData('', ref);
+	async applyRef(content: string | null, ref: string): Promise<void> {
+		const remoteUserData = await this.updateRemoteUserData(content === null ? '' : content, ref);
 		await this.updateLastSyncUserData(remoteUserData);
 	}
 
@@ -243,7 +291,7 @@ suite('TestSynchronizer', () => {
 		// update remote data before syncing so that 412 is thrown by server
 		const disposable = testObject.onDoSyncCall.event(async () => {
 			disposable.dispose();
-			await testObject.applyRef(ref);
+			await testObject.applyRef(ref, ref);
 			server.reset();
 			testObject.syncBarrier.open();
 		});
@@ -391,7 +439,7 @@ suite('TestSynchronizer', () => {
 		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
 		assertPreviews(preview!.resourcePreviews, [resource]);
 		assert.equal(preview!.resourcePreviews[0].mergeState, MergeState.Conflict);
-		assertConflicts(testObject.conflicts, [preview!.resourcePreviews[0].previewResource]);
+		assertConflicts(testObject.conflicts, [preview!.resourcePreviews[0].localResource]);
 	});
 
 	test('preview: discarding the conflict', async () => {
@@ -470,11 +518,11 @@ suite('TestSynchronizer', () => {
 	});
 
 	function assertConflicts(actual: IBaseResourcePreview[], expected: URI[]) {
-		assert.deepEqual(actual.map(({ previewResource }) => previewResource.toString()), expected.map(uri => uri.toString()));
+		assert.deepEqual(actual.map(({ localResource }) => localResource.toString()), expected.map(uri => uri.toString()));
 	}
 
 	function assertPreviews(actual: IBaseResourcePreview[], expected: URI[]) {
-		assert.deepEqual(actual.map(({ previewResource }) => previewResource.toString()), expected.map(uri => uri.toString()));
+		assert.deepEqual(actual.map(({ localResource }) => localResource.toString()), expected.map(uri => uri.toString()));
 	}
 
 });
