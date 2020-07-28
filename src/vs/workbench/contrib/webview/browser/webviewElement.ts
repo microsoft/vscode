@@ -154,7 +154,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 							authority: extensionLocation.authority,
 							path: '/vscode-resource',
 							query: JSON.stringify({
-								requestResourcePath: encodeURIComponent(uri.path).replace(/%2F/g, '/').replace(/%25/g, '%')
+								requestResourcePath: uri.path
 							})
 						});
 					}
