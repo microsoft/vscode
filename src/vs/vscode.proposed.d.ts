@@ -18,59 +18,6 @@ declare module 'vscode' {
 
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
-	export interface AuthenticationSession {
-		/**
-		 * The identifier of the authentication session.
-		 */
-		readonly id: string;
-
-		/**
-		 * The access token.
-		 */
-		readonly accessToken: string;
-
-		/**
-		 * The account associated with the session.
-		 */
-		readonly account: AuthenticationSessionAccountInformation;
-
-		/**
-		 * The permissions granted by the session's access token. Available scopes
-		 * are defined by the authentication provider.
-		 */
-		readonly scopes: ReadonlyArray<string>;
-	}
-
-	/**
-	 * The information of an account associated with an authentication session.
-	 */
-	export interface AuthenticationSessionAccountInformation {
-		/**
-		 * The unique identifier of the account.
-		 */
-		readonly id: string;
-
-		/**
-		 * The human-readable name of the account.
-		 */
-		readonly label: string;
-	}
-
-	/**
-	 * Basic information about an[authenticationProvider](#AuthenticationProvider)
-	 */
-	export interface AuthenticationProviderInformation {
-		/**
-		 * The unique identifier of the authentication provider.
-		 */
-		readonly id: string;
-
-		/**
-		 * The human-readable name of the authentication provider.
-		 */
-		readonly label: string;
-	}
-
 	/**
 	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
 	 */
@@ -87,32 +34,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options to be used when getting a session from an [AuthenticationProvider](#AuthenticationProvider).
-	 */
-	export interface AuthenticationGetSessionOptions {
-		/**
-		 *  Whether login should be performed if there is no matching session. Defaults to false.
-		 */
-		createIfNone?: boolean;
-
-		/**
-		 * Whether the existing user session preference should be cleared. Set to allow the user to switch accounts.
-		 * Defaults to false.
-		 */
-		clearSessionPreference?: boolean;
-	}
-
-	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
-		/**
-		 * The [authenticationProvider](#AuthenticationProvider) that has had its sessions change.
-		 */
-		readonly provider: AuthenticationProviderInformation;
-	}
-
-	/**
 	* An [event](#Event) which fires when an [AuthenticationSession](#AuthenticationSession) is added, removed, or changed.
 	*/
-	export interface AuthenticationSessionsChangeEvent {
+	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
 		/**
 		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been added.
 		*/
@@ -156,7 +80,7 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
 		 */
-		readonly onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
+		readonly onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
 
 		/**
 		 * Returns an array of current sessions.
@@ -211,30 +135,6 @@ declare module 'vscode' {
 		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
-		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
-		 * @param options The [getSessionOptions](#GetSessionOptions) to use
-		 * @returns A thenable that resolves to an authentication session
-		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession>;
-
-		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
-		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
-		 * @param options The [getSessionOptions](#GetSessionOptions) to use
-		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
-		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
-
-		/**
 		 * @deprecated
 		* Logout of a specific session.
 		* @param providerId The id of the provider to use
@@ -242,13 +142,6 @@ declare module 'vscode' {
 		* provider
 		*/
 		export function logout(providerId: string, sessionId: string): Thenable<void>;
-
-		/**
-		* An [event](#Event) which fires when the array of sessions has changed, or data
-		* within a session has changed for a provider. Fires with the ids of the providers
-		* that have had session data change.
-		*/
-		export const onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
 	}
 
 	//#endregion
