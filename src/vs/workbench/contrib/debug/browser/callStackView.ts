@@ -498,7 +498,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		const session = dom.append(container, $('.session'));
 		dom.append(session, $('.codicon.codicon-bug'));
 		const name = dom.append(session, $('.name'));
-		const stateLabel = dom.append(session, $('span.label.monaco-count-badge.long'));
+		const stateLabel = dom.append(session, $('span.state.label.monaco-count-badge.long'));
 		const label = new HighlightedLabel(name, false);
 		const actionBar = new ActionBar(session, {
 			actionViewItemProvider: action => {
@@ -578,7 +578,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 	renderTemplate(container: HTMLElement): IThreadTemplateData {
 		const thread = dom.append(container, $('.thread'));
 		const name = dom.append(thread, $('.name'));
-		const stateLabel = dom.append(thread, $('span.label'));
+		const stateLabel = dom.append(thread, $('span.state.label'));
 		const label = new HighlightedLabel(name, false);
 		const actionBar = new ActionBar(thread);
 
