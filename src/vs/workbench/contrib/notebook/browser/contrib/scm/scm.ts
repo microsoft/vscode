@@ -10,23 +10,8 @@ import { ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { createProviderComparer } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { first } from 'vs/base/common/async';
 import { INotebookService } from '../../../common/notebookService';
-import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
-import { NotebookTextModel } from '../../../common/model/notebookTextModel';
-
-class CellSequence implements ISequence {
-
-	constructor(readonly textModel: NotebookTextModel) {
-	}
-
-	getElements(): string[] | number[] | Int32Array {
-		const hashValue = new Int32Array(this.textModel.cells.length);
-		for (let i = 0; i < this.textModel.cells.length; i++) {
-			hashValue[i] = this.textModel.cells[i].getHashValue();
-		}
-
-		return hashValue;
-	}
-}
+import { LcsDiff } from 'vs/base/common/diff/diff';
+import { CellSequence } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class SCMController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.findController';
@@ -44,25 +29,28 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 	) {
 		super();
 
-		this._register(this._notebookEditor.onDidChangeModel(() => {
-			this._localDisposable.clear();
+		if (!this._notebookEditor.creationOptions.isEmbeded) {
+			this._register(this._notebookEditor.onDidChangeModel(() => {
+				this._localDisposable.clear();
+				this.update();
+
+				if (this._notebookEditor.textModel) {
+					this._localDisposable.add(this._notebookEditor.textModel.onDidChangeContent(() => {
+						this.update();
+					}));
+
+					this._localDisposable.add(this._notebookEditor.textModel.onDidChangeCells(() => {
+						this.update();
+					}));
+				}
+			}));
+
 			this.update();
-
-			if (this._notebookEditor.textModel) {
-				this._localDisposable.add(this._notebookEditor.textModel.onDidChangeContent(() => {
-					this.update();
-				}));
-
-				this._localDisposable.add(this._notebookEditor.textModel.onDidChangeCells(() => {
-					this.update();
-				}));
-			}
-		}));
-
-		this.update();
+		}
 	}
 
 	async update() {
+
 		const modifiedDocument = this._notebookEditor.textModel;
 		if (!modifiedDocument) {
 			return;

@@ -18,6 +18,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IRevertOptions } from 'vs/workbench/common/editor';
 import { basename } from 'vs/base/common/path';
+import { ISequence } from 'vs/base/common/diff/diff';
 
 export enum CellKind {
 	Markdown = 1,
@@ -582,6 +583,11 @@ export interface INotebookEditorModel extends IEditorModel {
 	revert(options?: IRevertOptions | undefined): Promise<void>;
 }
 
+export interface INotebookDiffEditorModel extends IEditorModel {
+	original: INotebookEditorModel;
+	modified: INotebookEditorModel;
+}
+
 export interface INotebookTextModelBackup {
 	metadata: NotebookDocumentMetadata;
 	languages: string[];
@@ -670,4 +676,20 @@ export interface INotebookKernelProvider {
 	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
 	resolveKernel(editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
 	executeNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
+}
+
+
+export class CellSequence implements ISequence {
+
+	constructor(readonly textModel: NotebookTextModel) {
+	}
+
+	getElements(): string[] | number[] | Int32Array {
+		const hashValue = new Int32Array(this.textModel.cells.length);
+		for (let i = 0; i < this.textModel.cells.length; i++) {
+			hashValue[i] = this.textModel.cells[i].getHashValue();
+		}
+
+		return hashValue;
+	}
 }

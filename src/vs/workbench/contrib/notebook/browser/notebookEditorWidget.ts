@@ -23,12 +23,12 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { contrastBorder, editorBackground, focusBorder, foreground, registerColor, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, errorForeground, transparent, listFocusBackground, listInactiveSelectionBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorBackground, focusBorder, foreground, registerColor, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, errorForeground, transparent, listFocusBackground, listInactiveSelectionBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, diffRemoved, diffInserted } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_BOTTOM_PADDING, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, SCROLLABLE_ELEMENT_PADDING_TOP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED, INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED, INotebookDeltaDecoration, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -51,6 +51,8 @@ import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/deb
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { notebookKernelProviderAssociationsSettingId, NotebookKernelProviderAssociations } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
+import { ScrollEvent } from 'vs/base/common/scrollable';
+import { editorGutterAddedBackground, editorGutterDeletedBackground, editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 
 const $ = DOM.$;
 
@@ -103,6 +105,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private readonly _activeKernelMemento: Memento;
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocusEmitter.event;
+	private readonly _onWillScroll = this._register(new Emitter<ScrollEvent>());
+	public readonly onWillScroll: Event<ScrollEvent> = this._onWillScroll.event;
+
+	set scrollTop(top: number) {
+		if (this._list) {
+			this._list.scrollTop = top;
+		}
+	}
+
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
 	private _isVisible = false;
 	private readonly _uuid = generateUuid();
@@ -194,6 +205,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	constructor(
+		readonly creationOptions: INotebookEditorCreationOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@INotebookService private notebookService: INotebookService,
@@ -789,6 +801,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		this._localStore.add(this._list!.onWillScroll(e => {
+			this._onWillScroll.fire(e);
 			if (!this._webviewResolved) {
 				return;
 			}
@@ -1784,6 +1797,34 @@ registerThemingParticipant((theme, collector) => {
 	if (scrollbarSliderActiveBackgroundColor) {
 		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider.active { background: ${editorBackgroundColor}; } `);
 		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider.active:before { content: ""; width: 100%; height: 100%; position: absolute; background: ${scrollbarSliderActiveBackgroundColor}; } `); /* hack to not have cells see through scroller */
+	}
+
+	// case ChangeType.Modify: return theme.getColor(editorGutterModifiedBackground);
+	// case ChangeType.Add: return theme.getColor(editorGutterAddedBackground);
+	// case ChangeType.Delete: return theme.getColor(editorGutterDeletedBackground);
+	// diff
+
+	const modifiedBackground = theme.getColor(editorGutterModifiedBackground);
+	if (modifiedBackground) {
+		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-cell-modified .cell-focus-indicator,
+		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.nb-cell-modified.markdown-cell-row {
+			background-color: ${modifiedBackground} !important;
+		}`);
+	}
+
+	const addedBackground = theme.getColor(diffInserted);
+	if (addedBackground) {
+		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-cell-added .cell-focus-indicator,
+		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.nb-cell-added.markdown-cell-row {
+			background-color: ${addedBackground} !important;
+		}`);
+	}
+	const deletedBackground = theme.getColor(diffRemoved);
+	if (deletedBackground) {
+		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-cell-deleted .cell-focus-indicator,
+		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.nb-cell-deleted.markdown-cell-row {
+			background-color: ${deletedBackground} !important;
+		}`);
 	}
 
 	// Cell Margin

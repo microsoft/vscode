@@ -163,6 +163,10 @@ export interface INotebookDeltaDecoration {
 	options: INotebookCellDecorationOptions;
 }
 
+export interface INotebookEditorCreationOptions {
+	readonly isEmbeded: boolean;
+}
+
 export interface INotebookEditor extends IEditor {
 
 	cursorNavigationMode: boolean;
@@ -178,7 +182,8 @@ export interface INotebookEditor extends IEditor {
 	 */
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
-	isNotebookEditor: boolean;
+	readonly isNotebookEditor: boolean;
+	readonly creationOptions: INotebookEditorCreationOptions;
 	activeKernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined;
 	multipleKernelsAvailable: boolean;
 	readonly onDidChangeAvailableKernels: Event<void>;

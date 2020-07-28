@@ -41,6 +41,10 @@ import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/not
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService, NotebookModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { NotebookDiffEditorInput } from './notebookDiffEditorInput';
+import { NotebookDiffEditor } from './notebookDiffEditor';
 
 // Editor Contribution
 
@@ -58,7 +62,6 @@ import 'vs/workbench/contrib/notebook/browser/contrib/scm/scm';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -70,6 +73,17 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	),
 	[
 		new SyncDescriptor(NotebookEditorInput)
+	]
+);
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+	EditorDescriptor.create(
+		NotebookDiffEditor,
+		NotebookDiffEditor.ID,
+		'Notebook Diff Editor'
+	),
+	[
+		new SyncDescriptor(NotebookDiffEditorInput)
 	]
 );
 
@@ -232,6 +246,10 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
+		if (originalInput instanceof DiffEditorInput) {
+			return this._handleDiffEditorInput(originalInput, options, group);
+		}
+
 		if (!originalInput.resource) {
 			return undefined;
 		}
@@ -305,6 +323,49 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 		const notebookInput = NotebookEditorInput.create(this.instantiationService, notebookUri, originalInput.getName(), info.id);
 		const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions, override: false, index });
+		return { override: this.editorService.openEditor(notebookInput, notebookOptions, group) };
+	}
+
+	private _handleDiffEditorInput(diffEditorInput: DiffEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
+		const modifiedInput = diffEditorInput.modifiedInput;
+		const originalInput = diffEditorInput.originalInput;
+		const notebookUri = modifiedInput.resource;
+		const originalNotebookUri = originalInput.resource;
+
+		if (!notebookUri || !originalNotebookUri) {
+			return undefined;
+		}
+
+		const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, notebookUri) && !(editor instanceof NotebookEditorInput));
+
+		if (existingEditors.length) {
+			return undefined;
+		}
+
+		const userAssociatedEditors = this.getUserAssociatedEditors(notebookUri);
+		const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.viewType));
+
+		if (userAssociatedEditors.length && !notebookEditor.length) {
+			// user pick a non-notebook editor for this resource
+			return undefined;
+		}
+
+		// user might pick a notebook editor
+
+		const associatedEditors = distinct([
+			...this.getUserAssociatedNotebookEditors(notebookUri),
+			...(this.getContributedEditors(notebookUri).filter(editor => editor.priority === NotebookEditorPriority.default))
+		], editor => editor.id);
+
+		if (!associatedEditors.length) {
+			// there is no notebook editor contribution which is enabled by default
+			return undefined;
+		}
+
+		const info = associatedEditors[0];
+
+		const notebookInput = NotebookDiffEditorInput.create(this.instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), info.id);
+		const notebookOptions = new NotebookEditorOptions({ ...options, override: false });
 		return { override: this.editorService.openEditor(notebookInput, notebookOptions, group) };
 	}
 }
