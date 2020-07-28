@@ -470,6 +470,12 @@
 	font-family: var(--monaco-monospace-font);
 }
 
+.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-markdown hr {
+	border-bottom-width: 0px;
+	margin: 10px 20px;
+	opacity: 0.4;
+}
+
 .settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-enumDescription {
 	display: none;
 }
