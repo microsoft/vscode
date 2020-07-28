@@ -357,7 +357,7 @@ class AutoSync extends Disposable {
 		this._register(toDisposable(() => {
 			if (this.syncPromise) {
 				this.syncPromise.cancel();
-				this.logService.info('Auto sync: Canelled sync that is in progress');
+				this.logService.info('Auto sync: Cancelled sync that is in progress');
 				this.syncPromise = undefined;
 			}
 			if (this.syncTask) {
