@@ -11635,7 +11635,7 @@ declare module 'vscode' {
 		 * within a session has changed for a provider. Fires with the ids of the providers
 		 * that have had session data change.
 		 */
-		export const onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
+		export const onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
 	}
 }
 
