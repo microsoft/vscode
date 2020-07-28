@@ -397,7 +397,7 @@ export class ThemeTrieElement {
 
 export function generateTokensCSSForColorMap(colorMap: Color[]): string {
 	let rules: string[] = [];
-	const editorParentClass = ".monaco-editor";
+	const editorParentClass = '.monaco-editor';
 	for (let i = 1, len = colorMap.length; i < len; i++) {
 		let color = colorMap[i];
 		rules[i] = `${editorParentClass} .mtk${i} { color: ${color}; }`;
