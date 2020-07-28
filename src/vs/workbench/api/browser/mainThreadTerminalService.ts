@@ -219,7 +219,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			executable: terminalInstance.shellLaunchConfig.executable,
 			args: terminalInstance.shellLaunchConfig.args,
 			cwd: terminalInstance.shellLaunchConfig.cwd,
-			env: terminalInstance.shellLaunchConfig.env
+			env: terminalInstance.shellLaunchConfig.env,
+			hideFromUser: terminalInstance.shellLaunchConfig.hideFromUser
 		};
 		if (terminalInstance.title) {
 			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title, shellLaunchConfigDto);

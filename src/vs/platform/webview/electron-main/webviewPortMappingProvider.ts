@@ -36,9 +36,9 @@ export class WebviewPortMappingProvider extends Disposable {
 
 		sess.webRequest.onBeforeRequest({
 			urls: [
-				'*://localhost:*/',
-				'*://127.0.0.1:*/',
-				'*://0.0.0.0:*/',
+				'*://localhost:*/*',
+				'*://127.0.0.1:*/*',
+				'*://0.0.0.0:*/*',
 			]
 		}, async (details, callback) => {
 			const webviewId = details.webContentsId && this._webContentsIdsToWebviewIds.get(details.webContentsId);
@@ -47,7 +47,7 @@ export class WebviewPortMappingProvider extends Disposable {
 			}
 
 			const entry = this._webviewData.get(webviewId);
-			if (!entry || !entry.metadata.resolvedAuthority) {
+			if (!entry) {
 				return callback({});
 			}
 

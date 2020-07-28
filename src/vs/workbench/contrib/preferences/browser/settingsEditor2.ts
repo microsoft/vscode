@@ -7,7 +7,6 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/common/async';
@@ -16,7 +15,6 @@ import * as collections from 'vs/base/common/collections';
 import { fromNow } from 'vs/base/common/date';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -45,8 +43,8 @@ import { IEditorMemento, IEditorPane } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
-import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
+import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeModel } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
@@ -54,17 +52,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-
-function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
-	return Iterable.map(group.children, g => {
-		return {
-			element: g,
-			children: g instanceof SettingsTreeGroupElement ?
-				createGroupIterator(g) :
-				undefined
-		};
-	});
-}
+import { SettingsList } from 'vs/workbench/contrib/preferences/browser/settingsList';
 
 const $ = DOM.$;
 
@@ -110,8 +98,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private controlsElement!: HTMLElement;
 	private settingsTargetsWidget!: SettingsTargetsWidget;
 
-	private settingsTreeContainer!: HTMLElement;
-	private settingsTree!: SettingsTree;
+	private settingsListContainer!: HTMLElement;
+	private settingsList!: SettingsList;
 	private settingRenderers!: SettingTreeRenderers;
 	private tocTreeModel!: TOCTreeModel;
 	private settingsTreeModel!: SettingsTreeModel;
@@ -150,7 +138,6 @@ export class SettingsEditor2 extends BaseEditor {
 	private editorMemento: IEditorMemento<ISettingsEditor2State>;
 
 	private tocFocusedElement: SettingsTreeGroupElement | null = null;
-	private settingsTreeScrollTop = 0;
 	private dimension!: DOM.Dimension;
 
 	constructor(
@@ -326,7 +313,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	focus(): void {
 		if (this.lastFocusedSettingElement) {
-			const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), this.lastFocusedSettingElement);
+			const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsList.getHTMLElement(), this.lastFocusedSettingElement);
 			if (elements.length) {
 				const control = elements[0].querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
 				if (control) {
@@ -357,7 +344,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
-		const firstFocusable = this.settingsTree.getHTMLElement().querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
+		const firstFocusable = this.settingsList.getHTMLElement().querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
 		if (firstFocusable) {
 			(<HTMLElement>firstFocusable).focus();
 		}
@@ -497,19 +484,10 @@ export class SettingsEditor2 extends BaseEditor {
 	private onDidClickSetting(evt: ISettingLinkClickEvent, recursed?: boolean): void {
 		const elements = this.currentSettingsModel.getElementsByName(evt.targetKey);
 		if (elements && elements[0]) {
-			let sourceTop = 0.5;
-			try {
-				const _sourceTop = this.settingsTree.getRelativeTop(evt.source);
-				if (_sourceTop !== null) {
-					sourceTop = _sourceTop;
-				}
-			} catch {
-				// e.g. clicked a searched element, now the search has been cleared
-			}
+			this.settingsList.jumpToSetting(elements[0]);
+			this.updateTreeScrollSync();
 
-			this.settingsTree.reveal(elements[0], sourceTop);
-
-			const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
+			const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsList.getHTMLElement(), evt.targetKey);
 			if (domElements && domElements[0]) {
 				const control = domElements[0].querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
 				if (control) {
@@ -569,48 +547,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 
 		this.createTOC(bodyContainer);
-
-		this.createFocusSink(
-			bodyContainer,
-			e => {
-				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
-					if (this.settingsTree.scrollTop > 0) {
-						const firstElement = this.settingsTree.firstVisibleElement;
-
-						if (typeof firstElement !== 'undefined') {
-							this.settingsTree.reveal(firstElement, 0.1);
-						}
-
-						return true;
-					}
-				} else {
-					const firstControl = this.settingsTree.getHTMLElement().querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
-					if (firstControl) {
-						(<HTMLElement>firstControl).focus();
-					}
-				}
-
-				return false;
-			},
-			'settings list focus helper');
-
-		this.createSettingsTree(bodyContainer);
-
-		this.createFocusSink(
-			bodyContainer,
-			e => {
-				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
-					if (this.settingsTree.scrollTop < this.settingsTree.scrollHeight) {
-						const lastElement = this.settingsTree.lastVisibleElement;
-						this.settingsTree.reveal(lastElement, 0.9);
-						return true;
-					}
-				}
-
-				return false;
-			},
-			'settings list focus helper'
-		);
+		this.createSettingsList(bodyContainer);
 	}
 
 	private addCtrlAInterceptor(container: HTMLElement): void {
@@ -626,19 +563,6 @@ export class SettingsEditor2 extends BaseEditor {
 				e.browserEvent.preventDefault();
 			}
 		}));
-	}
-
-	private createFocusSink(container: HTMLElement, callback: (e: any) => boolean, label: string): HTMLElement {
-		const listFocusSink = DOM.append(container, $('.settings-tree-focus-sink'));
-		listFocusSink.setAttribute('aria-label', label);
-		listFocusSink.tabIndex = 0;
-		this._register(DOM.addDisposableListener(listFocusSink, 'focus', (e: any) => {
-			if (e.relatedTarget && callback(e)) {
-				e.relatedTarget.focus();
-			}
-		}));
-
-		return listFocusSink;
 	}
 
 	private createTOC(parent: HTMLElement): void {
@@ -664,10 +588,9 @@ export class SettingsEditor2 extends BaseEditor {
 				if (this.viewState.filterToCategory !== element) {
 					this.viewState.filterToCategory = withNullAsUndefined(element);
 					this.renderTree();
-					this.settingsTree.scrollTop = 0;
 				}
 			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
-				this.settingsTree.reveal(element, 0);
+				this.settingsList.render(element);
 			}
 		}));
 
@@ -680,11 +603,11 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 	}
 
-	private createSettingsTree(parent: HTMLElement): void {
-		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
+	private createSettingsList(parent: HTMLElement): void {
+		this.settingsListContainer = DOM.append(parent, $('.settings-list-container'));
 
 		// Add  ARIA extra labels div
-		this.settingsAriaExtraLabelsContainer = DOM.append(this.settingsTreeContainer, $('.settings-aria-extra-labels'));
+		this.settingsAriaExtraLabelsContainer = DOM.append(this.settingsListContainer, $('.settings-aria-extra-labels'));
 		this.settingsAriaExtraLabelsContainer.id = 'settings_aria_extra_labels';
 		// Add global labels here
 		const labelDiv = DOM.append(this.settingsAriaExtraLabelsContainer, $('.settings-aria-extra-label'));
@@ -699,7 +622,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(this.settingRenderers.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingRenderers.onDidFocusSetting(element => {
 			this.lastFocusedSettingElement = element.setting.key;
-			this.settingsTree.reveal(element);
 		}));
 		this._register(this.settingRenderers.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
 			if (element.scope.toLowerCase() === 'workspace') {
@@ -713,25 +635,12 @@ export class SettingsEditor2 extends BaseEditor {
 			this.searchWidget.setValue(element.targetKey);
 		}));
 
-		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
-			this.settingsTreeContainer,
+		this.settingsList = this._register(this.instantiationService.createInstance(
+			SettingsList,
+			this.settingsListContainer,
 			this.viewState,
-			this.settingRenderers.allRenderers));
-		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
-
-		this._register(this.settingsTree.onDidScroll(() => {
-			if (this.settingsTree.scrollTop === this.settingsTreeScrollTop) {
-				return;
-			}
-
-			this.settingsTreeScrollTop = this.settingsTree.scrollTop;
-
-			// setTimeout because calling setChildren on the settingsTree can trigger onDidScroll, so it fires when
-			// setChildren has called on the settings tree but not the toc tree yet, so their rendered elements are out of sync
-			setTimeout(() => {
-				this.updateTreeScrollSync();
-			}, 0);
-		}));
+			this.settingRenderers.allRenderers,
+		));
 	}
 
 	private notifyNoSaveNeeded() {
@@ -766,10 +675,7 @@ export class SettingsEditor2 extends BaseEditor {
 			return;
 		}
 
-		const elementToSync = this.settingsTree.firstVisibleElement;
-		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
-			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
-				null;
+		const element = this.settingsList.renderedGroup;
 
 		// It's possible for this to be called when the TOC and settings tree are out of sync - e.g. when the settings tree has deferred a refresh because
 		// it is focused. So, bail if element doesn't exist in the TOC.
@@ -1033,7 +939,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private getActiveElementInSettingsTree(): HTMLElement | null {
-		return (document.activeElement && DOM.isAncestor(document.activeElement, this.settingsTree.getHTMLElement())) ?
+		return (document.activeElement && DOM.isAncestor(document.activeElement, this.settingsList.getHTMLElement())) ?
 			<HTMLElement>document.activeElement :
 			null;
 	}
@@ -1099,7 +1005,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private refreshTree(): void {
 		if (this.isVisible()) {
-			this.settingsTree.setChildren(null, createGroupIterator(this.currentSettingsModel.root));
+			this.settingsList.refresh(this.currentSettingsModel.root);
 		}
 	}
 
@@ -1113,7 +1019,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private updateModifiedLabelForKey(key: string): void {
 		const dataElements = this.currentSettingsModel.getElementsByName(key);
 		const isModified = dataElements && dataElements[0] && dataElements[0].isConfigured; // all elements are either configured or not
-		const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), key);
+		const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsList.getHTMLElement(), key);
 		if (elements && elements[0]) {
 			DOM.toggleClass(elements[0], 'is-configured', !!isModified);
 		}
@@ -1376,8 +1282,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private layoutTrees(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (76 + 11 /* header height + padding*/);
 		const settingsTreeHeight = listHeight - 14;
-		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
-		this.settingsTree.layout(settingsTreeHeight, dimension.width);
+		this.settingsListContainer.style.height = `${settingsTreeHeight}px`;
 
 		const tocTreeHeight = listHeight - 16;
 		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
