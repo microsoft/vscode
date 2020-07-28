@@ -46,7 +46,6 @@ export class UserDataSyncChannel implements IServerChannel {
 
 			case 'createManualSyncTask': return this.createManualSyncTask();
 
-			case 'pull': return this.service.pull();
 			case 'replace': return this.service.replace(URI.revive(args[0]));
 			case 'reset': return this.service.reset();
 			case 'resetRemote': return this.service.resetRemote();

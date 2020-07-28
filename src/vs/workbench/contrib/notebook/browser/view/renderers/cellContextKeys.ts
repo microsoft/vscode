@@ -13,16 +13,16 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 export class CellContextKeyManager extends Disposable {
 
-	private cellType: IContextKey<string>;
-	private viewType: IContextKey<string>;
-	private cellEditable: IContextKey<boolean>;
-	private cellRunnable: IContextKey<boolean>;
-	private cellRunState: IContextKey<string>;
-	private cellHasOutputs: IContextKey<boolean>;
-	private cellContentCollapsed: IContextKey<boolean>;
-	private cellOutputCollapsed: IContextKey<boolean>;
+	private cellType!: IContextKey<string>;
+	private viewType!: IContextKey<string>;
+	private cellEditable!: IContextKey<boolean>;
+	private cellRunnable!: IContextKey<boolean>;
+	private cellRunState!: IContextKey<string>;
+	private cellHasOutputs!: IContextKey<boolean>;
+	private cellContentCollapsed!: IContextKey<boolean>;
+	private cellOutputCollapsed!: IContextKey<boolean>;
 
-	private markdownEditMode: IContextKey<boolean>;
+	private markdownEditMode!: IContextKey<boolean>;
 
 	private elementDisposables = new DisposableStore();
 
@@ -33,17 +33,19 @@ export class CellContextKeyManager extends Disposable {
 	) {
 		super();
 
-		this.cellType = NOTEBOOK_CELL_TYPE.bindTo(this.contextKeyService);
-		this.viewType = NOTEBOOK_VIEW_TYPE.bindTo(this.contextKeyService);
-		this.cellEditable = NOTEBOOK_CELL_EDITABLE.bindTo(this.contextKeyService);
-		this.cellRunnable = NOTEBOOK_CELL_RUNNABLE.bindTo(this.contextKeyService);
-		this.markdownEditMode = NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.bindTo(this.contextKeyService);
-		this.cellRunState = NOTEBOOK_CELL_RUN_STATE.bindTo(this.contextKeyService);
-		this.cellHasOutputs = NOTEBOOK_CELL_HAS_OUTPUTS.bindTo(this.contextKeyService);
-		this.cellContentCollapsed = NOTEBOOK_CELL_CONTENT_COLLAPSED.bindTo(this.contextKeyService);
-		this.cellOutputCollapsed = NOTEBOOK_CELL_OUTPUT_COLLAPSED.bindTo(this.contextKeyService);
+		this.contextKeyService.bufferChangeEvents(() => {
+			this.cellType = NOTEBOOK_CELL_TYPE.bindTo(this.contextKeyService);
+			this.viewType = NOTEBOOK_VIEW_TYPE.bindTo(this.contextKeyService);
+			this.cellEditable = NOTEBOOK_CELL_EDITABLE.bindTo(this.contextKeyService);
+			this.cellRunnable = NOTEBOOK_CELL_RUNNABLE.bindTo(this.contextKeyService);
+			this.markdownEditMode = NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.bindTo(this.contextKeyService);
+			this.cellRunState = NOTEBOOK_CELL_RUN_STATE.bindTo(this.contextKeyService);
+			this.cellHasOutputs = NOTEBOOK_CELL_HAS_OUTPUTS.bindTo(this.contextKeyService);
+			this.cellContentCollapsed = NOTEBOOK_CELL_CONTENT_COLLAPSED.bindTo(this.contextKeyService);
+			this.cellOutputCollapsed = NOTEBOOK_CELL_OUTPUT_COLLAPSED.bindTo(this.contextKeyService);
 
-		this.updateForElement(element);
+			this.updateForElement(element);
+		});
 	}
 
 	public updateForElement(element: BaseCellViewModel) {
@@ -61,26 +63,30 @@ export class CellContextKeyManager extends Disposable {
 			this.cellType.set('code');
 		}
 
-		this.updateForMetadata();
-		this.updateForEditState();
-		this.updateForCollapseState();
-		this.updateForOutputs();
+		this.contextKeyService.bufferChangeEvents(() => {
+			this.updateForMetadata();
+			this.updateForEditState();
+			this.updateForCollapseState();
+			this.updateForOutputs();
 
-		this.viewType.set(this.element.viewType);
+			this.viewType.set(this.element.viewType);
+		});
 	}
 
 	private onDidChangeState(e: CellViewModelStateChangeEvent) {
-		if (e.metadataChanged) {
-			this.updateForMetadata();
-		}
+		this.contextKeyService.bufferChangeEvents(() => {
+			if (e.metadataChanged) {
+				this.updateForMetadata();
+			}
 
-		if (e.editStateChanged) {
-			this.updateForEditState();
-		}
+			if (e.editStateChanged) {
+				this.updateForEditState();
+			}
 
-		if (e.collapseStateChanged) {
-			this.updateForCollapseState();
-		}
+			if (e.collapseStateChanged) {
+				this.updateForCollapseState();
+			}
+		});
 	}
 
 	private updateForMetadata() {

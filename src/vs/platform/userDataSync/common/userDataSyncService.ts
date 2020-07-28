@@ -98,36 +98,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeLocal, () => s.resource)));
 	}
 
-	async pull(): Promise<void> {
-		await this.checkEnablement();
-		try {
-			for (const synchroniser of this.synchronisers) {
-				await synchroniser.pull();
-			}
-			this.updateLastSyncTime();
-		} catch (error) {
-			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource });
-			}
-			throw error;
-		}
-	}
-
-	async push(): Promise<void> {
-		await this.checkEnablement();
-		try {
-			for (const synchroniser of this.synchronisers) {
-				await synchroniser.push();
-			}
-			this.updateLastSyncTime();
-		} catch (error) {
-			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource });
-			}
-			throw error;
-		}
-	}
-
 	async createSyncTask(): Promise<ISyncTask> {
 		await this.checkEnablement();
 
@@ -256,7 +226,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
-	async accept(syncResource: SyncResource, resource: URI, content: string | null, apply: boolean): Promise<void> {
+	async accept(syncResource: SyncResource, resource: URI, content: string | null | undefined, apply: boolean): Promise<void> {
 		await this.checkEnablement();
 		const synchroniser = this.getSynchroniser(syncResource);
 		await synchroniser.accept(resource, content);
@@ -456,7 +426,7 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 		return this.previews;
 	}
 
-	async accept(resource: URI, content: string | null): Promise<[SyncResource, ISyncResourcePreview][]> {
+	async accept(resource: URI, content?: string | null): Promise<[SyncResource, ISyncResourcePreview][]> {
 		return this.performAction(resource, sychronizer => sychronizer.accept(resource, content));
 	}
 
@@ -555,8 +525,7 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 			this._onSynchronizeResources.fire(this.synchronizingResources);
 			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
 			for (const resourcePreview of preview.resourcePreviews) {
-				const content = await synchroniser.resolveContent(resourcePreview.remoteResource);
-				await synchroniser.accept(resourcePreview.remoteResource, content);
+				await synchroniser.accept(resourcePreview.remoteResource);
 			}
 			await synchroniser.apply(true, this.syncHeaders);
 			this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
@@ -577,8 +546,7 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 			this._onSynchronizeResources.fire(this.synchronizingResources);
 			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
 			for (const resourcePreview of preview.resourcePreviews) {
-				const content = await synchroniser.resolveContent(resourcePreview.localResource);
-				await synchroniser.accept(resourcePreview.localResource, content);
+				await synchroniser.accept(resourcePreview.localResource);
 			}
 			await synchroniser.apply(true, this.syncHeaders);
 			this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
