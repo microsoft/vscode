@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, getUserDataSyncStore, ServerResource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, IResourceRefHandle, HEADER_OPERATION_ID, HEADER_EXECUTION_ID } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, ServerResource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, IResourceRefHandle, HEADER_OPERATION_ID, HEADER_EXECUTION_ID, CONFIGURATION_SYNC_STORE_KEY, IAuthenticationProvider, IUserDataSyncStoreManagementService, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess, asJson } from 'vs/platform/request/common/request';
 import { joinPath, relativePath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/common/productService';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -20,18 +20,112 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { isWeb } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createCancelablePromise, timeout, CancelablePromise } from 'vs/base/common/async';
+import { isString, isObject, isArray } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 
+const SYNC_SERVICE_URL_TYPE = 'sync.store.url.type';
+const SYNC_PREVIOUS_STORE = 'sync.previous.store';
 const DONOT_MAKE_REQUESTS_UNTIL_KEY = 'sync.donot-make-requests-until';
 const USER_SESSION_ID_KEY = 'sync.user-session-id';
 const MACHINE_SESSION_ID_KEY = 'sync.machine-session-id';
 const REQUEST_SESSION_LIMIT = 100;
 const REQUEST_SESSION_INTERVAL = 1000 * 60 * 5; /* 5 minutes */
 
+type UserDataSyncStore = IUserDataSyncStore & { defaultType?: UserDataSyncStoreType; type?: UserDataSyncStoreType };
+
+export abstract class AbstractUserDataSyncStoreManagementService extends Disposable implements IUserDataSyncStoreManagementService {
+
+	_serviceBrand: any;
+
+	readonly userDataSyncStore: UserDataSyncStore | undefined;
+
+	constructor(
+		@IProductService protected readonly productService: IProductService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IStorageService protected readonly storageService: IStorageService,
+	) {
+		super();
+		this.userDataSyncStore = this.toUserDataSyncStore(this.productService[CONFIGURATION_SYNC_STORE_KEY]);
+	}
+
+	protected toUserDataSyncStore(syncStore: ConfigurationSyncStore | undefined): UserDataSyncStore | undefined {
+		if (syncStore) {
+			if (syncStore
+				&& isString(syncStore.url)
+				&& isObject(syncStore.authenticationProviders)
+				&& Object.keys(syncStore.authenticationProviders).every(authenticationProviderId => isArray(syncStore.authenticationProviders[authenticationProviderId].scopes))
+			) {
+				const type: UserDataSyncStoreType | undefined = this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL) as UserDataSyncStoreType | undefined;
+				const url = this.configurationService.getValue<ConfigurationSyncStore>(CONFIGURATION_SYNC_STORE_KEY)?.url
+					|| (type === 'insiders' ? syncStore.insidersUrl : type === 'stable' ? syncStore.stableUrl : undefined)
+					|| syncStore.url;
+				return {
+					url: URI.parse(url),
+					type,
+					defaultType: syncStore.url === syncStore.insidersUrl ? 'insiders' : syncStore.url === syncStore.stableUrl ? 'stable' : undefined,
+					defaultUrl: URI.parse(syncStore.url),
+					stableUrl: syncStore.stableUrl ? URI.parse(syncStore.stableUrl) : undefined,
+					insidersUrl: syncStore.insidersUrl ? URI.parse(syncStore.insidersUrl) : undefined,
+					authenticationProviders: Object.keys(syncStore.authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
+						result.push({ id, scopes: syncStore.authenticationProviders[id].scopes });
+						return result;
+					}, [])
+				};
+			}
+		}
+		return undefined;
+	}
+
+	abstract switch(type: UserDataSyncStoreType): Promise<void>;
+	abstract getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
+
+}
+
+export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStoreManagementService implements IUserDataSyncStoreManagementService {
+
+	private readonly previousConfigurationSyncStore: ConfigurationSyncStore | undefined;
+
+	constructor(
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
+	) {
+		super(productService, configurationService, storageService);
+
+		const previousConfigurationSyncStore = this.storageService.get(SYNC_PREVIOUS_STORE, StorageScope.GLOBAL);
+		if (previousConfigurationSyncStore) {
+			this.previousConfigurationSyncStore = JSON.parse(previousConfigurationSyncStore);
+		}
+
+		const syncStore = this.productService[CONFIGURATION_SYNC_STORE_KEY];
+		if (syncStore) {
+			this.storageService.store(SYNC_PREVIOUS_STORE, JSON.stringify(syncStore), StorageScope.GLOBAL);
+		} else {
+			this.storageService.remove(SYNC_PREVIOUS_STORE, StorageScope.GLOBAL);
+		}
+	}
+
+	async switch(type: UserDataSyncStoreType): Promise<void> {
+		if (type !== this.userDataSyncStore?.type) {
+			if (type === this.userDataSyncStore?.defaultType) {
+				this.storageService.remove(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL);
+			} else {
+				this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL);
+			}
+		}
+	}
+
+	async getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined> {
+		return this.toUserDataSyncStore(this.previousConfigurationSyncStore);
+	}
+}
+
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
 	_serviceBrand: any;
 
-	readonly userDataSyncStore: IUserDataSyncStore | undefined;
+	private readonly userDataSyncStoreUrl: URI | undefined;
+
 	private authToken: { token: string, type: string } | undefined;
 	private readonly commonHeadersPromise: Promise<{ [key: string]: string; }>;
 	private readonly session: RequestsSession;
@@ -49,15 +143,15 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 	constructor(
 		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
+		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
-		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
+		this.userDataSyncStoreUrl = this.userDataSyncStoreManagementService.userDataSyncStore ? joinPath(this.userDataSyncStoreManagementService.userDataSyncStore.url, 'v1') : undefined;
 		this.commonHeadersPromise = getServiceMachineId(environmentService, fileService, storageService)
 			.then(uuid => {
 				const headers: IHeaders = {
@@ -109,11 +203,11 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 	async getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]> {
-		if (!this.userDataSyncStore) {
+		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const uri = joinPath(this.userDataSyncStore.url, 'resource', resource);
+		const uri = joinPath(this.userDataSyncStoreUrl, 'resource', resource);
 		const headers: IHeaders = {};
 
 		const context = await this.request({ type: 'GET', url: uri.toString(), headers }, CancellationToken.None);
@@ -127,11 +221,11 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 	async resolveContent(resource: ServerResource, ref: string): Promise<string | null> {
-		if (!this.userDataSyncStore) {
+		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStore.url, 'resource', resource, ref).toString();
+		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource, ref).toString();
 		const headers: IHeaders = {};
 		headers['Cache-Control'] = 'no-cache';
 
@@ -146,11 +240,11 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 	async delete(resource: ServerResource): Promise<void> {
-		if (!this.userDataSyncStore) {
+		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStore.url, 'resource', resource).toString();
+		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
 		const headers: IHeaders = {};
 
 		const context = await this.request({ type: 'DELETE', url, headers }, CancellationToken.None);
@@ -161,11 +255,11 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 	async read(resource: ServerResource, oldValue: IUserData | null, headers: IHeaders = {}): Promise<IUserData> {
-		if (!this.userDataSyncStore) {
+		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStore.url, 'resource', resource, 'latest').toString();
+		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource, 'latest').toString();
 		headers = { ...headers };
 		// Disable caching as they are cached by synchronisers
 		headers['Cache-Control'] = 'no-cache';
@@ -193,11 +287,11 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 	async write(resource: ServerResource, data: string, ref: string | null, headers: IHeaders = {}): Promise<string> {
-		if (!this.userDataSyncStore) {
+		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStore.url, 'resource', resource).toString();
+		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
 		headers = { ...headers };
 		headers['Content-Type'] = 'text/plain';
 		if (ref) {
@@ -218,11 +312,11 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 	async manifest(headers: IHeaders = {}): Promise<IUserDataManifest | null> {
-		if (!this.userDataSyncStore) {
+		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStore.url, 'manifest').toString();
+		const url = joinPath(this.userDataSyncStoreUrl, 'manifest').toString();
 		headers = { ...headers };
 		headers['Content-Type'] = 'application/json';
 
@@ -253,11 +347,11 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 	async clear(): Promise<void> {
-		if (!this.userDataSyncStore) {
+		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStore.url, 'resource').toString();
+		const url = joinPath(this.userDataSyncStoreUrl, 'resource').toString();
 		const headers: IHeaders = { 'Content-Type': 'text/plain' };
 
 		const context = await this.request({ type: 'DELETE', url, headers }, CancellationToken.None);

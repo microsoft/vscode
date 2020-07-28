@@ -30,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
 	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncResourceEnablementService,
-	getSyncResourceFromLocalPreview, IResourcePreview
+	getSyncResourceFromLocalPreview, IResourcePreview, IUserDataSyncStoreManagementService, UserDataSyncStoreType
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -54,6 +54,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer } from 'vs/workbench/common/views';
 import { UserDataSyncViewPaneContainer, UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncViews';
 import { IUserDataSyncWorkbenchService, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { isNative } from 'vs/base/common/platform';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -118,6 +119,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IStorageService private readonly storageService: IStorageService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 	) {
 		super();
 
@@ -270,7 +272,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private onAutoSyncError(error: UserDataSyncError): void {
+	private async onAutoSyncError(error: UserDataSyncError): Promise<void> {
 		switch (error.code) {
 			case UserDataSyncErrorCode.SessionExpired:
 				this.notificationService.notify({
@@ -318,6 +320,21 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						]
 					}
 				});
+				return;
+			case UserDataSyncErrorCode.ServiceChanged:
+				const current = this.userDataSyncStoreManagementService.userDataSyncStore;
+				const previous = await this.userDataSyncStoreManagementService.getPreviousUserDataSyncStore();
+				// check if defaults changed
+				if (current && previous &&
+					(!isEqual(current.defaultUrl, previous.defaultUrl) ||
+						!isEqual(current.insidersUrl, previous.insidersUrl) ||
+						!isEqual(current.stableUrl, previous.stableUrl))
+				) {
+					this.notificationService.notify({
+						severity: Severity.Info,
+						message: localize('default url has changed', "Settings sync is restarted because {0} is switched to new service endpoint.", this.productService.nameLong),
+					});
+				}
 				return;
 		}
 	}
@@ -659,6 +676,54 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		return this.outputService.showChannel(Constants.userDataSyncLogChannelId);
 	}
 
+	private async switchSyncService(): Promise<void> {
+		const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
+		if (userDataSyncStore?.insidersUrl && userDataSyncStore?.stableUrl && ![userDataSyncStore.insidersUrl, userDataSyncStore.stableUrl].includes(userDataSyncStore.url)) {
+			return new Promise<void>((c, e) => {
+				const disposables: DisposableStore = new DisposableStore();
+				const quickPick = disposables.add(this.quickInputService.createQuickPick<{ id: UserDataSyncStoreType, label: string, description?: string }>());
+				quickPick.title = localize('switchSyncService.title', "Switch Settings Sync Service...");
+				quickPick.placeholder = localize('choose sync service', "Choose settings sync Service to use");
+				quickPick.description = isNative ?
+					localize('choose sync service description', "Switching settings sync service requires restarting {0}", this.productService.nameLong) :
+					localize('choose sync service description web', "Switching settings sync service requires reloading {0}", this.productService.nameLong);
+				quickPick.hideInput = true;
+				const getDescription = (url: URI): string | undefined => {
+					const isCurrent = isEqual(url, userDataSyncStore.url);
+					const isDefault = isEqual(url, userDataSyncStore.defaultUrl);
+					if (isCurrent && isDefault) {
+						return localize('default and current', "Default & Current");
+					}
+					if (isDefault) {
+						return localize('default', "Default");
+					}
+					if (isCurrent) {
+						return localize('current', "Current");
+					}
+					return undefined;
+				};
+				quickPick.items = [
+					{
+						id: 'insiders',
+						label: localize('insiders', "Insiders"),
+						description: getDescription(userDataSyncStore.insidersUrl!)
+					},
+					{
+						id: 'stable',
+						label: localize('stable', "Stable"),
+						description: getDescription(userDataSyncStore.stableUrl!)
+					}
+				];
+				disposables.add(quickPick.onDidAccept(() => {
+					this.userDataSyncWorkbenchService.switchSyncService(quickPick.selectedItems[0].id);
+					quickPick.hide();
+				}));
+				disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+				quickPick.show();
+			});
+		}
+	}
+
 	private registerActions(): void {
 		if (this.userDataAutoSyncService.canToggleEnablement()) {
 			this.registerTurnOnSyncAction();
@@ -675,6 +740,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.registerSyncNowAction();
 		this.registerConfigureSyncAction();
 		this.registerShowSettingsAction();
+		this.registerSwitchSyncServiceAction();
 		this.registerShowLogAction();
 	}
 
@@ -1051,6 +1117,28 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				accessor.get(IPreferencesService).openGlobalSettings(false, { query: '@tag:sync' });
 			}
 		}));
+	}
+
+	private registerSwitchSyncServiceAction(): void {
+		const that = this;
+		const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
+		if (userDataSyncStore?.insidersUrl && userDataSyncStore?.stableUrl && ![userDataSyncStore.insidersUrl, userDataSyncStore.stableUrl].includes(userDataSyncStore.url)) {
+			this._register(registerAction2(class ShowSyncSettingsAction extends Action2 {
+				constructor() {
+					super({
+						id: 'workbench.userDataSync.actions.switchSyncService',
+						title: { value: localize('workbench.userDataSync.actions.switchSyncService', "{0}: Switch Settings Sync Service...", SYNC_TITLE), original: 'Settings Sync: Switch Settings Sync Service...' },
+						menu: {
+							id: MenuId.CommandPalette,
+							when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
+						},
+					});
+				}
+				run(accessor: ServicesAccessor): any {
+					return that.switchSyncService();
+				}
+			}));
+		}
 	}
 
 	private registerViews(): void {

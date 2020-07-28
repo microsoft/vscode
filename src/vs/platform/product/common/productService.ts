@@ -22,7 +22,12 @@ export interface IBuiltInExtension {
 	readonly metadata: any;
 }
 
-export type ConfigurationSyncStore = { url: string, authenticationProviders: IStringDictionary<{ scopes: string[] }> };
+export type ConfigurationSyncStore = {
+	url: string,
+	insidersUrl?: string,
+	stableUrl?: string,
+	authenticationProviders: IStringDictionary<{ scopes: string[] }>
+};
 
 export interface IProductConfiguration {
 	readonly version: string;

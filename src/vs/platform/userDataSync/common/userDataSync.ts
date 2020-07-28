@@ -13,13 +13,11 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, isEqualOrParent } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
 import { isArray, isString, isObject } from 'vs/base/common/types';
 import { IHeaders } from 'vs/base/parts/request/common/request';
@@ -110,8 +108,11 @@ export interface IUserData {
 export type IAuthenticationProvider = { id: string, scopes: string[] };
 
 export interface IUserDataSyncStore {
-	url: URI;
-	authenticationProviders: IAuthenticationProvider[];
+	readonly url: URI;
+	readonly defaultUrl: URI;
+	readonly stableUrl: URI | undefined;
+	readonly insidersUrl: URI | undefined;
+	readonly authenticationProviders: IAuthenticationProvider[];
 }
 
 export function isAuthenticationProvider(thing: any): thing is IAuthenticationProvider {
@@ -119,27 +120,6 @@ export function isAuthenticationProvider(thing: any): thing is IAuthenticationPr
 		&& isObject(thing)
 		&& isString(thing.id)
 		&& isArray(thing.scopes);
-}
-
-export function getUserDataSyncStore(productService: IProductService, configurationService: IConfigurationService): IUserDataSyncStore | undefined {
-	const value = {
-		...(productService[CONFIGURATION_SYNC_STORE_KEY] || {}),
-		...(configurationService.getValue<ConfigurationSyncStore>(CONFIGURATION_SYNC_STORE_KEY) || {})
-	};
-	if (value
-		&& isString(value.url)
-		&& isObject(value.authenticationProviders)
-		&& Object.keys(value.authenticationProviders).every(authenticationProviderId => isArray(value.authenticationProviders[authenticationProviderId].scopes))
-	) {
-		return {
-			url: joinPath(URI.parse(value.url), 'v1'),
-			authenticationProviders: Object.keys(value.authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
-				result.push({ id, scopes: value.authenticationProviders[id].scopes });
-				return result;
-			}, [])
-		};
-	}
-	return undefined;
 }
 
 export const enum SyncResource {
@@ -161,11 +141,20 @@ export interface IResourceRefHandle {
 	created: number;
 }
 
-export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
 export type ServerResource = SyncResource | 'machines';
-export interface IUserDataSyncStoreService {
+export type UserDataSyncStoreType = 'insiders' | 'stable';
+
+export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
+export interface IUserDataSyncStoreManagementService {
 	readonly _serviceBrand: undefined;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
+	switch(type: UserDataSyncStoreType): Promise<void>;
+	getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
+}
+
+export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
+export interface IUserDataSyncStoreService {
+	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
 	readonly donotMakeRequestsUntil: Date | undefined;
@@ -220,6 +209,7 @@ export enum UserDataSyncErrorCode {
 	NoRef = 'NoRef',
 	TurnedOff = 'TurnedOff',
 	SessionExpired = 'SessionExpired',
+	ServiceChanged = 'ServiceChanged',
 	LocalTooManyRequests = 'LocalTooManyRequests',
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
