@@ -97,7 +97,6 @@ export class CodeCell extends Disposable {
 			}
 		}));
 		updateForFocusMode();
-		updateForCollapseState();
 
 		templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel!.metadata).editable) });
 		this._register(viewCell.onDidChangeState((e) => {
@@ -304,6 +303,9 @@ export class CodeCell extends Disposable {
 			this.relayoutCell();
 			this.templateData.outputContainer!.style.display = 'none';
 		}
+
+		// Need to do this after the intial renderOutput
+		updateForCollapseState();
 	}
 
 	private viewUpdate(): void {
@@ -322,10 +324,19 @@ export class CodeCell extends Disposable {
 		for (let index = 0; index < this.viewCell.outputs.length; index++) {
 			const currOutput = this.viewCell.outputs[index];
 
-			if (currOutput.outputKind === CellOutputKind.Rich) {
-				this.renderOutput(currOutput, index, undefined);
+			const renderedOutput = this.outputElements.get(currOutput);
+			if (renderedOutput) {
+				if (renderedOutput.renderResult.shadowContent) {
+					// Show inset in webview, or render output that isn't rendered
+					this.renderOutput(currOutput, index, undefined);
+				} else {
+					// Anything else, just update the height
+					this.viewCell.updateOutputHeight(index, renderedOutput.element.clientHeight);
+				}
 			}
 		}
+
+		this.relayoutCell();
 	}
 
 	private viewUpdateInputCollapsed(): void {
@@ -339,14 +350,18 @@ export class CodeCell extends Disposable {
 		this.relayoutCell();
 	}
 
+	private viewUpdateHideOuputs(): void {
+		for (let e of this.outputElements.keys()) {
+			this.notebookEditor.hideInset(e);
+		}
+	}
+
 	private viewUpdateOutputCollapsed(): void {
 		DOM.show(this.templateData.cellContainer);
 		DOM.show(this.templateData.collapsedPart);
 		DOM.hide(this.templateData.outputContainer);
 
-		for (let e of this.outputElements.keys()) {
-			this.notebookEditor.hideInset(e);
-		}
+		this.viewUpdateHideOuputs();
 
 		this.templateData.container.classList.toggle('collapsed', false);
 		this.templateData.container.classList.toggle('output-collapsed', true);
