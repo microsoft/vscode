@@ -397,12 +397,13 @@ export class ThemeTrieElement {
 
 export function generateTokensCSSForColorMap(colorMap: Color[]): string {
 	let rules: string[] = [];
+	const editorParentClass = ".monaco-editor";
 	for (let i = 1, len = colorMap.length; i < len; i++) {
 		let color = colorMap[i];
-		rules[i] = `.mtk${i} { color: ${color}; }`;
+		rules[i] = `${editorParentClass} .mtk${i} { color: ${color}; }`;
 	}
-	rules.push('.mtki { font-style: italic; }');
-	rules.push('.mtkb { font-weight: bold; }');
-	rules.push('.mtku { text-decoration: underline; text-underline-position: under; }');
+	rules.push(`${editorParentClass} .mtki { font-style: italic; }`);
+	rules.push(`${editorParentClass} .mtkb { font-weight: bold; }`);
+	rules.push(`${editorParentClass} .mtku { text-decoration: underline; text-underline-position: under; }`);
 	return rules.join('\n');
 }
