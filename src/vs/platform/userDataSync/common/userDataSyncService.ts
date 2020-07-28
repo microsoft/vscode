@@ -28,6 +28,7 @@ import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 type SyncErrorClassification = {
+	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 	executionId?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
@@ -106,9 +107,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		try {
 			manifest = await this.userDataSyncStoreService.manifest(createSyncHeaders(executionId));
 		} catch (error) {
-			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource, executionId });
-			}
+			error = UserDataSyncError.toUserDataSyncError(error);
+			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error/', { code: error.code, resource: error.resource, executionId });
 			throw error;
 		}
 
@@ -143,9 +143,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		try {
 			manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
 		} catch (error) {
-			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource, executionId });
-			}
+			error = UserDataSyncError.toUserDataSyncError(error);
+			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error/', { code: error.code, resource: error.resource, executionId });
 			throw error;
 		}
 
@@ -190,9 +189,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
 			this.updateLastSyncTime();
 		} catch (error) {
-			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource, executionId });
-			}
+			error = UserDataSyncError.toUserDataSyncError(error);
+			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error/', { code: error.code, resource: error.resource, executionId });
 			throw error;
 		} finally {
 			this.updateStatus();
