@@ -109,7 +109,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			manifest = await this.userDataSyncStoreService.manifest(createSyncHeaders(executionId));
 		} catch (error) {
 			error = UserDataSyncError.toUserDataSyncError(error);
-			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error/', { code: error.code, resource: error.resource, executionId });
+			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error', { code: error.code, resource: error.resource, executionId });
 			throw error;
 		}
 
@@ -145,7 +145,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
 		} catch (error) {
 			error = UserDataSyncError.toUserDataSyncError(error);
-			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error/', { code: error.code, resource: error.resource, executionId });
+			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error', { code: error.code, resource: error.resource, executionId });
 			throw error;
 		}
 
@@ -191,7 +191,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.updateLastSyncTime();
 		} catch (error) {
 			error = UserDataSyncError.toUserDataSyncError(error);
-			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error/', { code: error.code, resource: error.resource, executionId });
+			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error', { code: error.code, resource: error.resource, executionId });
 			throw error;
 		} finally {
 			this.updateStatus();
