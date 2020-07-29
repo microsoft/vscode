@@ -131,7 +131,7 @@ export class NotebookDiffEditor extends BaseEditor {
 			this._widget?.insertWhitespace(change.modifiedStart + change.modifiedLength - 1, 0);
 
 			const update = () => {
-				DOM.scheduleAtNextAnimationFrame(() => {
+				this._register(DOM.scheduleAtNextAnimationFrame(() => {
 					const leftTotalHeight = originalCells.map(cell => (cell instanceof CodeCellViewModel) ? cell.layoutInfo.totalHeight : (cell as MarkdownCellViewModel).layoutInfo.totalHeight)
 						.reduce((p, c) => { return p + c; }, 0);
 					const rightTotalHeight = modifiedCells.map(cell => (cell instanceof CodeCellViewModel) ? cell.layoutInfo.totalHeight : (cell as MarkdownCellViewModel).layoutInfo.totalHeight)
@@ -140,7 +140,7 @@ export class NotebookDiffEditor extends BaseEditor {
 
 					this._originalWidget?.updateWhitespace(change.originalStart + change.originalLength - 1, maxHeight - leftTotalHeight);
 					this._widget?.updateWhitespace(change.modifiedStart + change.modifiedLength - 1, maxHeight - rightTotalHeight);
-				}, 200);
+				}, 200));
 			};
 
 			viewLayoutUpdateDisposables.push(...[
