@@ -340,6 +340,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private root: HTMLElement | undefined;
 	private searchBox: SuggestEnabledInput | undefined;
 	private readonly searchViewletState: MementoObject;
+	private readonly sortActions: ChangeSortAction[];
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -387,6 +388,13 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 				this.updateTitleArea();
 			}
 		}, this));
+
+		this.sortActions = [
+			this._register(this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Install Count"), this.onSearchChange, 'installs')),
+			this._register(this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.rating', localize('sort by rating', "Rating"), this.onSearchChange, 'rating')),
+			this._register(this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.name', localize('sort by name', "Name"), this.onSearchChange, 'name')),
+			this._register(this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.publishedDate', localize('sort by date', "Published Date"), this.onSearchChange, 'publishedDate')),
+		];
 	}
 
 	create(parent: HTMLElement): void {
@@ -521,12 +529,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			]);
 			filterActions.push(...[
 				new Separator(),
-				new SubmenuAction('workbench.extensions.action.sortBy', localize('sorty by', "Sort By"), [
-					this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Install Count"), this.onSearchChange, 'installs'),
-					this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.rating', localize('sort by rating', "Rating"), this.onSearchChange, 'rating'),
-					this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.name', localize('sort by name', "Name"), this.onSearchChange, 'name'),
-					this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.publishedDate', localize('sort by date', "Published Date"), this.onSearchChange, 'publishedDate'),
-				]),
+				new SubmenuAction('workbench.extensions.action.sortBy', localize('sorty by', "Sort By"), this.sortActions),
 			]);
 		}
 
