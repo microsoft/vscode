@@ -22,6 +22,7 @@ import { Emitter } from 'vs/base/common/event';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
@@ -50,7 +51,7 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		if (!this._environment) {
 			this._environment = this._withChannel(
 				async (channel, connection) => {
-					const env = await RemoteExtensionEnvironmentChannelClient.getEnvironmentData(channel, connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI);
+					const env = await RemoteExtensionEnvironmentChannelClient.getEnvironmentData(channel, connection.remoteAuthority);
 					this._remoteAuthorityResolverService._setAuthorityConnectionToken(connection.remoteAuthority, env.connectionToken);
 					return env;
 				},
@@ -58,6 +59,13 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 			);
 		}
 		return this._environment;
+	}
+
+	scanExtensions(skipExtensions: ExtensionIdentifier[] = []): Promise<IExtensionDescription[]> {
+		return this._withChannel(
+			(channel, connection) => RemoteExtensionEnvironmentChannelClient.scanExtensions(channel, connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI, skipExtensions),
+			[]
+		).then(undefined, () => []);
 	}
 
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> {

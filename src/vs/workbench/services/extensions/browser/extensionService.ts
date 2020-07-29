@@ -111,12 +111,13 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	protected async _scanAndHandleExtensions(): Promise<void> {
 		// fetch the remote environment
-		let [localExtensions, remoteEnv] = await Promise.all([
+		let [localExtensions, remoteEnv, remoteExtensions] = await Promise.all([
 			this._webExtensionsScannerService.scanExtensions().then(extensions => extensions.map(parseScannedExtension)),
-			this._remoteAgentService.getEnvironment()
+			this._remoteAgentService.getEnvironment(),
+			this._remoteAgentService.scanExtensions()
 		]);
 		localExtensions = this._checkEnabledAndProposedAPI(localExtensions);
-		let remoteExtensions = remoteEnv ? this._checkEnabledAndProposedAPI(remoteEnv.extensions) : [];
+		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		this._runningLocation = _determineRunningLocation(this._productService, this._configService, localExtensions, remoteExtensions, Boolean(remoteEnv && remoteAgentConnection));
