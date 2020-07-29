@@ -325,7 +325,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				if (isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.insidersUrl)) {
 					this.notificationService.notify({
 						severity: Severity.Info,
-						message: localize('switched to insiders', "Settings sync is using insiders service now. Please check the [Release Notes](command:update.showCurrentReleaseNotes) for more information"),
+						message: localize('switched to insiders', "Settings sync now uses a separate service, more information is available in the [release notes](command:update.showCurrentReleaseNotes)."),
 					});
 				}
 				return;
