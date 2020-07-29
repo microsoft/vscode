@@ -248,6 +248,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.authenticationService.unregisterAuthenticationProvider(id);
 	}
 
+	$ensureProvider(id: string): Promise<void> {
+		return this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id));
+	}
+
 	$sendDidChangeSessions(id: string, event: modes.AuthenticationSessionsChangeEvent): void {
 		this.authenticationService.sessionsUpdate(id, event);
 	}
@@ -381,8 +385,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
-		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId));
-
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		const extensionData = allowList.find(extension => extension.id === extensionId);
 		if (extensionData) {
