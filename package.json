@@ -70,10 +70,10 @@
     "vscode-ripgrep": "^1.8.0",
     "vscode-sqlite3": "4.0.10",
     "vscode-textmate": "5.2.0",
-    "xterm": "4.8.1",
+    "xterm": "4.9.0-beta.8",
     "xterm-addon-search": "0.7.0",
     "xterm-addon-unicode11": "0.2.0",
-    "xterm-addon-webgl": "0.7.0",
+    "xterm-addon-webgl": "0.8.0",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
