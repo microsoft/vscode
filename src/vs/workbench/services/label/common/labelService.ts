@@ -51,6 +51,10 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 							type: 'string',
 							description: localize('vscode.extension.contributes.resourceLabelFormatters.separator', "Separator to be used in the uri label display. '/' or '\' as an example.")
 						},
+						stripPathStartingSeparator: {
+							type: 'boolean',
+							description: localize('vscode.extension.contributes.resourceLabelFormatters.stripPathStartingSeparator', "Controls whether `${path}` substitutions should have starting separator characters stripped.")
+						},
 						tildify: {
 							type: 'boolean',
 							description: localize('vscode.extension.contributes.resourceLabelFormatters.tildify', "Controls if the start of the uri label should be tildified when possible.")
@@ -244,7 +248,10 @@ export class LabelService extends Disposable implements ILabelService {
 			switch (token) {
 				case 'scheme': return resource.scheme;
 				case 'authority': return resource.authority;
-				case 'path': return resource.path;
+				case 'path':
+					return formatting.stripPathStartingSeparator
+						? resource.path.slice(resource.path[0] === formatting.separator ? 1 : 0)
+						: resource.path;
 				default: {
 					if (qsToken === 'query') {
 						const { query } = resource;
