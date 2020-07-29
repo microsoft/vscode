@@ -25,7 +25,8 @@ if (isWeb) {
 			nameShort: 'VSCode Web Dev',
 			urlProtocol: 'code-oss',
 			extensionAllowedProposedApi: [
-				'ms-vscode.references-view'
+				'ms-vscode.references-view',
+				'ms-vscode.github-browser'
 			],
 		});
 	}

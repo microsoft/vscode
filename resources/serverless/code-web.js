@@ -275,7 +275,8 @@ async function handleRoot(req, res) {
 			}
 
 			const [owner, repo, ...branch] = gh.split('/', 3);
-			folderUri = { scheme: 'github', authority: branch.join('/') || 'HEAD', path: `/${owner}/${repo}` };
+			const ref = branch.join('/');
+			folderUri = { scheme: 'github', authority: `${owner}+${repo}${ref ? `+${ref}` : ''}`, path: '/' };
 		} else {
 			let cs = qs.get('cs');
 			if (cs) {
@@ -284,7 +285,8 @@ async function handleRoot(req, res) {
 				}
 
 				const [owner, repo, ...branch] = cs.split('/');
-				folderUri = { scheme: 'codespace', authority: branch.join('/') || 'HEAD', path: `/${owner}/${repo}` };
+				const ref = branch.join('/');
+				folderUri = { scheme: 'codespace', authority: `${owner}+${repo}${ref ? `+${ref}` : ''}`, path: '/' };
 			}
 		}
 	}
