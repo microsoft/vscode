@@ -167,7 +167,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 			commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
 		});
 
-		test('Execution from onDidEndTaskProcess is equal to original', () => {
+		test.skip('Execution from onDidEndTaskProcess is equal to original', () => {
 			return new Promise(async (resolve, reject) => {
 				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
 				let taskExecution: TaskExecution | undefined;
