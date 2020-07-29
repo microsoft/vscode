@@ -21,7 +21,14 @@ export interface IRemoteAgentService {
 	readonly socketFactory: ISocketFactory;
 
 	getConnection(): IRemoteAgentConnection | null;
-	getEnvironment(bail?: boolean): Promise<IRemoteAgentEnvironment | null>;
+	/**
+	 * Get the remote environment. In case of an error, returns `null`.
+	 */
+	getEnvironment(): Promise<IRemoteAgentEnvironment | null>;
+	/**
+	 * Get the remote environment. Can return an error.
+	 */
+	getRawEnvironment(): Promise<IRemoteAgentEnvironment | null>;
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined>;
 	disableTelemetry(): Promise<void>;
 	logTelemetry(eventName: string, data?: ITelemetryData): Promise<void>;

@@ -42,7 +42,11 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 
 	abstract getConnection(): IRemoteAgentConnection | null;
 
-	getEnvironment(bail?: boolean): Promise<IRemoteAgentEnvironment | null> {
+	getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
+		return this.getRawEnvironment().then(undefined, () => null);
+	}
+
+	getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> {
 		if (!this._environment) {
 			this._environment = this._withChannel(
 				async (channel, connection) => {
@@ -53,7 +57,7 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 				null
 			);
 		}
-		return bail ? this._environment : this._environment.then(undefined, () => null);
+		return this._environment;
 	}
 
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> {
@@ -170,7 +174,7 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 		@INotificationService notificationService: INotificationService,
 	) {
 		// Let's cover the case where connecting to fetch the remote extension info fails
-		remoteAgentService.getEnvironment(true)
+		remoteAgentService.getRawEnvironment()
 			.then(undefined, err => {
 				if (!RemoteAuthorityResolverError.isHandled(err)) {
 					notificationService.error(nls.localize('connectionError', "Failed to connect to the remote extension host server (Error: {0})", err ? err.message : ''));
