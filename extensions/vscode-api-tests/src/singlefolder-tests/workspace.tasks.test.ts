@@ -194,7 +194,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 			});
 		});
 
-		test('Execution from onDidStartTaskProcess is equal to original', () => {
+		test.skip('Execution from onDidStartTaskProcess is equal to original', () => {
 			return new Promise(async (resolve, reject) => {
 				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
 				let taskExecution: TaskExecution | undefined;
