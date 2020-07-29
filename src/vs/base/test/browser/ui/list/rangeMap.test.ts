@@ -461,5 +461,42 @@ suite('RangeMap', () => {
 		});
 
 
+		test('update whitespace when range map splices', () => {
+			rangeMap.splice(0, 0, [one, one, one, one, one, one, one, one, one, one]);
+
+			rangeMap.insertWhitespace(1, 2);
+			rangeMap.insertWhitespace(5, 3);
+			assert.equal(rangeMap.positionAt(0), 0);
+			assert.equal(rangeMap.positionAt(1), 1);
+			assert.equal(rangeMap.positionAt(2), 4);
+			assert.equal(rangeMap.positionAt(3), 5);
+			assert.equal(rangeMap.positionAt(4), 6);
+			assert.equal(rangeMap.positionAt(5), 7);
+			assert.equal(rangeMap.positionAt(6), 11);
+			assert.equal(rangeMap.positionAt(7), 12);
+			assert.equal(rangeMap.positionAt(8), 13);
+
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), 1);
+			assert.equal(rangeMap.indexAt(2), 1);
+			assert.equal(rangeMap.indexAt(3), 1);
+			assert.equal(rangeMap.indexAt(4), 2);
+
+			rangeMap.splice(1, 2);
+			assert.equal(rangeMap.positionAt(0), 0);
+			assert.equal(rangeMap.positionAt(1), 1);
+			assert.equal(rangeMap.positionAt(2), 2);
+			assert.equal(rangeMap.positionAt(3), 3);
+			assert.equal(rangeMap.positionAt(4), 7);
+			assert.equal(rangeMap.positionAt(5), 8);
+			assert.equal(rangeMap.positionAt(6), 9);
+
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), 1);
+			assert.equal(rangeMap.indexAt(2), 2);
+			assert.equal(rangeMap.indexAt(3), 3);
+			assert.equal(rangeMap.indexAt(4), 3);
+		});
+
 	});
 });

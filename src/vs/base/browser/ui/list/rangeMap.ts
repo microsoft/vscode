@@ -90,7 +90,7 @@ function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
 export class ListWhitespace {
 
 	constructor(
-		readonly afterIndex: number,
+		public afterIndex: number,
 		public height: number,
 		public prefixSum: number
 	) { }
@@ -115,6 +115,29 @@ export class RangeMap {
 
 		this.groups = concat(before, middle, after);
 		this._size = this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
+
+		const deleteRange = deleteCount > 0 ? [index, index + deleteCount - 1] : [];
+		const indexDelta = items.length - deleteCount;
+		let prefixSumDelta = 0;
+		const pendingRemovalWhitespace: number[] = [];
+		for (let i = 0; i < this.whitespaces.length; i++) {
+			const whitespace = this.whitespaces[i];
+
+			if (whitespace.afterIndex < index) {
+				continue;
+			} else if (deleteRange.length > 0 && whitespace.afterIndex >= deleteRange[0] && whitespace.afterIndex <= deleteRange[1]) {
+				// should be deleted
+				pendingRemovalWhitespace.push(i);
+				prefixSumDelta += whitespace.height;
+			} else {
+				whitespace.afterIndex += indexDelta;
+				whitespace.prefixSum -= prefixSumDelta;
+			}
+		}
+
+		pendingRemovalWhitespace.reverse().forEach(index => {
+			this.whitespaces.splice(index, 1);
+		});
 	}
 
 	public static findInsertionIndex(arr: ListWhitespace[], afterIndex: number): number {
