@@ -321,6 +321,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 				return;
+			case UserDataSyncErrorCode.DefaultServiceChanged:
+				if (isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.insidersUrl)) {
+					this.notificationService.notify({
+						severity: Severity.Info,
+						message: localize('switched to insiders', "Settings sync is using insiders service now. Please check the [Release Notes](command:update.showCurrentReleaseNotes) for more information"),
+					});
+				}
+				return;
 		}
 	}
 
