@@ -86,7 +86,7 @@ suite('vscode API - webview', () => {
 		}
 	});
 
-	test('webviews should preserve vscode API state when they are hidden', async () => {
+	test.skip('webviews should preserve vscode API state when they are hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 		const ready = getMesssage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -239,7 +239,7 @@ suite('vscode API - webview', () => {
 	});
 
 
-	test('webviews should only be able to load resources from workspace by default', async () => {
+	test.skip('webviews should only be able to load resources from workspace by default', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', {
 			viewColumn: vscode.ViewColumn.One
 		}, {
@@ -324,7 +324,7 @@ suite('vscode API - webview', () => {
 		}
 	});
 
-	test('webviews using hard-coded old style vscode-resource uri should work', async () => {
+	test.skip('webviews using hard-coded old style vscode-resource uri should work', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
 			localResourceRoots: [workspaceFile('sub')]
