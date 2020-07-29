@@ -72,6 +72,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 
 	private _id: number;
+	private _latestXtermWriteData: number = 0;
+	private _latestXtermParseData: number = 0;
 	private _isExiting: boolean;
 	private _hadFocusOnExit: boolean;
 	private _isVisible: boolean;
@@ -959,7 +961,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onProcessData(data: string): void {
-		this._xterm?.write(data);
+		const messageId = ++this._latestXtermWriteData;
+		this._xterm?.write(data, () => this._latestXtermParseData = messageId);
 	}
 
 	/**
@@ -968,15 +971,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * @param exitCode The exit code of the process, this is undefined when the terminal was exited
 	 * through user action.
 	 */
-	private _onProcessExit(exitCodeOrError?: number | ITerminalLaunchError): void {
+	private async _onProcessExit(exitCodeOrError?: number | ITerminalLaunchError): Promise<void> {
 		// Prevent dispose functions being triggered multiple times
 		if (this._isExiting) {
 			return;
 		}
 
+		this._isExiting = true;
+
+		await this._flushXtermData();
 		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${this._exitCode}`);
 
-		this._isExiting = true;
 		let exitCodeMessage: string | undefined;
 
 		// Create exit code message
@@ -1059,6 +1064,24 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._onExit.fire(this._exitCode);
+	}
+
+	/**
+	 * Ensure write calls to xterm.js have finished before resolving.
+	 */
+	private _flushXtermData(): Promise<void> {
+		if (this._latestXtermWriteData === this._latestXtermParseData) {
+			return;
+		}
+		let retries = 0;
+		return new Promise<void>(r => {
+			const interval = setInterval(() => {
+				if (this._latestXtermWriteData === this._latestXtermParseData || ++retries === 5) {
+					clearInterval(interval);
+					r();
+				}
+			}, 20);
+		});
 	}
 
 	private _attachPressAnyKeyToCloseListener(xterm: XTermTerminal) {
