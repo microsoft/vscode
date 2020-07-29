@@ -1071,7 +1071,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 */
 	private _flushXtermData(): Promise<void> {
 		if (this._latestXtermWriteData === this._latestXtermParseData) {
-			return;
+			return Promise.resolve();
 		}
 		let retries = 0;
 		return new Promise<void>(r => {
