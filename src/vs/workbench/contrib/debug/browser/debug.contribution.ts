@@ -646,10 +646,10 @@ registerThemingParticipant((theme, collector) => {
 		/* State "badge" displaying the active session's current state.
 		 * Only visible when there are more active debug sessions/threads running.
 		 */
-		.debug-pane .debug-call-stack .thread > .state > .label,
-		.debug-pane .debug-call-stack .session > .state > .label,
-		.debug-pane .monaco-list-row.selected .thread > .state > .label,
-		.debug-pane .monaco-list-row.selected .session > .state > .label {
+		.debug-pane .debug-call-stack .thread > .state.label,
+		.debug-pane .debug-call-stack .session > .state.label,
+		.debug-pane .monaco-list-row.selected .thread > .state.label,
+		.debug-pane .monaco-list-row.selected .session > .state.label {
 			background-color: ${debugViewStateLabelBackgroundColor};
 			color: ${debugViewStateLabelForegroundColor};
 		}
