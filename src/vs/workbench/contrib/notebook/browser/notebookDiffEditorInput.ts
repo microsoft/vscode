@@ -14,8 +14,6 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IReference } from 'vs/base/common/lifecycle';
 import { INotebookEditorModel, INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookEditorModel } from '../common/notebookEditorModel';
-import { IEditorModel } from 'vs/editor/common/editorCommon';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;

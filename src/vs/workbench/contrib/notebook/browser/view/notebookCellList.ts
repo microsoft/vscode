@@ -210,18 +210,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			},
 		);
 
-		let scrolling = false;
-
-		this._localDisposableStore.add(this.onWillScroll(() => {
-			scrolling = true;
-		}));
-
 		this._localDisposableStore.add(this.onDidScroll(() => {
 			if (this._cellListGutter.scrollTop !== this.scrollTop) {
 				this._cellListGutter.scrollTop = this.scrollTop;
 			}
-
-			scrolling = false;
 		}));
 
 		//TODO
@@ -641,6 +633,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
 	}
 
+	insertWhitespace(index: number, height: number) {
+		this.view.insertWhitespace(index, height);
+	}
+
+	updateWhitespace(index: number, newHeight: number) {
+		this.view.updateWhitespace(index, newHeight);
+	}
 
 	updateElementHeight2(element: ICellViewModel, size: number): void {
 		const index = this._getViewIndexUpperBound(element);

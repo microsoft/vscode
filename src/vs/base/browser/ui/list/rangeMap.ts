@@ -87,9 +87,19 @@ function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
 	return consolidate(groups.reduce((r, g) => r.concat(g), []));
 }
 
+export class ListWhitespace {
+
+	constructor(
+		readonly afterIndex: number,
+		public height: number,
+		public prefixSum: number
+	) { }
+}
+
 export class RangeMap {
 
 	private groups: IRangedGroup[] = [];
+	private whitespaces: ListWhitespace[] = [];
 	private _size = 0;
 
 	splice(index: number, deleteCount: number, items: IItem[] = []): void {
@@ -105,6 +115,49 @@ export class RangeMap {
 
 		this.groups = concat(before, middle, after);
 		this._size = this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
+	}
+
+	public static findInsertionIndex(arr: ListWhitespace[], afterIndex: number): number {
+		let low = 0;
+		let high = arr.length;
+
+		while (low < high) {
+			const mid = ((low + high) >>> 1);
+
+			if (afterIndex === arr[mid].afterIndex) {
+				low = mid;
+				break;
+			} else if (afterIndex < arr[mid].afterIndex) {
+				high = mid;
+			} else {
+				low = mid + 1;
+			}
+		}
+
+		return low;
+	}
+
+	insertWhitespace(afterIndex: number, height: number) {
+		// TODO
+		// 2. delay prefix sum update
+		const insertIndex = RangeMap.findInsertionIndex(this.whitespaces, afterIndex);
+		const prefixSum = insertIndex > 0 ? this.whitespaces[insertIndex - 1].prefixSum + height : height;
+		const insertedItem = new ListWhitespace(afterIndex, height, prefixSum);
+		this.whitespaces.splice(insertIndex, 0, insertedItem);
+	}
+
+	// todo, allow multiple whitespaces after one index
+	updateWhitespace(afterIndex: number, newHeight: number) {
+		let delta = 0;
+		for (let i = 0; i < this.whitespaces.length; i++) {
+			if (this.whitespaces[i].afterIndex === afterIndex) {
+				delta = newHeight - this.whitespaces[i].height;
+				this.whitespaces[i].height = newHeight;
+				this.whitespaces[i].prefixSum += delta;
+			} else if (this.whitespaces[i].afterIndex > afterIndex) {
+				this.whitespaces[i].prefixSum += delta;
+			}
+		}
 	}
 
 	/**
@@ -124,7 +177,42 @@ export class RangeMap {
 	 * Returns the sum of the sizes of all items in the range map.
 	 */
 	get size(): number {
-		return this._size;
+		return this._size
+			+ (this.whitespaces.length ? this.whitespaces[this.whitespaces.length - 1]?.prefixSum : 0);
+	}
+
+	private _getWhitespaceAccumulatedHeightBeforeIndex(index: number): number {
+		const lastWhitespaceBeforeLineNumber = this._findLastWhitespaceBeforeIndex(index);
+
+		if (lastWhitespaceBeforeLineNumber === -1) {
+			return 0;
+		}
+
+		return this.whitespaces[lastWhitespaceBeforeLineNumber].prefixSum;
+	}
+
+	private _findLastWhitespaceBeforeIndex(index: number): number {
+		const arr = this.whitespaces;
+		let low = 0;
+		let high = arr.length - 1;
+
+		while (low <= high) {
+			const delta = (high - low) | 0;
+			const halfDelta = (delta / 2) | 0;
+			const mid = (low + halfDelta) | 0;
+
+			if (arr[mid].afterIndex < index) {
+				if (mid + 1 >= arr.length || arr[mid + 1].afterIndex >= index) {
+					return mid;
+				} else {
+					low = (mid + 1) | 0;
+				}
+			} else {
+				high = (mid - 1) | 0;
+			}
+		}
+
+		return -1;
 	}
 
 	/**
@@ -142,7 +230,20 @@ export class RangeMap {
 			const count = group.range.end - group.range.start;
 			const newSize = size + (count * group.size);
 
-			if (position < newSize) {
+			if (position < newSize + this._getWhitespaceAccumulatedHeightBeforeIndex(group.range.end + 1)) {
+				// try to find the right index
+				let currSize = size;
+				// position > currSize + all whitespaces before current range
+				for (let j = group.range.start; j < group.range.end; j++) {
+					currSize = currSize + group.size;
+
+					if (position >= currSize + this._getWhitespaceAccumulatedHeightBeforeIndex(j + 1)) {
+						continue;
+					} else {
+						return j;
+					}
+				}
+
 				return index + Math.floor((position - size) / group.size);
 			}
 
@@ -177,7 +278,7 @@ export class RangeMap {
 			const newCount = count + groupCount;
 
 			if (index < newCount) {
-				return position + ((index - count) * group.size);
+				return position + ((index - count) * group.size) + this._getWhitespaceAccumulatedHeightBeforeIndex(index);
 			}
 
 			position += groupCount * group.size;

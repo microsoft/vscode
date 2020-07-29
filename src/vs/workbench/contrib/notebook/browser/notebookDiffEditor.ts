@@ -19,6 +19,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, LcsDiff } from 'vs/base/common/diff/diff';
 import { CellSequence } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 
 
 export class NotebookDiffEditor extends BaseEditor {
@@ -105,21 +108,45 @@ export class NotebookDiffEditor extends BaseEditor {
 
 		const originalDecorations: INotebookDeltaDecoration[] = [];
 		const modifiedDecorations: INotebookDeltaDecoration[] = [];
-		diffResult.changes.forEach(change => {
-			const original = this._originalWidget?.textModel?.cells.slice(change.originalStart, change.originalStart + change.originalLength)
-				.map(cell => cell.handle).map(handle => ({
-					handle: handle,
-					options: { className: 'nb-cell-deleted' }
-				})) || [];
 
-			const modified = this._widget?.textModel?.cells.slice(change.modifiedStart, change.modifiedStart + change.modifiedLength)
-				.map(cell => cell.handle).map(handle => ({
-					handle: handle,
-					options: { className: 'nb-cell-added' }
-				})) || [];
+		let viewLayoutUpdateDisposables: IDisposable[] = [];
+
+		diffResult.changes.forEach(change => {
+			const originalCells = this._originalWidget?.viewModel?.viewCells.slice(change.originalStart, change.originalStart + change.originalLength) || [];
+			const original = originalCells.map(cell => cell.handle).map(handle => ({
+				handle: handle,
+				options: { className: 'nb-cell-deleted' }
+			}));
+
+			const modifiedCells = this._widget?.viewModel?.viewCells.slice(change.modifiedStart, change.modifiedStart + change.modifiedLength) || [];
+			const modified = modifiedCells.map(cell => cell.handle).map(handle => ({
+				handle: handle,
+				options: { className: 'nb-cell-added' }
+			}));
 
 			originalDecorations.push(...original);
 			modifiedDecorations.push(...modified);
+
+			this._originalWidget?.insertWhitespace(change.originalStart + change.originalLength - 1, 0);
+			this._widget?.insertWhitespace(change.modifiedStart + change.modifiedLength - 1, 0);
+
+			const update = () => {
+				DOM.scheduleAtNextAnimationFrame(() => {
+					const leftTotalHeight = originalCells.map(cell => (cell instanceof CodeCellViewModel) ? cell.layoutInfo.totalHeight : (cell as MarkdownCellViewModel).layoutInfo.totalHeight)
+						.reduce((p, c) => { return p + c; }, 0);
+					const rightTotalHeight = modifiedCells.map(cell => (cell instanceof CodeCellViewModel) ? cell.layoutInfo.totalHeight : (cell as MarkdownCellViewModel).layoutInfo.totalHeight)
+						.reduce((p, c) => { return p + c; }, 0);
+					const maxHeight = Math.max(leftTotalHeight, rightTotalHeight);
+
+					this._originalWidget?.updateWhitespace(change.originalStart + change.originalLength - 1, maxHeight - leftTotalHeight);
+					this._widget?.updateWhitespace(change.modifiedStart + change.modifiedLength - 1, maxHeight - rightTotalHeight);
+				}, 200);
+			};
+
+			viewLayoutUpdateDisposables.push(...[
+				...originalCells.map(cell => (cell instanceof CodeCellViewModel) ? cell.onDidChangeLayout(e => update()) : (cell as MarkdownCellViewModel).onDidChangeLayout(e => update())),
+				...modifiedCells.map(cell => (cell instanceof CodeCellViewModel) ? cell.onDidChangeLayout(e => update()) : (cell as MarkdownCellViewModel).onDidChangeLayout(e => update())),
+			]);
 		});
 
 		this._originalCellDecorations = this._originalWidget.deltaCellDecorations(this._originalCellDecorations, originalDecorations);
@@ -137,9 +164,10 @@ export class NotebookDiffEditor extends BaseEditor {
 	setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 		if (!visible) {
-			if (this.input && this._widget) {
+			if (this.input) {
 				// the widget is not transfered to other editor inputs
-				this._widget.onWillHide();
+				this._widget?.onWillHide();
+				this._originalWidget?.onWillHide();
 			}
 		}
 
@@ -152,9 +180,14 @@ export class NotebookDiffEditor extends BaseEditor {
 
 
 	clearInput(): void {
-		if (this._widget) {
-			this._widget.onWillHide();
-		}
+		this._widget?.onWillHide();
+		this._originalWidget?.onWillHide();
+
+		this._widget?.dispose();
+		this._originalWidget?.dispose();
+
+		this._widget = null;
+		this._originalWidget = null;
 		super.clearInput();
 	}
 

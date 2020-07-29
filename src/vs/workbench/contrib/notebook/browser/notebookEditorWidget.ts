@@ -52,7 +52,7 @@ import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/vie
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { notebookKernelProviderAssociationsSettingId, NotebookKernelProviderAssociations } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { ScrollEvent } from 'vs/base/common/scrollable';
-import { editorGutterAddedBackground, editorGutterDeletedBackground, editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
+import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 
 const $ = DOM.$;
 
@@ -1426,6 +1426,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	//#endregion
 
 	//#region MISC
+
+	insertWhitespace(index: number, height: number) {
+		this._list?.insertWhitespace(index, height);
+	}
+
+	updateWhitespace(index: number, newHeight: number) {
+		this._list?.updateWhitespace(index, newHeight);
+	}
 
 	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[] {
 		return this._notebookViewModel?.deltaCellDecorations(oldDecorations, newDecorations) || [];

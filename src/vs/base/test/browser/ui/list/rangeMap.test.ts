@@ -341,5 +341,125 @@ suite('RangeMap', () => {
 			assert.equal(rangeMap.positionAt(3), 30);
 			assert.equal(rangeMap.positionAt(4), -1);
 		});
+
+		test('insert whitespace 1', () => {
+			rangeMap.splice(0, 0, [one, one, one, one, one, one, one, one, one, one]);
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), 1);
+			assert.equal(rangeMap.indexAt(5), 5);
+			assert.equal(rangeMap.indexAt(9), 9);
+			assert.equal(rangeMap.indexAt(10), 10);
+			assert.equal(rangeMap.indexAt(11), 10);
+
+			for (let i = 0; i < 10; i++) {
+				rangeMap.insertWhitespace(i, 1);
+			}
+
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), 0);
+			assert.equal(rangeMap.indexAt(2), 1);
+			assert.equal(rangeMap.indexAt(3), 1);
+			assert.equal(rangeMap.indexAt(4), 2);
+			assert.equal(rangeMap.indexAt(5), 2);
+			assert.equal(rangeMap.indexAt(6), 3);
+			assert.equal(rangeMap.indexAt(7), 3);
+			assert.equal(rangeMap.indexAt(8), 4);
+			assert.equal(rangeMap.indexAt(9), 4);
+		});
+
+		test('insert whitespace 2', () => {
+			rangeMap.splice(0, 0, [one, one, one, one, one, one, one, one, one, one]);
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), 1);
+			assert.equal(rangeMap.indexAt(5), 5);
+			assert.equal(rangeMap.indexAt(9), 9);
+			assert.equal(rangeMap.indexAt(10), 10);
+			assert.equal(rangeMap.indexAt(11), 10);
+
+			rangeMap.insertWhitespace(0, 2);
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), 0);
+			assert.equal(rangeMap.indexAt(2), 0);
+			assert.equal(rangeMap.indexAt(3), 1);
+			assert.equal(rangeMap.indexAt(4), 2);
+			assert.equal(rangeMap.indexAt(5), 3);
+			assert.equal(rangeMap.indexAt(10), 8);
+
+			rangeMap.insertWhitespace(3, 3);
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), 0);
+			assert.equal(rangeMap.indexAt(2), 0);
+			assert.equal(rangeMap.indexAt(3), 1);
+			assert.equal(rangeMap.indexAt(4), 2);
+			assert.equal(rangeMap.indexAt(5), 3);
+			assert.equal(rangeMap.indexAt(6), 3);
+			assert.equal(rangeMap.indexAt(7), 3);
+			assert.equal(rangeMap.indexAt(8), 3);
+			assert.equal(rangeMap.indexAt(9), 4);
+			assert.equal(rangeMap.indexAt(10), 5);
+		});
+
+		test('insert whitespace 3', () => {
+			rangeMap.splice(0, 0, [one, one, one, one, one, one, one, one, one, one]);
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), 1);
+			assert.equal(rangeMap.indexAt(5), 5);
+			assert.equal(rangeMap.indexAt(9), 9);
+			assert.equal(rangeMap.indexAt(10), 10);
+			assert.equal(rangeMap.indexAt(11), 10);
+
+			rangeMap.insertWhitespace(0, 2);
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), 0);
+			assert.equal(rangeMap.indexAt(2), 0);
+			assert.equal(rangeMap.indexAt(3), 1);
+			assert.equal(rangeMap.indexAt(4), 2);
+			assert.equal(rangeMap.indexAt(5), 3);
+			assert.equal(rangeMap.indexAt(10), 8);
+
+			rangeMap.insertWhitespace(3, 3);
+			rangeMap.updateWhitespace(0, 3);
+			assert.equal(rangeMap.indexAt(0), 0);
+			assert.equal(rangeMap.indexAt(1), 0);
+			assert.equal(rangeMap.indexAt(2), 0);
+			assert.equal(rangeMap.indexAt(3), 0);
+			assert.equal(rangeMap.indexAt(4), 1);
+			assert.equal(rangeMap.indexAt(5), 2);
+			assert.equal(rangeMap.indexAt(6), 3);
+			assert.equal(rangeMap.indexAt(7), 3);
+			assert.equal(rangeMap.indexAt(8), 3);
+			assert.equal(rangeMap.indexAt(9), 3);
+			assert.equal(rangeMap.indexAt(10), 4);
+		});
+
+		test('insert whitespace, positionAt', () => {
+			rangeMap.splice(0, 0, [one, one, one, one, one, one, one, one, one, one]);
+			assert.equal(rangeMap.positionAt(0), 0);
+			assert.equal(rangeMap.positionAt(1), 1);
+			assert.equal(rangeMap.positionAt(5), 5);
+			assert.equal(rangeMap.positionAt(9), 9);
+
+			rangeMap.insertWhitespace(0, 2);
+			assert.equal(rangeMap.positionAt(0), 0);
+			assert.equal(rangeMap.positionAt(1), 3);
+			assert.equal(rangeMap.positionAt(2), 4);
+			assert.equal(rangeMap.positionAt(3), 5);
+		});
+
+		test('insert whitespace, positionAt 2', () => {
+			rangeMap.splice(0, 0, [one]);
+			rangeMap.splice(1, 0, [two]);
+			rangeMap.splice(2, 0, [three]);
+			assert.equal(rangeMap.positionAt(0), 0);
+			assert.equal(rangeMap.positionAt(1), 1);
+			assert.equal(rangeMap.positionAt(2), 3);
+
+			rangeMap.insertWhitespace(0, 2);
+			assert.equal(rangeMap.positionAt(0), 0);
+			assert.equal(rangeMap.positionAt(1), 3);
+			assert.equal(rangeMap.positionAt(2), 5);
+		});
+
+
 	});
 });

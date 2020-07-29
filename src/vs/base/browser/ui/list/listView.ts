@@ -375,6 +375,16 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.scrollableElement.triggerScrollFromMouseWheelEvent(browserEvent);
 	}
 
+	insertWhitespace(index: number, height: number) {
+		this.rangeMap.insertWhitespace(index, height);
+		this.rerender();
+	}
+
+	updateWhitespace(index: number, newHeight: number) {
+		this.rangeMap.updateWhitespace(index, newHeight);
+		this.rerender();
+	}
+
 	updateElementHeight(index: number, size: number, anchorIndex: number | null): void {
 		if (index < 0 || index >= this.items.length) {
 			return;

@@ -459,6 +459,8 @@ export interface INotebookCellList {
 	getFocus(): number[];
 	setFocus(indexes: number[]): void;
 	setSelection(indexes: number[]): void;
+	insertWhitespace(index: number, height: number): void;
+	updateWhitespace(index: number, newHeight: number): void;
 }
 
 export interface BaseCellRenderTemplate {
