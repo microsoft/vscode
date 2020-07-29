@@ -510,6 +510,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 				const folderConfiguration = this.cachedFolderConfigs.get(this.workspace.folders[0].uri);
 				if (folderConfiguration) {
 					this._configuration.updateWorkspaceConfiguration(folderConfiguration.reprocess());
+					this._configuration.updateFolderConfiguration(this.workspace.folders[0].uri, folderConfiguration.reprocess());
 				}
 			} else {
 				this._configuration.updateWorkspaceConfiguration(this.workspaceConfiguration.reprocessWorkspaceSettings());

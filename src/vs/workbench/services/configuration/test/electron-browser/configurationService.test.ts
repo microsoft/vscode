@@ -882,56 +882,140 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			});
 	});
 
-	test('application settings are not read from workspace', () => {
+	test('application settings are not read from workspace', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.applicationSetting": "userValue" }');
 		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.applicationSetting": "workspaceValue" }');
-		return testObject.reloadConfiguration()
-			.then(() => assert.equal(testObject.getValue('configurationService.folder.applicationSetting'), 'userValue'));
+
+		await testObject.reloadConfiguration();
+
+		assert.equal(testObject.getValue('configurationService.folder.applicationSetting'), 'userValue');
 	});
 
-	test('machine settings are not read from workspace', () => {
+	test('application settings are not read from workspace when workspace folder uri is passed', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.applicationSetting": "userValue" }');
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.applicationSetting": "workspaceValue" }');
+
+		await testObject.reloadConfiguration();
+
+		assert.equal(testObject.getValue('configurationService.folder.applicationSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+	});
+
+	test('machine settings are not read from workspace', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.machineSetting": "userValue" }');
 		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.machineSetting": "workspaceValue" }');
-		return testObject.reloadConfiguration()
-			.then(() => assert.equal(testObject.getValue('configurationService.folder.machineSetting'), 'userValue'));
+
+		await testObject.reloadConfiguration();
+
+		assert.equal(testObject.getValue('configurationService.folder.machineSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
 	});
 
-	test('get application scope settings are not loaded after defaults are registered', () => {
-		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.anotherApplicationSetting": "workspaceValue" }');
-		return testObject.reloadConfiguration()
-			.then(() => {
-				configurationRegistry.registerConfiguration({
-					'id': '_test',
-					'type': 'object',
-					'properties': {
-						'configurationService.folder.anotherApplicationSetting': {
-							'type': 'string',
-							'default': 'isSet',
-							scope: ConfigurationScope.APPLICATION
-						}
-					}
-				});
-				assert.deepEqual(testObject.keys().workspace, []);
-			});
+	test('machine settings are not read from workspace when workspace folder uri is passed', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.machineSetting": "userValue" }');
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.machineSetting": "workspaceValue" }');
+
+		await testObject.reloadConfiguration();
+
+		assert.equal(testObject.getValue('configurationService.folder.machineSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
 	});
 
-	test('get machine scope settings are not loaded after defaults are registered', () => {
-		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.anotherMachineSetting": "workspaceValue" }');
-		return testObject.reloadConfiguration()
-			.then(() => {
-				configurationRegistry.registerConfiguration({
-					'id': '_test',
-					'type': 'object',
-					'properties': {
-						'configurationService.folder.anotherMachineSetting': {
-							'type': 'string',
-							'default': 'isSet',
-							scope: ConfigurationScope.MACHINE
-						}
-					}
-				});
-				assert.deepEqual(testObject.keys().workspace, []);
-			});
+	test('get application scope settings are not loaded after defaults are registered', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.applicationSetting-2": "userValue" }');
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.applicationSetting-2": "workspaceValue" }');
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.folder.applicationSetting-2'), 'workspaceValue');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.folder.applicationSetting-2': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				}
+			}
+		});
+
+		assert.equal(testObject.getValue('configurationService.folder.applicationSetting-2'), 'userValue');
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.folder.applicationSetting-2'), 'userValue');
+	});
+
+	test('get application scope settings are not loaded after defaults are registered when workspace folder uri is passed', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.applicationSetting-3": "userValue" }');
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.applicationSetting-3": "workspaceValue" }');
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.folder.applicationSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.folder.applicationSetting-3': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				}
+			}
+		});
+
+		assert.equal(testObject.getValue('configurationService.folder.applicationSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.folder.applicationSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+	});
+
+	test('get machine scope settings are not loaded after defaults are registered', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.machineSetting-2": "userValue" }');
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.machineSetting-2": "workspaceValue" }');
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.folder.machineSetting-2'), 'workspaceValue');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.folder.machineSetting-2': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE
+				}
+			}
+		});
+
+		assert.equal(testObject.getValue('configurationService.folder.machineSetting-2'), 'userValue');
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.folder.machineSetting-2'), 'userValue');
+	});
+
+	test('get machine scope settings are not loaded after defaults are registered when workspace folder uri is passed', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.machineSetting-3": "userValue" }');
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.machineSetting-3": "workspaceValue" }');
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.folder.machineSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.folder.machineSetting-3': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE
+				}
+			}
+		});
+
+		assert.equal(testObject.getValue('configurationService.folder.machineSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.folder.machineSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
 	});
 
 	test('reload configuration emits events after global configuraiton changes', () => {
@@ -1231,111 +1315,202 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		return undefined;
 	});
 
-	test('application settings are not read from workspace', () => {
-		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.applicationSetting": "userValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }], true)
-			.then(() => testObject.reloadConfiguration())
-			.then(() => assert.equal(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue'));
+	test('application settings are not read from workspace', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.applicationSetting": "userValue" }');
+		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }], true);
+
+		await testObject.reloadConfiguration();
+
+		assert.equal(testObject.getValue('configurationService.folder.applicationSetting'), 'userValue');
 	});
 
-	test('machine settings are not read from workspace', () => {
-		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.machineSetting": "userValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.machineSetting': 'workspaceValue' } }], true)
-			.then(() => testObject.reloadConfiguration())
-			.then(() => assert.equal(testObject.getValue('configurationService.workspace.machineSetting'), 'userValue'));
+	test('application settings are not read from workspace when folder is passed', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.applicationSetting": "userValue" }');
+		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }], true);
+
+		await testObject.reloadConfiguration();
+
+		assert.equal(testObject.getValue('configurationService.folder.applicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
 	});
 
-	test('workspace settings override user settings after defaults are registered ', () => {
+	test('machine settings are not read from workspace', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.machineSetting": "userValue" }');
+		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.machineSetting': 'workspaceValue' } }], true);
+
+		await testObject.reloadConfiguration();
+
+		assert.equal(testObject.getValue('configurationService.folder.machineSetting'), 'userValue');
+	});
+
+	test('machine settings are not read from workspace when folder is passed', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.machineSetting": "userValue" }');
+		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.machineSetting': 'workspaceValue' } }], true);
+
+		await testObject.reloadConfiguration();
+
+		assert.equal(testObject.getValue('configurationService.folder.machineSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+	});
+
+	test('get application scope settings are not loaded after defaults are registered', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.newSetting": "userValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.newSetting': 'workspaceValue' } }], true)
-			.then(() => testObject.reloadConfiguration())
-			.then(() => {
-				configurationRegistry.registerConfiguration({
-					'id': '_test',
-					'type': 'object',
-					'properties': {
-						'configurationService.workspace.newSetting': {
-							'type': 'string',
-							'default': 'isSet'
-						}
-					}
-				});
-				assert.equal(testObject.getValue('configurationService.workspace.newSetting'), 'workspaceValue');
-			});
+		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.newSetting': 'workspaceValue' } }], true);
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.workspace.newSetting'), 'workspaceValue');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.workspace.newSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				}
+			}
+		});
+
+		assert.equal(testObject.getValue('configurationService.workspace.newSetting'), 'userValue');
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.workspace.newSetting'), 'userValue');
 	});
 
-	test('workspace settings override user settings after defaults are registered for machine overridable settings ', () => {
+	test('get application scope settings are not loaded after defaults are registered when workspace folder is passed', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.newSetting-2": "userValue" }');
+		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.newSetting-2': 'workspaceValue' } }], true);
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.workspace.newSetting-2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceValue');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.workspace.newSetting-2': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				}
+			}
+		});
+
+		assert.equal(testObject.getValue('configurationService.workspace.newSetting-2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.workspace.newSetting-2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+	});
+
+	test('workspace settings override user settings after defaults are registered for machine overridable settings ', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.newMachineOverridableSetting": "userValue" }');
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.newMachineOverridableSetting': 'workspaceValue' } }], true)
-			.then(() => testObject.reloadConfiguration())
-			.then(() => {
-				configurationRegistry.registerConfiguration({
-					'id': '_test',
-					'type': 'object',
-					'properties': {
-						'configurationService.workspace.newMachineOverridableSetting': {
-							'type': 'string',
-							'default': 'isSet',
-							scope: ConfigurationScope.MACHINE_OVERRIDABLE
-						}
-					}
-				});
-				assert.equal(testObject.getValue('configurationService.workspace.newMachineOverridableSetting'), 'workspaceValue');
-			});
+		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.newMachineOverridableSetting': 'workspaceValue' } }], true);
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.workspace.newMachineOverridableSetting'), 'workspaceValue');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.workspace.newMachineOverridableSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE_OVERRIDABLE
+				}
+			}
+		});
+
+		assert.equal(testObject.getValue('configurationService.workspace.newMachineOverridableSetting'), 'workspaceValue');
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.workspace.newMachineOverridableSetting'), 'workspaceValue');
+
 	});
 
-	test('application settings are not read from workspace folder', () => {
+	test('application settings are not read from workspace folder', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.applicationSetting": "userValue" }');
 		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.applicationSetting": "workspaceFolderValue" }');
-		return testObject.reloadConfiguration()
-			.then(() => assert.equal(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue'));
+
+		await testObject.reloadConfiguration();
+
+		assert.equal(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue');
 	});
 
-	test('machine settings are not read from workspace folder', () => {
+	test('application settings are not read from workspace folder when workspace folder is passed', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.applicationSetting": "userValue" }');
+		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.applicationSetting": "workspaceFolderValue" }');
+
+		await testObject.reloadConfiguration();
+
+		assert.equal(testObject.getValue('configurationService.workspace.applicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+	});
+
+	test('machine settings are not read from workspace folder', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.machineSetting": "userValue" }');
 		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.machineSetting": "workspaceFolderValue" }');
-		return testObject.reloadConfiguration()
-			.then(() => assert.equal(testObject.getValue('configurationService.workspace.machineSetting'), 'userValue'));
+
+		await testObject.reloadConfiguration();
+
+		assert.equal(testObject.getValue('configurationService.workspace.machineSetting'), 'userValue');
 	});
 
-	test('application settings are not read from workspace folder after defaults are registered', () => {
+	test('machine settings are not read from workspace folder when workspace folder is passed', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.machineSetting": "userValue" }');
+		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.machineSetting": "workspaceFolderValue" }');
+
+		await testObject.reloadConfiguration();
+
+		assert.equal(testObject.getValue('configurationService.workspace.machineSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+	});
+
+	test('application settings are not read from workspace folder after defaults are registered', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.testNewApplicationSetting": "userValue" }');
 		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewApplicationSetting": "workspaceFolderValue" }');
-		return testObject.reloadConfiguration()
-			.then(() => {
-				configurationRegistry.registerConfiguration({
-					'id': '_test',
-					'type': 'object',
-					'properties': {
-						'configurationService.workspace.testNewApplicationSetting': {
-							'type': 'string',
-							'default': 'isSet',
-							scope: ConfigurationScope.APPLICATION
-						}
-					}
-				});
-				assert.equal(testObject.getValue('configurationService.workspace.testNewApplicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
-			});
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.workspace.testNewApplicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceFolderValue');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.workspace.testNewApplicationSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				}
+			}
+		});
+
+		assert.equal(testObject.getValue('configurationService.workspace.testNewApplicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.workspace.testNewApplicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
 	});
 
-	test('application settings are not read from workspace folder after defaults are registered', () => {
+	test('application settings are not read from workspace folder after defaults are registered', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.testNewMachineSetting": "userValue" }');
 		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewMachineSetting": "workspaceFolderValue" }');
-		return testObject.reloadConfiguration()
-			.then(() => {
-				configurationRegistry.registerConfiguration({
-					'id': '_test',
-					'type': 'object',
-					'properties': {
-						'configurationService.workspace.testNewMachineSetting': {
-							'type': 'string',
-							'default': 'isSet',
-							scope: ConfigurationScope.MACHINE
-						}
-					}
-				});
-				assert.equal(testObject.getValue('configurationService.workspace.testNewMachineSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
-			});
+		await testObject.reloadConfiguration();
+
+		assert.equal(testObject.getValue('configurationService.workspace.testNewMachineSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceFolderValue');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.workspace.testNewMachineSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE
+				}
+			}
+		});
+
+		assert.equal(testObject.getValue('configurationService.workspace.testNewMachineSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+
+		await testObject.reloadConfiguration();
+		assert.equal(testObject.getValue('configurationService.workspace.testNewMachineSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
 	});
 
 	test('resource setting in folder is read after it is registered later', () => {
