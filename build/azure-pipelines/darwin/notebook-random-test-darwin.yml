@@ -3,6 +3,12 @@ steps:
   inputs:
     versionSpec: "12.14.1"
 
+- script: |
+    git fetch origin master
+    git merge master
+    git log -n 1
+  displayName: Update branch
+
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
     versionSpec: "1.x"
