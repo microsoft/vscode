@@ -92,10 +92,12 @@ export class ListWhitespace {
 	constructor(
 		public afterIndex: number,
 		public height: number,
+		// height of all whitespaces before this whitespace (inclusive)
 		public prefixSum: number
 	) { }
 }
 
+// [ { start: 0, len: 2, size: 2 }, { start: 2, len: 1, size: 3 }, {} ]
 export class RangeMap {
 
 	private groups: IRangedGroup[] = [];
@@ -167,19 +169,33 @@ export class RangeMap {
 		const prefixSum = insertIndex > 0 ? this.whitespaces[insertIndex - 1].prefixSum + height : height;
 		const insertedItem = new ListWhitespace(afterIndex, height, prefixSum);
 		this.whitespaces.splice(insertIndex, 0, insertedItem);
+
+		for (let i = insertIndex + 1; i < this.whitespaces.length; i++) {
+			this.whitespaces[i].prefixSum += height;
+		}
 	}
 
 	// todo, allow multiple whitespaces after one index
 	updateWhitespace(afterIndex: number, newHeight: number) {
 		let delta = 0;
+		let findWhitespace = false;
 		for (let i = 0; i < this.whitespaces.length; i++) {
 			if (this.whitespaces[i].afterIndex === afterIndex) {
 				delta = newHeight - this.whitespaces[i].height;
 				this.whitespaces[i].height = newHeight;
 				this.whitespaces[i].prefixSum += delta;
+				findWhitespace = true;
 			} else if (this.whitespaces[i].afterIndex > afterIndex) {
+				if (!findWhitespace) {
+					this.insertWhitespace(afterIndex, newHeight);
+					return;
+				}
 				this.whitespaces[i].prefixSum += delta;
 			}
+		}
+
+		if (!findWhitespace) {
+			this.insertWhitespace(afterIndex, newHeight);
 		}
 	}
 
