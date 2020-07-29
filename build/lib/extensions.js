@@ -276,17 +276,14 @@ function scanBuiltinExtensions(extensionsRoot, forWeb) {
             continue;
         }
         const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
-        const packageNLS = children.filter(child => child === 'package.nls.json')[0];
+        const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
+        const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, packageNLSPath)).toString()) : undefined;
         const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
         const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
-        if (packageNLS) {
-            // temporary
-            packageJSON = translatePackageJSON(packageJSON, path.join(extensionsRoot, extensionFolder, packageNLS));
-        }
         scannedExtensions.push({
             extensionPath: extensionFolder,
             packageJSON,
-            packageNLSPath: packageNLS ? path.join(extensionFolder, packageNLS) : undefined,
+            packageNLS,
             readmePath: readme ? path.join(extensionFolder, readme) : undefined,
             changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
         });
