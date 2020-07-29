@@ -23,17 +23,20 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
-export abstract class AbstractRemoteAgentService extends Disposable {
+export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
 	declare readonly _serviceBrand: undefined;
 
+	public readonly socketFactory: ISocketFactory;
 	private _environment: Promise<IRemoteAgentEnvironment | null> | null;
 
 	constructor(
+		socketFactory: ISocketFactory,
 		@IEnvironmentService protected readonly _environmentService: IEnvironmentService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super();
+		this.socketFactory = socketFactory;
 		this._environment = null;
 	}
 
