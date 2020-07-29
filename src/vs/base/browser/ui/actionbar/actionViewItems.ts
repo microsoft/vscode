@@ -366,12 +366,12 @@ export class ActionViewItem extends BaseActionViewItem {
 	}
 
 	updateExpanded(): void {
-		if (this.getAction().expanded !== undefined) {
-			if (this.label) {
+		if (this.label) {
+			if (this.getAction().expanded !== undefined) {
 				this.label.setAttribute('aria-expanded', `${this.getAction().expanded}`);
+			} else {
+				this.label.removeAttribute('aria-expanded');
 			}
-		} else {
-			this.label.removeAttribute('aria-expanded');
 		}
 	}
 }
