@@ -272,7 +272,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private async onAutoSyncError(error: UserDataSyncError): Promise<void> {
+	private onAutoSyncError(error: UserDataSyncError): void {
 		switch (error.code) {
 			case UserDataSyncErrorCode.SessionExpired:
 				this.notificationService.notify({
@@ -320,21 +320,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						]
 					}
 				});
-				return;
-			case UserDataSyncErrorCode.ServiceChanged:
-				const current = this.userDataSyncStoreManagementService.userDataSyncStore;
-				const previous = await this.userDataSyncStoreManagementService.getPreviousUserDataSyncStore();
-				// check if defaults changed
-				if (current && previous &&
-					(!isEqual(current.defaultUrl, previous.defaultUrl) ||
-						!isEqual(current.insidersUrl, previous.insidersUrl) ||
-						!isEqual(current.stableUrl, previous.stableUrl))
-				) {
-					this.notificationService.notify({
-						severity: Severity.Info,
-						message: localize('default url has changed', "Settings sync is restarted because {0} is switched to new service endpoint.", this.productService.nameLong),
-					});
-				}
 				return;
 		}
 	}

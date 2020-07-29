@@ -210,6 +210,7 @@ export enum UserDataSyncErrorCode {
 	TurnedOff = 'TurnedOff',
 	SessionExpired = 'SessionExpired',
 	ServiceChanged = 'ServiceChanged',
+	DefaultServiceChanged = 'DefaultServiceChanged',
 	LocalTooManyRequests = 'LocalTooManyRequests',
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',

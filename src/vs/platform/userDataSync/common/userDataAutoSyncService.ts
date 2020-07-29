@@ -278,11 +278,11 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 			this.logService.info('Auto Sync: Turned off sync because server has {0} content with older version than of client. Requires server reset.', userDataSyncError.resource);
 		}
 
-		// Endpoint changed
-		else if (userDataSyncError.code === UserDataSyncErrorCode.ServiceChanged) {
+		// Service changed
+		else if (userDataSyncError.code === UserDataSyncErrorCode.ServiceChanged || userDataSyncError.code === UserDataSyncErrorCode.DefaultServiceChanged) {
 			await this.turnOff(false, true /* force soft turnoff on error */, true /* do not disable machine */);
 			await this.turnOn();
-			this.logService.info('Auto Sync: Endpoint changed. Turned off auto sync, reset local state and turned on auto sync.');
+			this.logService.info('Auto Sync: Sync Service changed. Turned off auto sync, reset local state and turned on auto sync.');
 		}
 
 		else {
@@ -420,6 +420,20 @@ class AutoSync extends Disposable {
 		return this.syncPromise;
 	}
 
+	private hasSyncServiceChanged(): boolean {
+		return this.lastSyncUrl !== undefined && !isEqual(this.lastSyncUrl, this.userDataSyncStoreManagementService.userDataSyncStore?.url);
+	}
+
+	private async hasDefaultServiceChanged(): Promise<boolean> {
+		const previous = await this.userDataSyncStoreManagementService.getPreviousUserDataSyncStore();
+		const current = this.userDataSyncStoreManagementService.userDataSyncStore;
+		// check if defaults changed
+		return !!current && !!previous &&
+			(!isEqual(current.defaultUrl, previous.defaultUrl) ||
+				!isEqual(current.insidersUrl, previous.insidersUrl) ||
+				!isEqual(current.stableUrl, previous.stableUrl));
+	}
+
 	private async doSync(reason: string, token: CancellationToken): Promise<void> {
 		this.logService.info(`Auto Sync: Triggered by ${reason}`);
 		this._onDidStartSync.fire();
@@ -433,23 +447,29 @@ class AutoSync extends Disposable {
 
 			// Server has no data but this machine was synced before
 			if (manifest === null && await this.userDataSyncService.hasPreviouslySynced()) {
-				if (!this.lastSyncUrl || isEqual(this.lastSyncUrl, this.userDataSyncStoreManagementService.userDataSyncStore?.url)) {
+				if (this.hasSyncServiceChanged()) {
+					if (await this.hasDefaultServiceChanged()) {
+						throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because sync default servuce has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
+					} else {
+						throw new UserDataAutoSyncError(localize('service changed', "Cannot sync because sync service has changed"), UserDataSyncErrorCode.ServiceChanged);
+					}
+				} else {
 					// Sync was turned off in the cloud
 					throw new UserDataAutoSyncError(localize('turned off', "Cannot sync because syncing is turned off in the cloud"), UserDataSyncErrorCode.TurnedOff);
-				} else {
-					// Sync endpoint changed
-					throw new UserDataAutoSyncError(localize('endpoint changed', "Cannot sync because sync endpoint is changed"), UserDataSyncErrorCode.ServiceChanged);
 				}
 			}
 
 			const sessionId = this.storageService.get(sessionIdKey, StorageScope.GLOBAL);
 			// Server session is different from client session
 			if (sessionId && manifest && sessionId !== manifest.session) {
-				if (!this.lastSyncUrl || isEqual(this.lastSyncUrl, this.userDataSyncStoreManagementService.userDataSyncStore?.url)) {
-					throw new UserDataAutoSyncError(localize('session expired', "Cannot sync because current session is expired"), UserDataSyncErrorCode.SessionExpired);
+				if (this.hasSyncServiceChanged()) {
+					if (await this.hasDefaultServiceChanged()) {
+						throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because sync default servuce has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
+					} else {
+						throw new UserDataAutoSyncError(localize('service changed', "Cannot sync because sync service has changed"), UserDataSyncErrorCode.ServiceChanged);
+					}
 				} else {
-					// Sync endpoint changed
-					throw new UserDataAutoSyncError(localize('endpoint changed', "Cannot sync because sync endpoint is changed"), UserDataSyncErrorCode.ServiceChanged);
+					throw new UserDataAutoSyncError(localize('session expired', "Cannot sync because current session is expired"), UserDataSyncErrorCode.SessionExpired);
 				}
 			}
 
