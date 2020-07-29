@@ -301,6 +301,11 @@ export interface INotebookEditor extends IEditor {
 	removeInset(output: IProcessedOutput): void;
 
 	/**
+	 * Hide the inset in the webview layer without removing it
+	 */
+	hideInset(output: IProcessedOutput): void;
+
+	/**
 	 * Send message to the webview for outputs.
 	 */
 	postMessage(forRendererId: string | undefined, message: any): void;
@@ -403,8 +408,6 @@ export interface INotebookEditor extends IEditor {
 	 * @return The contribution or null if contribution not found.
 	 */
 	getContribution<T extends INotebookEditorContribution>(id: string): T;
-
-	hideInset(output: IProcessedOutput): void;
 }
 
 export interface INotebookCellList {

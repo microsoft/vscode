@@ -496,21 +496,45 @@
 					newFrame.contentDocument.open();
 				}
 
-				newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
+				/**
+				 * @param {Document} contentDocument
+				 */
+				function onFrameLoaded(contentDocument) {
 					// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=978325
 					setTimeout(() => {
 						if (host.fakeLoad) {
-							newFrame.contentDocument.open();
-							newFrame.contentDocument.write(newDocument);
-							newFrame.contentDocument.close();
+							contentDocument.open();
+							contentDocument.write(newDocument);
+							contentDocument.close();
 							hookupOnLoadHandlers(newFrame);
 						}
-						const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
 						if (contentDocument) {
 							applyStyles(contentDocument, contentDocument.body);
 						}
 					}, 0);
-				});
+				}
+
+				if (host.fakeLoad) {
+					// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired.
+					// Use polling instead.
+					const interval = setInterval(() => {
+						// If the frame is no longer mounted, loading has stopped
+						if (!newFrame.parentElement) {
+							clearInterval(interval);
+							return;
+						}
+
+						if (newFrame.contentDocument.readyState === 'complete') {
+							clearInterval(interval);
+							onFrameLoaded(newFrame.contentDocument);
+						}
+					}, 10);
+				} else {
+					newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
+						const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
+						onFrameLoaded(contentDocument);
+					});
+				}
 
 				/**
 				 * @param {Document} contentDocument

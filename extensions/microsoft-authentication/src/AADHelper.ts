@@ -73,7 +73,7 @@ function parseQuery(uri: vscode.Uri) {
 	}, {});
 }
 
-export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationSessionsChangeEvent>();
+export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 
 export const REFRESH_NETWORK_FAILURE = 'Network failure';
 
