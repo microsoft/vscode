@@ -1,0 +1,6 @@
+jobs:
+- job: macOS
+  pool:
+    vmImage: macOS-latest
+  steps:
+  - template: build/azure-pipelines/darwin/notebook-random-test-darwin.yml
