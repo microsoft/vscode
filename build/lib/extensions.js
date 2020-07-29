@@ -197,7 +197,8 @@ const excludedCommonExtensions = [
     'vscode-test-resolver',
     'ms-vscode.node-debug',
     'ms-vscode.node-debug2',
-    'vscode-notebook-tests'
+    'vscode-notebook-tests',
+    'vscode-custom-editor-tests',
 ];
 const excludedDesktopExtensions = excludedCommonExtensions.concat([
     'vscode-web-playground',
