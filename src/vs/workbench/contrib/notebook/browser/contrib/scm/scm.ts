@@ -12,11 +12,17 @@ import { first, ThrottledDelayer } from 'vs/base/common/async';
 import { INotebookService } from '../../../common/notebookService';
 import { LcsDiff } from 'vs/base/common/diff/diff';
 import { CellSequence } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
 
 export class SCMController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.findController';
 	private _lastDecorationId: string[] = [];
 	private _localDisposable = new DisposableStore();
+	private _originalDocument: NotebookTextModel | undefined = undefined;
+	private _originalResourceDisposableStore = new DisposableStore();
 	private _diffDelayer = new ThrottledDelayer<void>(200);
 
 	private _lastVersion = -1;
@@ -24,6 +30,7 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
+		@IFileService private readonly _fileService: FileService,
 		@ISCMService private readonly _scmService: ISCMService,
 		@INotebookService private readonly _notebookService: INotebookService
 
@@ -51,6 +58,39 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 		}
 	}
 
+	private async _resolveNotebookDocument(uri: URI, viewType: string) {
+		const providers = this._scmService.repositories.map(r => r.provider);
+		const rootedProviders = providers.filter(p => !!p.rootUri);
+
+		rootedProviders.sort(createProviderComparer(uri));
+
+		const result = await first(rootedProviders.map(p => () => p.getOriginalResource(uri)));
+
+		if (!result) {
+			this._originalDocument = undefined;
+			this._originalResourceDisposableStore.clear();
+			return;
+		}
+
+		if (result.toString() === this._originalDocument?.uri.toString()) {
+			// original document not changed
+			return;
+		}
+
+		this._originalResourceDisposableStore.add(this._fileService.watch(result));
+		this._originalResourceDisposableStore.add(this._fileService.onDidFilesChange(e => {
+			if (e.changes.find(change => change.resource.toString() === result.toString())) {
+				this._originalDocument = undefined;
+				this._originalResourceDisposableStore.clear();
+				this.update();
+			}
+		}));
+
+		const originalDocument = await this._notebookService.resolveNotebook(viewType, result, false);
+
+		this._originalDocument = originalDocument;
+	}
+
 	async update() {
 		if (!this._diffDelayer) {
 			return;
@@ -68,28 +108,14 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 				}
 
 				this._lastVersion = modifiedDocument.versionId;
+				await this._resolveNotebookDocument(modifiedDocument.uri, modifiedDocument.viewType);
 
-				const uri = modifiedDocument.uri;
-				const providers = this._scmService.repositories.map(r => r.provider);
-				const rootedProviders = providers.filter(p => !!p.rootUri);
-
-				rootedProviders.sort(createProviderComparer(uri));
-
-				const result = await first(rootedProviders.map(p => () => p.getOriginalResource(uri)));
-
-				if (!result) {
+				if (!this._originalDocument) {
 					this._clear();
 					return;
 				}
 
-				const originalDocument = await this._notebookService.resolveNotebook(modifiedDocument.viewType, result, false);
-
-				if (!originalDocument) {
-					this._clear();
-					return;
-				}
-
-				const diff = new LcsDiff(new CellSequence(originalDocument), new CellSequence(modifiedDocument));
+				const diff = new LcsDiff(new CellSequence(this._originalDocument), new CellSequence(modifiedDocument));
 				const diffResult = diff.ComputeDiff(false);
 
 				const decorations: INotebookDeltaDecoration[] = [];

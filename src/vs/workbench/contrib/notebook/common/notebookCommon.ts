@@ -586,6 +586,7 @@ export interface INotebookEditorModel extends IEditorModel {
 export interface INotebookDiffEditorModel extends IEditorModel {
 	original: INotebookEditorModel;
 	modified: INotebookEditorModel;
+	resolveOriginalFromDisk(): Promise<void>;
 }
 
 export interface INotebookTextModelBackup {

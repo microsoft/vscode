@@ -17,11 +17,13 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { NotebookDiffEditorInput } from './notebookDiffEditorInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, LcsDiff } from 'vs/base/common/diff/diff';
-import { CellSequence } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellSequence, INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { IFileService } from 'vs/platform/files/common/files';
 
 
 export class NotebookDiffEditor extends BaseEditor {
@@ -38,6 +40,7 @@ export class NotebookDiffEditor extends BaseEditor {
 
 
 	constructor(
+		@IFileService private readonly fileService: FileService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -95,6 +98,25 @@ export class NotebookDiffEditor extends BaseEditor {
 			}
 		}));
 
+		this._register(this.fileService.watch(model.original.resource));
+		this._register(this.fileService.onDidFilesChange(async e => {
+			if (e.changes.find(change => change.resource.toString() === model.original.resource.toString())) {
+				await model.resolveOriginalFromDisk();
+				this._update(model);
+			}
+		}));
+
+		this._register(model.modified.notebook.onDidChangeContent(() => {
+			this._update(model);
+		}));
+
+		this._register(model.modified.notebook.onDidChangeCells(() => {
+			this._update(model);
+		}));
+		this._update(model);
+	}
+
+	private _update(model: INotebookDiffEditorModel) {
 		const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 		const diffResult = diff.ComputeDiff(false);
 

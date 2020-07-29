@@ -14,6 +14,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IReference } from 'vs/base/common/lifecycle';
 import { INotebookEditorModel, INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -21,8 +22,8 @@ interface NotebookEditorInputOptions {
 
 class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditorModel {
 	constructor(
-		readonly original: INotebookEditorModel,
-		readonly modified: INotebookEditorModel,
+		readonly original: NotebookEditorModel,
+		readonly modified: NotebookEditorModel,
 	) {
 		super();
 	}
@@ -32,6 +33,10 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 		await this.modified.load();
 
 		return this;
+	}
+
+	async resolveOriginalFromDisk() {
+		await this.original.load({ forceReadFromDisk: true });
 	}
 
 	dispose(): void {
@@ -203,7 +208,7 @@ ${patterns}
 			// }
 		}
 
-		return new NotebookDiffEditorModel(this._originalTextModel!.object, this._textModel.object);
+		return new NotebookDiffEditorModel(this._originalTextModel!.object as NotebookEditorModel, this._textModel.object as NotebookEditorModel);
 	}
 
 	matches(otherInput: unknown): boolean {
