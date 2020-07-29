@@ -71,6 +71,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		if (event.tooltip !== undefined) {
 			this.updateTooltip();
 		}
+
+		if (event.expanded !== undefined) {
+			this.updateExpanded();
+		}
 	}
 
 	get actionRunner(): IActionRunner {
@@ -202,6 +206,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	}
 
 	protected updateChecked(): void {
+		// implement in subclass
+	}
+
+	protected updateExpanded(): void {
 		// implement in subclass
 	}
 
@@ -354,6 +362,16 @@ export class ActionViewItem extends BaseActionViewItem {
 			} else {
 				DOM.removeClass(this.label, 'checked');
 			}
+		}
+	}
+
+	updateExpanded(): void {
+		if (this.getAction().expanded !== undefined) {
+			if (this.label) {
+				this.label.setAttribute('aria-expanded', `${this.getAction().expanded}`);
+			}
+		} else {
+			this.label.removeAttribute('aria-expanded');
 		}
 	}
 }

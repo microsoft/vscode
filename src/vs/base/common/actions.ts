@@ -29,6 +29,7 @@ export interface IAction extends IDisposable {
 	class: string | undefined;
 	enabled: boolean;
 	checked: boolean;
+	expanded: boolean | undefined;
 	run(event?: any): Promise<any>;
 }
 
@@ -57,6 +58,7 @@ export interface IActionChangeEvent {
 	readonly class?: string;
 	readonly enabled?: boolean;
 	readonly checked?: boolean;
+	readonly expanded?: boolean;
 }
 
 export class Action extends Disposable implements IAction {
@@ -70,6 +72,7 @@ export class Action extends Disposable implements IAction {
 	protected _cssClass: string | undefined;
 	protected _enabled: boolean = true;
 	protected _checked: boolean = false;
+	protected _expanded: boolean = false;
 	protected readonly _actionCallback?: (event?: any) => Promise<any>;
 
 	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Promise<any>) {
@@ -157,6 +160,21 @@ export class Action extends Disposable implements IAction {
 		if (this._checked !== value) {
 			this._checked = value;
 			this._onDidChange.fire({ checked: value });
+		}
+	}
+
+	get expanded(): boolean {
+		return this._expanded;
+	}
+
+	set expanded(value: boolean) {
+		this._setExpanded(value);
+	}
+
+	protected _setExpanded(value: boolean): void {
+		if (this._expanded !== value) {
+			this._expanded = value;
+			this._onDidChange.fire({ expanded: value });
 		}
 	}
 
