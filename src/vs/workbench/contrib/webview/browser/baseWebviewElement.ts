@@ -8,14 +8,16 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
-import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILogService } from 'vs/platform/log/common/log';
 
 export const enum WebviewMessageChannels {
 	onmessage = 'onmessage',
@@ -29,7 +31,8 @@ export const enum WebviewMessageChannels {
 	loadResource = 'load-resource',
 	loadLocalhost = 'load-localhost',
 	webviewReady = 'webview-ready',
-	wheel = 'did-scroll-wheel'
+	wheel = 'did-scroll-wheel',
+	fatalError = 'fatal-error',
 }
 
 interface IKeydownEvent {
@@ -84,6 +87,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		contentOptions: WebviewContentOptions,
 		public readonly extension: WebviewExtensionDescription | undefined,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
+		@INotificationService notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -149,6 +153,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 		this._register(this.on(WebviewMessageChannels.didBlur, () => {
 			this.handleFocusChange(false);
+		}));
+
+		this._register(this.on<{ message: string }>(WebviewMessageChannels.fatalError, (e) => {
+			notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", e.message));
 		}));
 
 		this._register(this.on('did-keydown', (data: KeyboardEvent) => {
