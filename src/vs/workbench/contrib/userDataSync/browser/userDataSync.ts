@@ -675,7 +675,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			return new Promise<void>((c, e) => {
 				const disposables: DisposableStore = new DisposableStore();
 				const quickPick = disposables.add(this.quickInputService.createQuickPick<{ id: UserDataSyncStoreType, label: string, description?: string }>());
-				quickPick.title = localize('switchSyncService.title', "Switch Settings Sync Service...");
+				quickPick.title = localize('switchSyncService.title', "Select Settings Sync Service...");
 				quickPick.placeholder = localize('choose sync service', "Choose settings sync Service to use");
 				quickPick.description = isNative ?
 					localize('choose sync service description', "Switching settings sync service requires restarting {0}", this.productService.nameLong) :
@@ -1120,7 +1120,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				constructor() {
 					super({
 						id: 'workbench.userDataSync.actions.switchSyncService',
-						title: { value: localize('workbench.userDataSync.actions.switchSyncService', "{0}: Switch Settings Sync Service...", SYNC_TITLE), original: 'Settings Sync: Switch Settings Sync Service...' },
+						title: { value: localize('workbench.userDataSync.actions.switchSyncService', "{0}: Select Service...", SYNC_TITLE), original: 'Settings Sync: Select Service...' },
 						menu: {
 							id: MenuId.CommandPalette,
 							when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
