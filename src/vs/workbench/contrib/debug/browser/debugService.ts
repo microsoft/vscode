@@ -561,8 +561,11 @@ export class DebugService implements IDebugService {
 
 		this.toDispose.push(session.onDidEndAdapter(async adapterExitEvent => {
 
-			if (adapterExitEvent.error) {
-				this.notificationService.error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly ({0})", adapterExitEvent.error.message || adapterExitEvent.error.toString()));
+			if (adapterExitEvent) {
+				if (adapterExitEvent.error) {
+					this.notificationService.error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly ({0})", adapterExitEvent.error.message || adapterExitEvent.error.toString()));
+				}
+				this.telemetry.logDebugSessionStop(session, adapterExitEvent);
 			}
 
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
@@ -570,8 +573,6 @@ export class DebugService implements IDebugService {
 			if (extensionDebugSession && extensionDebugSession.state === State.Running && extensionDebugSession.configuration.noDebug) {
 				this.extensionHostDebugService.close(extensionDebugSession.getId());
 			}
-
-			this.telemetry.logDebugSessionStop(session, adapterExitEvent);
 
 			if (session.configuration.postDebugTask) {
 				try {
