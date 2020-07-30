@@ -216,6 +216,10 @@ export class ContextView extends Disposable {
 		}
 	}
 
+	getViewElement(): HTMLElement {
+		return this.view;
+	}
+
 	layout(): void {
 		if (!this.isVisible()) {
 			return;
