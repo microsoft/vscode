@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistenConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -23,25 +23,37 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
 	declare readonly _serviceBrand: undefined;
 
 	public readonly socketFactory: ISocketFactory;
+	private readonly _connection: IRemoteAgentConnection | null;
 	private _environment: Promise<IRemoteAgentEnvironment | null> | null;
 
 	constructor(
 		socketFactory: ISocketFactory,
-		@IEnvironmentService protected readonly _environmentService: IEnvironmentService,
-		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
+		@IProductService productService: IProductService,
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@ISignService signService: ISignService,
+		@ILogService logService: ILogService
 	) {
 		super();
 		this.socketFactory = socketFactory;
+		if (this._environmentService.configuration.remoteAuthority) {
+			this._connection = this._register(new RemoteAgentConnection(this._environmentService.configuration.remoteAuthority, productService.commit, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
+		} else {
+			this._connection = null;
+		}
 		this._environment = null;
 	}
 
-	abstract getConnection(): IRemoteAgentConnection | null;
+	getConnection(): IRemoteAgentConnection | null {
+		return this._connection;
+	}
 
 	getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
 		return this.getRawEnvironment().then(undefined, () => null);
