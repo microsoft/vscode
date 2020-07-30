@@ -784,6 +784,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
 			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
 			this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
+			this.submenuContainer.style.zIndex = '1';
 
 			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions, this.submenuOptions);
 			if (this.menuStyle) {

@@ -5,7 +5,7 @@
 
 import {
 	IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode,
-	UserDataSyncError, ISyncResourceHandle, IUserDataManifest, ISyncTask, IResourcePreview, IManualSyncTask, ISyncResourcePreview, HEADER_EXECUTION_ID, MergeState, Change
+	UserDataSyncError, ISyncResourceHandle, IUserDataManifest, ISyncTask, IResourcePreview, IManualSyncTask, ISyncResourcePreview, HEADER_EXECUTION_ID, MergeState, Change, IUserDataSyncStoreManagementService
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -28,6 +28,7 @@ import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 type SyncErrorClassification = {
+	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 	executionId?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
@@ -75,6 +76,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	constructor(
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -89,7 +91,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.synchronisers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.snippetsSynchroniser, this.globalStateSynchroniser, this.extensionsSynchroniser];
 		this.updateStatus();
 
-		if (this.userDataSyncStoreService.userDataSyncStore) {
+		if (this.userDataSyncStoreManagementService.userDataSyncStore) {
 			this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
 			this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeConflicts, () => undefined)))(() => this.updateConflicts()));
 		}
@@ -106,9 +108,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		try {
 			manifest = await this.userDataSyncStoreService.manifest(createSyncHeaders(executionId));
 		} catch (error) {
-			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource, executionId });
-			}
+			error = UserDataSyncError.toUserDataSyncError(error);
+			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error', { code: error.code, resource: error.resource, executionId });
 			throw error;
 		}
 
@@ -143,9 +144,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		try {
 			manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
 		} catch (error) {
-			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource, executionId });
-			}
+			error = UserDataSyncError.toUserDataSyncError(error);
+			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error', { code: error.code, resource: error.resource, executionId });
 			throw error;
 		}
 
@@ -190,9 +190,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
 			this.updateLastSyncTime();
 		} catch (error) {
-			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string, executionId?: string }, SyncErrorClassification>(`sync/error/${error.code}`, { resource: error.resource, executionId });
-			}
+			error = UserDataSyncError.toUserDataSyncError(error);
+			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error', { code: error.code, resource: error.resource, executionId });
 			throw error;
 		} finally {
 			this.updateStatus();
@@ -337,7 +336,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private computeStatus(): SyncStatus {
-		if (!this.userDataSyncStoreService.userDataSyncStore) {
+		if (!this.userDataSyncStoreManagementService.userDataSyncStore) {
 			return SyncStatus.Uninitialized;
 		}
 		if (this.synchronisers.some(s => s.status === SyncStatus.HasConflicts)) {
@@ -387,7 +386,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private async checkEnablement(): Promise<void> {
-		if (!this.userDataSyncStoreService.userDataSyncStore) {
+		if (!this.userDataSyncStoreManagementService.userDataSyncStore) {
 			throw new Error('Not enabled');
 		}
 	}

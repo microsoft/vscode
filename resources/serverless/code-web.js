@@ -64,56 +64,25 @@ const AUTHORITY = process.env.VSCODE_AUTHORITY || `${HOST}:${PORT}`;
 
 const exists = (path) => util.promisify(fs.exists)(path);
 const readFile = (path) => util.promisify(fs.readFile)(path);
-const readdir = (path) => util.promisify(fs.readdir)(path);
-const readdirWithFileTypes = (path) => util.promisify(fs.readdir)(path, { withFileTypes: true });
 
 async function getBuiltInExtensionInfos() {
-	const extensions = [];
+	const allExtensions = [];
 	/** @type {Object.<string, string>} */
 	const locations = {};
 
-	for (const extensionsRoot of [BUILTIN_EXTENSIONS_ROOT, BUILTIN_MARKETPLACE_EXTENSIONS_ROOT]) {
-		if (await exists(extensionsRoot)) {
-			const children = await readdirWithFileTypes(extensionsRoot);
-			await Promise.all(children.map(async child => {
-				if (child.isDirectory()) {
-					const extensionPath = path.join(extensionsRoot, child.name);
-					const info = await getBuiltInExtensionInfo(extensionPath);
-					if (info) {
-						extensions.push(info);
-						locations[path.basename(extensionPath)] = extensionPath;
-					}
-				}
-			}));
-		}
+	const [localExtensions, marketplaceExtensions] = await Promise.all([
+		extensions.scanBuiltinExtensions(BUILTIN_EXTENSIONS_ROOT, true),
+		extensions.scanBuiltinExtensions(BUILTIN_MARKETPLACE_EXTENSIONS_ROOT, true),
+	]);
+	for (const ext of localExtensions) {
+		allExtensions.push(ext);
+		locations[ext.extensionPath] = path.join(BUILTIN_EXTENSIONS_ROOT, ext.extensionPath);
 	}
-	return { extensions, locations };
-}
-
-async function getBuiltInExtensionInfo(extensionPath) {
-	const packageJSON = await getExtensionPackageJSON(extensionPath);
-	if (!packageJSON) {
-		return undefined;
+	for (const ext of marketplaceExtensions) {
+		allExtensions.push(ext);
+		locations[ext.extensionPath] = path.join(BUILTIN_MARKETPLACE_EXTENSIONS_ROOT, ext.extensionPath);
 	}
-	const builtInExtensionPath = path.basename(extensionPath);
-
-	let children = [];
-	try {
-		children = await readdir(extensionPath);
-	} catch (error) {
-		console.log(`Can not read extension folder ${extensionPath}: ${error}`);
-		return;
-	}
-	const readme = children.find(child => /^readme(\.txt|\.md|)$/i.test(child));
-	const changelog = children.find(child => /^changelog(\.txt|\.md|)$/i.test(child));
-	const packageJSONNLS = children.find(child => /^package.nls.json$/i.test(child));
-	return {
-		extensionPath: builtInExtensionPath,
-		packageJSON,
-		packageNLSPath: packageJSONNLS ? `${builtInExtensionPath}/${packageJSONNLS}` : undefined,
-		readmePath: readme ? `${builtInExtensionPath}/${readme}` : undefined,
-		changelogPath: changelog ? `${builtInExtensionPath}/${changelog}` : undefined
-	};
+	return { extensions: allExtensions, locations };
 }
 
 async function getDefaultExtensionInfos() {

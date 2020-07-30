@@ -1,0 +1,44 @@
+{
+  "name": "vscode-custom-editor-tests",
+  "description": "Custom editor tests for VS Code",
+  "version": "0.0.1",
+  "publisher": "vscode",
+  "license": "MIT",
+  "private": true,
+  "activationEvents": [
+    "onCustomEditor:testWebviewEditor.abc"
+  ],
+  "main": "./out/extension",
+  "enableProposedApi": true,
+  "engines": {
+    "vscode": "^1.48.0"
+  },
+  "scripts": {
+    "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-notebook-tests ./tsconfig.json"
+  },
+  "dependencies": {
+    "p-limit": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^12.11.7",
+    "@types/p-limit": "^2.2.0",
+    "mocha": "^2.3.3",
+    "mocha-junit-reporter": "^1.17.0",
+    "mocha-multi-reporters": "^1.1.7",
+    "vscode": "^1.1.36"
+  },
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "testWebviewEditor.abc",
+        "displayName": "Test ABC editor",
+        "selector": [
+          {
+            "filenamePattern": "*.abc"
+          }
+        ]
+      }
+    ]
+  }
+}

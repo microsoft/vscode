@@ -618,7 +618,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 							detail || '',
 							documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
 
-						return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", textLabel, docs);
+						return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", textLabel, docs);
 					} else {
 						return textLabel;
 					}

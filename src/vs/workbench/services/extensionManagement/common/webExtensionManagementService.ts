@@ -85,7 +85,13 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 
 	private async toLocalExtension(scannedExtension: IScannedExtension): Promise<ILocalExtension> {
 		let manifest = scannedExtension.packageJSON;
-		if (scannedExtension.packageNLSUrl) {
+		if (scannedExtension.packageNLS) {
+			// package.nls.json is inlined
+			try {
+				manifest = localizeManifest(manifest, scannedExtension.packageNLS);
+			} catch (error) { /* ignore */ }
+		} else if (scannedExtension.packageNLSUrl) {
+			// package.nls.json needs to be fetched
 			try {
 				const context = await this.requestService.request({ type: 'GET', url: scannedExtension.packageNLSUrl.toString() }, CancellationToken.None);
 				if (isSuccess(context)) {

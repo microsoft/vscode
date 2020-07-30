@@ -111,18 +111,19 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	protected async _scanAndHandleExtensions(): Promise<void> {
 		// fetch the remote environment
-		let [localExtensions, remoteEnv] = await Promise.all([
+		let [localExtensions, remoteEnv, remoteExtensions] = await Promise.all([
 			this._webExtensionsScannerService.scanExtensions().then(extensions => extensions.map(parseScannedExtension)),
-			this._remoteAgentService.getEnvironment()
+			this._remoteAgentService.getEnvironment(),
+			this._remoteAgentService.scanExtensions()
 		]);
 		localExtensions = this._checkEnabledAndProposedAPI(localExtensions);
-		let remoteExtensions = remoteEnv ? this._checkEnabledAndProposedAPI(remoteEnv.extensions) : [];
+		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
-		const runningLocation = _determineRunningLocation(this._productService, this._configService, localExtensions, remoteExtensions, Boolean(remoteEnv && remoteAgentConnection));
+		this._runningLocation = _determineRunningLocation(this._productService, this._configService, localExtensions, remoteExtensions, Boolean(remoteEnv && remoteAgentConnection));
 
-		localExtensions = filterByRunningLocation(localExtensions, runningLocation, ExtensionRunningLocation.LocalWebWorker);
-		remoteExtensions = filterByRunningLocation(remoteExtensions, runningLocation, ExtensionRunningLocation.Remote);
+		localExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
+		remoteExtensions = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionRunningLocation.Remote);
 
 		const result = this._registry.deltaExtensions(remoteExtensions.concat(localExtensions), []);
 		if (result.removedDueToLooping.length > 0) {

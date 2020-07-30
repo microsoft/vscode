@@ -226,6 +226,26 @@ suite('multi-root worksapce', () => {
 			const generated = labelService.getUriLabel(URI.file(path), { relative: true });
 			assert.equal(generated, label, path);
 		});
+	});
 
+	test('stripPathStartingSeparator', () => {
+		labelService.registerFormatter({
+			scheme: 'file',
+			formatting: {
+				label: '${path}',
+				separator: '/',
+				stripPathStartingSeparator: true
+			}
+		});
+
+		const tests = {
+			'folder1/src/file': 'Sources • file',
+			'other/blah': 'other/blah',
+		};
+
+		Object.entries(tests).forEach(([path, label]) => {
+			const generated = labelService.getUriLabel(URI.file(path), { relative: true });
+			assert.equal(generated, label, path);
+		});
 	});
 });

@@ -449,7 +449,6 @@ export class CallStackView extends ViewPane {
 interface IThreadTemplateData {
 	thread: HTMLElement;
 	name: HTMLElement;
-	state: HTMLElement;
 	stateLabel: HTMLSpanElement;
 	label: HighlightedLabel;
 	actionBar: ActionBar;
@@ -458,7 +457,6 @@ interface IThreadTemplateData {
 interface ISessionTemplateData {
 	session: HTMLElement;
 	name: HTMLElement;
-	state: HTMLElement;
 	stateLabel: HTMLSpanElement;
 	label: HighlightedLabel;
 	actionBar: ActionBar;
@@ -500,8 +498,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		const session = dom.append(container, $('.session'));
 		dom.append(session, $('.codicon.codicon-bug'));
 		const name = dom.append(session, $('.name'));
-		const state = dom.append(session, $('.state'));
-		const stateLabel = dom.append(state, $('span.label.monaco-count-badge.long'));
+		const stateLabel = dom.append(session, $('span.state.label.monaco-count-badge.long'));
 		const label = new HighlightedLabel(name, false);
 		const actionBar = new ActionBar(session, {
 			actionViewItemProvider: action => {
@@ -515,7 +512,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 			}
 		});
 
-		return { session, name, state, stateLabel, label, actionBar, elementDisposable: [] };
+		return { session, name, stateLabel, label, actionBar, elementDisposable: [] };
 	}
 
 	renderElement(element: ITreeNode<IDebugSession, FuzzyScore>, _: number, data: ISessionTemplateData): void {
@@ -581,12 +578,11 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 	renderTemplate(container: HTMLElement): IThreadTemplateData {
 		const thread = dom.append(container, $('.thread'));
 		const name = dom.append(thread, $('.name'));
-		const state = dom.append(thread, $('.state'));
-		const stateLabel = dom.append(state, $('span.label'));
+		const stateLabel = dom.append(thread, $('span.state.label'));
 		const label = new HighlightedLabel(name, false);
 		const actionBar = new ActionBar(thread);
 
-		return { thread, name, state, stateLabel, label, actionBar };
+		return { thread, name, stateLabel, label, actionBar };
 	}
 
 	renderElement(element: ITreeNode<IThread, FuzzyScore>, index: number, data: IThreadTemplateData): void {
