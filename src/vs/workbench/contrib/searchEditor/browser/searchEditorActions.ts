@@ -24,7 +24,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
-import { OpenNewEditorCommandId, SearchEditorID } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { OpenNewEditorCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
