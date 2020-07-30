@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistenConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
@@ -167,7 +167,8 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 				}
 			},
 			signService: this._signService,
-			logService: this._logService
+			logService: this._logService,
+			ipcLogger: false ? new IPCLogger(`Local \u2192 Remote`, `Remote \u2192 Local`) : null
 		};
 		const connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
 		this._register(connection.onDidStateChange(e => this._onDidStateChange.fire(e)));
