@@ -152,13 +152,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
+		if (this._activeKernel === kernel) {
+			return;
+		}
+
 		this._activeKernel = kernel;
+		this._activeKernelResolvePromise = undefined;
 
 		const memento = this._activeKernelMemento.getMemento(StorageScope.GLOBAL);
 		memento[this.viewModel!.viewType] = this._activeKernel?.id;
 		this._activeKernelMemento.saveMemento();
 		this._onDidChangeKernel.fire();
 	}
+
+	private _activeKernelResolvePromise: Promise<void> | undefined = undefined;
 
 	private _currentKernelTokenSource: CancellationTokenSource | undefined = undefined;
 	private _multipleKernelsAvailable: boolean = false;
@@ -637,7 +644,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 			if (this.activeKernel) {
 				await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
-				await this.activeKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
+
+				if (tokenSource.token.isCancellationRequested) {
+					return;
+				}
+
+				this._activeKernelResolvePromise = this.activeKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
+				await this._activeKernelResolvePromise;
+
+				if (tokenSource.token.isCancellationRequested) {
+					return;
+				}
 			}
 
 			memento[provider.id] = this._activeKernel?.id;
@@ -657,7 +674,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				|| kernelsFromSameExtension[0];
 			this.activeKernel = preferedKernel;
 			await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+
+			if (tokenSource.token.isCancellationRequested) {
+				return;
+			}
+
 			await preferedKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
+
+			if (tokenSource.token.isCancellationRequested) {
+				return;
+			}
 
 			memento[provider.id] = this._activeKernel?.id;
 			this._activeKernelMemento.saveMemento();
@@ -669,7 +695,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.activeKernel = kernels[0];
 		if (this.activeKernel) {
 			await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			if (tokenSource.token.isCancellationRequested) {
+				return;
+			}
+
 			await this.activeKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
+			if (tokenSource.token.isCancellationRequested) {
+				return;
+			}
 		}
 
 		tokenSource.dispose();
@@ -1296,6 +1329,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			if (this._activeKernel) {
 				// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
 				if ((this._activeKernel as INotebookKernelInfo2).executeNotebookCell) {
+					if (this._activeKernelResolvePromise) {
+						await this._activeKernelResolvePromise;
+					}
+
 					await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, undefined);
 				} else {
 					await this.notebookService.executeNotebook2(this._notebookViewModel!.viewType, this._notebookViewModel!.uri, this._activeKernel.id);
