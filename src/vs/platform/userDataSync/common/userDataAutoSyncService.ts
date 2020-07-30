@@ -29,6 +29,7 @@ type AutoSyncEnablementClassification = {
 
 type AutoSyncErrorClassification = {
 	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	service: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
 const enablementKey = 'sync.enable';
@@ -235,7 +236,7 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 
 		// Log to telemetry
 		if (userDataSyncError instanceof UserDataAutoSyncError) {
-			this.telemetryService.publicLog2<{ code: string }, AutoSyncErrorClassification>(`autosync/error`, { code: userDataSyncError.code });
+			this.telemetryService.publicLog2<{ code: string, service: string }, AutoSyncErrorClassification>(`autosync/error`, { code: userDataSyncError.code, service: this.userDataSyncStoreManagementService.userDataSyncStore!.url.toString() });
 		}
 
 		// Session got expired

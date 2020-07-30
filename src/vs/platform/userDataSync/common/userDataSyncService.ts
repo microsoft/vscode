@@ -29,6 +29,7 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 type SyncErrorClassification = {
 	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	service: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 	executionId?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
@@ -109,7 +110,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			manifest = await this.userDataSyncStoreService.manifest(createSyncHeaders(executionId));
 		} catch (error) {
 			error = UserDataSyncError.toUserDataSyncError(error);
-			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error', { code: error.code, resource: error.resource, executionId });
+			this.telemetryService.publicLog2<{ code: string, service: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error', { code: error.code, resource: error.resource, executionId, service: this.userDataSyncStoreManagementService.userDataSyncStore!.url.toString() });
 			throw error;
 		}
 
@@ -145,7 +146,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			manifest = await this.userDataSyncStoreService.manifest(syncHeaders);
 		} catch (error) {
 			error = UserDataSyncError.toUserDataSyncError(error);
-			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error', { code: error.code, resource: error.resource, executionId });
+			this.telemetryService.publicLog2<{ code: string, service: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error', { code: error.code, resource: error.resource, executionId, service: this.userDataSyncStoreManagementService.userDataSyncStore!.url.toString() });
 			throw error;
 		}
 
@@ -191,7 +192,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.updateLastSyncTime();
 		} catch (error) {
 			error = UserDataSyncError.toUserDataSyncError(error);
-			this.telemetryService.publicLog2<{ code: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error', { code: error.code, resource: error.resource, executionId });
+			this.telemetryService.publicLog2<{ code: string, service: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error', { code: error.code, resource: error.resource, executionId, service: this.userDataSyncStoreManagementService.userDataSyncStore!.url.toString() });
 			throw error;
 		} finally {
 			this.updateStatus();
