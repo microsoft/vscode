@@ -205,7 +205,8 @@ const excludedDesktopExtensions = excludedCommonExtensions.concat([
 ]);
 const excludedWebExtensions = excludedCommonExtensions.concat([]);
 const marketplaceWebExtensions = [
-    'ms-vscode.references-view'
+    'ms-vscode.references-view',
+    'ms-vscode.github-browser'
 ];
 const builtInExtensions = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8')).builtInExtensions;
 /**
