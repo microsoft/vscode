@@ -393,7 +393,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			result[index] = data.map(dto => {
 				return {
 					extension: dto.extension,
-					extensionLocation: dto.extensionLocation,
+					extensionLocation: URI.revive(dto.extensionLocation),
 					id: dto.id,
 					label: dto.label,
 					description: dto.description,
