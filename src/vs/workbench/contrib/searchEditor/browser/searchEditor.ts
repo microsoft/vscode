@@ -501,10 +501,11 @@ export class SearchEditor extends BaseTextEditor {
 			return;
 		}
 
+		const sortOrder = this.configurationService.getValue<ISearchConfigurationProperties>('search').sortOrder;
 		const controller = ReferencesController.get(this.searchResultEditor);
 		controller.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter);
+		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, sortOrder);
 		const { body } = await input.getModels();
 		this.modelService.updateModel(body, results.text);
 		input.config = config;
