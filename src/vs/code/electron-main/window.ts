@@ -170,7 +170,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					nodeIntegration: true,
 					enableWebSQL: false,
 					enableRemoteModule: false,
-					spellcheck: false,
 					nativeWindowOpen: true,
 					webviewTag: true,
 					zoomFactor: zoomLevelToZoomFactor(windowConfig?.zoomLevel)

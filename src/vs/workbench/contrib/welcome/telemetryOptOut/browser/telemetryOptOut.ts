@@ -17,8 +17,6 @@ import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 
 export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution {
 
@@ -35,8 +33,6 @@ export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution 
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IProductService private readonly productService: IProductService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService
 	) { }
 
 	protected async handleTelemetryOptOut(): Promise<void> {
@@ -140,10 +136,10 @@ export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution 
 					},
 					{
 						label: noLabel,
-						run: async () => {
+						run: () => {
 							logTelemetry(true);
 							this.configurationService.updateValue('telemetry.enableTelemetry', false);
-							await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['enable-crash-reporter'], value: false }], true);
+							this.configurationService.updateValue('telemetry.enableCrashReporter', false);
 						}
 					}
 				],
@@ -168,11 +164,9 @@ export class BrowserTelemetryOptOut extends AbstractTelemetryOptOut {
 		@IExperimentService experimentService: IExperimentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionGalleryService galleryService: IExtensionGalleryService,
-		@IProductService productService: IProductService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IJSONEditingService jsonEditingService: IJSONEditingService
+		@IProductService productService: IProductService
 	) {
-		super(storageService, openerService, notificationService, hostService, telemetryService, experimentService, configurationService, galleryService, productService, environmentService, jsonEditingService);
+		super(storageService, openerService, notificationService, hostService, telemetryService, experimentService, configurationService, galleryService, productService);
 
 		this.handleTelemetryOptOut();
 	}
