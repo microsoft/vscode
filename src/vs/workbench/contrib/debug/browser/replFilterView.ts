@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/replFilter';
 import * as DOM from 'vs/base/browser/dom';
-import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Delayer } from 'vs/base/common/async';
 import { IAction } from 'vs/base/common/actions';
 import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
