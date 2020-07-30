@@ -48,7 +48,7 @@ export const NOTEBOOK_CELL_RUNNABLE = new RawContextKey<boolean>('notebookCellRu
 export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('notebookCellMarkdownEditMode', false); // bool
 export const NOTEBOOK_CELL_RUN_STATE = new RawContextKey<string>('notebookCellRunState', undefined); // idle, running
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false); // bool
-export const NOTEBOOK_CELL_CONTENT_COLLAPSED = new RawContextKey<boolean>('notebookCellContentIsCollapsed', false); // bool
+export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false); // bool
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
 
 // Kernels
@@ -569,7 +569,6 @@ export interface CellViewModelStateChangeEvent {
 	focusModeChanged?: boolean;
 	editStateChanged?: boolean;
 	languageChanged?: boolean;
-	collapseStateChanged?: boolean;
 	foldingStateChanged?: boolean;
 	contentChanged?: boolean;
 	outputIsHoveredChanged?: boolean;

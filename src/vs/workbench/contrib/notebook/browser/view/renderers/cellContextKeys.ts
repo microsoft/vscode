@@ -6,7 +6,7 @@
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { INotebookTextModel, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
-import { NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_HAS_OUTPUTS, CellViewModelStateChangeEvent, CellEditState, NOTEBOOK_CELL_CONTENT_COLLAPSED, CellCollapseState, NOTEBOOK_CELL_OUTPUT_COLLAPSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_HAS_OUTPUTS, CellViewModelStateChangeEvent, CellEditState, NOTEBOOK_CELL_INPUT_COLLAPSED, CellCollapseState, NOTEBOOK_CELL_OUTPUT_COLLAPSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -41,7 +41,7 @@ export class CellContextKeyManager extends Disposable {
 			this.markdownEditMode = NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.bindTo(this.contextKeyService);
 			this.cellRunState = NOTEBOOK_CELL_RUN_STATE.bindTo(this.contextKeyService);
 			this.cellHasOutputs = NOTEBOOK_CELL_HAS_OUTPUTS.bindTo(this.contextKeyService);
-			this.cellContentCollapsed = NOTEBOOK_CELL_CONTENT_COLLAPSED.bindTo(this.contextKeyService);
+			this.cellContentCollapsed = NOTEBOOK_CELL_INPUT_COLLAPSED.bindTo(this.contextKeyService);
 			this.cellOutputCollapsed = NOTEBOOK_CELL_OUTPUT_COLLAPSED.bindTo(this.contextKeyService);
 
 			this.updateForElement(element);
@@ -55,6 +55,8 @@ export class CellContextKeyManager extends Disposable {
 		if (element instanceof CodeCellViewModel) {
 			this.elementDisposables.add(element.onDidChangeOutputs(() => this.updateForOutputs()));
 		}
+
+		this.elementDisposables.add(element.model.onDidChangeMetadata(() => this.updateForCollapseState()));
 
 		this.element = element;
 		if (this.element instanceof MarkdownCellViewModel) {
@@ -83,9 +85,9 @@ export class CellContextKeyManager extends Disposable {
 				this.updateForEditState();
 			}
 
-			if (e.collapseStateChanged) {
-				this.updateForCollapseState();
-			}
+			// if (e.collapseStateChanged) {
+			// 	this.updateForCollapseState();
+			// }
 		});
 	}
 

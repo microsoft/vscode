@@ -91,10 +91,6 @@ export class CodeCell extends Disposable {
 			if (e.focusModeChanged) {
 				updateForFocusMode();
 			}
-
-			if (e.collapseStateChanged) {
-				updateForCollapseState();
-			}
 		}));
 		updateForFocusMode();
 
@@ -102,6 +98,11 @@ export class CodeCell extends Disposable {
 		this._register(viewCell.onDidChangeState((e) => {
 			if (e.metadataChanged) {
 				templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel!.metadata).editable) });
+
+				// TODO@rob this isn't nice
+				this.viewCell.layoutChange({});
+				updateForCollapseState();
+				this.relayoutCell();
 			}
 		}));
 
@@ -109,11 +110,6 @@ export class CodeCell extends Disposable {
 			if (e.languageChanged) {
 				const mode = this._modeService.create(viewCell.language);
 				templateData.editor?.getModel()?.setMode(mode.languageIdentifier);
-			}
-
-			if (e.collapseStateChanged) {
-				this.viewCell.layoutChange({});
-				this.relayoutCell();
 			}
 		}));
 
