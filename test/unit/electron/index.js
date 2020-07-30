@@ -63,7 +63,8 @@ function deserializeRunnable(runnable) {
 		async: runnable.async,
 		slow: () => runnable.slow,
 		speed: runnable.speed,
-		duration: runnable.duration
+		duration: runnable.duration,
+		currentRetry: () => runnable.currentRetry
 	};
 }
 
