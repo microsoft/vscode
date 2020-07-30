@@ -13,13 +13,11 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, isEqualOrParent } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
 import { isArray, isString, isObject } from 'vs/base/common/types';
 import { IHeaders } from 'vs/base/parts/request/common/request';
@@ -110,8 +108,11 @@ export interface IUserData {
 export type IAuthenticationProvider = { id: string, scopes: string[] };
 
 export interface IUserDataSyncStore {
-	url: URI;
-	authenticationProviders: IAuthenticationProvider[];
+	readonly url: URI;
+	readonly defaultUrl: URI;
+	readonly stableUrl: URI | undefined;
+	readonly insidersUrl: URI | undefined;
+	readonly authenticationProviders: IAuthenticationProvider[];
 }
 
 export function isAuthenticationProvider(thing: any): thing is IAuthenticationProvider {
@@ -119,27 +120,6 @@ export function isAuthenticationProvider(thing: any): thing is IAuthenticationPr
 		&& isObject(thing)
 		&& isString(thing.id)
 		&& isArray(thing.scopes);
-}
-
-export function getUserDataSyncStore(productService: IProductService, configurationService: IConfigurationService): IUserDataSyncStore | undefined {
-	const value = {
-		...(productService[CONFIGURATION_SYNC_STORE_KEY] || {}),
-		...(configurationService.getValue<ConfigurationSyncStore>(CONFIGURATION_SYNC_STORE_KEY) || {})
-	};
-	if (value
-		&& isString(value.url)
-		&& isObject(value.authenticationProviders)
-		&& Object.keys(value.authenticationProviders).every(authenticationProviderId => isArray(value.authenticationProviders[authenticationProviderId].scopes))
-	) {
-		return {
-			url: joinPath(URI.parse(value.url), 'v1'),
-			authenticationProviders: Object.keys(value.authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
-				result.push({ id, scopes: value.authenticationProviders[id].scopes });
-				return result;
-			}, [])
-		};
-	}
-	return undefined;
 }
 
 export const enum SyncResource {
@@ -161,11 +141,20 @@ export interface IResourceRefHandle {
 	created: number;
 }
 
-export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
 export type ServerResource = SyncResource | 'machines';
-export interface IUserDataSyncStoreService {
+export type UserDataSyncStoreType = 'insiders' | 'stable';
+
+export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
+export interface IUserDataSyncStoreManagementService {
 	readonly _serviceBrand: undefined;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
+	switch(type: UserDataSyncStoreType): Promise<void>;
+	getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
+}
+
+export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
+export interface IUserDataSyncStoreService {
+	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
 	readonly donotMakeRequestsUntil: Date | undefined;
@@ -220,6 +209,8 @@ export enum UserDataSyncErrorCode {
 	NoRef = 'NoRef',
 	TurnedOff = 'TurnedOff',
 	SessionExpired = 'SessionExpired',
+	ServiceChanged = 'ServiceChanged',
+	DefaultServiceChanged = 'DefaultServiceChanged',
 	LocalTooManyRequests = 'LocalTooManyRequests',
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
@@ -356,14 +347,12 @@ export interface IUserDataSynchroniser {
 
 	readonly onDidChangeLocal: Event<void>;
 
-	pull(): Promise<void>;
-	push(): Promise<void>;
 	sync(manifest: IUserDataManifest | null, headers: IHeaders): Promise<void>;
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
 	preview(manifest: IUserDataManifest | null, headers: IHeaders): Promise<ISyncResourcePreview | null>;
-	accept(resource: URI, content: string | null): Promise<ISyncResourcePreview | null>;
+	accept(resource: URI, content?: string | null): Promise<ISyncResourcePreview | null>;
 	merge(resource: URI): Promise<ISyncResourcePreview | null>;
 	discard(resource: URI): Promise<ISyncResourcePreview | null>;
 	apply(force: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null>;
@@ -403,7 +392,7 @@ export interface IManualSyncTask extends IDisposable {
 	readonly manifest: IUserDataManifest | null;
 	readonly onSynchronizeResources: Event<[SyncResource, URI[]][]>;
 	preview(): Promise<[SyncResource, ISyncResourcePreview][]>;
-	accept(resource: URI, content: string | null): Promise<[SyncResource, ISyncResourcePreview][]>;
+	accept(resource: URI, content?: string | null): Promise<[SyncResource, ISyncResourcePreview][]>;
 	merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
 	discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
 	apply(): Promise<[SyncResource, ISyncResourcePreview][]>;
@@ -431,7 +420,6 @@ export interface IUserDataSyncService {
 	createSyncTask(): Promise<ISyncTask>;
 	createManualSyncTask(): Promise<IManualSyncTask>;
 
-	pull(): Promise<void>;
 	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;
 	resetRemote(): Promise<void>;
@@ -440,7 +428,7 @@ export interface IUserDataSyncService {
 	hasLocalData(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
-	accept(resource: SyncResource, conflictResource: URI, content: string | null, apply: boolean): Promise<void>;
+	accept(resource: SyncResource, conflictResource: URI, content: string | null | undefined, apply: boolean): Promise<void>;
 
 	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
 	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;

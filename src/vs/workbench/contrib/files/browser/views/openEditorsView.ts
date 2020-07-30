@@ -678,13 +678,13 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		return true;
 	}
 
-	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent): void {
-		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement;
+	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup | undefined, _targetIndex: number, originalEvent: DragEvent): void {
+		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement || this.editorGroupService.groups[this.editorGroupService.count - 1];
 		const index = targetElement instanceof OpenEditor ? targetElement.editorIndex : 0;
 
 		if (data instanceof ElementsDragAndDropData) {
 			const elementsData = data.elements;
-			elementsData.forEach((oe, offset) => {
+			elementsData.forEach((oe: OpenEditor, offset) => {
 				oe.group.moveEditor(oe.editor, group, { index: index + offset, preserveFocus: true });
 			});
 			this.editorGroupService.activateGroup(group);

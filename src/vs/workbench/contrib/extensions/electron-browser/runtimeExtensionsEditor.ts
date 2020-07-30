@@ -157,7 +157,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._extensionService.getExtensions().then((extensions) => {
 			// We only deal with extensions with source code!
 			this._extensionsDescriptions = extensions.filter((extension) => {
-				return !!extension.main;
+				return Boolean(extension.main) || Boolean(extension.browser);
 			});
 			this._updateExtensions();
 		});

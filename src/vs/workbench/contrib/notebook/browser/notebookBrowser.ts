@@ -301,6 +301,11 @@ export interface INotebookEditor extends IEditor {
 	removeInset(output: IProcessedOutput): void;
 
 	/**
+	 * Hide the inset in the webview layer without removing it
+	 */
+	hideInset(output: IProcessedOutput): void;
+
+	/**
 	 * Send message to the webview for outputs.
 	 */
 	postMessage(forRendererId: string | undefined, message: any): void;
@@ -460,12 +465,13 @@ export interface INotebookCellList {
 export interface BaseCellRenderTemplate {
 	editorPart: HTMLElement;
 	collapsedPart: HTMLElement;
+	expandButton: HTMLElement;
 	contextKeyService: IContextKeyService;
 	container: HTMLElement;
 	cellContainer: HTMLElement;
 	toolbar: ToolBar;
 	betweenCellToolbar: ToolBar;
-	focusIndicator: HTMLElement;
+	focusIndicatorLeft: HTMLElement;
 	disposables: DisposableStore;
 	elementDisposables: DisposableStore;
 	bottomCellContainer: HTMLElement;

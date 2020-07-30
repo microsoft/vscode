@@ -271,13 +271,13 @@ abstract class AbstractCellRenderer {
 			if (actions.primary.length || actions.secondary.length) {
 				templateData.container.classList.add('cell-has-toolbar-actions');
 				if (isCodeCellRenderTemplate(templateData)) {
-					templateData.focusIndicator.style.top = `${EDITOR_TOOLBAR_HEIGHT + CELL_TOP_MARGIN}px`;
+					templateData.focusIndicatorLeft.style.top = `${EDITOR_TOOLBAR_HEIGHT + CELL_TOP_MARGIN}px`;
 					templateData.focusIndicatorRight.style.top = `${EDITOR_TOOLBAR_HEIGHT + CELL_TOP_MARGIN}px`;
 				}
 			} else {
 				templateData.container.classList.remove('cell-has-toolbar-actions');
 				if (isCodeCellRenderTemplate(templateData)) {
-					templateData.focusIndicator.style.top = `${CELL_TOP_MARGIN}px`;
+					templateData.focusIndicatorLeft.style.top = `${CELL_TOP_MARGIN}px`;
 					templateData.focusIndicatorRight.style.top = `${CELL_TOP_MARGIN}px`;
 				}
 			}
@@ -300,7 +300,7 @@ abstract class AbstractCellRenderer {
 			}
 		}, true));
 
-		this.setupCollapsedPart(templateData);
+		this.addExpandListener(templateData);
 	}
 
 	protected commonRenderElement(element: ICellViewModel, index: number, templateData: BaseCellRenderTemplate): void {
@@ -311,16 +311,27 @@ abstract class AbstractCellRenderer {
 		}
 	}
 
-	protected setupCollapsedPart(templateData: BaseCellRenderTemplate): void {
-		templateData.collapsedPart.innerHTML = renderCodicons('$(unfold)');
-		DOM.hide(templateData.collapsedPart);
-		templateData.disposables.add(domEvent(templateData.collapsedPart, DOM.EventType.CLICK)(() => {
+	protected addExpandListener(templateData: BaseCellRenderTemplate): void {
+		templateData.disposables.add(domEvent(templateData.expandButton, DOM.EventType.CLICK)(() => {
 			if (!templateData.currentRenderedCell) {
 				return;
 			}
 
-			templateData.currentRenderedCell.collapseState = CellCollapseState.Normal;
+			if (templateData.currentRenderedCell.collapseState === CellCollapseState.Collapsed) {
+				templateData.currentRenderedCell.collapseState = CellCollapseState.Normal;
+			} else if (templateData.currentRenderedCell.outputCollapseState === CellCollapseState.Collapsed) {
+				templateData.currentRenderedCell.outputCollapseState = CellCollapseState.Normal;
+			}
 		}));
+	}
+
+	protected setupCollapsedPart(container: HTMLElement): { collapsedPart: HTMLElement, expandButton: HTMLElement } {
+		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part'));
+		collapsedPart.innerHTML = renderCodicons('$(unfold)');
+		const expandButton = collapsedPart.querySelector('.codicon') as HTMLElement;
+		DOM.hide(collapsedPart);
+
+		return { collapsedPart, expandButton };
 	}
 }
 
@@ -361,7 +372,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const innerContent = DOM.append(container, $('.cell.markdown'));
 		const foldingIndicator = DOM.append(container, DOM.$('.notebook-folding-indicator'));
 
-		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part'));
+		const { collapsedPart, expandButton } = this.setupCollapsedPart(container);
 
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 		const betweenCellToolbar = disposables.add(this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService));
@@ -371,12 +382,13 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		const templateData: MarkdownCellRenderTemplate = {
 			collapsedPart,
+			expandButton,
 			contextKeyService,
 			container,
 			cellContainer: innerContent,
 			editorPart,
 			editorContainer,
-			focusIndicator,
+			focusIndicatorLeft: focusIndicator,
 			foldingIndicator,
 			disposables,
 			elementDisposables: new DisposableStore(),
@@ -390,6 +402,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		};
 		this.dndController.registerDragHandle(templateData, () => this.getDragImage(templateData));
 		this.commonRenderTemplate(templateData);
+
 		return templateData;
 	}
 
@@ -673,7 +686,7 @@ export class CellDragAndDropController extends Disposable {
 
 	registerDragHandle(templateData: BaseCellRenderTemplate, dragImageProvider: DragImageProvider): void {
 		const container = templateData.container;
-		const dragHandle = templateData.focusIndicator;
+		const dragHandle = templateData.focusIndicatorLeft;
 
 		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_END)(() => {
 			// Note, templateData may have a different element rendered into it by now
@@ -943,7 +956,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		disposables.add(this.editorOptions.onDidChange(newValue => editor.updateOptions(newValue)));
 
-		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part'));
+		const { collapsedPart, expandButton } = this.setupCollapsedPart(container);
 
 		const progressBar = new ProgressBar(editorPart);
 		progressBar.hide();
@@ -968,6 +981,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const templateData: CodeCellRenderTemplate = {
 			editorPart,
 			collapsedPart,
+			expandButton,
 			contextKeyService,
 			container,
 			cellContainer,
@@ -976,7 +990,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			cellStatusMessageContainer: statusBar.cellStatusMessageContainer,
 			languageStatusBarItem: statusBar.languageStatusBarItem,
 			progressBar,
-			focusIndicator,
+			focusIndicatorLeft: focusIndicator,
 			focusIndicatorRight,
 			focusIndicatorBottom,
 			toolbar,
@@ -1087,7 +1101,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		templateData.focusIndicator.style.height = `${element.layoutInfo.indicatorHeight}px`;
+		templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT - CELL_BOTTOM_MARGIN}px`;
 		templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;

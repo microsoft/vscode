@@ -14,7 +14,7 @@ import * as UUID from 'vs/base/common/uuid';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN, CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellCollapseState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellOutputKind, IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -559,6 +559,10 @@ ${loaderJs}
 	shouldUpdateInset(cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number) {
 		if (this._disposed) {
 			return;
+		}
+
+		if (cell.outputCollapseState === CellCollapseState.Collapsed) {
+			return false;
 		}
 
 		let outputCache = this.insetMapping.get(output)!;

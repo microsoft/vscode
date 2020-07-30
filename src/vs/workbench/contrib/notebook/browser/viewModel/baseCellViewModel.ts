@@ -76,7 +76,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	public set outputCollapseState(v: CellCollapseState) {
-		this._collapseState = v;
+		this._outputCollapseState = v;
 		this._onDidChangeState.fire({ collapseStateChanged: true });
 	}
 

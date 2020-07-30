@@ -96,7 +96,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				}
 			},
 			signService: this._signService,
-			logService: this._logService
+			logService: this._logService,
+			ipcLogger: null
 		};
 		return this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority).then((resolverResult) => {
 
@@ -204,8 +205,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		const [telemetryInfo, remoteInitData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 
 		// Collect all identifiers for extension ids which can be considered "resolved"
-		const resolvedExtensions = remoteInitData.allExtensions.filter(extension => !extension.main).map(extension => extension.identifier);
-		const hostExtensions = remoteInitData.allExtensions.filter(extension => extension.main && extension.api === 'none').map(extension => extension.identifier);
+		const resolvedExtensions = remoteInitData.allExtensions.filter(extension => !extension.main && !extension.browser).map(extension => extension.identifier);
+		const hostExtensions = remoteInitData.allExtensions.filter(extension => (extension.main || extension.browser) && extension.api === 'none').map(extension => extension.identifier);
 		const workspace = this._contextService.getWorkspace();
 		return {
 			commit: this._productService.commit,

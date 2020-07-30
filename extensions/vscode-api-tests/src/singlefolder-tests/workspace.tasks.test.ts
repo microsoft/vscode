@@ -228,8 +228,10 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 					private readonly writeEmitter = new EventEmitter<string>();
 					public readonly onDidWrite: Event<string> = this.writeEmitter.event;
 					public async close(): Promise<void> { }
+					private closeEmitter = new EventEmitter<void>();
+					onDidClose: Event<void> = this.closeEmitter.event;
 					public open(): void {
-						this.close();
+						this.closeEmitter.fire();
 						resolve();
 					}
 				}

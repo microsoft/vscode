@@ -97,7 +97,6 @@ export class CodeCell extends Disposable {
 			}
 		}));
 		updateForFocusMode();
-		updateForCollapseState();
 
 		templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel!.metadata).editable) });
 		this._register(viewCell.onDidChangeState((e) => {
@@ -113,7 +112,6 @@ export class CodeCell extends Disposable {
 			}
 
 			if (e.collapseStateChanged) {
-				// meh
 				this.viewCell.layoutChange({});
 				this.relayoutCell();
 			}
@@ -305,20 +303,82 @@ export class CodeCell extends Disposable {
 			this.relayoutCell();
 			this.templateData.outputContainer!.style.display = 'none';
 		}
+
+		// Need to do this after the intial renderOutput
+		updateForCollapseState();
 	}
 
 	private viewUpdate(): void {
-		if (this.viewCell.collapseState === CellCollapseState.Collapsed) {
-			this.viewUpdateCollapsed();
+		if (this.viewCell.collapseState === CellCollapseState.Collapsed && this.viewCell.outputCollapseState === CellCollapseState.Collapsed) {
+			this.viewUpdateAllCollapsed();
+		} else if (this.viewCell.collapseState === CellCollapseState.Collapsed) {
+			this.viewUpdateInputCollapsed();
+		} else if (this.viewCell.outputCollapseState === CellCollapseState.Collapsed && this.viewCell.outputs.length) {
+			this.viewUpdateOutputCollapsed();
 		} else {
 			this.viewUpdateExpanded();
 		}
 	}
 
-	private viewUpdateCollapsed(): void {
+	private viewUpdateShowOutputs(): void {
+		for (let index = 0; index < this.viewCell.outputs.length; index++) {
+			const currOutput = this.viewCell.outputs[index];
+
+			const renderedOutput = this.outputElements.get(currOutput);
+			if (renderedOutput) {
+				if (renderedOutput.renderResult.shadowContent) {
+					// Show inset in webview, or render output that isn't rendered
+					this.renderOutput(currOutput, index, undefined);
+				} else {
+					// Anything else, just update the height
+					this.viewCell.updateOutputHeight(index, renderedOutput.element.clientHeight);
+				}
+			}
+		}
+
+		this.relayoutCell();
+	}
+
+	private viewUpdateInputCollapsed(): void {
 		DOM.hide(this.templateData.cellContainer);
 		DOM.show(this.templateData.collapsedPart);
+		DOM.show(this.templateData.outputContainer);
 		this.templateData.container.classList.toggle('collapsed', true);
+
+		this.viewUpdateShowOutputs();
+
+		this.relayoutCell();
+	}
+
+	private viewUpdateHideOuputs(): void {
+		for (let e of this.outputElements.keys()) {
+			this.notebookEditor.hideInset(e);
+		}
+	}
+
+	private viewUpdateOutputCollapsed(): void {
+		DOM.show(this.templateData.cellContainer);
+		DOM.show(this.templateData.collapsedPart);
+		DOM.hide(this.templateData.outputContainer);
+
+		this.viewUpdateHideOuputs();
+
+		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('output-collapsed', true);
+
+		this.relayoutCell();
+	}
+
+	private viewUpdateAllCollapsed(): void {
+		DOM.hide(this.templateData.cellContainer);
+		DOM.show(this.templateData.collapsedPart);
+		DOM.hide(this.templateData.outputContainer);
+		this.templateData.container.classList.toggle('collapsed', true);
+		this.templateData.container.classList.toggle('output-collapsed', true);
+
+		for (let e of this.outputElements.keys()) {
+			this.notebookEditor.hideInset(e);
+		}
 
 		this.relayoutCell();
 	}
@@ -326,7 +386,11 @@ export class CodeCell extends Disposable {
 	private viewUpdateExpanded(): void {
 		DOM.show(this.templateData.cellContainer);
 		DOM.hide(this.templateData.collapsedPart);
+		DOM.show(this.templateData.outputContainer);
 		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('output-collapsed', false);
+
+		this.viewUpdateShowOutputs();
 
 		this.relayoutCell();
 	}
@@ -587,7 +651,7 @@ export class CodeCell extends Disposable {
 			value.dispose();
 		});
 
-		this.templateData.focusIndicator!.style.height = 'initial';
+		this.templateData.focusIndicatorLeft!.style.height = 'initial';
 
 		super.dispose();
 	}

@@ -211,7 +211,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			logout(providerId: string, sessionId: string): Thenable<void> {
 				return extHostAuthentication.logout(providerId, sessionId);
 			},
-			get onDidChangeSessions(): Event<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent> {
+			get onDidChangeSessions(): Event<vscode.AuthenticationSessionsChangeEvent> {
 				return extHostAuthentication.onDidChangeSessions;
 			},
 		};
