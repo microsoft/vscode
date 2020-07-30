@@ -195,7 +195,7 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
-		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, remoteAuthorityResolverService, signService, logService, productService));
+		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, productService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Electron
