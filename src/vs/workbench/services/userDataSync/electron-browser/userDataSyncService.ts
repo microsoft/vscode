@@ -65,10 +65,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this._register(this.channel.listen<[SyncResource, Error][]>('onSyncErrors')(errors => this._onSyncErrors.fire(errors.map(([source, error]) => ([source, UserDataSyncError.toUserDataSyncError(error)])))));
 	}
 
-	pull(): Promise<void> {
-		return this.channel.call('pull');
-	}
-
 	createSyncTask(): Promise<ISyncTask> {
 		throw new Error('not supported');
 	}
@@ -186,7 +182,7 @@ class ManualSyncTask implements IManualSyncTask {
 		return this.deserializePreviews(previews);
 	}
 
-	async accept(resource: URI, content: string | null): Promise<[SyncResource, ISyncResourcePreview][]> {
+	async accept(resource: URI, content?: string | null): Promise<[SyncResource, ISyncResourcePreview][]> {
 		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('accept', [resource, content]);
 		return this.deserializePreviews(previews);
 	}

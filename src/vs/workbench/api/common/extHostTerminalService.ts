@@ -20,6 +20,7 @@ import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib
 import { localize } from 'vs/nls';
 import { NotSupportedError } from 'vs/base/common/errors';
 import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 
@@ -320,6 +321,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	private readonly _linkHandlers: Set<vscode.TerminalLinkHandler> = new Set();
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
 	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
+	private readonly _terminalLinkCancellationSource: Map<number, CancellationTokenSource> = new Map();
 
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
@@ -455,7 +457,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			shellPath: shellLaunchConfigDto.executable,
 			shellArgs: shellLaunchConfigDto.args,
 			cwd: typeof shellLaunchConfigDto.cwd === 'string' ? shellLaunchConfigDto.cwd : URI.revive(shellLaunchConfigDto.cwd),
-			env: shellLaunchConfigDto.env
+			env: shellLaunchConfigDto.env,
+			hideFromUser: shellLaunchConfigDto.hideFromUser
 		};
 		const terminal = new ExtHostTerminal(this._proxy, creationOptions, name, id);
 		this._terminals.push(terminal);
@@ -611,17 +614,33 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		// when new links are provided.
 		this._terminalLinkCache.delete(terminalId);
 
+		const oldToken = this._terminalLinkCancellationSource.get(terminalId);
+		if (oldToken) {
+			oldToken.dispose(true);
+		}
+		const cancellationSource = new CancellationTokenSource();
+		this._terminalLinkCancellationSource.set(terminalId, cancellationSource);
+
 		const result: ITerminalLinkDto[] = [];
 		const context: vscode.TerminalLinkContext = { terminal, line };
 		const promises: vscode.ProviderResult<{ provider: vscode.TerminalLinkProvider, links: vscode.TerminalLink[] }>[] = [];
+
 		for (const provider of this._linkProviders) {
 			promises.push(new Promise(async r => {
-				const links = (await provider.provideTerminalLinks(context)) || [];
-				r({ provider, links });
+				cancellationSource.token.onCancellationRequested(() => r({ provider, links: [] }));
+				const links = (await provider.provideTerminalLinks(context, cancellationSource.token)) || [];
+				if (!cancellationSource.token.isCancellationRequested) {
+					r({ provider, links });
+				}
 			}));
 		}
 
 		const provideResults = await Promise.all(promises);
+
+		if (cancellationSource.token.isCancellationRequested) {
+			return [];
+		}
+
 		const cacheLinkMap = new Map<number, ICachedLinkEntry>();
 		for (const provideResult of provideResults) {
 			if (provideResult && provideResult.links.length > 0) {

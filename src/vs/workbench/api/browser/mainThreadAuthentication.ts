@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IAuthenticationService, AllowedExtension, readAllowedExtensions } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService, AllowedExtension, readAllowedExtensions, getAuthenticationProviderActivationEvent } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { ExtHostAuthenticationShape, ExtHostContext, IExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -248,6 +248,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.authenticationService.unregisterAuthenticationProvider(id);
 	}
 
+	$ensureProvider(id: string): Promise<void> {
+		return this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id));
+	}
+
 	$sendDidChangeSessions(id: string, event: modes.AuthenticationSessionsChangeEvent): void {
 		this.authenticationService.sessionsUpdate(id, event);
 	}
@@ -381,8 +385,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
-		await this.extensionService.activateByEvent(`onAuthenticationRequest:${providerId}`);
-
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		const extensionData = allowList.find(extension => extension.id === extensionId);
 		if (extensionData) {

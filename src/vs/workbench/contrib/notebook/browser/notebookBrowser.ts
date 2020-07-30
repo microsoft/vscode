@@ -48,6 +48,8 @@ export const NOTEBOOK_CELL_RUNNABLE = new RawContextKey<boolean>('notebookCellRu
 export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('notebookCellMarkdownEditMode', false); // bool
 export const NOTEBOOK_CELL_RUN_STATE = new RawContextKey<string>('notebookCellRunState', undefined); // idle, running
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false); // bool
+export const NOTEBOOK_CELL_CONTENT_COLLAPSED = new RawContextKey<boolean>('notebookCellContentIsCollapsed', false); // bool
+export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
 
 // Kernels
 
@@ -110,6 +112,8 @@ export interface ICellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
+	collapseState: CellCollapseState;
+	outputCollapseState: CellCollapseState;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -303,6 +307,11 @@ export interface INotebookEditor extends IEditor {
 	removeInset(output: IProcessedOutput): void;
 
 	/**
+	 * Hide the inset in the webview layer without removing it
+	 */
+	hideInset(output: IProcessedOutput): void;
+
+	/**
 	 * Send message to the webview for outputs.
 	 */
 	postMessage(forRendererId: string | undefined, message: any): void;
@@ -464,12 +473,15 @@ export interface INotebookCellList {
 }
 
 export interface BaseCellRenderTemplate {
+	editorPart: HTMLElement;
+	collapsedPart: HTMLElement;
+	expandButton: HTMLElement;
 	contextKeyService: IContextKeyService;
 	container: HTMLElement;
 	cellContainer: HTMLElement;
 	toolbar: ToolBar;
 	betweenCellToolbar: ToolBar;
-	focusIndicator: HTMLElement;
+	focusIndicatorLeft: HTMLElement;
 	disposables: DisposableStore;
 	elementDisposables: DisposableStore;
 	bottomCellContainer: HTMLElement;
@@ -481,7 +493,6 @@ export interface BaseCellRenderTemplate {
 }
 
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
-	editorPart: HTMLElement;
 	editorContainer: HTMLElement;
 	foldingIndicator: HTMLElement;
 	currentEditor?: ICodeEditor;
@@ -545,6 +556,11 @@ export enum CellEditState {
 	Editing
 }
 
+export enum CellCollapseState {
+	Normal,
+	Collapsed
+}
+
 export enum CellFocusMode {
 	Container,
 	Editor
@@ -563,6 +579,7 @@ export interface CellViewModelStateChangeEvent {
 	focusModeChanged?: boolean;
 	editStateChanged?: boolean;
 	languageChanged?: boolean;
+	collapseStateChanged?: boolean;
 	foldingStateChanged?: boolean;
 	contentChanged?: boolean;
 	outputIsHoveredChanged?: boolean;

@@ -12,11 +12,11 @@ import { URI } from 'vs/base/common/uri';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 interface IScannedBuiltinExtension {
-	extensionPath: string,
-	packageJSON: IExtensionManifest,
-	packageNLSPath?: string,
-	readmePath?: string,
-	changelogPath?: string,
+	extensionPath: string;
+	packageJSON: IExtensionManifest;
+	packageNLS?: any;
+	readmePath?: string;
+	changelogPath?: string;
 }
 
 export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScannerService {
@@ -54,7 +54,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 				location: uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.extensionPath),
 				type: ExtensionType.System,
 				packageJSON: e.packageJSON,
-				packageNLSUrl: e.packageNLSPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.packageNLSPath) : undefined,
+				packageNLS: e.packageNLS,
 				readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.readmePath) : undefined,
 				changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.changelogPath) : undefined,
 			}));

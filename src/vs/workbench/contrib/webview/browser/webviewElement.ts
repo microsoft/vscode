@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
@@ -32,6 +33,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 		webviewThemeDataProvider: WebviewThemeDataProvider,
+		@INotificationService notificationService: INotificationService,
 		@ITunnelService tunnelService: ITunnelService,
 		@IFileService private readonly fileService: IFileService,
 		@IRequestService private readonly requestService: IRequestService,
@@ -41,7 +43,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ILogService logService: ILogService,
 	) {
-		super(id, options, contentOptions, extension, webviewThemeDataProvider, logService, telemetryService, environmentService, _workbenchEnvironmentService);
+		super(id, options, contentOptions, extension, webviewThemeDataProvider, notificationService, logService, telemetryService, environmentService, _workbenchEnvironmentService);
 
 		this._portMappingManager = this._register(new WebviewPortMappingManager(
 			() => this.extension?.location,

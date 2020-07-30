@@ -52,7 +52,7 @@ export class DebugSession implements IDebugSession {
 	private repl: ReplModel;
 
 	private readonly _onDidChangeState = new Emitter<void>();
-	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent>();
+	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent | undefined>();
 
 	private readonly _onDidLoadedSource = new Emitter<LoadedSourceEvent>();
 	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
@@ -176,7 +176,7 @@ export class DebugSession implements IDebugSession {
 		return this._onDidChangeState.event;
 	}
 
-	get onDidEndAdapter(): Event<AdapterEndEvent> {
+	get onDidEndAdapter(): Event<AdapterEndEvent | undefined> {
 		return this._onDidEndAdapter.event;
 	}
 
@@ -280,14 +280,17 @@ export class DebugSession implements IDebugSession {
 	 */
 	async terminate(restart = false): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'terminate'));
+			// Adapter went down but it did not send a 'terminated' event, simulate like the event has been sent
+			this.onDidExitAdapter();
 		}
 
 		this.cancelAllRequests();
-		if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
-			await this.raw.terminate(restart);
-		} else {
-			await this.raw.disconnect(restart);
+		if (this.raw) {
+			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
+				await this.raw.terminate(restart);
+			} else {
+				await this.raw.disconnect(restart);
+			}
 		}
 
 		if (!restart) {
@@ -300,11 +303,14 @@ export class DebugSession implements IDebugSession {
 	 */
 	async disconnect(restart = false): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'disconnect'));
+			// Adapter went down but it did not send a 'terminated' event, simulate like the event has been sent
+			this.onDidExitAdapter();
 		}
 
 		this.cancelAllRequests();
-		await this.raw.disconnect(restart);
+		if (this.raw) {
+			await this.raw.disconnect(restart);
+		}
 
 		if (!restart) {
 			this._options.compoundRoot?.sessionStopped();
@@ -984,12 +990,14 @@ export class DebugSession implements IDebugSession {
 			this._onDidProgressEnd.fire(event);
 		}));
 
-		this.rawListeners.push(this.raw.onDidExitAdapter(event => {
-			this.initialized = true;
-			this.model.setBreakpointSessionData(this.getId(), this.capabilities, undefined);
-			this.shutdown();
-			this._onDidEndAdapter.fire(event);
-		}));
+		this.rawListeners.push(this.raw.onDidExitAdapter(event => this.onDidExitAdapter(event)));
+	}
+
+	private onDidExitAdapter(event?: AdapterEndEvent): void {
+		this.initialized = true;
+		this.model.setBreakpointSessionData(this.getId(), this.capabilities, undefined);
+		this.shutdown();
+		this._onDidEndAdapter.fire(event);
 	}
 
 	// Disconnects and clears state. Session can be initialized again for a new connection.

@@ -213,7 +213,7 @@ CommandsRegistry.registerCommand(
 //#region Actions
 const category = { value: localize('search', "Search Editor"), original: 'Search Editor' };
 
-export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean, focusResults: boolean }>;
+export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean, focusResults: boolean, location: 'reuse' | 'new' }>;
 const openArgDescription = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
 	args: [{
@@ -264,14 +264,29 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SearchEditorConstants.OpenNewEditorCommandId,
-			title: { value: localize('search.openNewSearchEditor', "Open new Search Editor"), original: 'Open new Search Editor' },
+			title: { value: localize('search.openNewSearchEditor', "New Search Editor"), original: 'New Search Editor' },
 			category,
 			f1: true,
 			description: openArgDescription
 		});
 	}
 	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
-		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, args);
+		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, { ...args, location: 'new' });
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SearchEditorConstants.OpenEditorCommandId,
+			title: { value: localize('search.openSearchEditor', "Open Search Editor"), original: 'Open Search Editor' },
+			category,
+			f1: true,
+			description: openArgDescription
+		});
+	}
+	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
+		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, { ...args, location: 'reuse' });
 	}
 });
 
