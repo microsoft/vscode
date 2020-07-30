@@ -171,8 +171,16 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 			return new Promise(async (resolve, reject) => {
 				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
 				let taskExecution: TaskExecution | undefined;
+				const executeDoneEvent: EventEmitter<void> = new EventEmitter();
+				const taskExecutionShouldBeSet: Promise<void> = new Promise(resolve => {
+					const disposable = executeDoneEvent.event(() => {
+						resolve();
+						disposable.dispose();
+					});
+				});
 
-				disposables.push(tasks.onDidStartTaskProcess(e => {
+				disposables.push(tasks.onDidStartTaskProcess(async (e) => {
+					await taskExecutionShouldBeSet;
 					if (taskExecution === undefined) {
 						reject('taskExecution is still undefined when process started.');
 					} else if (e.execution !== taskExecution) {
@@ -180,7 +188,8 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 					}
 				}));
 
-				disposables.push(tasks.onDidEndTaskProcess(e => {
+				disposables.push(tasks.onDidEndTaskProcess(async (e) => {
+					await taskExecutionShouldBeSet;
 					if (taskExecution === undefined) {
 						reject('taskExecution is still undefined when process ended.');
 					} else if (e.execution === taskExecution) {
@@ -191,6 +200,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 				}));
 
 				taskExecution = await tasks.executeTask(task);
+				executeDoneEvent.fire();
 			});
 		});
 
@@ -198,8 +208,16 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 			return new Promise(async (resolve, reject) => {
 				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
 				let taskExecution: TaskExecution | undefined;
+				const executeDoneEvent: EventEmitter<void> = new EventEmitter();
+				const taskExecutionShouldBeSet: Promise<void> = new Promise(resolve => {
+					const disposable = executeDoneEvent.event(() => {
+						resolve();
+						disposable.dispose();
+					});
+				});
 
-				disposables.push(tasks.onDidStartTaskProcess(e => {
+				disposables.push(tasks.onDidStartTaskProcess(async (e) => {
+					await taskExecutionShouldBeSet;
 					if (taskExecution === undefined) {
 						reject('taskExecution is still undefined when process started.');
 					} else if (e.execution === taskExecution) {
@@ -209,7 +227,8 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 					}
 				}));
 
-				disposables.push(tasks.onDidEndTaskProcess(e => {
+				disposables.push(tasks.onDidEndTaskProcess(async (e) => {
+					await taskExecutionShouldBeSet;
 					if (taskExecution === undefined) {
 						reject('taskExecution is still undefined when process ended.');
 					} else if (e.execution !== taskExecution) {
@@ -218,6 +237,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 				}));
 
 				taskExecution = await tasks.executeTask(task);
+				executeDoneEvent.fire();
 			});
 		});
 
