@@ -167,8 +167,8 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 			commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
 		});
 
-		test.skip('Execution from onDidEndTaskProcess is equal to original', () => {
-			return new Promise(async (resolve, reject) => {
+		test('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
+			return new Promise(async (resolve) => {
 				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
 				let taskExecution: TaskExecution | undefined;
 				const executeDoneEvent: EventEmitter<void> = new EventEmitter();
@@ -178,61 +178,31 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 						disposable.dispose();
 					});
 				});
+				let count = 2;
+				const progressMade: EventEmitter<void> = new EventEmitter();
+				let startSucceeded = false;
+				let endSucceeded = false;
+				disposables.push(progressMade.event(() => {
+					count--;
+					if ((count === 0) && startSucceeded && endSucceeded) {
+						resolve();
+					}
+				}));
+
 
 				disposables.push(tasks.onDidStartTaskProcess(async (e) => {
 					await taskExecutionShouldBeSet;
-					if (taskExecution === undefined) {
-						reject('taskExecution is still undefined when process started.');
-					} else if (e.execution !== taskExecution) {
-						reject('Unexpected task execution value in start process.');
+					if (e.execution === taskExecution) {
+						startSucceeded = true;
+						progressMade.fire();
 					}
 				}));
 
 				disposables.push(tasks.onDidEndTaskProcess(async (e) => {
 					await taskExecutionShouldBeSet;
-					if (taskExecution === undefined) {
-						reject('taskExecution is still undefined when process ended.');
-					} else if (e.execution === taskExecution) {
-						resolve();
-					} else {
-						reject('Unexpected task execution value in end process.');
-					}
-				}));
-
-				taskExecution = await tasks.executeTask(task);
-				executeDoneEvent.fire();
-			});
-		});
-
-		test.skip('Execution from onDidStartTaskProcess is equal to original', () => {
-			return new Promise(async (resolve, reject) => {
-				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
-				let taskExecution: TaskExecution | undefined;
-				const executeDoneEvent: EventEmitter<void> = new EventEmitter();
-				const taskExecutionShouldBeSet: Promise<void> = new Promise(resolve => {
-					const disposable = executeDoneEvent.event(() => {
-						resolve();
-						disposable.dispose();
-					});
-				});
-
-				disposables.push(tasks.onDidStartTaskProcess(async (e) => {
-					await taskExecutionShouldBeSet;
-					if (taskExecution === undefined) {
-						reject('taskExecution is still undefined when process started.');
-					} else if (e.execution === taskExecution) {
-						resolve();
-					} else {
-						reject('Unexpected task execution value in start process.');
-					}
-				}));
-
-				disposables.push(tasks.onDidEndTaskProcess(async (e) => {
-					await taskExecutionShouldBeSet;
-					if (taskExecution === undefined) {
-						reject('taskExecution is still undefined when process ended.');
-					} else if (e.execution !== taskExecution) {
-						reject('Unexpected task execution value in end process.');
+					if (e.execution === taskExecution) {
+						endSucceeded = true;
+						progressMade.fire();
 					}
 				}));
 
