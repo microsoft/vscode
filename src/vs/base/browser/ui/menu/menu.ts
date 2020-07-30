@@ -203,7 +203,7 @@ export class Menu extends ActionBar {
 			e.preventDefault();
 		}));
 
-		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 30)}px`;
+		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 35)}px`;
 
 		actions = actions.filter(a => {
 			if (options.submenuIds?.has(a.id)) {
@@ -1141,11 +1141,11 @@ ${formatRule(menuSubmenuIcon)}
 
 
 /* High Contrast Theming */
-.hc-black .context-view.monaco-menu-container {
+:host-context(.hc-black) .context-view.monaco-menu-container {
 	box-shadow: none;
 }
 
-.hc-black .monaco-menu .monaco-action-bar.vertical .action-item.focused {
+:host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background: none;
 }
 
@@ -1176,7 +1176,7 @@ ${formatRule(menuSubmenuIcon)}
 	margin-bottom: 0.2em;
 }
 
-linux .monaco-menu .monaco-action-bar.vertical .action-label.separator {
+:host-context(.linux) .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	margin-left: 0;
 	margin-right: 0;
 }
@@ -1196,4 +1196,110 @@ linux .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	cursor: default;
 }
 
+/* Arrows */
+.monaco-scrollable-element > .scrollbar > .scra {
+	cursor: pointer;
+	font-size: 11px !important;
+}
+
+.monaco-scrollable-element > .visible {
+	opacity: 1;
+
+	/* Background rule added for IE9 - to allow clicks on dom node */
+	background:rgba(0,0,0,0);
+
+	transition: opacity 100ms linear;
+}
+.monaco-scrollable-element > .invisible {
+	opacity: 0;
+	pointer-events: none;
+}
+.monaco-scrollable-element > .invisible.fade {
+	transition: opacity 800ms linear;
+}
+
+/* Scrollable Content Inset Shadow */
+.monaco-scrollable-element > .shadow {
+	position: absolute;
+	display: none;
+}
+.monaco-scrollable-element > .shadow.top {
+	display: block;
+	top: 0;
+	left: 3px;
+	height: 3px;
+	width: 100%;
+	box-shadow: #DDD 0 6px 6px -6px inset;
+}
+.monaco-scrollable-element > .shadow.left {
+	display: block;
+	top: 3px;
+	left: 0;
+	height: 100%;
+	width: 3px;
+	box-shadow: #DDD 6px 0 6px -6px inset;
+}
+.monaco-scrollable-element > .shadow.top-left-corner {
+	display: block;
+	top: 0;
+	left: 0;
+	height: 3px;
+	width: 3px;
+}
+.monaco-scrollable-element > .shadow.top.left {
+	box-shadow: #DDD 6px 6px 6px -6px inset;
+}
+
+/* ---------- Default Style ---------- */
+
+:host-context(.vs) .monaco-scrollable-element > .scrollbar > .slider {
+	background: rgba(100, 100, 100, .4);
+}
+:host-context(.vs-dark) .monaco-scrollable-element > .scrollbar > .slider {
+	background: rgba(121, 121, 121, .4);
+}
+:host-context(.hc-black) .monaco-scrollable-element > .scrollbar > .slider {
+	background: rgba(111, 195, 223, .6);
+}
+
+.monaco-scrollable-element > .scrollbar > .slider:hover {
+	background: rgba(100, 100, 100, .7);
+}
+:host-context(.hc-black) .monaco-scrollable-element > .scrollbar > .slider:hover {
+	background: rgba(111, 195, 223, .8);
+}
+
+.monaco-scrollable-element > .scrollbar > .slider.active {
+	background: rgba(0, 0, 0, .6);
+}
+:host-context(.vs-dark) .monaco-scrollable-element > .scrollbar > .slider.active {
+	background: rgba(191, 191, 191, .4);
+}
+:host-context(.hc-black) .monaco-scrollable-element > .scrollbar > .slider.active {
+	background: rgba(111, 195, 223, 1);
+}
+
+:host-context(.vs-dark) .monaco-scrollable-element .shadow.top {
+	box-shadow: none;
+}
+
+:host-context(.vs-dark) .monaco-scrollable-element .shadow.left {
+	box-shadow: #000 6px 0 6px -6px inset;
+}
+
+:host-context(.vs-dark) .monaco-scrollable-element .shadow.top.left {
+	box-shadow: #000 6px 6px 6px -6px inset;
+}
+
+:host-context(.hc-black) .monaco-scrollable-element .shadow.top {
+	box-shadow: none;
+}
+
+:host-context(.hc-black) .monaco-scrollable-element .shadow.left {
+	box-shadow: none;
+}
+
+:host-context(.hc-black) .monaco-scrollable-element .shadow.top.left {
+	box-shadow: none;
+}
 `;

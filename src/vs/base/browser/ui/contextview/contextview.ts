@@ -79,24 +79,25 @@ export interface ILayoutAnchor {
  */
 export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAnchor): number {
 	const anchorEnd = anchor.offset + anchor.size;
+	const viewportBorderBuffer = 5;
 
 	if (anchor.position === LayoutAnchorPosition.Before) {
-		if (viewSize <= viewportSize - anchorEnd) {
+		if (viewSize <= viewportSize - anchorEnd - viewportBorderBuffer) {
 			return anchorEnd; // happy case, lay it out after the anchor
 		}
 
-		if (viewSize <= anchor.offset) {
+		if (viewSize <= anchor.offset - viewportBorderBuffer) {
 			return anchor.offset - viewSize; // ok case, lay it out before the anchor
 		}
 
-		return Math.max(viewportSize - viewSize, 0); // sad case, lay it over the anchor
+		return Math.max(viewportSize - viewSize - viewportBorderBuffer, 0); // sad case, lay it over the anchor
 	} else {
-		if (viewSize <= anchor.offset) {
+		if (viewSize <= anchor.offset - viewportBorderBuffer) {
 			return anchor.offset - viewSize; // happy case, lay it out before the anchor
 		}
 
 		if (viewSize <= viewportSize - anchorEnd) {
-			return anchorEnd; // ok case, lay it out after the anchor
+			return anchorEnd - viewportBorderBuffer; // ok case, lay it out after the anchor
 		}
 
 		return 0; // sad case, lay it over the anchor
