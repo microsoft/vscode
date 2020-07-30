@@ -553,7 +553,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}
 		}
 
-		await this._startLocalExtensionHost(localExtensions, remoteAuthority, remoteEnv);
+		await this._startLocalExtensionHost(localExtensions, remoteAuthority, remoteEnv, remoteExtensions);
 	}
 
 	private async _startLocalExtensionHost(localExtensions: IExtensionDescription[], remoteAuthority: string | undefined = undefined, remoteEnv: IRemoteAgentEnvironment | null = null, remoteExtensions: IExtensionDescription[] = []): Promise<void> {
