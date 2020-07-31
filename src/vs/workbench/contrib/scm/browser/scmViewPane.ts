@@ -299,7 +299,6 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		const disposables = new DisposableStore();
 		const input = node.element;
 		templateData.inputWidget.input = input;
-		disposables.add({ dispose: () => templateData.inputWidget.input = undefined });
 
 		// Remember widget
 		this.inputWidgets.set(input, templateData.inputWidget);
@@ -353,6 +352,16 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	getRenderedInputWidget(input: ISCMInput): SCMInputWidget | undefined {
 		return this.inputWidgets.get(input);
+	}
+
+	getFocusedInput(): ISCMInput | undefined {
+		for (const [input, inputWidget] of this.inputWidgets) {
+			if (inputWidget.hasFocus()) {
+				return input;
+			}
+		}
+
+		return undefined;
 	}
 }
 
@@ -993,12 +1002,22 @@ class ViewModel {
 	}
 
 	private refresh(item?: IRepositoryItem | IGroupItem): void {
+		const focusedInput = this.inputRenderer.getFocusedInput();
+
 		if (this.items.length === 1 && (!item || isRepositoryItem(item))) {
 			this.tree.setChildren(null, this.render(this.items[0]).children);
 		} else if (item) {
 			this.tree.setChildren(item.element, this.render(item).children);
 		} else {
 			this.tree.setChildren(null, this.items.map(item => this.render(item)));
+		}
+
+		if (focusedInput) {
+			const inputWidget = this.inputRenderer.getRenderedInputWidget(focusedInput);
+
+			if (inputWidget) {
+				inputWidget.focus();
+			}
 		}
 
 		this._onDidChangeRepositoryCollapseState.fire();
@@ -1294,6 +1313,10 @@ class SCMInputWidget extends Disposable {
 	}
 
 	set input(input: ISCMInput | undefined) {
+		if (input === this.input) {
+			return;
+		}
+
 		this.validationDisposable.dispose();
 		removeClass(this.editorContainer, 'synthetic-focus');
 
@@ -1492,6 +1515,10 @@ class SCMInputWidget extends Disposable {
 		addClass(this.editorContainer, 'synthetic-focus');
 	}
 
+	hasFocus(): boolean {
+		return this.inputEditor.hasWidgetFocus();
+	}
+
 	private renderValidation(): void {
 		this.validationDisposable.dispose();
 
@@ -1533,6 +1560,7 @@ class SCMInputWidget extends Disposable {
 	}
 
 	dispose(): void {
+		this.input = undefined;
 		this.repositoryDisposables.dispose();
 		this.validationDisposable.dispose();
 		super.dispose();
