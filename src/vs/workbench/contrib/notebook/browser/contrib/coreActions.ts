@@ -30,8 +30,6 @@ const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
 const NOTEBOOK_FOCUS_TOP = 'notebook.focusTop';
 const NOTEBOOK_FOCUS_BOTTOM = 'notebook.focusBottom';
-const NOTEBOOK_REDO = 'notebook.redo';
-const NOTEBOOK_UNDO = 'notebook.undo';
 const NOTEBOOK_FOCUS_PREVIOUS_EDITOR = 'notebook.focusPreviousEditor';
 const NOTEBOOK_FOCUS_NEXT_EDITOR = 'notebook.focusNextEditor';
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
@@ -1107,42 +1105,6 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-
-registerAction2(class extends NotebookAction {
-	constructor() {
-		super({
-			id: NOTEBOOK_UNDO,
-			title: localize('undo', 'Undo'),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_Z,
-				weight: KeybindingWeight.WorkbenchContrib
-			}
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		await context.notebookEditor.viewModel?.undo();
-	}
-});
-
-registerAction2(class extends NotebookAction {
-	constructor() {
-		super({
-			id: NOTEBOOK_REDO,
-			title: localize('redo', 'Redo'),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z,
-				weight: KeybindingWeight.WorkbenchContrib
-			}
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		await context.notebookEditor.viewModel?.redo();
-	}
-});
 
 registerAction2(class extends NotebookAction {
 	constructor() {

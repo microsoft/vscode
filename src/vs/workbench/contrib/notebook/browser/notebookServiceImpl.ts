@@ -21,7 +21,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
 import * as glob from 'vs/base/common/glob';
 import { basename } from 'vs/base/common/path';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Memento } from 'vs/workbench/common/memento';
@@ -32,6 +32,7 @@ import { flatten } from 'vs/base/common/arrays';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookKernelProviderAssociationRegistry, updateNotebookKernelProvideAssociationSchema, NotebookViewTypesExtensionRegistry } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { PureNotebookOutputRenderer } from 'vs/workbench/contrib/notebook/browser/notebookPureOutputRenderer';
+import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -320,6 +321,27 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
 			updateOrder();
+		}));
+
+		const PRIORITY = 105;
+		this._register(UndoCommand.addImplementation(PRIORITY, () => {
+			const editor = getActiveNotebookEditor(this._editorService);
+			if (editor?.viewModel) {
+				editor?.viewModel.undo();
+				return true;
+			}
+
+			return false;
+		}));
+
+		this._register(RedoCommand.addImplementation(PRIORITY, () => {
+			const editor = getActiveNotebookEditor(this._editorService);
+			if (editor?.viewModel) {
+				editor?.viewModel.redo();
+				return true;
+			}
+
+			return false;
 		}));
 	}
 
