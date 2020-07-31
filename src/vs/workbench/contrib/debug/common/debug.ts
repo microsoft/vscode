@@ -169,6 +169,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly parentSession: IDebugSession | undefined;
 	readonly subId: string | undefined;
 	readonly compact: boolean;
+	readonly compoundRoot: DebugCompoundRoot | undefined;
 
 	setSubId(subId: string | undefined): void;
 

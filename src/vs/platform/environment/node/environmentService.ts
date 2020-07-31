@@ -256,7 +256,7 @@ export class EnvironmentService implements INativeEnvironmentService {
 	get serviceMachineIdResource(): URI { return resources.joinPath(URI.file(this.userDataPath), 'machineid'); }
 
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
-	get crashReporterId(): string | undefined { return this._args['crash-reporter-id']; }
+	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
 	get crashReporterDirectory(): string | undefined { return this._args['crash-reporter-directory']; }
 
 	get driverHandle(): string | undefined { return this._args['driver']; }

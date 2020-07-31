@@ -354,7 +354,12 @@ namespace schema {
 			description: menu.proposed ? `(${localize('proposed', "Proposed API")}) ${menu.description}` : menu.description,
 			type: 'array',
 			items: menu.supportsSubmenus === false ? menuItem : { oneOf: [menuItem, submenuItem] }
-		}))
+		})),
+		additionalProperties: {
+			description: 'Submenu',
+			type: 'array',
+			items: { oneOf: [menuItem, submenuItem] }
+		}
 	};
 
 	export const submenusContribution: IJSONSchema = {

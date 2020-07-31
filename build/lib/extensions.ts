@@ -344,31 +344,36 @@ export interface IScannedBuiltinExtension {
 
 export function scanBuiltinExtensions(extensionsRoot: string, forWeb: boolean): IScannedBuiltinExtension[] {
 	const scannedExtensions: IScannedBuiltinExtension[] = [];
-	const extensionsFolders = fs.readdirSync(extensionsRoot);
-	for (const extensionFolder of extensionsFolders) {
-		const packageJSONPath = path.join(extensionsRoot, extensionFolder, 'package.json');
-		if (!fs.existsSync(packageJSONPath)) {
-			continue;
-		}
-		let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
-		if (forWeb && !isWebExtension(packageJSON)) {
-			continue;
-		}
-		const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
-		const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
-		const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, packageNLSPath)).toString()) : undefined;
-		const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-		const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 
-		scannedExtensions.push({
-			extensionPath: extensionFolder,
-			packageJSON,
-			packageNLS,
-			readmePath: readme ? path.join(extensionFolder, readme) : undefined,
-			changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
-		});
+	try {
+		const extensionsFolders = fs.readdirSync(extensionsRoot);
+		for (const extensionFolder of extensionsFolders) {
+			const packageJSONPath = path.join(extensionsRoot, extensionFolder, 'package.json');
+			if (!fs.existsSync(packageJSONPath)) {
+				continue;
+			}
+			let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
+			if (forWeb && !isWebExtension(packageJSON)) {
+				continue;
+			}
+			const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
+			const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
+			const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, packageNLSPath)).toString()) : undefined;
+			const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+
+			scannedExtensions.push({
+				extensionPath: extensionFolder,
+				packageJSON,
+				packageNLS,
+				readmePath: readme ? path.join(extensionFolder, readme) : undefined,
+				changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
+			});
+		}
+		return scannedExtensions;
+	} catch (ex) {
+		return scannedExtensions;
 	}
-	return scannedExtensions;
 }
 
 export function translatePackageJSON(packageJSON: string, packageNLSPath: string) {

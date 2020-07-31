@@ -186,6 +186,14 @@
 				"source": "eslint",
 				"base": "$eslint-stylish"
 			}
-		}
+		},
+		{
+			"type": "shell",
+			"command": "node build/lib/prelaunch.js",
+			"label": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"reveal": "silent"
+			}
+		},
 	]
 }

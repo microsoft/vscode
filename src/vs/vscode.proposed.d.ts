@@ -1358,6 +1358,16 @@ declare module 'vscode' {
 		lastRunDuration?: number;
 
 		/**
+		 * Whether a code cell's editor is collapsed
+		 */
+		inputCollapsed?: boolean;
+
+		/**
+		 * Whether a code cell's outputs are collapsed
+		 */
+		outputCollapsed?: boolean;
+
+		/**
 		 * Additional attributes of a cell metadata.
 		 */
 		custom?: { [key: string]: any };

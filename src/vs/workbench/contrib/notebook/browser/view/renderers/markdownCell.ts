@@ -50,9 +50,13 @@ export class StatefulMarkdownCell extends Disposable {
 			if (e.editStateChanged) {
 				this.localDisposables.clear();
 				this.viewUpdate();
-			} else if (e.contentChanged || e.collapseStateChanged) {
+			} else if (e.contentChanged) {
 				this.viewUpdate();
 			}
+		}));
+
+		this._register(viewCell.model.onDidChangeMetadata(() => {
+			this.viewUpdate();
 		}));
 
 		this._register(getResizesObserver(this.markdownContainer, undefined, () => {

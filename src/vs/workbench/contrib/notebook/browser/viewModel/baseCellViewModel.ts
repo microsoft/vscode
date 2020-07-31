@@ -60,24 +60,26 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 	}
 
-	private _collapseState: CellCollapseState = CellCollapseState.Normal;
 	public get collapseState(): CellCollapseState {
-		return this._collapseState;
+		return this.metadata?.inputCollapsed ? CellCollapseState.Collapsed : CellCollapseState.Normal;
 	}
 
 	public set collapseState(v: CellCollapseState) {
-		this._collapseState = v;
-		this._onDidChangeState.fire({ collapseStateChanged: true });
+		this.model.metadata = {
+			...this.metadata,
+			...{ inputCollapsed: v === CellCollapseState.Collapsed }
+		};
 	}
 
-	private _outputCollapseState: CellCollapseState = CellCollapseState.Normal;
 	public get outputCollapseState(): CellCollapseState {
-		return this._outputCollapseState;
+		return this.metadata?.outputCollapsed ? CellCollapseState.Collapsed : CellCollapseState.Normal;
 	}
 
 	public set outputCollapseState(v: CellCollapseState) {
-		this._outputCollapseState = v;
-		this._onDidChangeState.fire({ collapseStateChanged: true });
+		this.model.metadata = {
+			...this.metadata,
+			...{ outputCollapsed: v === CellCollapseState.Collapsed }
+		};
 	}
 
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
