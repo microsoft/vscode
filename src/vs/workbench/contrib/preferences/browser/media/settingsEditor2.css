@@ -299,8 +299,9 @@
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	display: inline-block;
-	/* size to contents for hover to show context button */
+	display: inline-block; /* size to contents for hover to show context button */
+	padding-left: 7px;
+	border-radius: 5px;
 }
 
 

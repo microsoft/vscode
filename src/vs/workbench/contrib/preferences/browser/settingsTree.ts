@@ -37,7 +37,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
@@ -1247,6 +1247,7 @@ export class SettingTextRenderer extends AbstractSettingRenderer implements ITre
 			}));
 		common.toDispose.add(inputBox);
 		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		inputBox.inputElement.tabIndex = 0;
 
 		const template: ISettingTextItemTemplate = {
 			...common,
@@ -1299,6 +1300,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const selectElement = common.controlElement.querySelector('select');
 		if (selectElement) {
 			selectElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+			selectElement.tabIndex = 0;
 		}
 
 		common.toDispose.add(
@@ -1391,6 +1393,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 			}));
 		common.toDispose.add(inputBox);
 		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		inputBox.inputElement.tabIndex = 0;
 
 		const template: ISettingNumberItemTemplate = {
 			...common,
@@ -1874,9 +1877,6 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 					}
 				},
 				accessibilityProvider: {
-					getWidgetRole() {
-						return 'form';
-					},
 					getAriaLabel() {
 						// TODO@roblourens https://github.com/microsoft/vscode/issues/95862
 						return '';
@@ -1888,6 +1888,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
+				multipleSelectionSupport: false,
 			});
 
 		this.disposables.clear();
@@ -1938,6 +1939,16 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			const focusBorderColor = theme.getColor(focusBorder);
 			if (focusBorderColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
+			}
+
+			const listActiveSelectionBackgroundColor = theme.getColor(listActiveSelectionBackground);
+			if (listActiveSelectionBackgroundColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused.selected .setting-item-contents .setting-item-title { background-color: ${listActiveSelectionBackgroundColor}; }`);
+			}
+
+			const listActiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
+			if (listActiveSelectionForegroundColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused.selected .setting-item-contents .setting-item-title { color: ${listActiveSelectionForegroundColor}; }`);
 			}
 		}));
 

@@ -150,6 +150,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private editorMemento: IEditorMemento<ISettingsEditor2State>;
 
 	private tocFocusedElement: SettingsTreeGroupElement | null = null;
+	private treeFocusedElement: SettingsTreeElement | null = null;
 	private settingsTreeScrollTop = 0;
 	private dimension!: DOM.Dimension;
 
@@ -717,7 +718,6 @@ export class SettingsEditor2 extends BaseEditor {
 			this.settingsTreeContainer,
 			this.viewState,
 			this.settingRenderers.allRenderers));
-		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
 
 		this._register(this.settingsTree.onDidScroll(() => {
 			if (this.settingsTree.scrollTop === this.settingsTreeScrollTop) {
@@ -731,6 +731,17 @@ export class SettingsEditor2 extends BaseEditor {
 			setTimeout(() => {
 				this.updateTreeScrollSync();
 			}, 0);
+		}));
+
+		// There is no different select state in the settings tree
+		this._register(this.settingsTree.onDidChangeFocus(e => {
+			const element = e.elements[0];
+			if (this.treeFocusedElement === element) {
+				return;
+			}
+
+			this.treeFocusedElement = element;
+			this.settingsTree.setSelection(element ? [element] : []);
 		}));
 	}
 
