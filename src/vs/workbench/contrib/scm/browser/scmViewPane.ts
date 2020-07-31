@@ -76,8 +76,6 @@ import { Command } from 'vs/editor/common/modes';
 import { renderCodicons, Codicon } from 'vs/base/common/codicons';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { domEvent } from 'vs/base/browser/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
@@ -273,7 +271,6 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	constructor(
 		private outerLayout: ISCMLayout,
 		private updateHeight: (input: ISCMInput, height: number) => void,
-		private focusTree: () => void,
 		@IInstantiationService private instantiationService: IInstantiationService,
 	) { }
 
@@ -1655,7 +1652,7 @@ export class SCMViewPane extends ViewPane {
 
 		this._register(repositories.onDidSplice(() => this.updateActions()));
 
-		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height), () => this.tree.domFocus());
+		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height));
 		const delegate = new ProviderListDelegate(this.inputRenderer);
 
 		const actionViewItemProvider = (action: IAction) => this.getActionViewItem(action);
