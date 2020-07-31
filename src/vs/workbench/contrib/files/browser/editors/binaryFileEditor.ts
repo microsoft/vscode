@@ -14,6 +14,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 
 /**
  * An implementation of editor for binary files that cannot be displayed.
@@ -27,6 +30,8 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		@IThemeService themeService: IThemeService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
@@ -46,8 +51,11 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	private async openInternal(input: EditorInput, options: EditorOptions | undefined): Promise<void> {
 		if (input instanceof FileEditorInput) {
 			input.setForceOpenAsText();
-
-			await this.editorService.openEditor(input, options, this.group);
+			if (this.group !== undefined) {
+				await openEditorWith(input, undefined, options, this.group, this.editorService, this.configurationService, this.quickInputService);
+			} else {
+				await this.editorService.openEditor(input, options, this.group);
+			}
 		}
 	}
 
