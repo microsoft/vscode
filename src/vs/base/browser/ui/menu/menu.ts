@@ -423,7 +423,17 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 				// with BaseActionViewItem #101537
 				// add back if issues arise and link new issue
 				EventHelper.stop(e, true);
-				this.onClick(e);
+
+				// Set timout to allow context menu cancellation to trigger
+				// otherwise the action will destroy the menu and context menu
+				// will still trigger
+				setTimeout(() => {
+					this.onClick(e);
+				}, 0);
+			}));
+
+			this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, e => {
+				EventHelper.stop(e, true);
 			}));
 		}, 100);
 
