@@ -1200,7 +1200,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		const newIdx = index + 1;
+		const newIdx = index + 2; // This is the adjustment for the index before the cell has been "removed" from its original index
 		return this._moveCellToIndex(index, newIdx);
 	}
 
@@ -1231,10 +1231,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const relativeToIndex = this._notebookViewModel!.getCellIndex(relativeToCell);
 
 		let newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
-		if (originalIdx < newIdx) {
-			newIdx--;
-		}
-
 		return this._moveCellToIndex(originalIdx, newIdx);
 	}
 
@@ -1247,7 +1243,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._moveCellToIndex(originalIdx, index);
 	}
 
+	/**
+	 * @param index The current index of the cell
+	 * @param newIdx The desired index, in an index scheme for the state of the tree before the current cell has been "removed".
+	 * @example to move the cell from index 0 down one spot, call with (0, 2)
+	 */
 	private async _moveCellToIndex(index: number, newIdx: number): Promise<ICellViewModel | null> {
+		if (index < newIdx) {
+			// The cell is moving "down", it will free up one index spot and consume a new one
+			newIdx--;
+		}
+
 		if (index === newIdx) {
 			return null;
 		}

@@ -464,12 +464,6 @@
 	cursor: pointer;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row:hover .cell-focus-indicator,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.cell-output-hover .cell-focus-indicator,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator {
-	opacity: 1;
-}
-
 .monaco-workbench .notebookOverlay .monaco-list-row .cell-editor-part:before {
 	z-index: 20;
 	content: "";
