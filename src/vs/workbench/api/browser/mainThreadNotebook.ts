@@ -547,7 +547,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			},
 			executeNotebook: (uri: URI, kernelId: string, cellHandle: number | undefined) => {
 				return that._proxy.$executeNotebookKernelFromProvider(handle, uri, kernelId, cellHandle);
-			}
+			},
+			cancelNotebook: (uri: URI, kernelId: string, cellHandle: number | undefined) => {
+				return that._proxy.$cancelNotebookKernelFromProvider(handle, uri, kernelId, cellHandle);
+			},
 		});
 		this._notebookKernelProviders.set(handle, {
 			extension,

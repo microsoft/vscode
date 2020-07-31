@@ -404,6 +404,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					},
 					executeNotebookCell: async (uri: URI, handle: number | undefined) => {
 						return provider.executeNotebook(uri, dto.id, handle);
+					},
+					cancelNotebookCell: (uri: URI, handle: number | undefined): Promise<void> => {
+						return provider.cancelNotebook(uri, dto.id, handle);
 					}
 				};
 			});
