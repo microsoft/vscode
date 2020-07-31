@@ -27,6 +27,7 @@ import { getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/c
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EditorStartFindAction, EditorStartFindReplaceAction } from 'vs/editor/contrib/find/findController';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
@@ -285,6 +286,27 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		}
 	}
 
+	replace(initialFindInput?: string, initialReplaceInput?: string) {
+		super.showWithReplace(initialFindInput, initialReplaceInput);
+		this._replaceInput.select();
+
+		if (this._showTimeout === null) {
+			if (this._hideTimeout !== null) {
+				window.clearTimeout(this._hideTimeout);
+				this._hideTimeout = null;
+				this._notebookEditor.removeClassName(FIND_HIDE_TRANSITION);
+			}
+
+			this._notebookEditor.addClassName(FIND_SHOW_TRANSITION);
+			this._showTimeout = window.setTimeout(() => {
+				this._notebookEditor.removeClassName(FIND_SHOW_TRANSITION);
+				this._showTimeout = null;
+			}, 200);
+		} else {
+			// no op
+		}
+	}
+
 	hide() {
 		super.hide();
 		this.set([], false);
@@ -370,4 +392,30 @@ registerAction2(class extends Action2 {
 		const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
 		controller.show();
 	}
+});
+
+EditorStartFindAction.addImplementation(100, (accessor: ServicesAccessor, args: any) => {
+	let editorService = accessor.get(IEditorService);
+	let editor = getActiveNotebookEditor(editorService);
+
+	if (!editor) {
+		return false;
+	}
+
+	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+	controller.show();
+	return true;
+});
+
+EditorStartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, args: any) => {
+	let editorService = accessor.get(IEditorService);
+	let editor = getActiveNotebookEditor(editorService);
+
+	if (!editor) {
+		return false;
+	}
+
+	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+	controller.replace();
+	return true;
 });
