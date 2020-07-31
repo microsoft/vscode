@@ -1212,7 +1212,7 @@ export class TimerRenderer {
 export class RunStateRenderer {
 	private static readonly MIN_SPINNER_TIME = 200;
 
-	private spinnerTimer: NodeJS.Timeout | undefined;
+	private spinnerTimer: any | undefined;
 	private pendingNewState: NotebookCellRunState | undefined;
 
 	constructor(private readonly element: HTMLElement, private readonly runToolbar: ToolBar, private readonly instantiationService: IInstantiationService) {
