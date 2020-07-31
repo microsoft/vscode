@@ -1017,10 +1017,6 @@ ${formatRule(menuSubmenuIcon)}
 	margin-right: .8em;
 }
 
-.monaco-menu .monaco-action-bar.animated.vertical .action-item.active {
-	transform: translate(5px, 0);
-}
-
 .monaco-menu .secondary-actions .monaco-action-bar .action-label {
 	margin-left: 6px;
 }
