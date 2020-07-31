@@ -80,8 +80,6 @@ export interface ILayoutAnchor {
 export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAnchor): number {
 	const anchorEnd = anchor.offset + anchor.size;
 
-	console.log(`viewport: ${viewportSize}, view: ${viewSize}`);
-
 	if (anchor.position === LayoutAnchorPosition.Before) {
 		if (viewSize <= viewportSize - anchorEnd) {
 			return anchorEnd; // happy case, lay it out after the anchor
