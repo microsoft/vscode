@@ -299,8 +299,11 @@
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	display: inline-block;
-	/* size to contents for hover to show context button */
+	display: inline-block; /* size to contents for hover to show context button */
+	border-radius: 5px;
+}
+.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused.selected .setting-item-contents .setting-item-title {
+	padding-left: 7px;
 }
 
 
@@ -528,22 +531,27 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-title-label {
+	display: inline-block;
 	margin: 0px;
 	font-weight: 600;
+	height: 100%;
+	box-sizing: border-box;
+	border-radius: 5px;
+	padding: 10px;
+	padding-left: 0;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .settings-group-title-label {
+	padding-left: 10px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-1 {
-	padding-top: 23px;
 	font-size: 24px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-2 {
 	padding-top: 32px;
 	font-size: 20px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .settings-group-level-1.settings-group-first {
-	padding-top: 7px;
 }
 
 .settings-editor.search-mode > .settings-body .settings-toc-container .monaco-list-row .settings-toc-count {
