@@ -8,7 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import { IActionRunner, IAction, SubmenuAction, Separator, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses, clearNode, createStyleSheet, isInShadowDOM, getActiveElement } from 'vs/base/browser/dom';
+import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses, clearNode, createStyleSheet, isInShadowDOM, getActiveElement, Dimension, IDomNodePagePosition } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -16,7 +16,7 @@ import { Color } from 'vs/base/common/color';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { Event } from 'vs/base/common/event';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { AnchorAlignment, layout, LayoutAnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { Codicon, registerIcon, stripCodicons } from 'vs/base/common/codicons';
 import { BaseActionViewItem, ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
@@ -769,6 +769,33 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 	}
 
+	private calculateSubmenuMenuLayout(windowDimensions: Dimension, submenu: Dimension, entry: IDomNodePagePosition, expandDirection: Direction): { top: number, left: number } {
+		const ret = { top: 0, left: 0 };
+
+		// Start with horizontal
+		ret.left = layout(windowDimensions.width, submenu.width, { position: this.expandDirection === Direction.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width });
+
+		// We don't have enough room to layout the menu fully, so we are overlapping the menu
+		if (ret.left >= entry.left && ret.left < entry.left + entry.width) {
+			if (entry.left + 10 + submenu.width <= windowDimensions.width) {
+				ret.left = entry.left + 10;
+			}
+
+			entry.top += 10;
+			entry.height = 0;
+		}
+
+		// Now that we have a horizontal position, try layout vertically
+		ret.top = layout(windowDimensions.height, submenu.height, { position: LayoutAnchorPosition.Before, offset: entry.top, size: 0 });
+
+		// We didn't have enough room below, but we did above, so we shift down to align the menu
+		if (ret.top + submenu.height === entry.top && ret.top + entry.height + submenu.height <= windowDimensions.height) {
+			ret.top += entry.height;
+		}
+
+		return ret;
+	}
+
 	private createSubmenu(selectFirstItem = true): void {
 		if (!this.element) {
 			return;
@@ -776,14 +803,14 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 		if (!this.parentData.submenu) {
 			this.updateAriaExpanded('true');
-			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
+			this.submenuContainer = document.createElement('div.monaco-submenu');
 			addClasses(this.submenuContainer, 'menubar-menu-items-holder', 'context-view');
 
 			// Set the top value of the menu container before construction
 			// This allows the menu constructor to calculate the proper max height
 			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
 			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
-			this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
+			// this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
 			this.submenuContainer.style.zIndex = '1';
 
 			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions, this.submenuOptions);
@@ -791,22 +818,25 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 				this.parentData.submenu.style(this.menuStyle);
 			}
 
-			const boundingRect = this.element.getBoundingClientRect();
-			const childBoundingRect = this.submenuContainer.getBoundingClientRect();
+			this.element.appendChild(this.submenuContainer);
 
-			if (this.expandDirection === Direction.Right) {
-				if (window.innerWidth <= boundingRect.right + childBoundingRect.width) {
-					this.submenuContainer.style.left = '10px';
-					this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset + boundingRect.height}px`;
-				} else {
-					this.submenuContainer.style.left = `${this.element.offsetWidth}px`;
-					this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
-				}
-			} else if (this.expandDirection === Direction.Left) {
-				this.submenuContainer.style.right = `${this.element.offsetWidth}px`;
-				this.submenuContainer.style.left = 'auto';
-				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
-			}
+			// layout submenu
+			const entryBox = this.element.getBoundingClientRect();
+			const entryBoxUpdated = {
+				top: entryBox.top - paddingTop,
+				left: entryBox.left,
+				height: entryBox.height + 2 * paddingTop,
+				width: entryBox.width
+			};
+
+			const viewBox = this.submenuContainer.getBoundingClientRect();
+
+
+			this.submenuContainer.style.position = 'fixed';
+
+			const { top, left } = this.calculateSubmenuMenuLayout({ height: window.innerHeight, width: window.innerWidth }, viewBox, entryBoxUpdated, this.expandDirection);
+			this.submenuContainer.style.left = `${left}px`;
+			this.submenuContainer.style.top = `${top}px`;
 
 			this.submenuDisposables.add(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
 				let event = new StandardKeyboardEvent(e);
