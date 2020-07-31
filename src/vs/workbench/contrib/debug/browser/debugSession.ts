@@ -36,6 +36,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { localize } from 'vs/nls';
 import { canceled } from 'vs/base/common/errors';
 import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 
 export class DebugSession implements IDebugSession {
 
@@ -131,6 +132,10 @@ export class DebugSession implements IDebugSession {
 
 	get compact(): boolean {
 		return !!this._options.compact;
+	}
+
+	get compoundRoot(): DebugCompoundRoot | undefined {
+		return this._options.compoundRoot;
 	}
 
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
