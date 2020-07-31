@@ -286,10 +286,6 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement);
 		disposables.add(inputWidget);
 
-		const onKeyDown = Event.map(domEvent(container, 'keydown'), e => new StandardKeyboardEvent(e));
-		const onEscape = Event.filter(onKeyDown, e => e.keyCode === KeyCode.Escape);
-		disposables.add(onEscape(this.focusTree));
-
 		return { inputWidget, disposable: Disposable.None, templateDisposable: disposables };
 	}
 
