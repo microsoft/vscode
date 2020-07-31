@@ -964,6 +964,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const statusBar = this.instantiationService.createInstance(CellEditorStatusBar, editorPart);
 		const timer = new TimerRenderer(statusBar.durationContainer);
+		const cellRunState = new RunStateRenderer(statusBar.cellRunStatusContainer, runToolbar, this.instantiationService);
 
 		const outputContainer = DOM.append(container, $('.output'));
 
@@ -986,7 +987,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			container,
 			cellContainer,
 			statusBarContainer: statusBar.statusBarContainer,
-			cellRunStatusContainer: statusBar.cellRunStatusContainer,
+			cellRunState,
 			cellStatusMessageContainer: statusBar.cellStatusMessageContainer,
 			languageStatusBarItem: statusBar.languageStatusBarItem,
 			progressBar,
@@ -1022,26 +1023,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return templateData;
 	}
 
-	private updateForRunState(runState: NotebookCellRunState | undefined, templateData: CodeCellRenderTemplate): void {
-		if (typeof runState === 'undefined') {
-			runState = NotebookCellRunState.Idle;
-		}
-
-		if (runState === NotebookCellRunState.Running) {
-			templateData.progressBar.infinite().show(500);
-
-			templateData.runToolbar.setActions([
-				this.instantiationService.createInstance(CancelCellAction)
-			]);
-		} else {
-			templateData.progressBar.hide();
-
-			templateData.runToolbar.setActions([
-				this.instantiationService.createInstance(ExecuteCellAction)
-			]);
-		}
-	}
-
 	private updateForOutputs(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		if (element.outputs.length) {
 			DOM.show(templateData.focusSinkElement);
@@ -1056,15 +1037,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.updateExecutionOrder(metadata, templateData);
 		templateData.cellStatusMessageContainer.textContent = metadata?.statusMessage || '';
 
-		if (metadata.runState === NotebookCellRunState.Success) {
-			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(check)');
-		} else if (metadata.runState === NotebookCellRunState.Error) {
-			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(error)');
-		} else if (metadata.runState === NotebookCellRunState.Running) {
-			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(sync~spin)');
-		} else {
-			templateData.cellRunStatusContainer.innerHTML = '';
-		}
+		templateData.cellRunState.renderState(element.metadata?.runState);
 
 		if (metadata.runState === NotebookCellRunState.Running) {
 			if (metadata.runStartTime) {
@@ -1082,7 +1055,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.editorOptions.setGlyphMargin(metadata.breakpointMargin);
 		}
 
-		this.updateForRunState(metadata.runState, templateData);
+		if (metadata.runState === NotebookCellRunState.Running) {
+			templateData.progressBar.infinite().show(500);
+		} else {
+			templateData.progressBar.hide();
+		}
 	}
 
 	private updateExecutionOrder(metadata: NotebookCellMetadata, templateData: CodeCellRenderTemplate): void {
@@ -1141,6 +1118,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.updateForLayout(element, templateData);
 		}));
 
+		templateData.cellRunState.clear();
 		this.updateForMetadata(element, templateData);
 		this.updateForHover(element, templateData);
 		elementDisposables.add(element.onDidChangeState((e) => {
@@ -1228,5 +1206,52 @@ export class TimerRenderer {
 		const tenths = String(duration - seconds * 1000).charAt(0);
 
 		return `${seconds}.${tenths}s`;
+	}
+}
+
+export class RunStateRenderer {
+	private static readonly MIN_SPINNER_TIME = 200;
+
+	private spinnerTimer: NodeJS.Timeout | undefined;
+	private pendingNewState: NotebookCellRunState | undefined;
+
+	constructor(private readonly element: HTMLElement, private readonly runToolbar: ToolBar, private readonly instantiationService: IInstantiationService) {
+	}
+
+	clear() {
+		if (this.spinnerTimer) {
+			clearTimeout(this.spinnerTimer);
+		}
+	}
+
+	renderState(runState: NotebookCellRunState = NotebookCellRunState.Idle) {
+		if (this.spinnerTimer) {
+			this.pendingNewState = runState;
+			return;
+		}
+
+		if (runState === NotebookCellRunState.Running) {
+			this.runToolbar.setActions([this.instantiationService.createInstance(CancelCellAction)]);
+		} else {
+			this.runToolbar.setActions([this.instantiationService.createInstance(ExecuteCellAction)]);
+		}
+
+		if (runState === NotebookCellRunState.Success) {
+			this.element.innerHTML = renderCodicons('$(check)');
+		} else if (runState === NotebookCellRunState.Error) {
+			this.element.innerHTML = renderCodicons('$(error)');
+		} else if (runState === NotebookCellRunState.Running) {
+			this.element.innerHTML = renderCodicons('$(sync~spin)');
+
+			this.spinnerTimer = setTimeout(() => {
+				this.spinnerTimer = undefined;
+				if (this.pendingNewState) {
+					this.renderState(this.pendingNewState);
+					this.pendingNewState = undefined;
+				}
+			}, RunStateRenderer.MIN_SPINNER_TIME);
+		} else {
+			this.element.innerHTML = '';
+		}
 	}
 }

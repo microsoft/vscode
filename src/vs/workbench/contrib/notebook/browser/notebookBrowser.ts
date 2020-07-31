@@ -19,7 +19,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { CellLanguageStatusBarItem, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
+import { CellLanguageStatusBarItem, RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -489,7 +489,7 @@ export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
-	cellRunStatusContainer: HTMLElement;
+	cellRunState: RunStateRenderer;
 	cellStatusMessageContainer: HTMLElement;
 	runToolbar: ToolBar;
 	runButtonContainer: HTMLElement;
