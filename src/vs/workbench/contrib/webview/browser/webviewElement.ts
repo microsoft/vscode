@@ -129,15 +129,15 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	showFind(): void {
-		throw new Error('Method not implemented.');
+		// throw new Error('Method not implemented.');
 	}
 
 	hideFind(): void {
-		throw new Error('Method not implemented.');
+		// throw new Error('Method not implemented.');
 	}
 
 	runFindAction(previous: boolean): void {
-		throw new Error('Method not implemented.');
+		// throw new Error('Method not implemented.');
 	}
 
 	private async loadResource(requestPath: string, uri: URI) {
