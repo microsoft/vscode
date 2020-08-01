@@ -26,6 +26,7 @@ import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, Notebo
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -642,4 +643,10 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 	}
 
 	return result;
+}
+
+export function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor | undefined {
+	// TODO can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
+	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
+	return activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
 }

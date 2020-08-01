@@ -100,7 +100,7 @@ function writeControlFile(control) {
 	fs.writeFileSync(controlFilePath, JSON.stringify(control, null, 2));
 }
 
-function main() {
+exports.getBuiltInExtensions = function getBuiltInExtensions() {
 	log('Syncronizing built-in extensions...');
 	log(`You can manage built-in extensions with the ${ansiColors.cyan('--builtin')} flag`);
 
@@ -116,14 +116,16 @@ function main() {
 
 	writeControlFile(control);
 
-	es.merge(streams)
-		.on('error', err => {
-			console.error(err);
-			process.exit(1);
-		})
-		.on('end', () => {
-			process.exit(0);
-		});
-}
+	return new Promise((resolve, reject) => {
+		es.merge(streams)
+			.on('error', reject)
+			.on('end', resolve);
+	});
+};
 
-main();
+if (require.main === module) {
+	exports.getBuiltInExtensions().then(() => process.exit(0)).catch(err => {
+		console.error(err);
+		process.exit(1);
+	});
+}

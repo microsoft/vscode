@@ -663,7 +663,7 @@ suite('notebook undo redo', () => {
 
 
 		// undo should bring back the deleted cell, and revert to previous content and selection
-		await vscode.commands.executeCommand('notebook.undo');
+		await vscode.commands.executeCommand('undo');
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.length, 3);
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(vscode.notebook.activeNotebookEditor!.selection!), 1);
 		assert.equal(vscode.notebook.activeNotebookEditor?.selection?.document.getText(), 'var abc = 0;');
@@ -729,7 +729,7 @@ suite('notebook undo redo', () => {
 		assert.equal(cellOutputsAddedRet.cells[0].outputs.length, 1);
 
 		const cellOutputClear = getEventOncePromise<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs);
-		await vscode.commands.executeCommand('notebook.undo');
+		await vscode.commands.executeCommand('undo');
 		const cellOutputsCleardRet = await cellOutputClear;
 		assert.deepEqual(cellOutputsCleardRet, {
 			document: vscode.notebook.activeNotebookEditor!.document,

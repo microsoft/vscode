@@ -33,6 +33,7 @@ import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -41,6 +42,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 	private readonly viewletService: IViewletService;
 	private readonly layoutService: IWorkbenchLayoutService;
 	private readonly telemetryService: ITelemetryService;
+	private readonly configurationService: IConfigurationService;
 
 	private lastRun: number;
 
@@ -48,7 +50,8 @@ export class ViewContainerActivityAction extends ActivityAction {
 		activity: IActivity,
 		@IViewletService viewletService: IViewletService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(activity);
 
@@ -56,6 +59,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 		this.viewletService = viewletService;
 		this.layoutService = layoutService;
 		this.telemetryService = telemetryService;
+		this.configurationService = configurationService;
 	}
 
 	updateActivity(activity: IActivity): void {
@@ -76,11 +80,22 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 		const sideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
 		const activeViewlet = this.viewletService.getActiveViewlet();
+		const focusBehavior = this.configurationService.getValue<string>('workbench.activityBar.iconClickBehavior');
 
-		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet?.getId() === this.activity.id) {
-			this.logAction('hide');
-			this.layoutService.setSideBarHidden(true);
+			switch (focusBehavior) {
+				case 'focus':
+					this.logAction('refocus');
+					this.viewletService.openViewlet(this.activity.id, true);
+					break;
+				case 'toggle':
+				default:
+					// Hide sidebar if selected viewlet already visible
+					this.logAction('hide');
+					this.layoutService.setSideBarHidden(true);
+					break;
+			}
+
 			return;
 		}
 
