@@ -20,7 +20,6 @@ import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 import * as pty from 'node-pty';
-import stripAnsi = require('strip-ansi');
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -354,13 +353,17 @@ class SshAgent {
 		return this.getCommand('ssh-add').then(sshAddCommand => {
 			let success = false;
 			const env: { [key: string]: string } = {};
-			Object.entries(Object.assign({}, process.env, this.env)).forEach(([key, value]) => env[key] = value || '');
+			Object.entries(Object.assign({}, process.env, this.env)).forEach(([key, value]) => {
+				if (value !== undefined && value !== '') {
+					env[key] = value;
+				}
+			});
 
 			// ssh-add requires a TTY, so child_process.spawn is not enough here
 			const sshAddProcess = pty.spawn(sshAddCommand, [privateKeyPath], { env });
 
 			sshAddProcess.on('data', data => {
-				const message = stripAnsi(data).replace(/[\x0a\x0d]/g, '');
+				const message = this.removeAnsiEscapeSequences(data).replace(/[\x0a\x0d]/g, '');
 
 				if (
 					message.match(/^Enter passphrase for .*:/) ||
@@ -425,6 +428,25 @@ class SshAgent {
 				window.showErrorMessage(localize('failed to find command', "Failed to find command '{0}'", commandName));
 				return Promise.reject(reason);
 			});
+	}
+
+	private removeAnsiEscapeSequences(str: string): string {
+		if (!str) {
+			return str;
+		}
+
+		// Escape sequences
+		// http://en.wikipedia.org/wiki/ANSI_escape_code
+		const OSC_STRING = /\x1B\].*?((\x1B\\)|\x07)/g; // Operating system command
+		const CUF = /\x1B\[\d*C/g; // Cursor forward
+		const CUP = /\x1B\[\d*;?\d*H/g; // Cursor position
+		const ED = /\x1B\[[012]?J/g; // Erase in display
+		const EL = /\x1B\[[012]?K/g; // Erase in line
+		const SGR = /\x1B\[\d*m/g; // Select graphic rendition
+		const SHOW_CURSOR = /\x1B\[\?25h/g; // Show the cursor
+		const ESCAPE_SEQUENCES = [OSC_STRING, CUF, CUP, ED, EL, SGR, SHOW_CURSOR];
+
+		return ESCAPE_SEQUENCES.reduce((to_escape: string, escape_sequence: RegExp) => to_escape.replace(escape_sequence, ''), str);
 	}
 }
 
