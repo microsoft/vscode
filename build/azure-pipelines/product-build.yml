@@ -65,14 +65,6 @@ stages:
     steps:
     - template: linux/product-build-linux.yml
 
-  # - job: LinuxSnap
-  #   dependsOn:
-  #   - Linux
-  #   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
-  #   container: snapcraft
-  #   steps:
-  #   - template: linux/snap-build-linux.yml
-
   - job: LinuxArmhf
     condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
     variables:
@@ -119,21 +111,21 @@ stages:
   - macOS
   pool:
     vmImage: 'Ubuntu-16.04'
-  # jobs:
-  # - job: Release
-  #   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
-  #   steps:
-  #   - template: release.yml
+  jobs:
+  - job: LinuxSnap
+    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
+    container: snapcraft
+    # steps:
+    # - template: linux/snap-build-linux.yml
 
-- stage: Mooncake
-  dependsOn:
-  - Windows
-  - Linux
-  - macOS
-  pool:
-    vmImage: 'Ubuntu-16.04'
-  # jobs:
-  # - job: Mooncake
-  #   condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
-  #   steps:
-  #   - template: sync-mooncake.yml
+  - job: BuildService
+    displayName: Build Service
+    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
+    # steps:
+    # - template: release.yml
+
+  - job: BuildServiceMooncake
+    displayName: Build Service (Mooncake)
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
+    # steps:
+    # - template: sync-mooncake.yml
