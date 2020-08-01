@@ -65,6 +65,14 @@ stages:
     steps:
     - template: linux/product-build-linux.yml
 
+  - job: LinuxSnap
+    dependsOn:
+    - Linux
+    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
+    container: snapcraft
+    steps:
+    # - template: linux/snap-build-linux.yml
+
   - job: LinuxArmhf
     condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
     variables:
@@ -104,27 +112,10 @@ stages:
     steps:
     - template: darwin/product-build-darwin.yml
 
-- stage: LinuxSnap
-  dependsOn:
-  - Linux
-  pool:
-    vmImage: 'Ubuntu-16.04'
-  jobs:
-  - job: LinuxSnap
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
-    container: snapcraft
-    steps:
-    # - template: linux/snap-build-linux.yml
-
 - stage: Release
   dependsOn:
   - Windows
-  - Windows32
   - Linux
-  - LinuxSnap
-  - LinuxArmhf
-  - LinuxArm64
-  - LinuxAlpine
   - macOS
   pool:
     vmImage: 'Ubuntu-16.04'
@@ -137,13 +128,7 @@ stages:
 - stage: Mooncake
   dependsOn:
   - Windows
-  - Windows32
   - Linux
-  - LinuxSnap
-  - LinuxArmhf
-  - LinuxArm64
-  - LinuxAlpine
-  - LinuxWeb
   - macOS
   pool:
     vmImage: 'Ubuntu-16.04'
