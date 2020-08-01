@@ -52,7 +52,7 @@ import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
-import { homedir } from 'os';
+import { homedir, tmpdir } from 'os';
 import { join, sep, posix } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
@@ -64,7 +64,7 @@ import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { WorkspacesHistoryMainService, IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesMainService, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { statSync } from 'fs';
+import { statSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
@@ -766,6 +766,22 @@ export class CodeApplication extends Disposable {
 			// we configure as fileUri, but later validation will
 			// make sure to open as folder or workspace if possible
 			return { fileUri: URI.file(uri.fsPath) };
+		}
+
+		// Untitled file
+		else if (uri.authority === Schemas.untitled) {
+			// From: vscode://untitled/<encodedURLComponent>?filename=<filename>
+			//   To: file://<tempPath>
+			const dir = join(tmpdir(), `code-url-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 5)}`);
+			if (!existsSync(dir)) {
+				mkdirSync(dir);
+			}
+
+			const query = new URLSearchParams(uri.query || '');
+			const untitledTempPath = join(dir, query.get('filename') || 'untitled.txt');
+			writeFileSync(untitledTempPath, uri.path.slice(1), 'utf-8');
+
+			return { fileUri: URI.file(untitledTempPath)};
 		}
 
 		// Remote path
