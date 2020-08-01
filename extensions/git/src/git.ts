@@ -314,10 +314,11 @@ class SshAgent {
 	private _sshBinDir: string | undefined;
 
 	get env() {
-		return Object.assign(this._sshBinDir ? { 'GIT_SSH': path.join(this._sshBinDir, 'ssh') } : {}, {
-			'SSH_AGENT_PID': this._sshAgentPid,
-			'SSH_AUTH_SOCK': this._sshAuthSock
-		});
+		return Object.assign(
+			this._sshBinDir ? { 'GIT_SSH': path.join(this._sshBinDir, 'ssh') } : {},
+			this._sshAgentPid ? { 'SSH_AGENT_PID': this._sshAgentPid } : {},
+			this._sshAuthSock ? { 'SSH_AUTH_SOCK': this._sshAuthSock } : {}
+		);
 	}
 
 	async start(): Promise<void> {
