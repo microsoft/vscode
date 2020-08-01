@@ -65,13 +65,13 @@ stages:
     steps:
     - template: linux/product-build-linux.yml
 
-  - job: LinuxSnap
-    dependsOn:
-    - Linux
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
-    container: snapcraft
-    steps:
-    # - template: linux/snap-build-linux.yml
+  # - job: LinuxSnap
+  #   dependsOn:
+  #   - Linux
+  #   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
+  #   container: snapcraft
+  #   steps:
+  #   - template: linux/snap-build-linux.yml
 
   - job: LinuxArmhf
     condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
@@ -119,11 +119,11 @@ stages:
   - macOS
   pool:
     vmImage: 'Ubuntu-16.04'
-  jobs:
-  - job: Release
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
-    steps:
-    # - template: release.yml
+  # jobs:
+  # - job: Release
+  #   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
+  #   steps:
+  #   - template: release.yml
 
 - stage: Mooncake
   dependsOn:
@@ -132,8 +132,8 @@ stages:
   - macOS
   pool:
     vmImage: 'Ubuntu-16.04'
-  jobs:
-  - job: Mooncake
-    condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
-    steps:
-    # - template: sync-mooncake.yml
+  # jobs:
+  # - job: Mooncake
+  #   condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
+  #   steps:
+  #   - template: sync-mooncake.yml
