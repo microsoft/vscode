@@ -328,21 +328,25 @@ class SshAgent {
 
 		return this.getCommand('ssh-agent')
 			.then(sshAgentCommand => exec(cp.spawn(sshAgentCommand, ['-s'])))
-			.then(sshAgentResult => sshAgentResult.stdout
-				.toString()
-				.split('\n')
-				.forEach(outputLine => {
-					const sshAgentPidMatch = outputLine.match(/SSH_AGENT_PID=([^;]*)/);
-					if (sshAgentPidMatch && sshAgentPidMatch.length === 2) {
-						this._sshAgentPid = sshAgentPidMatch[1];
-					}
+			.then(sshAgentResult => {
+				if (sshAgentResult.exitCode !== 0) {
+					window.showErrorMessage(localize('failed to start ssh-agent', "Failed to start ssh-agent: {0}", sshAgentResult.stderr));
+				}
+				return sshAgentResult.stdout
+					.toString()
+					.split('\n')
+					.forEach(outputLine => {
+						const sshAgentPidMatch = outputLine.match(/SSH_AGENT_PID=([^;]*)/);
+						if (sshAgentPidMatch && sshAgentPidMatch.length === 2) {
+							this._sshAgentPid = sshAgentPidMatch[1];
+						}
 
-					const sshAuthSockMatch = outputLine.match(/SSH_AUTH_SOCK=([^;]*)/);
-					if (sshAuthSockMatch && sshAuthSockMatch.length === 2) {
-						this._sshAuthSock = sshAuthSockMatch[1];
-					}
-				})
-			);
+						const sshAuthSockMatch = outputLine.match(/SSH_AUTH_SOCK=([^;]*)/);
+						if (sshAuthSockMatch && sshAuthSockMatch.length === 2) {
+							this._sshAuthSock = sshAuthSockMatch[1];
+						}
+					});
+			});
 	}
 
 	async addKey(privateKeyPath: string): Promise<void> {
