@@ -845,8 +845,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this._webview!.element.style.height = `${scrollHeight}px`;
 
 				if (this._webview?.insetMapping) {
-					let updateItems: { cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number }[] = [];
-					let removedItems: IProcessedOutput[] = [];
+					const updateItems: { cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number }[] = [];
+					const removedItems: IProcessedOutput[] = [];
 					this._webview?.insetMapping.forEach((value, key) => {
 						const cell = value.cell;
 						const viewIndex = this._list?.getViewIndex(cell);
@@ -930,7 +930,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		if (this._list) {
 			state.scrollPosition = { left: this._list.scrollLeft, top: this._list.scrollTop };
-			let cellHeights: { [key: number]: number } = {};
+			const cellHeights: { [key: number]: number } = {};
 			for (let i = 0; i < this.viewModel!.length; i++) {
 				const elm = this.viewModel!.viewCells[i] as CellViewModel;
 				if (elm.cellKind === CellKind.Code) {
@@ -947,7 +947,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				const element = this._notebookViewModel!.viewCells[focus];
 				if (element) {
 					const itemDOM = this._list?.domElementOfElement(element);
-					let editorFocused = !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
+					const editorFocused = !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
 
 					state.editorFocused = editorFocused;
 					state.focus = focus;
@@ -1103,7 +1103,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		let relayout = (cell: ICellViewModel, height: number) => {
+		const relayout = (cell: ICellViewModel, height: number) => {
 			if (this._isDisposed) {
 				return;
 			}
@@ -1230,7 +1230,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const originalIdx = this._notebookViewModel!.getCellIndex(cell);
 		const relativeToIndex = this._notebookViewModel!.getCellIndex(relativeToCell);
 
-		let newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
+		const newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
 		return this._moveCellToIndex(originalIdx, newIdx);
 	}
 
@@ -1287,7 +1287,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	getActiveCell() {
-		let elements = this._list?.getFocusedElements();
+		const elements = this._list?.getFocusedElements();
 
 		if (elements && elements.length) {
 			return elements[0];
@@ -1438,7 +1438,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			cell.focusMode = CellFocusMode.Container;
 			this.revealInCenterIfOutsideViewport(cell);
 		} else {
-			let itemDOM = this._list?.domElementOfElement(cell);
+			const itemDOM = this._list?.domElementOfElement(cell);
 			if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
 				(document.activeElement as HTMLElement).blur();
 			}
@@ -1487,14 +1487,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		await this._resolveWebview();
 
-		let preloads = this._notebookViewModel!.renderers;
+		const preloads = this._notebookViewModel!.renderers;
 
 		if (!this._webview!.insetMapping.has(output)) {
-			let cellTop = this._list?.getAbsoluteTopOfElement(cell) || 0;
+			const cellTop = this._list?.getAbsoluteTopOfElement(cell) || 0;
 			await this._webview!.createInset(cell, output, cellTop, offset, shadowContent, preloads);
 		} else {
-			let cellTop = this._list?.getAbsoluteTopOfElement(cell) || 0;
-			let scrollTop = this._list?.scrollTop || 0;
+			const cellTop = this._list?.getAbsoluteTopOfElement(cell) || 0;
+			const scrollTop = this._list?.scrollTop || 0;
 
 			this._webview!.updateViewScrollTop(-scrollTop, [{ cell: cell, output: output, cellTop: cellTop }]);
 		}

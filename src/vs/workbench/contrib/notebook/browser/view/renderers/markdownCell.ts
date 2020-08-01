@@ -241,8 +241,8 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this.markdownContainer.innerHTML = '';
 		this.viewCell.clearHTML();
-		let markdownRenderer = this.viewCell.getMarkdownRenderer();
-		let renderedHTML = this.viewCell.getHTML();
+		const markdownRenderer = this.viewCell.getMarkdownRenderer();
+		const renderedHTML = this.viewCell.getHTML();
 		if (renderedHTML) {
 			this.markdownContainer.appendChild(renderedHTML);
 		}
@@ -261,7 +261,7 @@ export class StatefulMarkdownCell extends Disposable {
 			this.localDisposables.add(this.viewCell.textBuffer.onDidChangeContent(() => {
 				this.markdownContainer.innerHTML = '';
 				this.viewCell.clearHTML();
-				let renderedHTML = this.viewCell.getHTML();
+				const renderedHTML = this.viewCell.getHTML();
 				if (renderedHTML) {
 					this.markdownContainer.appendChild(renderedHTML);
 				}
@@ -326,7 +326,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	private bindEditorListeners() {
 		this.localDisposables.add(this.editor!.onDidContentSizeChange(e => {
-			let viewLayout = this.editor!.getLayoutInfo();
+			const viewLayout = this.editor!.getLayoutInfo();
 
 			if (e.contentHeightChanged) {
 				this.viewCell.editorHeight = e.contentHeight;

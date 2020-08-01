@@ -344,7 +344,7 @@ class CellContentProvider implements ITextModelContentProvider {
 		const ref = await this._notebookModelResolverService.resolve(data.notebook, info.id);
 		let result: ITextModel | null = null;
 
-		for (let cell of ref.object.notebook.cells) {
+		for (const cell of ref.object.notebook.cells) {
 			if (cell.uri.toString() === resource.toString()) {
 				const bufferFactory: ITextBufferFactory = {
 					create: (defaultEOL) => {

@@ -439,7 +439,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		templateData.currentEditor = undefined;
 		templateData.editorPart!.style.display = 'none';
 		templateData.cellContainer.innerHTML = '';
-		let renderedHTML = element.getHTML();
+		const renderedHTML = element.getHTML();
 		if (renderedHTML) {
 			templateData.cellContainer.appendChild(renderedHTML);
 		}
@@ -842,8 +842,8 @@ class EditorTextRenderer {
 	}
 
 	private getDefaultColorMap(): string[] {
-		let colorMap = modes.TokenizationRegistry.getColorMap();
-		let result: string[] = ['#000000'];
+		const colorMap = modes.TokenizationRegistry.getColorMap();
+		const result: string[] = ['#000000'];
 		if (colorMap) {
 			for (let i = 1, len = colorMap.length; i < len; i++) {
 				result[i] = Color.Format.CSS.formatHex(colorMap[i]);

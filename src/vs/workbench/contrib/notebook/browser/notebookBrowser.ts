@@ -592,13 +592,13 @@ export function reduceCellRanges(_ranges: ICellRange[]): ICellRange[] {
 		return [];
 	}
 
-	let ranges = _ranges.sort((a, b) => a.start - b.start);
-	let result: ICellRange[] = [];
+	const ranges = _ranges.sort((a, b) => a.start - b.start);
+	const result: ICellRange[] = [];
 	let currentRangeStart = ranges[0].start;
 	let currentRangeEnd = ranges[0].end + 1;
 
 	for (let i = 0, len = ranges.length; i < len; i++) {
-		let range = ranges[i];
+		const range = ranges[i];
 
 		if (range.start > currentRangeEnd) {
 			result.push({ start: currentRangeStart, end: currentRangeEnd - 1 });
@@ -620,7 +620,7 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 
 	let start = 0;
 	let hiddenRangeIndex = 0;
-	let result: CellViewModel[] = [];
+	const result: CellViewModel[] = [];
 
 	while (start < cells.length && hiddenRangeIndex < hiddenRanges.length) {
 		if (start < hiddenRanges[hiddenRangeIndex].start) {

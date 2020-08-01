@@ -139,7 +139,7 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 	}
 
 	set outputs(newOutputs: vscode.CellOutput[]) {
-		let rawDiffs = diff<vscode.CellOutput>(this._outputs || [], newOutputs || [], (a) => {
+		const rawDiffs = diff<vscode.CellOutput>(this._outputs || [], newOutputs || [], (a) => {
 			return this._outputMapping.has(a);
 		});
 
@@ -374,11 +374,11 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 			return;
 		}
 
-		let contentChangeEvents: vscode.NotebookCellsChangeData[] = [];
+		const contentChangeEvents: vscode.NotebookCellsChangeData[] = [];
 
 		splices.reverse().forEach(splice => {
-			let cellDtos = splice[2];
-			let newCells = cellDtos.map(cell => {
+			const cellDtos = splice[2];
+			const newCells = cellDtos.map(cell => {
 
 				const extCell = new ExtHostCell(this._proxy, this, this._documentsAndEditors, cell);
 
@@ -386,7 +386,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 					this._cellDisposableMapping.set(extCell.handle, new DisposableStore());
 				}
 
-				let store = this._cellDisposableMapping.get(extCell.handle)!;
+				const store = this._cellDisposableMapping.get(extCell.handle)!;
 
 				store.add(extCell.onDidChangeOutputs((diffs) => {
 					this.eventuallyUpdateCellOutputs(extCell, diffs);
@@ -475,9 +475,9 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	}
 
 	async eventuallyUpdateCellOutputs(cell: ExtHostCell, diffs: ISplice<IProcessedOutput>[]) {
-		let renderers = new Set<number>();
-		let outputDtos: NotebookCellOutputsSplice[] = diffs.map(diff => {
-			let outputs = diff.toInsert;
+		const renderers = new Set<number>();
+		const outputDtos: NotebookCellOutputsSplice[] = diffs.map(diff => {
+			const outputs = diff.toInsert;
 			return [diff.start, diff.deleteCount, outputs];
 		});
 
@@ -528,7 +528,7 @@ export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellE
 		this._throwIfFinalized();
 
 		const sourceArr = Array.isArray(content) ? content : content.split(/\r|\n|\r\n/g);
-		let cell = {
+		const cell = {
 			source: sourceArr,
 			language,
 			cellKind: type,
@@ -673,7 +673,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			return Promise.resolve(true);
 		}
 
-		let compressedEdits: ICellEditOperation[] = [];
+		const compressedEdits: ICellEditOperation[] = [];
 		let compressedEditsIndex = -1;
 
 		for (let i = 0; i < editData.edits.length; i++) {
@@ -683,8 +683,8 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 				continue;
 			}
 
-			let prevIndex = compressedEditsIndex;
-			let prev = compressedEdits[prevIndex];
+			const prevIndex = compressedEditsIndex;
+			const prev = compressedEdits[prevIndex];
 
 			if (prev.editType === CellEditType.Insert && editData.edits[i].editType === CellEditType.Insert) {
 				if (prev.index === editData.edits[i].index) {
@@ -761,7 +761,7 @@ export class ExtHostNotebookOutputRenderer {
 	}
 
 	render(document: ExtHostNotebookDocument, output: vscode.CellDisplayOutput, outputId: string, mimeType: string): string {
-		let html = this.renderer.render(document, { output, outputId, mimeType });
+		const html = this.renderer.render(document, { output, outputId, mimeType });
 
 		return html;
 	}
@@ -794,7 +794,7 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 
 		const newMap = new Map<vscode.NotebookKernel, string>();
 		let kernel_unique_pool = 0;
-		let kernelIdCache = new Set<string>();
+		const kernelIdCache = new Set<string>();
 
 		const transformedData: INotebookKernelInfoDto2[] = data.map(kernel => {
 			let id = this._kernelToId.get(kernel);
@@ -947,7 +947,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					const documentHandle = arg.notebookEditor?.notebookHandle;
 					const cellHandle = arg.cell.handle;
 
-					for (let value of this._editors) {
+					for (const value of this._editors) {
 						if (value[1].editor.document.handle === documentHandle) {
 							const cell = value[1].editor.document.getCell(cellHandle);
 							if (cell) {
@@ -971,7 +971,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			throw new Error(`Notebook renderer for '${type}' already registered`);
 		}
 
-		let extHostRenderer = new ExtHostNotebookOutputRenderer(type, filter, renderer);
+		const extHostRenderer = new ExtHostNotebookOutputRenderer(type, filter, renderer);
 		this._notebookOutputRenderers.set(extHostRenderer.type, extHostRenderer);
 		this._proxy.$registerNotebookRenderer({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, type, filter, renderer.preloads || []);
 		return new extHostTypes.Disposable(() => {
@@ -1053,8 +1053,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	findBestMatchedRenderer(mimeType: string): ExtHostNotebookOutputRenderer[] {
-		let matches: ExtHostNotebookOutputRenderer[] = [];
-		for (let renderer of this._notebookOutputRenderers) {
+		const matches: ExtHostNotebookOutputRenderer[] = [];
+		for (const renderer of this._notebookOutputRenderers) {
 			if (renderer[1].matches(mimeType)) {
 				matches.push(renderer[1]);
 			}
@@ -1148,7 +1148,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	async $resolveNotebookKernel(handle: number, editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void> {
 		await this._withAdapter<void>(handle, uri, async (adapter, document) => {
-			let webComm = this._webviewComm.get(editorId);
+			const webComm = this._webviewComm.get(editorId);
 
 			if (webComm) {
 				await adapter.resolveNotebook(kernelId, document, webComm.contentProviderComm, token);
@@ -1263,7 +1263,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	async $executeNotebookByAttachedKernel(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void> {
-		let document = this._documents.get(URI.revive(uri).toString());
+		const document = this._documents.get(URI.revive(uri).toString());
 
 		if (!document) {
 			return;
@@ -1306,7 +1306,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	async $executeNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined): Promise<void> {
 		await this._withAdapter(handle, uri, async (adapter, document) => {
-			let cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
+			const cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
 
 			return adapter.executeNotebook(kernelId, document, cell);
 		});
@@ -1314,26 +1314,26 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	async $cancelNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined): Promise<void> {
 		await this._withAdapter(handle, uri, async (adapter, document) => {
-			let cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
+			const cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
 
 			return adapter.cancelNotebook(kernelId, document, cell);
 		});
 	}
 
 	async $executeNotebook2(kernelId: string, viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void> {
-		let document = this._documents.get(URI.revive(uri).toString());
+		const document = this._documents.get(URI.revive(uri).toString());
 
 		if (!document || document.viewType !== viewType) {
 			return;
 		}
 
-		let kernelInfo = this._notebookKernels.get(kernelId);
+		const kernelInfo = this._notebookKernels.get(kernelId);
 
 		if (!kernelInfo) {
 			return;
 		}
 
-		let cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
+		const cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
 
 		if (cell) {
 			return withToken(token => (kernelInfo!.kernel.executeCell as any)(document, cell, token));
@@ -1343,7 +1343,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	async $saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean> {
-		let document = this._documents.get(URI.revive(uri).toString());
+		const document = this._documents.get(URI.revive(uri).toString());
 		if (!document) {
 			return false;
 		}
@@ -1357,7 +1357,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	async $saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean> {
-		let document = this._documents.get(URI.revive(uri).toString());
+		const document = this._documents.get(URI.revive(uri).toString());
 		if (!document) {
 			return false;
 		}
@@ -1447,7 +1447,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	$acceptEditorPropertiesChanged(uriComponents: UriComponents, data: INotebookEditorPropertiesChangeData): void {
-		let editor = this._getEditorFromURI(uriComponents);
+		const editor = this._getEditorFromURI(uriComponents);
 
 		if (!editor) {
 			return;
@@ -1481,7 +1481,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			this._webviewComm.set(editorId, webComm);
 		}
 
-		let editor = new ExtHostNotebookEditor(
+		const editor = new ExtHostNotebookEditor(
 			document.viewType,
 			editorId,
 			revivedUri,
@@ -1515,7 +1515,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			delta.removedDocuments.forEach((uri) => {
 				const revivedUri = URI.revive(uri);
 				const revivedUriStr = revivedUri.toString();
-				let document = this._documents.get(revivedUriStr);
+				const document = this._documents.get(revivedUriStr);
 
 				if (document) {
 					document.dispose();
@@ -1547,7 +1547,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				if (!this._documents.has(revivedUriStr)) {
 					const that = this;
 
-					let document = this._unInitializedDocuments.get(revivedUriStr) ?? new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, {
+					const document = this._unInitializedDocuments.get(revivedUriStr) ?? new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, {
 						emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
 							that._onDidChangeNotebookCells.fire(event);
 						},

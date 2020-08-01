@@ -386,7 +386,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	updateFoldingRanges(ranges: FoldingRegions) {
 		this._foldingRanges = ranges;
 		let updateHiddenAreas = false;
-		let newHiddenAreas: ICellRange[] = [];
+		const newHiddenAreas: ICellRange[] = [];
 
 		let i = 0; // index into hidden
 		let k = 0;
@@ -399,8 +399,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				continue;
 			}
 
-			let startLineNumber = ranges.getStartLineNumber(i) + 1; // the first line is not hidden
-			let endLineNumber = ranges.getEndLineNumber(i);
+			const startLineNumber = ranges.getStartLineNumber(i) + 1; // the first line is not hidden
+			const endLineNumber = ranges.getEndLineNumber(i);
 			if (lastCollapsedStart <= startLineNumber && endLineNumber <= lastCollapsedEnd) {
 				// ignore ranges contained in collapsed regions
 				continue;
@@ -532,7 +532,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const newDecorationsLen = newDecorations.length;
 		let newDecorationIndex = 0;
 
-		let result = new Array<string>(newDecorationsLen);
+		const result = new Array<string>(newDecorationsLen);
 		while (oldDecorationIndex < oldDecorationsLen || newDecorationIndex < newDecorationsLen) {
 
 			let node: IntervalNode | null = null;
@@ -597,7 +597,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		});
 
-		let result: string[] = [];
+		const result: string[] = [];
 
 		newDecorations.forEach(decoration => {
 			const cell = this.getCellByHandle(decoration.handle);
@@ -726,7 +726,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			return null;
 		}
 
-		let splitPoints = cell.getSelectionsStartPosition();
+		const splitPoints = cell.getSelectionsStartPosition();
 		if (splitPoints && splitPoints.length > 0) {
 			await cell.resolveTextModel();
 
@@ -734,7 +734,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				return null;
 			}
 
-			let newLinesContents = this._computeCellLinesContents(cell, splitPoints);
+			const newLinesContents = this._computeCellLinesContents(cell, splitPoints);
 			if (newLinesContents) {
 				const editorSelections = cell.getSelections();
 				this._notebook.splitNotebookCell(index, newLinesContents, this.selectionHandles);
@@ -1031,7 +1031,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			return;
 		}
 
-		let textEdits: WorkspaceTextEdit[] = [];
+		const textEdits: WorkspaceTextEdit[] = [];
 		this._lastNotebookEditResource.push(matches[0].cell.uri);
 
 		matches.forEach(match => {

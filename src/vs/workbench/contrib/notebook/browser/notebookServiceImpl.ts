@@ -53,7 +53,7 @@ export class NotebookKernelProviderInfoStore extends Disposable {
 		this._updateProviderExtensionsInfo();
 
 		return toDisposable(() => {
-			let idx = this._notebookKernelProviders.indexOf(provider);
+			const idx = this._notebookKernelProviders.indexOf(provider);
 			if (idx >= 0) {
 				this._notebookKernelProviders.splice(idx, 1);
 			}
@@ -307,7 +307,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._editorService.registerCustomEditorViewTypesHandler('Notebook', this);
 
 		const updateOrder = () => {
-			let userOrder = this._configurationService.getValue<string[]>('notebook.displayOrder');
+			const userOrder = this._configurationService.getValue<string[]>('notebook.displayOrder');
 			this._displayOrder = {
 				defaultOrder: this._accessibilityService.isScreenReaderOptimized() ? ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER : NOTEBOOK_DISPLAY_ORDER,
 				userOrder: userOrder
@@ -643,7 +643,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		renderFunc: (rendererId: string, items: IOutputRenderRequestCellInfo<T>[]) => Promise<IOutputRenderResponse<T> | undefined>,
 		lookUp: (key: T) => { outputs: IProcessedOutput[] }
 	) {
-		for (let id of renderers) {
+		for (const id of renderers) {
 			const requestsPerRenderer: IOutputRenderRequestCellInfo<T>[] = requestItems.map(req => {
 				return {
 					key: req.key,
@@ -815,14 +815,14 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	private _transformMimeTypes(output: IDisplayOutput, outputId: string, documentDisplayOrder: string[]): ITransformedDisplayOutputDto {
-		let mimeTypes = Object.keys(output.data);
-		let coreDisplayOrder = this._displayOrder;
+		const mimeTypes = Object.keys(output.data);
+		const coreDisplayOrder = this._displayOrder;
 		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], documentDisplayOrder, coreDisplayOrder?.defaultOrder || []);
 
-		let orderMimeTypes: IOrderedMimeType[] = [];
+		const orderMimeTypes: IOrderedMimeType[] = [];
 
 		sorted.forEach(mimeType => {
-			let handlers = this._findBestMatchedRenderer(mimeType);
+			const handlers = this._findBestMatchedRenderer(mimeType);
 
 			if (handlers.length) {
 				const handler = handlers[0];
@@ -871,7 +871,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	async executeNotebook(viewType: string, uri: URI): Promise<void> {
-		let provider = this._notebookProviders.get(viewType);
+		const provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
 			return provider.controller.executeNotebookByAttachedKernel(viewType, uri);
@@ -888,7 +888,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	async cancelNotebook(viewType: string, uri: URI): Promise<void> {
-		let provider = this._notebookProviders.get(viewType);
+		const provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
 			return provider.controller.cancelNotebookByAttachedKernel(viewType, uri);
@@ -931,7 +931,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	getNotebookProviderResourceRoots(): URI[] {
-		let ret: URI[] = [];
+		const ret: URI[] = [];
 		this._notebookProviders.forEach(val => {
 			ret.push(URI.revive(val.extensionData.location));
 		});
@@ -940,7 +940,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	removeNotebookEditor(editor: INotebookEditor) {
-		let editorCache = this._notebookEditors.get(editor.getId());
+		const editorCache = this._notebookEditors.get(editor.getId());
 
 		if (editorCache) {
 			this._notebookEditors.delete(editor.getId());
@@ -1011,7 +1011,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	async save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean> {
-		let provider = this._notebookProviders.get(viewType);
+		const provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
 			return provider.controller.save(resource, token);
@@ -1021,7 +1021,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	async saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean> {
-		let provider = this._notebookProviders.get(viewType);
+		const provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
 			return provider.controller.saveAs(resource, target, token);
@@ -1031,7 +1031,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	async backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined> {
-		let provider = this._notebookProviders.get(viewType);
+		const provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
 			return provider.controller.backup(uri, token);
@@ -1041,7 +1041,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: any): void {
-		let provider = this._notebookProviders.get(viewType);
+		const provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
 			return provider.controller.onDidReceiveMessage(editorId, rendererType, message);
@@ -1049,9 +1049,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	private _onWillDisposeDocument(model: INotebookTextModel): void {
-		let modelId = MODEL_ID(model.uri);
+		const modelId = MODEL_ID(model.uri);
 
-		let modelData = this._models.get(modelId);
+		const modelData = this._models.get(modelId);
 		this._models.delete(modelId);
 
 		if (modelData) {
@@ -1065,7 +1065,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 			willRemovedEditors.forEach(e => this._notebookEditors.delete(e.getId()));
 
-			let provider = this._notebookProviders.get(modelData!.model.viewType);
+			const provider = this._notebookProviders.get(modelData!.model.viewType);
 
 			if (provider) {
 				provider.controller.removeNotebookDocument(modelData!.model.uri);
