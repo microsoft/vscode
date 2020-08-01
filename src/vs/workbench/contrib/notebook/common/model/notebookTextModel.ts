@@ -527,6 +527,19 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
+	changeCellMetadata(handle: number, newMetadata: NotebookCellMetadata) {
+		const cell = this._mapping.get(handle);
+		if (cell) {
+			cell.metadata = {
+				...cell.metadata,
+				...newMetadata
+			};
+
+			this._increaseVersionId();
+			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeMetadata, versionId: this._versionId, index: this.cells.indexOf(cell), metadata: newMetadata });
+		}
+	}
+
 	clearAllCellOutputs() {
 		this.cells.forEach(cell => {
 			cell.spliceNotebookCellOutputs([

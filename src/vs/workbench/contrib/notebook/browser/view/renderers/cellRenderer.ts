@@ -38,7 +38,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CELL_TOP_MARGIN, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CancelCellAction, ChangeCellLanguageAction, ExecuteCellAction, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { BaseCellRenderTemplate, CellCollapseState, CellEditState, CodeCellRenderTemplate, ICellViewModel, INotebookCellList, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CodeCellRenderTemplate, ICellViewModel, INotebookCellList, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
@@ -317,10 +317,10 @@ abstract class AbstractCellRenderer {
 				return;
 			}
 
-			if (templateData.currentRenderedCell.collapseState === CellCollapseState.Collapsed) {
-				templateData.currentRenderedCell.collapseState = CellCollapseState.Normal;
-			} else if (templateData.currentRenderedCell.outputCollapseState === CellCollapseState.Collapsed) {
-				templateData.currentRenderedCell.outputCollapseState = CellCollapseState.Normal;
+			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
+				this.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(templateData.currentRenderedCell.handle, { inputCollapsed: false });
+			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
+				this.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(templateData.currentRenderedCell.handle, { outputCollapsed: false });
 			}
 		}));
 	}

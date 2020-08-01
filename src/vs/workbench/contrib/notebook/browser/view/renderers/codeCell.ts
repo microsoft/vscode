@@ -11,7 +11,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellCollapseState, CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -305,11 +305,11 @@ export class CodeCell extends Disposable {
 	}
 
 	private viewUpdate(): void {
-		if (this.viewCell.collapseState === CellCollapseState.Collapsed && this.viewCell.outputCollapseState === CellCollapseState.Collapsed) {
+		if (this.viewCell.metadata?.inputCollapsed && this.viewCell.metadata.outputCollapsed) {
 			this.viewUpdateAllCollapsed();
-		} else if (this.viewCell.collapseState === CellCollapseState.Collapsed) {
+		} else if (this.viewCell.metadata?.inputCollapsed) {
 			this.viewUpdateInputCollapsed();
-		} else if (this.viewCell.outputCollapseState === CellCollapseState.Collapsed && this.viewCell.outputs.length) {
+		} else if (this.viewCell.metadata?.outputCollapsed && this.viewCell.outputs.length) {
 			this.viewUpdateOutputCollapsed();
 		} else {
 			this.viewUpdateExpanded();

@@ -113,8 +113,6 @@ export interface ICellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
-	collapseState: CellCollapseState;
-	outputCollapseState: CellCollapseState;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -545,11 +543,6 @@ export enum CellEditState {
 	 * Eding mode. Source for markdown or code is rendered in editors and the state will be persistent.
 	 */
 	Editing
-}
-
-export enum CellCollapseState {
-	Normal,
-	Collapsed
 }
 
 export enum CellFocusMode {

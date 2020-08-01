@@ -13,7 +13,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions, CellCollapseState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
@@ -58,28 +58,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		if (this._editState === CellEditState.Preview) {
 			this.focusMode = CellFocusMode.Container;
 		}
-	}
-
-	public get collapseState(): CellCollapseState {
-		return this.metadata?.inputCollapsed ? CellCollapseState.Collapsed : CellCollapseState.Normal;
-	}
-
-	public set collapseState(v: CellCollapseState) {
-		this.model.metadata = {
-			...this.metadata,
-			...{ inputCollapsed: v === CellCollapseState.Collapsed }
-		};
-	}
-
-	public get outputCollapseState(): CellCollapseState {
-		return this.metadata?.outputCollapsed ? CellCollapseState.Collapsed : CellCollapseState.Normal;
-	}
-
-	public set outputCollapseState(v: CellCollapseState) {
-		this.model.metadata = {
-			...this.metadata,
-			...{ outputCollapsed: v === CellCollapseState.Collapsed }
-		};
 	}
 
 	private _focusMode: CellFocusMode = CellFocusMode.Container;

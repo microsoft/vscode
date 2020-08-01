@@ -325,7 +325,8 @@ export enum NotebookCellsChangeType {
 	CellClearOutput = 3,
 	CellsClearOutput = 4,
 	ChangeLanguage = 5,
-	Initialize = 6
+	Initialize = 6,
+	ChangeMetadata = 7
 }
 
 export interface NotebookCellsInitializeEvent {
@@ -365,7 +366,14 @@ export interface NotebookCellsChangeLanguageEvent {
 	readonly language: string;
 }
 
-export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent;
+export interface NotebookCellsChangeMetadataEvent {
+	readonly kind: NotebookCellsChangeType.ChangeMetadata;
+	readonly versionId: number;
+	readonly index: number;
+	readonly metadata: NotebookCellMetadata;
+}
+
+export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
 export enum CellEditType {
 	Insert = 1,
 	Delete = 2

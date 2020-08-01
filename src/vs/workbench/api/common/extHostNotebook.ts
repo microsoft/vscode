@@ -14,7 +14,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { CellKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice, MainThreadDocumentsShape, INotebookEditorPropertiesChangeData, INotebookDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { CellEditType, diff, ICellEditOperation, ICellInsertEdit, INotebookDisplayOrder, INotebookEditData, NotebookCellsChangedEvent, NotebookCellsSplice2, ICellDeleteEdit, notebookDocumentMetadataDefaults, NotebookCellsChangeType, NotebookDataDto, IOutputRenderRequest, IOutputRenderResponse, IOutputRenderResponseOutputInfo, IOutputRenderResponseCellInfo, IRawOutput, CellOutputKind, IProcessedOutput, INotebookKernelInfoDto2, IMainCellDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, diff, ICellEditOperation, ICellInsertEdit, INotebookDisplayOrder, INotebookEditData, NotebookCellsChangedEvent, NotebookCellsSplice2, ICellDeleteEdit, notebookDocumentMetadataDefaults, NotebookCellsChangeType, NotebookDataDto, IOutputRenderRequest, IOutputRenderResponse, IOutputRenderResponseOutputInfo, IOutputRenderResponseCellInfo, IRawOutput, CellOutputKind, IProcessedOutput, INotebookKernelInfoDto2, IMainCellDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
@@ -52,6 +52,7 @@ interface INotebookEventEmitter {
 	emitModelChange(events: vscode.NotebookCellsChangeEvent): void;
 	emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void;
 	emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void;
+	emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void;
 }
 
 const addIdToOutput = (output: IRawOutput, id = UUID.generateUuid()): IProcessedOutput => output.outputKind === CellOutputKind.Rich
@@ -172,6 +173,11 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 	}
 
 	set metadata(newMetadata: vscode.NotebookCellMetadata) {
+		this.setMetadata(newMetadata);
+		this._updateMetadata();
+	}
+
+	setMetadata(newMetadata: vscode.NotebookCellMetadata): void {
 		// Don't apply metadata defaults here, 'undefined' means 'inherit from document metadata'
 		this._metadataChangeListener.dispose();
 		const observableMetadata = getObservable(newMetadata);
@@ -179,8 +185,6 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
 			this._updateMetadata();
 		}));
-
-		this._updateMetadata();
 	}
 
 	private _updateMetadata(): Promise<void> {
@@ -346,7 +350,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 
 	get isDirty() { return false; }
 
-	accpetModelChanged(event: NotebookCellsChangedEvent): void {
+	acceptModelChanged(event: NotebookCellsChangedEvent): void {
 		this._versionId = event.versionId;
 		if (event.kind === NotebookCellsChangeType.Initialize) {
 			this.$spliceNotebookCells(event.changes, true);
@@ -360,6 +364,8 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 			this.$clearAllCellOutputs();
 		} else if (event.kind === NotebookCellsChangeType.ChangeLanguage) {
 			this.$changeCellLanguage(event.index, event.language);
+		} else if (event.kind === NotebookCellsChangeType.ChangeMetadata) {
+			this.$changeCellMetadata(event.index, event.metadata);
 		}
 	}
 
@@ -459,6 +465,13 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		cell.defaultDocument._acceptLanguageId(language);
 		const event: vscode.NotebookCellLanguageChangeEvent = { document: this, cell, language };
 		this._emitter.emitCellLanguageChange(event);
+	}
+
+	private $changeCellMetadata(index: number, newMetadata: NotebookCellMetadata): void {
+		const cell = this.cells[index];
+		cell.setMetadata(newMetadata);
+		const event: vscode.NotebookCellMetadataChangeEvent = { document: this, cell };
+		this._emitter.emitCellMetadataChange(event);
 	}
 
 	async eventuallyUpdateCellOutputs(cell: ExtHostCell, diffs: ISplice<IProcessedOutput>[]) {
@@ -888,6 +901,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	readonly onDidChangeCellOutputs = this._onDidChangeCellOutputs.event;
 	private readonly _onDidChangeCellLanguage = new Emitter<vscode.NotebookCellLanguageChangeEvent>();
 	readonly onDidChangeCellLanguage = this._onDidChangeCellLanguage.event;
+	private readonly _onDidChangeCellMetadata = new Emitter<vscode.NotebookCellMetadataChangeEvent>();
+	readonly onDidChangeCellMetadata = this._onDidChangeCellMetadata.event;
 	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>();
 	readonly onDidChangeActiveNotebookEditor = this._onDidChangeActiveNotebookEditor.event;
 
@@ -1179,7 +1194,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					},
 					emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void {
 						that._onDidChangeCellLanguage.fire(event);
-					}
+					},
+					emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
+						that._onDidChangeCellMetadata.fire(event);
+					},
 				}, viewType, revivedUri, this, storageRoot);
 				this._unInitializedDocuments.set(revivedUri.toString(), document);
 			}
@@ -1424,7 +1442,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		const document = this._documents.get(URI.revive(uriComponents).toString());
 
 		if (document) {
-			document.accpetModelChanged(event);
+			document.acceptModelChanged(event);
 		}
 	}
 
@@ -1538,6 +1556,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 						},
 						emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void {
 							that._onDidChangeCellLanguage.fire(event);
+						},
+						emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
+							that._onDidChangeCellMetadata.fire(event);
 						}
 					}, viewType, revivedUri, this, storageRoot);
 
@@ -1549,7 +1570,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 						};
 					}
 
-					document.accpetModelChanged({
+					document.acceptModelChanged({
 						kind: NotebookCellsChangeType.Initialize,
 						versionId: modelData.versionId,
 						changes: [[
