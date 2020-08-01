@@ -54,7 +54,7 @@ export function setup() {
 			await app.workbench.notebook.waitForMarkdownContents('p', 'Markdown Cell');
 		});
 
-		it('moves focus in and out of output', async function () {
+		it.skip('moves focus in and out of output', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.executeActiveCell();

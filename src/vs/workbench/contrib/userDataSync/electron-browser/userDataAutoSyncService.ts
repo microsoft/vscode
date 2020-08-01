@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataAutoSyncService, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataAutoSyncService, UserDataSyncError, IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
@@ -23,10 +23,11 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUserDataSyncStoreManagementService userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 	) {
-		super(storageService, environmentService);
+		super(storageService, environmentService, userDataSyncStoreManagementService);
 		this.channel = sharedProcessService.getChannel('userDataAutoSync');
 		this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(source => this.triggerSync([source], true)));
 	}

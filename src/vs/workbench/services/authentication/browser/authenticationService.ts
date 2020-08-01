@@ -17,7 +17,7 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest${id}`; }
+export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
 

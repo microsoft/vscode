@@ -9,7 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution, MultiEditorAction, registerMultiEditorAction } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding, CONTEXT_REPLACE_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
@@ -457,7 +457,7 @@ export class FindController extends CommonFindController implements IFindControl
 	}
 }
 
-export class StartFindAction extends EditorAction {
+export class StartFindAction extends MultiEditorAction {
 
 	constructor() {
 		super({
@@ -706,7 +706,7 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 	}
 }
 
-export class StartFindReplaceAction extends EditorAction {
+export class StartFindReplaceAction extends MultiEditorAction {
 
 	constructor() {
 		super({
@@ -769,7 +769,8 @@ export class StartFindReplaceAction extends EditorAction {
 
 registerEditorContribution(CommonFindController.ID, FindController);
 
-registerEditorAction(StartFindAction);
+export const EditorStartFindAction = new StartFindAction();
+registerMultiEditorAction(EditorStartFindAction);
 registerEditorAction(StartFindWithSelectionAction);
 registerEditorAction(NextMatchFindAction);
 registerEditorAction(NextMatchFindAction2);
@@ -777,7 +778,8 @@ registerEditorAction(PreviousMatchFindAction);
 registerEditorAction(PreviousMatchFindAction2);
 registerEditorAction(NextSelectionMatchFindAction);
 registerEditorAction(PreviousSelectionMatchFindAction);
-registerEditorAction(StartFindReplaceAction);
+export const EditorStartFindReplaceAction = new StartFindReplaceAction();
+registerMultiEditorAction(EditorStartFindReplaceAction);
 
 const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.get);
 

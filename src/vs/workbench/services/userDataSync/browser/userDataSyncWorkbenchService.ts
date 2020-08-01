@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -30,6 +30,8 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
+import { isNative } from 'vs/base/common/platform';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -97,7 +99,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
-		@IProductService productService: IProductService,
+		@IProductService private readonly productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -107,9 +109,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
-		this._authenticationProviders = getUserDataSyncStore(productService, configurationService)?.authenticationProviders || [];
+		this._authenticationProviders = this.userDataSyncStoreManagementService.userDataSyncStore?.authenticationProviders || [];
 		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
 		this.accountStatusContext = CONTEXT_ACCOUNT_STATE.bindTo(contextKeyService);
@@ -131,11 +135,18 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async waitAndInitialize(): Promise<void> {
-		if (this._authenticationProviders.every(({ id }) => !this.authenticationService.isAuthenticationProviderRegistered(id))) {
-			/* None of the providers are registered -> activate providers and wait until one of them is availabe */
-			await Promise.all(this._authenticationProviders.map(({ id }) => this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id))));
-			await Event.toPromise(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, ({ id }) => this.isSupportedAuthenticationProviderId(id)));
+		await this.extensionService.whenInstalledExtensionsRegistered();
+
+		/* activate unregistered providers */
+		const unregisteredProviders = this._authenticationProviders.filter(({ id }) => !this.authenticationService.isAuthenticationProviderRegistered(id));
+		if (unregisteredProviders.length) {
+			await Promise.all(unregisteredProviders.map(({ id }) => this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id))));
 		}
+
+		/* wait until one of the providers is availabe */
+		await Event.toPromise(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, ({ id }) => this.isSupportedAuthenticationProviderId(id)));
+
+		/* initialize */
 		await this.initialize();
 	}
 
@@ -203,9 +214,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		let value: { token: string, authenticationProviderId: string } | undefined = undefined;
 		if (current) {
 			try {
-				this.logService.trace('Preferences Sync: Updating the token for the account', current.accountName);
+				this.logService.trace('Settings Sync: Updating the token for the account', current.accountName);
 				const token = current.token;
-				this.logService.trace('Preferences Sync: Token updated for the account', current.accountName);
+				this.logService.trace('Settings Sync: Token updated for the account', current.accountName);
 				value = { token, authenticationProviderId: current.authenticationProviderId };
 			} catch (e) {
 				this.logService.error(e);
@@ -236,8 +247,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			throw new Error(localize('no account', "No account available"));
 		}
 
-		const preferencesSyncTitle = localize('preferences sync', "Preferences Sync");
-		const title = `${preferencesSyncTitle} [(${localize('details', "details")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`;
+		const syncTitle = SYNC_TITLE;
+		const title = `${syncTitle} [(${localize('details', "details")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`;
 		await this.syncBeforeTurningOn(title);
 		await this.userDataAutoSyncService.turnOn();
 		this.notificationService.info(localize('sync turned on', "{0} is turned on", title));
@@ -376,6 +387,30 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.viewsService.openViewContainer(SYNC_VIEW_CONTAINER_ID);
 	}
 
+	async switchSyncService(type: UserDataSyncStoreType): Promise<void> {
+		if (!this.userDataSyncStoreManagementService.userDataSyncStore
+			|| !this.userDataSyncStoreManagementService.userDataSyncStore.insidersUrl
+			|| !this.userDataSyncStoreManagementService.userDataSyncStore.stableUrl) {
+			return;
+		}
+		await this.userDataSyncStoreManagementService.switch(type);
+		const res = await this.dialogService.confirm({
+			type: 'info',
+			message: isNative ?
+				localize('relaunchMessage', "Switching settings sync service requires a restart to take effect.") :
+				localize('relaunchMessageWeb', "Switching settings sync service requires a reload to take effect."),
+			detail: isNative ?
+				localize('relaunchDetail', "Press the restart button to restart {0} and switch.", this.productService.nameLong) :
+				localize('relaunchDetailWeb', "Press the reload button to reload {0} and switch.", this.productService.nameLong),
+			primaryButton: isNative ?
+				localize('restart', "&&Restart") :
+				localize('restartWeb', "&&Reload"),
+		});
+		if (res.confirmed) {
+			this.hostService.restart();
+		}
+	}
+
 	private async waitForActiveSyncViews(): Promise<void> {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(SYNC_VIEW_CONTAINER_ID);
 		if (viewContainer) {
@@ -432,7 +467,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			const quickPick = this.quickInputService.createQuickPick<AccountQuickPickItem>();
 			disposables.add(quickPick);
 
-			quickPick.title = localize('pick an account', "Preferences Sync");
+			quickPick.title = SYNC_TITLE;
 			quickPick.ok = false;
 			quickPick.placeholder = localize('choose account placeholder', "Select an account");
 			quickPick.ignoreFocusOut = true;
@@ -501,7 +536,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		this.notificationService.notify({
 			severity: Severity.Error,
-			message: localize('successive auth failures', "Preferences sync was turned off because of successive authorization failures. Please sign in again to continue synchronizing"),
+			message: localize('successive auth failures', "Settings sync was turned off because of successive authorization failures. Please sign in again to continue synchronizing"),
 			actions: {
 				primary: [new Action('sign in', localize('sign in', "Sign in"), undefined, true, () => this.signIn())]
 			}
@@ -594,7 +629,7 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 		this.updateResources();
 	}
 
-	async accept(syncResource: SyncResource, resource: URI, content: string | null): Promise<void> {
+	async accept(syncResource: SyncResource, resource: URI, content?: string | null): Promise<void> {
 		if (this.manualSync) {
 			const syncPreview = await this.manualSync.task.accept(resource, content);
 			this.updatePreview(syncPreview);

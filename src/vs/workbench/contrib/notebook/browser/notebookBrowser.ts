@@ -19,13 +19,14 @@ import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { CellLanguageStatusBarItem, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
+import { CellLanguageStatusBarItem, RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -48,7 +49,7 @@ export const NOTEBOOK_CELL_RUNNABLE = new RawContextKey<boolean>('notebookCellRu
 export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('notebookCellMarkdownEditMode', false); // bool
 export const NOTEBOOK_CELL_RUN_STATE = new RawContextKey<string>('notebookCellRunState', undefined); // idle, running
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false); // bool
-export const NOTEBOOK_CELL_CONTENT_COLLAPSED = new RawContextKey<boolean>('notebookCellContentIsCollapsed', false); // bool
+export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false); // bool
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
 
 // Kernels
@@ -301,6 +302,11 @@ export interface INotebookEditor extends IEditor {
 	removeInset(output: IProcessedOutput): void;
 
 	/**
+	 * Hide the inset in the webview layer without removing it
+	 */
+	hideInset(output: IProcessedOutput): void;
+
+	/**
 	 * Send message to the webview for outputs.
 	 */
 	postMessage(forRendererId: string | undefined, message: any): void;
@@ -403,8 +409,6 @@ export interface INotebookEditor extends IEditor {
 	 * @return The contribution or null if contribution not found.
 	 */
 	getContribution<T extends INotebookEditorContribution>(id: string): T;
-
-	hideInset(output: IProcessedOutput): void;
 }
 
 export interface INotebookCellList {
@@ -486,7 +490,7 @@ export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
-	cellRunStatusContainer: HTMLElement;
+	cellRunState: RunStateRenderer;
 	cellStatusMessageContainer: HTMLElement;
 	runToolbar: ToolBar;
 	runButtonContainer: HTMLElement;
@@ -566,7 +570,6 @@ export interface CellViewModelStateChangeEvent {
 	focusModeChanged?: boolean;
 	editStateChanged?: boolean;
 	languageChanged?: boolean;
-	collapseStateChanged?: boolean;
 	foldingStateChanged?: boolean;
 	contentChanged?: boolean;
 	outputIsHoveredChanged?: boolean;
@@ -640,4 +643,10 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 	}
 
 	return result;
+}
+
+export function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor | undefined {
+	// TODO can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
+	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
+	return activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
 }

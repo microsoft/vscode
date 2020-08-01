@@ -1294,6 +1294,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 	}
 
+	async $cancelNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined): Promise<void> {
+		await this._withAdapter(handle, uri, async (adapter, document) => {
+			let cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
+
+			return adapter.cancelNotebook(kernelId, document, cell);
+		});
+	}
+
 	async $executeNotebook2(kernelId: string, viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void> {
 		let document = this._documents.get(URI.revive(uri).toString());
 

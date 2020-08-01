@@ -202,10 +202,6 @@ export class SearchEditor extends BaseTextEditor {
 		}
 	}
 
-	protected getConfigurationOverrides() {
-		return { ...super.getConfigurationOverrides(), links: false };
-	}
-
 	private createResultsEditor(parent: HTMLElement) {
 		const searchResultContainer = DOM.append(parent, DOM.$('.search-results'));
 		super.createEditor(searchResultContainer);

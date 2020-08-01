@@ -17,7 +17,7 @@ function workspaceFile(...segments: string[]) {
 
 const testDocument = workspaceFile('bower.json');
 
-suite('vscode API - webview', () => {
+suite.skip('vscode API - webview', () => {
 	const disposables: vscode.Disposable[] = [];
 
 	function _register<T extends vscode.Disposable>(disposable: T) {
@@ -86,7 +86,7 @@ suite('vscode API - webview', () => {
 		}
 	});
 
-	test('webviews should preserve vscode API state when they are hidden', async () => {
+	test.skip('webviews should preserve vscode API state when they are hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 		const ready = getMesssage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -239,7 +239,7 @@ suite('vscode API - webview', () => {
 	});
 
 
-	test('webviews should only be able to load resources from workspace by default', async () => {
+	test.skip('webviews should only be able to load resources from workspace by default', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', {
 			viewColumn: vscode.ViewColumn.One
 		}, {
@@ -272,12 +272,18 @@ suite('vscode API - webview', () => {
 			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
 			assert.strictEqual(response.value, true);
 		}
-		{
-			// #102188. Resource filename containing special characters like '%', '#', '?'.
-			const imagePath = webview.webview.asWebviewUri(workspaceFile('image%02.png'));
-			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
-			assert.strictEqual(response.value, true);
-		}
+		// {
+		// 	// #102188. Resource filename containing special characters like '%', '#', '?'.
+		// 	const imagePath = webview.webview.asWebviewUri(workspaceFile('image%02.png'));
+		// 	const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+		// 	assert.strictEqual(response.value, true);
+		// }
+		// {
+		// 	// #102188. Resource filename containing special characters like '%', '#', '?'.
+		// 	const imagePath = webview.webview.asWebviewUri(workspaceFile('image%.png'));
+		// 	const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+		// 	assert.strictEqual(response.value, true);
+		// }
 		{
 			const imagePath = webview.webview.asWebviewUri(workspaceFile('no-such-image.png'));
 			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
@@ -290,7 +296,7 @@ suite('vscode API - webview', () => {
 		}
 	});
 
-	test('webviews should allow overriding allowed resource paths using localResourceRoots', async () => {
+	test.skip('webviews should allow overriding allowed resource paths using localResourceRoots', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
 			localResourceRoots: [workspaceFile('sub')]
@@ -318,7 +324,7 @@ suite('vscode API - webview', () => {
 		}
 	});
 
-	test('webviews using hard-coded old style vscode-resource uri should work', async () => {
+	test.skip('webviews using hard-coded old style vscode-resource uri should work', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
 			localResourceRoots: [workspaceFile('sub')]

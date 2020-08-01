@@ -13,6 +13,7 @@ import Severity from 'vs/base/common/severity';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { ExceptionBreakpoint, Expression, DataBreakpoint, FunctionBreakpoint, Breakpoint, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
+import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 
 export class MockDebugService implements IDebugService {
 
@@ -135,6 +136,10 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+	get compoundRoot(): DebugCompoundRoot | undefined {
+		return undefined;
+	}
+
 	stepInTargets(frameId: number): Promise<{ id: number; label: string; }[]> {
 		throw new Error('Method not implemented.');
 	}
@@ -227,7 +232,7 @@ export class MockSession implements IDebugSession {
 		throw new Error('not implemented');
 	}
 
-	get onDidEndAdapter(): Event<AdapterEndEvent> {
+	get onDidEndAdapter(): Event<AdapterEndEvent | undefined> {
 		throw new Error('not implemented');
 	}
 

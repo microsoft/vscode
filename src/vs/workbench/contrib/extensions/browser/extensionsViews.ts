@@ -139,7 +139,7 @@ export class ExtensionsListView extends ViewPane {
 			horizontalScrolling: false,
 			accessibilityProvider: <IListAccessibilityProvider<IExtension | null>>{
 				getAriaLabel(extension: IExtension | null): string {
-					return extension ? localize('extension-arialabel', "{0}. Press enter for extension details.", extension.displayName) : '';
+					return extension ? localize('extension-arialabel', "{0}, {1}, {2}, press enter for extension details.", extension.displayName, extension.version, extension.publisherDisplayName) : '';
 				},
 				getWidgetAriaLabel(): string {
 					return localize('extensions', "Extensions");

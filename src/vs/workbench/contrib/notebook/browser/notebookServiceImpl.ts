@@ -10,7 +10,7 @@ import { notebookProviderExtensionPoint, notebookRendererExtensionPoint, INotebo
 import { NotebookProviderInfo, NotebookEditorDescriptor } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookRendererInfo, INotebookKernelInfo, CellOutputKind, ITransformedDisplayOutputDto, IDisplayOutput, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, IOrderedMimeType, mimeTypeSupportedByCore, IOutputRenderRequestOutputInfo, IOutputRenderRequestCellInfo, NotebookCellOutputsSplice, ICellEditOperation, CellEditType, ICellInsertEdit, IOutputRenderResponse, IProcessedOutput, BUILTIN_RENDERER_ID, NotebookEditorPriority, INotebookKernelProvider, notebookDocumentFilterMatch, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookRendererInfo, INotebookKernelInfo, CellOutputKind, ITransformedDisplayOutputDto, IDisplayOutput, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, IOrderedMimeType, mimeTypeSupportedByCore, IOutputRenderRequestOutputInfo, IOutputRenderRequestCellInfo, NotebookCellOutputsSplice, ICellEditOperation, CellEditType, ICellInsertEdit, IOutputRenderResponse, IProcessedOutput, BUILTIN_RENDERER_ID, NotebookEditorPriority, INotebookKernelProvider, notebookDocumentFilterMatch, INotebookKernelInfo2, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { Iterable } from 'vs/base/common/iterator';
@@ -21,7 +21,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
 import * as glob from 'vs/base/common/glob';
 import { basename } from 'vs/base/common/path';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Memento } from 'vs/workbench/common/memento';
@@ -32,6 +32,10 @@ import { flatten } from 'vs/base/common/arrays';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookKernelProviderAssociationRegistry, updateNotebookKernelProvideAssociationSchema, NotebookViewTypesExtensionRegistry } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { PureNotebookOutputRenderer } from 'vs/workbench/contrib/notebook/browser/notebookPureOutputRenderer';
+import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -321,6 +325,126 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
 			updateOrder();
 		}));
+
+		const getContext = () => {
+			const editor = getActiveNotebookEditor(this._editorService);
+			const activeCell = editor?.getActiveCell();
+
+			return {
+				editor,
+				activeCell
+			};
+		};
+
+		const PRIORITY = 50;
+		this._register(UndoCommand.addImplementation(PRIORITY, () => {
+			const { editor } = getContext();
+			if (editor?.viewModel) {
+				editor?.viewModel.undo();
+				return true;
+			}
+
+			return false;
+		}));
+
+		this._register(RedoCommand.addImplementation(PRIORITY, () => {
+			const { editor } = getContext();
+			if (editor?.viewModel) {
+				editor?.viewModel.redo();
+				return true;
+			}
+
+			return false;
+		}));
+
+		if (CopyAction) {
+			this._register(CopyAction.addImplementation(PRIORITY, accessor => {
+				const { editor, activeCell } = getContext();
+				if (!editor || !activeCell) {
+					return false;
+				}
+
+				const clipboardService = accessor.get<IClipboardService>(IClipboardService);
+				const notebookService = accessor.get<INotebookService>(INotebookService);
+				clipboardService.writeText(activeCell.getText());
+				notebookService.setToCopy([activeCell.model], true);
+
+				return true;
+			}));
+		}
+
+		if (PasteAction) {
+			PasteAction.addImplementation(PRIORITY, () => {
+				const pasteCells = this.getToCopy();
+
+				if (!pasteCells) {
+					return false;
+				}
+
+				const { editor, activeCell } = getContext();
+				if (!editor || !activeCell) {
+					return false;
+				}
+
+				const viewModel = editor.viewModel;
+
+				if (!viewModel) {
+					return false;
+				}
+
+				const currCellIndex = viewModel.getCellIndex(activeCell);
+
+				let topPastedCell: CellViewModel | undefined = undefined;
+				pasteCells.items.reverse().map(cell => {
+					const data = CellUri.parse(cell.uri);
+
+					if (pasteCells.isCopy || data?.notebook.toString() !== viewModel.uri.toString()) {
+						return viewModel.notebookDocument.createCellTextModel(
+							cell.getValue(),
+							cell.language,
+							cell.cellKind,
+							[],
+							cell.metadata
+						);
+					} else {
+						return cell;
+					}
+				}).forEach(pasteCell => {
+					const newIdx = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
+					topPastedCell = viewModel.insertCell(newIdx, pasteCell, true);
+				});
+
+				if (topPastedCell) {
+					editor.focusNotebookCell(topPastedCell, 'container');
+				}
+
+				return true;
+			});
+		}
+
+		if (CutAction) {
+			CutAction.addImplementation(PRIORITY, accessor => {
+				const { editor, activeCell } = getContext();
+				if (!editor || !activeCell) {
+					return false;
+				}
+
+				const viewModel = editor.viewModel;
+
+				if (!viewModel) {
+					return false;
+				}
+
+				const clipboardService = accessor.get<IClipboardService>(IClipboardService);
+				const notebookService = accessor.get<INotebookService>(INotebookService);
+				clipboardService.writeText(activeCell.getText());
+				viewModel.deleteCell(viewModel.getCellIndex(activeCell), true);
+				notebookService.setToCopy([activeCell.model], false);
+
+				return true;
+			});
+		}
+
 	}
 
 	getViewTypes(): ICustomEditorInfo[] {
@@ -393,7 +517,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			result[index] = data.map(dto => {
 				return {
 					extension: dto.extension,
-					extensionLocation: dto.extensionLocation,
+					extensionLocation: URI.revive(dto.extensionLocation),
 					id: dto.id,
 					label: dto.label,
 					description: dto.description,
@@ -404,6 +528,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					},
 					executeNotebookCell: async (uri: URI, handle: number | undefined) => {
 						return provider.executeNotebook(uri, dto.id, handle);
+					},
+					cancelNotebookCell: (uri: URI, handle: number | undefined): Promise<void> => {
+						return provider.cancelNotebook(uri, dto.id, handle);
 					}
 				};
 			});
