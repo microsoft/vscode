@@ -66,8 +66,8 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 	const serializedMatches = flatten(sortedMatches.map(match => matchToSearchResultFormat(match, longestLineNumber)));
 
 	const uriString = labelFormatter(fileMatch.resource);
-	let text: string[] = [`${uriString}:`];
-	let matchRanges: Range[] = [];
+	const text: string[] = [`${uriString}:`];
+	const matchRanges: Range[] = [];
 
 	const targetLineNumberToOffset: Record<string, number> = {};
 
@@ -236,8 +236,8 @@ export const serializeSearchResultForEditor =
 	};
 
 const flattenSearchResultSerializations = (serializations: SearchResultSerialization[]): SearchResultSerialization => {
-	let text: string[] = [];
-	let matchRanges: Range[] = [];
+	const text: string[] = [];
+	const matchRanges: Range[] = [];
 
 	serializations.forEach(serialized => {
 		serialized.matchRanges.map(translateRangeLines(text.length)).forEach(range => matchRanges.push(range));

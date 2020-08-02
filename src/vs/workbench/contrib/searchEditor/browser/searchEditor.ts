@@ -389,7 +389,7 @@ export class SearchEditor extends BaseTextEditor {
 		const matchText = model.getValueInRange(matchRange);
 		let file = '';
 		for (let line = matchRange.startLineNumber; line >= 1; line--) {
-			let lineText = model.getValueInRange(new Range(line, 1, line, 2));
+			const lineText = model.getValueInRange(new Range(line, 1, line, 2));
 			if (lineText !== ' ') { file = model.getLineContent(line); break; }
 		}
 		alert(localize('searchResultItem', "Matched {0} at {1} in file {2}", matchText, matchLineText, file.slice(0, file.length - 1)));
