@@ -1071,7 +1071,7 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 				: {};
 
 			const newValue: Record<string, unknown> = {};
-			let newItems: IObjectDataItem[] = [];
+			const newItems: IObjectDataItem[] = [];
 
 			template.objectWidget.items.forEach((item, idx) => {
 				// Item was updated
