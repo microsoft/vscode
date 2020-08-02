@@ -148,6 +148,13 @@ steps:
   continueOnError: true
   condition: failed()
 
+- task: PublishTestResults@2
+  displayName: Publish Tests Results
+  inputs:
+    testResultsFiles: '*-results.xml'
+    searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
+  condition: succeededOrFailed()
+
 - script: |
     set -e
     yarn gulp "vscode-linux-x64-build-deb"
