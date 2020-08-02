@@ -104,7 +104,7 @@ stages:
     steps:
     - template: darwin/product-build-darwin.yml
 
-- stage: Release
+- stage: Publish
   dependsOn:
   - Windows
   - Linux
