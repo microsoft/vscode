@@ -123,11 +123,11 @@ stages:
   - job: BuildService
     displayName: Build Service
     condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
-    # steps:
-    # - template: release.yml
+    steps:
+    - template: release.yml
 
   - job: BuildServiceMooncake
     displayName: Build Service (Mooncake)
     condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
-    # steps:
-    # - template: sync-mooncake.yml
+    steps:
+    - template: sync-mooncake.yml
