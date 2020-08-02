@@ -451,6 +451,45 @@ export interface ISettingOverrideClickEvent {
 	targetKey: string;
 }
 
+function removeChildrenFromTabOrder(node: Element): void {
+	const focusableElements = node.querySelectorAll(`
+		[tabindex="0"],
+		input:not([tabindex="-1"]),
+		select:not([tabindex="-1"]),
+		textarea:not([tabindex="-1"]),
+		a:not([tabindex="-1"]),
+		button:not([tabindex="-1"]),
+		area:not([tabindex="-1"])
+	`);
+
+	focusableElements.forEach(element => {
+		element.setAttribute(AbstractSettingRenderer.ELEMENT_FOCUSABLE_ATTR, 'true');
+		element.setAttribute('tabindex', '-1');
+	});
+}
+
+function addChildrenToTabOrder(node: Element): void {
+	const focusableElements = node.querySelectorAll(
+		`[${AbstractSettingRenderer.ELEMENT_FOCUSABLE_ATTR}="true"]`
+	);
+
+	focusableElements.forEach(element => {
+		element.removeAttribute(AbstractSettingRenderer.ELEMENT_FOCUSABLE_ATTR);
+		element.setAttribute('tabindex', '0');
+	});
+}
+
+export function updateSettingTreeTabOrder(container: Element): void {
+	const allRows = [...container.querySelectorAll(AbstractSettingRenderer.ALL_ROWS_SELECTOR)];
+	const focusedRow = allRows.find(row => row.classList.contains('focused'));
+
+	allRows.forEach(removeChildrenFromTabOrder);
+
+	if (isDefined(focusedRow)) {
+		addChildrenToTabOrder(focusedRow);
+	}
+}
+
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
 	/** To override */
 	abstract get templateId(): string;
@@ -459,9 +498,11 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	static readonly CONTROL_SELECTOR = '.' + AbstractSettingRenderer.CONTROL_CLASS;
 	static readonly CONTENTS_CLASS = 'setting-item-contents';
 	static readonly CONTENTS_SELECTOR = '.' + AbstractSettingRenderer.CONTENTS_CLASS;
+	static readonly ALL_ROWS_SELECTOR = '.monaco-list-row';
 
 	static readonly SETTING_KEY_ATTR = 'data-key';
 	static readonly SETTING_ID_ATTR = 'data-id';
+	static readonly ELEMENT_FOCUSABLE_ATTR = 'data-focusable';
 
 	private readonly _onDidClickOverrideElement = this._register(new Emitter<ISettingOverrideClickEvent>());
 	readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent> = this._onDidClickOverrideElement.event;

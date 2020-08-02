@@ -300,8 +300,10 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	display: inline-block; /* size to contents for hover to show context button */
-	padding-left: 7px;
 	border-radius: 5px;
+}
+.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused.selected .setting-item-contents .setting-item-title {
+	padding-left: 7px;
 }
 
 
