@@ -462,7 +462,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	suggestFilename(mode: string, untitledName: string) {
-		const extension = this.modeService.getExtensions(this.modeService.getLanguageName(mode))[0];
+		const langName = this.modeService.getLanguageName(mode);
+		const extension = langName ? this.modeService.getExtensions(langName)[0] : undefined;
 		if (extension) {
 			if (!untitledName.endsWith(extension)) {
 				return untitledName + extension;
