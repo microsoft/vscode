@@ -530,6 +530,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					description: dto.description,
 					isPreferred: dto.isPreferred,
 					preloads: dto.preloads,
+					providerHandle: dto.providerHandle,
 					resolve: async (uri: URI, editorId: string, token: CancellationToken) => {
 						return provider.resolveKernel(editorId, uri, dto.id, token);
 					},
