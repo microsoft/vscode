@@ -581,7 +581,7 @@ submenusExtensionPoint.setHandler(extensions => {
 			}
 
 			if (!extension.description.enableProposedApi) {
-				collector.error(localize('submenu.proposedAPI.invalid', "Submenus are proposed API and are only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", extension.description.identifier.value));
+				collector.error(localize('submenu.proposedAPI.invalid', "Submenus are proposed API and are only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
 				return;
 			}
 
