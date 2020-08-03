@@ -1211,47 +1211,39 @@
       "git.commit": [
         {
           "command": "git.commit",
-          "group": "main@1"
+          "group": "1_commit@1"
         },
         {
           "command": "git.commitStaged",
-          "group": "main@2"
+          "group": "1_commit@2"
         },
         {
           "command": "git.commitAll",
-          "group": "main@3"
+          "group": "1_commit@3"
         },
         {
           "command": "git.undoCommit",
-          "group": "main@4"
+          "group": "1_commit@4"
         },
         {
           "command": "git.rebaseAbort",
-          "group": "main@5"
+          "group": "1_commit@5"
         },
         {
-          "submenu": "git.commit.amend",
-          "group": "main@6"
+          "command": "git.commitStagedAmend",
+          "group": "2_amend@1"
         },
         {
-          "submenu": "git.commit.signoff",
-          "group": "main@7"
-        }
-      ],
-      "git.commit.amend": [
-        {
-          "command": "git.commitStagedAmend"
+          "command": "git.commitAllAmend",
+          "group": "2_amend@1"
         },
         {
-          "command": "git.commitAllAmend"
-        }
-      ],
-      "git.commit.signoff": [
-        {
-          "command": "git.commitStagedSigned"
+          "command": "git.commitStagedSigned",
+          "group": "3_signoff@1"
         },
         {
-          "command": "git.commitAllSigned"
+          "command": "git.commitAllSigned",
+          "group": "3_signoff@2"
         }
       ],
       "git.changes": [
@@ -1267,55 +1259,55 @@
       ],
       "git.pullpush": [
         {
-          "command": "git.fetch",
-          "group": "1_fetch"
-        },
-        {
-          "command": "git.fetchPrune",
-          "group": "1_fetch"
-        },
-        {
-          "command": "git.fetchAll",
-          "group": "1_fetch"
-        },
-        {
           "command": "git.sync",
-          "group": "2_sync"
+          "group": "1_sync"
         },
         {
           "command": "git.syncRebase",
           "when": "gitState == idle",
-          "group": "2_sync"
+          "group": "1_sync"
         },
         {
           "command": "git.pull",
-          "group": "3_pull"
+          "group": "2_pull"
         },
         {
           "command": "git.pullRebase",
-          "group": "3_pull"
+          "group": "2_pull"
         },
         {
           "command": "git.pullFrom",
-          "group": "3_pull"
+          "group": "2_pull"
         },
         {
           "command": "git.push",
-          "group": "4_push"
+          "group": "3_push"
         },
         {
           "command": "git.pushForce",
           "when": "config.git.allowForcePush",
-          "group": "4_push"
+          "group": "3_push"
         },
         {
           "command": "git.pushTo",
-          "group": "4_push"
+          "group": "3_push"
         },
         {
           "command": "git.pushToForce",
           "when": "config.git.allowForcePush",
-          "group": "4_push"
+          "group": "3_push"
+        },
+        {
+          "command": "git.fetch",
+          "group": "4_fetch"
+        },
+        {
+          "command": "git.fetchPrune",
+          "group": "4_fetch"
+        },
+        {
+          "command": "git.fetchAll",
+          "group": "4_fetch"
         }
       ],
       "git.branch": [
@@ -1371,14 +1363,6 @@
       {
         "id": "git.commit",
         "label": "%submenu.commit%"
-      },
-      {
-        "id": "git.commit.amend",
-        "label": "%submenu.commit.amend%"
-      },
-      {
-        "id": "git.commit.signoff",
-        "label": "%submenu.commit.signoff%"
       },
       {
         "id": "git.changes",
