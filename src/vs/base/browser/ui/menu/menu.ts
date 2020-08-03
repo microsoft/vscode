@@ -21,6 +21,8 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { Codicon, registerIcon, stripCodicons } from 'vs/base/common/codicons';
 import { BaseActionViewItem, ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { formatRule } from 'vs/base/browser/ui/codicons/codiconStyles';
+import { isFirefox } from 'vs/base/browser/browser';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
@@ -424,9 +426,29 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 				// add back if issues arise and link new issue
 				EventHelper.stop(e, true);
 
-				// Set timout to allow context menu cancellation to trigger
-				// otherwise the action will destroy the menu and context menu
-				// will still trigger
+				// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
+				// > Writing to the clipboard
+				// > You can use the "cut" and "copy" commands without any special
+				// permission if you are using them in a short-lived event handler
+				// for a user action (for example, a click handler).
+
+				// => to get the Copy and Paste context menu actions working on Firefox,
+				// there should be no timeout here
+				if (isFirefox) {
+					const mouseEvent = new StandardMouseEvent(e);
+
+					// Allowing right click to trigger the event causes the issue described below,
+					// but since the solution below does not work in FF, we must disable right click
+					if (mouseEvent.rightButton) {
+						return;
+					}
+
+					this.onClick(e);
+				}
+
+				// In all other cases, set timout to allow context menu cancellation to trigger
+				// otherwise the action will destroy the menu and a second context menu
+				// will still trigger for right click.
 				setTimeout(() => {
 					this.onClick(e);
 				}, 0);
