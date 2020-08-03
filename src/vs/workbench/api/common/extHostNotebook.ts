@@ -215,6 +215,10 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		this._proxy.$updateNotebookLanguages(this.viewType, this.uri, this._languages);
 	}
 
+	get isUntitled() {
+		return this.uri.scheme === Schemas.untitled;
+	}
+
 	private _metadata: Required<vscode.NotebookDocumentMetadata> = notebookDocumentMetadataDefaults;
 	private _metadataChangeListener: IDisposable;
 

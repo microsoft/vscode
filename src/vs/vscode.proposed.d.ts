@@ -1432,6 +1432,7 @@ declare module 'vscode' {
 		readonly fileName: string;
 		readonly viewType: string;
 		readonly isDirty: boolean;
+		readonly isUntitled: boolean;
 		readonly cells: NotebookCell[];
 		languages: string[];
 		displayOrder?: GlobPattern[];
