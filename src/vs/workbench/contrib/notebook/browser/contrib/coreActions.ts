@@ -11,6 +11,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
@@ -48,6 +49,9 @@ const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 
 const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
 const MOVE_CELL_DOWN_COMMAND_ID = 'notebook.cell.moveDown';
+const COPY_CELL_COMMAND_ID = 'notebook.cell.copy';
+const CUT_CELL_COMMAND_ID = 'notebook.cell.cut';
+const PASTE_CELL_COMMAND_ID = 'notebook.cell.paste';
 const PASTE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.pasteAbove';
 const COPY_CELL_UP_COMMAND_ID = 'notebook.cell.copyUp';
 const COPY_CELL_DOWN_COMMAND_ID = 'notebook.cell.copyDown';
@@ -750,6 +754,113 @@ registerAction2(class extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		return moveCell(context, 'down');
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: COPY_CELL_COMMAND_ID,
+				title: localize('notebookActions.copy', "Copy Cell"),
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: NOTEBOOK_EDITOR_FOCUSED,
+					group: '1_copy',
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const clipboardService = accessor.get<IClipboardService>(IClipboardService);
+		const notebookService = accessor.get<INotebookService>(INotebookService);
+		clipboardService.writeText(context.cell.getText());
+		notebookService.setToCopy([context.cell.model], true);
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: CUT_CELL_COMMAND_ID,
+				title: localize('notebookActions.cut', "Cut Cell"),
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+					group: '1_copy',
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const clipboardService = accessor.get<IClipboardService>(IClipboardService);
+		const notebookService = accessor.get<INotebookService>(INotebookService);
+		clipboardService.writeText(context.cell.getText());
+		const viewModel = context.notebookEditor.viewModel;
+
+		if (!viewModel) {
+			return;
+		}
+
+		viewModel.deleteCell(viewModel.getCellIndex(context.cell), true);
+		notebookService.setToCopy([context.cell.model], false);
+	}
+});
+
+registerAction2(class extends NotebookAction {
+	constructor() {
+		super(
+			{
+				id: PASTE_CELL_COMMAND_ID,
+				title: localize('notebookActions.paste', "Paste Cell"),
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE),
+					group: '1_copy',
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		const notebookService = accessor.get<INotebookService>(INotebookService);
+		const pasteCells = notebookService.getToCopy();
+
+		const viewModel = context.notebookEditor.viewModel;
+
+		if (!viewModel) {
+			return;
+		}
+
+		if (!pasteCells) {
+			return;
+		}
+
+		const currCellIndex = context.cell && viewModel.getCellIndex(context.cell);
+
+		let topPastedCell: CellViewModel | undefined = undefined;
+		pasteCells.items.reverse().map(cell => {
+			const data = CellUri.parse(cell.uri);
+
+			if (pasteCells.isCopy || data?.notebook.toString() !== viewModel.uri.toString()) {
+				return viewModel.notebookDocument.createCellTextModel(
+					cell.getValue(),
+					cell.language,
+					cell.cellKind,
+					[],
+					cell.metadata
+				);
+			} else {
+				return cell;
+			}
+		}).forEach(pasteCell => {
+			const newIdx = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
+			topPastedCell = viewModel.insertCell(newIdx, pasteCell, true);
+		});
+
+		if (topPastedCell) {
+			context.notebookEditor.focusNotebookCell(topPastedCell, 'container');
+		}
 	}
 });
 
