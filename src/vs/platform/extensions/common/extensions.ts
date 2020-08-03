@@ -279,6 +279,15 @@ export interface IScannedExtension {
 	readonly changelogUrl?: URI;
 }
 
+export interface ITranslatedScannedExtension {
+	readonly identifier: IExtensionIdentifier;
+	readonly location: URI;
+	readonly type: ExtensionType;
+	readonly packageJSON: IExtensionManifest;
+	readonly readmeUrl?: URI;
+	readonly changelogUrl?: URI;
+}
+
 export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');
 export interface IBuiltinExtensionsScannerService {
 	readonly _serviceBrand: undefined;

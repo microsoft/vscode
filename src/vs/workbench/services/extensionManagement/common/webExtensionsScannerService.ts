@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as semver from 'semver-umd';
-import { IBuiltinExtensionsScannerService, IScannedExtension, ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IBuiltinExtensionsScannerService, IScannedExtension, ExtensionType, IExtensionIdentifier, ITranslatedScannedExtension } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { isWeb } from 'vs/base/common/platform';
@@ -23,6 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStaticExtension } from 'vs/workbench/workbench.web.api';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
+import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 
 interface IUserExtension {
 	identifier: IExtensionIdentifier;
@@ -128,6 +129,43 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			extensions.push(...userExtensions);
 		}
 		return extensions;
+	}
+
+	async scanAndTranslateExtensions(type?: ExtensionType): Promise<ITranslatedScannedExtension[]> {
+		const extensions = await this.scanExtensions(type);
+		return Promise.all(extensions.map((ext) => this._translateScannedExtension(ext)));
+	}
+
+	private async _translateScannedExtension(scannedExtension: IScannedExtension): Promise<ITranslatedScannedExtension> {
+		let manifest = scannedExtension.packageJSON;
+		if (scannedExtension.packageNLS) {
+			// package.nls.json is inlined
+			try {
+				manifest = localizeManifest(manifest, scannedExtension.packageNLS);
+			} catch (error) {
+				console.log(error);
+				/* ignore */
+			}
+		} else if (scannedExtension.packageNLSUrl) {
+			// package.nls.json needs to be fetched
+			try {
+				const context = await this.requestService.request({ type: 'GET', url: scannedExtension.packageNLSUrl.toString() }, CancellationToken.None);
+				if (isSuccess(context)) {
+					const content = await asText(context);
+					if (content) {
+						manifest = localizeManifest(manifest, JSON.parse(content));
+					}
+				}
+			} catch (error) { /* ignore */ }
+		}
+		return {
+			identifier: scannedExtension.identifier,
+			location: scannedExtension.location,
+			type: scannedExtension.type,
+			packageJSON: manifest,
+			readmeUrl: scannedExtension.readmeUrl,
+			changelogUrl: scannedExtension.changelogUrl
+		};
 	}
 
 	async addExtension(galleryExtension: IGalleryExtension): Promise<IScannedExtension> {
