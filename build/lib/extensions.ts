@@ -240,8 +240,7 @@ const excludedWebExtensions = excludedCommonExtensions.concat([
 ]);
 
 const marketplaceWebExtensions = [
-	'ms-vscode.references-view',
-	'ms-vscode.github-browser'
+	'ms-vscode.references-view'
 ];
 
 interface IBuiltInExtension {
@@ -251,7 +250,9 @@ interface IBuiltInExtension {
 	metadata: any;
 }
 
-const builtInExtensions: IBuiltInExtension[] = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8')).builtInExtensions;
+const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
+const builtInExtensions: IBuiltInExtension[] = productJson.builtInExtensions;
+const webBuiltInExtensions: IBuiltInExtension[] = productJson.webBuiltInExtensions;
 
 type ExtensionKind = 'ui' | 'workspace' | 'web';
 interface IExtensionManifest {
@@ -308,10 +309,10 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 }
 
 export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
-	const marketplaceExtensionsDescriptions = (
-		builtInExtensions
-			.filter(({ name }) => (forWeb ? marketplaceWebExtensions.indexOf(name) >= 0 : true))
-	);
+	const marketplaceExtensionsDescriptions = [
+		...builtInExtensions.filter(({ name }) => (forWeb ? marketplaceWebExtensions.indexOf(name) >= 0 : true)),
+		...(forWeb ? webBuiltInExtensions : [])
+	];
 	const marketplaceExtensionsStream = minifyExtensionResources(
 		es.merge(
 			...marketplaceExtensionsDescriptions

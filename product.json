@@ -118,7 +118,9 @@
 				},
 				"publisherDisplayName": "Microsoft"
 			}
-		},
+		}
+	],
+	"webBuiltInExtensions": [
 		{
 			"name": "ms-vscode.github-browser",
 			"version": "0.0.1",
