@@ -46,6 +46,15 @@
 						"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 					}
 				},
+				"userEnvProbe": {
+					"type": "string",
+					"enum": [
+						"none",
+						"loginInteractiveShell",
+						"interactiveShell"
+					],
+					"description": "User environment probe to run. The default is none."
+				},
 				"postAttachCommand": {
 					"type": [
 						"string",
