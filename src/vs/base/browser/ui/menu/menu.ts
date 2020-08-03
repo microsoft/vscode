@@ -805,7 +805,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		const ret = { top: 0, left: 0 };
 
 		// Start with horizontal
-		ret.left = layout(windowDimensions.width, submenu.width, { position: this.expandDirection === Direction.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width });
+		ret.left = layout(windowDimensions.width, submenu.width, { position: expandDirection === Direction.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width });
 
 		// We don't have enough room to layout the menu fully, so we are overlapping the menu
 		if (ret.left >= entry.left && ret.left < entry.left + entry.width) {
@@ -844,6 +844,9 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
 			// this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
 			this.submenuContainer.style.zIndex = '1';
+			this.submenuContainer.style.position = 'fixed';
+			this.submenuContainer.style.top = '0';
+			this.submenuContainer.style.left = '0';
 
 			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions, this.submenuOptions);
 			if (this.menuStyle) {
@@ -862,9 +865,6 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			};
 
 			const viewBox = this.submenuContainer.getBoundingClientRect();
-
-
-			this.submenuContainer.style.position = 'fixed';
 
 			const { top, left } = this.calculateSubmenuMenuLayout({ height: window.innerHeight, width: window.innerWidth }, viewBox, entryBoxUpdated, this.expandDirection);
 			this.submenuContainer.style.left = `${left}px`;
