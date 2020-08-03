@@ -366,6 +366,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		let version = this._versionManager.currentVersion;
+		if (!version.isValid) {
+			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', version.path));
+
+			this._versionManager.reset();
+			version = this._versionManager.currentVersion;
+		}
 
 		this.info(`Using tsserver from: ${version.path}`);
 
