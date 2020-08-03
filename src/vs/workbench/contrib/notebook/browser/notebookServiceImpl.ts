@@ -364,6 +364,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					return false;
 				}
 
+				if (editor.hasOutputTextSelection()) {
+					document.execCommand('copy');
+					return true;
+				}
+
 				const clipboardService = accessor.get<IClipboardService>(IClipboardService);
 				const notebookService = accessor.get<INotebookService>(INotebookService);
 				clipboardService.writeText(activeCell.getText());

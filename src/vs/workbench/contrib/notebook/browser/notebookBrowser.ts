@@ -199,6 +199,8 @@ export interface INotebookEditor extends IEditor {
 
 	hasFocus(): boolean;
 
+	hasOutputTextSelection(): boolean;
+
 	/**
 	 * Select & focus cell
 	 */
