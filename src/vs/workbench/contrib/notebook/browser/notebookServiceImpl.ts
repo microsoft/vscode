@@ -253,6 +253,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	public readonly onNotebookDocumentAdd: Event<URI[]> = this._onNotebookDocumentAdd.event;
 	private readonly _onNotebookDocumentRemove: Emitter<URI[]> = this._register(new Emitter<URI[]>());
 	public readonly onNotebookDocumentRemove: Event<URI[]> = this._onNotebookDocumentRemove.event;
+	private readonly _onNotebookDocumentSaved: Emitter<URI> = this._register(new Emitter<URI>());
+	public readonly onNotebookDocumentSaved: Event<URI> = this._onNotebookDocumentSaved.event;
 	private readonly _notebookEditors = new Map<string, INotebookEditor>();
 
 	private readonly _onDidChangeViewTypes = new Emitter<void>();
@@ -1019,7 +1021,12 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		const provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			return provider.controller.save(resource, token);
+			const ret = await provider.controller.save(resource, token);
+			if (ret) {
+				this._onNotebookDocumentSaved.fire(resource);
+			}
+
+			return ret;
 		}
 
 		return false;
@@ -1029,7 +1036,12 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		const provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			return provider.controller.saveAs(resource, target, token);
+			const ret = await provider.controller.saveAs(resource, target, token);
+			if (ret) {
+				this._onNotebookDocumentSaved.fire(resource);
+			}
+
+			return ret;
 		}
 
 		return false;

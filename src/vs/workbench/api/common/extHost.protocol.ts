@@ -1633,6 +1633,7 @@ export interface ExtHostNotebookShape {
 	$renderOutputs2<T>(uriComponents: UriComponents, id: string, request: IOutputRenderRequest<T>): Promise<IOutputRenderResponse<T> | undefined>;
 	$onDidReceiveMessage(editorId: string, rendererId: string | undefined, message: unknown): void;
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void;
+	$acceptModelSaved(uriComponents: UriComponents): void;
 	$acceptEditorPropertiesChanged(uriComponents: UriComponents, data: INotebookEditorPropertiesChangeData): void;
 	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): Promise<void>;
 	$undoNotebook(viewType: string, uri: UriComponents, editId: number, isDirty: boolean): Promise<void>;

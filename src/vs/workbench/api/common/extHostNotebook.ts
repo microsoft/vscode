@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { hash } from 'vs/base/common/hash';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { joinPath } from 'vs/base/common/resources';
 import { ISplice } from 'vs/base/common/sequence';
+import { NotImplementedProxy } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { CellKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice, MainThreadDocumentsShape, INotebookEditorPropertiesChangeData, INotebookDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
+import { CellKind, ExtHostNotebookShape, IMainContext, INotebookDocumentsAndEditorsDelta, INotebookEditorPropertiesChangeData, MainContext, MainThreadDocumentsShape, MainThreadNotebookShape, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { CellEditType, diff, ICellEditOperation, ICellInsertEdit, INotebookDisplayOrder, INotebookEditData, NotebookCellsChangedEvent, NotebookCellsSplice2, ICellDeleteEdit, notebookDocumentMetadataDefaults, NotebookCellsChangeType, NotebookDataDto, IOutputRenderRequest, IOutputRenderResponse, IOutputRenderResponseOutputInfo, IOutputRenderResponseCellInfo, IRawOutput, CellOutputKind, IProcessedOutput, INotebookKernelInfoDto2, IMainCellDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
-import { NotImplementedProxy } from 'vs/base/common/types';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { joinPath } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
-import { hash } from 'vs/base/common/hash';
+import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
+import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
+import { CellEditType, CellOutputKind, diff, ICellDeleteEdit, ICellEditOperation, ICellInsertEdit, IMainCellDto, INotebookDisplayOrder, INotebookEditData, INotebookKernelInfoDto2, IOutputRenderRequest, IOutputRenderResponse, IOutputRenderResponseCellInfo, IOutputRenderResponseOutputInfo, IProcessedOutput, IRawOutput, NotebookCellMetadata, NotebookCellsChangedEvent, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import * as vscode from 'vscode';
 import { Cache } from './cache';
 
 interface IObservable<T> {
@@ -895,7 +895,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private readonly _notebookKernelProviders = new Map<number, ExtHostNotebookKernelProviderAdapter>();
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
 	private readonly _unInitializedDocuments = new Map<string, ExtHostNotebookDocument>();
-	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor }>();
+	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor; }>();
 	private readonly _webviewComm = new Map<string, ExtHostWebviewCommWrapper>();
 	private readonly _notebookOutputRenderers = new Map<string, ExtHostNotebookOutputRenderer>();
 	private readonly _renderersUsedInNotebooks = new WeakMap<ExtHostNotebookDocument, Set<ExtHostNotebookOutputRenderer>>();
@@ -933,7 +933,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private _onDidSaveNotebookDocument = new Emitter<vscode.NotebookDocument>();
 	onDidSaveNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
 	visibleNotebookEditors: ExtHostNotebookEditor[] = [];
-	private _onDidChangeActiveNotebookKernel = new Emitter<{ document: ExtHostNotebookDocument, kernel: vscode.NotebookKernel | undefined }>();
+	private _onDidChangeActiveNotebookKernel = new Emitter<{ document: ExtHostNotebookDocument, kernel: vscode.NotebookKernel | undefined; }>();
 	onDidChangeActiveNotebookKernel = this._onDidChangeActiveNotebookKernel.event;
 	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>();
 	onDidChangeVisibleNotebookEditors = this._onDidChangeVisibleNotebookEditors.event;
@@ -1413,7 +1413,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._outputDisplayOrder = displayOrder;
 	}
 
-	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelId: string | undefined }) {
+	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelId: string | undefined; }) {
 		if (event.providerHandle !== undefined) {
 			this._withAdapter(event.providerHandle, event.uri, async (adapter, document) => {
 				const kernel = event.kernelId ? adapter.getKernel(event.kernelId) : undefined;
@@ -1430,7 +1430,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	// TODO: remove document - editor one on one mapping
 	private _getEditorFromURI(uriComponents: UriComponents) {
 		const uriStr = URI.revive(uriComponents).toString();
-		let editor: { editor: ExtHostNotebookEditor } | undefined;
+		let editor: { editor: ExtHostNotebookEditor; } | undefined;
 		this._editors.forEach(e => {
 			if (e.editor.uri.toString() === uriStr) {
 				editor = e;
@@ -1625,7 +1625,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			});
 		}
 
-		const removedEditors: { editor: ExtHostNotebookEditor }[] = [];
+		const removedEditors: { editor: ExtHostNotebookEditor; }[] = [];
 
 		if (delta.removedEditors) {
 			delta.removedEditors.forEach(editorid => {
