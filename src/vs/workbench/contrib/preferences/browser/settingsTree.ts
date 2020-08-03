@@ -18,7 +18,7 @@ import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selec
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -364,7 +364,7 @@ interface IDisposableTemplate {
 	toDispose: DisposableStore;
 }
 
-export interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
+interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	onChange?: (value: T) => void;
 
 	context?: SettingsTreeSettingElement;
@@ -527,10 +527,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		DOM.addClass(_container, 'setting-item-' + typeClass);
 
 		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
-		const titleElement = DOM.append(container, $('.setting-item-title', {
-			'role': 'heading',
-			'aria-level': 2,
-		}));
+		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const labelCategoryContainer = DOM.append(titleElement, $('.setting-item-cat-label-container'));
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
@@ -826,8 +823,6 @@ export class SettingGroupRenderer implements ITreeRenderer<SettingsTreeGroupElem
 		templateData.parent.innerHTML = '';
 		const labelElement = DOM.append(templateData.parent, $('div.settings-group-title-label'));
 		labelElement.classList.add(`settings-group-level-${element.element.level}`);
-		labelElement.setAttribute('role', 'heading');
-		labelElement.setAttribute('aria-level', '1');
 		labelElement.textContent = element.element.label;
 
 		if (element.element.isFirstGroup) {
@@ -1726,7 +1721,7 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 	) { }
 
-	filter(element: SettingsTreeElement, parentVisibility: TreeVisibility): boolean {
+	filter(element: SettingsTreeElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
 		// Filter during search
 		if (this.viewState.filterToCategory && element instanceof SettingsTreeSettingElement) {
 			if (!this.settingContainedInGroup(element.setting, this.viewState.filterToCategory)) {
@@ -1751,7 +1746,11 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 
 		// Group with no visible children
 		if (element instanceof SettingsTreeGroupElement) {
-			return typeof element.count === 'number' ? element.count > 0 : true;
+			if (typeof element.count === 'number') {
+				return element.count > 0;
+			}
+
+			return TreeVisibility.Recurse;
 		}
 
 		// Filtered "new extensions" button
@@ -1777,7 +1776,7 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 	}
 }
 
-export class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupChild> {
+class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupChild> {
 
 	getTemplateId(element: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement): string {
 		if (element instanceof SettingsTreeGroupElement) {
@@ -1904,41 +1903,41 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
 				// applying an opacity to the link color.
 				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.9));
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
 
 				collector.addRule(`.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) { color: ${fgWithOpacity}; }`);
 			}
 
 			const errorColor = theme.getColor(errorForeground);
 			if (errorColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-deprecation-message { color: ${errorColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-deprecation-message { color: ${errorColor}; }`);
 			}
 
 			const invalidInputBackground = theme.getColor(inputValidationErrorBackground);
 			if (invalidInputBackground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
 			}
 
 			const invalidInputForeground = theme.getColor(inputValidationErrorForeground);
 			if (invalidInputForeground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-validation-message { color: ${invalidInputForeground}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { color: ${invalidInputForeground}; }`);
 			}
 
 			const invalidInputBorder = theme.getColor(inputValidationErrorBorder);
 			if (invalidInputBorder) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-validation-message { border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item.invalid-input .setting-item-control .monaco-inputbox.idle { outline-width: 0; border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.invalid-input .setting-item-control .monaco-inputbox.idle { outline-width: 0; border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
 			}
 
 			const headerForegroundColor = theme.getColor(settingsHeaderForeground);
 			if (headerForegroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .settings-group-title-label { color: ${headerForegroundColor}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-label { color: ${headerForegroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label { color: ${headerForegroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-label { color: ${headerForegroundColor}; }`);
 			}
 
 			const focusBorderColor = theme.getColor(focusBorder);
 			if (focusBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
 			}
 		}));
 
