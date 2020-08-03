@@ -55,7 +55,7 @@ function main() {
 				fancyLog(ansiColors.blue('[mixin]'), 'Inheriting OSS built-in extensions', builtInExtensions.map(e => e.name));
 			}
 
-			return { ...o, builtInExtensions };
+			return { webBuiltInExtensions: ossProduct.webBuiltInExtensions, ...o, builtInExtensions };
 		}))
 		.pipe(productJsonFilter.restore)
 		.pipe(es.mapSync(function (f) {
