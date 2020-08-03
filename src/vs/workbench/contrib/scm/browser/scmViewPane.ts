@@ -27,7 +27,7 @@ import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, connectPrimaryMenu } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
@@ -865,6 +865,7 @@ class ViewModel {
 	private items: IRepositoryItem[] = [];
 	private visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
+	private alwaysShowRepositories = false;
 	private firstVisible = true;
 	private repositoryCollapseStates: Map<ISCMRepository, boolean> | undefined;
 	private disposables = new DisposableStore();
@@ -883,6 +884,16 @@ class ViewModel {
 			this._onDidChangeRepositoryCollapseState.event,
 			Event.signal(Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element)))
 		);
+
+		configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
+		this.onDidChangeConfiguration();
+	}
+
+	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
+		if (!e || e.affectsConfiguration('scm.alwaysShowRepositories')) {
+			this.alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
+			this.refresh();
+		}
 	}
 
 	private _onDidSpliceRepositories({ start, deleteCount, toInsert }: ISplice<ISCMRepository>): void {
@@ -997,7 +1008,7 @@ class ViewModel {
 	private refresh(item?: IRepositoryItem | IGroupItem): void {
 		const focusedInput = this.inputRenderer.getFocusedInput();
 
-		if (this.items.length === 1 && (!item || isRepositoryItem(item))) {
+		if (!this.alwaysShowRepositories && (this.items.length === 1 && (!item || isRepositoryItem(item)))) {
 			this.tree.setChildren(null, this.render(this.items[0]).children);
 		} else if (item) {
 			this.tree.setChildren(item.element, this.render(item).children);
@@ -1096,7 +1107,11 @@ class ViewModel {
 	}
 
 	getViewActions(): IAction[] {
-		if (this.repositories.elements.length !== 1) {
+		if (this.repositories.elements.length === 0) {
+			return [];
+		}
+
+		if (this.alwaysShowRepositories || this.repositories.elements.length !== 1) {
 			return [];
 		}
 
@@ -1111,7 +1126,7 @@ class ViewModel {
 
 		const viewAction = new SCMViewSubMenuAction(this);
 
-		if (this.repositories.elements.length !== 1) {
+		if (this.alwaysShowRepositories || this.repositories.elements.length !== 1) {
 			return Array.isArray(viewAction.actions) ? viewAction.actions : viewAction.actions();
 		}
 
@@ -1126,7 +1141,11 @@ class ViewModel {
 	}
 
 	getViewActionsContext(): any {
-		if (this.repositories.elements.length !== 1) {
+		if (this.repositories.elements.length === 0) {
+			return [];
+		}
+
+		if (this.alwaysShowRepositories || this.repositories.elements.length !== 1) {
 			return undefined;
 		}
 
@@ -1720,6 +1739,7 @@ export class SCMViewPane extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(this.viewModel.setVisible, this.viewModel));
 
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'))(this.updateActions, this));
 		this.updateActions();
 	}
 
