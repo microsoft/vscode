@@ -264,20 +264,20 @@ function packageMarketplaceExtensionsStream(forWeb) {
         .pipe(util2.setExecutableBit(['**/*.sh'])));
 }
 exports.packageMarketplaceExtensionsStream = packageMarketplaceExtensionsStream;
-function scanBuiltinExtensions(extensionsRoot, forWeb) {
+function scanBuiltinExtensions(extensionsRoot, exclude = []) {
     const scannedExtensions = [];
     try {
         const extensionsFolders = fs.readdirSync(extensionsRoot);
         for (const extensionFolder of extensionsFolders) {
-            if (extensionFolder === 'vscode-web-playground') {
-                // never inline vscode-web-playground (even if it was packaged)
+            if (exclude.indexOf(extensionFolder) >= 0) {
+                continue;
             }
             const packageJSONPath = path.join(extensionsRoot, extensionFolder, 'package.json');
             if (!fs.existsSync(packageJSONPath)) {
                 continue;
             }
             let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
-            if (forWeb && !isWebExtension(packageJSON)) {
+            if (!isWebExtension(packageJSON)) {
                 continue;
             }
             const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));

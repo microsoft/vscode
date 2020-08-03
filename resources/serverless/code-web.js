@@ -71,8 +71,8 @@ async function getBuiltInExtensionInfos() {
 	const locations = {};
 
 	const [localExtensions, marketplaceExtensions] = await Promise.all([
-		extensions.scanBuiltinExtensions(BUILTIN_EXTENSIONS_ROOT, true),
-		extensions.scanBuiltinExtensions(BUILTIN_MARKETPLACE_EXTENSIONS_ROOT, true),
+		extensions.scanBuiltinExtensions(BUILTIN_EXTENSIONS_ROOT),
+		extensions.scanBuiltinExtensions(BUILTIN_MARKETPLACE_EXTENSIONS_ROOT),
 	]);
 	for (const ext of localExtensions) {
 		allExtensions.push(ext);
