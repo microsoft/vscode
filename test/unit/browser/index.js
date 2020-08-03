@@ -37,16 +37,18 @@ if (argv.help) {
 	process.exit(0);
 }
 
-const withReporter = (function (browserType, runner) {
+const withReporter = (function () {
 	if (argv.tfs) {
 		{
-			new mocha.reporters.Spec(runner);
-			new MochaJUnitReporter(runner, {
-				reporterOptions: {
-					testsuitesTitle: `${argv.tfs} ${process.platform}`,
-					mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${browserType}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
-				}
-			});
+			return (browserType, runner) => {
+				new mocha.reporters.Spec(runner);
+				new MochaJUnitReporter(runner, {
+					reporterOptions: {
+						testsuitesTitle: `${argv.tfs} ${process.platform}`,
+						mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${browserType}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+					}
+				});
+			}
 		}
 	} else {
 		const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
@@ -72,7 +74,7 @@ const withReporter = (function (browserType, runner) {
 		reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
 		reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
 
-		return new ctor(runner, { reporterOptions })
+		return (_, runner) => new ctor(runner, { reporterOptions })
 	}
 })()
 
