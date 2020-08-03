@@ -743,7 +743,6 @@
 
 .monaco-action-bar .action-item.verticalSeparator {
 	width: 1px !important;
-	background-color: #bbb;
 	height: 16px !important;
 	margin: 5px 4px !important;
 	cursor: none;
