@@ -963,6 +963,8 @@ After enabling this setting, future crash reports will include the server log.`)
 
 	sections.push(`**TS Server Error Stack**
 
+Server: \`${error.serverId}\`
+
 \`\`\`
 ${error.serverStack}
 \`\`\``);
