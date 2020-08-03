@@ -205,10 +205,11 @@ const excludedDesktopExtensions = excludedCommonExtensions.concat([
 ]);
 const excludedWebExtensions = excludedCommonExtensions.concat([]);
 const marketplaceWebExtensions = [
-    'ms-vscode.references-view',
-    'ms-vscode.github-browser'
+    'ms-vscode.references-view'
 ];
-const builtInExtensions = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8')).builtInExtensions;
+const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
+const builtInExtensions = productJson.builtInExtensions;
+const webBuiltInExtensions = productJson.webBuiltInExtensions;
 /**
  * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionsUtil.ts`
  */
@@ -248,8 +249,10 @@ function packageLocalExtensionsStream(forWeb) {
 }
 exports.packageLocalExtensionsStream = packageLocalExtensionsStream;
 function packageMarketplaceExtensionsStream(forWeb) {
-    const marketplaceExtensionsDescriptions = (builtInExtensions
-        .filter(({ name }) => (forWeb ? marketplaceWebExtensions.indexOf(name) >= 0 : true)));
+    const marketplaceExtensionsDescriptions = [
+        ...builtInExtensions.filter(({ name }) => (forWeb ? marketplaceWebExtensions.indexOf(name) >= 0 : true)),
+        ...(forWeb ? webBuiltInExtensions : [])
+    ];
     const marketplaceExtensionsStream = minifyExtensionResources(es.merge(...marketplaceExtensionsDescriptions
         .map(extension => {
         const input = fromMarketplace(extension.name, extension.version, extension.metadata)
