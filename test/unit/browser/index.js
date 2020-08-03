@@ -37,14 +37,14 @@ if (argv.help) {
 	process.exit(0);
 }
 
-const withReporter = (function () {
+const withReporter = (function (browserType, runner) {
 	if (argv.tfs) {
-		return (runner) => {
+		{
 			new mocha.reporters.Spec(runner);
 			new MochaJUnitReporter(runner, {
 				reporterOptions: {
 					testsuitesTitle: `${argv.tfs} ${process.platform}`,
-					mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+					mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${browserType}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
 				}
 			});
 		}
@@ -72,7 +72,7 @@ const withReporter = (function () {
 		reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
 		reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
 
-		return (runner) => new ctor(runner, { reporterOptions })
+		return new ctor(runner, { reporterOptions })
 	}
 })()
 
@@ -150,7 +150,7 @@ async function runTestsInBrowser(testModules, browserType) {
 		console[msg.type()](msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 	});
 
-	withReporter(new EchoRunner(emitter, browserType.toUpperCase()));
+	withReporter(browserType, new EchoRunner(emitter, browserType.toUpperCase()));
 
 	// collection failures for console printing
 	const fails = [];
