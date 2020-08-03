@@ -930,6 +930,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	onDidOpenNotebookDocument: Event<vscode.NotebookDocument> = this._onDidOpenNotebookDocument.event;
 	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>();
 	onDidCloseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
+	private _onDidSaveNotebookDocument = new Emitter<vscode.NotebookDocument>();
+	onDidSaveNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
 	visibleNotebookEditors: ExtHostNotebookEditor[] = [];
 	private _onDidChangeActiveNotebookKernel = new Emitter<{ document: ExtHostNotebookDocument, kernel: vscode.NotebookKernel | undefined }>();
 	onDidChangeActiveNotebookKernel = this._onDidChangeActiveNotebookKernel.event;
@@ -1447,6 +1449,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		if (document) {
 			document.acceptModelChanged(event);
+		}
+	}
+
+	public $acceptModelSaved(uriComponents: UriComponents): void {
+		const document = this._documents.get(URI.revive(uriComponents).toString());
+		if (document) {
+			// this.$acceptDirtyStateChanged(uriComponents, false);
+			this._onDidSaveNotebookDocument.fire(document);
 		}
 	}
 
