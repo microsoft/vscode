@@ -94,7 +94,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 		const vscodeWebWorkerExtHostId = generateUuid();
 		const workerUrl = require.toUrl('../worker/extensionHostWorkerMain.js');
-		const sourcesOrigin = /^(http:)|(https:)|(file:)/.test(workerUrl) ? new URL(workerUrl).origin : location.origin;
+		const sourcesOrigin = /^((http:)|(https:)|(file:))/.test(workerUrl) ? new URL(workerUrl).origin : location.origin;
 		const workerSrc = getWorkerBootstrapUrl(workerUrl, 'WorkerExtensionHost', true);
 		const escapeAttribute = (value: string): string => {
 			return value.replace(/"/g, '&quot;');
