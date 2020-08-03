@@ -106,7 +106,7 @@ steps:
 
 - script: |
     set -e
-    DISPLAY=:10 yarn test-browser --build --browser chromium
+    DISPLAY=:10 yarn test-browser --build --browser chromium --tfs "Browser Unit Tests"
   displayName: Run unit tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
