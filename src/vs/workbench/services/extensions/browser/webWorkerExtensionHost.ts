@@ -27,6 +27,7 @@ import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output
 import { localize } from 'vs/nls';
 import { generateUuid } from 'vs/base/common/uuid';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
+import { WEB_WORKER_IFRAME } from 'vs/workbench/services/extensions/common/webWorkerIframe';
 
 const WRAP_IN_IFRAME = true;
 
@@ -91,71 +92,22 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		iframe.setAttribute('sandbox', 'allow-scripts');
 		iframe.style.display = 'none';
 
-		const nonce = generateUuid();
 		const vscodeWebWorkerExtHostId = generateUuid();
 		const workerUrl = require.toUrl('../worker/extensionHostWorkerMain.js');
-
-		const js = `
-(function() {
-	const workerUrl = "${getWorkerBootstrapUrl(workerUrl, 'WorkerExtensionHost', true)}";
-	const worker = new Worker(workerUrl, { name: 'WorkerExtensionHost' });
-	const vscodeWebWorkerExtHostId = '${vscodeWebWorkerExtHostId}';
-
-	worker.onmessage = (event) => {
-		const { data } = event;
-		if (!(data instanceof ArrayBuffer)) {
-			console.warn('Unknown data received', data);
-			window.parent.postMessage({
-				vscodeWebWorkerExtHostId,
-				error: {
-					name: 'Error',
-					message: 'Unknown data received',
-					stack: []
-				}
-			}, '*');
-			return;
-		}
-		window.parent.postMessage({
-			vscodeWebWorkerExtHostId,
-			data: data
-		}, '*', [data]);
-	};
-
-	worker.onerror = (event) => {
-		console.error(event.message, event.error);
-		window.parent.postMessage({
-			vscodeWebWorkerExtHostId,
-			error: {
-				name: event.error.name,
-				message: event.error.message,
-				stack: event.error.stack
-			}
-		}, '*');
-	};
-
-	window.addEventListener('message', function(event) {
-		if (event.source !== window.parent) {
-			return;
-		}
-		if (event.data.vscodeWebWorkerExtHostId !== vscodeWebWorkerExtHostId) {
-			return;
-		}
-		worker.postMessage(event.data.data, [event.data.data]);
-	}, false);
-})();
-`;
-		let sourcesOrigin = location.origin;
-		if (/^(http:)|(https:)|(file:)/.test(workerUrl)) {
-			sourcesOrigin = new URL(workerUrl).origin;
-		}
-
+		const sourcesOrigin = /^(http:)|(https:)|(file:)/.test(workerUrl) ? new URL(workerUrl).origin : location.origin;
+		const workerSrc = getWorkerBootstrapUrl(workerUrl, 'WorkerExtensionHost', true);
+		const escapeAttribute = (value: string): string => {
+			return value.replace(/"/g, '&quot;');
+		};
 		const html = `<!DOCTYPE html>
 <html>
 	<head>
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}' 'unsafe-eval' ${sourcesOrigin} https://*.gallerycdn.vsassets.io; worker-src data:; connect-src ${sourcesOrigin} https://*.gallerycdn.vsassets.io" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-eval' ${sourcesOrigin} https://*.gallerycdn.vsassets.io '${WEB_WORKER_IFRAME.sha}'; worker-src data:; connect-src ${sourcesOrigin} https://*.gallerycdn.vsassets.io" />
+		<meta id="vscode-worker-src" data-value="${escapeAttribute(workerSrc)}" />
+		<meta id="vscode-web-worker-ext-host-id" data-value="${escapeAttribute(vscodeWebWorkerExtHostId)}" />
 	</head>
 	<body>
-	<script nonce="${nonce}">${js}</script>
+	<script>${WEB_WORKER_IFRAME.js}</script>
 	</body>
 </html>`;
 		const iframeContent = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
