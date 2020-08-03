@@ -539,6 +539,17 @@
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
 			"version": "0.10.0"
+		},
+		{
+			"component": {
+				"type": "npm",
+				"npm": {
+					"name": "tas-client",
+					"version": "0.0.950"
+				}
+			},
+			"isOnlyProductionDependency": true,
+			"license": "MIT"
 		}
 	],
 	"version": 1
