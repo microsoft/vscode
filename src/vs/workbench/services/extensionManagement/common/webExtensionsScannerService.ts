@@ -69,7 +69,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		super();
 		if (isWeb) {
 			this.extensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
-			this.systemExtensionsPromise = this.builtinExtensionsScannerService.scanBuiltinExtensions();
+			this.systemExtensionsPromise = this.readSystemExtensions();
 			this.defaultExtensionsPromise = this.readDefaultExtensions();
 			if (this.extensionsResource) {
 				this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.extensionsResource!))(() => this.userExtensionsPromise = undefined));
@@ -77,15 +77,37 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}
 	}
 
-	private async readDefaultExtensions(): Promise<IScannedExtension[]> {
+	private async readSystemExtensions(): Promise<IScannedExtension[]> {
+		const extensions = await this.builtinExtensionsScannerService.scanBuiltinExtensions();
+		return extensions.concat(this.getStaticExtensions(true));
+	}
+
+	/**
+	 * All extensions defined via `staticExtensions`
+	 */
+	private getStaticExtensions(builtin: boolean): IScannedExtension[] {
 		const staticExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.staticExtensions) ? this.environmentService.options.staticExtensions : [];
+		return (
+			staticExtensions
+				.filter(e => Boolean(e.isBuiltin) === builtin)
+				.map(e => ({
+					identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
+					location: e.extensionLocation,
+					type: ExtensionType.System,
+					packageJSON: e.packageJSON,
+				}))
+		);
+	}
+
+	private async readDefaultExtensions(): Promise<IScannedExtension[]> {
 		const defaultUserWebExtensions = await this.readDefaultUserWebExtensions();
-		return [...staticExtensions, ...defaultUserWebExtensions].map<IScannedExtension>(e => ({
+		const extensions = defaultUserWebExtensions.map(e => ({
 			identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
 			location: e.extensionLocation,
 			type: ExtensionType.User,
 			packageJSON: e.packageJSON,
 		}));
+		return extensions.concat(this.getStaticExtensions(false));
 	}
 
 	private async readDefaultUserWebExtensions(): Promise<IStaticExtension[]> {
