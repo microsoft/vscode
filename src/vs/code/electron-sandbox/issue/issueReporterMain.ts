@@ -553,7 +553,7 @@ export class IssueReporter extends Disposable {
 
 	private clearSearchResults(): void {
 		const similarIssues = this.getElementById('similar-issues')!;
-		similarIssues.innerHTML = '';
+		similarIssues.innerText = '';
 		this.numberOfSearchResultsDisplayed = 0;
 	}
 
@@ -564,7 +564,7 @@ export class IssueReporter extends Disposable {
 
 		window.fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
 			response.json().then(result => {
-				similarIssues.innerHTML = '';
+				similarIssues.innerText = '';
 				if (result && result.items) {
 					this.displaySearchResults(result.items);
 				} else {
