@@ -208,8 +208,8 @@ const marketplaceWebExtensions = [
     'ms-vscode.references-view'
 ];
 const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions = productJson.builtInExtensions;
-const webBuiltInExtensions = productJson.webBuiltInExtensions;
+const builtInExtensions = productJson.builtInExtensions || [];
+const webBuiltInExtensions = productJson.webBuiltInExtensions || [];
 /**
  * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionsUtil.ts`
  */

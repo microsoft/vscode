@@ -251,8 +251,8 @@ interface IBuiltInExtension {
 }
 
 const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions: IBuiltInExtension[] = productJson.builtInExtensions;
-const webBuiltInExtensions: IBuiltInExtension[] = productJson.webBuiltInExtensions;
+const builtInExtensions: IBuiltInExtension[] = productJson.builtInExtensions || [];
+const webBuiltInExtensions: IBuiltInExtension[] = productJson.webBuiltInExtensions || [];
 
 type ExtensionKind = 'ui' | 'workspace' | 'web';
 interface IExtensionManifest {
