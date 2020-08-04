@@ -103,6 +103,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private accountsActivityAction: ActivityAction | undefined;
 
+	private accountsActivity: ICompositeActivity[] = [];
+
 	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction }>();
 	private readonly viewContainerDisposables = new Map<string, IDisposable>();
 
@@ -319,53 +321,49 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		if (viewContainerOrActionId === GLOBAL_ACTIVITY_ID) {
-			return this.showGlobalActivity(badge, clazz, priority);
+			return this.showGlobalActivity(this.globalActivity, this.globalActivityAction, badge, clazz, priority);
 		}
 
 		if (viewContainerOrActionId === ACCOUNTS_ACTIIVTY_ID) {
-			if (this.accountsActivityAction) {
-				this.accountsActivityAction.setBadge(badge, clazz);
-
-				return toDisposable(() => this.accountsActivityAction?.setBadge(undefined));
-			}
+			return this.showGlobalActivity(this.accountsActivity, this.accountsActivityAction, badge, clazz, priority);
 		}
 
 		return Disposable.None;
 	}
 
-	private showGlobalActivity(badge: IBadge, clazz?: string, priority?: number): IDisposable {
+	private showGlobalActivity(activityCache: ICompositeActivity[], activityAction: ActivityAction | undefined, badge: IBadge, clazz?: string, priority?: number): IDisposable {
 		if (typeof priority !== 'number') {
 			priority = 0;
 		}
 		const activity: ICompositeActivity = { badge, clazz, priority };
 
-		for (let i = 0; i <= this.globalActivity.length; i++) {
-			if (i === this.globalActivity.length) {
-				this.globalActivity.push(activity);
+		for (let i = 0; i <= activityCache.length; i++) {
+			if (i === activityCache.length) {
+				activityCache.push(activity);
 				break;
-			} else if (this.globalActivity[i].priority <= priority) {
-				this.globalActivity.splice(i, 0, activity);
+			} else if (activityCache[i].priority <= priority) {
+				activityCache.splice(i, 0, activity);
 				break;
 			}
 		}
-		this.updateGlobalActivity();
+		this.updateGlobalActivity(activityCache, activityAction);
 
-		return toDisposable(() => this.removeGlobalActivity(activity));
+		return toDisposable(() => this.removeGlobalActivity(activityCache, activityAction, activity));
 	}
 
-	private removeGlobalActivity(activity: ICompositeActivity): void {
-		const index = this.globalActivity.indexOf(activity);
+	private removeGlobalActivity(activityCache: ICompositeActivity[], activityAction: ActivityAction | undefined, activity: ICompositeActivity): void {
+		const index = activityCache.indexOf(activity);
 		if (index !== -1) {
-			this.globalActivity.splice(index, 1);
-			this.updateGlobalActivity();
+			activityCache.splice(index, 1);
+			this.updateGlobalActivity(activityCache, activityAction);
 		}
 	}
 
-	private updateGlobalActivity(): void {
-		const globalActivityAction = assertIsDefined(this.globalActivityAction);
-		if (this.globalActivity.length) {
-			const [{ badge, clazz, priority }] = this.globalActivity;
-			if (badge instanceof NumberBadge && this.globalActivity.length > 1) {
+	private updateGlobalActivity(activityCache: ICompositeActivity[], activityAction: ActivityAction | undefined): void {
+		const globalActivityAction = assertIsDefined(activityAction);
+		if (activityCache.length) {
+			const [{ badge, clazz, priority }] = activityCache;
+			if (badge instanceof NumberBadge && activityCache.length > 1) {
 				const cumulativeNumberBadge = this.getCumulativeNumberBadge(priority);
 				globalActivityAction.setBadge(cumulativeNumberBadge);
 			} else {
@@ -626,6 +624,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				this.globalActivityActionBar.push(this.accountsActivityAction, { index: ActivitybarPart.ACCOUNTS_ACTION_INDEX });
 			}
 		}
+
+		this.updateGlobalActivity(this.accountsActivity, this.accountsActivityAction);
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction } {
