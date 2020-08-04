@@ -28,11 +28,13 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 	readonly _recommendations: ExtensionRecommendation[] = [];
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
 
+	private readonly tasExperimentService: ITASExperimentService | undefined;
+
 	constructor(
 		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@optional(ITASExperimentService) private readonly tasExperimentService: ITASExperimentService | undefined,
+		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@INotificationService notificationService: INotificationService,
@@ -41,6 +43,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		super(isExtensionAllowedToBeRecommended, instantiationService, configurationService, notificationService, telemetryService, storageService, storageKeysSyncRegistryService);
+		this.tasExperimentService = tasExperimentService;
 
 		/*
 			3s has come out to be the good number to fetch and prompt important exe based recommendations
