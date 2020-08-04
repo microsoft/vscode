@@ -9,7 +9,7 @@ import { IdleValue } from 'vs/base/common/async';
 type KeytarModule = typeof import('keytar');
 export class KeytarCredentialsService implements ICredentialsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _keytar = new IdleValue<Promise<KeytarModule>>(() => import('keytar'));
 

@@ -223,7 +223,7 @@ export class SettingsDocument {
 		if (location.path.length === 1 && location.previousNode && typeof location.previousNode.value === 'string' && location.previousNode.value.startsWith('[')) {
 			// Suggestion model word matching includes closed sqaure bracket and ending quote
 			// Hence include them in the proposal to replace
-			let range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+			const range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			return this.provideLanguageCompletionItemsForLanguageOverrides(location, range, language => `"[${language}]"`);
 		}
 		return Promise.resolve([]);

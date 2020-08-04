@@ -23,6 +23,7 @@ export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, i
 	const cwd = folderQuery.folder.fsPath;
 	return {
 		cmd: cp.spawn(rgDiskPath, rgArgs.args, { cwd }),
+		rgDiskPath,
 		siblingClauses: rgArgs.siblingClauses,
 		rgArgs,
 		cwd
@@ -131,14 +132,14 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, exclude
 
 			// glob.ts requires forward slashes, but a UNC path still must start with \\
 			// #38165 and #38151
-			if (strings.startsWith(key, '\\\\')) {
+			if (key.startsWith('\\\\')) {
 				key = '\\\\' + key.substr(2).replace(/\\/g, '/');
 			} else {
 				key = key.replace(/\\/g, '/');
 			}
 
 			if (typeof value === 'boolean' && value) {
-				if (strings.startsWith(key, '\\\\')) {
+				if (key.startsWith('\\\\')) {
 					// Absolute globs UNC paths don't work properly, see #58758
 					key += '**';
 				}

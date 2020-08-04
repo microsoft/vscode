@@ -9,14 +9,14 @@ import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/
 import { timeout } from 'vs/base/common/async';
 import { localize } from 'vs/nls';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { basename } from 'vs/base/common/path';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 
 type ExeExtensionRecommendationsClassification = {
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -28,10 +28,13 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 	readonly _recommendations: ExtensionRecommendation[] = [];
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
 
+	private readonly tasExperimentService: ITASExperimentService | undefined;
+
 	constructor(
 		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@INotificationService notificationService: INotificationService,
@@ -40,6 +43,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		super(isExtensionAllowedToBeRecommended, instantiationService, configurationService, notificationService, telemetryService, storageService, storageKeysSyncRegistryService);
+		this.tasExperimentService = tasExperimentService;
 
 		/*
 			3s has come out to be the good number to fetch and prompt important exe based recommendations
@@ -61,7 +65,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 			importantExeBasedRecommendations[tip.extensionId.toLowerCase()] = tip;
 		});
 
-		const local = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const local = await this.extensionManagementService.getInstalled();
 		const { installed, uninstalled } = this.groupByInstalled(Object.keys(importantExeBasedRecommendations), local);
 
 		/* Log installed and uninstalled exe based recommendations */
@@ -77,7 +81,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		this.promptImportantExeBasedRecommendations(uninstalled, importantExeBasedRecommendations);
 	}
 
-	private promptImportantExeBasedRecommendations(recommendations: string[], importantExeBasedRecommendations: IStringDictionary<IExecutableBasedExtensionTip>): void {
+	private async promptImportantExeBasedRecommendations(recommendations: string[], importantExeBasedRecommendations: IStringDictionary<IExecutableBasedExtensionTip>): Promise<void> {
 		if (this.hasToIgnoreRecommendationNotifications()) {
 			return;
 		}
@@ -86,10 +90,16 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		const extensionId = recommendations[0];
-		const tip = importantExeBasedRecommendations[extensionId];
-		const message = localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.friendlyName!, tip.exeFriendlyName || basename(tip.windowsPath!));
-		this.promptImportantExtensionInstallNotification(extensionId, message);
+		for (const extensionId of recommendations) {
+			if (this.tasExperimentService && extensionId === 'ms-vscode-remote.remote-wsl') {
+				await this.tasExperimentService.getTreatment<boolean>('wslpopupaa');
+			}
+
+			const tip = importantExeBasedRecommendations[extensionId];
+			const message = tip.isExtensionPack ? localize('extensionPackRecommended', "The '{0}' extension pack is recommended as you have {1} installed on your system.", tip.extensionName!, tip.exeFriendlyName || basename(tip.windowsPath!))
+				: localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.extensionName!, tip.exeFriendlyName || basename(tip.windowsPath!));
+			this.promptImportantExtensionInstallNotification(extensionId, message);
+		}
 	}
 
 	private groupByInstalled(recommendationsToSuggest: string[], local: ILocalExtension[]): { installed: string[], uninstalled: string[] } {
@@ -111,7 +121,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 			source: 'executable',
 			reason: {
 				reasonId: ExtensionRecommendationReason.Executable,
-				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.friendlyName)
+				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.extensionName)
 			}
 		};
 	}

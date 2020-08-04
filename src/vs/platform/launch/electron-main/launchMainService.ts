@@ -51,7 +51,7 @@ function parseOpenUrl(args: ParsedArgs): URI[] {
 }
 
 export interface ILaunchMainService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
 	getMainProcessId(): Promise<number>;
 	getMainProcessInfo(): Promise<IMainProcessInfo>;
@@ -60,7 +60,7 @@ export interface ILaunchMainService {
 
 export class LaunchMainService implements ILaunchMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, IUserDataSyncService, SyncResource, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserDataSyncService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, ISyncData, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { SettingsSynchroniser, ISettingsSyncContent } from 'vs/platform/userDataSync/common/settingsSync';
@@ -12,43 +12,95 @@ import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyn
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { Event } from 'vs/base/common/event';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-suite('SettingsSync', () => {
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	'id': 'settingsSync',
+	'type': 'object',
+	'properties': {
+		'settingsSync.machine': {
+			'type': 'string',
+			'scope': ConfigurationScope.MACHINE
+		},
+		'settingsSync.machineOverridable': {
+			'type': 'string',
+			'scope': ConfigurationScope.MACHINE_OVERRIDABLE
+		}
+	}
+});
+
+suite('SettingsSync - Auto', () => {
 
 	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let client: UserDataSyncClient;
-
 	let testObject: SettingsSynchroniser;
-
-	suiteSetup(() => {
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-			'id': 'settingsSync',
-			'type': 'object',
-			'properties': {
-				'settingsSync.machine': {
-					'type': 'string',
-					'scope': ConfigurationScope.MACHINE
-				},
-				'settingsSync.machineOverridable': {
-					'type': 'string',
-					'scope': ConfigurationScope.MACHINE_OVERRIDABLE
-				}
-			}
-		});
-	});
 
 	setup(async () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
-		await client.setUp();
+		await client.setUp(true);
 		testObject = (client.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getSynchroniser(SyncResource.Settings) as SettingsSynchroniser;
 		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
 	});
 
 	teardown(() => disposableStore.clear());
+
+	test('when settings file does not exist', async () => {
+		const fileService = client.instantiationService.get(IFileService);
+		const settingResource = client.instantiationService.get(IEnvironmentService).settingsResource;
+
+		assert.deepEqual(await testObject.getLastSyncUserData(), null);
+		let manifest = await client.manifest();
+		server.reset();
+		await testObject.sync(manifest);
+
+		assert.deepEqual(server.requests, [
+			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
+		]);
+		assert.ok(!await fileService.exists(settingResource));
+
+		const lastSyncUserData = await testObject.getLastSyncUserData();
+		const remoteUserData = await testObject.getRemoteUserData(null);
+		assert.deepEqual(lastSyncUserData!.ref, remoteUserData.ref);
+		assert.deepEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
+		assert.equal(lastSyncUserData!.syncData, null);
+
+		manifest = await client.manifest();
+		server.reset();
+		await testObject.sync(manifest);
+		assert.deepEqual(server.requests, []);
+
+		manifest = await client.manifest();
+		server.reset();
+		await testObject.sync(manifest);
+		assert.deepEqual(server.requests, []);
+	});
+
+	test('when settings file is created after first sync', async () => {
+		const fileService = client.instantiationService.get(IFileService);
+
+		const settingsResource = client.instantiationService.get(IEnvironmentService).settingsResource;
+		await testObject.sync(await client.manifest());
+		await fileService.createFile(settingsResource, VSBuffer.fromString('{}'));
+
+		let lastSyncUserData = await testObject.getLastSyncUserData();
+		const manifest = await client.manifest();
+		server.reset();
+		await testObject.sync(manifest);
+
+		assert.deepEqual(server.requests, [
+			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': lastSyncUserData?.ref } },
+		]);
+
+		lastSyncUserData = await testObject.getLastSyncUserData();
+		const remoteUserData = await testObject.getRemoteUserData(null);
+		assert.deepEqual(lastSyncUserData!.ref, remoteUserData.ref);
+		assert.deepEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
+		assert.equal(testObject.parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
+	});
 
 	test('sync for first time to the server', async () => {
 		const expected =
@@ -74,8 +126,8 @@ suite('SettingsSync', () => {
 	"workbench.view.experimental.allowMovingToNewContainer": true,
 }`;
 
-		await updateSettings(expected);
-		await testObject.sync();
+		await updateSettings(expected, client);
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -97,9 +149,9 @@ suite('SettingsSync', () => {
 	"settingsSync.machine": "someValue",
 	"settingsSync.machineOverridable": "someValue"
 }`;
-		await updateSettings(settingsContent);
+		await updateSettings(settingsContent, client);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -128,9 +180,9 @@ suite('SettingsSync', () => {
 	// Machine
 	"settingsSync.machineOverridable": "someValue"
 }`;
-		await updateSettings(settingsContent);
+		await updateSettings(settingsContent, client);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -159,9 +211,9 @@ suite('SettingsSync', () => {
 	"settingsSync.machineOverridable": "someValue",
 	"files.simpleDialog.enable": true,
 }`;
-		await updateSettings(settingsContent);
+		await updateSettings(settingsContent, client);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -183,9 +235,9 @@ suite('SettingsSync', () => {
 	"settingsSync.machine": "someValue",
 	"settingsSync.machineOverridable": "someValue"
 }`;
-		await updateSettings(settingsContent);
+		await updateSettings(settingsContent, client);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -201,9 +253,9 @@ suite('SettingsSync', () => {
 	"settingsSync.machine": "someValue",
 	"settingsSync.machineOverridable": "someValue",
 }`;
-		await updateSettings(settingsContent);
+		await updateSettings(settingsContent, client);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -211,6 +263,24 @@ suite('SettingsSync', () => {
 		assert.deepEqual(actual, `{
 	,
 }`);
+	});
+
+	test('local change event is triggered when settings are changed', async () => {
+		const content =
+			`{
+	"files.autoSave": "afterDelay",
+	"files.simpleDialog.enable": true,
+}`;
+
+		await updateSettings(content, client);
+		await testObject.sync(await client.manifest());
+
+		const promise = Event.toPromise(testObject.onDidChangeLocal);
+		await updateSettings(`{
+	"files.autoSave": "off",
+	"files.simpleDialog.enable": true,
+}`, client);
+		await promise;
 	});
 
 	test('do not sync ignored settings', async () => {
@@ -235,9 +305,9 @@ suite('SettingsSync', () => {
 		"terminal.integrated.shell.osx"
 	]
 }`;
-		await updateSettings(settingsContent);
+		await updateSettings(settingsContent, client);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -283,9 +353,9 @@ suite('SettingsSync', () => {
 	// Machine
 	"settingsSync.machine": "someValue",
 }`;
-		await updateSettings(settingsContent);
+		await updateSettings(settingsContent, client);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -330,10 +400,10 @@ suite('SettingsSync', () => {
 	"workbench.view.experimental.allowMovingToNewContainer": true,
 }`;
 
-		await updateSettings(expected);
+		await updateSettings(expected, client);
 
 		try {
-			await testObject.sync();
+			await testObject.sync(await client.manifest());
 			assert.fail('should fail with invalid content error');
 		} catch (e) {
 			assert.ok(e instanceof UserDataSyncError);
@@ -341,15 +411,109 @@ suite('SettingsSync', () => {
 		}
 	});
 
-	function parseSettings(content: string): string {
-		const syncData: ISyncData = JSON.parse(content);
-		const settingsSyncContent: ISettingsSyncContent = JSON.parse(syncData.content);
-		return settingsSyncContent.settings;
-	}
+	test('sync when there are conflicts', async () => {
+		const client2 = disposableStore.add(new UserDataSyncClient(server));
+		await client2.setUp(true);
+		await updateSettings(JSON.stringify({
+			'a': 1,
+			'b': 2,
+			'sync.ignoredSettings': ['a']
+		}), client2);
+		await client2.sync();
 
-	async function updateSettings(content: string): Promise<void> {
-		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IEnvironmentService).settingsResource, VSBuffer.fromString(content));
-	}
+		await updateSettings(JSON.stringify({
+			'a': 2,
+			'b': 1,
+			'sync.ignoredSettings': ['a']
+		}), client);
+		await testObject.sync(await client.manifest());
 
+		assert.equal(testObject.status, SyncStatus.HasConflicts);
+		assert.equal(testObject.conflicts[0].localResource.toString(), testObject.localResource);
+
+		const fileService = client.instantiationService.get(IFileService);
+		const mergeContent = (await fileService.readFile(testObject.conflicts[0].previewResource)).value.toString();
+		assert.deepEqual(JSON.parse(mergeContent), {
+			'b': 1,
+			'sync.ignoredSettings': ['a']
+		});
+	});
 
 });
+
+suite('SettingsSync - Manual', () => {
+
+	const disposableStore = new DisposableStore();
+	const server = new UserDataSyncTestServer();
+	let client: UserDataSyncClient;
+	let testObject: SettingsSynchroniser;
+
+	setup(async () => {
+		client = disposableStore.add(new UserDataSyncClient(server));
+		await client.setUp(true);
+		testObject = (client.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getSynchroniser(SyncResource.Settings) as SettingsSynchroniser;
+		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
+	});
+
+	teardown(() => disposableStore.clear());
+
+	test('do not sync ignored settings', async () => {
+		const settingsContent =
+			`{
+	// Always
+	"files.autoSave": "afterDelay",
+	"files.simpleDialog.enable": true,
+
+	// Editor
+	"editor.fontFamily": "Fira Code",
+
+	// Terminal
+	"terminal.integrated.shell.osx": "some path",
+
+	// Workbench
+	"workbench.colorTheme": "GitHub Sharp",
+
+	// Ignored
+	"sync.ignoredSettings": [
+		"editor.fontFamily",
+		"terminal.integrated.shell.osx"
+	]
+}`;
+		await updateSettings(settingsContent, client);
+
+		let preview = await testObject.preview(await client.manifest());
+		assert.equal(testObject.status, SyncStatus.Syncing);
+		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
+		preview = await testObject.apply(false);
+
+		const { content } = await client.read(testObject.resource);
+		assert.ok(content !== null);
+		const actual = parseSettings(content!);
+		assert.deepEqual(actual, `{
+	// Always
+	"files.autoSave": "afterDelay",
+	"files.simpleDialog.enable": true,
+
+	// Workbench
+	"workbench.colorTheme": "GitHub Sharp",
+
+	// Ignored
+	"sync.ignoredSettings": [
+		"editor.fontFamily",
+		"terminal.integrated.shell.osx"
+	]
+}`);
+	});
+
+});
+
+function parseSettings(content: string): string {
+	const syncData: ISyncData = JSON.parse(content);
+	const settingsSyncContent: ISettingsSyncContent = JSON.parse(syncData.content);
+	return settingsSyncContent.settings;
+}
+
+async function updateSettings(content: string, client: UserDataSyncClient): Promise<void> {
+	await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IEnvironmentService).settingsResource, VSBuffer.fromString(content));
+	await client.instantiationService.get(IConfigurationService).reloadConfiguration();
+}

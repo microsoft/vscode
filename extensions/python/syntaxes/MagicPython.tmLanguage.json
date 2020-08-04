@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/MagicStack/MagicPython/commit/2ca894f270f92e2bc8f09a2ebdcd482fbb3b1074",
+	"version": "https://github.com/MagicStack/MagicPython/commit/b4b2e6eb16fee36aea0788bf0aa1853c25f7d276",
 	"name": "MagicPython",
 	"scopeName": "source.python",
 	"patterns": [
@@ -1229,13 +1229,13 @@
 		},
 		"generator": {
 			"comment": "Match \"for ... in\" construct used in generators and for loops to\ncorrectly identify the \"in\" as a control flow keyword.\n",
-			"begin": "for",
+			"begin": "\\bfor\\b",
 			"beginCaptures": {
 				"0": {
 					"name": "keyword.control.flow.python"
 				}
 			},
-			"end": "in",
+			"end": "\\bin\\b",
 			"endCaptures": {
 				"0": {
 					"name": "keyword.control.flow.python"

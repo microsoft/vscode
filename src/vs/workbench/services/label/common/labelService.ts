@@ -12,9 +12,8 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWo
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { isEqual, basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
+import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { ltrim } from 'vs/base/common/strings';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -51,6 +50,10 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 						separator: {
 							type: 'string',
 							description: localize('vscode.extension.contributes.resourceLabelFormatters.separator', "Separator to be used in the uri label display. '/' or '\' as an example.")
+						},
+						stripPathStartingSeparator: {
+							type: 'boolean',
+							description: localize('vscode.extension.contributes.resourceLabelFormatters.stripPathStartingSeparator', "Controls whether `${path}` substitutions should have starting separator characters stripped.")
 						},
 						tildify: {
 							type: 'boolean',
@@ -92,7 +95,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 export class LabelService extends Disposable implements ILabelService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private formatters: ResourceLabelFormatter[] = [];
 
@@ -139,20 +142,21 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		let label: string | undefined;
-		const baseResource = this.contextService && this.contextService.getWorkspaceFolder(resource);
+		const baseResource = this.contextService?.getWorkspaceFolder(resource);
 
 		if (options.relative && baseResource) {
-			let relativeLabel: string;
-			if (isEqual(baseResource.uri, resource)) {
-				relativeLabel = ''; // no label if resources are identical
-			} else {
-				const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
-				relativeLabel = ltrim(this.formatUri(resource, formatting, options.noPrefix).substring(baseResourceLabel.length), formatting.separator);
+			const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
+			let relativeLabel = this.formatUri(resource, formatting, options.noPrefix);
+
+			let overlap = 0;
+			while (relativeLabel[overlap] && relativeLabel[overlap] === baseResourceLabel[overlap]) { overlap++; }
+			if (!relativeLabel[overlap] || relativeLabel[overlap] === formatting.separator) {
+				relativeLabel = relativeLabel.substring(1 + overlap);
 			}
 
 			const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
 			if (hasMultipleRoots && !options.noPrefix) {
-				const rootName = (baseResource && baseResource.name) ? baseResource.name : basenameOrAuthority(baseResource.uri);
+				const rootName = baseResource?.name ?? basenameOrAuthority(baseResource.uri);
 				relativeLabel = relativeLabel ? (rootName + ' • ' + relativeLabel) : rootName; // always show root basename if there are multiple
 			}
 
@@ -244,7 +248,10 @@ export class LabelService extends Disposable implements ILabelService {
 			switch (token) {
 				case 'scheme': return resource.scheme;
 				case 'authority': return resource.authority;
-				case 'path': return resource.path;
+				case 'path':
+					return formatting.stripPathStartingSeparator
+						? resource.path.slice(resource.path[0] === formatting.separator ? 1 : 0)
+						: resource.path;
 				default: {
 					if (qsToken === 'query') {
 						const { query } = resource;

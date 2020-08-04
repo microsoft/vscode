@@ -26,6 +26,9 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { Color } from 'vs/base/common/color';
 
 export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('onTypeRenameInputVisible', false);
 
@@ -195,9 +198,9 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 
 		try {
 			this._ignoreChangeEvent = true;
-			const prevEditOperationType = this._editor._getCursors().getPrevEditOperationType();
+			const prevEditOperationType = this._editor._getViewModel().getPrevEditOperationType();
 			this._editor.executeEdits('onTypeRename', edits);
-			this._editor._getCursors().setPrevEditOperationType(prevEditOperationType);
+			this._editor._getViewModel().setPrevEditOperationType(prevEditOperationType);
 		} finally {
 			this._ignoreChangeEvent = false;
 		}
@@ -360,6 +363,13 @@ export function getOnTypeRenameRanges(model: ITextModel, position: Position, tok
 	}), result => !!result && arrays.isNonEmptyArray(result?.ranges));
 }
 
+export const editorOnTypeRenameBackground = registerColor('editor.onTypeRenameBackground', { dark: Color.fromHex('#f00').transparent(0.3), light: Color.fromHex('#f00').transparent(0.3), hc: Color.fromHex('#f00').transparent(0.3) }, nls.localize('editorOnTypeRenameBackground', 'Background color when the editor auto renames on type.'));
+registerThemingParticipant((theme, collector) => {
+	const editorOnTypeRenameBackgroundColor = theme.getColor(editorOnTypeRenameBackground);
+	if (editorOnTypeRenameBackgroundColor) {
+		collector.addRule(`.monaco-editor .on-type-rename-decoration { background: ${editorOnTypeRenameBackgroundColor}; border-left-color: ${editorOnTypeRenameBackgroundColor}; }`);
+	}
+});
 
 registerModelAndPositionCommand('_executeRenameOnTypeProvider', (model, position) => getOnTypeRenameRanges(model, position, CancellationToken.None));
 

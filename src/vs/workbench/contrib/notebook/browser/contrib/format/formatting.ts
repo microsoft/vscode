@@ -29,7 +29,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.format',
-			title: localize('format.title', 'Format Notebook'),
+			title: { value: localize('format.title', "Format Notebook"), original: 'Format Notebook' },
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE),
 			keybinding: {
@@ -65,7 +65,7 @@ registerAction2(class extends Action2 {
 
 			const edits: WorkspaceTextEdit[] = [];
 
-			for (let cell of notebook.cells) {
+			for (const cell of notebook.cells) {
 
 				const ref = await textModelService.createModelReference(cell.uri);
 				dispoables.add(ref);

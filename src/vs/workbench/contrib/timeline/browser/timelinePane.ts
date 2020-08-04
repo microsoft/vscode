@@ -6,7 +6,7 @@
 import 'vs/css!./media/timelinePane';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { IAction, ActionRunner } from 'vs/base/common/actions';
+import { IAction, ActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { fromNow } from 'vs/base/common/date';
 import { debounce } from 'vs/base/common/decorators';
@@ -22,7 +22,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { TreeResourceNavigator, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextKeyExpr, IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -36,10 +36,11 @@ import { IThemeService, LIGHT, ThemeIcon } from 'vs/platform/theme/common/themeS
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IActionViewItemProvider, ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ContextAwareMenuEntryActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { MenuEntryActionViewItem, createAndFillInContextMenuActions, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const ItemHeight = 22;
 
@@ -293,8 +294,7 @@ export class TimelinePane extends ViewPane {
 
 	get pageSize() {
 		let pageSize = this.configurationService.getValue<number | null | undefined>('timeline.pageSize');
-		// eslint-disable-next-line eqeqeq
-		if (pageSize == null) {
+		if (pageSize === undefined || pageSize === null) {
 			// If we are paging when scrolling, then add an extra item to the end to make sure the "Load more" item is out of view
 			pageSize = Math.max(20, Math.floor((this.tree.renderHeight / ItemHeight) + (this.pageOnScroll ? 1 : -1)));
 		}
@@ -347,7 +347,7 @@ export class TimelinePane extends ViewPane {
 
 		const editor = this.editorService.activeEditor;
 		if (editor) {
-			uri = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+			uri = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		}
 
 		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
@@ -883,7 +883,13 @@ export class TimelinePane extends ViewPane {
 					if (isLoadMoreCommand(element)) {
 						return element.ariaLabel;
 					}
-					return element.ariaLabel ?? localize('timeline.aria.item', "{0}: {1}", element.relativeTime ?? '', element.label);
+					return element.accessibilityInformation ? element.accessibilityInformation.label : localize('timeline.aria.item', "{0}: {1}", element.relativeTime ?? '', element.label);
+				},
+				getRole(element: TreeElement): string {
+					if (isLoadMoreCommand(element)) {
+						return 'treeitem';
+					}
+					return element.accessibilityInformation && element.accessibilityInformation.role ? element.accessibilityInformation.role : 'treeitem';
 				},
 				getWidgetAriaLabel(): string {
 					return localize('timeline', "Timeline");
@@ -892,37 +898,30 @@ export class TimelinePane extends ViewPane {
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
 			overrideStyles: {
 				listBackground: this.getBackgroundColor(),
-
 			}
 		});
 
-		const customTreeNavigator = new TreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false });
-		this._register(customTreeNavigator);
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(this.commands, e)));
 		this._register(this.tree.onDidChangeSelection(e => this.ensureValidItems()));
-		this._register(
-			customTreeNavigator.onDidOpenResource(e => {
-				if (!e.browserEvent || !this.ensureValidItems()) {
-					return;
-				}
+		this._register(this.tree.onDidOpen(e => {
+			if (!e.browserEvent || !this.ensureValidItems()) {
+				return;
+			}
 
-				const selection = this.tree.getSelection();
-				const item = selection.length === 1 ? selection[0] : undefined;
-				// eslint-disable-next-line eqeqeq
-				if (item == null) {
-					return;
-				}
+			const item = e.element;
+			if (item === null) {
+				return;
+			}
 
-				if (isTimelineItem(item)) {
-					if (item.command) {
-						this.commandService.executeCommand(item.command.id, ...(item.command.arguments || []));
-					}
+			if (isTimelineItem(item)) {
+				if (item.command) {
+					this.commandService.executeCommand(item.command.id, ...(item.command.arguments || []));
 				}
-				else if (isLoadMoreCommand(item)) {
-					this.loadMore(item);
-				}
-			})
-		);
+			}
+			else if (isLoadMoreCommand(item)) {
+				this.loadMore(item);
+			}
+		}));
 	}
 
 	private loadMore(item: LoadMoreCommand) {
@@ -1094,9 +1093,15 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
-		this.actionViewItemProvider = (action: IAction) => action instanceof MenuItemAction
-			? this.instantiationService.createInstance(ContextAwareMenuEntryActionViewItem, action)
-			: undefined;
+		this.actionViewItemProvider = (action: IAction) => {
+			if (action instanceof MenuItemAction) {
+				return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+			} else if (action instanceof SubmenuItemAction) {
+				return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
+			}
+
+			return undefined;
+		};
 	}
 
 	private uri: URI | undefined;
@@ -1241,7 +1246,6 @@ class TimelinePaneCommands extends Disposable {
 		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 		menu.dispose();
-		scoped.dispose();
 
 		return result;
 	}

@@ -11,9 +11,9 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import type { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
-import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, Match, searchMatchComparer, SearchResult, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import type { SearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { ITextQuery } from 'vs/workbench/services/search/common/search';
+import { ITextQuery, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 // Using \r\n on Windows inserts an extra newline between results.
@@ -66,8 +66,8 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 	const serializedMatches = flatten(sortedMatches.map(match => matchToSearchResultFormat(match, longestLineNumber)));
 
 	const uriString = labelFormatter(fileMatch.resource);
-	let text: string[] = [`${uriString}:`];
-	let matchRanges: Range[] = [];
+	const text: string[] = [`${uriString}:`];
+	const matchRanges: Range[] = [];
 
 	const targetLineNumberToOffset: Record<string, number> = {};
 
@@ -208,7 +208,7 @@ export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguratio
 };
 
 export const serializeSearchResultForEditor =
-	(searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string): { matchRanges: Range[], text: string, config: Partial<SearchConfiguration> } => {
+	(searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string, sortOrder: SearchSortOrder): { matchRanges: Range[], text: string, config: Partial<SearchConfiguration> } => {
 		if (!searchResult.query) { throw Error('Internal Error: Expected query, got null'); }
 		const config = contentPatternToSearchConfiguration(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines);
 
@@ -221,11 +221,13 @@ export const serializeSearchResultForEditor =
 				: localize('noResults', "No Results"),
 			''];
 
+		const matchComparer = (a: FileMatch | FolderMatch, b: FileMatch | FolderMatch) => searchMatchComparer(a, b, sortOrder);
+
 		const allResults =
 			flattenSearchResultSerializations(
 				flatten(
-					searchResult.folderMatches().sort(searchMatchComparer)
-						.map(folderMatch => folderMatch.matches().sort(searchMatchComparer)
+					searchResult.folderMatches().sort(matchComparer)
+						.map(folderMatch => folderMatch.matches().sort(matchComparer)
 							.map(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter)))));
 
 		return {
@@ -236,8 +238,8 @@ export const serializeSearchResultForEditor =
 	};
 
 const flattenSearchResultSerializations = (serializations: SearchResultSerialization[]): SearchResultSerialization => {
-	let text: string[] = [];
-	let matchRanges: Range[] = [];
+	const text: string[] = [];
+	const matchRanges: Range[] = [];
 
 	serializations.forEach(serialized => {
 		serialized.matchRanges.map(translateRangeLines(text.length)).forEach(range => matchRanges.push(range));
