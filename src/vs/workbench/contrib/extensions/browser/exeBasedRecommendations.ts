@@ -9,7 +9,7 @@ import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/
 import { timeout } from 'vs/base/common/async';
 import { localize } from 'vs/nls';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { basename } from 'vs/base/common/path';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -32,7 +32,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@ITASExperimentService private readonly tasExperimentService: ITASExperimentService,
+		@optional(ITASExperimentService) private readonly tasExperimentService: ITASExperimentService | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@INotificationService notificationService: INotificationService,
@@ -88,7 +88,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		}
 
 		for (const extensionId of recommendations) {
-			if (extensionId === 'ms-vscode-remote.remote-wsl') {
+			if (this.tasExperimentService && extensionId === 'ms-vscode-remote.remote-wsl') {
 				await this.tasExperimentService.getTreatment<boolean>('wslpopupaa');
 			}
 
