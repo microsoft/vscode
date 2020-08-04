@@ -52,6 +52,9 @@ export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCel
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false); // bool
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
 
+// Shared commands
+export const EXPAND_CELL_CONTENT_COMMAND_ID = 'notebook.cell.expandCellContent';
+
 // Kernels
 
 export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
