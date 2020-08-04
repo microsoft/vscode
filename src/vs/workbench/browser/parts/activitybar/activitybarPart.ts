@@ -360,17 +360,20 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private updateGlobalActivity(activityCache: ICompositeActivity[], activityAction: ActivityAction | undefined): void {
-		const globalActivityAction = assertIsDefined(activityAction);
+		if (!activityAction) {
+			return;
+		}
+
 		if (activityCache.length) {
 			const [{ badge, clazz, priority }] = activityCache;
 			if (badge instanceof NumberBadge && activityCache.length > 1) {
 				const cumulativeNumberBadge = this.getCumulativeNumberBadge(priority);
-				globalActivityAction.setBadge(cumulativeNumberBadge);
+				activityAction.setBadge(cumulativeNumberBadge);
 			} else {
-				globalActivityAction.setBadge(badge, clazz);
+				activityAction.setBadge(badge, clazz);
 			}
 		} else {
-			globalActivityAction.setBadge(undefined);
+			activityAction.setBadge(undefined);
 		}
 	}
 
