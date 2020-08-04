@@ -25,7 +25,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Progress } from 'vs/platform/progress/common/progress';
+import { Progress, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 class FormatOnType implements IEditorContribution {
 
@@ -231,7 +231,13 @@ class FormatDocumentAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		if (editor.hasModel()) {
 			const instaService = accessor.get(IInstantiationService);
-			await instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, Progress.None, CancellationToken.None);
+			const progressService = accessor.get(IProgressService);
+			return progressService.withProgress({
+				location: ProgressLocation.Window,
+				title: nls.localize("formatDocument.label.formatting", "Formatting document...")
+			}, async () => {
+				return await instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, Progress.None, CancellationToken.None);
+			});
 		}
 	}
 }
@@ -267,7 +273,14 @@ class FormatSelectionAction extends EditorAction {
 		if (range.isEmpty()) {
 			range = new Range(range.startLineNumber, 1, range.startLineNumber, model.getLineMaxColumn(range.startLineNumber));
 		}
-		await instaService.invokeFunction(formatDocumentRangeWithSelectedProvider, editor, range, FormattingMode.Explicit, CancellationToken.None);
+
+		const progressService = accessor.get(IProgressService);
+		return progressService.withProgress({
+			location: ProgressLocation.Window,
+			title: nls.localize("formatSelection.label.formatting", "Formatting selection...")
+		}, async () => {
+			return await instaService.invokeFunction(formatDocumentRangeWithSelectedProvider, editor, range, FormattingMode.Explicit, CancellationToken.None);
+		});
 	}
 }
 
