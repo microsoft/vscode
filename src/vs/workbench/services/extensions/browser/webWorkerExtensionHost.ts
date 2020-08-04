@@ -102,7 +102,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const html = `<!DOCTYPE html>
 <html>
 	<head>
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-eval' ${sourcesOrigin} https://*.gallerycdn.vsassets.io '${WEB_WORKER_IFRAME.sha}'; worker-src data:; connect-src ${sourcesOrigin} https://*.gallerycdn.vsassets.io" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-eval' ${sourcesOrigin} https://*.gallerycdn.vsassets.io '${WEB_WORKER_IFRAME.sha}'; worker-src data:; connect-src *" />
 		<meta id="vscode-worker-src" data-value="${escapeAttribute(workerSrc)}" />
 		<meta id="vscode-web-worker-ext-host-id" data-value="${escapeAttribute(vscodeWebWorkerExtHostId)}" />
 	</head>
