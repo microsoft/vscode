@@ -273,6 +273,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._editorFocus?.get() || false;
 	}
 
+	hasWebviewFocus() {
+		return this._webiewFocused;
+	}
+
 	hasOutputTextSelection() {
 		if (!this.hasFocus()) {
 			return false;

@@ -198,6 +198,7 @@ export interface INotebookEditor extends IEditor {
 	focus(): void;
 
 	hasFocus(): boolean;
+	hasWebviewFocus(): boolean;
 
 	hasOutputTextSelection(): boolean;
 

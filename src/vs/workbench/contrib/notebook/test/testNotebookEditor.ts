@@ -82,6 +82,10 @@ export class TestNotebookEditor implements INotebookEditor {
 		return true;
 	}
 
+	hasWebviewFocus() {
+		return false;
+	}
+
 	hasOutputTextSelection() {
 		return false;
 	}
