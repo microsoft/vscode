@@ -1992,12 +1992,12 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 
 			const listActiveSelectionBackgroundColor = theme.getColor(listActiveSelectionBackground);
 			if (listActiveSelectionBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused.selected .setting-item-contents .setting-item-title { background-color: ${listActiveSelectionBackgroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .setting-item-contents .setting-item-title { background-color: ${listActiveSelectionBackgroundColor}; }`);
 			}
 
 			const listActiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
 			if (listActiveSelectionForegroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused.selected .setting-item-contents .setting-item-title { color: ${listActiveSelectionForegroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .setting-item-contents .setting-item-title { color: ${listActiveSelectionForegroundColor}; }`);
 			}
 		}));
 
