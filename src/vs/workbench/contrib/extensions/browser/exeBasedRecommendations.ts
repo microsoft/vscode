@@ -16,6 +16,7 @@ import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionMa
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 
 type ExeExtensionRecommendationsClassification = {
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -31,6 +32,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@ITASExperimentService private readonly tasExperimentService: ITASExperimentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@INotificationService notificationService: INotificationService,
@@ -76,7 +78,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		this.promptImportantExeBasedRecommendations(uninstalled, importantExeBasedRecommendations);
 	}
 
-	private promptImportantExeBasedRecommendations(recommendations: string[], importantExeBasedRecommendations: IStringDictionary<IExecutableBasedExtensionTip>): void {
+	private async promptImportantExeBasedRecommendations(recommendations: string[], importantExeBasedRecommendations: IStringDictionary<IExecutableBasedExtensionTip>): Promise<void> {
 		if (this.hasToIgnoreRecommendationNotifications()) {
 			return;
 		}
@@ -86,6 +88,10 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		}
 
 		for (const extensionId of recommendations) {
+			if (extensionId === 'ms-vscode-remote.remote-wsl') {
+				await this.tasExperimentService.getTreatment<boolean>('wslpopupaa');
+			}
+
 			const tip = importantExeBasedRecommendations[extensionId];
 			const message = tip.isExtensionPack ? localize('extensionPackRecommended', "The '{0}' extension pack is recommended as you have {1} installed on your system.", tip.extensionName!, tip.exeFriendlyName || basename(tip.windowsPath!))
 				: localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.extensionName!, tip.exeFriendlyName || basename(tip.windowsPath!));
