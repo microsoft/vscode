@@ -3,38 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .margin-view-overlays .folding {
+.monaco-editor .margin-view-overlays .codicon-folding-expanded,
+.monaco-editor .margin-view-overlays .codicon-folding-collapsed {
 	cursor: pointer;
-	background-repeat: no-repeat;
-	background-origin: border-box;
-	background-position: calc(50% + 2px) center;
-	background-size: auto calc(100% - 3px);
 	opacity: 0;
 	transition: opacity 0.5s;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 140%;
+	margin-left: 2px;
 }
 
-.monaco-editor .margin-view-overlays .folding {
-	background-image: url('arrow-expand.svg');
-}
-
-.monaco-editor.hc-black .margin-view-overlays .folding,
-.monaco-editor.vs-dark .margin-view-overlays .folding {
-	background-image: url('arrow-expand-dark.svg');
-}
-
-.monaco-editor .margin-view-overlays:hover .folding,
-.monaco-editor .margin-view-overlays .folding.alwaysShowFoldIcons {
+.monaco-editor .margin-view-overlays:hover .codicon,
+.monaco-editor .margin-view-overlays .codicon.codicon-folding-collapsed,
+.monaco-editor .margin-view-overlays .codicon.alwaysShowFoldIcons {
 	opacity: 1;
-}
-
-.monaco-editor .margin-view-overlays .folding.collapsed {
-	background-image: url('arrow-collapse.svg');
-	opacity: 1;
-}
-
-.monaco-editor.hc-black .margin-view-overlays .folding.collapsed,
-.monaco-editor.vs-dark .margin-view-overlays .folding.collapsed {
-	background-image: url('arrow-collapse-dark.svg');
 }
 
 .monaco-editor .inline-folded:after {

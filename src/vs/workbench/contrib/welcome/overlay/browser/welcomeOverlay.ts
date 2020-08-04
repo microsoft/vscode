@@ -7,21 +7,22 @@ import 'vs/css!./welcomeOverlay';
 import * as dom from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickopen/browser/commandsHandler';
+import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { textPreformatForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -150,34 +151,32 @@ export class HideWelcomeOverlayAction extends Action {
 	}
 }
 
-class WelcomeOverlay {
+class WelcomeOverlay extends Disposable {
 
-	private _toDispose: IDisposable[] = [];
 	private _overlayVisible: IContextKey<boolean>;
-	private _overlay: HTMLElement;
+	private _overlay!: HTMLElement;
 
 	constructor(
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ILayoutService private readonly layoutService: ILayoutService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
+		super();
 		this._overlayVisible = OVERLAY_VISIBLE.bindTo(this._contextKeyService);
 		this.create();
 	}
 
 	private create(): void {
-		const container = this.layoutService.getContainer(Parts.EDITOR_PART)!;
-
-		const offset = this.layoutService.getTitleBarOffset();
-		this._overlay = dom.append(container.parentElement!, $('.welcomeOverlay'));
+		const offset = this.layoutService.offset?.top ?? 0;
+		this._overlay = dom.append(this.layoutService.container, $('.welcomeOverlay'));
 		this._overlay.style.top = `${offset}px`;
 		this._overlay.style.height = `calc(100% - ${offset}px)`;
 		this._overlay.style.display = 'none';
 		this._overlay.tabIndex = -1;
 
-		this._toDispose.push(dom.addStandardDisposableListener(this._overlay, 'click', () => this.hide()));
+		this._register(dom.addStandardDisposableListener(this._overlay, 'click', () => this.hide()));
 		this.commandService.onWillExecuteCommand(() => this.hide());
 
 		dom.append(this._overlay, $('.commandPalettePlaceholder'));
@@ -209,12 +208,13 @@ class WelcomeOverlay {
 			dom.addClass(workbench, 'blur-background');
 			this._overlayVisible.set(true);
 			this.updateProblemsKey();
+			this.updateActivityBarKeys();
 			this._overlay.focus();
 		}
 	}
 
 	private updateProblemsKey() {
-		const problems = document.querySelector('.task-statusbar-item');
+		const problems = document.querySelector(`footer[id="workbench.parts.statusbar"] .statusbar-item.left ${Codicon.warning.cssSelector}`);
 		const key = this._overlay.querySelector('.key.problems') as HTMLElement;
 		if (problems instanceof HTMLElement) {
 			const target = problems.getBoundingClientRect();
@@ -224,8 +224,27 @@ class WelcomeOverlay {
 			key.style.bottom = bottom + 'px';
 			key.style.left = left + 'px';
 		} else {
-			key.style.bottom = null;
-			key.style.left = null;
+			key.style.bottom = '';
+			key.style.left = '';
+		}
+	}
+
+	private updateActivityBarKeys() {
+		const ids = ['explorer', 'search', 'git', 'debug', 'extensions'];
+		const activityBar = document.querySelector('.activitybar .composite-bar');
+		if (activityBar instanceof HTMLElement) {
+			const target = activityBar.getBoundingClientRect();
+			const bounds = this._overlay.getBoundingClientRect();
+			for (let i = 0; i < ids.length; i++) {
+				const key = this._overlay.querySelector(`.key.${ids[i]}`) as HTMLElement;
+				const top = target.top - bounds.top + 50 * i + 13;
+				key.style.top = top + 'px';
+			}
+		} else {
+			for (let i = 0; i < ids.length; i++) {
+				const key = this._overlay.querySelector(`.key.${ids[i]}`) as HTMLElement;
+				key.style.top = '';
+			}
 		}
 	}
 
@@ -237,17 +256,13 @@ class WelcomeOverlay {
 			this._overlayVisible.reset();
 		}
 	}
-
-	dispose() {
-		this._toDispose = dispose(this._toDispose);
-	}
 }
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(WelcomeOverlayAction, WelcomeOverlayAction.ID, WelcomeOverlayAction.LABEL), 'Help: User Interface Overview', localize('help', "Help"));
+	.registerWorkbenchAction(SyncActionDescriptor.from(WelcomeOverlayAction), 'Help: User Interface Overview', localize('help', "Help"));
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(HideWelcomeOverlayAction, HideWelcomeOverlayAction.ID, HideWelcomeOverlayAction.LABEL, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', localize('help', "Help"));
+	.registerWorkbenchAction(SyncActionDescriptor.from(HideWelcomeOverlayAction, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', localize('help', "Help"));
 
 // theming
 

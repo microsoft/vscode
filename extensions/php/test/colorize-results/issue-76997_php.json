@@ -1,0 +1,68 @@
+[
+	{
+		"c": "<",
+		"t": "text.html.php meta.tag.other.unrecognized.html.derivative punctuation.definition.tag.begin.html",
+		"r": {
+			"dark_plus": "punctuation.definition.tag: #808080",
+			"light_plus": "punctuation.definition.tag: #800000",
+			"dark_vs": "punctuation.definition.tag: #808080",
+			"light_vs": "punctuation.definition.tag: #800000",
+			"hc_black": "punctuation.definition.tag: #808080"
+		}
+	},
+	{
+		"c": "hello",
+		"t": "text.html.php meta.tag.other.unrecognized.html.derivative entity.name.tag.html",
+		"r": {
+			"dark_plus": "entity.name.tag: #569CD6",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag: #569CD6",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag: #569CD6"
+		}
+	},
+	{
+		"c": ">",
+		"t": "text.html.php meta.tag.other.unrecognized.html.derivative punctuation.definition.tag.end.html",
+		"r": {
+			"dark_plus": "punctuation.definition.tag: #808080",
+			"light_plus": "punctuation.definition.tag: #800000",
+			"dark_vs": "punctuation.definition.tag: #808080",
+			"light_vs": "punctuation.definition.tag: #800000",
+			"hc_black": "punctuation.definition.tag: #808080"
+		}
+	},
+	{
+		"c": "</",
+		"t": "text.html.php meta.tag.other.unrecognized.html.derivative punctuation.definition.tag.begin.html",
+		"r": {
+			"dark_plus": "punctuation.definition.tag: #808080",
+			"light_plus": "punctuation.definition.tag: #800000",
+			"dark_vs": "punctuation.definition.tag: #808080",
+			"light_vs": "punctuation.definition.tag: #800000",
+			"hc_black": "punctuation.definition.tag: #808080"
+		}
+	},
+	{
+		"c": "hello",
+		"t": "text.html.php meta.tag.other.unrecognized.html.derivative entity.name.tag.html",
+		"r": {
+			"dark_plus": "entity.name.tag: #569CD6",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag: #569CD6",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag: #569CD6"
+		}
+	},
+	{
+		"c": ">",
+		"t": "text.html.php meta.tag.other.unrecognized.html.derivative punctuation.definition.tag.end.html",
+		"r": {
+			"dark_plus": "punctuation.definition.tag: #808080",
+			"light_plus": "punctuation.definition.tag: #800000",
+			"dark_vs": "punctuation.definition.tag: #808080",
+			"light_vs": "punctuation.definition.tag: #800000",
+			"hc_black": "punctuation.definition.tag: #808080"
+		}
+	}
+]

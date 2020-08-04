@@ -16,8 +16,8 @@ export interface ITestFileResult {
 export function testFile(folder: string, file: string): Promise<ITestFileResult> {
 	const id = generateUuid();
 	const parentDir = join(tmpdir(), 'vsctests', id);
-	const newDir = join(parentDir, 'config', id);
-	const testFile = join(newDir, 'config.json');
+	const newDir = join(parentDir, folder, id);
+	const testFile = join(newDir, file);
 
 	return mkdirp(newDir, 493).then(() => {
 		return {

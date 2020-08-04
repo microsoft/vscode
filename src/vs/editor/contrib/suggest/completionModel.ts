@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScorer, FuzzyScore } from 'vs/base/common/filters';
-import { isDisposable } from 'vs/base/common/lifecycle';
-import { CompletionList, CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
+import { fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScorer, FuzzyScore, anyScore } from 'vs/base/common/filters';
+import { CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionItem } from './suggest';
-import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { CharCode } from 'vs/base/common/charCode';
 import { compareIgnoreCase } from 'vs/base/common/strings';
@@ -30,8 +29,10 @@ export interface ICompletionStats {
 }
 
 export class LineContext {
-	leadingLineContent: string;
-	characterCountDelta: number;
+	constructor(
+		readonly leadingLineContent: string,
+		readonly characterCountDelta: number,
+	) { }
 }
 
 const enum Refilter {
@@ -40,6 +41,9 @@ const enum Refilter {
 	Incr = 2
 }
 
+/**
+ * Sorted, filtered completion view model
+ * */
 export class CompletionModel {
 
 	private readonly _items: CompletionItem[];
@@ -50,16 +54,18 @@ export class CompletionModel {
 
 	private _lineContext: LineContext;
 	private _refilterKind: Refilter;
-	private _filteredItems: StrictCompletionItem[];
-	private _isIncomplete: Set<CompletionItemProvider>;
-	private _stats: ICompletionStats;
+	private _filteredItems?: StrictCompletionItem[];
+	private _isIncomplete?: Set<CompletionItemProvider>;
+	private _stats?: ICompletionStats;
 
 	constructor(
 		items: CompletionItem[],
 		column: number,
 		lineContext: LineContext,
 		wordDistance: WordDistance,
-		options: InternalSuggestOptions = EDITOR_DEFAULTS.contribInfo.suggest
+		options: InternalSuggestOptions,
+		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none',
+		readonly clipboardText: string | undefined
 	) {
 		this._items = items;
 		this._column = column;
@@ -68,22 +74,10 @@ export class CompletionModel {
 		this._refilterKind = Refilter.All;
 		this._lineContext = lineContext;
 
-		if (options.snippets === 'top') {
+		if (snippetSuggestions === 'top') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsUp;
-		} else if (options.snippets === 'bottom') {
+		} else if (snippetSuggestions === 'bottom') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsDown;
-		}
-	}
-
-	dispose(): void {
-		const seen = new Set<CompletionList>();
-		for (const { container } of this._items) {
-			if (!seen.has(container)) {
-				seen.add(container);
-				if (isDisposable(container)) {
-					container.dispose();
-				}
-			}
 		}
 	}
 
@@ -102,16 +96,16 @@ export class CompletionModel {
 
 	get items(): CompletionItem[] {
 		this._ensureCachedState();
-		return this._filteredItems;
+		return this._filteredItems!;
 	}
 
 	get incomplete(): Set<CompletionItemProvider> {
 		this._ensureCachedState();
-		return this._isIncomplete;
+		return this._isIncomplete!;
 	}
 
 	adopt(except: Set<CompletionItemProvider>): CompletionItem[] {
-		let res = new Array<CompletionItem>();
+		let res: CompletionItem[] = [];
 		for (let i = 0; i < this._items.length;) {
 			if (!except.has(this._items[i].provider)) {
 				res.push(this._items[i]);
@@ -130,7 +124,7 @@ export class CompletionModel {
 
 	get stats(): ICompletionStats {
 		this._ensureCachedState();
-		return this._stats;
+		return this._stats!;
 	}
 
 	private _ensureCachedState(): void {
@@ -149,7 +143,7 @@ export class CompletionModel {
 		let wordLow = '';
 
 		// incrementally filter less
-		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems;
+		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems!;
 		const target: StrictCompletionItem[] = [];
 
 		// picks a score function based on the number of
@@ -161,6 +155,10 @@ export class CompletionModel {
 
 			const item = source[i];
 
+			if (item.isInvalid) {
+				continue; // SKIP invalid items
+			}
+
 			// collect those supports that signaled having
 			// an incomplete result
 			if (item.container.incomplete) {
@@ -170,7 +168,7 @@ export class CompletionModel {
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
 			// different word, but in practice not - that's why we cache
-			const overwriteBefore = item.position.column - item.completion.range.startColumn;
+			const overwriteBefore = item.position.column - item.editStart.column;
 			const wordLen = overwriteBefore + characterCountDelta - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
@@ -202,6 +200,7 @@ export class CompletionModel {
 					}
 				}
 
+				const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 				if (wordPos >= wordLen) {
 					// the wordPos at which scoring starts is the whole word
 					// and therefore the same rules as not having a word apply
@@ -216,19 +215,19 @@ export class CompletionModel {
 					if (!match) {
 						continue; // NO match
 					}
-					if (compareIgnoreCase(item.completion.filterText, item.completion.label) === 0) {
+					if (compareIgnoreCase(item.completion.filterText, textLabel) === 0) {
 						// filterText and label are actually the same -> use good highlights
 						item.score = match;
 					} else {
 						// re-run the scorer on the label in the hope of a result BUT use the rank
 						// of the filterText-match
-						item.score = scoreFn(word, wordLow, wordPos, item.completion.label, item.labelLow, 0, false) || FuzzyScore.Default;
+						item.score = anyScore(word, wordLow, wordPos, textLabel, item.labelLow, 0);
 						item.score[0] = match[0]; // use score from filterText
 					}
 
 				} else {
 					// by default match `word` against the `label`
-					let match = scoreFn(word, wordLow, wordPos, item.completion.label, item.labelLow, 0, false);
+					let match = scoreFn(word, wordLow, wordPos, textLabel, item.labelLow, 0, false);
 					if (!match) {
 						continue; // NO match
 					}

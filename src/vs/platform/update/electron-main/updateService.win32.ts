@@ -8,21 +8,23 @@ import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import { IRequestService } from 'vs/platform/request/node/request';
-import product from 'vs/platform/product/node/product';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import product from 'vs/platform/product/common/product';
 import { State, IUpdate, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/electron-main/abstractUpdateService';
-import { download, asJson } from 'vs/base/node/request';
+import { createUpdateURL, AbstractUpdateService, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
+import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { checksum } from 'vs/base/node/crypto';
 import { tmpdir } from 'os';
 import { spawn } from 'child_process';
 import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
+import { IFileService } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
 
 async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
 	while (!fn()) {
@@ -48,7 +50,7 @@ function getUpdateType(): UpdateType {
 
 export class Win32UpdateService extends AbstractUpdateService {
 
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
 	private availableUpdate: IAvailableUpdate | undefined;
 
@@ -59,14 +61,19 @@ export class Win32UpdateService extends AbstractUpdateService {
 	}
 
 	constructor(
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: INativeEnvironmentService,
 		@IRequestService requestService: IRequestService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IFileService private readonly fileService: IFileService
 	) {
-		super(lifecycleService, configurationService, environmentService, requestService, logService);
+		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
+	}
+
+	initialize(): void {
+		super.initialize();
 
 		if (getUpdateType() === UpdateType.Setup) {
 			/* __GDPR__
@@ -79,15 +86,15 @@ export class Win32UpdateService extends AbstractUpdateService {
 					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
-			telemetryService.publicLog('update:win32SetupTarget', { target: product.target });
+			this.telemetryService.publicLog('update:win32SetupTarget', { target: product.target });
 		}
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
 		let platform = 'win32';
 
-		if (process.arch === 'x64') {
-			platform += '-x64';
+		if (process.arch !== 'ia32') {
+			platform += `-${process.arch}`;
 		}
 
 		if (getUpdateType() === UpdateType.Archive) {
@@ -107,17 +114,12 @@ export class Win32UpdateService extends AbstractUpdateService {
 		this.setState(State.CheckingForUpdates(context));
 
 		this.requestService.request({ url: this.url }, CancellationToken.None)
-			.then<IUpdate>(asJson)
+			.then<IUpdate | null>(asJson)
 			.then(update => {
 				const updateType = getUpdateType();
 
 				if (!update || !update.url || !update.version || !update.productVersion) {
-					/* __GDPR__
-							"update:notAvailable" : {
-								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+					this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
 
 					this.setState(State.Idle(updateType));
 					return Promise.resolve(null);
@@ -142,7 +144,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 							const downloadPath = `${updatePackagePath}.tmp`;
 
 							return this.requestService.request({ url }, CancellationToken.None)
-								.then(context => download(downloadPath, context))
+								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
 								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
 								.then(() => pfs.rename(downloadPath, updatePackagePath))
 								.then(() => updatePackagePath);
@@ -166,12 +168,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 			})
 			.then(undefined, err => {
 				this.logService.error(err);
-				/* __GDPR__
-					"update:notAvailable" : {
-						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-					}
-					*/
-				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
 
 				// only show message when explicitly checking for updates
 				const message: string | undefined = !!context ? (err.message || err) : undefined;
@@ -237,10 +234,10 @@ export class Win32UpdateService extends AbstractUpdateService {
 		});
 
 		const readyMutexName = `${product.win32MutexName}-ready`;
-		const isActive = (require.__$__nodeRequire('windows-mutex') as any).isActive;
+		const mutex = await import('windows-mutex');
 
 		// poll for mutex-ready
-		pollUntil(() => isActive(readyMutexName))
+		pollUntil(() => mutex.isActive(readyMutexName))
 			.then(() => this.setState(State.Ready(update)));
 	}
 

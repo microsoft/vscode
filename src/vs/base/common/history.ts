@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INavigator, ArrayNavigator } from 'vs/base/common/iterator';
+import { INavigator, ArrayNavigator } from 'vs/base/common/navigator';
 
 export class HistoryNavigator<T> implements INavigator<T> {
 
-	private _history: Set<T>;
+	private _history!: Set<T>;
 	private _limit: number;
-	private _navigator: ArrayNavigator<T>;
+	private _navigator!: ArrayNavigator<T>;
 
-	constructor(history: T[] = [], limit: number = 10) {
+	constructor(history: readonly T[] = [], limit: number = 10) {
 		this._initialize(history);
 		this._limit = limit;
 		this._onChange();
@@ -28,19 +28,21 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	public next(): T | null {
-		return this._navigator.next();
+		if (this._currentPosition() !== this._elements.length - 1) {
+			return this._navigator.next();
+		}
+		return null;
 	}
 
 	public previous(): T | null {
-		return this._navigator.previous();
+		if (this._currentPosition() !== 0) {
+			return this._navigator.previous();
+		}
+		return null;
 	}
 
 	public current(): T | null {
 		return this._navigator.current();
-	}
-
-	public parent(): null {
-		return null;
 	}
 
 	public first(): T | null {
@@ -62,7 +64,8 @@ export class HistoryNavigator<T> implements INavigator<T> {
 
 	private _onChange() {
 		this._reduceToLimit();
-		this._navigator = new ArrayNavigator(this._elements, 0, this._elements.length, this._elements.length);
+		const elements = this._elements;
+		this._navigator = new ArrayNavigator(elements, 0, elements.length, elements.length);
 	}
 
 	private _reduceToLimit() {
@@ -72,7 +75,16 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		}
 	}
 
-	private _initialize(history: T[]): void {
+	private _currentPosition(): number {
+		const currentElement = this._navigator.current();
+		if (!currentElement) {
+			return -1;
+		}
+
+		return this._elements.indexOf(currentElement);
+	}
+
+	private _initialize(history: readonly T[]): void {
 		this._history = new Set();
 		for (const entry of history) {
 			this._history.add(entry);

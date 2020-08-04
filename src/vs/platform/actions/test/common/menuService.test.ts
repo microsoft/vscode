@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NullCommandService } from 'vs/platform/commands/common/commands';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
@@ -23,42 +23,42 @@ const contextKeyService = new class extends MockContextKeyService {
 suite('MenuService', function () {
 
 	let menuService: MenuService;
-	let disposables: IDisposable[];
+	const disposables = new DisposableStore();
 	let testMenuId: MenuId;
 
 	setup(function () {
 		menuService = new MenuService(NullCommandService);
-		testMenuId = Math.PI;
-		disposables = [];
+		testMenuId = new MenuId('testo');
+		disposables.clear();
 	});
 
 	teardown(function () {
-		dispose(disposables);
+		disposables.clear();
 	});
 
 	test('group sorting', function () {
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'one', title: 'FOO' },
 			group: '0_hello'
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'two', title: 'FOO' },
 			group: 'hello'
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'three', title: 'FOO' },
 			group: 'Hello'
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'four', title: 'FOO' },
 			group: ''
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'five', title: 'FOO' },
 			group: 'navigation'
 		}));
@@ -77,17 +77,17 @@ suite('MenuService', function () {
 
 	test('in group sorting, by title', function () {
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'a', title: 'aaa' },
 			group: 'Hello'
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'b', title: 'fff' },
 			group: 'Hello'
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'c', title: 'zzz' },
 			group: 'Hello'
 		}));
@@ -106,24 +106,24 @@ suite('MenuService', function () {
 
 	test('in group sorting, by title and order', function () {
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'a', title: 'aaa' },
 			group: 'Hello',
 			order: 10
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'b', title: 'fff' },
 			group: 'Hello'
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'c', title: 'zzz' },
 			group: 'Hello',
 			order: -1
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'd', title: 'yyy' },
 			group: 'Hello',
 			order: -1
@@ -145,19 +145,19 @@ suite('MenuService', function () {
 
 	test('in group sorting, special: navigation', function () {
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'a', title: 'aaa' },
 			group: 'navigation',
 			order: 1.3
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'b', title: 'fff' },
 			group: 'navigation',
 			order: 1.2
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(testMenuId, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'c', title: 'zzz' },
 			group: 'navigation',
 			order: 1.1
@@ -177,7 +177,7 @@ suite('MenuService', function () {
 
 	test('special MenuId palette', function () {
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: { id: 'a', title: 'Explicit' }
 		}));
 

@@ -3,39 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
 import { compareFileNames } from 'vs/base/common/comparers';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import * as glob from 'vs/base/common/glob';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { posix } from 'vs/base/common/path';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IConstructorSignature1, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchDataTree, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { breadcrumbsPickerBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
-import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter, IDataSource } from 'vs/base/browser/ui/tree/tree';
-import { OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItemComparator, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineDataSource, OutlineSortOrder, OutlineItem } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItemComparator, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineDataSource, OutlineSortOrder, OutlineFilter, OutlineAccessibilityProvider } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
+import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { localize } from 'vs/nls';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
-	const ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement
-		? BreadcrumbsFilePicker
-		: BreadcrumbsOutlinePicker;
-
-	return instantiationService.createInstance(ctor, parent);
+	return element instanceof FileElement
+		? instantiationService.createInstance(BreadcrumbsFilePicker, parent)
+		: instantiationService.createInstance(BreadcrumbsOutlinePicker, parent);
 }
 
 interface ILayoutInfo {
@@ -55,13 +54,13 @@ export interface SelectEvent {
 
 export abstract class BreadcrumbsPicker {
 
-	protected readonly _disposables = new Array<IDisposable>();
+	protected readonly _disposables = new DisposableStore();
 	protected readonly _domNode: HTMLDivElement;
-	protected _arrow: HTMLDivElement;
-	protected _treeContainer: HTMLDivElement;
-	protected _tree: Tree<any, any>;
+	protected _arrow!: HTMLDivElement;
+	protected _treeContainer!: HTMLDivElement;
+	protected _tree!: Tree<any, any>;
 	protected _fakeEvent = new UIEvent('fakeEvent');
-	protected _layoutInfo: ILayoutInfo;
+	protected _layoutInfo!: ILayoutInfo;
 
 	private readonly _onDidPickElement = new Emitter<SelectEvent>();
 	readonly onDidPickElement: Event<SelectEvent> = this._onDidPickElement.event;
@@ -72,7 +71,7 @@ export abstract class BreadcrumbsPicker {
 	constructor(
 		parent: HTMLElement,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@IWorkbenchThemeService protected readonly _themeService: IWorkbenchThemeService,
+		@IThemeService protected readonly _themeService: IThemeService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 	) {
 		this._domNode = document.createElement('div');
@@ -81,14 +80,15 @@ export abstract class BreadcrumbsPicker {
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		this._disposables.dispose();
 		this._onDidPickElement.dispose();
+		this._onDidFocusElement.dispose();
 		this._tree.dispose();
 	}
 
 	show(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): void {
 
-		const theme = this._themeService.getTheme();
+		const theme = this._themeService.getColorTheme();
 		const color = theme.getColor(breadcrumbsPickerBackground);
 
 		this._arrow = document.createElement('div');
@@ -99,17 +99,13 @@ export abstract class BreadcrumbsPicker {
 		this._treeContainer = document.createElement('div');
 		this._treeContainer.style.background = color ? color.toString() : '';
 		this._treeContainer.style.paddingTop = '2px';
-		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getTheme().getColor(widgetShadow)}`;
+		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getColorTheme().getColor(widgetShadow)}`;
 		this._domNode.appendChild(this._treeContainer);
-
-
-		const filterConfig = BreadcrumbsConfig.FilterOnType.bindTo(this._configurationService);
-		this._disposables.push(filterConfig);
 
 		this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };
 		this._tree = this._createTree(this._treeContainer);
 
-		this._disposables.push(this._tree.onDidChangeSelection(e => {
+		this._disposables.add(this._tree.onDidChangeSelection(e => {
 			if (e.browserEvent !== this._fakeEvent) {
 				const target = this._getTargetFromEvent(e.elements[0]);
 				if (target) {
@@ -119,21 +115,14 @@ export abstract class BreadcrumbsPicker {
 				}
 			}
 		}));
-		this._disposables.push(this._tree.onDidChangeFocus(e => {
+		this._disposables.add(this._tree.onDidChangeFocus(e => {
 			const target = this._getTargetFromEvent(e.elements[0]);
 			if (target) {
 				this._onDidFocusElement.fire({ target, browserEvent: e.browserEvent || new UIEvent('fake') });
 			}
 		}));
-		this._disposables.push(this._tree.onDidChangeContentHeight(() => {
+		this._disposables.add(this._tree.onDidChangeContentHeight(() => {
 			this._layout();
-		}));
-
-		// filter on type: state
-		const cfgFilterOnType = BreadcrumbsConfig.FilterOnType.bindTo(this._configurationService);
-		this._tree.updateOptions({ filterOnType: cfgFilterOnType.getValue() });
-		this._disposables.push(this._tree.onDidUpdateOptions(e => {
-			this._configurationService.updateValue(cfgFilterOnType.name, e.filterOnType, ConfigurationTarget.MEMORY);
 		}));
 
 		this._domNode.focus();
@@ -252,7 +241,7 @@ class FileRenderer implements ITreeRenderer<IFileStat | IWorkspaceFolder, FuzzyS
 	}
 
 	renderElement(node: ITreeNode<IWorkspaceFolder | IFileStat, [number, number, number]>, index: number, templateData: IResourceLabel): void {
-		const fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
+		const fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean; }>('explorer.decorations');
 		const { element } = node;
 		let resource: URI;
 		let fileKind: FileKind;
@@ -284,10 +273,21 @@ class FileNavigationLabelProvider implements IKeyboardNavigationLabelProvider<IW
 	}
 }
 
+class FileAccessibilityProvider implements IListAccessibilityProvider<IWorkspaceFolder | IFileStat> {
+
+	getWidgetAriaLabel(): string {
+		return localize('breadcrumbs', "Breadcrumbs");
+	}
+
+	getAriaLabel(element: IWorkspaceFolder | IFileStat): string | null {
+		return element.name;
+	}
+}
+
 class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 
 	private readonly _cachedExpressions = new Map<string, glob.ParsedExpression>();
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
@@ -317,15 +317,13 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 			});
 		};
 		update();
-		this._disposables.push(
-			config,
-			config.onDidChange(update),
-			_workspaceService.onDidChangeWorkspaceFolders(update)
-		);
+		this._disposables.add(config);
+		this._disposables.add(config.onDidChange(update));
+		this._disposables.add(_workspaceService.onDidChangeWorkspaceFolders(update));
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		this._disposables.dispose();
 	}
 
 	filter(element: IWorkspaceFolder | IFileStat, _parentVisibility: TreeVisibility): boolean {
@@ -366,7 +364,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 	constructor(
 		parent: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
+		@IThemeService themeService: IThemeService,
 		@IConfigurationService configService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 	) {
@@ -376,26 +374,36 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 	_createTree(container: HTMLElement) {
 
 		// tree icon theme specials
-		dom.addClass(this._treeContainer, 'file-icon-themable-tree');
-		dom.addClass(this._treeContainer, 'show-file-icons');
+		this._treeContainer.classList.add('file-icon-themable-tree');
+		this._treeContainer.classList.add('show-file-icons');
 		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
-			dom.toggleClass(this._treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
-			dom.toggleClass(this._treeContainer, 'hide-arrows', fileIconTheme.hidesExplorerArrows === true);
+			this._treeContainer.classList.toggle('align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
+			this._treeContainer.classList.toggle('hide-arrows', fileIconTheme.hidesExplorerArrows === true);
 		};
-		this._disposables.push(this._themeService.onDidFileIconThemeChange(onFileIconThemeChange));
+		this._disposables.add(this._themeService.onDidFileIconThemeChange(onFileIconThemeChange));
 		onFileIconThemeChange(this._themeService.getFileIconTheme());
 
 		const labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER /* TODO@Jo visibility propagation */);
-		this._disposables.push(labels);
+		this._disposables.add(labels);
 
-		return this._instantiationService.createInstance(WorkbenchAsyncDataTree, container, new FileVirtualDelegate(), [this._instantiationService.createInstance(FileRenderer, labels)], this._instantiationService.createInstance(FileDataSource), {
-			filterOnType: true,
-			multipleSelectionSupport: false,
-			sorter: new FileSorter(),
-			filter: this._instantiationService.createInstance(FileFilter),
-			identityProvider: new FileIdentityProvider(),
-			keyboardNavigationLabelProvider: new FileNavigationLabelProvider()
-		}) as WorkbenchAsyncDataTree<BreadcrumbElement | IFileStat, any, FuzzyScore>;
+		return <WorkbenchAsyncDataTree<IWorkspace | URI, IWorkspaceFolder | IFileStat, FuzzyScore>>this._instantiationService.createInstance(
+			WorkbenchAsyncDataTree,
+			'BreadcrumbsFilePicker',
+			container,
+			new FileVirtualDelegate(),
+			[this._instantiationService.createInstance(FileRenderer, labels)],
+			this._instantiationService.createInstance(FileDataSource),
+			{
+				multipleSelectionSupport: false,
+				sorter: new FileSorter(),
+				filter: this._instantiationService.createInstance(FileFilter),
+				identityProvider: new FileIdentityProvider(),
+				keyboardNavigationLabelProvider: new FileNavigationLabelProvider(),
+				accessibilityProvider: this._instantiationService.createInstance(FileAccessibilityProvider),
+				overrideStyles: {
+					listBackground: breadcrumbsPickerBackground
+				},
+			});
 	}
 
 	_setInput(element: BreadcrumbElement): Promise<void> {
@@ -441,40 +449,39 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
 	protected readonly _symbolSortOrder: BreadcrumbsConfig<'position' | 'name' | 'type'>;
+	protected _outlineComparator: OutlineItemComparator;
 
 	constructor(
 		parent: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
+		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IModeService private readonly _modeService: IModeService,
 	) {
 		super(parent, instantiationService, themeService, configurationService);
 		this._symbolSortOrder = BreadcrumbsConfig.SymbolSortOrder.bindTo(this._configurationService);
+		this._outlineComparator = new OutlineItemComparator();
 	}
 
 	protected _createTree(container: HTMLElement) {
-		return this._instantiationService.createInstance<
-			HTMLElement,
-			IListVirtualDelegate<OutlineItem>,
-			ITreeRenderer<any, FuzzyScore, any>[],
-			IDataSource<OutlineModel, OutlineItem>,
-			IDataTreeOptions<OutlineItem, FuzzyScore>,
-			WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>
-		>(
+		return <WorkbenchDataTree<OutlineModel, any, FuzzyScore>>this._instantiationService.createInstance(
 			WorkbenchDataTree,
+			'BreadcrumbsOutlinePicker',
 			container,
 			new OutlineVirtualDelegate(),
 			[new OutlineGroupRenderer(), this._instantiationService.createInstance(OutlineElementRenderer)],
 			new OutlineDataSource(),
 			{
-				filterOnType: true,
+				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
-				sorter: new OutlineItemComparator(this._getOutlineItemCompareType()),
+				sorter: this._outlineComparator,
 				identityProvider: new OutlineIdentityProvider(),
-				keyboardNavigationLabelProvider: this._instantiationService.createInstance(OutlineNavigationLabelProvider)
+				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
+				accessibilityProvider: new OutlineAccessibilityProvider(localize('breadcrumbs', "Breadcrumbs")),
+				filter: this._instantiationService.createInstance(OutlineFilter, 'breadcrumbs')
 			}
-		) as WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>;
+		);
 	}
 
 	dispose(): void {
@@ -486,16 +493,18 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		const element = input as TreeElement;
 		const model = OutlineModel.get(element)!;
 		const tree = this._tree as WorkbenchDataTree<OutlineModel, any, FuzzyScore>;
-		tree.setInput(model);
 
-		let focusElement: TreeElement;
-		if (element === model) {
-			focusElement = tree.navigate().first();
-		} else {
-			focusElement = element;
+		const overrideConfiguration = {
+			resource: model.uri,
+			overrideIdentifier: this._modeService.getModeIdByFilepathOrFirstLine(model.uri)
+		};
+		this._outlineComparator.type = this._getOutlineItemCompareType(overrideConfiguration);
+
+		tree.setInput(model);
+		if (element !== model) {
+			tree.reveal(element, 0.5);
+			tree.setFocus([element], this._fakeEvent);
 		}
-		tree.reveal(focusElement, 0.5);
-		tree.setFocus([focusElement], this._fakeEvent);
 		tree.domFocus();
 
 		return Promise.resolve();
@@ -507,8 +516,8 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		}
 	}
 
-	private _getOutlineItemCompareType(): OutlineSortOrder {
-		switch (this._symbolSortOrder.getValue()) {
+	private _getOutlineItemCompareType(overrideConfiguration?: IConfigurationOverrides): OutlineSortOrder {
+		switch (this._symbolSortOrder.getValue(overrideConfiguration)) {
 			case 'name':
 				return OutlineSortOrder.ByName;
 			case 'type':

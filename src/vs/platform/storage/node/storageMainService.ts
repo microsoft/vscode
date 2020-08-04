@@ -8,15 +8,16 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IStorage, Storage, SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions, InMemoryStorageDatabase } from 'vs/base/node/storage';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
+import { Storage, IStorage, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
-import { exists } from 'vs/base/node/pfs';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 
 export interface IStorageMainService {
 
-	_serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -27,8 +28,22 @@ export interface IStorageMainService {
 	 * Emitted when the storage is about to persist. This is the right time
 	 * to persist data to ensure it is stored before the application shuts
 	 * down.
+	 *
+	 * Note: this event may be fired many times, not only on shutdown to prevent
+	 * loss of state in situations where the shutdown is not sufficient to
+	 * persist the data properly.
 	 */
 	readonly onWillSaveState: Event<void>;
+
+	/**
+	 * Access to all cached items of this storage service.
+	 */
+	readonly items: Map<string, string>;
+
+	/**
+	 * Required call to ensure the service can be used.
+	 */
+	initialize(): Promise<void>;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -71,25 +86,25 @@ export interface IStorageChangeEvent {
 
 export class StorageMainService extends Disposable implements IStorageMainService {
 
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
-	private static STORAGE_NAME = 'state.vscdb';
+	private static readonly STORAGE_NAME = 'state.vscdb';
 
-	private readonly _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
-	get onDidChangeStorage(): Event<IStorageChangeEvent> { return this._onDidChangeStorage.event; }
+	private readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
+	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
-	private readonly _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
-	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
+	private readonly _onWillSaveState = this._register(new Emitter<void>());
+	readonly onWillSaveState = this._onWillSaveState.event;
 
 	get items(): Map<string, string> { return this.storage.items; }
 
 	private storage: IStorage;
 
-	private initializePromise: Promise<void>;
+	private initializePromise: Promise<void> | undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService
 	) {
 		super();
 
@@ -102,7 +117,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
 		}
 
-		return join(this.environmentService.globalStorageHome, StorageMainService.STORAGE_NAME);
+		return join(this.environmentService.globalStorageHome.fsPath, StorageMainService.STORAGE_NAME);
 	}
 
 	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
@@ -121,25 +136,14 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	private doInitialize(): Promise<void> {
-		const useInMemoryStorage = this.storagePath === SQLiteStorageDatabase.IN_MEMORY_PATH;
+		this.storage.dispose();
+		this.storage = new Storage(new SQLiteStorageDatabase(this.storagePath, {
+			logging: this.createLogginOptions()
+		}));
 
-		let globalStorageExists: Promise<boolean>;
-		if (useInMemoryStorage) {
-			globalStorageExists = Promise.resolve(true);
-		} else {
-			globalStorageExists = exists(this.storagePath);
-		}
+		this._register(this.storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
 
-		return globalStorageExists.then(exists => {
-			this.storage.dispose();
-			this.storage = new Storage(new SQLiteStorageDatabase(this.storagePath, {
-				logging: this.createLogginOptions()
-			}));
-
-			this._register(this.storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
-
-			return this.storage.init();
-		});
+		return this.storage.init();
 	}
 
 	get(key: string, fallbackValue: string): string;
@@ -175,9 +179,5 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		// Do it
 		return this.storage.close();
-	}
-
-	checkIntegrity(full: boolean): Promise<string> {
-		return this.storage.checkIntegrity(full);
 	}
 }

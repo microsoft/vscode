@@ -1,0 +1,73 @@
+# Query: @deprecated ES6
+# Flags: CaseSensitive WordMatch
+# ContextLines: 2
+
+14 results - 4 files
+
+src/vs/base/browser/dom.ts:
+  81  };
+  82  
+  83: /** @deprecated ES6 - use classList*/
+  84  export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+  85: /** @deprecated ES6 - use classList*/
+  86  export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
+  87: /** @deprecated ES6 - use classList*/
+  88  export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
+  89: /** @deprecated ES6 - use classList*/
+  90  export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
+  91: /** @deprecated ES6 - use classList*/
+  92  export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+  93: /** @deprecated ES6 - use classList*/
+  94  export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
+  95  
+
+src/vs/base/common/arrays.ts:
+  401  
+  402  /**
+  403:  * @deprecated ES6: use `Array.findIndex`
+  404   */
+  405  export function firstIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
+
+  417  
+  418  /**
+  419:  * @deprecated ES6: use `Array.find`
+  420   */
+  421  export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
+
+  569  
+  570  /**
+  571:  * @deprecated ES6: use `Array.find`
+  572   */
+  573  export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
+
+src/vs/base/common/objects.ts:
+  115  
+  116  /**
+  117:  * @deprecated ES6
+  118   */
+  119  export function assign<T>(destination: T): T;
+
+src/vs/base/common/strings.ts:
+   15  
+   16  /**
+   17:  * @deprecated ES6: use `String.padStart`
+   18   */
+   19  export function pad(n: number, l: number, char: string = '0'): string {
+
+  146  
+  147  /**
+  148:  * @deprecated ES6: use `String.startsWith`
+  149   */
+  150  export function startsWith(haystack: string, needle: string): boolean {
+
+  167  
+  168  /**
+  169:  * @deprecated ES6: use `String.endsWith`
+  170   */
+  171  export function endsWith(haystack: string, needle: string): boolean {
+
+  861  
+  862  /**
+  863:  * @deprecated ES6
+  864   */
+  865  export function repeat(s: string, count: number): string {

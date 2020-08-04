@@ -72,6 +72,7 @@ export interface JSONScanner {
 }
 
 
+
 export interface ParseError {
 	error: ParseErrorCode;
 	offset: number;
@@ -137,6 +138,7 @@ export interface Location {
 export interface ParseOptions {
 	disallowComments?: boolean;
 	allowTrailingComma?: boolean;
+	allowEmptyContent?: boolean;
 }
 
 export namespace ParseOptions {
@@ -207,17 +209,17 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 
 	function scanHexDigits(count: number): number {
 		let digits = 0;
-		let value = 0;
+		let hexValue = 0;
 		while (digits < count) {
 			const ch = text.charCodeAt(pos);
 			if (ch >= CharacterCodes._0 && ch <= CharacterCodes._9) {
-				value = value * 16 + ch - CharacterCodes._0;
+				hexValue = hexValue * 16 + ch - CharacterCodes._0;
 			}
 			else if (ch >= CharacterCodes.A && ch <= CharacterCodes.F) {
-				value = value * 16 + ch - CharacterCodes.A + 10;
+				hexValue = hexValue * 16 + ch - CharacterCodes.A + 10;
 			}
 			else if (ch >= CharacterCodes.a && ch <= CharacterCodes.f) {
-				value = value * 16 + ch - CharacterCodes.a + 10;
+				hexValue = hexValue * 16 + ch - CharacterCodes.a + 10;
 			}
 			else {
 				break;
@@ -226,9 +228,9 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 			digits++;
 		}
 		if (digits < count) {
-			value = -1;
+			hexValue = -1;
 		}
-		return value;
+		return hexValue;
 	}
 
 	function setPosition(newPosition: number) {
@@ -291,7 +293,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 				scanError = ScanError.UnexpectedEndOfString;
 				break;
 			}
-			let ch = text.charCodeAt(pos);
+			const ch = text.charCodeAt(pos);
 			if (ch === CharacterCodes.doubleQuote) {
 				result += text.substring(start, pos);
 				pos++;
@@ -304,8 +306,8 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 					scanError = ScanError.UnexpectedEndOfString;
 					break;
 				}
-				ch = text.charCodeAt(pos++);
-				switch (ch) {
+				const ch2 = text.charCodeAt(pos++);
+				switch (ch2) {
 					case CharacterCodes.doubleQuote:
 						result += '\"';
 						break;
@@ -331,9 +333,9 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 						result += '\t';
 						break;
 					case CharacterCodes.u:
-						const ch = scanHexDigits(4);
-						if (ch >= 0) {
-							result += String.fromCharCode(ch);
+						const ch3 = scanHexDigits(4);
+						if (ch3 >= 0) {
+							result += String.fromCharCode(ch3);
 						} else {
 							scanError = ScanError.InvalidUnicode;
 						}
@@ -374,12 +376,12 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 
 		let code = text.charCodeAt(pos);
 		// trivia: whitespace
-		if (isWhiteSpace(code)) {
+		if (isWhitespace(code)) {
 			do {
 				pos++;
 				value += String.fromCharCode(code);
 				code = text.charCodeAt(pos);
-			} while (isWhiteSpace(code));
+			} while (isWhitespace(code));
 
 			return token = SyntaxKind.Trivia;
 		}
@@ -517,7 +519,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 	}
 
 	function isUnknownContentCharacter(code: CharacterCodes) {
-		if (isWhiteSpace(code) || isLineBreak(code)) {
+		if (isWhitespace(code) || isLineBreak(code)) {
 			return false;
 		}
 		switch (code) {
@@ -555,7 +557,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 	};
 }
 
-function isWhiteSpace(ch: number): boolean {
+function isWhitespace(ch: number): boolean {
 	return ch === CharacterCodes.space || ch === CharacterCodes.tab || ch === CharacterCodes.verticalTab || ch === CharacterCodes.formFeed ||
 		ch === CharacterCodes.nonBreakingSpace || ch === CharacterCodes.ogham || ch >= CharacterCodes.enQuad && ch <= CharacterCodes.zeroWidthSpace ||
 		ch === CharacterCodes.narrowNoBreakSpace || ch === CharacterCodes.mathematicalSpace || ch === CharacterCodes.ideographicSpace || ch === CharacterCodes.byteOrderMark;
@@ -785,7 +787,7 @@ export function getLocation(text: string, position: number): Location {
 				if (position < offset) {
 					throw earlyReturnException;
 				}
-				setPreviousNode(value, offset, length, getLiteralNodeType(value));
+				setPreviousNode(value, offset, length, getNodeType(value));
 
 				if (position <= offset + length) {
 					throw earlyReturnException;
@@ -848,7 +850,7 @@ export function parse(text: string, errors: ParseError[] = [], options: ParseOpt
 	function onValue(value: any) {
 		if (Array.isArray(currentParent)) {
 			(<any[]>currentParent).push(value);
-		} else if (currentProperty) {
+		} else if (currentProperty !== null) {
 			currentParent[currentProperty] = value;
 		}
 	}
@@ -927,7 +929,7 @@ export function parseTree(text: string, errors: ParseError[] = [], options: Pars
 			ensurePropertyComplete(offset + length);
 		},
 		onLiteralValue: (value: any, offset: number, length: number) => {
-			onValue({ type: getLiteralNodeType(value), offset, length, parent: currentParent, value });
+			onValue({ type: getNodeType(value), offset, length, parent: currentParent, value });
 			ensurePropertyComplete(offset + length);
 		},
 		onSeparator: (sep: string, offset: number, length: number) => {
@@ -1287,7 +1289,11 @@ export function visit(text: string, visitor: JSONVisitor, options: ParseOptions 
 
 	scanNext();
 	if (_scanner.getToken() === SyntaxKind.EOF) {
-		return true;
+		if (options.allowEmptyContent) {
+			return true;
+		}
+		handleError(ParseErrorCode.ValueExpected, [], []);
+		return false;
 	}
 	if (!parseValue()) {
 		handleError(ParseErrorCode.ValueExpected, [], []);
@@ -1333,11 +1339,19 @@ export function stripComments(text: string, replaceCh?: string): string {
 	return parts.join('');
 }
 
-function getLiteralNodeType(value: any): NodeType {
+export function getNodeType(value: any): NodeType {
 	switch (typeof value) {
 		case 'boolean': return 'boolean';
 		case 'number': return 'number';
 		case 'string': return 'string';
+		case 'object': {
+			if (!value) {
+				return 'null';
+			} else if (Array.isArray(value)) {
+				return 'array';
+			}
+			return 'object';
+		}
 		default: return 'null';
 	}
 }

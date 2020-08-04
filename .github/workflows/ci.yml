@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - release/*
+  pull_request:
+    branches:
+      - master
+      - release/*
+
+jobs:
+  # linux:
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     CHILD_CONCURRENCY: "1"
+  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #   steps:
+  #   - uses: actions/checkout@v1
+  #   # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
+  #   - run: |
+  #       sudo apt-get update
+  #       sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
+  #       sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+  #       sudo chmod +x /etc/init.d/xvfb
+  #       sudo update-rc.d xvfb defaults
+  #       sudo service xvfb start
+  #     name: Setup Build Environment
+  #   - uses: actions/setup-node@v1
+  #     with:
+  #       node-version: 10
+  #   # TODO: cache node modules
+  #   - run: yarn --frozen-lockfile
+  #     name: Install Dependencies
+  #   - run: yarn electron x64
+  #     name: Download Electron
+  #   - run: yarn gulp hygiene
+  #     name: Run Hygiene Checks
+  #   - run: yarn monaco-compile-check
+  #     name: Run Monaco Editor Checks
+  #   - run: yarn valid-layers-check
+  #     name: Run Valid Layers Checks
+  #   - run: yarn compile
+  #     name: Compile Sources
+  #   - run: yarn download-builtin-extensions
+  #     name: Download Built-in Extensions
+  #   - run: DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
+  #     name: Run Unit Tests (Electron)
+  #   - run: DISPLAY=:10 yarn test-browser --browser chromium
+  #     name: Run Unit Tests (Browser)
+  #   - run: DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"
+  #     name: Run Integration Tests (Electron)
+
+  # windows:
+  #   runs-on: windows-2016
+  #   env:
+  #     CHILD_CONCURRENCY: "1"
+  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #   steps:
+  #   - uses: actions/checkout@v1
+  #   - uses: actions/setup-node@v1
+  #     with:
+  #       node-version: 10
+  #   - uses: actions/setup-python@v1
+  #     with:
+  #       python-version: '2.x'
+  #   - run: yarn --frozen-lockfile
+  #     name: Install Dependencies
+  #   - run: yarn electron
+  #     name: Download Electron
+  #   - run: yarn gulp hygiene
+  #     name: Run Hygiene Checks
+  #   - run: yarn monaco-compile-check
+  #     name: Run Monaco Editor Checks
+  #   - run: yarn valid-layers-check
+  #     name: Run Valid Layers Checks
+  #   - run: yarn compile
+  #     name: Compile Sources
+  #   - run: yarn download-builtin-extensions
+  #     name: Download Built-in Extensions
+  #   - run: .\scripts\test.bat --tfs "Unit Tests"
+  #     name: Run Unit Tests (Electron)
+  #   - run: yarn test-browser --browser chromium
+  #     name: Run Unit Tests (Browser)
+  #   - run: .\scripts\test-integration.bat --tfs "Integration Tests"
+  #     name: Run Integration Tests (Electron)
+
+  # darwin:
+  #   runs-on: macos-latest
+  #   env:
+  #     CHILD_CONCURRENCY: "1"
+  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #   steps:
+  #   - uses: actions/checkout@v1
+  #   - uses: actions/setup-node@v1
+  #     with:
+  #       node-version: 10
+  #   - run: yarn --frozen-lockfile
+  #     name: Install Dependencies
+  #   - run: yarn electron x64
+  #     name: Download Electron
+  #   - run: yarn gulp hygiene
+  #     name: Run Hygiene Checks
+  #   - run: yarn monaco-compile-check
+  #     name: Run Monaco Editor Checks
+  #   - run: yarn valid-layers-check
+  #     name: Run Valid Layers Checks
+  #   - run: yarn compile
+  #     name: Compile Sources
+  #   - run: yarn download-builtin-extensions
+  #     name: Download Built-in Extensions
+  #   - run: ./scripts/test.sh --tfs "Unit Tests"
+  #     name: Run Unit Tests (Electron)
+  #   - run: yarn test-browser --browser chromium --browser webkit
+  #     name: Run Unit Tests (Browser)
+  #   - run: ./scripts/test-integration.sh --tfs "Integration Tests"
+  #     name: Run Integration Tests (Electron)
+
+  monaco:
+    runs-on: ubuntu-latest
+    env:
+      CHILD_CONCURRENCY: "1"
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+    - uses: actions/checkout@v1
+    # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
+    - run: |
+        sudo apt-get update
+        sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
+        sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+        sudo chmod +x /etc/init.d/xvfb
+        sudo update-rc.d xvfb defaults
+        sudo service xvfb start
+      name: Setup Build Environment
+    - uses: actions/setup-node@v1
+      with:
+        node-version: 10
+    - run: yarn --frozen-lockfile
+      name: Install Dependencies
+    - run: yarn monaco-compile-check
+      name: Run Monaco Editor Checks
+    - run: yarn gulp editor-esm-bundle
+      name: Editor Distro & ESM Bundle

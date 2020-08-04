@@ -11,16 +11,14 @@ const suite = 'Smoke Tests';
 
 const [, , ...args] = process.argv;
 const opts = minimist(args, {
-	string: [
-		'f'
-	]
+	string: ['f', 'g']
 });
 
 const options = {
-	useColors: true,
+	color: true,
 	timeout: 60000,
 	slow: 30000,
-	grep: opts['f']
+	grep: opts['f'] || opts['g']
 };
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {

@@ -85,19 +85,7 @@ export function detectModeId(modelService: IModelService, modeService: IModeServ
 	}
 
 	// otherwise fallback to path based detection
-	let path: string | undefined;
-	if (resource.scheme === Schemas.data) {
-		const metadata = DataUri.parseMetaData(resource);
-		path = metadata.get(DataUri.META_DATA_LABEL);
-	} else {
-		path = resource.path.toLowerCase();
-	}
-
-	if (path) {
-		return modeService.getModeIdByFilepathOrFirstLine(path);
-	}
-
-	return null; // finally - we do not know the mode id
+	return modeService.getModeIdByFilepathOrFirstLine(resource);
 }
 
 export function cssEscape(val: string): string {

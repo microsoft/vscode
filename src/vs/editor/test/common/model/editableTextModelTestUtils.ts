@@ -9,6 +9,7 @@ import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation 
 import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 export function testApplyEditsWithSyncedModels(original: string[], edits: IIdentifiedSingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
 	let originalStr = original.join('\n');
@@ -16,7 +17,7 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 
 	assertSyncedModels(originalStr, (model, assertMirrorModels) => {
 		// Apply edits & collect inverse edits
-		let inverseEdits = model.applyEdits(edits);
+		let inverseEdits = model.applyEdits(edits, true);
 
 		// Assert edits produced expected result
 		assert.deepEqual(model.getValue(EndOfLinePreference.LF), expectedStr);
@@ -24,7 +25,7 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 		assertMirrorModels();
 
 		// Apply the inverse edits
-		let inverseInverseEdits = model.applyEdits(inverseEdits);
+		let inverseInverseEdits = model.applyEdits(inverseEdits, true);
 
 		// Assert the inverse edits brought back model to original state
 		assert.deepEqual(model.getValue(EndOfLinePreference.LF), originalStr);
@@ -35,8 +36,8 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 					identifier: edit.identifier,
 					range: edit.range,
 					text: edit.text,
-					forceMoveMarkers: edit.forceMoveMarkers,
-					isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit
+					forceMoveMarkers: edit.forceMoveMarkers || false,
+					isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit || false
 				};
 			};
 			// Assert the inverse of the inverse edits are the original edits
@@ -88,7 +89,7 @@ function assertLineMapping(model: TextModel, msg: string): void {
 
 
 export function assertSyncedModels(text: string, callback: (model: TextModel, assertMirrorModels: () => void) => void, setup: ((model: TextModel) => void) | null = null): void {
-	let model = new TextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
+	let model = createTextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
 	model.setEOL(EndOfLineSequence.LF);
 	assertLineMapping(model, 'model');
 

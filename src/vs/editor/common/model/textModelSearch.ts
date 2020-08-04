@@ -45,7 +45,8 @@ export class SearchParams {
 				matchCase: this.matchCase,
 				wholeWord: false,
 				multiline: multiline,
-				global: true
+				global: true,
+				unicode: true
 			});
 		} catch (err) {
 			return null;
@@ -84,7 +85,7 @@ export function isMultilineRegexSource(searchString: string): boolean {
 			}
 
 			const nextChCode = searchString.charCodeAt(i);
-			if (nextChCode === CharCode.n || nextChCode === CharCode.r || nextChCode === CharCode.W) {
+			if (nextChCode === CharCode.n || nextChCode === CharCode.r || nextChCode === CharCode.W || nextChCode === CharCode.w) {
 				return true;
 			}
 		}
@@ -509,12 +510,12 @@ export function isValidMatch(wordSeparators: WordCharacterClassifier, text: stri
 }
 
 export class Searcher {
-	private readonly _wordSeparators: WordCharacterClassifier | null;
+	public readonly _wordSeparators: WordCharacterClassifier | null;
 	private readonly _searchRegex: RegExp;
 	private _prevMatchStartIndex: number;
 	private _prevMatchLength: number;
 
-	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp, ) {
+	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp,) {
 		this._wordSeparators = wordSeparators;
 		this._searchRegex = searchRegex;
 		this._prevMatchStartIndex = -1;
@@ -545,6 +546,16 @@ export class Searcher {
 			const matchStartIndex = m.index;
 			const matchLength = m[0].length;
 			if (matchStartIndex === this._prevMatchStartIndex && matchLength === this._prevMatchLength) {
+				if (matchLength === 0) {
+					// the search result is an empty string and won't advance `regex.lastIndex`, so `regex.exec` will stuck here
+					// we attempt to recover from that by advancing by two if surrogate pair found and by one otherwise
+					if (strings.getNextCodePoint(text, textLength, this._searchRegex.lastIndex) > 0xFFFF) {
+						this._searchRegex.lastIndex += 2;
+					} else {
+						this._searchRegex.lastIndex += 1;
+					}
+					continue;
+				}
 				// Exit early if the regex matches the same range twice
 				return null;
 			}

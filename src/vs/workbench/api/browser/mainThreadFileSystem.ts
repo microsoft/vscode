@@ -5,11 +5,10 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions } from 'vs/platform/files/common/files';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
-import { ResourceLabelFormatter, ILabelService } from 'vs/platform/label/common/label';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
@@ -17,18 +16,16 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	private readonly _proxy: ExtHostFileSystemShape;
 	private readonly _fileProvider = new Map<number, RemoteFileSystemProvider>();
-	private readonly _resourceLabelFormatters = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
-		@ILabelService private readonly _labelService: ILabelService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 	}
 
 	dispose(): void {
-		this._fileProvider.forEach(value => value.dispose());
+		dispose(this._fileProvider.values());
 		this._fileProvider.clear();
 	}
 
@@ -41,18 +38,6 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._fileProvider.delete(handle);
 	}
 
-	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void {
-		// Dynamicily registered formatters should have priority over those contributed via package.json
-		formatter.priority = true;
-		const disposable = this._labelService.registerFormatter(formatter);
-		this._resourceLabelFormatters.set(handle, disposable);
-	}
-
-	$unregisterResourceLabelFormatter(handle: number): void {
-		dispose(this._resourceLabelFormatters.get(handle));
-		this._resourceLabelFormatters.delete(handle);
-	}
-
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
 		const fileProvider = this._fileProvider.get(handle);
 		if (!fileProvider) {
@@ -60,14 +45,102 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		}
 		fileProvider.$onFileSystemChange(changes);
 	}
+
+
+	// --- consumer fs, vscode.workspace.fs
+
+	$stat(uri: UriComponents): Promise<IStat> {
+		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: true }).then(stat => {
+			return {
+				ctime: stat.ctime,
+				mtime: stat.mtime,
+				size: stat.size,
+				type: MainThreadFileSystem._asFileType(stat)
+			};
+		}).catch(MainThreadFileSystem._handleError);
+	}
+
+	$readdir(uri: UriComponents): Promise<[string, FileType][]> {
+		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: false }).then(stat => {
+			if (!stat.isDirectory) {
+				const err = new Error(stat.name);
+				err.name = FileSystemProviderErrorCode.FileNotADirectory;
+				throw err;
+			}
+			return !stat.children ? [] : stat.children.map(child => [child.name, MainThreadFileSystem._asFileType(child)] as [string, FileType]);
+		}).catch(MainThreadFileSystem._handleError);
+	}
+
+	private static _asFileType(stat: IFileStat): FileType {
+		let res = 0;
+		if (stat.isFile) {
+			res += FileType.File;
+
+		} else if (stat.isDirectory) {
+			res += FileType.Directory;
+		}
+		if (stat.isSymbolicLink) {
+			res += FileType.SymbolicLink;
+		}
+		return res;
+	}
+
+	$readFile(uri: UriComponents): Promise<VSBuffer> {
+		return this._fileService.readFile(URI.revive(uri)).then(file => file.value).catch(MainThreadFileSystem._handleError);
+	}
+
+	$writeFile(uri: UriComponents, content: VSBuffer): Promise<void> {
+		return this._fileService.writeFile(URI.revive(uri), content)
+			.then(() => undefined).catch(MainThreadFileSystem._handleError);
+	}
+
+	$rename(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
+		return this._fileService.move(URI.revive(source), URI.revive(target), opts.overwrite)
+			.then(() => undefined).catch(MainThreadFileSystem._handleError);
+	}
+
+	$copy(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
+		return this._fileService.copy(URI.revive(source), URI.revive(target), opts.overwrite)
+			.then(() => undefined).catch(MainThreadFileSystem._handleError);
+	}
+
+	$mkdir(uri: UriComponents): Promise<void> {
+		return this._fileService.createFolder(URI.revive(uri))
+			.then(() => undefined).catch(MainThreadFileSystem._handleError);
+	}
+
+	$delete(uri: UriComponents, opts: FileDeleteOptions): Promise<void> {
+		return this._fileService.del(URI.revive(uri), opts).catch(MainThreadFileSystem._handleError);
+	}
+
+	private static _handleError(err: any): never {
+		if (err instanceof FileOperationError) {
+			switch (err.fileOperationResult) {
+				case FileOperationResult.FILE_NOT_FOUND:
+					err.name = FileSystemProviderErrorCode.FileNotFound;
+					break;
+				case FileOperationResult.FILE_IS_DIRECTORY:
+					err.name = FileSystemProviderErrorCode.FileIsADirectory;
+					break;
+				case FileOperationResult.FILE_PERMISSION_DENIED:
+					err.name = FileSystemProviderErrorCode.NoPermissions;
+					break;
+				case FileOperationResult.FILE_MOVE_CONFLICT:
+					err.name = FileSystemProviderErrorCode.FileExists;
+					break;
+			}
+		}
+
+		throw err;
+	}
 }
 
-class RemoteFileSystemProvider implements IFileSystemProvider {
+class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileFolderCopyCapability {
 
-	private readonly _onDidChange = new Emitter<IFileChange[]>();
+	private readonly _onDidChange = new Emitter<readonly IFileChange[]>();
 	private readonly _registration: IDisposable;
 
-	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChange.event;
+	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChange.event;
 
 	readonly capabilities: FileSystemProviderCapabilities;
 	readonly onDidChangeCapabilities: Event<void> = Event.None;

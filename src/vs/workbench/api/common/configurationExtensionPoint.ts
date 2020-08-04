@@ -8,11 +8,12 @@ import * as objects from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, resourceLanguageSettingsSchemaId, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { workspaceSettingsSchemaId, launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { isObject } from 'vs/base/common/types';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
@@ -39,15 +40,17 @@ const configurationEntrySchema: IJSONSchema = {
 							},
 							scope: {
 								type: 'string',
-								enum: ['application', 'machine', 'window', 'resource'],
+								enum: ['application', 'machine', 'window', 'resource', 'language-overridable', 'machine-overridable'],
 								default: 'window',
 								enumDescriptions: [
-									nls.localize('scope.application.description', "Application specific configuration, which can be configured only in local user settings."),
-									nls.localize('scope.machine.description', "Machine specific configuration, which can be configured only in local and remote user settings."),
-									nls.localize('scope.window.description', "Window specific configuration, which can be configured in the user or workspace settings."),
-									nls.localize('scope.resource.description', "Resource specific configuration, which can be configured in the user, workspace or folder settings.")
+									nls.localize('scope.application.description', "Configuration that can be configured only in the user settings."),
+									nls.localize('scope.machine.description', "Configuration that can be configured only in the user settings or only in the remote settings."),
+									nls.localize('scope.window.description', "Configuration that can be configured in the user, remote or workspace settings."),
+									nls.localize('scope.resource.description', "Configuration that can be configured in the user, remote, workspace or folder settings."),
+									nls.localize('scope.language-overridable.description', "Resource configuration that can be configured in language specific settings."),
+									nls.localize('scope.machine-overridable.description', "Machine configuration that can be configured also in workspace or folder settings.")
 								],
-								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `window` and `resource`.")
+								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window`, `resource`, and `machine-overridable`.")
 							},
 							enumDescriptions: {
 								type: 'array',
@@ -56,12 +59,12 @@ const configurationEntrySchema: IJSONSchema = {
 								},
 								description: nls.localize('scope.enumDescriptions', 'Descriptions for enum values')
 							},
-							markdownEnumDescription: {
+							markdownEnumDescriptions: {
 								type: 'array',
 								items: {
 									type: 'string',
 								},
-								description: nls.localize('scope.markdownEnumDescription', 'Descriptions for enum values in the markdown format.')
+								description: nls.localize('scope.markdownEnumDescriptions', 'Descriptions for enum values in the markdown format.')
 							},
 							markdownDescription: {
 								type: 'string',
@@ -70,6 +73,10 @@ const configurationEntrySchema: IJSONSchema = {
 							deprecationMessage: {
 								type: 'string',
 								description: nls.localize('scope.deprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation.')
+							},
+							markdownDeprecationMessage: {
+								type: 'string',
+								description: nls.localize('scope.markdownDeprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation in the markdown format.')
 							}
 						}
 					}
@@ -86,34 +93,31 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 		description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
 		type: 'object',
 		patternProperties: {
-			'\\[.*\\]$': {
+			'^\\[.*\\]$': {
 				type: 'object',
 				default: {},
-				$ref: editorConfigurationSchemaId,
+				$ref: resourceLanguageSettingsSchemaId,
 			}
-		}
+		},
+		errorMessage: nls.localize('config.property.defaultConfiguration.languageExpected', "Language selector expected (e.g. [\"java\"])"),
+		additionalProperties: false
 	}
 });
 defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 	if (removed.length) {
-		const removedDefaultConfigurations: IDefaultConfigurationExtension[] = removed.map(extension => {
-			const id = extension.description.identifier;
-			const name = extension.description.name;
-			const defaults = objects.deepClone(extension.value);
-			return <IDefaultConfigurationExtension>{
-				id, name, defaults
-			};
-		});
+		const removedDefaultConfigurations = removed.map<IStringDictionary<any>>(extension => objects.deepClone(extension.value));
 		configurationRegistry.deregisterDefaultConfigurations(removedDefaultConfigurations);
 	}
 	if (added.length) {
-		const addedDefaultConfigurations = added.map(extension => {
-			const id = extension.description.identifier;
-			const name = extension.description.name;
-			const defaults = objects.deepClone(extension.value);
-			return <IDefaultConfigurationExtension>{
-				id, name, defaults
-			};
+		const addedDefaultConfigurations = added.map<IStringDictionary<any>>(extension => {
+			const defaults: IStringDictionary<any> = objects.deepClone(extension.value);
+			for (const key of Object.keys(defaults)) {
+				if (!OVERRIDE_PROPERTY_PATTERN.test(key) || typeof defaults[key] !== 'object') {
+					extension.collector.warn(nls.localize('config.property.defaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. Only defaults for language specific settings are supported.", key));
+					delete defaults[key];
+				}
+			}
+			return defaults;
 		});
 		configurationRegistry.registerDefaultConfigurations(addedDefaultConfigurations);
 	}
@@ -215,6 +219,10 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 					propertyConfiguration.scope = ConfigurationScope.MACHINE;
 				} else if (propertyConfiguration.scope.toString() === 'resource') {
 					propertyConfiguration.scope = ConfigurationScope.RESOURCE;
+				} else if (propertyConfiguration.scope.toString() === 'machine-overridable') {
+					propertyConfiguration.scope = ConfigurationScope.MACHINE_OVERRIDABLE;
+				} else if (propertyConfiguration.scope.toString() === 'language-overridable') {
+					propertyConfiguration.scope = ConfigurationScope.LANGUAGE_OVERRIDABLE;
 				} else {
 					propertyConfiguration.scope = ConfigurationScope.WINDOW;
 				}
@@ -235,6 +243,7 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 	allowComments: true,
+	allowTrailingCommas: true,
 	default: {
 		folders: [
 			{
@@ -292,6 +301,12 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			description: nls.localize('workspaceConfig.launch.description', "Workspace launch configurations"),
 			$ref: launchSchemaId
 		},
+		'tasks': {
+			type: 'object',
+			default: { version: '2.0.0', tasks: [] },
+			description: nls.localize('workspaceConfig.tasks.description', "Workspace task configurations"),
+			$ref: tasksSchemaId
+		},
 		'extensions': {
 			type: 'object',
 			default: {},
@@ -299,9 +314,10 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			$ref: 'vscode://schemas/extensions'
 		},
 		'remoteAuthority': {
-			type: 'string'
+			type: 'string',
+			doNotSuggest: true,
+			description: nls.localize('workspaceConfig.remoteAuthority', "The remote server where the workspace is located. Only used by unsaved remote workspaces."),
 		}
 	},
-	additionalProperties: false,
 	errorMessage: nls.localize('unknownWorkspaceProperty', "Unknown workspace configuration property")
 });

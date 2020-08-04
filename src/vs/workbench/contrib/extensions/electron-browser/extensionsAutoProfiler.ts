@@ -43,7 +43,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 	private async _onDidChangeResponsiveChange(event: IResponsiveStateChangeEvent): Promise<void> {
 
-		const port = this._extensionService.getInspectPort();
+		const port = await this._extensionService.getInspectPort(true);
 
 		if (!port) {
 			return;
@@ -186,7 +186,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			),
 			[{
 				label: localize('show', 'Show Extensions'),
-				run: () => this._editorService.openEditor(new RuntimeExtensionsInput())
+				run: () => this._editorService.openEditor(RuntimeExtensionsInput.instance)
 			},
 				action
 			],

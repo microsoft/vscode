@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 
 export interface IRangeHighlightDecoration {
@@ -23,12 +23,14 @@ export class RangeHighlightDecorations extends Disposable {
 
 	private rangeHighlightDecorationId: string | null = null;
 	private editor: ICodeEditor | null = null;
-	private editorDisposables: IDisposable[] = [];
+	private readonly editorDisposables = this._register(new DisposableStore());
 
 	private readonly _onHighlightRemoved: Emitter<void> = this._register(new Emitter<void>());
-	get onHighlghtRemoved(): Event<void> { return this._onHighlightRemoved.event; }
+	readonly onHighlightRemoved = this._onHighlightRemoved.event;
 
-	constructor(@IEditorService private readonly editorService: IEditorService) {
+	constructor(
+		@IEditorService private readonly editorService: IEditorService
+	) {
 		super();
 	}
 
@@ -41,9 +43,9 @@ export class RangeHighlightDecorations extends Disposable {
 		this.rangeHighlightDecorationId = null;
 	}
 
-	highlightRange(range: IRangeHighlightDecoration, editor?: ICodeEditor) {
+	highlightRange(range: IRangeHighlightDecoration, editor?: any) {
 		editor = editor ? editor : this.getEditor(range);
-		if (editor) {
+		if (isCodeEditor(editor)) {
 			this.doHighlightRange(editor, range);
 		}
 	}
@@ -60,10 +62,10 @@ export class RangeHighlightDecorations extends Disposable {
 
 	private getEditor(resourceRange: IRangeHighlightDecoration): ICodeEditor | undefined {
 		const activeEditor = this.editorService.activeEditor;
-		const resource = activeEditor && activeEditor.getResource();
+		const resource = activeEditor && activeEditor.resource;
 		if (resource) {
 			if (resource.toString() === resourceRange.resource.toString()) {
-				return this.editorService.activeTextEditorWidget as ICodeEditor;
+				return this.editorService.activeTextEditorControl as ICodeEditor;
 			}
 		}
 
@@ -72,9 +74,9 @@ export class RangeHighlightDecorations extends Disposable {
 
 	private setEditor(editor: ICodeEditor) {
 		if (this.editor !== editor) {
-			this.disposeEditorListeners();
+			this.editorDisposables.clear();
 			this.editor = editor;
-			this.editorDisposables.push(this.editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
+			this.editorDisposables.add(this.editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 				if (
 					e.reason === CursorChangeReason.NotSet
 					|| e.reason === CursorChangeReason.Explicit
@@ -84,17 +86,12 @@ export class RangeHighlightDecorations extends Disposable {
 					this.removeHighlightRange();
 				}
 			}));
-			this.editorDisposables.push(this.editor.onDidChangeModel(() => { this.removeHighlightRange(); }));
-			this.editorDisposables.push(this.editor.onDidDispose(() => {
+			this.editorDisposables.add(this.editor.onDidChangeModel(() => { this.removeHighlightRange(); }));
+			this.editorDisposables.add(this.editor.onDidDispose(() => {
 				this.removeHighlightRange();
 				this.editor = null;
 			}));
 		}
-	}
-
-	private disposeEditorListeners() {
-		this.editorDisposables.forEach(disposable => disposable.dispose());
-		this.editorDisposables = [];
 	}
 
 	private static readonly _WHOLE_LINE_RANGE_HIGHLIGHT = ModelDecorationOptions.register({
@@ -117,7 +114,6 @@ export class RangeHighlightDecorations extends Disposable {
 
 		if (this.editor && this.editor.getModel()) {
 			this.removeHighlightRange();
-			this.disposeEditorListeners();
 			this.editor = null;
 		}
 	}

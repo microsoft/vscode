@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "insane",
+					"repositoryUrl": "https://github.com/bevacqua/insane",
+					"commitHash": "7f5a809f44a37e7d11ee5343b2d8bca4be6ba4ae"
+				}
+			},
+			"license": "MIT",
+			"version": "2.6.2"
+		}
+	],
+	"version": 1
+}

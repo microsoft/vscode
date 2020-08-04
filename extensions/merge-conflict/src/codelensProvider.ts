@@ -100,6 +100,7 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 		this.codeLensRegistrationHandle = vscode.languages.registerCodeLensProvider([
 			{ scheme: 'file' },
 			{ scheme: 'untitled' },
+			{ scheme: 'vscode-userdata' },
 		], this);
 	}
 }

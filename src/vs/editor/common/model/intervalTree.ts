@@ -17,7 +17,8 @@ export const enum ClassName {
 	EditorWarningDecoration = 'squiggly-warning',
 	EditorErrorDecoration = 'squiggly-error',
 	EditorUnnecessaryDecoration = 'squiggly-unnecessary',
-	EditorUnnecessaryInlineDecoration = 'squiggly-inline-unnecessary'
+	EditorUnnecessaryInlineDecoration = 'squiggly-inline-unnecessary',
+	EditorDeprecatedInlineDecoration = 'squiggly-inline-deprecated'
 }
 
 export const enum NodeColor {

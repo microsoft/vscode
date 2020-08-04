@@ -3,57 +3,81 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/// <reference path="../../../../typings/require.d.ts" />
+
 //@ts-check
 'use strict';
 
-const perf = require('../../../base/common/performance');
+const perf = (function () {
+	globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
+	return {
+		/**
+		 * @param {string} name
+		 */
+		mark(name) {
+			globalThis.MonacoPerformanceMarks.push(name, Date.now());
+		}
+	};
+})();
+
 perf.mark('renderer/started');
 
-const bootstrapWindow = require('../../../../bootstrap-window');
+/**
+ * @type {{
+ *   load: (modules: string[], resultCallback: (result, configuration: object) => any, options: object) => unknown,
+ *   globals: () => typeof import('../../../base/parts/sandbox/electron-sandbox/globals')
+ * }}
+ */
+const bootstrapWindow = (() => {
+	// @ts-ignore (defined in bootstrap-window.js)
+	return window.MonacoBootstrapWindow;
+})();
 
 // Setup shell environment
 process['lazyEnv'] = getLazyEnv();
 
-// Load workbench main
+// Load workbench main JS, CSS and NLS all in parallel. This is an
+// optimization to prevent a waterfall of loading to happen, because
+// we know for a fact that workbench.desktop.main will depend on
+// the related CSS and NLS counterparts.
 bootstrapWindow.load([
-	'vs/workbench/workbench.main',
-	'vs/nls!vs/workbench/workbench.main',
-	'vs/css!vs/workbench/workbench.main'
+	'vs/workbench/workbench.desktop.main',
+	'vs/nls!vs/workbench/workbench.desktop.main',
+	'vs/css!vs/workbench/workbench.desktop.main'
 ],
 	function (workbench, configuration) {
+
+		// Mark start of workbench
 		perf.mark('didLoadWorkbenchMain');
+		performance.mark('workbench-start');
 
 		return process['lazyEnv'].then(function () {
 			perf.mark('main/startup');
 
 			// @ts-ignore
-			return require('vs/workbench/electron-browser/main').main(configuration);
+			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
 		});
-	}, {
+	},
+	{
 		removeDeveloperKeybindingsAfterLoad: true,
 		canModifyDOM: function (windowConfig) {
 			showPartsSplash(windowConfig);
 		},
 		beforeLoaderConfig: function (windowConfig, loaderConfig) {
-			loaderConfig.recordStats = !!windowConfig['prof-modules'];
-			if (loaderConfig.nodeCachedData) {
-				const onNodeCachedData = window['MonacoEnvironment'].onNodeCachedData = [];
-				loaderConfig.nodeCachedData.onData = function () {
-					onNodeCachedData.push(arguments);
-				};
-			}
+			loaderConfig.recordStats = true;
 		},
 		beforeRequire: function () {
 			perf.mark('willLoadWorkbenchMain');
 		}
-	});
+	}
+);
 
 /**
- * // configuration: IWindowConfiguration
  * @param {{
  *	partsSplashPath?: string,
  *	highContrast?: boolean,
- *	extensionDevelopmentPath?: string | string[],
+ *	defaultThemeType?: string,
+ *	extensionDevelopmentPath?: string[],
  *	folderUri?: object,
  *	workspace?: object
  * }} configuration
@@ -64,13 +88,13 @@ function showPartsSplash(configuration) {
 	let data;
 	if (typeof configuration.partsSplashPath === 'string') {
 		try {
-			data = JSON.parse(require('fs').readFileSync(configuration.partsSplashPath, 'utf8'));
+			data = JSON.parse(require.__$__nodeRequire('fs').readFileSync(configuration.partsSplashPath, 'utf8'));
 		} catch (e) {
 			// ignore
 		}
 	}
 
-	// high contrast mode has been turned on from the outside, e.g OS -> ignore stored colors and layouts
+	// high contrast mode has been turned on from the outside, e.g. OS -> ignore stored colors and layouts
 	if (data && configuration.highContrast && data.baseTheme !== 'hc-black') {
 		data = undefined;
 	}
@@ -81,20 +105,47 @@ function showPartsSplash(configuration) {
 	}
 
 	// minimal color configuration (works with or without persisted data)
-	const baseTheme = data ? data.baseTheme : configuration.highContrast ? 'hc-black' : 'vs-dark';
-	const shellBackground = data ? data.colorInfo.editorBackground : configuration.highContrast ? '#000000' : '#1E1E1E';
-	const shellForeground = data ? data.colorInfo.foreground : configuration.highContrast ? '#FFFFFF' : '#CCCCCC';
+	let baseTheme, shellBackground, shellForeground;
+	if (data) {
+		baseTheme = data.baseTheme;
+		shellBackground = data.colorInfo.editorBackground;
+		shellForeground = data.colorInfo.foreground;
+	} else if (configuration.highContrast || configuration.defaultThemeType === 'hc') {
+		baseTheme = 'hc-black';
+		shellBackground = '#000000';
+		shellForeground = '#FFFFFF';
+	} else if (configuration.defaultThemeType === 'vs') {
+		baseTheme = 'vs';
+		shellBackground = '#FFFFFF';
+		shellForeground = '#000000';
+	} else {
+		baseTheme = 'vs-dark';
+		shellBackground = '#1E1E1E';
+		shellForeground = '#CCCCCC';
+	}
 	const style = document.createElement('style');
 	style.className = 'initialShellColors';
 	document.head.appendChild(style);
-	document.body.className = baseTheme;
-	style.innerHTML = `body { background-color: ${shellBackground}; color: ${shellForeground}; }`;
+	style.innerHTML = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
 
 	if (data && data.layoutInfo) {
 		// restore parts if possible (we might not always store layout info)
 		const { id, layoutInfo, colorInfo } = data;
 		const splash = document.createElement('div');
 		splash.id = id;
+		splash.className = baseTheme;
+
+		if (layoutInfo.windowBorder) {
+			splash.style.position = 'relative';
+			splash.style.height = 'calc(100vh - 2px)';
+			splash.style.width = 'calc(100vw - 2px)';
+			splash.style.border = '1px solid var(--window-border-color)';
+			splash.style.setProperty('--window-border-color', colorInfo.windowBorder);
+
+			if (layoutInfo.windowBorderRadius) {
+				splash.style.borderRadius = layoutInfo.windowBorderRadius;
+			}
+		}
 
 		// ensure there is enough space
 		layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth));
@@ -125,8 +176,7 @@ function showPartsSplash(configuration) {
  * @returns {Promise<void>}
  */
 function getLazyEnv() {
-	// @ts-ignore
-	const ipc = require('electron').ipcRenderer;
+	const ipcRenderer = bootstrapWindow.globals().ipcRenderer;
 
 	return new Promise(function (resolve) {
 		const handle = setTimeout(function () {
@@ -134,13 +184,13 @@ function getLazyEnv() {
 			console.warn('renderer did not receive lazyEnv in time');
 		}, 10000);
 
-		ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
+		ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
 			clearTimeout(handle);
-			bootstrapWindow.assign(process.env, shellEnv);
+			Object.assign(process.env, shellEnv);
 			// @ts-ignore
 			resolve(process.env);
 		});
 
-		ipc.send('vscode:fetchShellEnv');
+		ipcRenderer.send('vscode:fetchShellEnv');
 	});
 }

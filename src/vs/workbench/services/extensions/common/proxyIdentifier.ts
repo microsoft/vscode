@@ -18,12 +18,16 @@ export interface IRPCProtocol {
 	 * Assert these identifiers are already registered via `.set`.
 	 */
 	assertRegistered(identifiers: ProxyIdentifier<any>[]): void;
+
+	/**
+	 * Wait for the write buffer (if applicable) to become empty.
+	 */
+	drain(): Promise<void>;
 }
 
 export class ProxyIdentifier<T> {
 	public static count = 0;
 	_proxyIdentifierBrand: void;
-	_suppressCompilerUnusedWarning: T;
 
 	public readonly isMain: boolean;
 	public readonly sid: string;

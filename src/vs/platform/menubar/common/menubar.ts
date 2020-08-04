@@ -3,14 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 
-export const IMenubarService = createDecorator<IMenubarService>('menubarService');
-
-export interface IMenubarService {
-	_serviceBrand: any;
-
+export interface ICommonMenubarService {
 	updateMenubar(windowId: number, menuData: IMenubarData): Promise<void>;
 }
 

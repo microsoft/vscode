@@ -7,12 +7,14 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IUntitledResourceInput } from 'vs/workbench/common/editor';
-import { toLocalResource } from 'vs/base/common/resources';
+import { IUntitledTextResourceEditorInput, IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IEditorInputWithOptions } from 'vs/workbench/common/editor';
+import { toLocalResource, isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class BackupRestorer implements IWorkbenchContribution {
 
@@ -22,7 +24,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 		@IEditorService private readonly editorService: IEditorService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		this.restoreBackups();
 	}
@@ -31,49 +34,63 @@ export class BackupRestorer implements IWorkbenchContribution {
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.doRestoreBackups());
 	}
 
-	private doRestoreBackups(): Promise<URI[] | undefined> {
+	protected async doRestoreBackups(): Promise<URI[] | undefined> {
 
 		// Find all files and untitled with backups
-		return this.backupFileService.getWorkspaceFileBackups().then(backups => {
+		const backups = await this.backupFileService.getBackups();
+		const unresolvedBackups = await this.doResolveOpenedBackups(backups);
 
-			// Resolve backups that are opened
-			return this.doResolveOpenedBackups(backups).then((unresolved): Promise<URI[] | undefined> | undefined => {
+		// Some failed to restore or were not opened at all so we open and resolve them manually
+		if (unresolvedBackups.length > 0) {
+			await this.doOpenEditors(unresolvedBackups);
 
-				// Some failed to restore or were not opened at all so we open and resolve them manually
-				if (unresolved.length > 0) {
-					return this.doOpenEditors(unresolved).then(() => this.doResolveOpenedBackups(unresolved));
-				}
+			return this.doResolveOpenedBackups(unresolvedBackups);
+		}
 
-				return undefined;
-			});
-		});
+		return undefined;
 	}
 
-	private doResolveOpenedBackups(backups: URI[]): Promise<URI[]> {
-		const restorePromises: Promise<unknown>[] = [];
-		const unresolved: URI[] = [];
+	private async doResolveOpenedBackups(backups: URI[]): Promise<URI[]> {
+		const unresolvedBackups: URI[] = [];
 
-		backups.forEach(backup => {
-			const openedEditor = this.editorService.getOpened({ resource: backup });
+		await Promise.all(backups.map(async backup => {
+			const openedEditor = this.findEditorByResource(backup);
 			if (openedEditor) {
-				restorePromises.push(openedEditor.resolve().then(undefined, () => unresolved.push(backup)));
+				try {
+					await openedEditor.resolve(); // trigger load
+				} catch (error) {
+					unresolvedBackups.push(backup); // ignore error and remember as unresolved
+				}
 			} else {
-				unresolved.push(backup);
+				unresolvedBackups.push(backup);
 			}
-		});
+		}));
 
-		return Promise.all(restorePromises).then(() => unresolved, () => unresolved);
+		return unresolvedBackups;
 	}
 
-	private doOpenEditors(resources: URI[]): Promise<void> {
+	private findEditorByResource(resource: URI): IEditorInput | undefined {
+		for (const editor of this.editorService.editors) {
+			const customFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory(resource.scheme);
+			if (customFactory && customFactory.canResolveBackup(editor, resource)) {
+				return editor;
+			} else if (isEqual(editor.resource, resource)) {
+				return editor;
+			}
+		}
+
+		return undefined;
+	}
+
+	private async doOpenEditors(resources: URI[]): Promise<void> {
 		const hasOpenedEditors = this.editorService.visibleEditors.length > 0;
-		const inputs = resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors));
+		const inputs = await Promise.all(resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors)));
 
 		// Open all remaining backups as editors and resolve them to load their backups
-		return this.editorService.openEditors(inputs).then(() => undefined);
+		await this.editorService.openEditors(inputs);
 	}
 
-	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceInput | IUntitledResourceInput {
+	private async resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): Promise<IResourceEditorInput | IUntitledTextResourceEditorInput | IEditorInputWithOptions> {
 		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
 
 		// this is a (weak) strategy to find out if the untitled input had
@@ -81,6 +98,15 @@ export class BackupRestorer implements IWorkbenchContribution {
 		// if so, we must ensure to restore the local resource it had.
 		if (resource.scheme === Schemas.untitled && !BackupRestorer.UNTITLED_REGEX.test(resource.path)) {
 			return { resource: toLocalResource(resource, this.environmentService.configuration.remoteAuthority), options, forceUntitled: true };
+		}
+
+		// handle custom editors by asking the custom editor input factory
+		// to create the input.
+		const customFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory(resource.scheme);
+
+		if (customFactory) {
+			const editor = await customFactory.createCustomEditorInput(resource, this.instantiationService);
+			return { editor, options };
 		}
 
 		return { resource, options };

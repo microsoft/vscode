@@ -4,19 +4,18 @@
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
-		"outDir": "../out",
-		"target": "es6",
-		"lib": [
-			"dom",
-			"es5",
-			"es2015.iterable"
+		"outDir": "../out/vs",
+		"target": "es2017",
+		"types": [
+			"keytar",
+			"mocha",
+			"semver",
+			"sinon",
+			"winreg"
 		]
 	},
 	"include": [
 		"./typings",
 		"./vs"
-	],
-	"exclude": [
-		"./typings/require-monaco.d.ts"
 	]
 }

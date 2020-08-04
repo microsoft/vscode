@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ISettingsEditorModel, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
-import { IEditor } from 'vs/workbench/common/editor';
+import { IEditorPane } from 'vs/workbench/common/editor';
 import { IKeybindingItemEntry } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
@@ -33,7 +33,7 @@ export interface IEndpointDetails {
 export const IPreferencesSearchService = createDecorator<IPreferencesSearchService>('preferencesSearchService');
 
 export interface IPreferencesSearchService {
-	_serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	getLocalSearchProvider(filter: string): ISearchProvider;
 	getRemoteSearchProvider(filter: string, newExtensionsOnly?: boolean): ISearchProvider | undefined;
@@ -43,7 +43,7 @@ export interface ISearchProvider {
 	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null>;
 }
 
-export interface IKeybindingsEditor extends IEditor {
+export interface IKeybindingsEditorPane extends IEditorPane {
 
 	readonly activeKeybindingEntry: IKeybindingItemEntry | null;
 	readonly onDefineWhenExpression: Event<IKeybindingItemEntry>;
@@ -55,17 +55,19 @@ export interface IKeybindingsEditor extends IEditor {
 	focusKeybindings(): void;
 	recordSearchKeys(): void;
 	toggleSortByPrecedence(): void;
-	layoutColumns(columns: HTMLElement[]): void;
 	selectKeybinding(keybindingEntry: IKeybindingItemEntry): void;
 	defineKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void>;
 	defineWhenExpression(keybindingEntry: IKeybindingItemEntry): void;
 	updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined): Promise<any>;
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
-	copyKeybinding(keybindingEntry: IKeybindingItemEntry): void;
-	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): void;
+	copyKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void>;
+	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): Promise<void>;
 	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void;
 }
+
+export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';
+export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
 export const CONTEXT_SETTINGS_JSON_EDITOR = new RawContextKey<boolean>('inSettingsJSONEditor', false);
@@ -74,20 +76,6 @@ export const CONTEXT_TOC_ROW_FOCUS = new RawContextKey<boolean>('settingsTocRowF
 export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindings', false);
 export const CONTEXT_KEYBINDINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inKeybindingsSearch', false);
 export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
-
-export const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
-export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';
-export const SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING = 'settings.action.focusNextSetting';
-export const SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING = 'settings.action.focusPreviousSetting';
-export const SETTINGS_EDITOR_COMMAND_FOCUS_FILE = 'settings.action.focusSettingsFile';
-export const SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING = 'settings.action.editFocusedSetting';
-export const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focusSettingsFromSearch';
-export const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST = 'settings.action.focusSettingsList';
-export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
-
-export const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
-export const SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED = 'settings.filterByModified';
-export const SETTINGS_EDITOR_COMMAND_FILTER_ONLINE = 'settings.filterByOnline';
 
 export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
 export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.editor.clearSearchResults';
@@ -101,13 +89,10 @@ export const KEYBINDINGS_EDITOR_COMMAND_COPY = 'keybindings.editor.copyKeybindin
 export const KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND = 'keybindings.editor.copyCommandKeybindingEntry';
 export const KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR = 'keybindings.editor.showConflicts';
 export const KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS = 'keybindings.editor.focusKeybindings';
-export const KEYBINDINGS_EDITOR_CLEAR_INPUT = 'keybindings.editor.showDefaultKeybindings';
 export const KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS = 'keybindings.editor.showDefaultKeybindings';
 export const KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS = 'keybindings.editor.showUserKeybindings';
-
-export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 
 export const MODIFIED_SETTING_TAG = 'modified';
 export const EXTENSION_SETTING_TAG = 'ext:';
 
-export const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
+export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutPicker';

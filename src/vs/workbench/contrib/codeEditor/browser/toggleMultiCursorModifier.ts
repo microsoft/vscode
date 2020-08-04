@@ -48,6 +48,8 @@ class MultiCursorModifierContextKeyController implements IWorkbenchContribution 
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._multiCursorModifier = multiCursorModifier.bindTo(contextKeyService);
+
+		this._update();
 		configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('editor.multiCursorModifier')) {
 				this._update();
@@ -66,9 +68,9 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMultiCursorModifierAction, ToggleMultiCursorModifierAction.ID, ToggleMultiCursorModifierAction.LABEL), 'Toggle Multi-Cursor Modifier');
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleMultiCursorModifierAction), 'Toggle Multi-Cursor Modifier');
 MenuRegistry.appendMenuItem(MenuId.MenubarSelectionMenu, {
-	group: '3_multi',
+	group: '4_config',
 	command: {
 		id: ToggleMultiCursorModifierAction.ID,
 		title: nls.localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor")
@@ -77,7 +79,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSelectionMenu, {
 	order: 1
 });
 MenuRegistry.appendMenuItem(MenuId.MenubarSelectionMenu, {
-	group: '3_multi',
+	group: '4_config',
 	command: {
 		id: ToggleMultiCursorModifierAction.ID,
 		title: (

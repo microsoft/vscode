@@ -4,6 +4,7 @@
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
@@ -21,13 +22,14 @@
         "extensions": [
           ".json",
           ".bowerrc",
-          ".jshintrc",
           ".jscsrc",
-          ".eslintrc",
-          ".swcrc",
           ".webmanifest",
           ".js.map",
-          ".css.map"
+          ".css.map",
+          ".ts.map",
+          ".har",
+          ".jslintrc",
+          ".jsonld"
         ],
         "filenames": [
           "composer.lock",
@@ -46,9 +48,14 @@
           "JSON with Comments"
         ],
         "extensions": [
+          ".jsonc",
+          ".eslintrc",
+          ".eslintrc.json",
+          ".jsfmtrc",
+          ".jshintrc",
+          ".swcrc",
           ".hintrc",
-          ".babelrc",
-          ".jsonc"
+          ".babelrc"
         ],
         "configuration": "./language-configuration.json"
       }
@@ -63,12 +70,6 @@
         "language": "jsonc",
         "scopeName": "source.json.comments",
         "path": "./syntaxes/JSONC.tmLanguage.json"
-      }
-    ],
-    "jsonValidation": [
-      {
-        "fileMatch": "*.schema.json",
-        "url": "http://json-schema.org/draft-07/schema#"
       }
     ]
   }

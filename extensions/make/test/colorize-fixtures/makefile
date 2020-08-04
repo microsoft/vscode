@@ -76,6 +76,7 @@ var:=123
 var!=echo val
 var:=val \
 notvar=butval
+var:=$(val:.c=.o)
 
 var-$(nested-var)=val
 
@@ -83,3 +84,5 @@ var-$(nested-var)=val
 # but not so much.
 var-$(shell printf 2) := val2
 $(info Should be 'val2' here: $(var-2))
+
+export a ?= b:c

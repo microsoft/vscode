@@ -5,58 +5,25 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
-import * as semver from 'semver';
+import * as semver from 'semver-umd';
 import * as json from 'vs/base/common/json';
 import * as arrays from 'vs/base/common/arrays';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
-import { ExtensionIdentifier, ExtensionIdentifierWithVersion, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { isValidExtensionVersion } from 'vs/platform/extensions/common/extensionValidator';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
 
 const MANIFEST_FILE = 'package.json';
-
-export interface Translations {
-	[id: string]: string;
-}
-
-namespace Translations {
-	export function equals(a: Translations, b: Translations): boolean {
-		if (a === b) {
-			return true;
-		}
-		let aKeys = Object.keys(a);
-		let bKeys: Set<string> = new Set<string>();
-		for (let key of Object.keys(b)) {
-			bKeys.add(key);
-		}
-		if (aKeys.length !== bKeys.size) {
-			return false;
-		}
-
-		for (let key of aKeys) {
-			if (a[key] !== b[key]) {
-				return false;
-			}
-			bKeys.delete(key);
-		}
-		return bKeys.size === 0;
-	}
-}
 
 export interface NlsConfiguration {
 	readonly devMode: boolean;
 	readonly locale: string | undefined;
 	readonly pseudo: boolean;
 	readonly translations: Translations;
-}
-
-export interface ILog {
-	error(source: string, message: string): void;
-	warn(source: string, message: string): void;
-	info(source: string, message: string): void;
 }
 
 abstract class ExtensionManifestHandler {
@@ -82,15 +49,18 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 
 	public parse(): Promise<IExtensionDescription> {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
-			try {
-				const manifest = JSON.parse(manifestContents.toString());
+			const errors: json.ParseError[] = [];
+			const manifest = json.parse(manifestContents.toString(), errors);
+			if (errors.length === 0 && json.getNodeType(manifest) === 'object') {
 				if (manifest.__metadata) {
 					manifest.uuid = manifest.__metadata.id;
 				}
 				delete manifest.__metadata;
 				return manifest;
-			} catch (e) {
-				this._log.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, getParseErrorMessage(e.message)));
+			} else {
+				errors.forEach(e => {
+					this._log.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: [{1}, {2}] {3}.", this._absoluteManifestPath, e.offset, e.length, getParseErrorMessage(e.error)));
+				});
 			}
 			return null;
 		}, (err) => {
@@ -134,6 +104,9 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 				this._log.error(this._absoluteFolderPath, nls.localize('jsonsParseReportErrors', "Failed to parse {0}: {1}.", localized, getParseErrorMessage(error.error)));
 			});
 		};
+		const reportInvalidFormat = (localized: string | null): void => {
+			this._log.error(this._absoluteFolderPath, nls.localize('jsonInvalidFormat', "Invalid format {0}: JSON object expected.", localized));
+		};
 
 		let extension = path.extname(this._absoluteManifestPath);
 		let basename = this._absoluteManifestPath.substr(0, this._absoluteManifestPath.length - extension.length);
@@ -147,6 +120,9 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 				let translationBundle: TranslationBundle = json.parse(content, errors);
 				if (errors.length > 0) {
 					reportErrors(translationPath, errors);
+					return { values: undefined, default: `${basename}.nls.json` };
+				} else if (json.getNodeType(translationBundle) !== 'object') {
+					reportInvalidFormat(translationPath);
 					return { values: undefined, default: `${basename}.nls.json` };
 				} else {
 					let values = translationBundle.contents ? translationBundle.contents.package : undefined;
@@ -170,6 +146,9 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 						if (errors.length > 0) {
 							reportErrors(messageBundle.localized, errors);
 							return { values: undefined, default: messageBundle.original };
+						} else if (json.getNodeType(messages) !== 'object') {
+							reportInvalidFormat(messageBundle.localized);
+							return { values: undefined, default: messageBundle.original };
 						}
 						return { values: messages, default: messageBundle.original };
 					}, (err) => {
@@ -190,6 +169,9 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 			return ExtensionManifestNLSReplacer.resolveOriginalMessageBundle(localizedMessages.default, errors).then((defaults) => {
 				if (errors.length > 0) {
 					reportErrors(localizedMessages.default, errors);
+					return extensionDescription;
+				} else if (json.getNodeType(localizedMessages) !== 'object') {
+					reportInvalidFormat(localizedMessages.default);
 					return extensionDescription;
 				}
 				const localized = localizedMessages.values || Object.create(null);
@@ -342,11 +324,6 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		extensionDescription.id = `${extensionDescription.publisher}.${extensionDescription.name}`;
 		extensionDescription.identifier = new ExtensionIdentifier(extensionDescription.id);
 
-		// main := absolutePath(`main`)
-		if (extensionDescription.main) {
-			extensionDescription.main = path.join(this._absoluteFolderPath, extensionDescription.main);
-		}
-
 		extensionDescription.extensionLocation = URI.file(this._absoluteFolderPath);
 
 		return extensionDescription;
@@ -402,7 +379,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 				notices.push(nls.localize('extensionDescription.activationEvents1', "property `{0}` can be omitted or must be of type `string[]`", 'activationEvents'));
 				return false;
 			}
-			if (typeof extensionDescription.main === 'undefined') {
+			if (typeof extensionDescription.main === 'undefined' && typeof extensionDescription.browser === 'undefined') {
 				notices.push(nls.localize('extensionDescription.activationEvents2', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main'));
 				return false;
 			}
@@ -412,15 +389,30 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 				notices.push(nls.localize('extensionDescription.main1', "property `{0}` can be omitted or must be of type `string`", 'main'));
 				return false;
 			} else {
-				let normalizedAbsolutePath = path.join(extensionFolderPath, extensionDescription.main);
-
-				if (normalizedAbsolutePath.indexOf(extensionFolderPath)) {
+				const normalizedAbsolutePath = path.join(extensionFolderPath, extensionDescription.main);
+				if (!normalizedAbsolutePath.startsWith(extensionFolderPath)) {
 					notices.push(nls.localize('extensionDescription.main2', "Expected `main` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", normalizedAbsolutePath, extensionFolderPath));
 					// not a failure case
 				}
 			}
 			if (typeof extensionDescription.activationEvents === 'undefined') {
 				notices.push(nls.localize('extensionDescription.main3', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main'));
+				return false;
+			}
+		}
+		if (typeof extensionDescription.browser !== 'undefined') {
+			if (typeof extensionDescription.browser !== 'string') {
+				notices.push(nls.localize('extensionDescription.browser1', "property `{0}` can be omitted or must be of type `string`", 'browser'));
+				return false;
+			} else {
+				const normalizedAbsolutePath = path.join(extensionFolderPath, extensionDescription.browser);
+				if (!normalizedAbsolutePath.startsWith(extensionFolderPath)) {
+					notices.push(nls.localize('extensionDescription.browser2', "Expected `browser` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", normalizedAbsolutePath, extensionFolderPath));
+					// not a failure case
+				}
+			}
+			if (typeof extensionDescription.activationEvents === 'undefined') {
+				notices.push(nls.localize('extensionDescription.browser3', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'browser'));
 				return false;
 			}
 		}
@@ -442,7 +434,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 
 export class ExtensionScannerInput {
 
-	public mtime: number;
+	public mtime: number | undefined;
 
 	constructor(
 		public readonly ourVersion: string,

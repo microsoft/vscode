@@ -8,16 +8,18 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext, CommandDto } from './extHost.protocol';
-import { ExtHostHeapService } from 'vs/workbench/api/common/extHostHeapService';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, ICommandDto } from './extHost.protocol';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 import { revive } from 'vs/base/common/marshalling';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { URI } from 'vs/base/common/uri';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 interface CommandHandler {
 	callback: Function;
@@ -31,6 +33,8 @@ export interface ArgumentProcessor {
 
 export class ExtHostCommands implements ExtHostCommandsShape {
 
+	readonly _serviceBrand: undefined;
+
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _proxy: MainThreadCommandsShape;
 	private readonly _converter: CommandsConverter;
@@ -38,18 +42,17 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	private readonly _argumentProcessors: ArgumentProcessor[];
 
 	constructor(
-		mainContext: IMainContext,
-		heapService: ExtHostHeapService,
-		logService: ILogService
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@ILogService logService: ILogService
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadCommands);
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
-		this._converter = new CommandsConverter(this, heapService);
+		this._converter = new CommandsConverter(this, logService);
 		this._argumentProcessors = [
 			{
 				processArgument(a) {
 					// URI, Regex
-					return revive(a, 0);
+					return revive(a);
 				}
 			},
 			{
@@ -109,6 +112,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
 		this._logService.trace('ExtHostCommands#executeCommand', id);
+		return this._doExecuteCommand(id, args, true);
+	}
+
+	private async _doExecuteCommand<T>(id: string, args: any[], retry: boolean): Promise<T> {
 
 		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
@@ -117,8 +124,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 		} else {
 			// automagically convert some argument types
-
-			args = cloneAndChange(args, function (value) {
+			const toArgs = cloneAndChange(args, function (value) {
 				if (value instanceof extHostTypes.Position) {
 					return extHostTypeConverter.Position.from(value);
 				}
@@ -133,7 +139,19 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				}
 			});
 
-			return this._proxy.$executeCommand<T>(id, args).then(result => revive(result, 0));
+			try {
+				const result = await this._proxy.$executeCommand<T>(id, toArgs, retry);
+				return revive(result);
+			} catch (e) {
+				// Rerun the command when it wasn't known, had arguments, and when retry
+				// is enabled. We do this because the command might be registered inside
+				// the extension host now and can therfore accept the arguments as-is.
+				if (e instanceof Error && e.message === '$executeCommand:retry') {
+					return this._doExecuteCommand(id, args, false);
+				} else {
+					throw e;
+				}
+			}
 		}
 	}
 
@@ -186,12 +204,12 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescription }> {
 		const result: { [id: string]: string | ICommandHandlerDescription } = Object.create(null);
-		this._commands.forEach((command, id) => {
+		for (let [id, command] of this._commands) {
 			let { description } = command;
 			if (description) {
 				result[id] = description;
 			}
-		});
+		}
 		return Promise.resolve(result);
 	}
 }
@@ -200,55 +218,59 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 export class CommandsConverter {
 
 	private readonly _delegatingCommandId: string;
-	private _commands: ExtHostCommands;
-	private _heap: ExtHostHeapService;
+	private readonly _cache = new Map<number, vscode.Command>();
+	private _cachIdPool = 0;
 
 	// --- conversion between internal and api commands
-	constructor(commands: ExtHostCommands, heap: ExtHostHeapService) {
-		this._delegatingCommandId = `_internal_command_delegation_${Date.now()}`;
-		this._commands = commands;
-		this._heap = heap;
+	constructor(
+		private readonly _commands: ExtHostCommands,
+		private readonly _logService: ILogService
+	) {
+		this._delegatingCommandId = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
-	toInternal(command: vscode.Command): CommandDto;
-	toInternal(command: undefined): undefined;
-	toInternal(command: vscode.Command | undefined): CommandDto | undefined;
-	toInternal(command: vscode.Command | undefined): CommandDto | undefined {
+	toInternal(command: vscode.Command, disposables: DisposableStore): ICommandDto;
+	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined;
+	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined {
 
 		if (!command) {
 			return undefined;
 		}
 
-		const result: CommandDto = {
+		const result: ICommandDto = {
 			$ident: undefined,
 			id: command.command,
 			title: command.title,
+			tooltip: command.tooltip
 		};
 
 		if (command.command && isNonEmptyArray(command.arguments)) {
 			// we have a contributed command with arguments. that
 			// means we don't want to send the arguments around
 
-			const id = this._heap.keep(command);
+			const id = ++this._cachIdPool;
+			this._cache.set(id, command);
+			disposables.add(toDisposable(() => {
+				this._cache.delete(id);
+				this._logService.trace('CommandsConverter#DISPOSE', id);
+			}));
 			result.$ident = id;
 
 			result.id = this._delegatingCommandId;
 			result.arguments = [id];
-		}
 
-		if (command.tooltip) {
-			result.tooltip = command.tooltip;
+			this._logService.trace('CommandsConverter#CREATE', command.command, id);
 		}
 
 		return result;
 	}
 
-	fromInternal(command: modes.Command): vscode.Command {
+	fromInternal(command: modes.Command): vscode.Command | undefined {
 
 		const id = ObjectIdentifier.of(command);
 		if (typeof id === 'number') {
-			return this._heap.get<vscode.Command>(id);
+			return this._cache.get(id);
 
 		} else {
 			return {
@@ -260,8 +282,16 @@ export class CommandsConverter {
 	}
 
 	private _executeConvertedCommand<R>(...args: any[]): Promise<R> {
-		const actualCmd = this._heap.get<vscode.Command>(args[0]);
+		const actualCmd = this._cache.get(args[0]);
+		this._logService.trace('CommandsConverter#EXECUTE', args[0], actualCmd ? actualCmd.command : 'MISSING');
+
+		if (!actualCmd) {
+			return Promise.reject('actual command NOT FOUND');
+		}
 		return this._commands.executeCommand(actualCmd.command, ...(actualCmd.arguments || []));
 	}
 
 }
+
+export interface IExtHostCommands extends ExtHostCommands { }
+export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostCommands');

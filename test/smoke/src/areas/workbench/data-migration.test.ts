@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, ApplicationOptions } from '../../application';
+import { Application, ApplicationOptions } from '../../../../automation';
 import { join } from 'path';
 
 export function setup(stableCodePath: string, testDataPath: string) {
 
-
-	describe('Data Migration: This test MUST run before releasing by providing the --stable-build command line argument', () => {
+	describe('Datamigration', () => {
 		it(`verifies opened editors are restored`, async function () {
 			if (!stableCodePath) {
 				this.skip();
@@ -25,11 +24,11 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			await stableApp!.start();
 
 			// Open 3 editors and pin 2 of them
-			await stableApp.workbench.quickopen.openFile('www');
-			await stableApp.workbench.quickopen.runCommand('View: Keep Editor');
+			await stableApp.workbench.quickaccess.openFile('www');
+			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
 
-			await stableApp.workbench.quickopen.openFile('app.js');
-			await stableApp.workbench.quickopen.runCommand('View: Keep Editor');
+			await stableApp.workbench.quickaccess.openFile('app.js');
+			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
 
 			await stableApp.workbench.editors.newUntitledFile();
 
@@ -39,7 +38,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			insiderOptions.userDataDir = userDataDir;
 
 			const insidersApp = new Application(insiderOptions);
-			await insidersApp!.start(false /* not expecting walkthrough parth */);
+			await insidersApp!.start(false /* not expecting walkthrough path */);
 
 			// Verify 3 editors are open
 			await insidersApp.workbench.editors.waitForEditorFocus('Untitled-1');
@@ -66,12 +65,12 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			await stableApp.workbench.editors.newUntitledFile();
 
 			const untitled = 'Untitled-1';
-			const textToTypeInUntitled = 'Hello, Unitled Code';
+			const textToTypeInUntitled = 'Hello from Untitled';
 			await stableApp.workbench.editor.waitForTypeInEditor(untitled, textToTypeInUntitled);
 
 			const readmeMd = 'readme.md';
 			const textToType = 'Hello, Code';
-			await stableApp.workbench.quickopen.openFile(readmeMd);
+			await stableApp.workbench.quickaccess.openFile(readmeMd);
 			await stableApp.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
 
 			await stableApp.stop();
@@ -80,13 +79,13 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			insiderOptions.userDataDir = userDataDir;
 
 			const insidersApp = new Application(insiderOptions);
-			await insidersApp!.start(false /* not expecting walkthrough parth */);
+			await insidersApp!.start(false /* not expecting walkthrough path */);
 
 			await insidersApp.workbench.editors.waitForActiveTab(readmeMd, true);
 			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
 			await insidersApp.workbench.editors.waitForTab(untitled, true);
-			await insidersApp.workbench.editors.selectTab(untitled, true);
+			await insidersApp.workbench.editors.selectTab(untitled);
 			await insidersApp.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
 
 			await insidersApp.stop();

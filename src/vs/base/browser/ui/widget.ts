@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Gesture } from 'vs/base/browser/touch';
 
 export abstract class Widget extends Disposable {
 
@@ -48,5 +49,9 @@ export abstract class Widget extends Disposable {
 
 	protected onchange(domNode: HTMLElement, listener: (e: Event) => void): void {
 		this._register(dom.addDisposableListener(domNode, dom.EventType.CHANGE, listener));
+	}
+
+	protected ignoreGesture(domNode: HTMLElement): void {
+		Gesture.ignoreTarget(domNode);
 	}
 }

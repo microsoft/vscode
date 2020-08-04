@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
+import { IPCClient } from './ipc/ipcClient';
 
 const localize = nls.loadMessageBundle();
 
@@ -20,53 +20,23 @@ function main(argv: string[]): void {
 		return fatal('Wrong number of arguments');
 	}
 
-	if (!process.env['VSCODE_GIT_ASKPASS_HANDLE']) {
-		return fatal('Missing handle');
-	}
-
 	if (!process.env['VSCODE_GIT_ASKPASS_PIPE']) {
 		return fatal('Missing pipe');
 	}
 
-	if (process.env['VSCODE_GIT_COMMAND'] === 'fetch') {
-		return fatal('Skip fetch commands');
+	if (process.env['VSCODE_GIT_COMMAND'] === 'fetch' && !!process.env['VSCODE_GIT_FETCH_SILENT']) {
+		return fatal('Skip silent fetch commands');
 	}
 
 	const output = process.env['VSCODE_GIT_ASKPASS_PIPE'] as string;
-	const socketPath = process.env['VSCODE_GIT_ASKPASS_HANDLE'] as string;
 	const request = argv[2];
 	const host = argv[4].substring(1, argv[4].length - 2);
-	const opts: http.RequestOptions = {
-		socketPath,
-		path: '/',
-		method: 'POST'
-	};
+	const ipcClient = new IPCClient('askpass');
 
-	const req = http.request(opts, res => {
-		if (res.statusCode !== 200) {
-			return fatal(`Bad status code: ${res.statusCode}`);
-		}
-
-		const chunks: string[] = [];
-		res.setEncoding('utf8');
-		res.on('data', (d: string) => chunks.push(d));
-		res.on('end', () => {
-			const raw = chunks.join('');
-
-			try {
-				const result = JSON.parse(raw);
-				fs.writeFileSync(output, result + '\n');
-			} catch (err) {
-				return fatal(`Error parsing response`);
-			}
-
-			setTimeout(() => process.exit(0), 0);
-		});
-	});
-
-	req.on('error', () => fatal('Error in request'));
-	req.write(JSON.stringify({ request, host }));
-	req.end();
+	ipcClient.call({ request, host }).then(res => {
+		fs.writeFileSync(output, res + '\n');
+		setTimeout(() => process.exit(0), 0);
+	}).catch(err => fatal(err));
 }
 
 main(process.argv);

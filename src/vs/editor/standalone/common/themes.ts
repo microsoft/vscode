@@ -21,7 +21,7 @@ export const vs: IStandaloneThemeData = {
 		{ token: 'variable.predefined', foreground: '4864AA' },
 		{ token: 'constant', foreground: 'dd0000' },
 		{ token: 'comment', foreground: '008000' },
-		{ token: 'number', foreground: '09885A' },
+		{ token: 'number', foreground: '098658' },
 		{ token: 'number.hex', foreground: '3030c0' },
 		{ token: 'regexp', foreground: '800000' },
 		{ token: 'annotation', foreground: '808080' },
@@ -47,8 +47,8 @@ export const vs: IStandaloneThemeData = {
 
 		{ token: 'attribute.name', foreground: 'FF0000' },
 		{ token: 'attribute.value', foreground: '0451A5' },
-		{ token: 'attribute.value.number', foreground: '09885A' },
-		{ token: 'attribute.value.unit', foreground: '09885A' },
+		{ token: 'attribute.value.number', foreground: '098658' },
+		{ token: 'attribute.value.unit', foreground: '098658' },
 		{ token: 'attribute.value.html', foreground: '0000FF' },
 		{ token: 'attribute.value.xml', foreground: '0000FF' },
 

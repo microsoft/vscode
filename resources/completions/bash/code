@@ -1,4 +1,4 @@
-_code()
+_@@APPNAME@@()
 {
 	local cur prev words cword split
 	_init_completion -s || return
@@ -50,7 +50,7 @@ _code()
 			--uninstall-extension --enable-proposed-api --verbose --log -s
 			--status -p --performance --prof-startup --disable-extensions
 			--disable-extension --inspect-extensions
-			--inspect-brk-extensions --disable-gpu --upload-logs
+			--inspect-brk-extensions --disable-gpu
 			--max-memory=' -- "$cur") )
 		[[ $COMPREPLY == *= ]] && compopt -o nospace
 		return
@@ -58,4 +58,4 @@ _code()
 
 	_filedir
 } &&
-complete -F _code code
+complete -F _@@APPNAME@@ @@APPNAME@@

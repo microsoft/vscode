@@ -94,7 +94,7 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 	private _configurationService: IConfigurationService;
 	private _extensionService: IExtensionService;
-	private _onReadyPromise: Promise<boolean>;
+	private _onReadyPromise: Promise<boolean> | undefined;
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
@@ -105,7 +105,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 		this._configurationService = configurationService;
 		this._extensionService = extensionService;
 
-		languagesExtPoint.setHandler((extensions: IExtensionPointUser<IRawLanguageExtensionPoint[]>[]) => {
+		languagesExtPoint.setHandler((extensions: readonly IExtensionPointUser<IRawLanguageExtensionPoint[]>[]) => {
 			let allValidLanguages: ILanguageExtensionPoint[] = [];
 
 			for (let i = 0, len = extensions.length; i < len; i++) {
@@ -173,7 +173,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 		mime.clearTextMimes(true /* user configured */);
 
 		// Register based on settings
-		if (configuration.files && configuration.files.associations) {
+		if (configuration.files?.associations) {
 			Object.keys(configuration.files.associations).forEach(pattern => {
 				const langId = configuration.files.associations[pattern];
 				const mimetype = this.getMimeForMode(langId) || `text/x-${langId}`;

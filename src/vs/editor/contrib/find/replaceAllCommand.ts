@@ -5,7 +5,7 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 
 interface IEditOperation {
@@ -13,10 +13,10 @@ interface IEditOperation {
 	text: string;
 }
 
-export class ReplaceAllCommand implements editorCommon.ICommand {
+export class ReplaceAllCommand implements ICommand {
 
 	private readonly _editorSelection: Selection;
-	private _trackedEditorSelectionId: string;
+	private _trackedEditorSelectionId: string | null;
 	private readonly _ranges: Range[];
 	private readonly _replaceStrings: string[];
 
@@ -24,9 +24,10 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 		this._editorSelection = editorSelection;
 		this._ranges = ranges;
 		this._replaceStrings = replaceStrings;
+		this._trackedEditorSelectionId = null;
 	}
 
-	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		if (this._ranges.length > 0) {
 			// Collect all edit operations
 			let ops: IEditOperation[] = [];
@@ -65,7 +66,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 		this._trackedEditorSelectionId = builder.trackSelection(this._editorSelection);
 	}
 
-	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this._trackedEditorSelectionId);
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		return helper.getTrackedSelection(this._trackedEditorSelectionId!);
 	}
 }

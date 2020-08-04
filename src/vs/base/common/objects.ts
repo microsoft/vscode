@@ -14,11 +14,11 @@ export function deepClone<T>(obj: T): T {
 		return obj as any;
 	}
 	const result: any = Array.isArray(obj) ? [] : {};
-	Object.keys(obj as any).forEach((key: string) => {
-		if (obj[key] && typeof obj[key] === 'object') {
-			result[key] = deepClone(obj[key]);
+	Object.keys(<any>obj).forEach((key: string) => {
+		if ((<any>obj)[key] && typeof (<any>obj)[key] === 'object') {
+			result[key] = deepClone((<any>obj)[key]);
 		} else {
-			result[key] = obj[key];
+			result[key] = (<any>obj)[key];
 		}
 	});
 	return result;
@@ -113,6 +113,9 @@ export function mixin(destination: any, source: any, overwrite: boolean = true):
 	return destination;
 }
 
+/**
+ * @deprecated ES6
+ */
 export function assign<T>(destination: T): T;
 export function assign<T, U>(destination: T, u: U): T & U;
 export function assign<T, U, V>(destination: T, u: U, v: V): T & U & V;

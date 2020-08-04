@@ -7,6 +7,30 @@
 	display: flex;
 	height: 100%;
 	align-items: center;
+	position: relative;
+}
+
+.monaco-tl-indent {
+	height: 100%;
+	position: absolute;
+	top: 0;
+	left: 16px;
+	pointer-events: none;
+}
+
+.hide-arrows .monaco-tl-indent {
+	left: 12px;
+}
+
+.monaco-tl-indent > .indent-guide {
+	display: inline-block;
+	box-sizing: border-box;
+	height: 100%;
+	border-left: 1px solid transparent;
+}
+
+.monaco-tl-indent > .indent-guide {
+	transition: border-color 0.1s linear;
 }
 
 .monaco-tl-twistie,
@@ -17,9 +41,14 @@
 .monaco-tl-twistie {
 	font-size: 10px;
 	text-align: right;
-	margin-right: 6px;
+	padding-right: 6px;
 	flex-shrink: 0;
 	width: 16px;
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
+	color: inherit !important;
+	transform: translateX(3px);
 }
 
 .monaco-tl-contents {
@@ -27,43 +56,11 @@
 	overflow: hidden;
 }
 
-.monaco-tl-twistie.collapsible {
-	background-size: 16px;
-	background-position: 3px 50%;
-	background-repeat: no-repeat;
-	background-image: url("expanded.svg");
+.monaco-tl-twistie.collapsed::before {
+	transform: rotate(-90deg);
 }
 
-.monaco-tl-twistie.collapsible.collapsed:not(.loading) {
-	display: inline-block;
-	background-image: url("collapsed.svg");
-}
-
-.vs-dark .monaco-tl-twistie.collapsible:not(.loading) {
-	background-image: url("expanded-dark.svg");
-}
-
-.vs-dark .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
-	background-image: url("collapsed-dark.svg");
-}
-
-.hc-black .monaco-tl-twistie.collapsible:not(.loading) {
-	background-image: url("expanded-hc.svg");
-}
-
-.hc-black .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
-	background-image: url("collapsed-hc.svg");
-}
-
-.monaco-tl-twistie.loading {
-	background-image: url("loading.svg");
-	background-position: 0 center;
-}
-
-.vs-dark .monaco-tl-twistie.loading {
-	background-image: url("loading-dark.svg");
-}
-
-.hc-black .monaco-tl-twistie.loading {
-	background-image: url("loading-hc.svg");
+.monaco-tl-twistie.codicon-tree-item-loading::before {
+	/* Use steps to throttle FPS to reduce CPU usage */
+	animation: codicon-spin 1.25s steps(30) infinite;
 }

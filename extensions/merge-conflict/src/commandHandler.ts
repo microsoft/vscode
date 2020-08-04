@@ -5,7 +5,6 @@
 import * as vscode from 'vscode';
 import * as interfaces from './interfaces';
 import ContentProvider from './contentProvider';
-import * as path from 'path';
 import { loadMessageBundle } from 'vscode-nls';
 const localize = loadMessageBundle();
 
@@ -34,8 +33,8 @@ export default class CommandHandler implements vscode.Disposable {
 			this.registerTextEditorCommand('merge-conflict.accept.incoming', this.acceptIncoming),
 			this.registerTextEditorCommand('merge-conflict.accept.selection', this.acceptSelection),
 			this.registerTextEditorCommand('merge-conflict.accept.both', this.acceptBoth),
-			this.registerTextEditorCommand('merge-conflict.accept.all-current', this.acceptAllCurrent),
-			this.registerTextEditorCommand('merge-conflict.accept.all-incoming', this.acceptAllIncoming),
+			this.registerTextEditorCommand('merge-conflict.accept.all-current', this.acceptAllCurrent, this.acceptAllCurrentResources),
+			this.registerTextEditorCommand('merge-conflict.accept.all-incoming', this.acceptAllIncoming, this.acceptAllIncomingResources),
 			this.registerTextEditorCommand('merge-conflict.accept.all-both', this.acceptAllBoth),
 			this.registerTextEditorCommand('merge-conflict.next', this.navigateNext),
 			this.registerTextEditorCommand('merge-conflict.previous', this.navigatePrevious),
@@ -43,8 +42,11 @@ export default class CommandHandler implements vscode.Disposable {
 		);
 	}
 
-	private registerTextEditorCommand(command: string, cb: (editor: vscode.TextEditor, ...args: any[]) => Promise<void>) {
+	private registerTextEditorCommand(command: string, cb: (editor: vscode.TextEditor, ...args: any[]) => Promise<void>, resourceCB?: (uris: vscode.Uri[]) => Promise<void>) {
 		return vscode.commands.registerCommand(command, (...args) => {
+			if (resourceCB && args.length && args.every(arg => arg && arg.resourceUri)) {
+				return resourceCB.call(this, args.map(arg => arg.resourceUri));
+			}
 			const editor = vscode.window.activeTextEditor;
 			return editor && cb.call(this, editor, ...args);
 		});
@@ -70,12 +72,19 @@ export default class CommandHandler implements vscode.Disposable {
 		return this.acceptAll(interfaces.CommitType.Incoming, editor);
 	}
 
+	acceptAllCurrentResources(resources: vscode.Uri[]): Promise<void> {
+		return this.acceptAllResources(interfaces.CommitType.Current, resources);
+	}
+
+	acceptAllIncomingResources(resources: vscode.Uri[]): Promise<void> {
+		return this.acceptAllResources(interfaces.CommitType.Incoming, resources);
+	}
+
 	acceptAllBoth(editor: vscode.TextEditor): Promise<void> {
 		return this.acceptAll(interfaces.CommitType.Both, editor);
 	}
 
 	async compare(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null) {
-		const fileName = path.basename(editor.document.uri.fsPath);
 
 		// No conflict, command executed from command palette
 		if (!conflict) {
@@ -88,18 +97,56 @@ export default class CommandHandler implements vscode.Disposable {
 			}
 		}
 
+		const conflicts = await this.tracker.getConflicts(editor.document);
+
+		// Still failed to find conflict, warn the user and exit
+		if (!conflicts) {
+			vscode.window.showWarningMessage(localize('cursorNotInConflict', 'Editor cursor is not within a merge conflict'));
+			return;
+		}
+
 		const scheme = editor.document.uri.scheme;
 		let range = conflict.current.content;
+		let leftRanges = conflicts.map(conflict => [conflict.current.content, conflict.range]);
+		let rightRanges = conflicts.map(conflict => [conflict.incoming.content, conflict.range]);
+
 		const leftUri = editor.document.uri.with({
 			scheme: ContentProvider.scheme,
-			query: JSON.stringify({ scheme, range })
+			query: JSON.stringify({ scheme, range: range, ranges: leftRanges })
 		});
 
-		range = conflict.incoming.content;
-		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, range }) });
 
+		range = conflict.incoming.content;
+		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, ranges: rightRanges }) });
+
+		let mergeConflictLineOffsets = 0;
+		for (let nextconflict of conflicts) {
+			if (nextconflict.range.isEqual(conflict.range)) {
+				break;
+			} else {
+				mergeConflictLineOffsets += (nextconflict.range.end.line - nextconflict.range.start.line) - (nextconflict.incoming.content.end.line - nextconflict.incoming.content.start.line);
+			}
+		}
+		const selection = new vscode.Range(
+			conflict.range.start.line - mergeConflictLineOffsets, conflict.range.start.character,
+			conflict.range.start.line - mergeConflictLineOffsets, conflict.range.start.character
+		);
+
+		const docPath = editor.document.uri.path;
+		const fileName = docPath.substring(docPath.lastIndexOf('/') + 1); // avoid NodeJS path to keep browser webpack small
 		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
-		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+		const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
+		const openToTheSide = mergeConflictConfig.get<string>('diffViewPosition');
+		const opts: vscode.TextDocumentShowOptions = {
+			viewColumn: openToTheSide === 'Beside' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
+			selection
+		};
+
+		if (openToTheSide === 'Below') {
+			await vscode.commands.executeCommand('workbench.action.newGroupBelow');
+		}
+
+		await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, opts);
 	}
 
 	navigateNext(editor: vscode.TextEditor): Promise<void> {
@@ -223,8 +270,29 @@ export default class CommandHandler implements vscode.Disposable {
 
 		// Apply all changes as one edit
 		await editor.edit((edit) => conflicts.forEach(conflict => {
-			conflict.applyEdit(type, editor, edit);
+			conflict.applyEdit(type, editor.document, edit);
 		}));
+	}
+
+	private async acceptAllResources(type: interfaces.CommitType, resources: vscode.Uri[]): Promise<void> {
+		const documents = await Promise.all(resources.map(resource => vscode.workspace.openTextDocument(resource)));
+		const edit = new vscode.WorkspaceEdit();
+		for (const document of documents) {
+			const conflicts = await this.tracker.getConflicts(document);
+
+			if (!conflicts || conflicts.length === 0) {
+				continue;
+			}
+
+			// For get the current state of the document, as we know we are doing to do a large edit
+			this.tracker.forget(document);
+
+			// Apply all changes as one edit
+			conflicts.forEach(conflict => {
+				conflict.applyEdit(type, document, { replace: (range, newText) => edit.replace(document.uri, range, newText) });
+			});
+		}
+		vscode.workspace.applyEdit(edit);
 	}
 
 	private async findConflictContainingSelection(editor: vscode.TextEditor, conflicts?: interfaces.IDocumentMergeConflict[]): Promise<interfaces.IDocumentMergeConflict | null> {

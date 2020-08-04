@@ -8,7 +8,6 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { JSONVisitor, visit } from 'vs/base/common/json';
 import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import * as map from 'vs/base/common/map';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -22,7 +21,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, isArray } from 'vs/base/common/types';
+import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { createValidator } from 'vs/workbench/services/preferences/common/preferencesValidation';
 
 export const nullRange: IRange = { startLineNumber: -1, startColumn: -1, endLineNumber: -1, endColumn: -1 };
 export function isNullRange(range: IRange): boolean { return range.startLineNumber === -1 && range.startColumn === -1 && range.endLineNumber === -1 && range.endColumn === -1; }
@@ -47,7 +48,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 	 */
 	private removeDuplicateResults(): void {
 		const settingKeys = new Set<string>();
-		map.keys(this._currentResultGroups)
+		[...this._currentResultGroups.keys()]
 			.sort((a, b) => this._currentResultGroups.get(a)!.order - this._currentResultGroups.get(b)!.order)
 			.forEach(groupId => {
 				const group = this._currentResultGroups.get(groupId)!;
@@ -169,7 +170,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	}
 
 	protected update(): IFilterResult | undefined {
-		const resultGroups = map.values(this._currentResultGroups);
+		const resultGroups = [...this._currentResultGroups.values()];
 		if (!resultGroups.length) {
 			return undefined;
 		}
@@ -375,6 +376,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 				const position = model.getPositionAt(offset);
 				range.endLineNumber = position.lineNumber;
 				range.endColumn = position.column;
+				settingsPropertyIndex = -1;
 			}
 		},
 		onArrayBegin: (offset: number, length: number) => {
@@ -427,7 +429,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 
 export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
 
-	private _configurationGroups: ISettingsGroup[];
+	private _configurationGroups: ISettingsGroup[] = [];
 
 	get configurationGroups(): ISettingsGroup[] {
 		return this._configurationGroups;
@@ -446,9 +448,9 @@ export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
 
 export class DefaultSettings extends Disposable {
 
-	private _allSettingsGroups: ISettingsGroup[];
-	private _content: string;
-	private _settingsByName: Map<string, ISetting>;
+	private _allSettingsGroups: ISettingsGroup[] | undefined;
+	private _content: string | undefined;
+	private _settingsByName = new Map<string, ISetting>();
 
 	readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -465,7 +467,7 @@ export class DefaultSettings extends Disposable {
 			this.initialize();
 		}
 
-		return this._content;
+		return this._content!;
 	}
 
 	getSettingsGroups(forceUpdate = false): ISettingsGroup[] {
@@ -473,7 +475,7 @@ export class DefaultSettings extends Disposable {
 			this.initialize();
 		}
 
-		return this._allSettingsGroups;
+		return this._allSettingsGroups!;
 	}
 
 	private initialize(): void {
@@ -491,7 +493,7 @@ export class DefaultSettings extends Disposable {
 	getRegisteredGroups(): ISettingsGroup[] {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
 		const groups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes)
-			.reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
+			.reduce<ISettingsGroup[]>((result, config, index, array) => this.parseConfig(config, result, array), []));
 
 		return this.sortGroups(groups);
 	}
@@ -613,6 +615,14 @@ export class DefaultSettings extends Disposable {
 				const value = prop.default;
 				const description = (prop.description || prop.markdownDescription || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
+				const listItemType = prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type && !isArray(prop.items.type)
+					? prop.items.type
+					: undefined;
+
+				const objectProperties = prop.type === 'object' ? prop.properties : undefined;
+				const objectPatternProperties = prop.type === 'object' ? prop.patternProperties : undefined;
+				const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
+
 				result.push({
 					key,
 					value,
@@ -625,12 +635,18 @@ export class DefaultSettings extends Disposable {
 					overrides,
 					scope: prop.scope,
 					type: prop.type,
+					arrayItemType: listItemType,
+					objectProperties,
+					objectPatternProperties,
+					objectAdditionalProperties,
 					enum: prop.enum,
 					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
 					enumDescriptionsAreMarkdown: !prop.enumDescriptions,
 					tags: prop.tags,
+					disallowSyncIgnore: prop.disallowSyncIgnore,
 					extensionInfo: extensionInfo,
-					deprecationMessage: prop.deprecationMessage,
+					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
+					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
 					validator: createValidator(prop)
 				});
 			}
@@ -653,11 +669,14 @@ export class DefaultSettings extends Disposable {
 	}
 
 	private matchesScope(property: IConfigurationNode): boolean {
+		if (!property.scope) {
+			return true;
+		}
 		if (this.target === ConfigurationTarget.WORKSPACE_FOLDER) {
-			return property.scope === ConfigurationScope.RESOURCE;
+			return FOLDER_SCOPES.indexOf(property.scope) !== -1;
 		}
 		if (this.target === ConfigurationTarget.WORKSPACE) {
-			return property.scope === ConfigurationScope.WINDOW || property.scope === ConfigurationScope.RESOURCE;
+			return WORKSPACE_SCOPES.indexOf(property.scope) !== -1;
 		}
 		return true;
 	}
@@ -732,8 +751,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		}
 
 		// Grab current result groups, only render non-empty groups
-		const resultGroups = map
-			.values(this._currentResultGroups)
+		const resultGroups = [...this._currentResultGroups.values()]
 			.sort((a, b) => a.order - b.order);
 		const nonEmptyResultGroups = resultGroups.filter(group => group.result.filterMatches.length);
 
@@ -1017,112 +1035,6 @@ class SettingsContentBuilder {
 	}
 }
 
-export function createValidator(prop: IConfigurationPropertySchema): (value: any) => (string | null) {
-	return value => {
-		let exclusiveMax: number | undefined;
-		let exclusiveMin: number | undefined;
-
-		if (typeof prop.exclusiveMaximum === 'boolean') {
-			exclusiveMax = prop.exclusiveMaximum ? prop.maximum : undefined;
-		} else {
-			exclusiveMax = prop.exclusiveMaximum;
-		}
-
-		if (typeof prop.exclusiveMinimum === 'boolean') {
-			exclusiveMin = prop.exclusiveMinimum ? prop.minimum : undefined;
-		} else {
-			exclusiveMin = prop.exclusiveMinimum;
-		}
-
-		let patternRegex: RegExp | undefined;
-		if (typeof prop.pattern === 'string') {
-			patternRegex = new RegExp(prop.pattern);
-		}
-
-		const type = Array.isArray(prop.type) ? prop.type : [prop.type];
-		const canBeType = (t: string) => type.indexOf(t) > -1;
-
-		const isNullable = canBeType('null');
-		const isNumeric = (canBeType('number') || canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
-		const isIntegral = (canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
-
-		type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
-
-		const numericValidations: Validator<number>[] = isNumeric ? [
-			{
-				enabled: exclusiveMax !== undefined && (prop.maximum === undefined || exclusiveMax <= prop.maximum),
-				isValid: ((value: number) => value < exclusiveMax!),
-				message: nls.localize('validations.exclusiveMax', "Value must be strictly less than {0}.", exclusiveMax)
-			},
-			{
-				enabled: exclusiveMin !== undefined && (prop.minimum === undefined || exclusiveMin >= prop.minimum),
-				isValid: ((value: number) => value > exclusiveMin!),
-				message: nls.localize('validations.exclusiveMin', "Value must be strictly greater than {0}.", exclusiveMin)
-			},
-
-			{
-				enabled: prop.maximum !== undefined && (exclusiveMax === undefined || exclusiveMax > prop.maximum),
-				isValid: ((value: number) => value <= prop.maximum!),
-				message: nls.localize('validations.max', "Value must be less than or equal to {0}.", prop.maximum)
-			},
-			{
-				enabled: prop.minimum !== undefined && (exclusiveMin === undefined || exclusiveMin < prop.minimum),
-				isValid: ((value: number) => value >= prop.minimum!),
-				message: nls.localize('validations.min', "Value must be greater than or equal to {0}.", prop.minimum)
-			},
-			{
-				enabled: prop.multipleOf !== undefined,
-				isValid: ((value: number) => value % prop.multipleOf! === 0),
-				message: nls.localize('validations.multipleOf', "Value must be a multiple of {0}.", prop.multipleOf)
-			},
-			{
-				enabled: isIntegral,
-				isValid: ((value: number) => value % 1 === 0),
-				message: nls.localize('validations.expectedInteger', "Value must be an integer.")
-			},
-		].filter(validation => validation.enabled) : [];
-
-		const stringValidations: Validator<string>[] = [
-			{
-				enabled: prop.maxLength !== undefined,
-				isValid: ((value: { length: number; }) => value.length <= prop.maxLength!),
-				message: nls.localize('validations.maxLength', "Value must be {0} or fewer characters long.", prop.maxLength)
-			},
-			{
-				enabled: prop.minLength !== undefined,
-				isValid: ((value: { length: number; }) => value.length >= prop.minLength!),
-				message: nls.localize('validations.minLength', "Value must be {0} or more characters long.", prop.minLength)
-			},
-			{
-				enabled: patternRegex !== undefined,
-				isValid: ((value: string) => patternRegex!.test(value)),
-				message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
-			},
-		].filter(validation => validation.enabled);
-
-		if (prop.type === 'string' && stringValidations.length === 0) { return null; }
-		if (isNullable && value === '') { return ''; }
-
-		const errors: string[] = [];
-
-		if (isNumeric) {
-			if (value === '' || isNaN(+value)) {
-				errors.push(nls.localize('validations.expectedNumeric', "Value must be a number."));
-			} else {
-				errors.push(...numericValidations.filter(validator => !validator.isValid(+value)).map(validator => validator.message));
-			}
-		}
-
-		if (prop.type === 'string') {
-			errors.push(...stringValidations.filter(validator => !validator.isValid('' + value)).map(validator => validator.message));
-		}
-		if (errors.length) {
-			return prop.errorMessage ? [prop.errorMessage, ...errors].join(' ') : errors.join(' ');
-		}
-		return '';
-	};
-}
-
 class RawSettingsContentBuilder extends SettingsContentBuilder {
 
 	constructor(private indent: string = '\t') {
@@ -1171,7 +1083,7 @@ export function defaultKeybindingsContents(keybindingService: IKeybindingService
 
 export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
 
-	private _content: string;
+	private _content: string | undefined;
 
 	constructor(private _uri: URI,
 		@IKeybindingService private readonly keybindingService: IKeybindingService) {

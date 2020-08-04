@@ -5,8 +5,8 @@
 
 import 'vs/css!./contextMenuHandler';
 
-import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ActionRunner, IRunEvent } from 'vs/base/common/actions';
+import { ActionRunner, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -14,7 +14,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { EventType, $, removeNode } from 'vs/base/browser/dom';
+import { EventType, $, removeNode, isHTMLElement } from 'vs/base/browser/dom';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -24,8 +24,8 @@ export interface IContextMenuHandlerOptions {
 }
 
 export class ContextMenuHandler {
-	private focusToReturn: HTMLElement;
-	private block: HTMLElement | null;
+	private focusToReturn: HTMLElement | null = null;
+	private block: HTMLElement | null = null;
 	private options: IContextMenuHandlerOptions = { blockMouse: true };
 
 	constructor(
@@ -50,6 +50,7 @@ export class ContextMenuHandler {
 
 		let menu: Menu | undefined;
 
+		let shadowRootElement = isHTMLElement(delegate.domForShadowRoot) ? delegate.domForShadowRoot : undefined;
 		this.contextViewService.showContextView({
 			getAnchor: () => delegate.getAnchor(),
 			canRelayout: false,
@@ -65,9 +66,16 @@ export class ContextMenuHandler {
 				// Render invisible div to block mouse interaction in the rest of the UI
 				if (this.options.blockMouse) {
 					this.block = container.appendChild($('.context-view-block'));
+					this.block.style.position = 'fixed';
+					this.block.style.cursor = 'initial';
+					this.block.style.left = '0';
+					this.block.style.top = '0';
+					this.block.style.width = '100%';
+					this.block.style.height = '100%';
+					domEvent(this.block, EventType.MOUSE_DOWN)((e: MouseEvent) => e.stopPropagation());
 				}
 
-				const menuDisposables: IDisposable[] = [];
+				const menuDisposables = new DisposableStore();
 
 				const actionRunner = delegate.actionRunner || new ActionRunner();
 				actionRunner.onDidBeforeRun(this.onActionRun, this, menuDisposables);
@@ -79,12 +87,16 @@ export class ContextMenuHandler {
 					getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id)
 				});
 
-				menuDisposables.push(attachMenuStyler(menu, this.themeService));
+				menuDisposables.add(attachMenuStyler(menu, this.themeService));
 
 				menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, null, menuDisposables);
 				domEvent(window, EventType.MOUSE_DOWN)((e: MouseEvent) => {
+					if (e.defaultPrevented) {
+						return;
+					}
+
 					let event = new StandardMouseEvent(e);
 					let element: HTMLElement | null = event.target;
 
@@ -104,7 +116,7 @@ export class ContextMenuHandler {
 					this.contextViewService.hideContextView(true);
 				}, null, menuDisposables);
 
-				return combinedDisposable([...menuDisposables, menu]);
+				return combinedDisposable(menuDisposables, menu);
 			},
 
 			focus: () => {
@@ -127,18 +139,12 @@ export class ContextMenuHandler {
 					this.focusToReturn.focus();
 				}
 			}
-		});
+		}, shadowRootElement, !!shadowRootElement);
 	}
 
 	private onActionRun(e: IRunEvent): void {
 		if (this.telemetryService) {
-			/* __GDPR__
-				"workbenchActionExecuted" : {
-					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
 		}
 
 		this.contextViewService.hideContextView(false);

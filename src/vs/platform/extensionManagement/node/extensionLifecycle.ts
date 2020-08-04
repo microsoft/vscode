@@ -12,16 +12,17 @@ import { join } from 'vs/base/common/path';
 import { Limiter } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { rimraf } from 'vs/base/node/pfs';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class ExtensionsLifecycle extends Disposable {
 
 	private processesLimiter: Limiter<void> = new Limiter(5); // Run max 5 processes in parallel
 
 	constructor(
-		private environmentService: IEnvironmentService,
-		private logService: ILogService
+		@IEnvironmentService private environmentService: INativeEnvironmentService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
@@ -98,11 +99,11 @@ export class ExtensionsLifecycle extends Disposable {
 
 		// Catch all output coming from the process
 		type Output = { data: string, format: string[] };
-		extensionUninstallProcess.stdout.setEncoding('utf8');
-		extensionUninstallProcess.stderr.setEncoding('utf8');
+		extensionUninstallProcess.stdout!.setEncoding('utf8');
+		extensionUninstallProcess.stderr!.setEncoding('utf8');
 
-		const onStdout = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stdout, 'data');
-		const onStderr = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stderr, 'data');
+		const onStdout = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stdout!, 'data');
+		const onStderr = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stderr!, 'data');
 
 		// Log output
 		onStdout(data => this.logService.info(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data));
@@ -130,6 +131,6 @@ export class ExtensionsLifecycle extends Disposable {
 	}
 
 	private getExtensionStoragePath(extension: ILocalExtension): string {
-		return join(this.environmentService.globalStorageHome, extension.identifier.id.toLowerCase());
+		return join(this.environmentService.globalStorageHome.fsPath, extension.identifier.id.toLowerCase());
 	}
 }

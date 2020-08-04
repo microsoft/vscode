@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, Terminal, TerminalDimensionsChangeEvent } from 'vscode';
+import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, QuickPickItem, TextEditor } from 'vscode';
 import { join } from 'path';
 import { closeAllEditors, pathEquals, createRandomFile } from '../utils';
 
-suite('window namespace tests', () => {
+
+suite('vscode API - window', () => {
 
 	teardown(closeAllEditors);
 
@@ -146,16 +147,36 @@ suite('window namespace tests', () => {
 	});
 
 	test('active editor not always correct... #49125', async function () {
+		if (process.env['BUILD_SOURCEVERSION']) {
+			this.skip();
+			return;
+		}
+		function assertActiveEditor(editor: TextEditor) {
+			if (window.activeTextEditor === editor) {
+				assert.ok(true);
+				return;
+			}
+			function printEditor(editor: TextEditor): string {
+				return `doc: ${editor.document.uri.toString()}, column: ${editor.viewColumn}, active: ${editor === window.activeTextEditor}`;
+			}
+			const visible = window.visibleTextEditors.map(editor => printEditor(editor));
+			assert.ok(false, `ACTIVE editor should be ${printEditor(editor)}, BUT HAVING ${visible.join(', ')}`);
+
+		}
+
+		const randomFile1 = await createRandomFile();
+		const randomFile2 = await createRandomFile();
+
 		const [docA, docB] = await Promise.all([
-			workspace.openTextDocument(await createRandomFile()),
-			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(randomFile1),
+			workspace.openTextDocument(randomFile2)
 		]);
 		for (let c = 0; c < 4; c++) {
 			let editorA = await window.showTextDocument(docA, ViewColumn.One);
-			assert(window.activeTextEditor === editorA);
+			assertActiveEditor(editorA);
 
 			let editorB = await window.showTextDocument(docB, ViewColumn.Two);
-			assert(window.activeTextEditor === editorB);
+			assertActiveEditor(editorB);
 		}
 	});
 
@@ -380,33 +401,31 @@ suite('window namespace tests', () => {
 		assert.equal(await two, 'notempty');
 	});
 
-	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
-	// test('showQuickPick, accept first', async function () {
-	// 	const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
-	// 	await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
-	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-	// 	assert.equal(await pick, 'eins');
-	// });
-
-	test('showQuickPick, accept second', async function () {
-		const resolves: ((value: string) => void)[] = [];
-		let done: () => void;
-		const unexpected = new Promise((resolve, reject) => {
-			done = () => resolve();
-			resolves.push(reject);
-		});
-		const first = new Promise(resolve => resolves.push(resolve));
+	test('showQuickPick, accept first', async function () {
+		const tracker = createQuickPickTracker<string>();
+		const first = tracker.nextItem();
 		const pick = window.showQuickPick(['eins', 'zwei', 'drei'], {
-			onDidSelectItem: item => resolves.pop()!(item as string)
+			onDidSelectItem: tracker.onDidSelectItem
 		});
 		assert.equal(await first, 'eins');
-		const second = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await pick, 'eins');
+		return tracker.done();
+	});
+
+	test('showQuickPick, accept second', async function () {
+		const tracker = createQuickPickTracker<string>();
+		const first = tracker.nextItem();
+		const pick = window.showQuickPick(['eins', 'zwei', 'drei'], {
+			onDidSelectItem: tracker.onDidSelectItem
+		});
+		assert.equal(await first, 'eins');
+		const second = tracker.nextItem();
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
 		assert.equal(await second, 'zwei');
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		assert.equal(await pick, 'zwei');
-		done!();
-		return unexpected;
+		return tracker.done();
 	});
 
 	test('showQuickPick, select first two', async function () {
@@ -435,19 +454,27 @@ suite('window namespace tests', () => {
 		return unexpected;
 	});
 
-	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
-	// test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
-	// 	const picks = window.showQuickPick([
-	// 		{ label: 'eins' },
-	// 		{ label: 'zwei', picked: true },
-	// 		{ label: 'drei', picked: true }
-	// 	], {
-	// 			canPickMany: true
-	// 		});
-	// 	await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
-	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-	// 	assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
-	// });
+	test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
+		const picks = window.showQuickPick([
+			{ label: 'eins' },
+			{ label: 'zwei', picked: true },
+			{ label: 'drei', picked: true }
+		], {
+			canPickMany: true
+		});
+		await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		if (await Promise.race([picks, new Promise<boolean>(resolve => setTimeout(() => resolve(false), 100))]) === false) {
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			if (await Promise.race([picks, new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1000))]) === false) {
+				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+				if (await Promise.race([picks, new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1000))]) === false) {
+					assert.ok(false, 'Picks not resolved!');
+				}
+			}
+		}
+		assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
+	});
 
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();
@@ -518,20 +545,24 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
-	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
-	// test('showWorkspaceFolderPick', async function () {
-	// 	const p = window.showWorkspaceFolderPick(undefined);
+	test('showWorkspaceFolderPick', async function () {
+		const p = window.showWorkspaceFolderPick(undefined);
 
-	// 	await timeout(10);
-	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-	// 	try {
-	// 		await p;
-	// 		assert.ok(true);
-	// 	}
-	// 	catch (_error) {
-	// 		assert.ok(false);
-	// 	}
-	// });
+		await new Promise(resolve => setTimeout(resolve, 10));
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		const r1 = await Promise.race([p, new Promise<boolean>(resolve => setTimeout(() => resolve(false), 100))]);
+		if (r1 !== false) {
+			return;
+		}
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		const r2 = await Promise.race([p, new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1000))]);
+		if (r2 !== false) {
+			return;
+		}
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		const r3 = await Promise.race([p, new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1000))]);
+		assert.ok(r3 !== false);
+	});
 
 	test('Default value for showInput Box not accepted when it fails validateInput, reversing #33691', async function () {
 		const result = window.showInputBox({
@@ -547,6 +578,23 @@ suite('window namespace tests', () => {
 		await commands.executeCommand('workbench.action.closeQuickOpen');
 		assert.equal(await result, undefined);
 	});
+
+	function createQuickPickTracker<T extends string | QuickPickItem>() {
+		const resolves: ((value: T) => void)[] = [];
+		let done: () => void;
+		const unexpected = new Promise((resolve, reject) => {
+			done = () => resolve();
+			resolves.push(reject);
+		});
+		return {
+			onDidSelectItem: (item: T) => resolves.pop()!(item),
+			nextItem: () => new Promise<T>(resolve => resolves.push(resolve)),
+			done: () => {
+				done!();
+				return unexpected;
+			},
+		};
+	}
 
 
 	test('editor, selection change kind', () => {
@@ -568,178 +616,4 @@ suite('window namespace tests', () => {
 
 		});
 	});
-
-	suite('Terminal', () => {
-		test('sendText immediately after createTerminal should not throw', () => {
-			const terminal = window.createTerminal();
-			assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
-			terminal.dispose();
-		});
-
-		test('onDidCloseTerminal event fires when terminal is disposed', (done) => {
-			const terminal = window.createTerminal();
-			const reg = window.onDidCloseTerminal((eventTerminal) => {
-				assert.equal(terminal, eventTerminal);
-				reg.dispose();
-				done();
-			});
-			terminal.dispose();
-		});
-
-		test('processId immediately after createTerminal should fetch the pid', (done) => {
-			const terminal = window.createTerminal();
-			terminal.processId.then(id => {
-				assert.ok(id > 0);
-				terminal.dispose();
-				done();
-			});
-		});
-
-		test('name in constructor should set terminal.name', () => {
-			const terminal = window.createTerminal('a');
-			assert.equal(terminal.name, 'a');
-			terminal.dispose();
-		});
-
-		test('onDidOpenTerminal should fire when a terminal is created', (done) => {
-			const reg1 = window.onDidOpenTerminal(term => {
-				assert.equal(term.name, 'b');
-				reg1.dispose();
-				const reg2 = window.onDidCloseTerminal(() => {
-					reg2.dispose();
-					done();
-				});
-				terminal.dispose();
-			});
-			const terminal = window.createTerminal('b');
-		});
-
-		test('createTerminalRenderer should fire onDidOpenTerminal and onDidCloseTerminal', (done) => {
-			const reg1 = window.onDidOpenTerminal(term => {
-				assert.equal(term.name, 'c');
-				reg1.dispose();
-				const reg2 = window.onDidCloseTerminal(() => {
-					reg2.dispose();
-					done();
-				});
-				term.dispose();
-			});
-			window.createTerminalRenderer('c');
-		});
-
-		test('terminal renderers should get maximum dimensions set when shown', (done) => {
-			let terminal: Terminal;
-			const reg1 = window.onDidOpenTerminal(term => {
-				reg1.dispose();
-				term.show();
-				terminal = term;
-			});
-			const renderer = window.createTerminalRenderer('foo');
-			const reg2 = renderer.onDidChangeMaximumDimensions(dimensions => {
-				assert.ok(dimensions.columns > 0);
-				assert.ok(dimensions.rows > 0);
-				reg2.dispose();
-				const reg3 = window.onDidCloseTerminal(() => {
-					reg3.dispose();
-					done();
-				});
-				terminal.dispose();
-			});
-		});
-
-		test('TerminalRenderer.write should fire Terminal.onData', (done) => {
-			const reg1 = window.onDidOpenTerminal(terminal => {
-				reg1.dispose();
-				const reg2 = terminal.onDidWriteData(data => {
-					assert.equal(data, 'bar');
-					reg2.dispose();
-					const reg3 = window.onDidCloseTerminal(() => {
-						reg3.dispose();
-						done();
-					});
-					terminal.dispose();
-				});
-				renderer.write('bar');
-			});
-			const renderer = window.createTerminalRenderer('foo');
-		});
-
-		test('Terminal.sendText should fire Terminal.onInput', (done) => {
-			const reg1 = window.onDidOpenTerminal(terminal => {
-				reg1.dispose();
-				const reg2 = renderer.onDidAcceptInput(data => {
-					assert.equal(data, 'bar');
-					reg2.dispose();
-					const reg3 = window.onDidCloseTerminal(() => {
-						reg3.dispose();
-						done();
-					});
-					terminal.dispose();
-				});
-				terminal.sendText('bar', false);
-			});
-			const renderer = window.createTerminalRenderer('foo');
-		});
-
-		test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
-			const reg1 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
-				assert.equal(active, terminal);
-				assert.equal(active, window.activeTerminal);
-				reg1.dispose();
-				const reg2 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
-					assert.equal(active, undefined);
-					assert.equal(active, window.activeTerminal);
-					reg2.dispose();
-					done();
-				});
-				terminal.dispose();
-			});
-			const terminal = window.createTerminal();
-			terminal.show();
-		});
-
-		test('onDidChangeTerminalDimensions should fire when new terminals are created', (done) => {
-			const reg1 = window.onDidChangeTerminalDimensions(async (event: TerminalDimensionsChangeEvent) => {
-				assert.equal(event.terminal, terminal1);
-				assert.equal(typeof event.dimensions.columns, 'number');
-				assert.equal(typeof event.dimensions.rows, 'number');
-				assert.ok(event.dimensions.columns > 0);
-				assert.ok(event.dimensions.rows > 0);
-				reg1.dispose();
-				let terminal2: Terminal;
-				const reg2 = window.onDidOpenTerminal((newTerminal) => {
-					// This is guarantees to fire before dimensions change event
-					if (newTerminal !== terminal1) {
-						terminal2 = newTerminal;
-						reg2.dispose();
-					}
-				});
-				let firstCalled = false;
-				let secondCalled = false;
-				const reg3 = window.onDidChangeTerminalDimensions((event: TerminalDimensionsChangeEvent) => {
-					if (event.terminal === terminal1) {
-						// The original terminal should fire dimension change after a split
-						firstCalled = true;
-					} else if (event.terminal !== terminal1) {
-						// The new split terminal should fire dimension change
-						secondCalled = true;
-					}
-					if (firstCalled && secondCalled) {
-						terminal1.dispose();
-						terminal2.dispose();
-						reg3.dispose();
-						done();
-					}
-				});
-				await timeout(500);
-				commands.executeCommand('workbench.action.terminal.split');
-			});
-			const terminal1 = window.createTerminal({ name: 'test' });
-			terminal1.show();
-		});
-	});
 });
-
-async function timeout(ms = 0): Promise<void> {
-	return new Promise<void>(resolve => setTimeout(() => resolve(), ms));
-}

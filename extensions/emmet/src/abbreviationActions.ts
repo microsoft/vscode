@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetNode';
-import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag } from './util';
+import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument } from './util';
 
 const trimRegex = /[\u00a0]*[\d#\-\*\u2022]+\.?/;
 const hexColorRegex = /^#[\da-fA-F]{0,6}$/;
@@ -84,8 +84,8 @@ function doWrapping(individualLines: boolean, args: any) {
 
 		const firstLineOfSelection = editor.document.lineAt(rangeToReplace.start).text.substr(rangeToReplace.start.character);
 		const matches = firstLineOfSelection.match(/^(\s*)/);
-		const extraWhiteSpaceSelected = matches ? matches[1].length : 0;
-		rangeToReplace = new vscode.Range(rangeToReplace.start.line, rangeToReplace.start.character + extraWhiteSpaceSelected, rangeToReplace.end.line, rangeToReplace.end.character);
+		const extraWhitespaceSelected = matches ? matches[1].length : 0;
+		rangeToReplace = new vscode.Range(rangeToReplace.start.line, rangeToReplace.start.character + extraWhitespaceSelected, rangeToReplace.end.line, rangeToReplace.end.character);
 
 		let textToWrapInPreview: string[];
 		let textToReplace = editor.document.getText(rangeToReplace);
@@ -94,8 +94,8 @@ function doWrapping(individualLines: boolean, args: any) {
 		} else {
 			const wholeFirstLine = editor.document.lineAt(rangeToReplace.start).text;
 			const otherMatches = wholeFirstLine.match(/^(\s*)/);
-			const preceedingWhiteSpace = otherMatches ? otherMatches[1] : '';
-			textToWrapInPreview = rangeToReplace.isSingleLine ? [textToReplace] : ['\n\t' + textToReplace.split('\n' + preceedingWhiteSpace).join('\n\t') + '\n'];
+			const precedingWhitespace = otherMatches ? otherMatches[1] : '';
+			textToWrapInPreview = rangeToReplace.isSingleLine ? [textToReplace] : ['\n\t' + textToReplace.split('\n' + precedingWhitespace).join('\n\t') + '\n'];
 		}
 		textToWrapInPreview = textToWrapInPreview.map(e => e.replace(/(\$\d)/g, '\\$1'));
 
@@ -231,6 +231,24 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 		return fallbackTab();
 	}
 
+	/**
+	 * Short circuit the parsing. If previous character is space, do not expand.
+	 */
+	if (vscode.window.activeTextEditor.selections.length === 1 &&
+		vscode.window.activeTextEditor.selection.isEmpty
+	) {
+		const anchor = vscode.window.activeTextEditor.selection.anchor;
+		if (anchor.character === 0) {
+			return fallbackTab();
+		}
+
+		const prevPositionAnchor = anchor.translate(0, -1);
+		const prevText = vscode.window.activeTextEditor.document.getText(new vscode.Range(prevPositionAnchor, anchor));
+		if (prevText === ' ' || prevText === '\t') {
+			return fallbackTab();
+		}
+	}
+
 	args = args || {};
 	if (!args['language']) {
 		args['language'] = vscode.window.activeTextEditor.document.languageId;
@@ -246,13 +264,6 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	}
 
 	const editor = vscode.window.activeTextEditor;
-	let rootNode: Node | undefined;
-	let usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
-	if (editor.selections.length === 1 && isStyleSheet(editor.document.languageId) && usePartialParsing && editor.document.lineCount > 1000) {
-		rootNode = parsePartialStylesheet(editor.document, editor.selection.isReversed ? editor.selection.anchor : editor.selection.active);
-	} else {
-		rootNode = parseDocument(editor.document, false);
-	}
 
 	// When tabbed on a non empty selection, do not treat it as an emmet abbreviation, and fallback to tab instead
 	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true && editor.selections.find(x => !x.isEmpty)) {
@@ -265,6 +276,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	const helper = getEmmetHelper();
 
 	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range | null, string, string] => {
+		position = document.validatePosition(position);
 		let rangeToReplace: vscode.Range = selection;
 		let abbr = document.getText(rangeToReplace);
 		if (!rangeToReplace.isEmpty) {
@@ -288,7 +300,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 				return [rangeToReplace, abbr, ''];
 			}
 		}
-		let extractedResults = helper.extractAbbreviation(editor.document, position, false);
+		let extractedResults = helper.extractAbbreviation(toLSTextDocument(editor.document), position, false);
 		if (!extractedResults) {
 			return [null, '', ''];
 		}
@@ -304,6 +316,22 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 		return posA.compareTo(posB) * -1;
 	});
 
+	let rootNode: Node | undefined;
+	function getRootNode() {
+		if (rootNode) {
+			return rootNode;
+		}
+
+		let usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
+		if (editor.selections.length === 1 && isStyleSheet(editor.document.languageId) && usePartialParsing && editor.document.lineCount > 1000) {
+			rootNode = parsePartialStylesheet(editor.document, editor.selection.isReversed ? editor.selection.anchor : editor.selection.active);
+		} else {
+			rootNode = parseDocument(editor.document, false);
+		}
+
+		return rootNode;
+	}
+
 	selectionsInReverseOrder.forEach(selection => {
 		let position = selection.isReversed ? selection.anchor : selection.active;
 		let [rangeToReplace, abbreviation, filter] = getAbbreviation(editor.document, selection, position, syntax);
@@ -313,7 +341,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 		if (!helper.isAbbreviationValid(syntax, abbreviation)) {
 			return;
 		}
-		let currentNode = getNode(rootNode, position, true);
+		let currentNode = getNode(getRootNode(), position, true);
 		let validateLocation = true;
 		let syntaxToUse = syntax;
 
@@ -330,7 +358,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 			}
 		}
 
-		if (validateLocation && !isValidLocationForEmmetAbbreviation(editor.document, rootNode, currentNode, syntaxToUse, position, rangeToReplace)) {
+		if (validateLocation && !isValidLocationForEmmetAbbreviation(editor.document, getRootNode(), currentNode, syntaxToUse, position, rangeToReplace)) {
 			return;
 		}
 
@@ -491,7 +519,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 	}
 
 	let valid = true;
-	let foundSpace = false; // If < is found before finding whitespace, then its valid abbreviation. Eg: <div|
+	let foundSpace = false; // If < is found before finding whitespace, then its valid abbreviation. E.g.: <div|
 	let i = textToBackTrack.length - 1;
 	if (textToBackTrack[i] === startAngle) {
 		return false;
@@ -581,7 +609,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 /**
  * Expands abbreviation as detailed in given input.
  */
-function expandAbbr(input: ExpandAbbreviationInput): string {
+function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 	const helper = getEmmetHelper();
 	const expandOptions = helper.getExpandOptions(input.syntax, getEmmetConfiguration(input.syntax), input.filter);
 
@@ -635,7 +663,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string {
 	return expandedText;
 }
 
-function getSyntaxFromArgs(args: { [x: string]: string }): string | undefined {
+export function getSyntaxFromArgs(args: { [x: string]: string }): string | undefined {
 	const mappedModes = getMappingForIncludedLanguages();
 	const language: string = args['language'];
 	const parentMode: string = args['parentMode'];

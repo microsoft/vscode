@@ -3,8 +3,99 @@
 	"tasks": [
 		{
 			"type": "npm",
-			"script": "watch",
+			"script": "watch-clientd",
+			"label": "Build VS Code Core",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never"
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"absolute"
+				],
+				"pattern": {
+					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"beginsPattern": "Starting compilation",
+					"endsPattern": "Finished compilation"
+				}
+			}
+		},
+		{
+			"type": "npm",
+			"script": "watch-extensionsd",
+			"label": "Build VS Code Extensions",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never"
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"absolute"
+				],
+				"pattern": {
+					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"beginsPattern": "Starting compilation",
+					"endsPattern": "Finished compilation"
+				}
+			}
+		},
+		{
 			"label": "Build VS Code",
+			"dependsOn": [
+				"Build VS Code Core",
+				"Build VS Code Extensions"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"type": "npm",
+			"script": "kill-watch-clientd",
+			"label": "Kill Build VS Code Core",
+			"group": "build",
+			"presentation": {
+				"reveal": "never"
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"type": "npm",
+			"script": "kill-watch-extensionsd",
+			"label": "Kill Build VS Code Extensions",
+			"group": "build",
+			"presentation": {
+				"reveal": "never"
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "Kill Build VS Code",
+			"dependsOn": [
+				"Kill Build VS Code Core",
+				"Kill Build VS Code Extensions"
+			],
+			"group": "build"
+		},
+		{
+			"type": "npm",
+			"script": "watch-webd",
+			"label": "Build Web Extensions",
 			"group": "build",
 			"isBackground": true,
 			"presentation": {
@@ -30,25 +121,13 @@
 		},
 		{
 			"type": "npm",
-			"script": "strict-initialization-watch",
-			"label": "TS - Strict Initialization",
-			"isBackground": true,
+			"script": "kill-watch-webd",
+			"label": "Kill Build Web Extensions",
+			"group": "build",
 			"presentation": {
-				"reveal": "never"
+				"reveal": "never",
 			},
-			"problemMatcher": {
-				"base": "$tsc-watch",
-				"owner": "typescript-strict-initialization",
-				"applyTo": "allDocuments"
-			}
-		},
-		{
-			"type": "gulp",
-			"task": "tslint",
-			"label": "Run tslint",
-			"problemMatcher": [
-				"$tslint5"
-			]
+			"problemMatcher": "$tsc"
 		},
 		{
 			"label": "Run tests",
@@ -73,14 +152,48 @@
 			"problemMatcher": []
 		},
 		{
-			"type": "gulp",
-			"task": "electron",
+			"type": "npm",
+			"script": "electron",
 			"label": "Download electron"
 		},
 		{
 			"type": "gulp",
 			"task": "hygiene",
 			"problemMatcher": []
-		}
+		},
+		{
+			"type": "shell",
+			"command": "yarn web --no-launch",
+			"label": "Run web",
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ""
+				},
+				"background": {
+					"beginsPattern": ".*node .*",
+					"endsPattern": "Web UI available at .*"
+				}
+			},
+			"presentation": {
+				"reveal": "never"
+			}
+		},
+		{
+			"type": "npm",
+			"script": "eslint",
+			"problemMatcher": {
+				"source": "eslint",
+				"base": "$eslint-stylish"
+			}
+		},
+		{
+			"type": "shell",
+			"command": "node build/lib/prelaunch.js",
+			"label": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"reveal": "silent"
+			}
+		},
 	]
 }

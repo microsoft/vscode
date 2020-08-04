@@ -82,12 +82,28 @@ export class ProcessTaskSystem implements ITaskSystem {
 		return !!this.childProcess;
 	}
 
+	public isTaskVisible(): boolean {
+		return true;
+	}
+
 	public getActiveTasks(): Task[] {
 		let result: Task[] = [];
 		if (this.activeTask) {
 			result.push(this.activeTask);
 		}
 		return result;
+	}
+
+	public getLastInstance(task: Task): Task | undefined {
+		let result = undefined;
+		if (this.activeTask) {
+			result = this.activeTask;
+		}
+		return result;
+	}
+
+	public getBusyTasks(): Task[] {
+		return [];
 	}
 
 	public run(task: Task): ITaskExecuteResult {
@@ -131,7 +147,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		if (this.childProcess) {
 			let task = this.activeTask;
 			return this.childProcess.terminate().then((response) => {
-				let result: TaskTerminateResponse = Objects.assign({ task: task! }, response);
+				let result: TaskTerminateResponse = Object.assign({ task: task! }, response);
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task!));
 				return [result];
 			});
@@ -280,7 +296,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				this.childProcessEnded();
 				watchingProblemMatcher.done();
 				watchingProblemMatcher.dispose();
-				if (processStartedSignaled && task.command.runtime !== RuntimeType.CustomExecution) {
+				if (processStartedSignaled) {
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode!));
 				}
 				toDispose = dispose(toDispose!);
@@ -336,7 +352,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				startStopProblemMatcher.done();
 				startStopProblemMatcher.dispose();
 				this.checkTerminated(task, success);
-				if (processStartedSignaled && task.command.runtime !== RuntimeType.CustomExecution) {
+				if (processStartedSignaled) {
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode!));
 				}
 				this._onDidStateChange.fire(inactiveEvent);
@@ -437,7 +453,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				matcher = value;
 			}
 			if (!matcher) {
-				this.appendOutput(nls.localize('unkownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
+				this.appendOutput(nls.localize('unknownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
 				return;
 			}
 			if (!matcher.filePrefix) {

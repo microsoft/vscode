@@ -24,7 +24,7 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface IBaseResourceInput {
+export interface IBaseResourceEditorInput {
 
 	/**
 	 * Optional options to use when opening the text input.
@@ -60,12 +60,12 @@ export interface IBaseResourceInput {
 	readonly forceUntitled?: boolean;
 }
 
-export interface IResourceInput extends IBaseResourceInput {
+export interface IResourceEditorInput extends IBaseResourceEditorInput {
 
 	/**
 	 * The resource URI of the resource to open.
 	 */
-	resource: URI;
+	readonly resource: URI;
 
 	/**
 	 * The encoding of the text input if known.
@@ -79,13 +79,67 @@ export interface IResourceInput extends IBaseResourceInput {
 	readonly mode?: string;
 }
 
+export enum EditorActivation {
+
+	/**
+	 * Activate the editor after it opened. This will automatically restore
+	 * the editor if it is minimized.
+	 */
+	ACTIVATE,
+
+	/**
+	 * Only restore the editor if it is minimized but do not activate it.
+	 *
+	 * Note: will only work in combination with the `preserveFocus: true` option.
+	 * Otherwise, if focus moves into the editor, it will activate and restore
+	 * automatically.
+	 */
+	RESTORE,
+
+	/**
+	 * Preserve the current active editor.
+	 *
+	 * Note: will only work in combination with the `preserveFocus: true` option.
+	 * Otherwise, if focus moves into the editor, it will activate and restore
+	 * automatically.
+	 */
+	PRESERVE
+}
+
+export enum EditorOpenContext {
+
+	/**
+	 * Default: the editor is opening via a programmatic call
+	 * to the editor service API.
+	 */
+	API,
+
+	/**
+	 * Indicates that a user action triggered the opening, e.g.
+	 * via mouse or keyboard use.
+	 */
+	USER
+}
+
 export interface IEditorOptions {
 
 	/**
-	 * Tells the editor to not receive keyboard focus when the editor is being opened. By default,
-	 * the editor will receive keyboard focus on open.
+	 * Tells the editor to not receive keyboard focus when the editor is being opened.
+	 *
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	readonly preserveFocus?: boolean;
+
+	/**
+	 * This option is only relevant if an editor is opened into a group that is not active
+	 * already and allows to control if the inactive group should become active, restored
+	 * or preserved.
+	 *
+	 * By default, the editor group will become active unless `preserveFocus` or `inactive`
+	 * is specified.
+	 */
+	readonly activation?: EditorActivation;
 
 	/**
 	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
@@ -95,15 +149,17 @@ export interface IEditorOptions {
 	readonly forceReload?: boolean;
 
 	/**
-	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups. Note
-	 * that this option is just a hint that might be ignored if the user wants to open an editor explicitly
+	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
+	 *
+	 * Note that this option is just a hint that might be ignored if the user wants to open an editor explicitly
 	 * to the side of another one or into a specific editor group.
 	 */
 	readonly revealIfVisible?: boolean;
 
 	/**
-	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups. Note
-	 * that this option is just a hint that might be ignored if the user wants to open an editor explicitly
+	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups.
+	 *
+	 * Note that this option is just a hint that might be ignored if the user wants to open an editor explicitly
 	 * to the side of another one or into a specific editor group.
 	 */
 	readonly revealIfOpened?: boolean;
@@ -115,13 +171,22 @@ export interface IEditorOptions {
 	readonly pinned?: boolean;
 
 	/**
+	 * An editor that is sticky moves to the beginning of the editors list within the group and will remain
+	 * there unless explicitly closed. Operations such as "Close All" will not close sticky editors.
+	 */
+	readonly sticky?: boolean;
+
+	/**
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
 	readonly index?: number;
 
 	/**
 	 * An active editor that is opened will show its contents directly. Set to true to open an editor
-	 * in the background.
+	 * in the background without loading its contents.
+	 *
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	readonly inactive?: boolean;
 
@@ -130,6 +195,26 @@ export interface IEditorOptions {
 	 * message as needed. By default, an error will be presented as notification if opening was not possible.
 	 */
 	readonly ignoreError?: boolean;
+
+	/**
+	 * Allows to override the editor that should be used to display the input:
+	 * - `undefined`: let the editor decide for itself
+	 * - `false`: disable overrides
+	 * - `string`: specific override by id
+	 */
+	readonly override?: false | string;
+
+	/**
+	 * A optional hint to signal in which context the editor opens.
+	 *
+	 * If configured to be `EditorOpenContext.USER`, this hint can be
+	 * used in various places to control the experience. For example,
+	 * if the editor to open fails with an error, a notification could
+	 * inform about this in a modal dialog. If the editor opened through
+	 * some background task, the notification would show in the background,
+	 * not as a modal dialog.
+	 */
+	readonly context?: EditorOpenContext;
 }
 
 export interface ITextEditorSelection {
@@ -139,20 +224,41 @@ export interface ITextEditorSelection {
 	readonly endColumn?: number;
 }
 
+export const enum TextEditorSelectionRevealType {
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically.
+	 */
+	Center = 0,
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 */
+	CenterIfOutsideViewport = 1,
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
+	 */
+	NearTop = 2,
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
+	 * Only if it lies outside the viewport
+	 */
+	NearTopIfOutsideViewport = 3,
+}
+
 export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
 	 * Text editor selection.
 	 */
-	selection?: ITextEditorSelection;
+	readonly selection?: ITextEditorSelection;
 
 	/**
 	 * Text editor view state.
 	 */
-	viewState?: object;
+	readonly viewState?: object;
 
 	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 * Option to control the text editor selection reveal type.
+	 * Defaults to TextEditorSelectionRevealType.Center
 	 */
-	revealInCenterIfOutsideViewport?: boolean;
+	readonly selectionRevealType?: TextEditorSelectionRevealType;
 }

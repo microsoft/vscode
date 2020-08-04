@@ -5,23 +5,48 @@
 
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
+import * as minimist from 'minimist';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
-import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import product from 'vs/platform/product/node/product';
-import { IInitData, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostMain, IExitFn, ILogServiceFn } from 'vs/workbench/services/extensions/node/extensionHostMain';
+import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
+import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import product from 'vs/platform/product/common/product';
+import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { ExtensionHostMain, IExitFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { createBufferSpdLogService } from 'vs/platform/log/node/spdlogService';
-import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
-import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
 import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
-import { IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
+import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
+import { RunOnceScheduler } from 'vs/base/common/async';
+
+import 'vs/workbench/api/common/extHost.common.services';
+import 'vs/workbench/api/node/extHost.node.services';
+
+interface ParsedExtHostArgs {
+	uriTransformerPath?: string;
+	useHostProxy?: string;
+}
+
+// workaround for https://github.com/microsoft/vscode/issues/85490
+// remove --inspect-port=0 after start so that it doesn't trigger LSP debugging
+(function removeInspectPort() {
+	for (let i = 0; i < process.execArgv.length; i++) {
+		if (process.execArgv[i] === '--inspect-port=0') {
+			process.execArgv.splice(i, 1);
+			i--;
+		}
+	}
+})();
+
+const args = minimist(process.argv.slice(2), {
+	string: [
+		'uriTransformerPath',
+		'useHostProxy'
+	]
+}) as ParsedExtHostArgs;
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -53,26 +78,12 @@ function patchProcess(allowExit: boolean) {
 		}
 	} as (code?: number) => never;
 
+	// override Electron's process.crash() method
 	process.crash = function () {
 		const err = new Error('An extension called process.crash() and this was prevented.');
 		console.warn(err.stack);
 	};
 }
-
-// use IPC messages to forward console-calls
-function patchPatchedConsole(mainThreadConsole: MainThreadConsoleShape): void {
-	// The console is already patched to use `process.send()`
-	const nativeProcessSend = process.send!;
-	process.send = (...args: any[]) => {
-		if (args.length === 0 || !args[0] || args[0].type !== '__$console') {
-			return nativeProcessSend.apply(process, args);
-		}
-
-		mainThreadConsole.$logExtensionHostMessage(args[0]);
-	};
-}
-
-const createLogService: ILogServiceFn = initData => createBufferSpdLogService(ExtensionHostLogFileName, initData.logLevel, initData.logsLocation.fsPath);
 
 interface IRendererConnection {
 	protocol: IMessagePassingProtocol;
@@ -85,10 +96,10 @@ let onTerminate = function () {
 	nativeExit();
 };
 
-function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
+function _createExtHostProtocol(): Promise<PersistentProtocol> {
 	if (process.env.VSCODE_EXTHOST_WILL_SEND_SOCKET) {
 
-		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+		return new Promise<PersistentProtocol>((resolve, reject) => {
 
 			let protocol: PersistentProtocol | null = null;
 
@@ -96,32 +107,47 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				reject(new Error('VSCODE_EXTHOST_IPC_SOCKET timeout'));
 			}, 60000);
 
-			let disconnectWaitTimer: NodeJS.Timeout | null = null;
+			const reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
+			const reconnectionShortGraceTime = ProtocolConstants.ReconnectionShortGraceTime;
+			const disconnectRunner1 = new RunOnceScheduler(() => onTerminate(), reconnectionGraceTime);
+			const disconnectRunner2 = new RunOnceScheduler(() => onTerminate(), reconnectionShortGraceTime);
 
-			process.on('message', (msg: IExtHostSocketMessage, handle: net.Socket) => {
+			process.on('message', (msg: IExtHostSocketMessage | IExtHostReduceGraceTimeMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
 					const initialDataChunk = VSBuffer.wrap(Buffer.from(msg.initialDataChunk, 'base64'));
+					let socket: NodeSocket | WebSocketNodeSocket;
+					if (msg.skipWebSocketFrames) {
+						socket = new NodeSocket(handle);
+					} else {
+						socket = new WebSocketNodeSocket(new NodeSocket(handle));
+					}
 					if (protocol) {
 						// reconnection case
-						if (disconnectWaitTimer) {
-							clearTimeout(disconnectWaitTimer);
-							disconnectWaitTimer = null;
-						}
-						protocol.beginAcceptReconnection(new NodeSocket(handle), initialDataChunk);
+						disconnectRunner1.cancel();
+						disconnectRunner2.cancel();
+						protocol.beginAcceptReconnection(socket, initialDataChunk);
 						protocol.endAcceptReconnection();
 					} else {
 						clearTimeout(timer);
-						protocol = new PersistentProtocol(new NodeSocket(handle), initialDataChunk);
+						protocol = new PersistentProtocol(socket, initialDataChunk);
 						protocol.onClose(() => onTerminate());
 						resolve(protocol);
 
+						// Wait for rich client to reconnect
 						protocol.onSocketClose(() => {
 							// The socket has closed, let's give the renderer a certain amount of time to reconnect
-							disconnectWaitTimer = setTimeout(() => {
-								disconnectWaitTimer = null;
-								onTerminate();
-							}, ProtocolConstants.ReconnectionGraceTime);
+							disconnectRunner1.schedule();
 						});
+					}
+				}
+				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_REDUCE_GRACE_TIME') {
+					if (disconnectRunner2.isScheduled()) {
+						// we are disconnected and already running the short reconnection timer
+						return;
+					}
+					if (disconnectRunner1.isScheduled()) {
+						// we are disconnected and running the long reconnection timer
+						disconnectRunner2.schedule();
 					}
 				}
 			});
@@ -137,7 +163,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 		const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST!;
 
-		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+		return new Promise<PersistentProtocol>((resolve, reject) => {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
@@ -155,27 +181,37 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 	return new class implements IMessagePassingProtocol {
 
-		private _terminating = false;
+		private readonly _onMessage = new BufferedEmitter<VSBuffer>();
+		readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
-		readonly onMessage: Event<any> = Event.filter(protocol.onMessage, msg => {
-			if (!isMessageOfType(msg, MessageType.Terminate)) {
-				return true;
-			}
-			this._terminating = true;
-			onTerminate();
-			return false;
-		});
+		private _terminating: boolean;
+
+		constructor() {
+			this._terminating = false;
+			protocol.onMessage((msg) => {
+				if (isMessageOfType(msg, MessageType.Terminate)) {
+					this._terminating = true;
+					onTerminate();
+				} else {
+					this._onMessage.fire(msg);
+				}
+			});
+		}
 
 		send(msg: any): void {
 			if (!this._terminating) {
 				protocol.send(msg);
 			}
 		}
+
+		drain(): Promise<void> {
+			return protocol.drain();
+		}
 	};
 }
 
 function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRendererConnection> {
-	return new Promise<IRendererConnection>((c, e) => {
+	return new Promise<IRendererConnection>((c) => {
 
 		// Listen init data message
 		const first = protocol.onMessage(raw => {
@@ -205,7 +241,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 						promise.catch(e => {
 							unhandledPromises.splice(idx, 1);
 							console.warn(`rejected promise not handled within 1 second: ${e}`);
-							if (e.stack) {
+							if (e && e.stack) {
 								console.warn(`stack trace: ${e.stack}`);
 							}
 							onUnexpectedError(reason);
@@ -258,49 +294,40 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-// patchExecArgv:
-(function () {
-	// when encountering the prevent-inspect flag we delete this
-	// and the prior flag
-	if (process.env.VSCODE_PREVENT_FOREIGN_INSPECT) {
-		for (let i = 0; i < process.execArgv.length; i++) {
-			if (process.execArgv[i].match(/--inspect-brk=\d+|--inspect=\d+/)) {
-				process.execArgv.splice(i, 1);
-				break;
-			}
-		}
-	}
-})();
-
-export async function startExtensionHostProcess(
-	uriTransformerFn: (initData: IInitData) => IURITransformer | null,
-	schemeTransformerFn: (initData: IInitData) => ISchemeTransformer | null,
-	outputChannelNameFn: (initData: IInitData) => string,
-): Promise<void> {
+export async function startExtensionHostProcess(): Promise<void> {
 
 	const protocol = await createExtHostProtocol();
 	const renderer = await connectToRenderer(protocol);
 	const { initData } = renderer;
 	// setup things
 	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
+	initData.environment.useHostProxy = args.useHostProxy !== undefined ? args.useHostProxy !== 'false' : undefined;
 
 	// host abstraction
 	const hostUtils = new class NodeHost implements IHostUtils {
+		declare readonly _serviceBrand: undefined;
 		exit(code: number) { nativeExit(code); }
 		exists(path: string) { return exists(path); }
 		realpath(path: string) { return realpath(path); }
 	};
 
+	// Attempt to load uri transformer
+	let uriTransformer: IURITransformer | null = null;
+	if (initData.remote.authority && args.uriTransformerPath) {
+		try {
+			const rawURITransformerFactory = <any>require.__$__nodeRequire(args.uriTransformerPath);
+			const rawURITransformer = <IRawURITransformer>rawURITransformerFactory(initData.remote.authority);
+			uriTransformer = new URITransformer(rawURITransformer);
+		} catch (e) {
+			console.error(e);
+		}
+	}
 
 	const extensionHostMain = new ExtensionHostMain(
 		renderer.protocol,
 		initData,
 		hostUtils,
-		patchPatchedConsole,
-		createLogService,
-		uriTransformerFn(initData),
-		schemeTransformerFn(initData),
-		outputChannelNameFn(initData)
+		uriTransformer
 	);
 
 	// rewrite onTerminate-function to be a proper shutdown

@@ -6,11 +6,14 @@
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { ContextKeyAndExpr, ContextKeyExpr, IContext } from 'vs/platform/contextkey/common/contextkey';
+import { IContext, ContextKeyExpression, ContextKeyExprType } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IResolveResult {
+	/** Whether the resolved keybinding is entering a chord */
 	enterChord: boolean;
+	/** Whether the resolved keybinding is leaving (and executing) a chord */
+	leaveChord: boolean;
 	commandId: string | null;
 	commandArgs: any;
 	bubble: boolean;
@@ -45,12 +48,17 @@ export class KeybindingResolver {
 				continue;
 			}
 
+			if (k.when && k.when.type === ContextKeyExprType.False) {
+				// when condition is false
+				continue;
+			}
+
 			// TODO@chords
 			this._addKeyPress(k.keypressParts[0], k);
 		}
 	}
 
-	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, command: string, when: ContextKeyExpr | undefined): boolean {
+	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, command: string, when: ContextKeyExpression | undefined): boolean {
 		if (defaultKb.command !== command) {
 			return false;
 		}
@@ -170,9 +178,8 @@ export class KeybindingResolver {
 
 	/**
 	 * Returns true if it is provable `a` implies `b`.
-	 * **Precondition**: Assumes `a` and `b` are normalized!
 	 */
-	public static whenIsEntirelyIncluded(a: ContextKeyExpr | null | undefined, b: ContextKeyExpr | null | undefined): boolean {
+	public static whenIsEntirelyIncluded(a: ContextKeyExpression | null | undefined, b: ContextKeyExpression | null | undefined): boolean {
 		if (!b) {
 			return true;
 		}
@@ -180,37 +187,46 @@ export class KeybindingResolver {
 			return false;
 		}
 
-		const aExpressions: ContextKeyExpr[] = ((a instanceof ContextKeyAndExpr) ? a.expr : [a]);
-		const bExpressions: ContextKeyExpr[] = ((b instanceof ContextKeyAndExpr) ? b.expr : [b]);
+		return this._implies(a, b);
+	}
 
-		let aIndex = 0;
-		for (const bExpr of bExpressions) {
-			let bExprMatched = false;
-			while (!bExprMatched && aIndex < aExpressions.length) {
-				let aExpr = aExpressions[aIndex];
-				if (aExpr.equals(bExpr)) {
-					bExprMatched = true;
-				}
-				aIndex++;
+	/**
+	 * Returns true if it is provable `p` implies `q`.
+	 */
+	private static _implies(p: ContextKeyExpression, q: ContextKeyExpression): boolean {
+		const notP = p.negate();
+
+		const terminals = (node: ContextKeyExpression) => {
+			if (node.type === ContextKeyExprType.Or) {
+				return node.expr;
 			}
+			return [node];
+		};
 
-			if (!bExprMatched) {
-				return false;
+		let expr = terminals(notP).concat(terminals(q));
+		for (let i = 0; i < expr.length; i++) {
+			const a = expr[i];
+			const notA = a.negate();
+			for (let j = i + 1; j < expr.length; j++) {
+				const b = expr[j];
+				if (notA.equals(b)) {
+					return true;
+				}
 			}
 		}
 
-		return true;
+		return false;
 	}
 
 	public getDefaultBoundCommands(): Map<string, boolean> {
 		return this._defaultBoundCommands;
 	}
 
-	public getDefaultKeybindings(): ResolvedKeybindingItem[] {
+	public getDefaultKeybindings(): readonly ResolvedKeybindingItem[] {
 		return this._defaultKeybindings;
 	}
 
-	public getKeybindings(): ResolvedKeybindingItem[] {
+	public getKeybindings(): readonly ResolvedKeybindingItem[] {
 		return this._keybindings;
 	}
 
@@ -276,6 +292,7 @@ export class KeybindingResolver {
 		if (currentChord === null && result.keypressParts.length > 1 && result.keypressParts[1] !== null) {
 			return {
 				enterChord: true,
+				leaveChord: false,
 				commandId: null,
 				commandArgs: null,
 				bubble: false
@@ -284,6 +301,7 @@ export class KeybindingResolver {
 
 		return {
 			enterChord: false,
+			leaveChord: result.keypressParts.length > 1,
 			commandId: result.command,
 			commandArgs: result.commandArgs,
 			bubble: result.bubble
@@ -304,7 +322,7 @@ export class KeybindingResolver {
 		return null;
 	}
 
-	public static contextMatchesRules(context: IContext, rules: ContextKeyExpr | null | undefined): boolean {
+	public static contextMatchesRules(context: IContext, rules: ContextKeyExpression | null | undefined): boolean {
 		if (!rules) {
 			return true;
 		}
@@ -334,10 +352,10 @@ export class KeybindingResolver {
 			}
 			unboundCommands.push(id);
 		};
-		for (const id in MenuRegistry.getCommands()) {
+		for (const id of MenuRegistry.getCommands().keys()) {
 			addCommand(id, true);
 		}
-		for (const id in CommandsRegistry.getCommands()) {
+		for (const id of CommandsRegistry.getCommands().keys()) {
 			addCommand(id, false);
 		}
 

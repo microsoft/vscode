@@ -27,7 +27,8 @@ export class Link implements ILink {
 	toJSON(): ILink {
 		return {
 			range: this.range,
-			url: this.url
+			url: this.url,
+			tooltip: this.tooltip
 		};
 	}
 
@@ -39,17 +40,13 @@ export class Link implements ILink {
 		return this._link.url;
 	}
 
-	resolve(token: CancellationToken): Promise<URI> {
+	get tooltip(): string | undefined {
+		return this._link.tooltip;
+	}
+
+	async resolve(token: CancellationToken): Promise<URI | string> {
 		if (this._link.url) {
-			try {
-				if (typeof this._link.url === 'string') {
-					return Promise.resolve(URI.parse(this._link.url));
-				} else {
-					return Promise.resolve(this._link.url);
-				}
-			} catch (e) {
-				return Promise.reject(new Error('invalid'));
-			}
+			return this._link.url;
 		}
 
 		if (typeof this._provider.resolveLink === 'function') {
@@ -80,8 +77,8 @@ export class LinksList extends Disposable {
 			const newLinks = list.links.map(link => new Link(link, provider));
 			links = LinksList._union(links, newLinks);
 			// register disposables
-			if (isDisposable(provider)) {
-				this._register(provider);
+			if (isDisposable(list)) {
+				this._register(list);
 			}
 		}
 		this.links = links;
@@ -143,7 +140,14 @@ export function getLinks(model: ITextModel, token: CancellationToken): Promise<L
 		}, onUnexpectedExternalError);
 	});
 
-	return Promise.all(promises).then(() => new LinksList(coalesce(lists)));
+	return Promise.all(promises).then(() => {
+		const result = new LinksList(coalesce(lists));
+		if (!token.isCancellationRequested) {
+			return result;
+		}
+		result.dispose();
+		return new LinksList([]);
+	});
 }
 
 

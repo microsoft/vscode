@@ -9,6 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
 import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 interface ILineEdit {
 	startColumn: number;
@@ -106,11 +107,13 @@ suite('ModelLinesTokens', () => {
 
 	function testApplyEdits(initial: IBufferLineState[], edits: IEdit[], expected: IBufferLineState[]): void {
 		const initialText = initial.map(el => el.text).join('\n');
-		const model = new TextModel(initialText, TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		const model = createTextModel(initialText, TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
 		for (let lineIndex = 0; lineIndex < initial.length; lineIndex++) {
 			const lineTokens = initial[lineIndex].tokens;
 			const lineTextLength = model.getLineMaxColumn(lineIndex + 1) - 1;
-			model._tokens._setTokens(0, lineIndex, lineTextLength, TestToken.toTokens(lineTokens));
+			const tokens = TestToken.toTokens(lineTokens);
+			LineTokens.convertToEndOffset(tokens, lineTextLength);
+			model.setLineTokens(lineIndex + 1, tokens);
 		}
 
 		model.applyEdits(edits.map((ed) => ({
@@ -440,15 +443,17 @@ suite('ModelLinesTokens', () => {
 	}
 
 	test('insertion on empty line', () => {
-		const model = new TextModel('some text', TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
-		model._tokens._setTokens(0, 0, model.getLineMaxColumn(1) - 1, TestToken.toTokens([new TestToken(0, 1)]));
+		const model = createTextModel('some text', TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		const tokens = TestToken.toTokens([new TestToken(0, 1)]);
+		LineTokens.convertToEndOffset(tokens, model.getLineMaxColumn(1) - 1);
+		model.setLineTokens(1, tokens);
 
 		model.applyEdits([{
 			range: new Range(1, 1, 1, 10),
 			text: ''
 		}]);
 
-		model._tokens._setTokens(0, 0, model.getLineMaxColumn(1) - 1, new Uint32Array(0));
+		model.setLineTokens(1, new Uint32Array(0));
 
 		model.applyEdits([{
 			range: new Range(1, 1, 1, 1),
@@ -660,7 +665,7 @@ suite('ModelLinesTokens', () => {
 	test('updates tokens on insertion 10', () => {
 		testLineEditTokens(
 			'',
-			null!,
+			[],
 			[{
 				startColumn: 1,
 				endColumn: 1,

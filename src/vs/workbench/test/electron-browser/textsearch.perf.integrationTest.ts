@@ -11,13 +11,14 @@ import { createSyncDescriptor } from 'vs/platform/instantiation/common/descripto
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
 import * as path from 'vs/base/common/path';
-import { SearchService } from 'vs/workbench/services/search/node/searchService';
+import { LocalSearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEditorService, TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -32,9 +33,18 @@ import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/contrib/sea
 import { Event, Emitter } from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
-declare var __dirname: string;
+// declare var __dirname: string;
 
 // Checkout sources to run against:
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
@@ -58,18 +68,25 @@ suite.skip('TextSearch performance (integration)', () => {
 		const telemetryService = new TestTelemetryService();
 		const configurationService = new TestConfigurationService();
 		const textResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
+		const logService = new NullLogService();
+		const dialogService = new TestDialogService();
+		const notificationService = new TestNotificationService();
+		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
 			[ITextResourcePropertiesService, textResourcePropertiesService],
-			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService)],
+			[IDialogService, dialogService],
+			[INotificationService, notificationService],
+			[IUndoRedoService, undoRedoService],
+			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService(), logService, undoRedoService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
-			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
-			[ISearchService, createSyncDescriptor(SearchService)],
-			[ILogService, new NullLogService()]
+			[IUntitledTextEditorService, createSyncDescriptor(UntitledTextEditorService)],
+			[ISearchService, createSyncDescriptor(LocalSearchService)],
+			[ILogService, logService]
 		));
 
 		const queryOptions: ITextQueryBuilderOptions = {
@@ -144,12 +161,13 @@ suite.skip('TextSearch performance (integration)', () => {
 });
 
 class TestTelemetryService implements ITelemetryService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	public isOptedIn = true;
+	public sendErrorTelemetry = true;
 
 	public events: any[] = [];
 
-	private emitter = new Emitter<any>();
+	private readonly emitter = new Emitter<any>();
 
 	public get eventLogged(): Event<any> {
 		return this.emitter.event;
@@ -158,11 +176,26 @@ class TestTelemetryService implements ITelemetryService {
 	public setEnabled(value: boolean): void {
 	}
 
+	public setExperimentProperty(name: string, value: string): void {
+	}
+
 	public publicLog(eventName: string, data?: any): Promise<void> {
 		const event = { name: eventName, data: data };
 		this.events.push(event);
 		this.emitter.fire(event);
 		return Promise.resolve();
+	}
+
+	public publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as any);
+	}
+
+	public publicLogError(eventName: string, data?: any): Promise<void> {
+		return this.publicLog(eventName, data);
+	}
+
+	public publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLogError(eventName, data as any);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {

@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"scripts": {
 		"update-grammar": "node ../../build/npm/update-grammar.js textmate/perl.tmbundle Syntaxes/Perl.plist ./syntaxes/perl.tmLanguage.json Syntaxes/Perl%206.tmLanguage ./syntaxes/perl6.tmLanguage.json"

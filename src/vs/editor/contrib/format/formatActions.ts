@@ -6,13 +6,13 @@
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -24,42 +24,40 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Progress } from 'vs/platform/progress/common/progress';
 
-class FormatOnType implements editorCommon.IEditorContribution {
+class FormatOnType implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.autoFormat';
+	public static readonly ID = 'editor.contrib.autoFormat';
 
 	private readonly _editor: ICodeEditor;
-	private _callOnDispose: IDisposable[] = [];
-	private _callOnModel: IDisposable[] = [];
+	private readonly _callOnDispose = new DisposableStore();
+	private readonly _callOnModel = new DisposableStore();
 
 	constructor(
 		editor: ICodeEditor,
 		@IEditorWorkerService private readonly _workerService: IEditorWorkerService
 	) {
 		this._editor = editor;
-		this._callOnDispose.push(editor.onDidChangeConfiguration(() => this._update()));
-		this._callOnDispose.push(editor.onDidChangeModel(() => this._update()));
-		this._callOnDispose.push(editor.onDidChangeModelLanguage(() => this._update()));
-		this._callOnDispose.push(OnTypeFormattingEditProviderRegistry.onDidChange(this._update, this));
-	}
-
-	getId(): string {
-		return FormatOnType.ID;
+		this._callOnDispose.add(editor.onDidChangeConfiguration(() => this._update()));
+		this._callOnDispose.add(editor.onDidChangeModel(() => this._update()));
+		this._callOnDispose.add(editor.onDidChangeModelLanguage(() => this._update()));
+		this._callOnDispose.add(OnTypeFormattingEditProviderRegistry.onDidChange(this._update, this));
 	}
 
 	dispose(): void {
-		this._callOnDispose = dispose(this._callOnDispose);
-		this._callOnModel = dispose(this._callOnModel);
+		this._callOnDispose.dispose();
+		this._callOnModel.dispose();
 	}
 
 	private _update(): void {
 
 		// clean up
-		this._callOnModel = dispose(this._callOnModel);
+		this._callOnModel.clear();
 
 		// we are disabled
-		if (!this._editor.getConfiguration().contribInfo.formatOnType) {
+		if (!this._editor.getOption(EditorOption.formatOnType)) {
 			return;
 		}
 
@@ -81,7 +79,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		for (let ch of support.autoFormatTriggerCharacters) {
 			triggerChars.add(ch.charCodeAt(0));
 		}
-		this._callOnModel.push(this._editor.onDidType((text: string) => {
+		this._callOnModel.add(this._editor.onDidType((text: string) => {
 			let lastCharCode = text.charCodeAt(text.length - 1);
 			if (triggerChars.has(lastCharCode)) {
 				this._trigger(String.fromCharCode(lastCharCode));
@@ -141,7 +139,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			}
 
 			if (isNonEmptyArray(edits)) {
-				FormattingEdit.execute(this._editor, edits);
+				FormattingEdit.execute(this._editor, edits, true);
 				alertFormattingEdits(edits);
 			}
 
@@ -152,42 +150,35 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	}
 }
 
-class FormatOnPaste implements editorCommon.IEditorContribution {
+class FormatOnPaste implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.formatOnPaste';
+	public static readonly ID = 'editor.contrib.formatOnPaste';
 
-	private _callOnDispose: IDisposable[];
-	private _callOnModel: IDisposable[];
+	private readonly _callOnDispose = new DisposableStore();
+	private readonly _callOnModel = new DisposableStore();
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		this._callOnDispose = [];
-		this._callOnModel = [];
-
-		this._callOnDispose.push(editor.onDidChangeConfiguration(() => this._update()));
-		this._callOnDispose.push(editor.onDidChangeModel(() => this._update()));
-		this._callOnDispose.push(editor.onDidChangeModelLanguage(() => this._update()));
-		this._callOnDispose.push(DocumentRangeFormattingEditProviderRegistry.onDidChange(this._update, this));
-	}
-
-	getId(): string {
-		return FormatOnPaste.ID;
+		this._callOnDispose.add(editor.onDidChangeConfiguration(() => this._update()));
+		this._callOnDispose.add(editor.onDidChangeModel(() => this._update()));
+		this._callOnDispose.add(editor.onDidChangeModelLanguage(() => this._update()));
+		this._callOnDispose.add(DocumentRangeFormattingEditProviderRegistry.onDidChange(this._update, this));
 	}
 
 	dispose(): void {
-		this._callOnDispose = dispose(this._callOnDispose);
-		this._callOnModel = dispose(this._callOnModel);
+		this._callOnDispose.dispose();
+		this._callOnModel.dispose();
 	}
 
 	private _update(): void {
 
 		// clean up
-		this._callOnModel = dispose(this._callOnModel);
+		this._callOnModel.clear();
 
 		// we are disabled
-		if (!this.editor.getConfiguration().contribInfo.formatOnPaste) {
+		if (!this.editor.getOption(EditorOption.formatOnPaste)) {
 			return;
 		}
 
@@ -201,7 +192,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		this._callOnModel.push(this.editor.onDidPaste(range => this._trigger(range)));
+		this._callOnModel.add(this.editor.onDidPaste(({ range }) => this._trigger(range)));
 	}
 
 	private _trigger(range: Range): void {
@@ -222,14 +213,14 @@ class FormatDocumentAction extends EditorAction {
 			id: 'editor.action.formatDocument',
 			label: nls.localize('formatDocument.label', "Format Document"),
 			alias: 'Format Document',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
+			precondition: ContextKeyExpr.and(EditorContextKeys.notInCompositeEditor, EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, EditorContextKeys.hasDocumentFormattingProvider),
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				when: EditorContextKeys.hasDocumentFormattingProvider,
 				group: '1_modification',
 				order: 1.3
@@ -240,7 +231,7 @@ class FormatDocumentAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		if (editor.hasModel()) {
 			const instaService = accessor.get(IInstantiationService);
-			await instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, CancellationToken.None);
+			await instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, Progress.None, CancellationToken.None);
 		}
 	}
 }
@@ -251,14 +242,14 @@ class FormatSelectionAction extends EditorAction {
 		super({
 			id: 'editor.action.formatSelection',
 			label: nls.localize('formatSelection.label', "Format Selection"),
-			alias: 'Format Code',
+			alias: 'Format Selection',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider),
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, EditorContextKeys.hasDocumentSelectionFormattingProvider),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F),
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				when: ContextKeyExpr.and(EditorContextKeys.hasDocumentSelectionFormattingProvider, EditorContextKeys.hasNonEmptySelection),
 				group: '1_modification',
 				order: 1.31
@@ -280,8 +271,8 @@ class FormatSelectionAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(FormatOnType);
-registerEditorContribution(FormatOnPaste);
+registerEditorContribution(FormatOnType.ID, FormatOnType);
+registerEditorContribution(FormatOnPaste.ID, FormatOnPaste);
 registerEditorAction(FormatDocumentAction);
 registerEditorAction(FormatSelectionAction);
 

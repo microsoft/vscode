@@ -2,17 +2,17 @@
 # yarn lockfile v1
 
 
-"@types/node@^10.12.21":
-  version "10.12.21"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-10.12.21.tgz#7e8a0c34cf29f4e17a36e9bd0ea72d45ba03908e"
-  integrity sha512-CBgLNk4o3XMnqMc0rhb6lc77IwShMEglz05deDcn2lQxyXEZivfwgYJu7SMha9V5XcrP6qZuevTHV/QrN2vjKQ==
+"@types/node@^12.11.7":
+  version "12.11.7"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.11.7.tgz#57682a9771a3f7b09c2497f28129a0462966524a"
+  integrity sha512-JNbGaHFCLwgHn/iCckiGSOZ1XYHsKFwREtzPwSGCVld1SGhOlmZw2D4ZI94HQCrBHbADzW9m4LER/8olJTRGHA==
 
-jsonc-parser@2.0.2:
-  version "2.0.2"
-  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-2.0.2.tgz#42fcf56d70852a043fadafde51ddb4a85649978d"
-  integrity sha512-TSU435K5tEKh3g7bam1AFf+uZrISheoDsLlpmAo6wWZYqjsnd09lHYK1Qo+moK4Ikifev1Gdpa69g4NELKnCrQ==
+jsonc-parser@^2.2.1:
+  version "2.2.1"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-2.2.1.tgz#db73cd59d78cce28723199466b2a03d1be1df2bc"
+  integrity sha512-o6/yDBYccGvTz1+QFevz6l6OBZ2+fMVu2JZ9CIhzsYRX4mjaK5IyX9eldUdCmga16zlgQxyrj5pt9kzuj2C02w==
 
-vscode-nls@^4.0.0:
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.0.0.tgz#4001c8a6caba5cedb23a9c5ce1090395c0e44002"
-  integrity sha512-qCfdzcH+0LgQnBpZA53bA32kzp9rpq/f66Som577ObeuDlFIrtbEJ+A/+CCxjIh4G8dpJYNCKIsxpRAHIfsbNw==
+vscode-nls@^4.1.1:
+  version "4.1.1"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.1.1.tgz#f9916b64e4947b20322defb1e676a495861f133c"
+  integrity sha512-4R+2UoUUU/LdnMnFjePxfLqNhBS8lrAFyX7pjb2ud/lqDkrUavFUTcG7wR0HBZFakae0Q6KLBFjMS6W93F403A==

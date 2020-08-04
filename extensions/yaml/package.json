@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": {
 		"vscode": "*"
 	},
@@ -39,7 +40,7 @@
 			"[yaml]": {
 				"editor.insertSpaces": true,
 				"editor.tabSize": 2,
-				"editor.autoIndent": false
+				"editor.autoIndent": "advanced"
 			}
 		}
 	}

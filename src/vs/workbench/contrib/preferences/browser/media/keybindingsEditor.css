@@ -27,8 +27,6 @@
 
 .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .recording-badge {
 	margin-right: 8px;
-	padding: 0px 8px;
-	border-radius: 2px;
 }
 
 .keybindings-editor > .keybindings-header.small > .search-container > .keybindings-search-actions-container > .recording-badge,
@@ -45,31 +43,11 @@
 	margin-right: 4px;
 }
 
-.keybindings-editor .monaco-action-bar .action-item > .sort-by-precedence {
-	background: url('sort_precedence.svg') center center no-repeat;
-}
-
-.hc-black .keybindings-editor .monaco-action-bar .action-item > .sort-by-precedence,
-.vs-dark .keybindings-editor .monaco-action-bar .action-item > .sort-by-precedence {
-	background: url('sort_precedence_inverse.svg') center center no-repeat;
-}
-
-.keybindings-editor .monaco-action-bar .action-item > .record-keys {
-	background: url('record-keys.svg') center center no-repeat;
-}
-
-.hc-black .keybindings-editor .monaco-action-bar .action-item > .record-keys,
-.vs-dark .keybindings-editor .monaco-action-bar .action-item > .record-keys {
-	background: url('record-keys-inverse.svg') center center no-repeat;
-}
-
-.keybindings-editor .monaco-action-bar .action-item > .clear-input {
-	background: url('clear.svg') center center no-repeat;
-}
-
-.hc-black .keybindings-editor .monaco-action-bar .action-item > .clear-input,
-.vs-dark .keybindings-editor .monaco-action-bar .action-item > .clear-input {
-	background: url('clear-inverse.svg') center center no-repeat;
+.keybindings-editor .monaco-action-bar .action-item > .codicon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: inherit;
 }
 
 .keybindings-editor > .keybindings-header .open-keybindings-container {
@@ -104,13 +82,6 @@
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row {
 	cursor: default;
 	display: flex;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-list-header,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.odd:not(.focused):not(.selected):not(:hover),
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(:focus) .monaco-list-row.focused.odd:not(.selected):not(:hover),
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(.focused) .monaco-list-row.focused.odd:not(.selected):not(:hover) {
-	background-color: rgba(130, 130, 130, 0.04);
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-header > .header {
@@ -169,7 +140,6 @@
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column > .code {
 	font-family: var(--monaco-monospace-font);
 	font-size: 90%;
-	opacity: 0.8;
 	display: flex;
 	overflow: hidden;
 }
@@ -205,23 +175,4 @@
 	height: 16px;
 	cursor: pointer;
 	margin-top: 3px;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.edit {
-	background: url('edit.svg') center center no-repeat;
-	transform: rotate(-90deg);
-}
-
-.hc-black .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.edit,
-.vs-dark .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.edit {
-	background: url('edit_inverse.svg') center center no-repeat;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.add {
-	background: url('add.svg') center center no-repeat;
-}
-
-.hc-black .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.add,
-.vs-dark .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.add {
-	background: url('add_inverse.svg') center center no-repeat;
 }

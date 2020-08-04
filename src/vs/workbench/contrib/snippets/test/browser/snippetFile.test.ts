@@ -6,12 +6,13 @@
 import * as assert from 'assert';
 import { SnippetFile, Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { URI } from 'vs/base/common/uri';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 
 suite('Snippets', function () {
 
 	class TestSnippetFile extends SnippetFile {
 		constructor(filepath: URI, snippets: Snippet[]) {
-			super(SnippetSource.Extension, filepath, undefined, undefined, undefined!);
+			super(SnippetSource.Extension, filepath, undefined, undefined, undefined!, undefined!);
 			this.data.push(...snippets);
 		}
 	}
@@ -63,6 +64,23 @@ suite('Snippets', function () {
 		file.select('foo', bucket);
 		assert.equal(bucket.length, 2);
 
+	});
+
+	test('Snippet#needsClipboard', function () {
+
+		function assertNeedsClipboard(body: string, expected: boolean): void {
+			let snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
+			assert.equal(snippet.needsClipboard, expected);
+
+			assert.equal(SnippetParser.guessNeedsClipboard(body), expected);
+		}
+
+		assertNeedsClipboard('foo$CLIPBOARD', true);
+		assertNeedsClipboard('${CLIPBOARD}', true);
+		assertNeedsClipboard('foo${CLIPBOARD}bar', true);
+		assertNeedsClipboard('foo$clipboard', false);
+		assertNeedsClipboard('foo${clipboard}', false);
+		assertNeedsClipboard('baba', false);
 	});
 
 });

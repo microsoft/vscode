@@ -16,7 +16,8 @@ node build\lib\electron.js
 if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
 
 :: Run tests
-%CODE% .\test\electron\index.js %*
+set ELECTRON_ENABLE_LOGGING=1
+%CODE% .\test\unit\electron\index.js %*
 
 popd
 

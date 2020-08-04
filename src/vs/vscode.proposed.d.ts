@@ -16,79 +16,137 @@
 
 declare module 'vscode' {
 
-	//#region Joh - ExecutionContext
+	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
-	export enum ExtensionExecutionContext {
-		Local = 1,
-		Remote = 2
-	}
-
-	export interface ExtensionContext {
+	/**
+	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
+	 */
+	export interface AuthenticationProvidersChangeEvent {
 		/**
-		 * Describes the context in which this extension is executed, e.g.
-		 * a Node.js-context on the same machine or on a remote machine
+		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been added.
 		 */
-		executionContext: ExtensionExecutionContext;
-	}
-
-	//#endregion
-
-
-	//#region Joh - call hierarchy
-
-	export enum CallHierarchyDirection {
-		CallsFrom = 1,
-		CallsTo = 2,
-	}
-
-	export class CallHierarchyItem {
-		kind: SymbolKind;
-		name: string;
-		detail?: string;
-		uri: Uri;
-		range: Range;
-		selectionRange: Range;
-
-		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
-	}
-
-	export interface CallHierarchyItemProvider {
+		readonly added: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
-		 * Given a document and position compute a call hierarchy item. This is justed as
-		 * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
+		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed.
 		 */
-		provideCallHierarchyItem(
-			document: TextDocument,
-			postion: Position,
-			token: CancellationToken
-		): ProviderResult<CallHierarchyItem>;
+		readonly removed: ReadonlyArray<AuthenticationProviderInformation>;
+	}
+
+	/**
+	* An [event](#Event) which fires when an [AuthenticationSession](#AuthenticationSession) is added, removed, or changed.
+	*/
+	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
+		/**
+		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been added.
+		*/
+		readonly added: ReadonlyArray<string>;
 
 		/**
-		 * Resolve a call hierarchy item, e.g. compute all calls from or to a function.
-		 * The result is an array of item/location-tuples. The location in the returned tuples
-		 * is always relative to the "caller" with the caller either being the provided item or
-		 * the returned item.
+		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been removed.
+		 */
+		readonly removed: ReadonlyArray<string>;
+
+		/**
+		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been changed.
+		 */
+		readonly changed: ReadonlyArray<string>;
+	}
+
+	/**
+	 * **WARNING** When writing an AuthenticationProvider, `id` should be treated as part of your extension's
+	 * API, changing it is a breaking change for all extensions relying on the provider. The id is
+	 * treated case-sensitively.
+	 */
+	export interface AuthenticationProvider {
+		/**
+		 * Used as an identifier for extensions trying to work with a particular
+		 * provider: 'microsoft', 'github', etc. id must be unique, registering
+		 * another provider with the same id will fail.
+		 */
+		readonly id: string;
+
+		/**
+		 * The human-readable name of the provider.
+		 */
+		readonly label: string;
+
+		/**
+		 * Whether it is possible to be signed into multiple accounts at once with this provider
+		*/
+		readonly supportsMultipleAccounts: boolean;
+
+		/**
+		 * An [event](#Event) which fires when the array of sessions has changed, or data
+		 * within a session has changed.
+		 */
+		readonly onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
+
+		/**
+		 * Returns an array of current sessions.
+		 */
+		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
+
+		/**
+		 * Prompts a user to login.
+		 */
+		login(scopes: string[]): Thenable<AuthenticationSession>;
+
+		/**
+		 * Removes the session corresponding to session id.
+		 * @param sessionId The session id to log out of
+		 */
+		logout(sessionId: string): Thenable<void>;
+	}
+
+	export namespace authentication {
+		/**
+		 * Register an authentication provider.
 		 *
-		 * @param item A call hierarchy item previously returned from `provideCallHierarchyItem` or `resolveCallHierarchyItem`
-		 * @param direction Resolve calls from a function or calls to a function
-		 * @param token A cancellation token
+		 * There can only be one provider per id and an error is being thrown when an id
+		 * has already been used by another provider.
+		 *
+		 * @param provider The authentication provider provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		resolveCallHierarchyItem(
-			item: CallHierarchyItem,
-			direction: CallHierarchyDirection,
-			token: CancellationToken
-		): ProviderResult<[CallHierarchyItem, Location[]][]>;
-	}
+		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
 
-	export namespace languages {
-		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyItemProvider): Disposable;
+		/**
+		 * Fires with the provider id that was registered or unregistered.
+		 */
+		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
+
+		/**
+		 * @deprecated
+		 * The ids of the currently registered authentication providers.
+		 * @returns An array of the ids of authentication providers that are currently registered.
+		 */
+		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
+
+		/**
+		 * @deprecated
+		 * An array of the ids of authentication providers that are currently registered.
+		 */
+		export const providerIds: ReadonlyArray<string>;
+
+		/**
+		 * An array of the information of authentication providers that are currently registered.
+		 */
+		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
+
+		/**
+		 * @deprecated
+		* Logout of a specific session.
+		* @param providerId The id of the provider to use
+		* @param sessionId The session id to remove
+		* provider
+		*/
+		export function logout(providerId: string, sessionId: string): Thenable<void>;
 	}
 
 	//#endregion
 
-
-	//#region Alex - resolvers
+	//#region @alexdima - resolvers
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
@@ -101,6 +159,45 @@ declare module 'vscode' {
 		constructor(host: string, port: number);
 	}
 
+	export interface ResolvedOptions {
+		extensionHostEnv?: { [key: string]: string | null; };
+	}
+
+	export interface TunnelOptions {
+		remoteAddress: { port: number, host: string; };
+		// The desired local port. If this port can't be used, then another will be chosen.
+		localAddressPort?: number;
+		label?: string;
+	}
+
+	export interface TunnelDescription {
+		remoteAddress: { port: number, host: string; };
+		//The complete local address(ex. localhost:1234)
+		localAddress: { port: number, host: string; } | string;
+	}
+
+	export interface Tunnel extends TunnelDescription {
+		// Implementers of Tunnel should fire onDidDispose when dispose is called.
+		onDidDispose: Event<void>;
+		dispose(): void;
+	}
+
+	/**
+	 * Used as part of the ResolverResult if the extension has any candidate,
+	 * published, or forwarded ports.
+	 */
+	export interface TunnelInformation {
+		/**
+		 * Tunnels that are detected by the extension. The remotePort is used for display purposes.
+		 * The localAddress should be the complete local address (ex. localhost:1234) for connecting to the port. Tunnels provided through
+		 * detected are read-only from the forwarded ports UI.
+		 */
+		environmentTunnels?: TunnelDescription[];
+
+	}
+
+	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
+
 	export class RemoteAuthorityResolverError extends Error {
 		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
 		static TemporarilyNotAvailable(message?: string): RemoteAuthorityResolverError;
@@ -109,7 +206,41 @@ declare module 'vscode' {
 	}
 
 	export interface RemoteAuthorityResolver {
-		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolvedAuthority | Thenable<ResolvedAuthority>;
+		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
+		/**
+		 * Can be optionally implemented if the extension can forward ports better than the core.
+		 * When not implemented, the core will use its default forwarding logic.
+		 * When implemented, the core will use this to forward ports.
+		 */
+		tunnelFactory?: (tunnelOptions: TunnelOptions) => Thenable<Tunnel> | undefined;
+
+		/**
+		 * Provides filtering for candidate ports.
+		 */
+		showCandidatePort?: (host: string, port: number, detail: string) => Thenable<boolean>;
+	}
+
+	export namespace workspace {
+		/**
+		 * Forwards a port. If the current resolver implements RemoteAuthorityResolver:forwardPort then that will be used to make the tunnel.
+		 * By default, openTunnel only support localhost; however, RemoteAuthorityResolver:tunnelFactory can be used to support other ips.
+		 *
+		 * @throws When run in an environment without a remote.
+		 *
+		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 */
+		export function openTunnel(tunnelOptions: TunnelOptions): Thenable<Tunnel>;
+
+		/**
+		 * Gets an array of the currently available tunnels. This does not include environment tunnels, only tunnels that have been created by the user.
+		 * Note that these are of type TunnelDescription and cannot be disposed.
+		 */
+		export let tunnels: Thenable<TunnelDescription[]>;
+
+		/**
+		 * Fired when the list of tunnels has changed.
+		 */
+		export const onDidChangeTunnels: Event<void>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -120,11 +251,14 @@ declare module 'vscode' {
 
 	export interface ResourceLabelFormatting {
 		label: string; // myLabel:/${path}
+		// For historic reasons we use an or string here. Once we finalize this API we should start using enums instead and adopt it in extensions.
+		// eslint-disable-next-line vscode-dts-literal-or-types
 		separator: '/' | '\\' | '';
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;
 		workspaceSuffix?: string;
 		authorityPrefix?: string;
+		stripPathStartingSeparator?: boolean;
 	}
 
 	export namespace workspace {
@@ -134,39 +268,27 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region editor insets: https://github.com/microsoft/vscode/issues/85682
 
-	// #region Joh - code insets
-
-	/**
-	 */
-	export class CodeInset {
-		range: Range;
-		height?: number;
-		constructor(range: Range, height?: number);
+	export interface WebviewEditorInset {
+		readonly editor: TextEditor;
+		readonly line: number;
+		readonly height: number;
+		readonly webview: Webview;
+		readonly onDidDispose: Event<void>;
+		dispose(): void;
 	}
 
-	export interface CodeInsetProvider {
-		onDidChangeCodeInsets?: Event<void>;
-		provideCodeInsets(document: TextDocument, token: CancellationToken): ProviderResult<CodeInset[]>;
-		resolveCodeInset(codeInset: CodeInset, webview: Webview, token: CancellationToken): ProviderResult<CodeInset>;
-	}
-
-	export namespace languages {
-
-		/**
-		 * Register a code inset provider.
-		 *
-		 */
-		export function registerCodeInsetProvider(selector: DocumentSelector, provider: CodeInsetProvider): Disposable;
+	export namespace window {
+		export function createWebviewTextEditorInset(editor: TextEditor, line: number, height: number, options?: WebviewOptions): WebviewEditorInset;
 	}
 
 	//#endregion
 
-
-	//#region Joh - read/write in chunks
+	//#region read/write in chunks: https://github.com/microsoft/vscode/issues/84515
 
 	export interface FileSystemProvider {
-		open?(resource: Uri, options: { create: boolean }): number | Thenable<number>;
+		open?(resource: Uri, options: { create: boolean; }): number | Thenable<number>;
 		close?(fd: number): void | Thenable<void>;
 		read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
 		write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
@@ -174,7 +296,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Rob: search provider
+	//#region TextSearchProvider: https://github.com/microsoft/vscode/issues/59921
 
 	/**
 	 * The parameters of a query for text search.
@@ -208,7 +330,7 @@ declare module 'vscode' {
 
 	/**
 	 * A file glob pattern to match file paths against.
-	 * TODO@roblou - merge this with the GlobPattern docs/definition in vscode.d.ts.
+	 * TODO@roblourens merge this with the GlobPattern docs/definition in vscode.d.ts.
 	 * @see [GlobPattern](#GlobPattern)
 	 */
 	export type GlobString = string;
@@ -319,32 +441,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The parameters of a query for file search.
-	 */
-	export interface FileSearchQuery {
-		/**
-		 * The search pattern to match against file paths.
-		 */
-		pattern: string;
-	}
-
-	/**
-	 * Options that apply to file search.
-	 */
-	export interface FileSearchOptions extends SearchOptions {
-		/**
-		 * The maximum number of results to be returned.
-		 */
-		maxResults?: number;
-
-		/**
-		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
-		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
-		 */
-		session?: CancellationToken;
-	}
-
-	/**
 	 * A preview of the text result.
 	 */
 	export interface TextSearchMatchPreview {
@@ -404,6 +500,50 @@ declare module 'vscode' {
 	export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 	/**
+	 * A TextSearchProvider provides search results for text results inside files in the workspace.
+	 */
+	export interface TextSearchProvider {
+		/**
+		 * Provide results that match the given text pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+	}
+
+	//#endregion
+
+	//#region FileSearchProvider: https://github.com/microsoft/vscode/issues/73524
+
+	/**
+	 * The parameters of a query for file search.
+	 */
+	export interface FileSearchQuery {
+		/**
+		 * The search pattern to match against file paths.
+		 */
+		pattern: string;
+	}
+
+	/**
+	 * Options that apply to file search.
+	 */
+	export interface FileSearchOptions extends SearchOptions {
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults?: number;
+
+		/**
+		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
+		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
+		 */
+		session?: CancellationToken;
+	}
+
+	/**
 	 * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickopen or other extensions.
 	 *
 	 * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
@@ -422,19 +562,33 @@ declare module 'vscode' {
 		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
-	/**
-	 * A TextSearchProvider provides search results for text results inside files in the workspace.
-	 */
-	export interface TextSearchProvider {
+	export namespace workspace {
 		/**
-		 * Provide results that match the given text pattern.
-		 * @param query The parameters for this query.
-		 * @param options A set of options to consider while searching.
-		 * @param progress A progress callback that must be invoked for all results.
-		 * @param token A cancellation token.
+		 * Register a search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
+
+		/**
+		 * Register a text search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
 	}
+
+	//#endregion
+
+	//#region findTextInFiles: https://github.com/microsoft/vscode/issues/59924
 
 	/**
 	 * Options that can be set on a findTextInFiles search.
@@ -449,10 +603,15 @@ declare module 'vscode' {
 
 		/**
 		 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
-		 * apply, when `null` no excludes will apply.
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined`, default excludes will
+		 * apply.
 		 */
-		exclude?: GlobPattern | null;
+		exclude?: GlobPattern;
+
+		/**
+		 * Whether to use the default and user-configured excludes. Defaults to true.
+		 */
+		useDefaultExcludes?: boolean;
 
 		/**
 		 * The maximum number of results to search for
@@ -501,28 +660,6 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * Register a search provider.
-		 *
-		 * Only one provider can be registered per scheme.
-		 *
-		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
-		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
-
-		/**
-		 * Register a text search provider.
-		 *
-		 * Only one provider can be registered per scheme.
-		 *
-		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
-		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
-
-		/**
 		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
 		 * @param callback A callback, called for each result
@@ -544,7 +681,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joao: diff command
+	//#region diff command: https://github.com/microsoft/vscode/issues/84899
 
 	/**
 	 * The contiguous set of modified lines in a diff.
@@ -577,27 +714,19 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh: decorations
+	//#region file-decorations: https://github.com/microsoft/vscode/issues/54938
 
-	//todo@joh -> make class
-	export interface DecorationData {
+	export class Decoration {
 		letter?: string;
 		title?: string;
 		color?: ThemeColor;
 		priority?: number;
 		bubble?: boolean;
-		source?: string; // hacky... we should remove it and use equality under the hood
-	}
-
-	export interface SourceControlResourceDecorations {
-		source?: string;
-		letter?: string;
-		color?: ThemeColor;
 	}
 
 	export interface DecorationProvider {
 		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
-		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<DecorationData>;
+		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<Decoration>;
 	}
 
 	export namespace window {
@@ -606,9 +735,24 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region André: debug
+	//#region debug
 
-	// deprecated
+	export interface DebugSessionOptions {
+		/**
+		 * Controls whether this session should run without debugging, thus ignoring breakpoints.
+		 * When this property is not specified, the value from the parent session (if there is one) is used.
+		 */
+		noDebug?: boolean;
+
+		/**
+		 * Controls if the debug session's parent session is shown in the CALL STACK view even if it has only a single child.
+		 * By default, the debug session will never hide its parent.
+		 * If compact is true, debug sessions with a single child are hidden in the CALL STACK view to make the tree more compact.
+		 */
+		compact?: boolean;
+	}
+
+	// deprecated debug API
 
 	export interface DebugConfigurationProvider {
 		/**
@@ -618,12 +762,22 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
+	export namespace debug {
+
+		/**
+		 * Stop the given debug session or stop all debug sessions if no session is specified.
+		 * @param session The [debug session](#DebugSession) to stop or `undefined` for stopping all sessions.
+		 * @return A thenable that resolves when the sessions could be stopped successfully.
+		 */
+		export function stopDebugging(session: DebugSession | undefined): Thenable<void>;
+	}
+
 	//#endregion
 
-	//#region Rob, Matt: logging
+	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
 
 	/**
-	 * The severity level of a log message
+	 * @deprecated DO NOT USE, will be removed
 	 */
 	export enum LogLevel {
 		Trace = 1,
@@ -637,19 +791,19 @@ declare module 'vscode' {
 
 	export namespace env {
 		/**
-		 * Current logging level.
+		 * @deprecated DO NOT USE, will be removed
 		 */
 		export const logLevel: LogLevel;
 
 		/**
-		 * An [event](#Event) that fires when the log level has changed.
+		 * @deprecated DO NOT USE, will be removed
 		 */
 		export const onDidChangeLogLevel: Event<LogLevel>;
 	}
 
 	//#endregion
 
-	//#region Joao: SCM validation
+	//#region @joaomoreno: SCM validation
 
 	/**
 	 * Represents the validation type of the Source Control input.
@@ -699,7 +853,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joao: SCM selected provider
+	//#region @joaomoreno: SCM selected provider
 
 	export interface SourceControl {
 
@@ -716,543 +870,31 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joao: SCM Input Box
+	//#region Terminal data write event https://github.com/microsoft/vscode/issues/78502
 
-	/**
-	 * Represents the input box in the Source Control viewlet.
-	 */
-	export interface SourceControlInputBox {
-
+	export interface TerminalDataWriteEvent {
 		/**
-			* Controls whether the input box is visible (default is `true`).
-			*/
-		visible: boolean;
+		 * The [terminal](#Terminal) for which the data was written.
+		 */
+		readonly terminal: Terminal;
+		/**
+		 * The data being written.
+		 */
+		readonly data: string;
+	}
+
+	namespace window {
+		/**
+		 * An event which fires when the terminal's child pseudo-device is written to (the shell).
+		 * In other words, this provides access to the raw data stream from the process running
+		 * within the terminal, including VT sequences.
+		 */
+		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
 	}
 
 	//#endregion
 
-	//#region Comments
-	/**
-	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.
-	 */
-
-	interface CommentInfo {
-		/**
-		 * All of the comment threads associated with the document.
-		 */
-		threads: CommentThread[];
-
-		/**
-		 * The ranges of the document which support commenting.
-		 */
-		commentingRanges?: Range[];
-
-		/**
-		 * If it's in draft mode or not
-		 */
-		inDraftMode?: boolean;
-	}
-
-	/**
-	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
-	 */
-	export interface Comment {
-		/**
-		 * The display name of the user who created the comment
-		 */
-		readonly userName: string;
-
-		/**
-		 * The icon path for the user who created the comment
-		 */
-		readonly userIconPath?: Uri;
-
-		/**
-		 * The id of the comment
-		 *
-		 * @deprecated Use Id instead
-		 */
-		readonly commentId: string;
-
-		/**
-		 * @deprecated Use userIconPath instead. The avatar src of the user who created the comment
-		 */
-		gravatar?: string;
-
-		/**
-		 * Whether the current user has permission to edit the comment.
-		 *
-		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
-		 * if it is provided by a `DocumentCommentProvider` and  no `editComment` method is given.
-		 *
-		 * DEPRECATED, use editCommand
-		 */
-		canEdit?: boolean;
-
-		/**
-		 * Whether the current user has permission to delete the comment.
-		 *
-		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
-		 * if it is provided by a `DocumentCommentProvider` and  no `deleteComment` method is given.
-		 *
-		 * DEPRECATED, use deleteCommand
-		 */
-		canDelete?: boolean;
-
-		/**
-		 * @deprecated
-		 * The command to be executed if the comment is selected in the Comments Panel
-		 */
-		command?: Command;
-
-		/**
-		 * Deprecated
-		 */
-		isDraft?: boolean;
-
-		/**
-		 * The command to be executed when users try to delete the comment
-		 */
-		deleteCommand?: Command;
-
-		/**
-		 * Proposed Comment Reaction
-		 */
-		commentReactions?: CommentReaction[];
-	}
-
-	/**
-	 * Deprecated
-	 */
-	export interface CommentThreadChangedEvent {
-		/**
-		 * Added comment threads.
-		 */
-		readonly added: CommentThread[];
-
-		/**
-		 * Removed comment threads.
-		 */
-		readonly removed: CommentThread[];
-
-		/**
-		 * Changed comment threads.
-		 */
-		readonly changed: CommentThread[];
-
-		/**
-		 * Changed draft mode
-		 */
-		readonly inDraftMode: boolean;
-	}
-
-	/**
-	 * Comment Reactions
-	 * Stay in proposed.
-	 */
-	interface CommentReaction {
-		readonly label?: string;
-		readonly iconPath?: string | Uri;
-		count?: number;
-		readonly hasReacted?: boolean;
-	}
-
-	/**
-	 * DEPRECATED
-	 */
-	interface DocumentCommentProvider {
-		/**
-		 * Provide the commenting ranges and comment threads for the given document. The comments are displayed within the editor.
-		 */
-		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
-
-		/**
-		 * Called when a user adds a new comment thread in the document at the specified range, with body text.
-		 */
-		createNewCommentThread(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-
-		/**
-		 * Called when a user replies to a new comment thread in the document at the specified range, with body text.
-		 */
-		replyToCommentThread(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-
-		/**
-		 * Called when a user edits the comment body to the be new text.
-		 */
-		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<void>;
-
-		/**
-		 * Called when a user deletes the comment.
-		 */
-		deleteComment?(document: TextDocument, comment: Comment, token: CancellationToken): Promise<void>;
-
-		startDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
-		deleteDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
-		finishDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
-
-		startDraftLabel?: string;
-		deleteDraftLabel?: string;
-		finishDraftLabel?: string;
-
-		addReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
-		deleteReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
-		reactionGroup?: CommentReaction[];
-
-		/**
-		 * Notify of updates to comment threads.
-		 */
-		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
-	}
-
-	/**
-	 * DEPRECATED
-	 */
-	interface WorkspaceCommentProvider {
-		/**
-		 * Provide all comments for the workspace. Comments are shown within the comments panel. Selecting a comment
-		 * from the panel runs the comment's command.
-		 */
-		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-
-		/**
-		 * Notify of updates to comment threads.
-		 */
-		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
-	}
-
-	/**
-	 * Stay in proposed
-	 */
-	export interface CommentReactionProvider {
-		availableReactions: CommentReaction[];
-		toggleReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
-	}
-
-	export interface CommentThread {
-		/**
-		 * The uri of the document the thread has been created on.
-		 */
-		readonly resource: Uri;
-
-		/**
-		 * Optional additonal commands.
-		 *
-		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
-		 */
-		additionalCommands?: Command[];
-
-		/**
-		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
-		 * when the user collapses a comment thread that has no comments in it.
-		 */
-		deleteCommand?: Command;
-	}
-
-
-	export interface CommentController {
-		/**
-		 * Optional reaction provider
-		 * Stay in proposed.
-		 */
-		reactionProvider?: CommentReactionProvider;
-	}
-
-	export interface CommentController {
-		/**
-		 * The active [comment thread](#CommentThread) or `undefined`. The `activeCommentThread` is the comment thread of
-		 * the comment widget that currently has focus. It's `undefined` when the focus is not in any comment thread widget, or
-		 * the comment widget created from [comment thread template](#CommentThreadTemplate).
-		 */
-		readonly activeCommentThread: CommentThread | undefined;
-	}
-
-	namespace workspace {
-		/**
-		 * DEPRECATED
-		 * Use vscode.comment.createCommentController instead.
-		 */
-		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
-		/**
-		 * DEPRECATED
-		 * Use vscode.comment.createCommentController instead and we don't differentiate document comments and workspace comments anymore.
-		 */
-		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
-	}
-
-	/**
-	 * Collapsible state of a [comment thread](#CommentThread)
-	 */
-	export enum CommentThreadCollapsibleState {
-		/**
-		 * Determines an item is collapsed
-		 */
-		Collapsed = 0,
-
-		/**
-		 * Determines an item is expanded
-		 */
-		Expanded = 1
-	}
-
-	/**
-	 * A collection of [comments](#Comment) representing a conversation at a particular range in a document.
-	 */
-	export interface CommentThread {
-		/**
-		 * A unique identifier of the comment thread.
-		 */
-		readonly id: string;
-
-		/**
-		 * The uri of the document the thread has been created on.
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * The range the comment thread is located within the document. The thread icon will be shown
-		 * at the first line of the range.
-		 */
-		readonly range: Range;
-
-		/**
-		 * The ordered comments of the thread.
-		 */
-		comments: Comment[];
-
-		/**
-		 * Whether the thread should be collapsed or expanded when opening the document.
-		 * Defaults to Collapsed.
-		 */
-		collapsibleState: CommentThreadCollapsibleState;
-
-		/**
-		 * The optional human-readable label describing the [Comment Thread](#CommentThread)
-		 */
-		label?: string;
-
-		/**
-		 * Optional accept input command
-		 *
-		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
-		 * This command will be invoked when users the user accepts the value in the comment editor.
-		 * This command will disabled when the comment editor is empty.
-		 */
-		acceptInputCommand?: Command;
-
-
-		/**
-		 * Dispose this comment thread.
-		 *
-		 * Once disposed, this comment thread will be removed from visible editors and Comment Panel when approriate.
-		 */
-		dispose(): void;
-	}
-
-	/**
-	 * Author information of a [comment](#Comment)
-	 */
-
-	export interface CommentAuthorInformation {
-		/**
-		 * The display name of the author of the comment
-		 */
-		name: string;
-
-		/**
-		 * The optional icon path for the author
-		 */
-		iconPath?: Uri;
-	}
-
-	/**
-	 * Author information of a [comment](#Comment)
-	 */
-
-	export interface CommentAuthorInformation {
-		/**
-		 * The display name of the author of the comment
-		 */
-		name: string;
-
-		/**
-		 * The optional icon path for the author
-		 */
-		iconPath?: Uri;
-	}
-
-	/**
-	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
-	 */
-	export interface Comment {
-		/**
-		 * The id of the comment
-		 */
-		id: string;
-
-		/**
-		 * The human-readable comment body
-		 */
-		body: MarkdownString;
-
-		/**
-		 * The author information of the comment
-		 */
-		author: CommentAuthorInformation;
-
-		/**
-		 * Optional label describing the [Comment](#Comment)
-		 * Label will be rendered next to authorName if exists.
-		 */
-		label?: string;
-
-		/**
-		 * The command to be executed if the comment is selected in the Comments Panel
-		 */
-		selectCommand?: Command;
-
-		/**
-		 * The command to be executed when users try to save the edits to the comment
-		 */
-		editCommand?: Command;
-	}
-
-	/**
-	 * The comment input box in Comment Widget.
-	 */
-	export interface CommentInputBox {
-		/**
-		 * Setter and getter for the contents of the comment input box
-		 */
-		value: string;
-
-		/**
-		 * The uri of the document comment input box has been created on
-		 */
-		resource: Uri;
-
-		/**
-		 * The range the comment input box is located within the document
-		 */
-		range: Range;
-	}
-
-	/**
-	 * Commenting range provider for a [comment controller](#CommentController).
-	 */
-	export interface CommentingRangeProvider {
-		/**
-		 * Provide a list of ranges which allow new comment threads creation or null for a given document
-		 */
-		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
-	}
-
-	/**
-	 * Comment thread template for new comment thread creation.
-	 */
-	export interface CommentThreadTemplate {
-		/**
-		 * The human-readable label describing the [Comment Thread](#CommentThread)
-		 */
-		readonly label: string;
-
-		/**
-		 * Optional accept input command
-		 *
-		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
-		 * This command will be invoked when users the user accepts the value in the comment editor.
-		 * This command will disabled when the comment editor is empty.
-		 */
-		readonly acceptInputCommand?: Command;
-
-		/**
-		 * Optional additonal commands.
-		 *
-		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
-		 */
-		readonly additionalCommands?: Command[];
-
-		/**
-		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
-		 * when the user collapses a comment thread that has no comments in it.
-		 */
-		readonly deleteCommand?: Command;
-	}
-
-	/**
-	 * A comment controller is able to provide [comments](#CommentThread) support to the editor and
-	 * provide users various ways to interact with comments.
-	 */
-	export interface CommentController {
-		/**
-		 * The id of this comment controller.
-		 */
-		readonly id: string;
-
-		/**
-		 * The human-readable label of this comment controller.
-		 */
-		readonly label: string;
-
-		/**
-		 * The active [comment input box](#CommentInputBox) or `undefined`. The active `inputBox` is the input box of
-		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any CommentInputBox.
-		 */
-		readonly inputBox: CommentInputBox | undefined;
-
-		/**
-		 * Optional comment thread template information.
-		 *
-		 * The comment controller will use this information to create the comment widget when users attempt to create new comment thread
-		 * from the gutter or command palette.
-		 *
-		 * When users run `CommentThreadTemplate.acceptInputCommand` or `CommentThreadTemplate.additionalCommands`, extensions should create
-		 * the approriate [CommentThread](#CommentThread).
-		 *
-		 * If not provided, users won't be able to create new comment threads in the editor.
-		 */
-		template?: CommentThreadTemplate;
-
-		/**
-		 * Optional commenting range provider. Provide a list [ranges](#Range) which support commenting to any given resource uri.
-		 *
-		 * If not provided and `emptyCommentThreadFactory` exits, users can leave comments in any document opened in the editor.
-		 */
-		commentingRangeProvider?: CommentingRangeProvider;
-
-		/**
-		 * Create a [comment thread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
-		 * and Comments Panel once created.
-		 *
-		 * @param id An `id` for the comment thread.
-		 * @param resource The uri of the document the thread has been created on.
-		 * @param range The range the comment thread is located within the document.
-		 * @param comments The ordered comments of the thread.
-		 */
-		createCommentThread(id: string, uri: Uri, range: Range, comments: Comment[]): CommentThread;
-
-		/**
-		 * Dispose this comment controller.
-		 *
-		 * Once disposed, all [comment threads](#CommentThread) created by this comment controller will also be removed from the editor
-		 * and Comments Panel.
-		 */
-		dispose(): void;
-	}
-
-	namespace comment {
-		/**
-		 * Creates a new [comment controller](#CommentController) instance.
-		 *
-		 * @param id An `id` for the comment controller.
-		 * @param label A human-readable string for the comment controller.
-		 * @return An instance of [comment controller](#CommentController).
-		 */
-		export function createCommentController(id: string, label: string): CommentController;
-	}
-
-	//#endregion
-
-	//#region Terminal
+	//#region Terminal dimensions property and change event https://github.com/microsoft/vscode/issues/55718
 
 	/**
 	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
@@ -1268,7 +910,7 @@ declare module 'vscode' {
 		readonly dimensions: TerminalDimensions;
 	}
 
-	namespace window {
+	export namespace window {
 		/**
 		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
 		 */
@@ -1282,139 +924,98 @@ declare module 'vscode' {
 		 * created.
 		 */
 		readonly dimensions: TerminalDimensions | undefined;
-
-		/**
-		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
-		 * provides access to the raw data stream from the process running within the terminal,
-		 * including VT sequences.
-		 */
-		readonly onDidWriteData: Event<string>;
-	}
-
-	/**
-	 * Represents the dimensions of a terminal.
-	 */
-	export interface TerminalDimensions {
-		/**
-		 * The number of columns in the terminal.
-		 */
-		readonly columns: number;
-
-		/**
-		 * The number of rows in the terminal.
-		 */
-		readonly rows: number;
-	}
-
-	/**
-	 * Represents a terminal without a process where all interaction and output in the terminal is
-	 * controlled by an extension. This is similar to an output window but has the same VT sequence
-	 * compatibility as the regular terminal.
-	 *
-	 * Note that an instance of [Terminal](#Terminal) will be created when a TerminalRenderer is
-	 * created with all its APIs available for use by extensions. When using the Terminal object
-	 * of a TerminalRenderer it acts just like normal only the extension that created the
-	 * TerminalRenderer essentially acts as a process. For example when an
-	 * [Terminal.onDidWriteData](#Terminal.onDidWriteData) listener is registered, that will fire
-	 * when [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
-	 * [Terminal.sendText](#Terminal.sendText) is triggered that will fire the
-	 * [TerminalRenderer.onDidAcceptInput](#TerminalRenderer.onDidAcceptInput) event.
-	 *
-	 * **Example:** Create a terminal renderer, show it and write hello world in red
-	 * ```typescript
-	 * const renderer = window.createTerminalRenderer('foo');
-	 * renderer.terminal.then(t => t.show());
-	 * renderer.write('\x1b[31mHello world\x1b[0m');
-	 * ```
-	 */
-	export interface TerminalRenderer {
-		/**
-		 * The name of the terminal, this will appear in the terminal selector.
-		 */
-		name: string;
-
-		/**
-		 * The dimensions of the terminal, the rows and columns of the terminal can only be set to
-		 * a value smaller than the maximum value, if this is undefined the terminal will auto fit
-		 * to the maximum value [maximumDimensions](TerminalRenderer.maximumDimensions).
-		 *
-		 * **Example:** Override the dimensions of a TerminalRenderer to 20 columns and 10 rows
-		 * ```typescript
-		 * terminalRenderer.dimensions = {
-		 *   cols: 20,
-		 *   rows: 10
-		 * };
-		 * ```
-		 */
-		dimensions: TerminalDimensions | undefined;
-
-		/**
-		 * The maximum dimensions of the terminal, this will be undefined immediately after a
-		 * terminal renderer is created and also until the terminal becomes visible in the UI.
-		 * Listen to [onDidChangeMaximumDimensions](TerminalRenderer.onDidChangeMaximumDimensions)
-		 * to get notified when this value changes.
-		 */
-		readonly maximumDimensions: TerminalDimensions | undefined;
-
-		/**
-		 * The corresponding [Terminal](#Terminal) for this TerminalRenderer.
-		 */
-		readonly terminal: Terminal;
-
-		/**
-		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends
-		 * text to the underlying _process_, this will write the text to the terminal itself.
-		 *
-		 * **Example:** Write red text to the terminal
-		 * ```typescript
-		 * terminalRenderer.write('\x1b[31mHello world\x1b[0m');
-		 * ```
-		 *
-		 * **Example:** Move the cursor to the 10th row and 20th column and write an asterisk
-		 * ```typescript
-		 * terminalRenderer.write('\x1b[10;20H*');
-		 * ```
-		 *
-		 * @param text The text to write.
-		 */
-		write(text: string): void;
-
-		/**
-		 * An event which fires on keystrokes in the terminal or when an extension calls
-		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
-		 * corresponding VT sequence representation.
-		 *
-		 * **Example:** Simulate interaction with the terminal from an outside extension or a
-		 * workbench command such as `workbench.action.terminal.runSelectedText`
-		 * ```typescript
-		 * const terminalRenderer = window.createTerminalRenderer('test');
-		 * terminalRenderer.onDidAcceptInput(data => {
-		 *   console.log(data); // 'Hello world'
-		 * });
-		 * terminalRenderer.terminal.sendText('Hello world');
-		 * ```
-		 */
-		readonly onDidAcceptInput: Event<string>;
-
-		/**
-		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maximumDimensions) of
-		 * the terminal renderer change.
-		 */
-		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
-	}
-
-	export namespace window {
-		/**
-		 * Create a [TerminalRenderer](#TerminalRenderer).
-		 *
-		 * @param name The name of the terminal renderer, this shows up in the terminal selector.
-		 */
-		export function createTerminalRenderer(name: string): TerminalRenderer;
 	}
 
 	//#endregion
 
-	//#region Joh -> exclusive document filters
+	//#region Terminal link handlers https://github.com/microsoft/vscode/issues/91606
+
+	export namespace window {
+		/**
+		 * Register a [TerminalLinkHandler](#TerminalLinkHandler) that can be used to intercept and
+		 * handle links that are activated within terminals.
+		 * @param handler The link handler being registered.
+		 * @return A disposable that unregisters the link handler.
+		 */
+		export function registerTerminalLinkHandler(handler: TerminalLinkHandler): Disposable;
+	}
+
+	/**
+	 * Describes how to handle terminal links.
+	 */
+	export interface TerminalLinkHandler {
+		/**
+		 * Handles a link that is activated within the terminal.
+		 *
+		 * @param terminal The terminal the link was activated on.
+		 * @param link The text of the link activated.
+		 * @return Whether the link was handled, if the link was handled this link will not be
+		 * considered by any other extension or by the default built-in link handler.
+		 */
+		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
+	}
+
+	//#endregion
+
+	//#region Terminal link provider https://github.com/microsoft/vscode/issues/91606
+
+	export namespace window {
+		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
+	}
+
+	export interface TerminalLinkContext {
+		/**
+		 * This is the text from the unwrapped line in the terminal.
+		 */
+		line: string;
+
+		/**
+		 * The terminal the link belongs to.
+		 */
+		terminal: Terminal;
+	}
+
+	export interface TerminalLinkProvider<T extends TerminalLink = TerminalLink> {
+		/**
+		 * Provide terminal links for the given context. Note that this can be called multiple times
+		 * even before previous calls resolve, make sure to not share global objects (eg. `RegExp`)
+		 * that could have problems when asynchronous usage may overlap.
+		 * @param context Information about what links are being provided for.
+		 * @param token A cancellation token.
+		 * @return A list of terminal links for the given line.
+		 */
+		provideTerminalLinks(context: TerminalLinkContext, token: CancellationToken): ProviderResult<T[]>
+
+		/**
+		 * Handle an activated terminal link.
+		 */
+		handleTerminalLink(link: T): ProviderResult<void>;
+	}
+
+	export interface TerminalLink {
+		/**
+		 * The start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
+		 */
+		startIndex: number;
+
+		/**
+		 * The length of the link on [TerminalLinkContext.line](#TerminalLinkContext.line]
+		 */
+		length: number;
+
+		/**
+		 * The tooltip text when you hover over this link.
+		 *
+		 * If a tooltip is provided, is will be displayed in a string that includes instructions on
+		 * how to trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary
+		 * depending on OS, user settings, and localization.
+		 */
+		tooltip?: string;
+	}
+
+	//#endregion
+
+	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
 		exclusive?: boolean;
@@ -1422,25 +1023,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
-	export interface FileRenameEvent {
-		readonly oldUri: Uri;
-		readonly newUri: Uri;
-	}
-
-	export interface FileWillRenameEvent {
-		readonly oldUri: Uri;
-		readonly newUri: Uri;
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
-	}
-
-	export namespace workspace {
-		export const onWillRenameFile: Event<FileWillRenameEvent>;
-		export const onDidRenameFile: Event<FileRenameEvent>;
-	}
-	//#endregion
-
-	//#region Alex - OnEnter enhancement
+	//#region @alexdima - OnEnter enhancement
 	export interface OnEnterRule {
 		/**
 		 * This rule will only execute if the text above the this line matches this regular expression.
@@ -1449,17 +1032,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Tree View
-
-	export interface TreeView<T> {
-
-		/**
-		 * An optional human-readable message that will be rendered in the view.
-		 */
-		message?: string | MarkdownString;
-
-	}
-
+	//#region Tree View: https://github.com/microsoft/vscode/issues/61313
 	/**
 	 * Label describing the [Tree item](#TreeItem)
 	 */
@@ -1478,11 +1051,21 @@ declare module 'vscode' {
 
 	}
 
+	// https://github.com/microsoft/vscode/issues/100741
+	export interface TreeDataProvider<T> {
+		resolveTreeItem?(element: T, item: TreeItem2): TreeItem2 | Thenable<TreeItem2>;
+	}
+
 	export class TreeItem2 extends TreeItem {
 		/**
 		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
 		 */
 		label?: string | TreeItemLabel | /* for compilation */ any;
+
+		/**
+		 * Content to be shown when you hover over the tree item.
+		 */
+		tooltip?: string | MarkdownString | /* for compilation */ any;
 
 		/**
 		 * @param label Label describing this item
@@ -1492,49 +1075,28 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	/**
-	 * Class used to execute an extension callback as a task.
-	 */
-	export class CustomExecution {
-		/**
-		 * @param callback The callback that will be called when the extension callback task is executed.
-		 */
-		constructor(callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>);
-
-		/**
-		 * The callback used to execute the task.
-		 * @param terminalRenderer Used by the task to render output and receive input.
-		 * @param cancellationToken Cancellation used to signal a cancel request to the executing task.
-		 * @returns The callback should return '0' for success and a non-zero value for failure.
-		 */
-		callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>;
-	}
-
+	//#region CustomExecution: https://github.com/microsoft/vscode/issues/81007
 	/**
 	 * A task to execute
 	 */
 	export class Task2 extends Task {
-		/**
-		 * Creates a new task.
-		 *
-		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder.
-		 * @param name The task's name. Is presented in the user interface.
-		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
-		 * @param execution The process or shell execution.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
-		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
-
-		/**
-		 * The task's execution engine
-		 */
-		execution2?: ProcessExecution | ShellExecution | CustomExecution;
+		detail?: string;
 	}
 
-	//#region Tasks
+	export class CustomExecution2 extends CustomExecution {
+		/**
+		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
+		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
+		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
+		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
+		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
+		 * @param callback The callback that will be called when the task is started by a user.
+		 */
+		constructor(callback: (resolvedDefinition?: TaskDefinition) => Thenable<Pseudoterminal>);
+	}
+	//#endregion
+
+	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
 	export interface TaskPresentationOptions {
 		/**
 		 * Controls whether the task is executed in a specific terminal group using split panes.
@@ -1543,42 +1105,976 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Workspace URI Ben
+	//#region Status bar item with ID and Name: https://github.com/microsoft/vscode/issues/74972
 
-	export namespace workspace {
+	export namespace window {
 
 		/**
-		 * The location of the workspace file, for example:
-		 *
-		 * `file:///Users/name/Development/myProject.code-workspace`
-		 *
-		 * or
-		 *
-		 * `untitled:1555503116870`
-		 *
-		 * for a workspace that is untitled and not yet saved.
-		 *
-		 * Depending on the workspace that is opened, the value will be:
-		 *  * `undefined` when no workspace or  a single folder is opened
-		 *  * the path of the workspace file as `Uri` otherwise. if the workspace
-		 * is untitled, the returned URI will use the `untitled:` scheme
-		 *
-		 * The location can e.g. be used with the `vscode.openFolder` command to
-		 * open the workspace again after it has been closed.
-		 *
-		 * **Example:**
-		 * ```typescript
-		 * vscode.commands.executeCommand('vscode.openFolder', uriOfWorkspace);
-		 * ```
-		 *
-		 * **Note:** it is not advised to use `workspace.workspaceFile` to write
-		 * configuration data into the file. You can use `workspace.getConfiguration().update()`
-		 * for that purpose which will work both when a single folder is opened as
-		 * well as an untitled or saved workspace.
+		 * Options to configure the status bar item.
 		 */
-		export const workspaceFile: Uri | undefined;
+		export interface StatusBarItemOptions {
+
+			/**
+			 * A unique identifier of the status bar item. The identifier
+			 * is for example used to allow a user to show or hide the
+			 * status bar item in the UI.
+			 */
+			id: string;
+
+			/**
+			 * A human readable name of the status bar item. The name is
+			 * for example used as a label in the UI to show or hide the
+			 * status bar item.
+			 */
+			name: string;
+
+			/**
+			 * Accessibility information used when screen reader interacts with this status bar item.
+			 */
+			accessibilityInformation?: AccessibilityInformation;
+
+			/**
+			 * The alignment of the status bar item.
+			 */
+			alignment?: StatusBarAlignment;
+
+			/**
+			 * The priority of the status bar item. Higher value means the item should
+			 * be shown more to the left.
+			 */
+			priority?: number;
+		}
+
+		/**
+		 * Creates a status bar [item](#StatusBarItem).
+		 *
+		 * @param options The options of the item. If not provided, some default values
+		 * will be assumed. For example, the `StatusBarItemOptions.id` will be the id
+		 * of the extension and the `StatusBarItemOptions.name` will be the extension name.
+		 * @return A new status bar item.
+		 */
+		export function createStatusBarItem(options?: StatusBarItemOptions): StatusBarItem;
 	}
 
 	//#endregion
 
+	//#region OnTypeRename: https://github.com/microsoft/vscode/issues/88424
+
+	/**
+	 * The rename provider interface defines the contract between extensions and
+	 * the live-rename feature.
+	 */
+	export interface OnTypeRenameProvider {
+		/**
+		 * Provide a list of ranges that can be live renamed together.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return A list of ranges that can be live-renamed togehter. The ranges must have
+		 * identical length and contain identical text content. The ranges cannot overlap.
+		 */
+		provideOnTypeRenameRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+	}
+
+	namespace languages {
+		/**
+		 * Register a rename provider that works on type.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An on type rename provider.
+		 * @param stopPattern Stop on type renaming when input text matches the regular expression. Defaults to `^\s`.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerOnTypeRenameProvider(selector: DocumentSelector, provider: OnTypeRenameProvider, stopPattern?: RegExp): Disposable;
+	}
+
+	//#endregion
+
+	//#region Custom editor move https://github.com/microsoft/vscode/issues/86146
+
+	// TODO: Also for custom editor
+
+	export interface CustomTextEditorProvider {
+
+		/**
+		 * Handle when the underlying resource for a custom editor is renamed.
+		 *
+		 * This allows the webview for the editor be preserved throughout the rename. If this method is not implemented,
+		 * VS Code will destory the previous custom editor and create a replacement one.
+		 *
+		 * @param newDocument New text document to use for the custom editor.
+		 * @param existingWebviewPanel Webview panel for the custom editor.
+		 * @param token A cancellation token that indicates the result is no longer needed.
+		 *
+		 * @return Thenable indicating that the webview editor has been moved.
+		 */
+		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
+	}
+
+	//#endregion
+
+	//#region allow QuickPicks to skip sorting: https://github.com/microsoft/vscode/issues/73904
+
+	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
+		/**
+		 * An optional flag to sort the final results by index of first query match in label. Defaults to true.
+		 */
+		sortByLabel: boolean;
+	}
+
+	//#endregion
+
+	//#region @rebornix: Notebook
+
+	export enum CellKind {
+		Markdown = 1,
+		Code = 2
+	}
+
+	export enum CellOutputKind {
+		Text = 1,
+		Error = 2,
+		Rich = 3
+	}
+
+	export interface CellStreamOutput {
+		outputKind: CellOutputKind.Text;
+		text: string;
+	}
+
+	export interface CellErrorOutput {
+		outputKind: CellOutputKind.Error;
+		/**
+		 * Exception Name
+		 */
+		ename: string;
+		/**
+		 * Exception Value
+		 */
+		evalue: string;
+		/**
+		 * Exception call stack
+		 */
+		traceback: string[];
+	}
+
+	export interface NotebookCellOutputMetadata {
+		/**
+		 * Additional attributes of a cell metadata.
+		 */
+		custom?: { [key: string]: any };
+	}
+
+	export interface CellDisplayOutput {
+		outputKind: CellOutputKind.Rich;
+		/**
+		 * { mime_type: value }
+		 *
+		 * Example:
+		 * ```json
+		 * {
+		 *   "outputKind": vscode.CellOutputKind.Rich,
+		 *   "data": {
+		 *      "text/html": [
+		 *          "<h1>Hello</h1>"
+		 *       ],
+		 *      "text/plain": [
+		 *        "<IPython.lib.display.IFrame at 0x11dee3e80>"
+		 *      ]
+		 *   }
+		 * }
+		 */
+		data: { [key: string]: any; };
+
+		readonly metadata?: NotebookCellOutputMetadata;
+	}
+
+	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
+
+	export enum NotebookCellRunState {
+		Running = 1,
+		Idle = 2,
+		Success = 3,
+		Error = 4
+	}
+
+	export enum NotebookRunState {
+		Running = 1,
+		Idle = 2
+	}
+
+	export interface NotebookCellMetadata {
+		/**
+		 * Controls if the content of a cell is editable or not.
+		 */
+		editable?: boolean;
+
+		/**
+		 * Controls if the cell is executable.
+		 * This metadata is ignored for markdown cell.
+		 */
+		runnable?: boolean;
+
+		/**
+		 * Controls if the cell has a margin to support the breakpoint UI.
+		 * This metadata is ignored for markdown cell.
+		 */
+		breakpointMargin?: boolean;
+
+		/**
+		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
+		 * Defaults to true.
+		 */
+		hasExecutionOrder?: boolean;
+
+		/**
+		 * The order in which this cell was executed.
+		 */
+		executionOrder?: number;
+
+		/**
+		 * A status message to be shown in the cell's status bar
+		 */
+		statusMessage?: string;
+
+		/**
+		 * The cell's current run state
+		 */
+		runState?: NotebookCellRunState;
+
+		/**
+		 * If the cell is running, the time at which the cell started running
+		 */
+		runStartTime?: number;
+
+		/**
+		 * The total duration of the cell's last run
+		 */
+		lastRunDuration?: number;
+
+		/**
+		 * Whether a code cell's editor is collapsed
+		 */
+		inputCollapsed?: boolean;
+
+		/**
+		 * Whether a code cell's outputs are collapsed
+		 */
+		outputCollapsed?: boolean;
+
+		/**
+		 * Additional attributes of a cell metadata.
+		 */
+		custom?: { [key: string]: any };
+	}
+
+	export interface NotebookCell {
+		readonly notebook: NotebookDocument;
+		readonly uri: Uri;
+		readonly cellKind: CellKind;
+		readonly document: TextDocument;
+		language: string;
+		outputs: CellOutput[];
+		metadata: NotebookCellMetadata;
+	}
+
+	export interface NotebookDocumentMetadata {
+		/**
+		 * Controls if users can add or delete cells
+		 * Defaults to true
+		 */
+		editable?: boolean;
+
+		/**
+		 * Controls whether the full notebook can be run at once.
+		 * Defaults to true
+		 */
+		runnable?: boolean;
+
+		/**
+		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
+		 * Defaults to true.
+		 */
+		cellEditable?: boolean;
+
+		/**
+		 * Default value for [cell runnable metadata](#NotebookCellMetadata.runnable).
+		 * Defaults to true.
+		 */
+		cellRunnable?: boolean;
+
+		/**
+		 * Default value for [cell hasExecutionOrder metadata](#NotebookCellMetadata.hasExecutionOrder).
+		 * Defaults to true.
+		 */
+		cellHasExecutionOrder?: boolean;
+
+		displayOrder?: GlobPattern[];
+
+		/**
+		 * Additional attributes of the document metadata.
+		 */
+		custom?: { [key: string]: any };
+
+		/**
+		 * The document's current run state
+		 */
+		runState?: NotebookRunState;
+	}
+
+	export interface NotebookDocument {
+		readonly uri: Uri;
+		readonly fileName: string;
+		readonly viewType: string;
+		readonly isDirty: boolean;
+		readonly isUntitled: boolean;
+		readonly cells: NotebookCell[];
+		languages: string[];
+		displayOrder?: GlobPattern[];
+		metadata: NotebookDocumentMetadata;
+	}
+
+	export interface NotebookConcatTextDocument {
+		uri: Uri;
+		isClosed: boolean;
+		dispose(): void;
+		onDidChange: Event<void>;
+		version: number;
+		getText(): string;
+		getText(range: Range): string;
+
+		offsetAt(position: Position): number;
+		positionAt(offset: number): Position;
+		validateRange(range: Range): Range;
+		validatePosition(position: Position): Position;
+
+		locationAt(positionOrRange: Position | Range): Location;
+		positionAt(location: Location): Position;
+		contains(uri: Uri): boolean
+	}
+
+	export interface NotebookEditorCellEdit {
+		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
+		delete(index: number): void;
+	}
+
+	export interface NotebookEditor {
+		/**
+		 * The document associated with this notebook editor.
+		 */
+		readonly document: NotebookDocument;
+
+		/**
+		 * The primary selected cell on this notebook editor.
+		 */
+		readonly selection?: NotebookCell;
+
+		/**
+		 * The column in which this editor shows.
+		 */
+		viewColumn?: ViewColumn;
+
+		/**
+		 * Whether the panel is active (focused by the user).
+		 */
+		readonly active: boolean;
+
+		/**
+		 * Whether the panel is visible.
+		 */
+		readonly visible: boolean;
+
+		/**
+		 * Fired when the panel is disposed.
+		 */
+		readonly onDidDispose: Event<void>;
+
+		/**
+		 * Active kernel used in the editor
+		 */
+		readonly kernel?: NotebookKernel;
+
+		/**
+		 * Fired when the output hosting webview posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+		/**
+		 * Post a message to the output hosting webview.
+		 *
+		 * Messages are only delivered if the editor is live.
+		 *
+		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		/**
+		 * Convert a uri for the local file system to one that can be used inside outputs webview.
+		 */
+		asWebviewUri(localResource: Uri): Uri;
+
+		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
+	}
+
+	export interface NotebookOutputSelector {
+		mimeTypes?: string[];
+	}
+
+	export interface NotebookRenderRequest {
+		output: CellDisplayOutput;
+		mimeType: string;
+		outputId: string;
+	}
+
+	export interface NotebookOutputRenderer {
+		/**
+		 *
+		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
+		 *
+		 */
+		render(document: NotebookDocument, request: NotebookRenderRequest): string;
+
+		/**
+		 * Call before HTML from the renderer is executed, and will be called for
+		 * every editor associated with notebook documents where the renderer
+		 * is or was used.
+		 *
+		 * The communication object will only send and receive messages to the
+		 * render API, retrieved via `acquireNotebookRendererApi`, acquired with
+		 * this specific renderer's ID.
+		 *
+		 * If you need to keep an association between the communication object
+		 * and the document for use in the `render()` method, you can use a WeakMap.
+		 */
+		resolveNotebook?(document: NotebookDocument, communication: NotebookCommunication): void;
+
+		readonly preloads?: Uri[];
+	}
+
+	export interface NotebookCellsChangeData {
+		readonly start: number;
+		readonly deletedCount: number;
+		readonly deletedItems: NotebookCell[];
+		readonly items: NotebookCell[];
+	}
+
+	export interface NotebookCellsChangeEvent {
+
+		/**
+		 * The affected document.
+		 */
+		readonly document: NotebookDocument;
+		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
+	}
+
+	export interface NotebookCellMoveEvent {
+
+		/**
+		 * The affected document.
+		 */
+		readonly document: NotebookDocument;
+		readonly index: number;
+		readonly newIndex: number;
+	}
+
+	export interface NotebookCellOutputsChangeEvent {
+
+		/**
+		 * The affected document.
+		 */
+		readonly document: NotebookDocument;
+		readonly cells: NotebookCell[];
+	}
+
+	export interface NotebookCellLanguageChangeEvent {
+
+		/**
+		 * The affected document.
+		 */
+		readonly document: NotebookDocument;
+		readonly cell: NotebookCell;
+		readonly language: string;
+	}
+
+	export interface NotebookCellMetadataChangeEvent {
+		readonly document: NotebookDocument;
+		readonly cell: NotebookCell;
+	}
+
+	export interface NotebookCellData {
+		readonly cellKind: CellKind;
+		readonly source: string;
+		language: string;
+		outputs: CellOutput[];
+		metadata: NotebookCellMetadata;
+	}
+
+	export interface NotebookData {
+		readonly cells: NotebookCellData[];
+		readonly languages: string[];
+		readonly metadata: NotebookDocumentMetadata;
+	}
+
+	interface NotebookDocumentContentChangeEvent {
+
+		/**
+		 * The document that the edit is for.
+		 */
+		readonly document: NotebookDocument;
+	}
+
+	interface NotebookDocumentEditEvent {
+
+		/**
+		 * The document that the edit is for.
+		 */
+		readonly document: NotebookDocument;
+
+		/**
+		 * Undo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user undoes this edit. To implement `undo`, your
+		 * extension should restore the document and editor to the state they were in just before this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
+		 */
+		undo(): Thenable<void> | void;
+
+		/**
+		 * Redo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user redoes this edit. To implement `redo`, your
+		 * extension should restore the document and editor to the state they were in just after this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
+		 */
+		redo(): Thenable<void> | void;
+
+		/**
+		 * Display name describing the edit.
+		 *
+		 * This will be shown to users in the UI for undo/redo operations.
+		 */
+		readonly label?: string;
+	}
+
+	interface NotebookDocumentBackup {
+		/**
+		 * Unique identifier for the backup.
+		 *
+		 * This id is passed back to your extension in `openCustomDocument` when opening a notebook editor from a backup.
+		 */
+		readonly id: string;
+
+		/**
+		 * Delete the current backup.
+		 *
+		 * This is called by VS Code when it is clear the current backup is no longer needed, such as when a new backup
+		 * is made or when the file is saved.
+		 */
+		delete(): void;
+	}
+
+	interface NotebookDocumentBackupContext {
+		readonly destination: Uri;
+	}
+
+	interface NotebookDocumentOpenContext {
+		readonly backupId?: string;
+	}
+
+	/**
+	 * Communication object passed to the {@link NotebookContentProvider} and
+	 * {@link NotebookOutputRenderer} to communicate with the webview.
+	 */
+	export interface NotebookCommunication {
+		/**
+		 * ID of the editor this object communicates with. A single notebook
+		 * document can have multiple attached webviews and editors, when the
+		 * notebook is split for instance. The editor ID lets you differentiate
+		 * between them.
+		 */
+		readonly editorId: string;
+
+		/**
+		 * Fired when the output hosting webview posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+		/**
+		 * Post a message to the output hosting webview.
+		 *
+		 * Messages are only delivered if the editor is live.
+		 *
+		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		/**
+		 * Convert a uri for the local file system to one that can be used inside outputs webview.
+		 */
+		asWebviewUri(localResource: Uri): Uri;
+	}
+
+	export interface NotebookContentProvider {
+		/**
+		 * Content providers should always use [file system providers](#FileSystemProvider) to
+		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
+		 */
+		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
+		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
+		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent | NotebookDocumentEditEvent>;
+		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
+
+		kernel?: NotebookKernel;
+	}
+
+	export interface NotebookKernel {
+		readonly id?: string;
+		label: string;
+		description?: string;
+		isPreferred?: boolean;
+		preloads?: Uri[];
+		executeCell(document: NotebookDocument, cell: NotebookCell): void;
+		cancelCellExecution(document: NotebookDocument, cell: NotebookCell): void;
+		executeAllCells(document: NotebookDocument): void;
+		cancelAllCellsExecution(document: NotebookDocument): void;
+	}
+
+	export interface NotebookDocumentFilter {
+		viewType?: string;
+		filenamePattern?: GlobPattern;
+		excludeFileNamePattern?: GlobPattern;
+	}
+
+	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
+		onDidChangeKernels?: Event<void>;
+		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
+		resolveKernel?(kernel: T, document: NotebookDocument, webview: NotebookCommunication, token: CancellationToken): ProviderResult<void>;
+	}
+
+	export namespace notebook {
+		export function registerNotebookContentProvider(
+			notebookType: string,
+			provider: NotebookContentProvider
+		): Disposable;
+
+		export function registerNotebookKernelProvider(
+			selector: NotebookDocumentFilter,
+			provider: NotebookKernelProvider
+		): Disposable;
+
+		export function registerNotebookKernel(
+			id: string,
+			selectors: GlobPattern[],
+			kernel: NotebookKernel
+		): Disposable;
+
+		export function registerNotebookOutputRenderer(
+			id: string,
+			outputSelector: NotebookOutputSelector,
+			renderer: NotebookOutputRenderer
+		): Disposable;
+
+		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
+		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
+
+		/**
+		 * All currently known notebook documents.
+		 */
+		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
+
+		export let visibleNotebookEditors: NotebookEditor[];
+		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
+
+		export let activeNotebookEditor: NotebookEditor | undefined;
+		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
+		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
+		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
+		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
+		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
+		/**
+		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
+		 * but a selector can be provided to narrow to down the set of cells.
+		 *
+		 * @param notebook
+		 * @param selector
+		 */
+		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
+
+		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined }>;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/39441
+
+	export interface CompletionItem {
+		/**
+		 * Will be merged into CompletionItem#label
+		 */
+		label2?: CompletionItemLabel;
+	}
+
+	export interface CompletionItemLabel {
+		/**
+		 * The function or variable. Rendered leftmost.
+		 */
+		name: string;
+
+		/**
+		 * The parameters without the return type. Render after `name`.
+		 */
+		parameters?: string;
+
+		/**
+		 * The fully qualified name, like package name or file path. Rendered after `signature`.
+		 */
+		qualifier?: string;
+
+		/**
+		 * The return-type of a function or type of a property/variable. Rendered rightmost.
+		 */
+		type?: string;
+	}
+
+	//#endregion
+
+	//#region @eamodio - timeline: https://github.com/microsoft/vscode/issues/84297
+
+	export class TimelineItem {
+		/**
+		 * A timestamp (in milliseconds since 1 January 1970 00:00:00) for when the timeline item occurred.
+		 */
+		timestamp: number;
+
+		/**
+		 * A human-readable string describing the timeline item.
+		 */
+		label: string;
+
+		/**
+		 * Optional id for the timeline item. It must be unique across all the timeline items provided by this source.
+		 *
+		 * If not provided, an id is generated using the timeline item's timestamp.
+		 */
+		id?: string;
+
+		/**
+		 * The icon path or [ThemeIcon](#ThemeIcon) for the timeline item.
+		 */
+		iconPath?: Uri | { light: Uri; dark: Uri; } | ThemeIcon;
+
+		/**
+		 * A human readable string describing less prominent details of the timeline item.
+		 */
+		description?: string;
+
+		/**
+		 * The tooltip text when you hover over the timeline item.
+		 */
+		detail?: string;
+
+		/**
+		 * The [command](#Command) that should be executed when the timeline item is selected.
+		 */
+		command?: Command;
+
+		/**
+		 * Context value of the timeline item. This can be used to contribute specific actions to the item.
+		 * For example, a timeline item is given a context value as `commit`. When contributing actions to `timeline/item/context`
+		 * using `menus` extension point, you can specify context value for key `timelineItem` in `when` expression like `timelineItem == commit`.
+		 * ```
+		 *	"contributes": {
+		 *		"menus": {
+		 *			"timeline/item/context": [
+		 *				{
+		 *					"command": "extension.copyCommitId",
+		 *					"when": "timelineItem == commit"
+		 *				}
+		 *			]
+		 *		}
+		 *	}
+		 * ```
+		 * This will show the `extension.copyCommitId` action only for items where `contextValue` is `commit`.
+		 */
+		contextValue?: string;
+
+		/**
+		 * Accessibility information used when screen reader interacts with this timeline item.
+		 */
+		accessibilityInformation?: AccessibilityInformation;
+
+		/**
+		 * @param label A human-readable string describing the timeline item
+		 * @param timestamp A timestamp (in milliseconds since 1 January 1970 00:00:00) for when the timeline item occurred
+		 */
+		constructor(label: string, timestamp: number);
+	}
+
+	export interface TimelineChangeEvent {
+		/**
+		 * The [uri](#Uri) of the resource for which the timeline changed.
+		 */
+		uri: Uri;
+
+		/**
+		 * A flag which indicates whether the entire timeline should be reset.
+		 */
+		reset?: boolean;
+	}
+
+	export interface Timeline {
+		readonly paging?: {
+			/**
+			 * A provider-defined cursor specifying the starting point of timeline items which are after the ones returned.
+			 * Use `undefined` to signal that there are no more items to be returned.
+			 */
+			readonly cursor: string | undefined;
+		};
+
+		/**
+		 * An array of [timeline items](#TimelineItem).
+		 */
+		readonly items: readonly TimelineItem[];
+	}
+
+	export interface TimelineOptions {
+		/**
+		 * A provider-defined cursor specifying the starting point of the timeline items that should be returned.
+		 */
+		cursor?: string;
+
+		/**
+		 * An optional maximum number timeline items or the all timeline items newer (inclusive) than the timestamp or id that should be returned.
+		 * If `undefined` all timeline items should be returned.
+		 */
+		limit?: number | { timestamp: number; id?: string; };
+	}
+
+	export interface TimelineProvider {
+		/**
+		 * An optional event to signal that the timeline for a source has changed.
+		 * To signal that the timeline for all resources (uris) has changed, do not pass any argument or pass `undefined`.
+		 */
+		onDidChange?: Event<TimelineChangeEvent | undefined>;
+
+		/**
+		 * An identifier of the source of the timeline items. This can be used to filter sources.
+		 */
+		readonly id: string;
+
+		/**
+		 * A human-readable string describing the source of the timeline items. This can be used as the display label when filtering sources.
+		 */
+		readonly label: string;
+
+		/**
+		 * Provide [timeline items](#TimelineItem) for a [Uri](#Uri).
+		 *
+		 * @param uri The [uri](#Uri) of the file to provide the timeline for.
+		 * @param options A set of options to determine how results should be returned.
+		 * @param token A cancellation token.
+		 * @return The [timeline result](#TimelineResult) or a thenable that resolves to such. The lack of a result
+		 * can be signaled by returning `undefined`, `null`, or an empty array.
+		 */
+		provideTimeline(uri: Uri, options: TimelineOptions, token: CancellationToken): ProviderResult<Timeline>;
+	}
+
+	export namespace workspace {
+		/**
+		 * Register a timeline provider.
+		 *
+		 * Multiple providers can be registered. In that case, providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param scheme A scheme or schemes that defines which documents this provider is applicable to. Can be `*` to target all documents.
+		 * @param provider A timeline provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		*/
+		export function registerTimelineProvider(scheme: string | string[], provider: TimelineProvider): Disposable;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/91555
+
+	export enum StandardTokenType {
+		Other = 0,
+		Comment = 1,
+		String = 2,
+		RegEx = 4
+	}
+
+	export interface TokenInformation {
+		type: StandardTokenType;
+		range: Range;
+	}
+
+	export namespace languages {
+		export function getTokenInformationAtPosition(document: TextDocument, position: Position): Promise<TokenInformation>;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/101857
+
+	export interface ExtensionContext {
+
+		/**
+		 * The uri of a directory in which the extension can create log files.
+		 * The directory might not exist on disk and creation is up to the extension. However,
+		 * the parent directory is guaranteed to be existent.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly logUri: Uri;
+
+		/**
+		 * The uri of a workspace specific directory in which the extension
+		 * can store private state. The directory might not exist and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * The value is `undefined` when no workspace nor folder has been opened.
+		 *
+		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
+		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly storageUri: Uri | undefined;
+
+		/**
+		 * The uri of a directory in which the extension can store global state.
+		 * The directory might not exist on disk and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 *
+		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly globalStorageUri: Uri;
+
+		/**
+		 * @deprecated Use [logUri](#ExtensionContext.logUri) instead.
+		 */
+		readonly logPath: string;
+		/**
+		 * @deprecated Use [storagePath](#ExtensionContent.storageUri) instead.
+		 */
+		readonly storagePath: string | undefined;
+		/**
+		 * @deprecated Use [globalStoragePath](#ExtensionContent.globalStorageUri) instead.
+		 */
+		readonly globalStoragePath: string;
+	}
+
+	//#endregion
 }

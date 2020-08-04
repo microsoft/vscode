@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKeyChangeEvent, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export class MenuService implements IMenuService {
 
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService
@@ -20,7 +20,7 @@ export class MenuService implements IMenuService {
 	}
 
 	createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
-		return new Menu(id, this._commandService, contextKeyService);
+		return new Menu(id, this._commandService, contextKeyService, this);
 	}
 }
 
@@ -30,40 +30,46 @@ type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
 class Menu implements IMenu {
 
 	private readonly _onDidChange = new Emitter<IMenu | undefined>();
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _dispoables = new DisposableStore();
 
-	private _menuGroups: MenuItemGroup[];
-	private _contextKeys: Set<string>;
+	private _menuGroups: MenuItemGroup[] = [];
+	private _contextKeys: Set<string> = new Set();
 
 	constructor(
 		private readonly _id: MenuId,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IMenuService private readonly _menuService: IMenuService
 	) {
 		this._build();
 
 		// rebuild this menu whenever the menu registry reports an
 		// event for this MenuId
-		Event.debounce(
-			Event.filter(MenuRegistry.onDidChangeMenu, menuId => menuId === this._id),
+		this._dispoables.add(Event.debounce(
+			Event.filter(MenuRegistry.onDidChangeMenu, set => set.has(this._id)),
 			() => { },
 			50
-		)(this._build, this, this._disposables);
+		)(this._build, this));
 
 		// when context keys change we need to check if the menu also
 		// has changed
-		Event.debounce<IContextKeyChangeEvent, boolean>(
+		this._dispoables.add(Event.debounce<IContextKeyChangeEvent, boolean>(
 			this._contextKeyService.onDidChangeContext,
 			(last, event) => last || event.affectsSome(this._contextKeys),
 			50
-		)(e => e && this._onDidChange.fire(undefined), this, this._disposables);
+		)(e => e && this._onDidChange.fire(undefined), this));
+	}
+
+	dispose(): void {
+		this._dispoables.dispose();
+		this._onDidChange.dispose();
 	}
 
 	private _build(): void {
 
 		// reset
-		this._menuGroups = [];
-		this._contextKeys = new Set();
+		this._menuGroups.length = 0;
+		this._contextKeys.clear();
 
 		const menuItems = MenuRegistry.getMenuItems(this._id);
 
@@ -89,15 +95,11 @@ class Menu implements IMenu {
 
 			// keep toggled keys for event if applicable
 			if (isIMenuItem(item) && item.command.toggled) {
-				Menu._fillInKbExprKeys(item.command.toggled, this._contextKeys);
+				const toggledExpression: ContextKeyExpression = (item.command.toggled as { condition: ContextKeyExpression }).condition || item.command.toggled;
+				Menu._fillInKbExprKeys(toggledExpression, this._contextKeys);
 			}
 		}
 		this._onDidChange.fire(this);
-	}
-
-	dispose() {
-		dispose(this._disposables);
-		this._onDidChange.dispose();
 	}
 
 	get onDidChange(): Event<IMenu | undefined> {
@@ -111,7 +113,10 @@ class Menu implements IMenu {
 			const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
-					const action = isIMenuItem(item) ? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService) : new SubmenuItemAction(item);
+					const action = isIMenuItem(item)
+						? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService)
+						: new SubmenuItemAction(item, this._menuService, this._contextKeyService, options);
+
 					activeActions.push(action);
 				}
 			}
@@ -122,7 +127,7 @@ class Menu implements IMenu {
 		return result;
 	}
 
-	private static _fillInKbExprKeys(exp: ContextKeyExpr | undefined, set: Set<string>): void {
+	private static _fillInKbExprKeys(exp: ContextKeyExpression | undefined, set: Set<string>): void {
 		if (exp) {
 			for (let key of exp.keys()) {
 				set.add(key);
@@ -130,7 +135,7 @@ class Menu implements IMenu {
 		}
 	}
 
-	private static _compareMenuItems(a: IMenuItem, b: IMenuItem): number {
+	private static _compareMenuItems(a: IMenuItem | ISubmenuItem, b: IMenuItem | ISubmenuItem): number {
 
 		let aGroup = a.group;
 		let bGroup = b.group;
@@ -168,8 +173,15 @@ class Menu implements IMenu {
 		}
 
 		// sort on titles
-		const aTitle = typeof a.command.title === 'string' ? a.command.title : a.command.title.value;
-		const bTitle = typeof b.command.title === 'string' ? b.command.title : b.command.title.value;
-		return aTitle.localeCompare(bTitle);
+		return Menu._compareTitles(
+			isIMenuItem(a) ? a.command.title : a.title,
+			isIMenuItem(b) ? b.command.title : b.title
+		);
+	}
+
+	private static _compareTitles(a: string | ILocalizedString, b: string | ILocalizedString) {
+		const aStr = typeof a === 'string' ? a : a.value;
+		const bStr = typeof b === 'string' ? b : b.value;
+		return aStr.localeCompare(bStr);
 	}
 }

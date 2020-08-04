@@ -5,6 +5,9 @@
 
 import * as vscode from 'vscode';
 
-const nulTokenSource = new vscode.CancellationTokenSource();
+const noopDisposable = vscode.Disposable.from();
 
-export const nulToken = nulTokenSource.token;
+export const nulToken: vscode.CancellationToken = {
+	isCancellationRequested: false,
+	onCancellationRequested: () => noopDisposable
+};

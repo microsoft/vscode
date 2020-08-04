@@ -5,7 +5,7 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export class ResolvedKeybindingItem {
 	_resolvedKeybindingItemBrand: void;
@@ -15,10 +15,10 @@ export class ResolvedKeybindingItem {
 	public readonly bubble: boolean;
 	public readonly command: string | null;
 	public readonly commandArgs: any;
-	public readonly when: ContextKeyExpr | undefined;
+	public readonly when: ContextKeyExpression | undefined;
 	public readonly isDefault: boolean;
 
-	constructor(resolvedKeybinding: ResolvedKeybinding | undefined, command: string | null, commandArgs: any, when: ContextKeyExpr | undefined, isDefault: boolean) {
+	constructor(resolvedKeybinding: ResolvedKeybinding | undefined, command: string | null, commandArgs: any, when: ContextKeyExpression | undefined, isDefault: boolean) {
 		this.resolvedKeybinding = resolvedKeybinding;
 		this.keypressParts = resolvedKeybinding ? removeElementsAfterNulls(resolvedKeybinding.getDispatchParts()) : [];
 		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);

@@ -196,7 +196,6 @@ suite('Color', () => {
 			test('parseHex', () => {
 
 				// invalid
-				assert.deepEqual(Color.Format.CSS.parseHex(null!), null);
 				assert.deepEqual(Color.Format.CSS.parseHex(''), null);
 				assert.deepEqual(Color.Format.CSS.parseHex('#'), null);
 				assert.deepEqual(Color.Format.CSS.parseHex('#0102030'), null);

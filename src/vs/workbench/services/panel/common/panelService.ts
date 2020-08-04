@@ -5,9 +5,10 @@
 
 import { Event } from 'vs/base/common/event';
 import { IPanel } from 'vs/workbench/common/panel';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export const IPanelService = createDecorator<IPanelService>('panelService');
 
@@ -18,31 +19,41 @@ export interface IPanelIdentifier {
 }
 
 export interface IPanelService {
-	_serviceBrand: ServiceIdentifier<any>;
 
-	onDidPanelOpen: Event<{ panel: IPanel, focus: boolean }>;
+	readonly _serviceBrand: undefined;
 
-	onDidPanelClose: Event<IPanel>;
+	readonly onDidPanelOpen: Event<{ readonly panel: IPanel, readonly focus: boolean }>;
+	readonly onDidPanelClose: Event<IPanel>;
 
 	/**
 	 * Opens a panel with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openPanel(id: string, focus?: boolean): IPanel | null;
+	openPanel(id?: string, focus?: boolean): Promise<IPanel | undefined>;
 
 	/**
 	 * Returns the current active panel or null if none
 	 */
-	getActivePanel(): IPanel | null;
+	getActivePanel(): IPanel | undefined;
 
 	/**
-	 * Returns all built-in panels following the default order (Problems - Output - Debug Console - Terminal)
+	 * Returns the panel by id.
 	 */
-	getPanels(): IPanelIdentifier[];
+	getPanel(id: string): IPanelIdentifier | undefined;
+
+	/**
+	 * Returns all built-in panels following the default order
+	 */
+	getPanels(): readonly IPanelIdentifier[];
 
 	/**
 	 * Returns pinned panels following the visual order
 	 */
-	getPinnedPanels(): IPanelIdentifier[];
+	getPinnedPanels(): readonly IPanelIdentifier[];
+
+	/**
+	 * Returns the progress indicator for the panel bar.
+	 */
+	getProgressIndicator(id: string): IProgressIndicator | undefined;
 
 	/**
 	 * Show an activity in a panel.

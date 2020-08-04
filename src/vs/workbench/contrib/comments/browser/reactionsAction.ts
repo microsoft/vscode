@@ -5,17 +5,16 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export class ToggleReactionsAction extends Action {
 	static readonly ID = 'toolbar.toggle.pickReactions';
-	private _menuActions: IAction[];
+	private _menuActions: IAction[] = [];
 	private toggleDropdownMenu: () => void;
 	constructor(toggleDropdownMenu: () => void, title?: string) {
-		title = title || nls.localize('pickReactions', "Pick Reactions...");
-		super(ToggleReactionsAction.ID, title, 'toggle-reactions', true);
+		super(ToggleReactionsAction.ID, title || nls.localize('pickReactions', "Pick Reactions..."), 'toggle-reactions', true);
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}
 	run(): Promise<any> {
@@ -34,6 +33,10 @@ export class ReactionActionViewItem extends ActionViewItem {
 		super(null, action, {});
 	}
 	updateLabel(): void {
+		if (!this.label) {
+			return;
+		}
+
 		let action = this.getAction() as ReactionAction;
 		if (action.class) {
 			this.label.classList.add(action.class);

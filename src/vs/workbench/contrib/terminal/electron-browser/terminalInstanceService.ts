@@ -3,61 +3,115 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Terminal as XTermTerminal } from 'vscode-xterm';
-import { ITerminalInstance, IWindowsShellHelper, ITerminalConfigHelper, ITerminalProcessManager, IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
-import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
+import { IWindowsShellHelper, IShellLaunchConfig, ITerminalChildProcess, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/contrib/terminal/common/terminal';
+import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/electron-browser/windowsShellHelper';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, platform, Platform } from 'vs/base/common/platform';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
-import * as typeAheadAddon from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
-import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
+import { Terminal as XTermTerminal } from 'xterm';
+import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
+import { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
+import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { getDefaultShell, getDefaultShellArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
+import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ILogService } from 'vs/platform/log/common/log';
 
 let Terminal: typeof XTermTerminal;
+let SearchAddon: typeof XTermSearchAddon;
+let Unicode11Addon: typeof XTermUnicode11Addon;
+let WebglAddon: typeof XTermWebglAddon;
 
-/**
- * A service used by TerminalInstance (and components owned by it) that allows it to break its
- * dependency on electron-browser and node layers, while at the same time avoiding a cyclic
- * dependency on ITerminalService.
- */
 export class TerminalInstanceService implements ITerminalInstanceService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IHistoryService private readonly _historyService: IHistoryService,
+		@ILogService private readonly _logService: ILogService
 	) {
 	}
 
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {
-			Terminal = (await import('vscode-xterm')).Terminal;
-			// Enable xterm.js addons
-			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/search/search'));
-			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/webLinks/webLinks'));
-			Terminal.applyAddon(typeAheadAddon);
-			// Localize strings
-			Terminal.strings.blankLine = nls.localize('terminal.integrated.a11yBlankLine', 'Blank line');
-			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
-			Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
+			Terminal = (await import('xterm')).Terminal;
 		}
 		return Terminal;
 	}
 
-	public createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper {
-		return new WindowsShellHelper(shellProcessId, instance, xterm);
+	public async getXtermSearchConstructor(): Promise<typeof XTermSearchAddon> {
+		if (!SearchAddon) {
+			SearchAddon = (await import('xterm-addon-search')).SearchAddon;
+		}
+		return SearchAddon;
 	}
 
-	public createTerminalProcessManager(id: number, configHelper: ITerminalConfigHelper): ITerminalProcessManager {
-		return this._instantiationService.createInstance(TerminalProcessManager, id, configHelper);
+	public async getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon> {
+		if (!Unicode11Addon) {
+			Unicode11Addon = (await import('xterm-addon-unicode11')).Unicode11Addon;
+		}
+		return Unicode11Addon;
+	}
+
+	public async getXtermWebglConstructor(): Promise<typeof XTermWebglAddon> {
+		if (!WebglAddon) {
+			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
+		}
+		return WebglAddon;
+	}
+
+	public createWindowsShellHelper(shellProcessId: number, xterm: XTermTerminal): IWindowsShellHelper {
+		return new WindowsShellHelper(shellProcessId, xterm);
 	}
 
 	public createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess {
 		return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
 	}
 
-	public getDefaultShell(p: Platform): string {
-		return getDefaultShell(p);
+	private _isWorkspaceShellAllowed(): boolean {
+		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, false);
+	}
+
+	public getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride: Platform = platform): Promise<{ shell: string, args: string | string[] }> {
+		const isWorkspaceShellAllowed = this._isWorkspaceShellAllowed();
+		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+		let lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : undefined;
+		lastActiveWorkspace = lastActiveWorkspace === null ? undefined : lastActiveWorkspace;
+		const shell = getDefaultShell(
+			(key) => this._configurationService.inspect(key),
+			isWorkspaceShellAllowed,
+			getSystemShell(platformOverride),
+			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
+			process.env.windir,
+			lastActiveWorkspace,
+			this._configurationResolverService,
+			this._logService,
+			useAutomationShell,
+			platformOverride
+		);
+		const args = getDefaultShellArgs(
+			(key) => this._configurationService.inspect(key),
+			isWorkspaceShellAllowed,
+			useAutomationShell,
+			lastActiveWorkspace,
+			this._configurationResolverService,
+			this._logService,
+			platformOverride
+		);
+		return Promise.resolve({ shell, args });
+	}
+
+	public getMainProcessParentEnv(): Promise<IProcessEnvironment> {
+		return getMainProcessParentEnv();
 	}
 }

@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
-import { MainContext, IMainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
+import { MainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/common/extHost.protocol';
+import { Disposable, Decoration } from 'vs/workbench/api/common/extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { ILogService } from 'vs/platform/log/common/log';
 import { asArray } from 'vs/base/common/arrays';
 
 interface ProviderData {
@@ -16,15 +19,19 @@ interface ProviderData {
 	extensionId: ExtensionIdentifier;
 }
 
-export class ExtHostDecorations implements ExtHostDecorationsShape {
+export class ExtHostDecorations implements IExtHostDecorations {
 
 	private static _handlePool = 0;
 
+	readonly _serviceBrand: undefined;
 	private readonly _provider = new Map<number, ProviderData>();
 	private readonly _proxy: MainThreadDecorationsShape;
 
-	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadDecorations);
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@ILogService private readonly _logService: ILogService,
+	) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadDecorations);
 	}
 
 	registerDecorationProvider(provider: vscode.DecorationProvider, extensionId: ExtensionIdentifier): vscode.Disposable {
@@ -33,7 +40,9 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		this._proxy.$registerDecorationProvider(handle, extensionId.value);
 
 		const listener = provider.onDidChangeDecorations(e => {
-			this._proxy.$onDidChange(handle, !e ? null : asArray(e));
+			this._proxy.$onDidChange(handle, !e || (Array.isArray(e) && e.length > 250)
+				? null
+				: asArray(e));
 		});
 
 		return new Disposable(() => {
@@ -43,30 +52,37 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		});
 	}
 
-	$provideDecorations(requests: DecorationRequest[], token: CancellationToken): Promise<DecorationReply> {
+	async $provideDecorations(handle: number, requests: DecorationRequest[], token: CancellationToken): Promise<DecorationReply> {
+
+		if (!this._provider.has(handle)) {
+			// might have been unregistered in the meantime
+			return Object.create(null);
+		}
+
 		const result: DecorationReply = Object.create(null);
-		return Promise.all(requests.map(request => {
-			const { handle, uri, id } = request;
-			const entry = this._provider.get(handle);
-			if (!entry) {
-				// might have been unregistered in the meantime
-				return undefined;
+		const { provider, extensionId } = this._provider.get(handle)!;
+
+		await Promise.all(requests.map(async request => {
+			try {
+				const { uri, id } = request;
+				const data = await Promise.resolve(provider.provideDecoration(URI.revive(uri), token));
+				if (!data) {
+					return;
+				}
+				try {
+					Decoration.validate(data);
+					result[id] = <DecorationData>[data.priority, data.bubble, data.title, data.letter, data.color];
+				} catch (e) {
+					this._logService.warn(`INVALID decoration from extension '${extensionId.value}': ${e}`);
+				}
+			} catch (err) {
+				this._logService.error(err);
 			}
-			const { provider, extensionId } = entry;
-			return Promise.resolve(provider.provideDecoration(URI.revive(uri), token)).then(data => {
-				if (data && data.letter && data.letter.length !== 1) {
-					console.warn(`INVALID decoration from extension '${extensionId.value}'. The 'letter' must be set and be one character, not '${data.letter}'.`);
-				}
-				if (data) {
-					result[id] = <DecorationData>[data.priority, data.bubble, data.title, data.letter, data.color, data.source];
+		}));
 
-				}
-			}, err => {
-				console.error(err);
-			});
-
-		})).then(() => {
-			return result;
-		});
+		return result;
 	}
 }
+
+export const IExtHostDecorations = createDecorator<IExtHostDecorations>('IExtHostDecorations');
+export interface IExtHostDecorations extends ExtHostDecorations, ExtHostDecorationsShape { }

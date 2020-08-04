@@ -3,32 +3,74 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedAuthority, IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ResolvedAuthority, IRemoteAuthorityResolverService, ResolverResult, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorities } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverService {
+export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
 
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
-	constructor() {
+	private readonly _onDidChangeConnectionData = this._register(new Emitter<void>());
+	public readonly onDidChangeConnectionData = this._onDidChangeConnectionData.event;
+
+	private readonly _cache: Map<string, ResolverResult>;
+	private readonly _connectionTokens: Map<string, string>;
+
+	constructor(resourceUriProvider: ((uri: URI) => URI) | undefined) {
+		super();
+		this._cache = new Map<string, ResolverResult>();
+		this._connectionTokens = new Map<string, string>();
+		if (resourceUriProvider) {
+			RemoteAuthorities.setDelegate(resourceUriProvider);
+		}
 	}
 
-	resolveAuthority(authority: string): Promise<ResolvedAuthority> {
+	async resolveAuthority(authority: string): Promise<ResolverResult> {
+		if (!this._cache.has(authority)) {
+			const result = this._doResolveAuthority(authority);
+			RemoteAuthorities.set(authority, result.authority.host, result.authority.port);
+			this._cache.set(authority, result);
+			this._onDidChangeConnectionData.fire();
+		}
+		return this._cache.get(authority)!;
+	}
+
+	getConnectionData(authority: string): IRemoteConnectionData | null {
+		if (!this._cache.has(authority)) {
+			return null;
+		}
+		const resolverResult = this._cache.get(authority)!;
+		const connectionToken = this._connectionTokens.get(authority);
+		return {
+			host: resolverResult.authority.host,
+			port: resolverResult.authority.port,
+			connectionToken: connectionToken
+		};
+	}
+
+	private _doResolveAuthority(authority: string): ResolverResult {
 		if (authority.indexOf(':') >= 0) {
 			const pieces = authority.split(':');
-			return Promise.resolve({ authority, host: pieces[0], port: parseInt(pieces[1], 10) });
+			return { authority: { authority, host: pieces[0], port: parseInt(pieces[1], 10) } };
 		}
-		return Promise.resolve({ authority, host: authority, port: 80 });
+		return { authority: { authority, host: authority, port: 80 } };
 	}
 
-	clearResolvedAuthority(authority: string): void {
-		throw new Error(`Not implemented`);
+	_clearResolvedAuthority(authority: string): void {
 	}
 
-	setResolvedAuthority(resolvedAuthority: ResolvedAuthority) {
-		throw new Error(`Not implemented`);
+	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority) {
 	}
 
-	setResolvedAuthorityError(authority: string, err: any): void {
-		throw new Error(`Not implemented`);
+	_setResolvedAuthorityError(authority: string, err: any): void {
+	}
+
+	_setAuthorityConnectionToken(authority: string, connectionToken: string): void {
+		this._connectionTokens.set(authority, connectionToken);
+		RemoteAuthorities.setConnectionToken(authority, connectionToken);
+		this._onDidChangeConnectionData.fire();
 	}
 }

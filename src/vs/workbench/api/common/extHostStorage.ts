@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadStorageShape, IMainContext, ExtHostStorageShape } from './extHost.protocol';
+import { MainContext, MainThreadStorageShape, ExtHostStorageShape } from './extHost.protocol';
 import { Emitter } from 'vs/base/common/event';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IStorageChangeEvent {
 	shared: boolean;
@@ -14,12 +16,14 @@ export interface IStorageChangeEvent {
 
 export class ExtHostStorage implements ExtHostStorageShape {
 
+	readonly _serviceBrand: undefined;
+
 	private _proxy: MainThreadStorageShape;
 
-	private _onDidChangeStorage = new Emitter<IStorageChangeEvent>();
+	private readonly _onDidChangeStorage = new Emitter<IStorageChangeEvent>();
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
-	constructor(mainContext: IMainContext) {
+	constructor(mainContext: IExtHostRpcService) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadStorage);
 	}
 
@@ -35,3 +39,6 @@ export class ExtHostStorage implements ExtHostStorageShape {
 		this._onDidChangeStorage.fire({ shared, key, value });
 	}
 }
+
+export interface IExtHostStorage extends ExtHostStorage { }
+export const IExtHostStorage = createDecorator<IExtHostStorage>('IExtHostStorage');

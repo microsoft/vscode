@@ -7,7 +7,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { MainContext, ExtHostDocumentContentProvidersShape, MainThreadDocumentContentProvidersShape, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 import { Schemas } from 'vs/base/common/network';
@@ -29,14 +29,10 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDocumentContentProviders);
 	}
 
-	dispose(): void {
-		// todo@joh
-	}
-
 	registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
 		// todo@remote
 		// check with scheme from fs-providers!
-		if (scheme === Schemas.file || scheme === Schemas.untitled) {
+		if (Object.keys(Schemas).indexOf(scheme) >= 0) {
 			throw new Error(`scheme '${scheme}' already registered`);
 		}
 
@@ -54,7 +50,7 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 				}
 				if (this._documentsAndEditors.getDocument(uri)) {
 					this.$provideTextDocumentContent(handle, uri).then(value => {
-						if (!value) {
+						if (!value && typeof value !== 'string') {
 							return;
 						}
 

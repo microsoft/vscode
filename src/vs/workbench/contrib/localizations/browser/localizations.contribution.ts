@@ -6,13 +6,11 @@
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ConfigureLocaleAction } from 'vs/workbench/contrib/localizations/browser/localizationsActions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { IExtensionManagementService, DidInstallExtensionEvent, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -20,58 +18,45 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/path';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { minimumTranslatedStrings } from 'vs/workbench/contrib/localizations/browser/minimalTranslations';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), 'Configure Display Language');
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ConfigureLocaleAction), 'Configure Display Language');
+
+const LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY = 'extensionsAssistant/languagePackSuggestionIgnore';
 
 export class LocalizationWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@ILocalizationsService private readonly localizationService: ILocalizationsService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IWindowsService private readonly windowsService: IWindowsService,
+		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IViewletService private readonly viewletService: IViewletService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
-		this.updateLocaleDefintionSchema();
+
+		storageKeysSyncRegistryService.registerStorageKey({ key: LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, version: 1 });
+		storageKeysSyncRegistryService.registerStorageKey({ key: 'langugage.update.donotask', version: 1 });
 		this.checkAndInstall();
-		this._register(this.localizationService.onDidLanguagesChange(() => this.updateLocaleDefintionSchema()));
 		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
 	}
 
-	private updateLocaleDefintionSchema(): void {
-		this.localizationService.getLanguageIds()
-			.then(languageIds => {
-				let lowercaseLanguageIds: string[] = [];
-				languageIds.forEach((languageId) => {
-					let lowercaseLanguageId = languageId.toLowerCase();
-					if (lowercaseLanguageId !== languageId) {
-						lowercaseLanguageIds.push(lowercaseLanguageId);
-					}
-				});
-				registerLocaleDefinitionSchema([...languageIds, ...lowercaseLanguageIds]);
-			});
-	}
-
 	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
-		const donotAskUpdateKey = 'langugage.update.donotask';
-		if (!this.storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL) && e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
+		if (e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
 			const locale = e.local.manifest.contributes.localizations[0].languageId;
 			if (platform.language !== locale) {
 				const updateAndRestart = platform.locale !== locale;
@@ -82,16 +67,14 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					[{
 						label: updateAndRestart ? localize('yes', "Yes") : localize('restart now', "Restart Now"),
 						run: () => {
-							const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
-							const updatePromise = updateAndRestart ? this.jsonEditingService.write(file, { key: 'locale', value: locale }, true) : Promise.resolve(undefined);
-							updatePromise.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
+							const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
+							updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
 						}
-					}, {
-						label: localize('neverAgain', "Don't Show Again"),
-						isSecondary: true,
-						run: () => this.storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
 					}],
-					{ sticky: true }
+					{
+						sticky: true,
+						neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true }
+					}
 				);
 			}
 		}
@@ -100,7 +83,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	private checkAndInstall(): void {
 		const language = platform.language;
 		const locale = platform.locale;
-		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/languagePackSuggestionIgnore', StorageScope.GLOBAL, '[]'));
+		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get(LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, StorageScope.GLOBAL, '[]'));
 
 		if (!this.galleryService.isEnabled()) {
 			return;
@@ -135,11 +118,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
 							const languageName = loc ? (loc.languageName || locale) : locale;
 							const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
-							const translationsFromPack = translation && translation.contents ? translation.contents['vs/workbench/contrib/localizations/browser/minimalTranslations'] : {};
+							const translationsFromPack: any = translation && translation.contents ? translation.contents['vs/workbench/contrib/localizations/browser/minimalTranslations'] : {};
 							const promptMessageKey = extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions';
 							const useEnglish = !translationsFromPack[promptMessageKey];
 
-							const translations = {};
+							const translations: any = {};
 							Object.keys(minimumTranslatedStrings).forEach(key => {
 								if (!translationsFromPack[key] || useEnglish) {
 									translations[key] = minimumTranslatedStrings[key].replace('{0}', languageName);
@@ -163,7 +146,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								run: () => {
 									logUserReaction('search');
 									this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
-										.then(viewlet => viewlet as IExtensionsViewlet)
+										.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 										.then(viewlet => {
 											viewlet.search(`tag:lp-${locale}`);
 											viewlet.focus();
@@ -175,7 +158,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								label: translations['installAndRestart'],
 								run: () => {
 									logUserReaction('installAndRestart');
-									this.installExtension(extensionToInstall).then(() => this.windowsService.relaunch({}));
+									this.installExtension(extensionToInstall).then(() => this.hostService.restart());
 								}
 							};
 
@@ -191,7 +174,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 									run: () => {
 										languagePackSuggestionIgnoreList.push(language);
 										this.storageService.store(
-											'extensionsAssistant/languagePackSuggestionIgnore',
+											LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY,
 											JSON.stringify(languagePackSuggestionIgnoreList),
 											StorageScope.GLOBAL
 										);
@@ -223,37 +206,13 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	private installExtension(extension: IGalleryExtension): Promise<void> {
 		return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => viewlet.search(`@id:${extension.identifier.id}`))
 			.then(() => this.extensionManagementService.installFromGallery(extension))
 			.then(() => undefined, err => this.notificationService.error(err));
 	}
 }
 
-function registerLocaleDefinitionSchema(languages: string[]): void {
-	const localeDefinitionFileSchemaId = 'vscode://schemas/locale';
-	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-	// Keep en-US since we generated files with that content.
-	jsonRegistry.registerSchema(localeDefinitionFileSchemaId, {
-		id: localeDefinitionFileSchemaId,
-		allowComments: true,
-		description: 'Locale Definition file',
-		type: 'object',
-		default: {
-			'locale': 'en'
-		},
-		required: ['locale'],
-		properties: {
-			locale: {
-				type: 'string',
-				enum: languages,
-				description: localize('JsonSchema.locale', 'The UI Language to use.')
-			}
-		}
-	});
-}
-
-registerLocaleDefinitionSchema(platform.language ? [platform.language] : []);
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContribution, LifecyclePhase.Eventually);
 

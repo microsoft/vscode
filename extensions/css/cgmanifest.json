@@ -6,7 +6,7 @@
 				"git": {
 					"name": "octref/language-css",
 					"repositoryUrl": "https://github.com/octref/language-css",
-					"commitHash": "6d3a2d01dd67ef062030f4520dd42a5424330a3b"
+					"commitHash": "dcdc1cb4403266f4ebdb1a4f526f8b6d09fd39d6"
 				}
 			},
 			"license": "MIT",

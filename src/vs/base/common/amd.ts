@@ -6,5 +6,9 @@
 import { URI } from 'vs/base/common/uri';
 
 export function getPathFromAmdModule(requirefn: typeof require, relativePath: string): string {
-	return URI.parse(requirefn.toUrl(relativePath)).fsPath;
+	return getUriFromAmdModule(requirefn, relativePath).fsPath;
+}
+
+export function getUriFromAmdModule(requirefn: typeof require, relativePath: string): URI {
+	return URI.parse(requirefn.toUrl(relativePath));
 }

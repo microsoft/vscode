@@ -8,10 +8,10 @@ import { domEvent, stop } from 'vs/base/browser/event';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as modes from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
@@ -19,29 +19,38 @@ import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, textLinkForeground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
+import { pad } from 'vs/base/common/strings';
+import { registerIcon, Codicon } from 'vs/base/common/codicons';
+import { assertIsDefined } from 'vs/base/common/types';
 
 const $ = dom.$;
 
-export class ParameterHintsWidget implements IContentWidget, IDisposable {
+const parameterHintsNextIcon = registerIcon('parameter-hints-next', Codicon.chevronDown);
+const parameterHintsPreviousIcon = registerIcon('parameter-hints-previous', Codicon.chevronUp);
+
+export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
 	private readonly markdownRenderer: MarkdownRenderer;
-	private renderDisposeables: IDisposable[];
-	private model: ParameterHintsModel | null;
+	private readonly renderDisposeables = this._register(new DisposableStore());
+	private readonly model: ParameterHintsModel;
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
-	private element: HTMLElement;
-	private signature: HTMLElement;
-	private docs: HTMLElement;
-	private overloads: HTMLElement;
-	private visible: boolean;
-	private announcedLabel: string | null;
-	private scrollbar: DomScrollableElement;
-	private disposables: IDisposable[];
+
+	private domNodes?: {
+		readonly element: HTMLElement;
+		readonly signature: HTMLElement;
+		readonly docs: HTMLElement;
+		readonly overloads: HTMLElement;
+		readonly scrollbar: DomScrollableElement;
+	};
+
+	private visible: boolean = false;
+	private announcedLabel: string | null = null;
 
 	// Editor.IContentWidget.allowEditorOverflow
 	allowEditorOverflow = true;
@@ -52,14 +61,13 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		@IOpenerService openerService: IOpenerService,
 		@IModeService modeService: IModeService,
 	) {
-		this.markdownRenderer = new MarkdownRenderer(editor, modeService, openerService);
-		this.model = new ParameterHintsModel(editor);
+		super();
+		this.markdownRenderer = this._register(new MarkdownRenderer(editor, modeService, openerService));
+		this.model = this._register(new ParameterHintsModel(editor));
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
-		this.visible = false;
-		this.disposables = [];
 
-		this.disposables.push(this.model.onChangedHints(newParameterHints => {
+		this._register(this.model.onChangedHints(newParameterHints => {
 			if (newParameterHints) {
 				this.show();
 				this.render(newParameterHints);
@@ -70,84 +78,98 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	private createParamaterHintDOMNodes() {
-		this.element = $('.editor-widget.parameter-hints-widget');
-		const wrapper = dom.append(this.element, $('.wrapper'));
+		const element = $('.editor-widget.parameter-hints-widget');
+		const wrapper = dom.append(element, $('.wrapper'));
 		wrapper.tabIndex = -1;
 
-		const buttons = dom.append(wrapper, $('.buttons'));
-		const previous = dom.append(buttons, $('.button.previous'));
-		const next = dom.append(buttons, $('.button.next'));
+		const controls = dom.append(wrapper, $('.controls'));
+		const previous = dom.append(controls, $('.button' + parameterHintsPreviousIcon.cssSelector));
+		const overloads = dom.append(controls, $('.overloads'));
+		const next = dom.append(controls, $('.button' + parameterHintsNextIcon.cssSelector));
 
 		const onPreviousClick = stop(domEvent(previous, 'click'));
-		onPreviousClick(this.previous, this, this.disposables);
+		this._register(onPreviousClick(this.previous, this));
 
 		const onNextClick = stop(domEvent(next, 'click'));
-		onNextClick(this.next, this, this.disposables);
-
-		this.overloads = dom.append(wrapper, $('.overloads'));
+		this._register(onNextClick(this.next, this));
 
 		const body = $('.body');
-		this.scrollbar = new DomScrollableElement(body, {});
-		this.disposables.push(this.scrollbar);
-		wrapper.appendChild(this.scrollbar.getDomNode());
+		const scrollbar = new DomScrollableElement(body, {});
+		this._register(scrollbar);
+		wrapper.appendChild(scrollbar.getDomNode());
 
-		this.signature = dom.append(body, $('.signature'));
+		const signature = dom.append(body, $('.signature'));
+		const docs = dom.append(body, $('.docs'));
 
-		this.docs = dom.append(body, $('.docs'));
+		element.style.userSelect = 'text';
+
+		this.domNodes = {
+			element,
+			signature,
+			overloads,
+			docs,
+			scrollbar,
+		};
 
 		this.editor.addContentWidget(this);
 		this.hide();
 
-		this.element.style.userSelect = 'text';
-		this.disposables.push(this.editor.onDidChangeCursorSelection(e => {
+		this._register(this.editor.onDidChangeCursorSelection(e => {
 			if (this.visible) {
 				this.editor.layoutContentWidget(this);
 			}
 		}));
 
 		const updateFont = () => {
-			const fontInfo = this.editor.getConfiguration().fontInfo;
-			this.element.style.fontSize = `${fontInfo.fontSize}px`;
+			if (!this.domNodes) {
+				return;
+			}
+			const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+			this.domNodes.element.style.fontSize = `${fontInfo.fontSize}px`;
 		};
 
 		updateFont();
 
-		Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
-			.filter(e => e.fontInfo)
-			.on(updateFont, null, this.disposables);
+		this._register(Event.chain<ConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+			.filter(e => e.hasChanged(EditorOption.fontInfo))
+			.on(updateFont, null));
 
-		this.disposables.push(this.editor.onDidLayoutChange(e => this.updateMaxHeight()));
+		this._register(this.editor.onDidLayoutChange(e => this.updateMaxHeight()));
 		this.updateMaxHeight();
 	}
 
 	private show(): void {
-		if (!this.model || this.visible) {
+		if (this.visible) {
 			return;
 		}
 
-		if (!this.element) {
+		if (!this.domNodes) {
 			this.createParamaterHintDOMNodes();
 		}
 
 		this.keyVisible.set(true);
 		this.visible = true;
-		setTimeout(() => dom.addClass(this.element, 'visible'), 100);
+		setTimeout(() => {
+			if (this.domNodes) {
+				dom.addClass(this.domNodes.element, 'visible');
+			}
+		}, 100);
 		this.editor.layoutContentWidget(this);
 	}
 
 	private hide(): void {
-		if (!this.model || !this.visible) {
-			return;
-		}
+		this.renderDisposeables.clear();
 
-		if (!this.element) {
-			this.createParamaterHintDOMNodes();
+		if (!this.visible) {
+			return;
 		}
 
 		this.keyVisible.reset();
 		this.visible = false;
 		this.announcedLabel = null;
-		dom.removeClass(this.element, 'visible');
+		if (this.domNodes) {
+			dom.removeClass(this.domNodes.element, 'visible');
+		}
 		this.editor.layoutContentWidget(this);
 	}
 
@@ -162,74 +184,72 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	private render(hints: modes.SignatureHelp): void {
+		this.renderDisposeables.clear();
+
+		if (!this.domNodes) {
+			return;
+		}
+
 		const multiple = hints.signatures.length > 1;
-		dom.toggleClass(this.element, 'multiple', multiple);
+		dom.toggleClass(this.domNodes.element, 'multiple', multiple);
 		this.keyMultipleSignatures.set(multiple);
 
-		this.signature.innerHTML = '';
-		this.docs.innerHTML = '';
+		this.domNodes.signature.innerHTML = '';
+		this.domNodes.docs.innerHTML = '';
 
 		const signature = hints.signatures[hints.activeSignature];
-
 		if (!signature) {
 			return;
 		}
 
-		const code = dom.append(this.signature, $('.code'));
-		const hasParameters = signature.parameters.length > 0;
-
-		const fontInfo = this.editor.getConfiguration().fontInfo;
+		const code = dom.append(this.domNodes.signature, $('.code'));
+		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		code.style.fontSize = `${fontInfo.fontSize}px`;
 		code.style.fontFamily = fontInfo.fontFamily;
+
+		const hasParameters = signature.parameters.length > 0;
+		const activeParameterIndex = signature.activeParameter ?? hints.activeParameter;
 
 		if (!hasParameters) {
 			const label = dom.append(code, $('span'));
 			label.textContent = signature.label;
-
 		} else {
-			this.renderParameters(code, signature, hints.activeParameter);
+			this.renderParameters(code, signature, activeParameterIndex);
 		}
 
-		dispose(this.renderDisposeables);
-		this.renderDisposeables = [];
-
-		const activeParameter = signature.parameters[hints.activeParameter];
-
-		if (activeParameter && activeParameter.documentation) {
+		const activeParameter: modes.ParameterInformation | undefined = signature.parameters[activeParameterIndex];
+		if (activeParameter?.documentation) {
 			const documentation = $('span.documentation');
 			if (typeof activeParameter.documentation === 'string') {
 				documentation.textContent = activeParameter.documentation;
 			} else {
-				const renderedContents = this.markdownRenderer.render(activeParameter.documentation);
+				const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(activeParameter.documentation));
 				dom.addClass(renderedContents.element, 'markdown-docs');
-				this.renderDisposeables.push(renderedContents);
 				documentation.appendChild(renderedContents.element);
 			}
-			dom.append(this.docs, $('p', {}, documentation));
+			dom.append(this.domNodes.docs, $('p', {}, documentation));
 		}
 
-		dom.toggleClass(this.signature, 'has-docs', !!signature.documentation);
-
-		if (signature.documentation === undefined) { /** no op */ }
-		else if (typeof signature.documentation === 'string') {
-			dom.append(this.docs, $('p', {}, signature.documentation));
+		if (signature.documentation === undefined) {
+			/** no op */
+		} else if (typeof signature.documentation === 'string') {
+			dom.append(this.domNodes.docs, $('p', {}, signature.documentation));
 		} else {
-			const renderedContents = this.markdownRenderer.render(signature.documentation);
+			const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(signature.documentation));
 			dom.addClass(renderedContents.element, 'markdown-docs');
-			this.renderDisposeables.push(renderedContents);
-			dom.append(this.docs, renderedContents.element);
+			dom.append(this.domNodes.docs, renderedContents.element);
 		}
 
-		let currentOverload = String(hints.activeSignature + 1);
+		const hasDocs = this.hasDocs(signature, activeParameter);
 
-		if (hints.signatures.length < 10) {
-			currentOverload += `/${hints.signatures.length}`;
-		}
+		dom.toggleClass(this.domNodes.signature, 'has-docs', hasDocs);
+		dom.toggleClass(this.domNodes.docs, 'empty', !hasDocs);
 
-		this.overloads.textContent = currentOverload;
+		this.domNodes.overloads.textContent =
+			pad(hints.activeSignature + 1, hints.signatures.length.toString().length) + '/' + hints.signatures.length;
 
 		if (activeParameter) {
-			const labelToAnnounce = this.getParameterLabel(signature, hints.activeParameter);
+			const labelToAnnounce = this.getParameterLabel(signature, activeParameterIndex);
 			// Select method gets called on every user type while parameter hints are visible.
 			// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
 
@@ -240,12 +260,27 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		}
 
 		this.editor.layoutContentWidget(this);
-		this.scrollbar.scanDomNode();
+		this.domNodes.scrollbar.scanDomNode();
 	}
 
-	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, currentParameter: number): void {
+	private hasDocs(signature: modes.SignatureInformation, activeParameter: modes.ParameterInformation | undefined): boolean {
+		if (activeParameter && typeof activeParameter.documentation === 'string' && assertIsDefined(activeParameter.documentation).length > 0) {
+			return true;
+		}
+		if (activeParameter && typeof activeParameter.documentation === 'object' && assertIsDefined(activeParameter.documentation).value.length > 0) {
+			return true;
+		}
+		if (signature.documentation && typeof signature.documentation === 'string' && assertIsDefined(signature.documentation).length > 0) {
+			return true;
+		}
+		if (signature.documentation && typeof signature.documentation === 'object' && assertIsDefined(signature.documentation.value).length > 0) {
+			return true;
+		}
+		return false;
+	}
 
-		const [start, end] = this.getParameterLabelOffsets(signature, currentParameter);
+	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, activeParameterIndex: number): void {
+		const [start, end] = this.getParameterLabelOffsets(signature, activeParameterIndex);
 
 		const beforeSpan = document.createElement('span');
 		beforeSpan.textContent = signature.label.substring(0, start);
@@ -262,10 +297,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	private getParameterLabel(signature: modes.SignatureInformation, paramIdx: number): string {
 		const param = signature.parameters[paramIdx];
-		if (typeof param.label === 'string') {
-			return param.label;
-		} else {
+		if (Array.isArray(param.label)) {
 			return signature.label.substring(param.label[0], param.label[1]);
+		} else {
+			return param.label;
 		}
 	}
 
@@ -284,27 +319,24 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	next(): void {
-		if (this.model) {
-			this.editor.focus();
-			this.model.next();
-		}
+		this.editor.focus();
+		this.model.next();
 	}
 
 	previous(): void {
-		if (this.model) {
-			this.editor.focus();
-			this.model.previous();
-		}
+		this.editor.focus();
+		this.model.previous();
 	}
 
 	cancel(): void {
-		if (this.model) {
-			this.model.cancel();
-		}
+		this.model.cancel();
 	}
 
 	getDomNode(): HTMLElement {
-		return this.element;
+		if (!this.domNodes) {
+			this.createParamaterHintDOMNodes();
+		}
+		return this.domNodes!.element;
 	}
 
 	getId(): string {
@@ -312,23 +344,19 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	trigger(context: TriggerContext): void {
-		if (this.model) {
-			this.model.trigger(context, 0);
-		}
+		this.model.trigger(context, 0);
 	}
 
 	private updateMaxHeight(): void {
+		if (!this.domNodes) {
+			return;
+		}
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
-		this.element.style.maxHeight = `${height}px`;
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-		this.renderDisposeables = dispose(this.renderDisposeables);
-
-		if (this.model) {
-			this.model.dispose();
-			this.model = null;
+		const maxHeight = `${height}px`;
+		this.domNodes.element.style.maxHeight = maxHeight;
+		const wrapper = this.domNodes.element.getElementsByClassName('wrapper') as HTMLCollectionOf<HTMLElement>;
+		if (wrapper.length) {
+			wrapper[0].style.maxHeight = maxHeight;
 		}
 	}
 }
@@ -349,6 +377,11 @@ registerThemingParticipant((theme, collector) => {
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-editor .parameter-hints-widget a { color: ${link}; }`);
+	}
+
+	const foreground = theme.getColor(editorHoverForeground);
+	if (foreground) {
+		collector.addRule(`.monaco-editor .parameter-hints-widget { color: ${foreground}; }`);
 	}
 
 	const codeBackground = theme.getColor(textCodeBlockBackground);

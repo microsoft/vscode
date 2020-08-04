@@ -5,23 +5,25 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as path from 'vs/base/common/path';
 import { realpath, watch } from 'fs';
 import { spawn } from 'child_process';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 
 abstract class AbstractUpdateService2 implements IUpdateService {
 
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
 	private _state: State = State.Uninitialized;
 
-	private _onStateChange = new Emitter<State>();
-	get onStateChange(): Event<State> { return this._onStateChange.event; }
+	private readonly _onStateChange = new Emitter<State>();
+	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {
 		return this._state;
@@ -34,8 +36,8 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IEnvironmentService environmentService: INativeEnvironmentService,
 		@ILogService protected logService: ILogService,
 	) {
 		if (environmentService.disableUpdates) {
@@ -105,7 +107,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
-		this.lifecycleService.quit(true /* from update */).then(vetod => {
+		this.lifecycleMainService.quit(true /* from update */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;
@@ -133,17 +135,17 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 
 export class SnapUpdateService extends AbstractUpdateService2 {
 
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		private snap: string,
 		private snapRevision: string,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
+		@IEnvironmentService environmentService: INativeEnvironmentService,
 		@ILogService logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
-		super(lifecycleService, environmentService, logService);
+		super(lifecycleMainService, environmentService, logService);
 
 		const watcher = watch(path.dirname(this.snap));
 		const onChange = Event.fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
@@ -151,7 +153,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		const onDebouncedCurrentChange = Event.debounce(onCurrentChange, (_, e) => e, 2000);
 		const listener = onDebouncedCurrentChange(this.checkForUpdates, this);
 
-		lifecycleService.onWillShutdown(() => {
+		lifecycleMainService.onWillShutdown(() => {
 			listener.dispose();
 			watcher.close();
 		});
@@ -159,29 +161,17 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 
 	protected doCheckForUpdates(context: any): void {
 		this.setState(State.CheckingForUpdates(context));
-
 		this.isUpdateAvailable().then(result => {
 			if (result) {
 				this.setState(State.Ready({ version: 'something', productVersion: 'something' }));
 			} else {
-				/* __GDPR__
-					"update:notAvailable" : {
-						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-					}
-					*/
-				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
 
 				this.setState(State.Idle(UpdateType.Snap));
 			}
 		}, err => {
 			this.logService.error(err);
-
-			/* __GDPR__
-				"update:notAvailable" : {
-					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-				*/
-			this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+			this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
 			this.setState(State.Idle(UpdateType.Snap, err.message || err));
 		});
 	}

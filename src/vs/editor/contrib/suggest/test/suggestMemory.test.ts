@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { LRUMemory, NoMemory, PrefixMemory, Memory } from 'vs/editor/contrib/suggest/suggestMemory';
 import { ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { createSuggestItem } from 'vs/editor/contrib/suggest/test/completionModel.test';
 import { IPosition } from 'vs/editor/common/core/position';
 import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
@@ -19,7 +19,7 @@ suite('SuggestMemories', function () {
 
 	setup(function () {
 		pos = { lineNumber: 1, column: 1 };
-		buffer = TextModel.createFromString('This is some text.\nthis.\nfoo: ,');
+		buffer = createTextModel('This is some text.\nthis.\nfoo: ,');
 		items = [
 			createSuggestItem('foo', 0),
 			createSuggestItem('bar', 0)
@@ -29,6 +29,9 @@ suite('SuggestMemories', function () {
 	test('AbstractMemory, select', function () {
 
 		const mem = new class extends Memory {
+			constructor() {
+				super('first');
+			}
 			memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
 				throw new Error('Method not implemented.');
 			} toJSON(): object {
@@ -99,6 +102,29 @@ suite('SuggestMemories', function () {
 			createSuggestItem('new1', 0),
 			createSuggestItem('new2', 0)
 		]), 0);
+	});
+
+	test('`"editor.suggestSelection": "recentlyUsed"` should be a little more sticky #78571', function () {
+
+		let item1 = createSuggestItem('gamma', 0);
+		let item2 = createSuggestItem('game', 0);
+		items = [item1, item2];
+
+		let mem = new LRUMemory();
+		buffer.setValue('    foo.');
+		mem.memorize(buffer, { lineNumber: 1, column: 1 }, item2);
+
+		assert.equal(mem.select(buffer, { lineNumber: 1, column: 2 }, items), 0); // leading whitespace -> ignore recent items
+
+		mem.memorize(buffer, { lineNumber: 1, column: 9 }, item2);
+		assert.equal(mem.select(buffer, { lineNumber: 1, column: 9 }, items), 1); // foo.
+
+		buffer.setValue('    foo.g');
+		assert.equal(mem.select(buffer, { lineNumber: 1, column: 10 }, items), 1); // foo.g, 'gamma' and 'game' have the same score
+
+		item1.score = [10, 0, 0];
+		assert.equal(mem.select(buffer, { lineNumber: 1, column: 10 }, items), 0); // foo.g, 'gamma' has higher score
+
 	});
 
 	test('intellisense is not showing top options first #43429', function () {

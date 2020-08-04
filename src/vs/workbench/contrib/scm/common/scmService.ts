@@ -7,7 +7,6 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
-import { equals } from 'vs/base/common/arrays';
 
 class SCMInput implements ISCMInput {
 
@@ -18,12 +17,16 @@ class SCMInput implements ISCMInput {
 	}
 
 	set value(value: string) {
+		if (value === this._value) {
+			return;
+		}
+
 		this._value = value;
 		this._onDidChange.fire(value);
 	}
 
-	private _onDidChange = new Emitter<string>();
-	get onDidChange(): Event<string> { return this._onDidChange.event; }
+	private readonly _onDidChange = new Emitter<string>();
+	readonly onDidChange: Event<string> = this._onDidChange.event;
 
 	private _placeholder = '';
 
@@ -36,8 +39,8 @@ class SCMInput implements ISCMInput {
 		this._onDidChangePlaceholder.fire(placeholder);
 	}
 
-	private _onDidChangePlaceholder = new Emitter<string>();
-	get onDidChangePlaceholder(): Event<string> { return this._onDidChangePlaceholder.event; }
+	private readonly _onDidChangePlaceholder = new Emitter<string>();
+	readonly onDidChangePlaceholder: Event<string> = this._onDidChangePlaceholder.event;
 
 	private _visible = true;
 
@@ -50,8 +53,8 @@ class SCMInput implements ISCMInput {
 		this._onDidChangeVisibility.fire(visible);
 	}
 
-	private _onDidChangeVisibility = new Emitter<boolean>();
-	get onDidChangeVisibility(): Event<boolean> { return this._onDidChangeVisibility.event; }
+	private readonly _onDidChangeVisibility = new Emitter<boolean>();
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
 	private _validateInput: IInputValidator = () => Promise.resolve(undefined);
 
@@ -64,35 +67,34 @@ class SCMInput implements ISCMInput {
 		this._onDidChangeValidateInput.fire();
 	}
 
-	private _onDidChangeValidateInput = new Emitter<void>();
-	get onDidChangeValidateInput(): Event<void> { return this._onDidChangeValidateInput.event; }
+	private readonly _onDidChangeValidateInput = new Emitter<void>();
+	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
+
+	constructor(readonly repository: ISCMRepository) { }
 }
 
 class SCMRepository implements ISCMRepository {
-
-	private _onDidFocus = new Emitter<void>();
-	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
 	private _selected = false;
 	get selected(): boolean {
 		return this._selected;
 	}
 
-	private _onDidChangeSelection = new Emitter<boolean>();
+	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
 
-	readonly input: ISCMInput = new SCMInput();
+	readonly input: ISCMInput = new SCMInput(this);
 
 	constructor(
 		public readonly provider: ISCMProvider,
 		private disposable: IDisposable
 	) { }
 
-	focus(): void {
-		this._onDidFocus.fire();
-	}
-
 	setSelected(selected: boolean): void {
+		if (this._selected === selected) {
+			return;
+		}
+
 		this._selected = selected;
 		this._onDidChangeSelection.fire(selected);
 	}
@@ -105,23 +107,22 @@ class SCMRepository implements ISCMRepository {
 
 export class SCMService implements ISCMService {
 
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
 	private _providerIds = new Set<string>();
 	private _repositories: ISCMRepository[] = [];
 	get repositories(): ISCMRepository[] { return [...this._repositories]; }
 
-	private _selectedRepositories: ISCMRepository[] = [];
-	get selectedRepositories(): ISCMRepository[] { return [...this._selectedRepositories]; }
+	private _selectedRepository: ISCMRepository | undefined;
 
-	private _onDidChangeSelectedRepositories = new Emitter<ISCMRepository[]>();
-	readonly onDidChangeSelectedRepositories: Event<ISCMRepository[]> = this._onDidChangeSelectedRepositories.event;
+	private readonly _onDidSelectRepository = new Emitter<ISCMRepository | undefined>();
+	readonly onDidSelectRepository: Event<ISCMRepository | undefined> = this._onDidSelectRepository.event;
 
-	private _onDidAddProvider = new Emitter<ISCMRepository>();
-	get onDidAddRepository(): Event<ISCMRepository> { return this._onDidAddProvider.event; }
+	private readonly _onDidAddProvider = new Emitter<ISCMRepository>();
+	readonly onDidAddRepository: Event<ISCMRepository> = this._onDidAddProvider.event;
 
-	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
-	get onDidRemoveRepository(): Event<ISCMRepository> { return this._onDidRemoveProvider.event; }
+	private readonly _onDidRemoveProvider = new Emitter<ISCMRepository>();
+	readonly onDidRemoveRepository: Event<ISCMRepository> = this._onDidRemoveProvider.event;
 
 	constructor(@ILogService private readonly logService: ILogService) { }
 
@@ -145,31 +146,31 @@ export class SCMService implements ISCMService {
 			this._providerIds.delete(provider.id);
 			this._repositories.splice(index, 1);
 			this._onDidRemoveProvider.fire(repository);
-			this.onDidChangeSelection();
+
+			if (this._selectedRepository === repository) {
+				this.select(this._repositories[0]);
+			}
 		});
 
 		const repository = new SCMRepository(provider, disposable);
-		const selectedDisposable = repository.onDidChangeSelection(this.onDidChangeSelection, this);
+		const selectedDisposable = Event.map(Event.filter(repository.onDidChangeSelection, selected => selected), _ => repository)(this.select, this);
 
 		this._repositories.push(repository);
 		this._onDidAddProvider.fire(repository);
 
-		// automatically select the first repository
-		if (this._repositories.length === 1) {
+		if (!this._selectedRepository) {
 			repository.setSelected(true);
 		}
 
 		return repository;
 	}
 
-	private onDidChangeSelection(): void {
-		const selectedRepositories = this._repositories.filter(r => r.selected);
-
-		if (equals(this._selectedRepositories, selectedRepositories)) {
-			return;
+	private select(repository: ISCMRepository | undefined): void {
+		if (this._selectedRepository) {
+			this._selectedRepository.setSelected(false);
 		}
 
-		this._selectedRepositories = this._repositories.filter(r => r.selected);
-		this._onDidChangeSelectedRepositories.fire(this.selectedRepositories);
+		this._selectedRepository = repository;
+		this._onDidSelectRepository.fire(this._selectedRepository);
 	}
 }

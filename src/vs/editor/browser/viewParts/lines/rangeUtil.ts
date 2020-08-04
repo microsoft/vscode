@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Constants } from 'vs/editor/common/core/uint';
+import { Constants } from 'vs/base/common/uint';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 
 class FloatHorizontalRange {
@@ -121,12 +121,19 @@ export class RangeUtil {
 		startChildIndex = Math.min(max, Math.max(min, startChildIndex));
 		endChildIndex = Math.min(max, Math.max(min, endChildIndex));
 
+		if (startChildIndex === endChildIndex && startOffset === endOffset && startOffset === 0) {
+			// We must find the position at the beginning of a <span>
+			// To cover cases of empty <span>s, aboid using a range and use the <span>'s bounding box
+			const clientRects = domNode.children[startChildIndex].getClientRects();
+			return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft);
+		}
+
 		// If crossing over to a span only to select offset 0, then use the previous span's maximum offset
 		// Chrome is buggy and doesn't handle 0 offsets well sometimes.
 		if (startChildIndex !== endChildIndex) {
 			if (endChildIndex > 0 && endOffset === 0) {
 				endChildIndex--;
-				endOffset = Number.MAX_VALUE;
+				endOffset = Constants.MAX_SAFE_SMALL_INTEGER;
 			}
 		}
 

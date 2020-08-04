@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename, posix, extname } from 'vs/base/common/path';
-import { endsWith, startsWithUTF8BOM, startsWith } from 'vs/base/common/strings';
-import { coalesce } from 'vs/base/common/arrays';
+import { startsWithUTF8BOM } from 'vs/base/common/strings';
 import { match } from 'vs/base/common/glob';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import { DataUri } from 'vs/base/common/resources';
 
 export const MIME_TEXT = 'text/plain';
 export const MIME_BINARY = 'application/octet-stream';
@@ -106,12 +108,28 @@ export function clearTextMimes(onlyUserConfigured?: boolean): void {
 /**
  * Given a file, return the best matching mime type for it
  */
-export function guessMimeTypes(path: string | null, firstLine?: string): string[] {
+export function guessMimeTypes(resource: URI | null, firstLine?: string): string[] {
+	let path: string | undefined;
+	if (resource) {
+		switch (resource.scheme) {
+			case Schemas.file:
+				path = resource.fsPath;
+				break;
+			case Schemas.data:
+				const metadata = DataUri.parseMetaData(resource);
+				path = metadata.get(DataUri.META_DATA_LABEL);
+				break;
+			default:
+				path = resource.path;
+		}
+	}
+
 	if (!path) {
 		return [MIME_UNKNOWN];
 	}
 
 	path = path.toLowerCase();
+
 	const filename = basename(path);
 
 	// 1.) User configured mappings have highest priority
@@ -166,7 +184,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 		// Longest extension match
 		if (association.extension) {
 			if (!extensionMatch || association.extension.length > extensionMatch.extension!.length) {
-				if (endsWith(filename, association.extensionLowercase!)) {
+				if (filename.endsWith(association.extensionLowercase!)) {
 					extensionMatch = association;
 				}
 			}
@@ -228,82 +246,73 @@ export function isUnspecific(mime: string[] | string): boolean {
 	return mime.length === 1 && isUnspecific(mime[0]);
 }
 
-/**
- * Returns a suggestion for the filename by the following logic:
- * 1. If a relevant extension exists and is an actual filename extension (starting with a dot), suggest the prefix appended by the first one.
- * 2. Otherwise, if there are other extensions, suggest the first one.
- * 3. Otherwise, suggest the prefix.
- */
-export function suggestFilename(mode: string | undefined, prefix: string): string {
-	const extensions = registeredAssociations
-		.filter(assoc => !assoc.userConfigured && assoc.extension && assoc.id === mode)
-		.map(assoc => assoc.extension);
-
-	const extensionsWithDotFirst = coalesce(extensions)
-		.filter(assoc => startsWith(assoc, '.'));
-
-	if (extensionsWithDotFirst.length > 0) {
-		return prefix + extensionsWithDotFirst[0];
-	}
-
-	return extensions[0] || prefix;
-}
-
 interface MapExtToMediaMimes {
 	[index: string]: string;
 }
 
 // Known media mimes that we can handle
 const mapExtToMediaMimes: MapExtToMediaMimes = {
+	'.aac': 'audio/x-aac',
+	'.avi': 'video/x-msvideo',
 	'.bmp': 'image/bmp',
+	'.flv': 'video/x-flv',
 	'.gif': 'image/gif',
-	'.jpg': 'image/jpg',
-	'.jpeg': 'image/jpg',
-	'.jpe': 'image/jpg',
-	'.png': 'image/png',
-	'.tiff': 'image/tiff',
-	'.tif': 'image/tiff',
 	'.ico': 'image/x-icon',
-	'.tga': 'image/x-tga',
-	'.psd': 'image/vnd.adobe.photoshop',
-	'.webp': 'image/webp',
+	'.jpe': 'image/jpg',
+	'.jpeg': 'image/jpg',
+	'.jpg': 'image/jpg',
+	'.m1v': 'video/mpeg',
+	'.m2a': 'audio/mpeg',
+	'.m2v': 'video/mpeg',
+	'.m3a': 'audio/mpeg',
 	'.mid': 'audio/midi',
 	'.midi': 'audio/midi',
-	'.mp4a': 'audio/mp4',
-	'.mpga': 'audio/mpeg',
+	'.mk3d': 'video/x-matroska',
+	'.mks': 'video/x-matroska',
+	'.mkv': 'video/x-matroska',
+	'.mov': 'video/quicktime',
+	'.movie': 'video/x-sgi-movie',
 	'.mp2': 'audio/mpeg',
 	'.mp2a': 'audio/mpeg',
 	'.mp3': 'audio/mpeg',
-	'.m2a': 'audio/mpeg',
-	'.m3a': 'audio/mpeg',
-	'.oga': 'audio/ogg',
-	'.ogg': 'audio/ogg',
-	'.spx': 'audio/ogg',
-	'.aac': 'audio/x-aac',
-	'.wav': 'audio/x-wav',
-	'.wma': 'audio/x-ms-wma',
 	'.mp4': 'video/mp4',
+	'.mp4a': 'audio/mp4',
 	'.mp4v': 'video/mp4',
-	'.mpg4': 'video/mp4',
+	'.mpe': 'video/mpeg',
 	'.mpeg': 'video/mpeg',
 	'.mpg': 'video/mpeg',
-	'.mpe': 'video/mpeg',
-	'.m1v': 'video/mpeg',
-	'.m2v': 'video/mpeg',
+	'.mpg4': 'video/mp4',
+	'.mpga': 'audio/mpeg',
+	'.oga': 'audio/ogg',
+	'.ogg': 'audio/ogg',
 	'.ogv': 'video/ogg',
+	'.png': 'image/png',
+	'.psd': 'image/vnd.adobe.photoshop',
 	'.qt': 'video/quicktime',
-	'.mov': 'video/quicktime',
+	'.spx': 'audio/ogg',
+	'.svg': 'image/svg+xml',
+	'.tga': 'image/x-tga',
+	'.tif': 'image/tiff',
+	'.tiff': 'image/tiff',
+	'.wav': 'audio/x-wav',
 	'.webm': 'video/webm',
-	'.mkv': 'video/x-matroska',
-	'.mk3d': 'video/x-matroska',
-	'.mks': 'video/x-matroska',
+	'.webp': 'image/webp',
+	'.wma': 'audio/x-ms-wma',
 	'.wmv': 'video/x-ms-wmv',
-	'.flv': 'video/x-flv',
-	'.avi': 'video/x-msvideo',
-	'.movie': 'video/x-sgi-movie'
+	'.woff': 'application/font-woff',
 };
 
 export function getMediaMime(path: string): string | undefined {
 	const ext = extname(path);
 	return mapExtToMediaMimes[ext.toLowerCase()];
+}
+
+export function getExtensionForMimeType(mimeType: string): string | undefined {
+	for (const extension in mapExtToMediaMimes) {
+		if (mapExtToMediaMimes[extension] === mimeType) {
+			return extension;
+		}
+	}
+
+	return undefined;
 }

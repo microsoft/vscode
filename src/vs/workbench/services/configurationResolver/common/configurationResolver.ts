@@ -6,11 +6,12 @@
 import { IStringDictionary } from 'vs/base/common/collections';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export const IConfigurationResolverService = createDecorator<IConfigurationResolverService>('configurationResolverService');
 
 export interface IConfigurationResolverService {
-	_serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	resolve(folder: IWorkspaceFolder | undefined, value: string): string;
 	resolve(folder: IWorkspaceFolder | undefined, value: string[]): string[];
@@ -29,13 +30,19 @@ export interface IConfigurationResolverService {
 	 * @param section For example, 'tasks' or 'debug'. Used for resolving inputs.
 	 * @param variables Aliases for commands.
 	 */
-	resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any>;
+	resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any>;
 
 	/**
 	 * Similar to resolveWithInteractionReplace, except without the replace. Returns a map of variables and their resolution.
 	 * Keys in the map will be of the format input:variableName or command:variableName.
 	 */
-	resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined>;
+	resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined>;
+
+	/**
+	 * Contributes a variable that can be resolved later. Consumers that use resolveAny, resolveWithInteraction,
+	 * and resolveWithInteractionReplace will have contributed variables resolved.
+	 */
+	contributeVariable(variable: string, resolution: () => Promise<string | undefined>): void;
 }
 
 export interface PromptStringInputInfo {
@@ -43,13 +50,14 @@ export interface PromptStringInputInfo {
 	type: 'promptString';
 	description: string;
 	default?: string;
+	password?: boolean;
 }
 
 export interface PickStringInputInfo {
 	id: string;
 	type: 'pickString';
 	description: string;
-	options: string[];
+	options: (string | { value: string, label?: string })[];
 	default?: string;
 }
 

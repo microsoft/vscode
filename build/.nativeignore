@@ -1,5 +1,8 @@
 # cleanup rules for native node modules, .gitignore style
 
+nan/**
+*/node_modules/nan/**
+
 fsevents/binding.gyp
 fsevents/fsevents.cc
 fsevents/build/**
@@ -15,13 +18,6 @@ vscode-sqlite3/test/**
 vscode-sqlite3/build/**
 vscode-sqlite3/src/**
 !vscode-sqlite3/build/Release/*.node
-
-oniguruma/binding.gyp
-oniguruma/build/**
-oniguruma/src/**
-oniguruma/deps/**
-!oniguruma/build/Release/*.node
-!oniguruma/src/*.js
 
 windows-mutex/binding.gyp
 windows-mutex/build/**
@@ -64,14 +60,6 @@ windows-process-tree/build/**
 windows-process-tree/src/**
 !windows-process-tree/**/*.node
 
-gc-signals/binding.gyp
-gc-signals/build/**
-gc-signals/src/**
-gc-signals/deps/**
-
-!gc-signals/build/Release/*.node
-!gc-signals/src/index.js
-
 keytar/binding.gyp
 keytar/build/**
 keytar/src/**
@@ -83,6 +71,7 @@ node-pty/binding.gyp
 node-pty/build/**
 node-pty/src/**
 node-pty/tools/**
+node-pty/deps/**
 !node-pty/build/Release/*.exe
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node
@@ -95,13 +84,13 @@ vscode-nsfw/includes/**
 !vscode-nsfw/build/Release/*.node
 !vscode-nsfw/**/*.a
 
+vsda/build/**
+vsda/ci/**
+vsda/src/**
+vsda/.gitignore
 vsda/binding.gyp
 vsda/README.md
-vsda/build/**
-vsda/*.bat
-vsda/*.sh
-vsda/*.cpp
-vsda/*.h
+vsda/targets
 !vsda/build/Release/vsda.node
 
 vscode-windows-ca-certs/**/*

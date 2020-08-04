@@ -11,12 +11,9 @@
 }
 
 .monaco-list.mouse-support {
-	-webkit-user-select: none;
-	-khtml-user-select: none;
-	-moz-user-select: -moz-none;
-	-ms-user-select: none;
-	-o-user-select: none;
 	user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
 }
 
 .monaco-list > .monaco-scrollable-element {
@@ -36,10 +33,7 @@
 
 .monaco-list-row {
 	position: absolute;
-	-moz-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
+	box-sizing:	border-box;
 	overflow: hidden;
 	width: 100%;
 }
@@ -57,6 +51,10 @@
 /* Focus */
 .monaco-list.element-focused, .monaco-list.selection-single, .monaco-list.selection-multiple {
 	outline: 0 !important;
+}
+
+.monaco-list:focus .monaco-list-row.selected .codicon {
+	color: inherit;
 }
 
 /* Dnd */
@@ -115,54 +113,24 @@
 }
 
 .monaco-list-type-filter > .controls > * {
+	border: none;
 	box-sizing: border-box;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	background: none;
 	width: 16px;
 	height: 16px;
-	margin: 0 0 0 2px;
 	flex-shrink: 0;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
 }
 
 .monaco-list-type-filter > .controls > .filter {
-	-webkit-appearance: none;
-	width: 16px;
-	height: 16px;
-	background: url("media/no-filter.svg");
-	background-position: 50% 50%;
-	cursor: pointer;
-}
-
-.monaco-list-type-filter > .controls > .filter:checked {
-	background-image: url("media/filter.svg");
-}
-
-.vs-dark .monaco-list-type-filter > .controls > .filter {
-	background-image: url("media/no-filter-dark.svg");
-}
-
-.vs-dark .monaco-list-type-filter > .controls > .filter:checked {
-	background-image: url("media/filter-dark.svg");
-}
-
-.hc-black .monaco-list-type-filter > .controls > .filter {
-	background-image: url("media/no-filter-hc.svg");
-}
-
-.hc-black .monaco-list-type-filter > .controls > .filter:checked {
-	background-image: url("media/filter-hc.svg");
-}
-
-.monaco-list-type-filter > .controls > .clear {
-	border: none;
-	background: url("media/close.svg");
-	cursor: pointer;
-}
-
-.vs-dark .monaco-list-type-filter > .controls > .clear {
-	background-image: url("media/close-dark.svg");
-}
-
-.hc-black .monaco-list-type-filter > .controls > .clear {
-	background-image: url("media/close-hc.svg");
+	margin-left: 4px;
 }
 
 .monaco-list-type-filter-message {
@@ -186,9 +154,9 @@
 /* Electron */
 
 .monaco-list-type-filter {
-	cursor: -webkit-grab;
+	cursor: grab;
 }
 
 .monaco-list-type-filter.dragging {
-	cursor: -webkit-grabbing;
+	cursor: grabbing;
 }

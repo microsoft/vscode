@@ -74,13 +74,6 @@ export class Selection extends Range {
 	}
 
 	/**
-	 * Clone this selection.
-	 */
-	public clone(): Selection {
-		return new Selection(this.selectionStartLineNumber, this.selectionStartColumn, this.positionLineNumber, this.positionColumn);
-	}
-
-	/**
 	 * Transform to a human-readable representation.
 	 */
 	public toString(): string {

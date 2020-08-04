@@ -6,7 +6,7 @@
 				"git": {
 					"name": "language-rust",
 					"repositoryUrl": "https://github.com/zargony/atom-language-rust",
-					"commitHash": "5238d9834953ed7c58d9b5b9bb0c084c3c11ecd6"
+					"commitHash": "7d59e2ad79fbe5925bd2fd3bd3857bf9f421ff6f"
 				}
 			},
 			"license": "MIT",

@@ -1,0 +1,121 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.extensions-viewlet {
+	position: relative;
+	height: 100%;
+}
+
+.extensions-viewlet > .overlay {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 2;
+}
+
+.extensions-viewlet > .header {
+	height: 41px;
+	box-sizing: border-box;
+	padding: 5px 12px 6px 16px;
+}
+
+.extensions-viewlet > .header > .search-box {
+	width: 100%;
+	height: 28px;
+	line-height: 18px;
+	box-sizing: border-box;
+	padding: 4px;
+	border: 1px solid transparent;
+	-webkit-appearance: textfield;
+	-moz-appearance: textfield;
+}
+
+.extensions-viewlet > .extensions {
+	height: calc(100% - 41px);
+}
+
+.extensions-viewlet > .extensions .extension-view-header .count-badge-wrapper,
+.extensions-viewlet > .extensions .extension-view-header .monaco-action-bar {
+	margin-right: 4px;
+}
+
+.extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item > .action-label.icon.codicon {
+	vertical-align: middle;
+	line-height: 22px;
+}
+
+.extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item.disabled  {
+	display: none;
+}
+
+.extensions-viewlet > .extensions .extensions-list.hidden,
+.extensions-viewlet > .extensions .message-container.hidden {
+	display: none;
+	visibility: hidden;
+}
+
+.extensions-viewlet > .extensions .panel-header {
+	padding-right: 12px;
+}
+
+.extensions-viewlet > .extensions .panel-header > .title {
+	flex: 1;
+}
+
+.extensions-viewlet > .extensions .panel-header > .actions.show {
+	flex: inherit;
+}
+
+.extensions-viewlet > .extensions .message-container {
+	padding: 5px 9px 5px 16px;
+	cursor: default;
+	display: flex;
+}
+
+.extensions-viewlet > .extensions .message-container .message {
+	padding-left: 5px;
+}
+
+.extensions-viewlet > .extensions .message-container .severity-icon {
+	flex-shrink: 0;
+}
+
+.extensions-viewlet > .extensions .extension-list-item {
+	position: absolute;
+}
+
+.extensions-viewlet > .extensions .extension-list-item.loading {
+	background: url('loading.svg') center center no-repeat;
+}
+
+.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container,
+.extensions-viewlet > .extensions .extension-list-item.loading > .icon-container {
+	display: none;
+}
+
+.extensions-viewlet:not(.narrow) > .extensions .extension-list-item > .details > .header-container > .header > .extension-remote-badge-container,
+.extensions-viewlet.narrow > .extensions .extension-list-item > .details > .header-container > .header > .ratings,
+.extensions-viewlet.narrow > .extensions .extension-list-item > .details > .header-container > .header > .install-count {
+	display: none;
+}
+
+.extensions-viewlet.narrow > .extensions .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action {
+	max-width: 100px;
+}
+
+.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .icon-container > .icon,
+.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .icon-container > .icon,
+.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .header-container .codicon,
+.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .header-container .codicon {
+	opacity: 0.5;
+}
+
+.extensions-badge.progress-badge > .badge-content {
+	background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNCIgaGVpZ2h0PSIxNCIgdmlld0JveD0iMiAyIDE0IDE0IiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDIgMiAxNCAxNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTkgMTZjLTMuODYgMC03LTMuMTQtNy03czMuMTQtNyA3LTdjMy44NTkgMCA3IDMuMTQxIDcgN3MtMy4xNDEgNy03IDd6bTAtMTIuNmMtMy4wODggMC01LjYgMi41MTMtNS42IDUuNnMyLjUxMiA1LjYgNS42IDUuNiA1LjYtMi41MTIgNS42LTUuNi0yLjUxMi01LjYtNS42LTUuNnptMy44NiA3LjFsLTMuMTYtMS44OTZ2LTMuODA0aC0xLjR2NC41OTZsMy44NCAyLjMwNS43Mi0xLjIwMXoiLz48L3N2Zz4=");
+	background-position: center center;
+	background-repeat: no-repeat;
+}

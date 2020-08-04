@@ -3,28 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRemoteAgentConnection } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { AbstractRemoteAgentService, RemoteAgentConnection } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
-import { IProductService } from 'vs/platform/product/common/product';
-import { browserWebSocketFactory } from 'vs/platform/remote/browser/browserWebSocketFactory';
+import { AbstractRemoteAgentService } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IWebSocketFactory, BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
+import { ISignService } from 'vs/platform/sign/common/sign';
+import { ILogService } from 'vs/platform/log/common/log';
 
-export class RemoteAgentService extends AbstractRemoteAgentService {
-
-	private readonly _connection: IRemoteAgentConnection | null = null;
+export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		webSocketFactory: IWebSocketFactory | null | undefined,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@ISignService signService: ISignService,
+		@ILogService logService: ILogService
 	) {
-		super(environmentService);
-		const authority = document.location.host;
-		this._connection = this._register(new RemoteAgentConnection(authority, productService.commit, browserWebSocketFactory, environmentService, remoteAuthorityResolverService));
-	}
-
-	getConnection(): IRemoteAgentConnection | null {
-		return this._connection;
+		super(new BrowserSocketFactory(webSocketFactory), environmentService, productService, remoteAuthorityResolverService, signService, logService);
 	}
 }

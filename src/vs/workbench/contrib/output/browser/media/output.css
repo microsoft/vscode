@@ -3,38 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .output-action.clear-output {
-	background: url('clear_output.svg') center center no-repeat;
+
+.monaco-workbench .part.sidebar > .title > .title-actions .switch-output,
+.monaco-pane-view .pane > .pane-header .monaco-action-bar .switch-output {
+	border-width: 1px;
+	border-style: solid;
 }
 
-.vs-dark .monaco-workbench .output-action.clear-output,
-.hc-black .monaco-workbench .output-action.clear-output {
-	background: url('clear_output_inverse.svg') center center no-repeat;
+.part.panel > .title > .title-actions .switch-output > .monaco-select-box {
+	border-width: 1px;
+	border-style: solid;
 }
 
-.monaco-workbench .output-action.output-scroll-lock {
-	background: url('output_lock.svg') center center no-repeat;
+.monaco-workbench .part.sidebar > .title > .title-actions .switch-output  {
+	display: flex;
+	align-items: center;
+	font-size: 11px;
+	margin-right: 0.3em;
+	height: 20px;
+	flex-shrink: 1;
+	margin-top: 7px;
 }
 
-.vs-dark .monaco-workbench .output-action.output-scroll-lock,
-.hc-black .monaco-workbench .output-action.output-scroll-lock {
-	background: url('output_lock_inverse.svg') center center no-repeat;
+.monaco-workbench.mac .part.sidebar > .title > .title-actions .switch-output {
+	border-radius: 4px;
 }
 
-.monaco-workbench .output-action.output-scroll-unlock {
-	background: url('output_unlock.svg') center center no-repeat;
+.monaco-workbench .part.sidebar > .title > .title-actions .switch-output > .monaco-select-box {
+	border: none !important;
+	display: block !important;
+	background-color: unset !important;
 }
 
-.vs-dark .monaco-workbench .output-action.output-scroll-unlock,
-.hc-black .monaco-workbench .output-action.output-scroll-unlock {
-	background: url('output_unlock_inverse.svg') center center no-repeat;
+.monaco-pane-view .pane > .pane-header .monaco-action-bar .switch-output.action-item.select-container {
+	border: none !important;
 }
 
-.monaco-workbench .output-action.open-log-file {
-	background: url('open_log_file.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .output-action.open-log-file,
-.hc-black .monaco-workbench .output-action.open-log-file {
-	background: url('open_log_file_inverse.svg') center center no-repeat;
+.monaco-workbench .part.sidebar > .title > .title-actions .switch-output > .monaco-select-box {
+	padding: 0 22px 0 6px;
 }

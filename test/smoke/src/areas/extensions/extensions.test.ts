@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Quality } from '../../application';
+import { Application, Quality } from '../../../../automation';
 
 export function setup() {
 	describe('Extensions', () => {
@@ -17,10 +17,14 @@ export function setup() {
 
 			await app.workbench.extensions.openExtensionsViewlet();
 
-			await app.workbench.extensions.installExtension('michelkaporin.vscode-smoketest-check', 'vscode-smoketest-check');
+			await app.workbench.extensions.installExtension('michelkaporin.vscode-smoketest-check', 'vscode-smoketest-check', '0.0.1', 'Michel Kaporin');
 
 			await app.workbench.extensions.waitForExtensionsViewlet();
-			await app.workbench.quickopen.runCommand('Smoke Test Check');
+
+			if (app.remote) {
+				await app.reload();
+			}
+			await app.workbench.quickaccess.runCommand('Smoke Test Check');
 			await app.workbench.statusbar.waitForStatusbarText('smoke test', 'VS Code Smoke Test Check');
 		});
 	});

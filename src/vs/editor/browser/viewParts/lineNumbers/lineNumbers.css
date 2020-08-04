@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .margin-view-overlays .line-numbers {
+	font-variant-numeric: tabular-nums;
 	position: absolute;
 	text-align: right;
 	display: inline-block;
@@ -17,20 +18,6 @@
 	text-align: left;
 	display: inline-block;
 	width: 100%;
-}
-
-.monaco-editor .margin-view-overlays .line-numbers {
-	cursor: -webkit-image-set(
-		url('flipped-cursor.svg') 1x,
-		url('flipped-cursor-2x.svg') 2x
-	) 30 0, default;
-}
-
-.monaco-editor.mac .margin-view-overlays .line-numbers {
-	cursor: -webkit-image-set(
-		url('flipped-cursor-mac.svg') 1x,
-		url('flipped-cursor-mac-2x.svg') 2x
-	) 24 3, default;
 }
 
 .monaco-editor .margin-view-overlays .line-numbers.lh-odd {

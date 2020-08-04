@@ -20,7 +20,7 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 			this._addInWordRanges(bucket, model, position);
 			this._addWordRanges(bucket, model, position);
 			this._addWhitespaceLine(bucket, model, position);
-			bucket.push({ range: model.getFullModelRange(), kind: 'statement.all' });
+			bucket.push({ range: model.getFullModelRange() });
 		}
 		return result;
 	}
@@ -40,7 +40,7 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 		// LEFT anchor (start)
 		for (; start >= 0; start--) {
 			let ch = word.charCodeAt(start);
-			if (ch === CharCode.Underline || ch === CharCode.Dash) {
+			if ((start !== offset) && (ch === CharCode.Underline || ch === CharCode.Dash)) {
 				// foo-bar OR foo_bar
 				break;
 			} else if (isLowerAsciiLetter(ch) && isUpperAsciiLetter(lastCh)) {
@@ -65,14 +65,14 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 		}
 
 		if (start < end) {
-			bucket.push({ range: new Range(pos.lineNumber, startColumn + start, pos.lineNumber, startColumn + end), kind: 'statement.word.part' });
+			bucket.push({ range: new Range(pos.lineNumber, startColumn + start, pos.lineNumber, startColumn + end) });
 		}
 	}
 
 	private _addWordRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
 		const word = model.getWordAtPosition(pos);
 		if (word) {
-			bucket.push({ range: new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn), kind: 'statement.word' });
+			bucket.push({ range: new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn) });
 		}
 	}
 
@@ -81,7 +81,7 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 			&& model.getLineFirstNonWhitespaceColumn(pos.lineNumber) === 0
 			&& model.getLineLastNonWhitespaceColumn(pos.lineNumber) === 0
 		) {
-			bucket.push({ range: new Range(pos.lineNumber, 1, pos.lineNumber, model.getLineMaxColumn(pos.lineNumber)), kind: 'statement.line' });
+			bucket.push({ range: new Range(pos.lineNumber, 1, pos.lineNumber, model.getLineMaxColumn(pos.lineNumber)) });
 		}
 	}
 }

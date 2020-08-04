@@ -67,6 +67,11 @@ export class LineTokens implements IViewLineTokens {
 		return 0;
 	}
 
+	public getMetadata(tokenIndex: number): number {
+		const metadata = this._tokens[(tokenIndex << 1) + 1];
+		return metadata;
+	}
+
 	public getLanguageId(tokenIndex: number): LanguageId {
 		const metadata = this._tokens[(tokenIndex << 1) + 1];
 		return TokenMetadata.getLanguageId(metadata);
@@ -132,8 +137,8 @@ export class LineTokens implements IViewLineTokens {
 
 		while (low < high) {
 
-			let mid = low + Math.floor((high - low) / 2);
-			let endOffset = tokens[(mid << 1)];
+			const mid = low + Math.floor((high - low) / 2);
+			const endOffset = tokens[(mid << 1)];
 
 			if (endOffset === desiredIndex) {
 				return mid + 1;

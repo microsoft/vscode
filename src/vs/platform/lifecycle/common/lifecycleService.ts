@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Barrier } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILifecycleService, BeforeShutdownEvent, WillShutdownEvent, StartupKind, LifecyclePhase, LifecyclePhaseToString } from 'vs/platform/lifecycle/common/lifecycle';
@@ -12,24 +12,24 @@ import { mark } from 'vs/base/common/performance';
 
 export abstract class AbstractLifecycleService extends Disposable implements ILifecycleService {
 
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
 	protected readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
-	get onBeforeShutdown(): Event<BeforeShutdownEvent> { return this._onBeforeShutdown.event; }
+	readonly onBeforeShutdown = this._onBeforeShutdown.event;
 
 	protected readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
-	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
+	readonly onWillShutdown = this._onWillShutdown.event;
 
 	protected readonly _onShutdown = this._register(new Emitter<void>());
-	get onShutdown(): Event<void> { return this._onShutdown.event; }
+	readonly onShutdown = this._onShutdown.event;
 
-	protected _startupKind: StartupKind;
+	protected _startupKind: StartupKind = StartupKind.NewWindow;
 	get startupKind(): StartupKind { return this._startupKind; }
 
 	private _phase: LifecyclePhase = LifecyclePhase.Starting;
 	get phase(): LifecyclePhase { return this._phase; }
 
-	private phaseWhen = new Map<LifecyclePhase, Barrier>();
+	private readonly phaseWhen = new Map<LifecyclePhase, Barrier>();
 
 	constructor(
 		@ILogService protected readonly logService: ILogService
@@ -58,9 +58,9 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 		}
 	}
 
-	when(phase: LifecyclePhase): Promise<void> {
+	async when(phase: LifecyclePhase): Promise<void> {
 		if (phase <= this._phase) {
-			return Promise.resolve();
+			return;
 		}
 
 		let barrier = this.phaseWhen.get(phase);
@@ -69,6 +69,6 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 			this.phaseWhen.set(phase, barrier);
 		}
 
-		return barrier.wait().then(undefined);
+		await barrier.wait();
 	}
 }

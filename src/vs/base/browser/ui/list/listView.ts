@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getOrDefault } from 'vs/base/common/objects';
-import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollEvent, ScrollbarVisibility, INewScrollDimensions } from 'vs/base/common/scrollable';
+import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollEvent, ScrollbarVisibility, INewScrollDimensions, Scrollable } from 'vs/base/common/scrollable';
 import { RangeMap, shift } from './rangeMap';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent, IListDragEvent, IListDragAndDrop, ListDragOverEffect } from './list';
 import { RowCache, IRow } from './rowCache';
-import { isWindows } from 'vs/base/common/platform';
-import * as browser from 'vs/base/browser/browser';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { memoize } from 'vs/base/common/decorators';
 import { Range, IRange } from 'vs/base/common/range';
 import { equals, distinct } from 'vs/base/common/arrays';
 import { DataTransfers, StaticDND, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout, Delayer } from 'vs/base/common/async';
+import { isFirefox } from 'vs/base/browser/browser';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 interface IItem<T> {
 	readonly id: string;
@@ -41,26 +41,36 @@ export interface IListViewDragAndDrop<T> extends IListDragAndDrop<T> {
 	getDragElements(element: T): T[];
 }
 
-export interface IAriaSetProvider<T> {
-	getSetSize(element: T, index: number, listLength: number): number;
-	getPosInSet(element: T, index: number): number;
+export interface IListViewAccessibilityProvider<T> {
+	getSetSize?(element: T, index: number, listLength: number): number;
+	getPosInSet?(element: T, index: number): number;
+	getRole?(element: T): string | undefined;
+	isChecked?(element: T): boolean | undefined;
 }
 
-export interface IListViewOptions<T> {
+export interface IListViewOptionsUpdate {
+	readonly additionalScrollHeight?: number;
+	readonly smoothScrolling?: boolean;
+	readonly horizontalScrolling?: boolean;
+}
+
+export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly dnd?: IListViewDragAndDrop<T>;
 	readonly useShadows?: boolean;
 	readonly verticalScrollMode?: ScrollbarVisibility;
 	readonly setRowLineHeight?: boolean;
+	readonly setRowHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
-	readonly horizontalScrolling?: boolean;
-	readonly ariaSetProvider?: IAriaSetProvider<T>;
+	readonly accessibilityProvider?: IListViewAccessibilityProvider<T>;
+	readonly transformOptimization?: boolean;
 }
 
 const DefaultOptions = {
 	useShadows: true,
 	verticalScrollMode: ScrollbarVisibility.Auto,
 	setRowLineHeight: true,
+	setRowHeight: true,
 	supportDynamicHeights: false,
 	dnd: {
 		getDragElements<T>(e: T) { return [e]; },
@@ -69,12 +79,21 @@ const DefaultOptions = {
 		onDragOver() { return false; },
 		drop() { }
 	},
-	horizontalScrolling: false
+	horizontalScrolling: false,
+	transformOptimization: true
 };
 
-export class ElementsDragAndDropData<T> implements IDragAndDropData {
+export class ElementsDragAndDropData<T, TContext = void> implements IDragAndDropData {
 
 	readonly elements: T[];
+
+	private _context: TContext | undefined;
+	public get context(): TContext | undefined {
+		return this._context;
+	}
+	public set context(value: TContext | undefined) {
+		this._context = value;
+	}
 
 	constructor(elements: T[]) {
 		this.elements = elements;
@@ -82,7 +101,7 @@ export class ElementsDragAndDropData<T> implements IDragAndDropData {
 
 	update(): void { }
 
-	getData(): any {
+	getData(): T[] {
 		return this.elements;
 	}
 }
@@ -97,7 +116,7 @@ export class ExternalElementsDragAndDropData<T> implements IDragAndDropData {
 
 	update(): void { }
 
-	getData(): any {
+	getData(): T[] {
 		return this.elements;
 	}
 }
@@ -146,6 +165,40 @@ function equalsDragFeedback(f1: number[] | undefined, f2: number[] | undefined):
 	return f1 === f2;
 }
 
+class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilityProvider<T>> {
+
+	readonly getSetSize: (element: any, index: number, listLength: number) => number;
+	readonly getPosInSet: (element: any, index: number) => number;
+	readonly getRole: (element: T) => string | undefined;
+	readonly isChecked: (element: T) => boolean | undefined;
+
+	constructor(accessibilityProvider?: IListViewAccessibilityProvider<T>) {
+		if (accessibilityProvider?.getSetSize) {
+			this.getSetSize = accessibilityProvider.getSetSize.bind(accessibilityProvider);
+		} else {
+			this.getSetSize = (e, i, l) => l;
+		}
+
+		if (accessibilityProvider?.getPosInSet) {
+			this.getPosInSet = accessibilityProvider.getPosInSet.bind(accessibilityProvider);
+		} else {
+			this.getPosInSet = (e, i) => i + 1;
+		}
+
+		if (accessibilityProvider?.getRole) {
+			this.getRole = accessibilityProvider.getRole.bind(accessibilityProvider);
+		} else {
+			this.getRole = _ => 'listitem';
+		}
+
+		if (accessibilityProvider?.isChecked) {
+			this.isChecked = accessibilityProvider.isChecked.bind(accessibilityProvider);
+		} else {
+			this.isChecked = _ => undefined;
+		}
+	}
+}
+
 export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private static InstanceCount = 0;
@@ -161,22 +214,22 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
 	private renderWidth = 0;
-	private gesture: Gesture;
 	private rowsContainer: HTMLElement;
-	private scrollableElement: ScrollableElement;
-	private _scrollHeight: number;
+	private scrollable: Scrollable;
+	private scrollableElement: SmoothScrollableElement;
+	private _scrollHeight: number = 0;
 	private scrollableElementUpdateDisposable: IDisposable | null = null;
 	private scrollableElementWidthDelayer = new Delayer<void>(50);
 	private splicing = false;
 	private dragOverAnimationDisposable: IDisposable | undefined;
 	private dragOverAnimationStopDisposable: IDisposable = Disposable.None;
-	private dragOverMouseY: number;
+	private dragOverMouseY: number = 0;
 	private setRowLineHeight: boolean;
+	private setRowHeight: boolean;
 	private supportDynamicHeights: boolean;
-	private horizontalScrolling: boolean;
-	private ariaSetProvider: IAriaSetProvider<T>;
+	private additionalScrollHeight: number;
+	private accessibilityProvider: ListViewAccessibilityProvider<T>;
 	private scrollWidth: number | undefined;
-	private canUseTranslate3d: boolean | undefined = undefined;
 
 	private dnd: IListViewDragAndDrop<T>;
 	private canDrop: boolean = false;
@@ -185,13 +238,44 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private currentDragFeedbackDisposable: IDisposable = Disposable.None;
 	private onDragLeaveTimeout: IDisposable = Disposable.None;
 
-	private disposables: IDisposable[];
+	private readonly disposables: DisposableStore = new DisposableStore();
 
-	private _onDidChangeContentHeight = new Emitter<number>();
+	private readonly _onDidChangeContentHeight = new Emitter<number>();
 	readonly onDidChangeContentHeight: Event<number> = Event.latch(this._onDidChangeContentHeight.event);
 	get contentHeight(): number { return this.rangeMap.size; }
 
 	get onDidScroll(): Event<ScrollEvent> { return this.scrollableElement.onScroll; }
+	get onWillScroll(): Event<ScrollEvent> { return this.scrollableElement.onWillScroll; }
+	get containerDomNode(): HTMLElement { return this.rowsContainer; }
+
+	private _horizontalScrolling: boolean = false;
+	private get horizontalScrolling(): boolean { return this._horizontalScrolling; }
+	private set horizontalScrolling(value: boolean) {
+		if (value === this._horizontalScrolling) {
+			return;
+		}
+
+		if (value && this.supportDynamicHeights) {
+			throw new Error('Horizontal scrolling and dynamic heights not supported simultaneously');
+		}
+
+		this._horizontalScrolling = value;
+		DOM.toggleClass(this.domNode, 'horizontal-scrolling', this._horizontalScrolling);
+
+		if (this._horizontalScrolling) {
+			for (const item of this.items) {
+				this.measureItemWidth(item);
+			}
+
+			this.updateScrollWidth();
+			this.scrollableElement.setScrollDimensions({ width: DOM.getContentWidth(this.domNode) });
+			this.rowsContainer.style.width = `${Math.max(this.scrollWidth || 0, this.renderWidth)}px`;
+		} else {
+			this.scrollableElementWidthDelayer.cancel();
+			this.scrollableElement.setScrollDimensions({ width: this.renderWidth, scrollWidth: this.renderWidth });
+			this.rowsContainer.style.width = '';
+		}
+	}
 
 	constructor(
 		container: HTMLElement,
@@ -211,7 +295,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.renderers.set(renderer.templateId, renderer);
 		}
 
-		this.cache = new RowCache(this.renderers);
+		this.cache = this.disposables.add(new RowCache(this.renderers));
 
 		this.lastRenderTop = 0;
 		this.lastRenderHeight = 0;
@@ -224,26 +308,33 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		DOM.toggleClass(this.domNode, 'mouse-support', typeof options.mouseSupport === 'boolean' ? options.mouseSupport : true);
 
-		this.horizontalScrolling = getOrDefault(options, o => o.horizontalScrolling, DefaultOptions.horizontalScrolling);
-		DOM.toggleClass(this.domNode, 'horizontal-scrolling', this.horizontalScrolling);
+		this._horizontalScrolling = getOrDefault(options, o => o.horizontalScrolling, DefaultOptions.horizontalScrolling);
+		DOM.toggleClass(this.domNode, 'horizontal-scrolling', this._horizontalScrolling);
 
-		this.ariaSetProvider = options.ariaSetProvider || { getSetSize: (e, i, length) => length, getPosInSet: (_, index) => index + 1 };
+		this.additionalScrollHeight = typeof options.additionalScrollHeight === 'undefined' ? 0 : options.additionalScrollHeight;
+
+		this.accessibilityProvider = new ListViewAccessibilityProvider(options.accessibilityProvider);
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
-		Gesture.addTarget(this.rowsContainer);
 
-		this.scrollableElement = new ScrollableElement(this.rowsContainer, {
+		const transformOptimization = getOrDefault(options, o => o.transformOptimization, DefaultOptions.transformOptimization);
+		if (transformOptimization) {
+			this.rowsContainer.style.transform = 'translate3d(0px, 0px, 0px)';
+		}
+
+		this.disposables.add(Gesture.addTarget(this.rowsContainer));
+
+		this.scrollable = new Scrollable(getOrDefault(options, o => o.smoothScrolling, false) ? 125 : 0, cb => DOM.scheduleAtNextAnimationFrame(cb));
+		this.scrollableElement = this.disposables.add(new SmoothScrollableElement(this.rowsContainer, {
 			alwaysConsumeMouseWheel: true,
-			horizontal: this.horizontalScrolling ? ScrollbarVisibility.Auto : ScrollbarVisibility.Hidden,
+			horizontal: ScrollbarVisibility.Auto,
 			vertical: getOrDefault(options, o => o.verticalScrollMode, DefaultOptions.verticalScrollMode),
-			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows)
-		});
+			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows),
+		}, this.scrollable));
 
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
 		container.appendChild(this.domNode);
-
-		this.disposables = [this.rangeMap, this.gesture, this.scrollableElement, this.cache];
 
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
 		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);
@@ -259,10 +350,67 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		domEvent(window, 'dragend')(this.onDragEnd, this, this.disposables);
 
 		this.setRowLineHeight = getOrDefault(options, o => o.setRowLineHeight, DefaultOptions.setRowLineHeight);
+		this.setRowHeight = getOrDefault(options, o => o.setRowHeight, DefaultOptions.setRowHeight);
 		this.supportDynamicHeights = getOrDefault(options, o => o.supportDynamicHeights, DefaultOptions.supportDynamicHeights);
 		this.dnd = getOrDefault<IListViewOptions<T>, IListViewDragAndDrop<T>>(options, o => o.dnd, DefaultOptions.dnd);
 
 		this.layout();
+	}
+
+	updateOptions(options: IListViewOptionsUpdate) {
+		if (options.additionalScrollHeight !== undefined) {
+			this.additionalScrollHeight = options.additionalScrollHeight;
+		}
+
+		if (options.smoothScrolling !== undefined) {
+			this.scrollable.setSmoothScrollDuration(options.smoothScrolling ? 125 : 0);
+		}
+
+		if (options.horizontalScrolling !== undefined) {
+			this.horizontalScrolling = options.horizontalScrolling;
+		}
+	}
+
+	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.scrollableElement.triggerScrollFromMouseWheelEvent(browserEvent);
+	}
+
+	updateElementHeight(index: number, size: number, anchorIndex: number | null): void {
+		if (index < 0 || index >= this.items.length) {
+			return;
+		}
+
+		if (this.items[index].size === size) {
+			return;
+		}
+
+		const lastRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+
+		let heightDiff = 0;
+
+		if (index < lastRenderRange.start) {
+			// do not scroll the viewport if resized element is out of viewport
+			heightDiff = size - this.items[index].size;
+		} else {
+			if (anchorIndex !== null && anchorIndex > index && anchorIndex <= lastRenderRange.end) {
+				// anchor in viewport
+				// resized elemnet in viewport and above the anchor
+				heightDiff = size - this.items[index].size;
+			} else {
+				heightDiff = 0;
+			}
+		}
+
+		this.rangeMap.splice(index, 1, [{ size: size }]);
+		this.items[index].size = size;
+
+		this.render(lastRenderRange, Math.max(0, this.lastRenderTop + heightDiff), this.lastRenderHeight, undefined, undefined, true);
+
+		this.eventuallyUpdateScrollDimensions();
+
+		if (this.supportDynamicHeights) {
+			this._rerender(this.lastRenderTop, this.lastRenderHeight);
+		}
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): T[] {
@@ -372,6 +520,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private eventuallyUpdateScrollWidth(): void {
 		if (!this.horizontalScrolling) {
+			this.scrollableElementWidthDelayer.cancel();
 			return;
 		}
 
@@ -383,10 +532,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			return;
 		}
 
-		if (this.items.length === 0) {
-			this.scrollableElement.setScrollDimensions({ scrollWidth: 0 });
-		}
-
 		let scrollWidth = 0;
 
 		for (const item of this.items) {
@@ -396,7 +541,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this.scrollWidth = scrollWidth;
-		this.scrollableElement.setScrollDimensions({ scrollWidth: scrollWidth + 10 });
+		this.scrollableElement.setScrollDimensions({ scrollWidth: scrollWidth === 0 ? 0 : (scrollWidth + 10) });
 	}
 
 	updateWidth(index: number): void {
@@ -508,13 +653,20 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	// Render
 
-	private render(renderTop: number, renderHeight: number, renderLeft: number, scrollWidth: number): void {
-		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+	private render(previousRenderRange: IRange, renderTop: number, renderHeight: number, renderLeft: number | undefined, scrollWidth: number | undefined, updateItemsInDOM: boolean = false): void {
 		const renderRange = this.getRenderRange(renderTop, renderHeight);
 
 		const rangesToInsert = Range.relativeComplement(renderRange, previousRenderRange);
 		const rangesToRemove = Range.relativeComplement(previousRenderRange, renderRange);
 		const beforeElement = this.getNextToLastElement(rangesToInsert);
+
+		if (updateItemsInDOM) {
+			const rangesToUpdate = Range.intersect(previousRenderRange, renderRange);
+
+			for (let i = rangesToUpdate.start; i < rangesToUpdate.end; i++) {
+				this.updateItemInDOM(this.items[i], i);
+			}
+		}
 
 		for (const range of rangesToInsert) {
 			for (let i = range.start; i < range.end; i++) {
@@ -528,32 +680,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
-		const canUseTranslate3d = !isWindows && !browser.isFirefox && browser.getZoomLevel() === 0;
-
-		if (canUseTranslate3d) {
-			const transform = `translate3d(-${renderLeft}px, -${renderTop}px, 0px)`;
-			this.rowsContainer.style.transform = transform;
-			this.rowsContainer.style.webkitTransform = transform;
-
-			if (canUseTranslate3d !== this.canUseTranslate3d) {
-				this.rowsContainer.style.left = '0';
-				this.rowsContainer.style.top = '0';
-			}
-		} else {
+		if (renderLeft !== undefined) {
 			this.rowsContainer.style.left = `-${renderLeft}px`;
-			this.rowsContainer.style.top = `-${renderTop}px`;
-
-			if (canUseTranslate3d !== this.canUseTranslate3d) {
-				this.rowsContainer.style.transform = '';
-				this.rowsContainer.style.webkitTransform = '';
-			}
 		}
 
-		if (this.horizontalScrolling) {
+		this.rowsContainer.style.top = `-${renderTop}px`;
+
+		if (this.horizontalScrolling && scrollWidth !== undefined) {
 			this.rowsContainer.style.width = `${Math.max(scrollWidth, this.renderWidth)}px`;
 		}
-
-		this.canUseTranslate3d = canUseTranslate3d;
 
 		this.lastRenderTop = renderTop;
 		this.lastRenderHeight = renderHeight;
@@ -566,7 +701,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (!item.row) {
 			item.row = this.cache.alloc(item.templateId);
-			item.row!.domNode!.setAttribute('role', 'treeitem');
+			const role = this.accessibilityProvider.getRole(item.element) || 'listitem';
+			item.row!.domNode!.setAttribute('role', role);
+			const checked = this.accessibilityProvider.isChecked(item.element);
+			if (typeof checked !== 'undefined') {
+				item.row!.domNode!.setAttribute('aria-checked', String(!!checked));
+			}
 		}
 
 		if (!item.row.domNode!.parentElement) {
@@ -609,7 +749,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			return;
 		}
 
-		item.row.domNode.style.width = 'fit-content';
+		item.row.domNode.style.width = isFirefox ? '-moz-fit-content' : 'fit-content';
 		item.width = DOM.getContentWidth(item.row.domNode);
 		const style = window.getComputedStyle(item.row.domNode);
 
@@ -626,7 +766,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
 		item.row!.domNode!.style.top = `${this.elementTop(index)}px`;
-		item.row!.domNode!.style.height = `${item.size}px`;
+
+		if (this.setRowHeight) {
+			item.row!.domNode!.style.height = `${item.size}px`;
+		}
 
 		if (this.setRowLineHeight) {
 			item.row!.domNode!.style.lineHeight = `${item.size}px`;
@@ -634,8 +777,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		item.row!.domNode!.setAttribute('data-index', `${index}`);
 		item.row!.domNode!.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
-		item.row!.domNode!.setAttribute('aria-setsize', String(this.ariaSetProvider.getSetSize(item.element, index, this.length)));
-		item.row!.domNode!.setAttribute('aria-posinset', String(this.ariaSetProvider.getPosInSet(item.element, index)));
+		item.row!.domNode!.setAttribute('aria-setsize', String(this.accessibilityProvider.getSetSize(item.element, index, this.length)));
+		item.row!.domNode!.setAttribute('aria-posinset', String(this.accessibilityProvider.getPosInSet(item.element, index)));
 		item.row!.domNode!.setAttribute('id', this.getElementDomId(index));
 
 		DOM.toggleClass(item.row!.domNode!, 'drop-target', item.dropTarget);
@@ -646,8 +789,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		item.dragStartDisposable.dispose();
 
 		const renderer = this.renderers.get(item.templateId);
-		if (renderer && renderer.disposeElement) {
-			renderer.disposeElement(item.element, index, item.row!.templateData, item.size);
+		if (item.row && renderer && renderer.disposeElement) {
+			renderer.disposeElement(item.element, index, item.row.templateData, item.size);
 		}
 
 		this.cache.release(item.row!);
@@ -673,6 +816,22 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.scrollableElement.setScrollPosition({ scrollTop });
 	}
 
+	getScrollLeft(): number {
+		const scrollPosition = this.scrollableElement.getScrollPosition();
+		return scrollPosition.scrollLeft;
+	}
+
+	setScrollLeft(scrollLeft: number): void {
+		if (this.scrollableElementUpdateDisposable) {
+			this.scrollableElementUpdateDisposable.dispose();
+			this.scrollableElementUpdateDisposable = null;
+			this.scrollableElement.setScrollDimensions({ scrollWidth: this.scrollWidth });
+		}
+
+		this.scrollableElement.setScrollPosition({ scrollLeft });
+	}
+
+
 	get scrollTop(): number {
 		return this.getScrollTop();
 	}
@@ -682,7 +841,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	get scrollHeight(): number {
-		return this._scrollHeight + (this.horizontalScrolling ? 10 : 0);
+		return this._scrollHeight + (this.horizontalScrolling ? 10 : 0) + this.additionalScrollHeight;
 	}
 
 	// Events
@@ -729,7 +888,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private onScroll(e: ScrollEvent): void {
 		try {
-			this.render(e.scrollTop, e.height, e.scrollLeft, e.scrollWidth);
+			const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+			this.render(previousRenderRange, e.scrollTop, e.height, e.scrollLeft, e.scrollWidth);
 
 			if (this.supportDynamicHeights) {
 				this._rerender(e.scrollTop, e.height);
@@ -763,7 +923,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			let label: string | undefined;
 
 			if (this.dnd.getDragLabel) {
-				label = this.dnd.getDragLabel(elements);
+				label = this.dnd.getDragLabel(elements, event);
 			}
 
 			if (typeof label === 'undefined') {
@@ -840,12 +1000,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		// sanitize feedback list
-		feedback = distinct(feedback).filter(i => i >= -1 && i < this.length).sort();
+		feedback = distinct(feedback).filter(i => i >= -1 && i < this.length).sort((a, b) => a - b);
 		feedback = feedback[0] === -1 ? [-1] : feedback;
-
-		if (feedback.length === 0) {
-			throw new Error('Invalid empty feedback list');
-		}
 
 		if (equalsDragFeedback(this.currentDragFeedback, feedback)) {
 			return true;
@@ -856,7 +1012,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (feedback[0] === -1) { // entire list feedback
 			DOM.addClass(this.domNode, 'drop-target');
-			this.currentDragFeedbackDisposable = toDisposable(() => DOM.removeClass(this.domNode, 'drop-target'));
+			DOM.addClass(this.rowsContainer, 'drop-target');
+			this.currentDragFeedbackDisposable = toDisposable(() => {
+				DOM.removeClass(this.domNode, 'drop-target');
+				DOM.removeClass(this.rowsContainer, 'drop-target');
+			});
 		} else {
 			for (const index of feedback) {
 				const item = this.items[index]!;
@@ -907,12 +1067,16 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.dnd.drop(dragData, event.element, event.index, event.browserEvent);
 	}
 
-	private onDragEnd(): void {
+	private onDragEnd(event: DragEvent): void {
 		this.canDrop = false;
 		this.teardownDragAndDropScrollTopAnimation();
 		this.clearDragOverFeedback();
 		this.currentDragData = undefined;
 		StaticDND.CurrentDragAndDropData = undefined;
+
+		if (this.dnd.onDragEnd) {
+			this.dnd.onDragEnd(event);
+		}
 	}
 
 	private clearDragOverFeedback(): void {
@@ -967,9 +1131,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	// Util
 
 	private getItemIndexFromEventTarget(target: EventTarget | null): number | undefined {
+		const scrollableElement = this.scrollableElement.getDomNode();
 		let element: HTMLElement | null = target as (HTMLElement | null);
 
-		while (element instanceof HTMLElement && element !== this.rowsContainer) {
+		while (element instanceof HTMLElement && element !== this.rowsContainer && scrollableElement.contains(element)) {
 			const rawIndex = element.getAttribute('data-index');
 
 			if (rawIndex) {
@@ -1080,7 +1245,19 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			return 0;
 		}
 
+		if (!!this.virtualDelegate.hasDynamicHeight && !this.virtualDelegate.hasDynamicHeight(item.element)) {
+			return 0;
+		}
+
 		const size = item.size;
+
+		if (!this.setRowHeight && item.row && item.row.domNode) {
+			let newSize = item.row.domNode.offsetHeight;
+			item.size = newSize;
+			item.lastDynamicHeightWidth = this.renderWidth;
+			return newSize - size;
+		}
+
 		const row = this.cache.alloc(item.templateId);
 
 		row.domNode!.style.height = '';
@@ -1152,6 +1329,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.domNode.parentNode.removeChild(this.domNode);
 		}
 
-		this.disposables = dispose(this.disposables);
+		dispose(this.disposables);
 	}
 }

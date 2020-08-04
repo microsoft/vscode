@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": {
 		"vscode": "^1.4.0"
 	},
@@ -12,16 +13,17 @@
 		"onLanguage:markdown",
 		"onLanguage:typescript"
 	],
-	"main": "./out/extension",
+	"main": "./out/extensionEditingMain",
+	"browser": "./dist/browser/extensionEditingBrowserMain",
 	"scripts": {
 		"compile": "gulp compile-extension:extension-editing",
 		"watch": "gulp watch-extension:extension-editing"
 	},
 	"dependencies": {
-		"jsonc-parser": "^2.0.2",
+		"jsonc-parser": "^2.2.1",
 		"markdown-it": "^8.3.1",
 		"parse5": "^3.0.2",
-		"vscode-nls": "^4.0.0"
+		"vscode-nls": "^4.1.1"
 	},
 	"contributes": {
 		"jsonValidation": [
@@ -34,8 +36,12 @@
 				"url": "vscode://schemas/language-configuration"
 			},
 			{
-				"fileMatch": "*icon-theme.json",
+				"fileMatch": ["*icon-theme.json", "!*product-icon-theme.json"],
 				"url": "vscode://schemas/icon-theme"
+			},
+			{
+				"fileMatch": "*product-icon-theme.json",
+				"url": "vscode://schemas/product-icon-theme"
 			},
 			{
 				"fileMatch": "*color-theme.json",
@@ -53,6 +59,6 @@
 	},
 	"devDependencies": {
 		"@types/markdown-it": "0.0.2",
-		"@types/node": "^10.12.21"
+		"@types/node": "^12.11.7"
 	}
 }

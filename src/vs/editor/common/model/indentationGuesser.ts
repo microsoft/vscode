@@ -7,8 +7,8 @@ import { CharCode } from 'vs/base/common/charCode';
 import { ITextBuffer } from 'vs/editor/common/model';
 
 class SpacesDiffResult {
-	public spacesDiff: number;
-	public looksLikeAlignment: boolean;
+	public spacesDiff: number = 0;
+	public looksLikeAlignment: boolean = false;
 }
 
 /**
@@ -72,11 +72,12 @@ function spacesDiff(a: string, aLength: number, b: string, bLength: number, resu
 
 		if (spacesDiff > 0 && 0 <= bSpacesCnt - 1 && bSpacesCnt - 1 < a.length && bSpacesCnt < b.length) {
 			if (b.charCodeAt(bSpacesCnt) !== CharCode.Space && a.charCodeAt(bSpacesCnt - 1) === CharCode.Space) {
-				// This looks like an alignment desire: e.g.
-				// const a = b + c,
-				//       d = b - c;
-
-				result.looksLikeAlignment = true;
+				if (a.charCodeAt(a.length - 1) === CharCode.Comma) {
+					// This looks like an alignment desire: e.g.
+					// const a = b + c,
+					//       d = b - c;
+					result.looksLikeAlignment = true;
+				}
 			}
 		}
 		return;
@@ -158,8 +159,19 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 		spacesDiff(previousLineText, previousLineIndentation, currentLineText, currentLineIndentation, tmp);
 
 		if (tmp.looksLikeAlignment) {
-			// skip this line entirely
-			continue;
+			// if defaultInsertSpaces === true && the spaces count == tabSize, we may want to count it as valid indentation
+			//
+			// - item1
+			//   - item2
+			//
+			// otherwise skip this line entirely
+			//
+			// const a = 1,
+			//       b = 2;
+
+			if (!(defaultInsertSpaces && defaultTabSize === tmp.spacesDiff)) {
+				continue;
+			}
 		}
 
 		let currentSpacesDiff = tmp.spacesDiff;
@@ -177,22 +189,26 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 	}
 
 	let tabSize = defaultTabSize;
-	let tabSizeScore = (insertSpaces ? 0 : 0.1 * linesCount);
 
-	// console.log("score threshold: " + tabSizeScore);
+	// Guess tabSize only if inserting spaces...
+	if (insertSpaces) {
+		let tabSizeScore = (insertSpaces ? 0 : 0.1 * linesCount);
 
-	ALLOWED_TAB_SIZE_GUESSES.forEach((possibleTabSize) => {
-		let possibleTabSizeScore = spacesDiffCount[possibleTabSize];
-		if (possibleTabSizeScore > tabSizeScore) {
-			tabSizeScore = possibleTabSizeScore;
-			tabSize = possibleTabSize;
+		// console.log("score threshold: " + tabSizeScore);
+
+		ALLOWED_TAB_SIZE_GUESSES.forEach((possibleTabSize) => {
+			let possibleTabSizeScore = spacesDiffCount[possibleTabSize];
+			if (possibleTabSizeScore > tabSizeScore) {
+				tabSizeScore = possibleTabSizeScore;
+				tabSize = possibleTabSize;
+			}
+		});
+
+		// Let a tabSize of 2 win even if it is not the maximum
+		// (only in case 4 was guessed)
+		if (tabSize === 4 && spacesDiffCount[4] > 0 && spacesDiffCount[2] > 0 && spacesDiffCount[2] >= spacesDiffCount[4] / 2) {
+			tabSize = 2;
 		}
-	});
-
-	// Let a tabSize of 2 win even if it is not the maximum
-	// (only in case 4 was guessed)
-	if (tabSize === 4 && spacesDiffCount[4] > 0 && spacesDiffCount[2] > 0 && spacesDiffCount[2] >= spacesDiffCount[4] / 2) {
-		tabSize = 2;
 	}
 
 

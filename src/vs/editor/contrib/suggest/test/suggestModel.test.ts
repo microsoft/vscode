@@ -21,7 +21,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { LineContext, SuggestModel } from 'vs/editor/contrib/suggest/suggestModel';
 import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
-import { TestCodeEditor, createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { ITestCodeEditor, createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
@@ -30,6 +30,10 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { ITextModel } from 'vs/editor/common/model';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export interface Ctor<T> {
 	new(): T;
@@ -40,14 +44,15 @@ export function mock<T>(): Ctor<T> {
 }
 
 
-function createMockEditor(model: TextModel): TestCodeEditor {
+function createMockEditor(model: TextModel): ITestCodeEditor {
 	let editor = createTestCodeEditor({
 		model: model,
 		serviceCollection: new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
 			[IStorageService, new InMemoryStorageService()],
+			[IKeybindingService, new MockKeybindingService()],
 			[ISuggestMemoryService, new class implements ISuggestMemoryService {
-				_serviceBrand: any;
+				declare readonly _serviceBrand: undefined;
 				memorize(): void {
 				}
 				select(): number {
@@ -56,7 +61,7 @@ function createMockEditor(model: TextModel): TestCodeEditor {
 			}],
 		),
 	});
-	editor.registerAndInstantiateContribution(SnippetController2);
+	editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 	return editor;
 }
 
@@ -121,7 +126,7 @@ suite('SuggestModel - Context', function () {
 	});
 
 	test('Context - shouldAutoTrigger', function () {
-		const model = TextModel.createFromString('Das Pferd frisst keinen Gurkensalat - Philipp Reis 1861.\nWer hat\'s erfunden?');
+		const model = createTextModel('Das Pferd frisst keinen Gurkensalat - Philipp Reis 1861.\nWer hat\'s erfunden?');
 		disposables.push(model);
 
 		assertAutoTrigger(model, 3, true, 'end of word, Das|');
@@ -135,7 +140,7 @@ suite('SuggestModel - Context', function () {
 		const innerMode = new InnerMode();
 		disposables.push(outerMode, innerMode);
 
-		const model = TextModel.createFromString('a<xx>a<x>', undefined, outerMode.getLanguageIdentifier());
+		const model = createTextModel('a<xx>a<x>', undefined, outerMode.getLanguageIdentifier());
 		disposables.push(model);
 
 		assertAutoTrigger(model, 1, true, 'a|<x — should trigger at end of word');
@@ -184,20 +189,27 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 	setup(function () {
 		disposables = dispose(disposables);
-		model = TextModel.createFromString('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
+		model = createTextModel('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
 		disposables.push(model);
 	});
 
-	function withOracle(callback: (model: SuggestModel, editor: TestCodeEditor) => any): Promise<any> {
+	function withOracle(callback: (model: SuggestModel, editor: ITestCodeEditor) => any): Promise<any> {
 
 		return new Promise((resolve, reject) => {
 			const editor = createMockEditor(model);
-			const oracle = new SuggestModel(editor, new class extends mock<IEditorWorkerService>() {
-				computeWordRanges() {
-					return Promise.resolve({});
+			const oracle = new SuggestModel(
+				editor,
+				new class extends mock<IEditorWorkerService>() {
+					computeWordRanges() {
+						return Promise.resolve({});
+					}
+				},
+				new class extends mock<IClipboardService>() {
+					readText() {
+						return Promise.resolve('CLIPPY');
+					}
 				}
-
-			});
+			);
 			disposables.push(oracle, editor);
 
 			try {
@@ -221,6 +233,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			try {
 				action();
 			} catch (err) {
+				sub.dispose();
 				reject(err);
 			}
 		});
@@ -671,12 +684,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
-				_insertSuggestion(item: ISelectedSuggestion) {
-					super._insertSuggestion(item, false, true);
+				_insertSuggestion(item: ISelectedSuggestion, flags: number = 0) {
+					super._insertSuggestion(item, flags);
 				}
 			}
-			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl);
-			editor.registerAndInstantiateContribution(SnippetController2);
+			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl.ID, TestCtrl);
+			editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 
 			await assertEvent(sugget.onDidSuggest, () => {
 				editor.setPosition({ lineNumber: 1, column: 3 });
@@ -752,7 +765,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					dispose() { disposeB += 1; }
 				};
 			},
-			resolveCompletionItem(doc, pos, item) {
+			resolveCompletionItem(item) {
 				return item;
 			},
 		}));
@@ -776,9 +789,13 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			}, event => {
 				assert.equal(event.auto, true);
 				assert.equal(event.completionModel.items.length, 2);
-				assert.equal(disposeA, 1);
-				assert.equal(disposeB, 0);
+
+				// clean up
+				model.clear();
+				assert.equal(disposeA, 2); // provide got called two times!
+				assert.equal(disposeB, 1);
 			});
+
 		});
 	});
 });

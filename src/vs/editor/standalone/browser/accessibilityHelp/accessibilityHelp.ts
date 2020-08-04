@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./accessibilityHelp';
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { renderFormattedText } from 'vs/base/browser/htmlContentRenderer';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -21,22 +20,23 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
-import { IEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { IStandaloneEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { contrastBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorWidgetBackground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
 class AccessibilityHelpController extends Disposable
 	implements IEditorContribution {
-	private static readonly ID = 'editor.contrib.accessibilityHelpController';
+	public static readonly ID = 'editor.contrib.accessibilityHelpController';
 
 	public static get(editor: ICodeEditor): AccessibilityHelpController {
 		return editor.getContribution<AccessibilityHelpController>(
@@ -57,10 +57,6 @@ class AccessibilityHelpController extends Disposable
 		this._widget = this._register(
 			instantiationService.createInstance(AccessibilityHelpWidget, this._editor)
 		);
-	}
-
-	public getId(): string {
-		return AccessibilityHelpController.ID;
 	}
 
 	public show(): void {
@@ -163,7 +159,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_H)) {
 				alert(AccessibilityHelpNLS.openingDocs);
 
-				let url = (<IEditorConstructionOptions>this._editor.getRawConfiguration()).accessibilityHelpUrl;
+				let url = (<IStandaloneEditorConstructionOptions>this._editor.getRawOptions()).accessibilityHelpUrl;
 				if (typeof url === 'undefined') {
 					url = 'https://go.microsoft.com/fwlink/?linkid=852450';
 				}
@@ -223,7 +219,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _buildContent() {
-		let opts = this._editor.getConfiguration();
+		const options = this._editor.getOptions();
 
 		const selections = this._editor.getSelections();
 		let charactersSelected = 0;
@@ -239,14 +235,14 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 		let text = getSelectionLabel(selections, charactersSelected);
 
-		if (opts.wrappingInfo.inDiffEditor) {
-			if (opts.readOnly) {
+		if (options.get(EditorOption.inDiffEditor)) {
+			if (options.get(EditorOption.readOnly)) {
 				text += AccessibilityHelpNLS.readonlyDiffEditor;
 			} else {
 				text += AccessibilityHelpNLS.editableDiffEditor;
 			}
 		} else {
-			if (opts.readOnly) {
+			if (options.get(EditorOption.readOnly)) {
 				text += AccessibilityHelpNLS.readonlyEditor;
 			} else {
 				text += AccessibilityHelpNLS.editableEditor;
@@ -258,7 +254,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				? AccessibilityHelpNLS.changeConfigToOnMac
 				: AccessibilityHelpNLS.changeConfigToOnWinLinux
 		);
-		switch (opts.accessibilitySupport) {
+		switch (options.get(EditorOption.accessibilitySupport)) {
 			case AccessibilitySupport.Unknown:
 				text += '\n\n - ' + turnOnMessage;
 				break;
@@ -272,7 +268,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		}
 
 
-		if (opts.tabFocusMode) {
+		if (options.get(EditorOption.tabFocusMode)) {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb);
 		} else {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb);
@@ -333,8 +329,12 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: (browser.isIE ? KeyMod.CtrlCmd | KeyCode.F1 : KeyMod.Alt | KeyCode.F1),
-				weight: KeybindingWeight.EditorContrib
+				primary: KeyMod.Alt | KeyCode.F1,
+				weight: KeybindingWeight.EditorContrib,
+				linux: {
+					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+					secondary: [KeyMod.Alt | KeyCode.F1]
+				}
 			}
 		});
 	}
@@ -347,7 +347,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(AccessibilityHelpController);
+registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController);
 registerEditorAction(ShowAccessibilityHelpAction);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
@@ -371,6 +371,11 @@ registerThemingParticipant((theme, collector) => {
 	if (widgetBackground) {
 		collector.addRule(`.monaco-editor .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
 	}
+	const widgetForeground = theme.getColor(editorWidgetForeground);
+	if (widgetForeground) {
+		collector.addRule(`.monaco-editor .accessibilityHelpWidget { color: ${widgetForeground}; }`);
+	}
+
 
 	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {

@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -59,7 +58,13 @@ export const enum GroupsArrangement {
 	/**
 	 * Size all groups evenly.
 	 */
-	EVEN
+	EVEN,
+
+	/**
+	 * Will behave like MINIMIZE_OTHERS if the active
+	 * group is not already maximized and EVEN otherwise
+	 */
+	TOGGLE
 }
 
 export interface GroupLayoutArgument {
@@ -70,10 +75,6 @@ export interface GroupLayoutArgument {
 export interface EditorGroupLayout {
 	orientation: GroupOrientation;
 	groups: GroupLayoutArgument[];
-}
-
-export interface ICloseEditorOptions {
-	preserveFocus?: boolean;
 }
 
 export interface IMoveEditorOptions {
@@ -98,11 +99,20 @@ export interface IMergeGroupOptions {
 	index?: number;
 }
 
+export interface ICloseEditorOptions {
+	preserveFocus?: boolean;
+}
+
 export type ICloseEditorsFilter = {
 	except?: IEditorInput,
 	direction?: CloseDirection,
-	savedOnly?: boolean
+	savedOnly?: boolean,
+	excludeSticky?: boolean
 };
+
+export interface ICloseAllEditorsOptions {
+	excludeSticky?: boolean;
+}
 
 export interface IEditorReplacement {
 	editor: IEditorInput;
@@ -128,22 +138,9 @@ export const enum GroupsOrder {
 	GRID_APPEARANCE
 }
 
-export const enum EditorsOrder {
-
-	/**
-	 * Editors sorted by most recent activity (most recent active first)
-	 */
-	MOST_RECENTLY_ACTIVE,
-
-	/**
-	 * Editors sorted by sequential order
-	 */
-	SEQUENTIAL
-}
-
 export interface IEditorGroupsService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * An event for when the active editor group changes. The active editor
@@ -177,9 +174,14 @@ export interface IEditorGroupsService {
 	readonly onDidLayout: Event<IDimension>;
 
 	/**
+	 * An event for when the index of a group changes.
+	 */
+	readonly onDidGroupIndexChange: Event<IEditorGroup>;
+
+	/**
 	 * The size of the editor groups area.
 	 */
-	readonly dimension: IDimension;
+	readonly contentDimension: IDimension;
 
 	/**
 	 * An active group is the default location for new editors to open.
@@ -213,11 +215,11 @@ export interface IEditorGroupsService {
 	readonly willRestoreEditors: boolean;
 
 	/**
-	 * Get all groups that are currently visible in the editor area optionally
-	 * sorted by being most recent active or grid order. Will sort by creation
-	 * time by default (oldest group first).
+	 * Get all groups that are currently visible in the editor area.
+	 *
+	 * @param order the order of the editors to use
 	 */
-	getGroups(order?: GroupsOrder): ReadonlyArray<IEditorGroup>;
+	getGroups(order: GroupsOrder): ReadonlyArray<IEditorGroup>;
 
 	/**
 	 * Allows to convert a group identifier to a group.
@@ -232,12 +234,12 @@ export interface IEditorGroupsService {
 	/**
 	 * Returns the size of a group.
 	 */
-	getSize(group: IEditorGroup | GroupIdentifier): number;
+	getSize(group: IEditorGroup | GroupIdentifier): { width: number, height: number };
 
 	/**
 	 * Sets the size of a group.
 	 */
-	setSize(group: IEditorGroup | GroupIdentifier, size: number): void;
+	setSize(group: IEditorGroup | GroupIdentifier, size: { width: number, height: number }): void;
 
 	/**
 	 * Arrange all groups according to the provided arrangement.
@@ -334,6 +336,11 @@ export interface IEditorGroupsService {
 	readonly partOptions: IEditorPartOptions;
 
 	/**
+	 * An event that notifies when editor part options change.
+	 */
+	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
+
+	/**
 	 * Enforce editor part options temporarily.
 	 */
 	enforcePartOptions(options: IEditorPartOptions): IDisposable;
@@ -343,7 +350,7 @@ export const enum GroupChangeKind {
 
 	/* Group Changes */
 	GROUP_ACTIVE,
-	GROUP_LABEL,
+	GROUP_INDEX,
 
 	/* Editor Changes */
 	EDITOR_OPEN,
@@ -352,6 +359,7 @@ export const enum GroupChangeKind {
 	EDITOR_ACTIVE,
 	EDITOR_LABEL,
 	EDITOR_PIN,
+	EDITOR_STICKY,
 	EDITOR_DIRTY
 }
 
@@ -359,6 +367,12 @@ export interface IGroupChangeEvent {
 	kind: GroupChangeKind;
 	editor?: IEditorInput;
 	editorIndex?: number;
+}
+
+export const enum OpenEditorContext {
+	NEW_EDITOR = 1,
+	MOVE_EDITOR = 2,
+	COPY_EDITOR = 3
 }
 
 export interface IEditorGroup {
@@ -369,10 +383,28 @@ export interface IEditorGroup {
 	readonly onDidGroupChange: Event<IGroupChangeEvent>;
 
 	/**
+	 * An event that is fired when the group gets disposed.
+	 */
+	readonly onWillDispose: Event<void>;
+
+	/**
+	 * An event that is fired when an editor is about to close.
+	 */
+	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
+
+	/**
 	 * A unique identifier of this group that remains identical even if the
 	 * group is moved to different locations.
 	 */
 	readonly id: GroupIdentifier;
+
+	/**
+	 * A number that indicates the position of this group in the visual
+	 * order of groups from left to right and top to bottom. The lowest
+	 * index will likely be top-left while the largest index in most
+	 * cases should be bottom-right, but that depends on the grid.
+	 */
+	readonly index: number;
 
 	/**
 	 * A human readable label for the group. This label can change depending
@@ -382,13 +414,18 @@ export interface IEditorGroup {
 	readonly label: string;
 
 	/**
-	 * The active control is the currently visible control of the group.
+	 * A human readable label for the group to be used by screen readers.
 	 */
-	readonly activeControl: IVisibleEditor | undefined;
+	readonly ariaLabel: string;
+
+	/**
+	 * The active editor pane is the currently visible editor pane of the group.
+	 */
+	readonly activeEditorPane: IVisibleEditorPane | undefined;
 
 	/**
 	 * The active editor is the currently visible editor of the group
-	 * within the current active control.
+	 * within the current active editor pane.
 	 */
 	readonly activeEditor: IEditorInput | null;
 
@@ -399,26 +436,32 @@ export interface IEditorGroup {
 	readonly previewEditor: IEditorInput | null;
 
 	/**
-	 * The number of opend editors in this group.
+	 * The number of opened editors in this group.
 	 */
 	readonly count: number;
 
 	/**
-	 * All opened editors in the group. There can only be one editor active.
+	 * The number of sticky editors in this group.
+	 */
+	readonly stickyCount: number;
+
+	/**
+	 * All opened editors in the group in sequential order of their appearance.
 	 */
 	readonly editors: ReadonlyArray<IEditorInput>;
 
 	/**
-	 * Returns the editor at a specific index of the group.
+	 * Get all editors that are currently opened in the group.
+	 *
+	 * @param order the order of the editors to use
+	 * @param options options to select only specific editors as instructed
 	 */
-	getEditor(index: number): IEditorInput | null;
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorInput>;
 
 	/**
-	 * Get all editors that are currently opened in the group optionally
-	 * sorted by being most recent active. Will sort by sequential appearance
-	 * by default (from left to right).
+	 * Returns the editor at a specific index of the group.
 	 */
-	getEditors(order?: EditorsOrder): ReadonlyArray<IEditorInput>;
+	getEditorByIndex(index: number): IEditorInput | undefined;
 
 	/**
 	 * Returns the index of the editor in the group or -1 if not opened.
@@ -431,7 +474,7 @@ export interface IEditorGroup {
 	 * @returns a promise that resolves around an IEditor instance unless
 	 * the call failed, or the editor was not opened as active editor.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): Promise<IEditor | null>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, context?: OpenEditorContext): Promise<IEditorPane | null>;
 
 	/**
 	 * Opens editors in this group.
@@ -441,7 +484,7 @@ export interface IEditorGroup {
 	 * a group can only ever have one active editor, even if many editors are
 	 * opened, the result will only be one editor.
 	 */
-	openEditors(editors: IEditorInputWithOptions[]): Promise<IEditor | null>;
+	openEditors(editors: IEditorInputWithOptions[]): Promise<IEditorPane | null>;
 
 	/**
 	 * Find out if the provided editor is opened in the group.
@@ -454,6 +497,11 @@ export interface IEditorGroup {
 	 * Find out if the provided editor is pinned in the group.
 	 */
 	isPinned(editor: IEditorInput): boolean;
+
+	/**
+	 * Find out if the provided editor or index of editor is sticky in the group.
+	 */
+	isSticky(editorOrIndex: IEditorInput | number): boolean;
 
 	/**
 	 * Find out if the provided editor is active in the group.
@@ -497,7 +545,7 @@ export interface IEditorGroup {
 	 *
 	 * @returns a promise when all editors are closed.
 	 */
-	closeAllEditors(): Promise<void>;
+	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void>;
 
 	/**
 	 * Replaces editors in this group with the provided replacement.
@@ -517,6 +565,24 @@ export interface IEditorGroup {
 	 * if unspecified.
 	 */
 	pinEditor(editor?: IEditorInput): void;
+
+	/**
+	 * Set an editor to be sticky. A sticky editor is showing in the beginning
+	 * of the tab stripe and will not be impacted by close operations.
+	 *
+	 * @param editor the editor to make sticky, or the currently active editor
+	 * if unspecified.
+	 */
+	stickEditor(editor?: IEditorInput): void;
+
+	/**
+	 * Set an editor to be non-sticky and thus moves back to a location after
+	 * sticky editors and can be closed normally.
+	 *
+	 * @param editor the editor to make unsticky, or the currently active editor
+	 * if unspecified.
+	 */
+	unstickEditor(editor?: IEditorInput): void;
 
 	/**
 	 * Move keyboard focus into the group.

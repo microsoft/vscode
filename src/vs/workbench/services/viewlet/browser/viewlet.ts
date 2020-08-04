@@ -4,35 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export const IViewletService = createDecorator<IViewletService>('viewletService');
 
 export interface IViewletService {
-	_serviceBrand: ServiceIdentifier<any>;
 
-	onDidViewletRegister: Event<ViewletDescriptor>;
-	onDidViewletDeregister: Event<ViewletDescriptor>;
-	onDidViewletOpen: Event<IViewlet>;
-	onDidViewletClose: Event<IViewlet>;
+	readonly _serviceBrand: undefined;
+
+	readonly onDidViewletRegister: Event<ViewletDescriptor>;
+	readonly onDidViewletDeregister: Event<ViewletDescriptor>;
+	readonly onDidViewletOpen: Event<IViewlet>;
+	readonly onDidViewletClose: Event<IViewlet>;
 
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | null>;
+	openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | undefined>;
 
 	/**
-	 * Returns the current active viewlet or null if none.
+	 * Returns the current active viewlet if any.
 	 */
-	getActiveViewlet(): IViewlet | null;
-
-	/**
-	 * Returns the id of the default viewlet.
-	 */
-	getDefaultViewletId(): string;
+	getActiveViewlet(): IViewlet | undefined;
 
 	/**
 	 * Returns the viewlet by id.
@@ -47,7 +43,7 @@ export interface IViewletService {
 	/**
 	 * Returns the progress indicator for the side bar.
 	 */
-	getProgressIndicator(id: string): IProgressService | null;
+	getProgressIndicator(id: string): IProgressIndicator | undefined;
 
 	/**
 	 * Hide the active viewlet.

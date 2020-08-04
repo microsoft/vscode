@@ -111,7 +111,7 @@
 	},
 	{
 		"c": "</",
-		"t": "text.html.markdown meta.paragraph.markdown meta.tag.inline.code.end.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.tag.inline.code.end.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -122,7 +122,7 @@
 	},
 	{
 		"c": "code",
-		"t": "text.html.markdown meta.paragraph.markdown meta.tag.inline.code.end.html entity.name.tag.html",
+		"t": "text.html.markdown meta.tag.inline.code.end.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -133,7 +133,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.paragraph.markdown meta.tag.inline.code.end.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.tag.inline.code.end.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -144,7 +144,7 @@
 	},
 	{
 		"c": "</",
-		"t": "text.html.markdown meta.paragraph.markdown meta.tag.structure.pre.end.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.tag.structure.pre.end.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "pre",
-		"t": "text.html.markdown meta.paragraph.markdown meta.tag.structure.pre.end.html entity.name.tag.html",
+		"t": "text.html.markdown meta.tag.structure.pre.end.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -166,7 +166,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.paragraph.markdown meta.tag.structure.pre.end.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.tag.structure.pre.end.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -254,7 +254,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown meta.paragraph.markdown",
+		"t": "text.html.markdown",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -265,7 +265,7 @@
 	},
 	{
 		"c": "</",
-		"t": "text.html.markdown meta.paragraph.markdown meta.tag.structure.pre.end.html punctuation.definition.tag.begin.html",
+		"t": "text.html.markdown meta.tag.structure.pre.end.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -276,7 +276,7 @@
 	},
 	{
 		"c": "pre",
-		"t": "text.html.markdown meta.paragraph.markdown meta.tag.structure.pre.end.html entity.name.tag.html",
+		"t": "text.html.markdown meta.tag.structure.pre.end.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -287,7 +287,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown meta.paragraph.markdown meta.tag.structure.pre.end.html punctuation.definition.tag.end.html",
+		"t": "text.html.markdown meta.tag.structure.pre.end.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",

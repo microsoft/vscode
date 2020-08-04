@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"contributes": {
 		"languages": [{
@@ -22,6 +23,8 @@
 				".dita",
 				".ditamap",
 				".dtd",
+        		".ent",
+        		".mod",
 				".dtml",
 				".fsproj",
 				".fxml",
@@ -40,6 +43,8 @@
 				".publishsettings",
 				".pubxml",
 				".pubxml.user",
+				".rbxlx",
+				".rbxmx",
 				".rdf",
 				".rng",
 				".rss",

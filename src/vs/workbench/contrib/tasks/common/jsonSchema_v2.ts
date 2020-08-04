@@ -50,7 +50,7 @@ const taskIdentifier: IJSONSchema = {
 	properties: {
 		type: {
 			type: 'string',
-			description: nls.localize('JsonSchema.tasks.dependsOn.identifier', 'The task indentifier.')
+			description: nls.localize('JsonSchema.tasks.dependsOn.identifier', 'The task identifier.')
 		}
 	}
 };
@@ -74,7 +74,24 @@ const dependsOn: IJSONSchema = {
 				]
 			}
 		}
-	]
+	],
+	description: nls.localize('JsonSchema.tasks.dependsOn', 'Either a string representing another task or an array of other tasks that this task depends on.')
+};
+
+const dependsOrder: IJSONSchema = {
+	type: 'string',
+	enum: ['parallel', 'sequence'],
+	enumDescriptions: [
+		nls.localize('JsonSchema.tasks.dependsOrder.parallel', 'Run all dependsOn tasks in parallel.'),
+		nls.localize('JsonSchema.tasks.dependsOrder.sequence', 'Run all dependsOn tasks in sequence.'),
+	],
+	default: 'parallel',
+	description: nls.localize('JsonSchema.tasks.dependsOrder', 'Determines the order of the dependsOn tasks for this task. Note that this property is not recursive.')
+};
+
+const detail: IJSONSchema = {
+	type: 'string',
+	description: nls.localize('JsonSchema.tasks.detail', 'An optional description of a task that shows in the Run Task quick pick as a detail.')
 };
 
 const presentation: IJSONSchema = {
@@ -87,7 +104,7 @@ const presentation: IJSONSchema = {
 		showReuseMessage: true,
 		clear: false,
 	},
-	description: nls.localize('JsonSchema.tasks.presentation', 'Configures the panel that is used to present the task\'s ouput and reads its input.'),
+	description: nls.localize('JsonSchema.tasks.presentation', 'Configures the panel that is used to present the task\'s output and reads its input.'),
 	additionalProperties: false,
 	properties: {
 		echo: {
@@ -189,7 +206,7 @@ const group: IJSONSchema = {
 const taskType: IJSONSchema = {
 	type: 'string',
 	enum: ['shell'],
-	default: 'shell',
+	default: 'process',
 	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
 };
 
@@ -299,6 +316,7 @@ const identifier: IJSONSchema = {
 
 const runOptions: IJSONSchema = {
 	type: 'object',
+	additionalProperties: false,
 	properties: {
 		reevaluateOnRerun: {
 			type: 'boolean',
@@ -310,6 +328,11 @@ const runOptions: IJSONSchema = {
 			enum: ['default', 'folderOpen'],
 			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened.'),
 			default: 'default'
+		},
+		instanceLimit: {
+			type: 'number',
+			description: nls.localize('JsonSchema.tasks.instanceLimit', 'The number of instances of the task that are allowed to run simultaneously.'),
+			default: 1
 		},
 	},
 	description: nls.localize('JsonSchema.tasks.runOptions', 'The task\'s run related options')
@@ -353,6 +376,8 @@ let taskConfiguration: IJSONSchema = {
 		},
 		runOptions: Objects.deepClone(runOptions),
 		dependsOn: Objects.deepClone(dependsOn),
+		dependsOrder: Objects.deepClone(dependsOrder),
+		detail: Objects.deepClone(detail),
 	}
 };
 
@@ -405,12 +430,14 @@ taskDescriptionProperties.command = Objects.deepClone(command);
 taskDescriptionProperties.args = Objects.deepClone(args);
 taskDescriptionProperties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescriptionProperties.dependsOn = dependsOn;
+taskDescriptionProperties.dependsOrder = dependsOrder;
 taskDescriptionProperties.identifier = Objects.deepClone(identifier);
 taskDescriptionProperties.type = Objects.deepClone(taskType);
 taskDescriptionProperties.presentation = Objects.deepClone(presentation);
 taskDescriptionProperties.terminal = terminal;
 taskDescriptionProperties.group = Objects.deepClone(group);
 taskDescriptionProperties.runOptions = Objects.deepClone(runOptions);
+taskDescriptionProperties.detail = detail;
 taskDescriptionProperties.taskName.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.taskName.deprecated',
 	'The task\'s name property is deprecated. Use the label property instead.'
@@ -422,7 +449,7 @@ taskDescription.default = {
 	problemMatcher: []
 };
 definitions.showOutputType.deprecationMessage = nls.localize(
-	'JsonSchema.tasks.showOputput.deprecated',
+	'JsonSchema.tasks.showOutput.deprecated',
 	'The property showOutput is deprecated. Use the reveal property inside the presentation property instead. See also the 1.14 release notes.'
 );
 taskDescriptionProperties.echoCommand.deprecationMessage = nls.localize(
@@ -447,7 +474,7 @@ const processTask = Objects.deepClone(taskDescription);
 processTask.properties!.type = {
 	type: 'string',
 	enum: ['process'],
-	default: 'shell',
+	default: 'process',
 	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
 };
 processTask.required!.push('command');
@@ -468,6 +495,7 @@ tasks.items = {
 definitionsTaskRunnerConfigurationProperties.inputs = inputsSchema.definitions!.inputs;
 
 definitions.commandConfiguration.properties!.isShellCommand = Objects.deepClone(shellCommand);
+definitions.commandConfiguration.properties!.args = Objects.deepClone(args);
 definitions.options.properties!.shell = {
 	$ref: '#/definitions/shellConfiguration'
 };
@@ -547,7 +575,7 @@ export function updateProblemMatchers() {
 	try {
 		let matcherIds = ProblemMatcherRegistry.keys().map(key => '$' + key);
 		definitions.problemMatcherType2.oneOf![0].enum = matcherIds;
-		(definitions.problemMatcherType2.oneOf![2].items as IJSONSchema).anyOf![1].enum = matcherIds;
+		(definitions.problemMatcherType2.oneOf![2].items as IJSONSchema).anyOf![0].enum = matcherIds;
 	} catch (err) {
 		console.log('Installing problem matcher ids failed');
 	}

@@ -4,6 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.prepareIslFiles = exports.prepareI18nPackFiles = exports.pullI18nPackFiles = exports.prepareI18nFiles = exports.pullSetupXlfFiles = exports.pullCoreAndExtensionsXlfFiles = exports.findObsoleteResources = exports.pushXlfFiles = exports.createXlfFilesForIsl = exports.createXlfFilesForExtensions = exports.createXlfFilesForCoreBundle = exports.getResource = exports.processNlsFiles = exports.Limiter = exports.XLF = exports.Line = exports.externalExtensionsWithTranslations = exports.extraLanguages = exports.defaultLanguages = void 0;
 const path = require("path");
 const fs = require("fs");
 const event_stream_1 = require("event-stream");
@@ -15,7 +16,7 @@ const https = require("https");
 const gulp = require("gulp");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
-const iconv = require("iconv-lite");
+const iconv = require("iconv-lite-umd");
 const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 function log(message, ...rest) {
     fancyLog(ansiColors.green('[i18n]'), message, ...rest);
@@ -112,7 +113,7 @@ class XLF {
         for (let file in this.files) {
             this.appendNewLine(`<file original="${file}" source-language="en" datatype="plaintext"><body>`, 2);
             for (let item of this.files[file]) {
-                this.addStringItem(item);
+                this.addStringItem(file, item);
             }
             this.appendNewLine('</body></file>', 2);
         }
@@ -152,9 +153,12 @@ class XLF {
             this.files[original].push({ id: realKey, message: message, comment: comment });
         }
     }
-    addStringItem(item) {
-        if (!item.id || !item.message) {
-            throw new Error(`No item ID or value specified: ${JSON.stringify(item)}`);
+    addStringItem(file, item) {
+        if (!item.id || item.message === undefined || item.message === null) {
+            throw new Error(`No item ID or value specified: ${JSON.stringify(item)}. File: ${file}`);
+        }
+        if (item.message.length === 0) {
+            log(`Item with id ${item.id} in file ${file} has an empty message.`);
         }
         this.appendNewLine(`<trans-unit id="${item.id}">`, 4);
         this.appendNewLine(`<source xml:lang="en">${item.message}</source>`, 6);
@@ -176,6 +180,7 @@ class XLF {
         this.buffer.push(line.toString());
     }
 }
+exports.XLF = XLF;
 XLF.parsePseudo = function (xlfString) {
     return new Promise((resolve) => {
         let parser = new xml2js.Parser();
@@ -248,7 +253,6 @@ XLF.parse = function (xlfString) {
         });
     });
 };
-exports.XLF = XLF;
 class Limiter {
     constructor(maxDegreeOfParalellism) {
         this.maxDegreeOfParalellism = maxDegreeOfParalellism;
@@ -580,7 +584,7 @@ function createXlfFilesForExtensions() {
             }
             return _xlf;
         }
-        gulp.src([`./extensions/${extensionName}/package.nls.json`, `./extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }).pipe(event_stream_1.through(function (file) {
+        gulp.src([`.build/extensions/${extensionName}/package.nls.json`, `.build/extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }).pipe(event_stream_1.through(function (file) {
             if (file.isBuffer()) {
                 const buffer = file.contents;
                 const basename = path.basename(file.path);
@@ -603,7 +607,7 @@ function createXlfFilesForExtensions() {
                 }
                 else if (basename === 'nls.metadata.json') {
                     const json = JSON.parse(buffer.toString('utf8'));
-                    const relPath = path.relative(`./extensions/${extensionName}`, path.dirname(file.path));
+                    const relPath = path.relative(`.build/extensions/${extensionName}`, path.dirname(file.path));
                     for (let file in json) {
                         const fileContent = json[file];
                         getXlf().addFile(`extensions/${extensionName}/${relPath}/${file}`, fileContent.keys, fileContent.messages);
@@ -906,8 +910,8 @@ function pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language
         _coreAndExtensionResources.push(...json.workbench);
         // extensions
         let extensionsToLocalize = Object.create(null);
-        glob.sync('./extensions/**/*.nls.json').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
-        glob.sync('./extensions/*/node_modules/vscode-nls').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
+        glob.sync('.build/extensions/**/*.nls.json').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
+        glob.sync('.build/extensions/*/node_modules/vscode-nls').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
         Object.keys(extensionsToLocalize).forEach(extension => {
             _coreAndExtensionResources.push({ name: extension, project: extensionsProject });
         });
@@ -1080,7 +1084,7 @@ function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pse
             resultingTranslationPaths.push({ id: 'vscode', resourceName: 'main.i18n.json' });
             this.queue(translatedMainFile);
             for (let extension in extensionsPacks) {
-                const translatedExtFile = createI18nFile(`./extensions/${extension}`, extensionsPacks[extension]);
+                const translatedExtFile = createI18nFile(`extensions/${extension}`, extensionsPacks[extension]);
                 this.queue(translatedExtFile);
                 const externalExtensionId = externalExtensions[extension];
                 if (externalExtensionId) {
@@ -1137,12 +1141,7 @@ function createIslFile(originalFilePath, messages, language, innoSetup) {
         if (line.length > 0) {
             let firstChar = line.charAt(0);
             if (firstChar === '[' || firstChar === ';') {
-                if (line === '; *** Inno Setup version 5.5.3+ English messages ***') {
-                    content.push(`; *** Inno Setup version 5.5.3+ ${innoSetup.defaultInfo.name} messages ***`);
-                }
-                else {
-                    content.push(line);
-                }
+                content.push(line);
             }
             else {
                 let sections = line.split('=');
@@ -1171,9 +1170,10 @@ function createIslFile(originalFilePath, messages, language, innoSetup) {
     });
     const basename = path.basename(originalFilePath);
     const filePath = `${basename}.${language.id}.isl`;
+    const encoded = iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage);
     return new File({
         path: filePath,
-        contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage)
+        contents: Buffer.from(encoded),
     });
 }
 function encodeEntities(value) {

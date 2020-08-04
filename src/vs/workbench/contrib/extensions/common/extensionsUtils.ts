@@ -7,9 +7,10 @@ import * as arrays from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService, IExtensionTipsService, IExtensionIdentifier, EnablementState, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionRecommendationsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -22,25 +23,22 @@ export interface IExtensionStatus {
 	globallyEnabled: boolean;
 }
 
-export class KeymapExtensions implements IWorkbenchContribution {
-
-	private disposables: IDisposable[] = [];
+export class KeymapExtensions extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
-		@IExtensionTipsService private readonly tipsService: IExtensionTipsService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IExtensionRecommendationsService private readonly tipsService: IExtensionRecommendationsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
-		this.disposables.push(
-			lifecycleService.onShutdown(() => this.dispose()),
-			instantiationService.invokeFunction(onExtensionChanged)((identifiers => {
-				Promise.all(identifiers.map(identifier => this.checkForOtherKeymaps(identifier)))
-					.then(undefined, onUnexpectedError);
-			}))
-		);
+		super();
+		this._register(lifecycleService.onShutdown(() => this.dispose()));
+		this._register(instantiationService.invokeFunction(onExtensionChanged)((identifiers => {
+			Promise.all(identifiers.map(identifier => this.checkForOtherKeymaps(identifier)))
+				.then(undefined, onUnexpectedError);
+		})));
 	}
 
 	private checkForOtherKeymaps(extensionIdentifier: IExtensionIdentifier): Promise<void> {
@@ -73,7 +71,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 			*/
 			this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
 			if (confirmed) {
-				this.extensionEnablementService.setEnablement(oldKeymaps.map(keymap => keymap.local), EnablementState.Disabled);
+				this.extensionEnablementService.setEnablement(oldKeymaps.map(keymap => keymap.local), EnablementState.DisabledGlobally);
 			}
 		};
 
@@ -87,15 +85,11 @@ export class KeymapExtensions implements IWorkbenchContribution {
 			}]
 		);
 	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-	}
 }
 
 export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
-	const extensionEnablementService = accessor.get(IExtensionEnablementService);
+	const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
 	const onDidInstallExtension = Event.chain(extensionService.onDidInstallExtension)
 		.filter(e => e.operation === InstallOperation.Install)
 		.event;
@@ -117,7 +111,7 @@ export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtension
 
 export async function getInstalledExtensions(accessor: ServicesAccessor): Promise<IExtensionStatus[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
-	const extensionEnablementService = accessor.get(IExtensionEnablementService);
+	const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
 	const extensions = await extensionService.getInstalled();
 	return extensions.map(extension => {
 		return {
@@ -128,7 +122,7 @@ export async function getInstalledExtensions(accessor: ServicesAccessor): Promis
 	});
 }
 
-export function isKeymapExtension(tipsService: IExtensionTipsService, extension: IExtensionStatus): boolean {
+export function isKeymapExtension(tipsService: IExtensionRecommendationsService, extension: IExtensionStatus): boolean {
 	const cats = extension.local.manifest.categories;
 	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().some(({ extensionId }) => areSameExtensions({ id: extensionId }, extension.local.identifier));
 }

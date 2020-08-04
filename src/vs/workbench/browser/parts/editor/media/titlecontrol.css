@@ -28,19 +28,20 @@
 
 /* Title Actions */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label {
-	display: block;
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label:not(span),
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label:not(span) {
+	display: flex;
 	height: 35px;
-	line-height: 35px;
 	min-width: 28px;
+	align-items: center;
+	justify-content: center;
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
 }
 
-.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label,
-.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label {
+.monaco-workbench.hc-black .part.editor > .content .editor-group-container > .title .title-actions .action-label,
+.monaco-workbench.hc-black .part.editor > .content .editor-group-container > .title .editor-actions .action-label:not(.codicon) {
 	line-height: initial;
 }
 
@@ -49,20 +50,18 @@
 	display: none;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label.codicon {
+	color: inherit;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label.disabled,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label.disabled {
+	opacity: 0.4;
+}
+
 /* Drag Cursor */
 .monaco-workbench .part.editor > .content .editor-group-container > .title {
-	cursor: -webkit-grab;
-}
-
-/* Actions */
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
-	background: url('close.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action,
-.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
-	background: url('close-inverse.svg') center center no-repeat;
+	cursor: grab;
 }
 
 /* Drag and Drop Feedback */

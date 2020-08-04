@@ -13,19 +13,20 @@ import { IdleValue } from 'vs/base/common/async';
 // TRACING
 const _enableTracing = false;
 
-// PROXY
-// Ghetto-declare of the global Proxy object. This isn't the proper way
-// but allows us to run this code in the browser without IE11.
-declare var Proxy: any;
-const _canUseProxy = typeof Proxy === 'function';
+class CyclicDependencyError extends Error {
+	constructor(graph: Graph<any>) {
+		super('cyclic dependency between services');
+		this.message = graph.toString();
+	}
+}
 
 export class InstantiationService implements IInstantiationService {
 
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
-	protected readonly _services: ServiceCollection;
-	protected readonly _strict: boolean;
-	protected readonly _parent?: InstantiationService;
+	private readonly _services: ServiceCollection;
+	private readonly _strict: boolean;
+	private readonly _parent?: InstantiationService;
 
 	constructor(services: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: InstantiationService) {
 		this._services = services;
@@ -57,7 +58,7 @@ export class InstantiationService implements IInstantiationService {
 					return result;
 				}
 			};
-			return fn.apply(undefined, [accessor, ...args]);
+			return fn(accessor, ...args);
 		} finally {
 			_done = true;
 			_trace.stop();
@@ -95,8 +96,7 @@ export class InstantiationService implements IInstantiationService {
 
 		// check for argument mismatches, adjust static args if needed
 		if (args.length !== firstServiceArgPos) {
-			console.warn(`[createInstance] First service dependency of ${ctor.name} at position ${
-				firstServiceArgPos + 1} conflicts with ${args.length} static arguments`);
+			console.warn(`[createInstance] First service dependency of ${ctor.name} at position ${firstServiceArgPos + 1} conflicts with ${args.length} static arguments`);
 
 			let delta = firstServiceArgPos - args.length;
 			if (delta > 0) {
@@ -143,27 +143,19 @@ export class InstantiationService implements IInstantiationService {
 		type Triple = { id: ServiceIdentifier<any>, desc: SyncDescriptor<any>, _trace: Trace };
 		const graph = new Graph<Triple>(data => data.id.toString());
 
-		function throwCycleError() {
-			const err = new Error('[createInstance] cyclic dependency between services');
-			err.message = graph.toString();
-			throw err;
-		}
-
-		let count = 0;
+		let cycleCount = 0;
 		const stack = [{ id, desc, _trace }];
 		while (stack.length) {
 			const item = stack.pop()!;
 			graph.lookupOrInsertNode(item);
 
-			// TODO@joh use the graph to find a cycle
-			// a weak heuristic for cycle checks
-			if (count++ > 100) {
-				throwCycleError();
+			// a weak but working heuristic for cycle checks
+			if (cycleCount++ > 1000) {
+				throw new CyclicDependencyError(graph);
 			}
 
 			// check all dependencies for existence and if they need to be created first
-			let dependencies = _util.getServiceDependencies(item.desc.ctor);
-			for (let dependency of dependencies) {
+			for (let dependency of _util.getServiceDependencies(item.desc.ctor)) {
 
 				let instanceOrDesc = this._getServiceInstanceOrDescriptor(dependency.id);
 				if (!instanceOrDesc && !dependency.optional) {
@@ -179,18 +171,18 @@ export class InstantiationService implements IInstantiationService {
 		}
 
 		while (true) {
-			let roots = graph.roots();
+			const roots = graph.roots();
 
 			// if there is no more roots but still
 			// nodes in the graph we have a cycle
 			if (roots.length === 0) {
 				if (!graph.isEmpty()) {
-					throwCycleError();
+					throw new CyclicDependencyError(graph);
 				}
 				break;
 			}
 
-			for (let { data } of roots) {
+			for (const { data } of roots) {
 				// create instance and overwrite the service collections
 				const instance = this._createServiceInstanceWithOwner(data.id, data.desc.ctor, data.desc.staticArguments, data.desc.supportsDelayedInstantiation, data._trace);
 				this._setServiceInstance(data.id, instance);
@@ -207,26 +199,36 @@ export class InstantiationService implements IInstantiationService {
 		} else if (this._parent) {
 			return this._parent._createServiceInstanceWithOwner(id, ctor, args, supportsDelayedInstantiation, _trace);
 		} else {
-			throw new Error('illegalState - creating UNKNOWN service instance');
+			throw new Error(`illegalState - creating UNKNOWN service instance ${ctor.name}`);
 		}
 	}
 
 	private _createServiceInstance<T>(ctor: any, args: any[] = [], _supportsDelayedInstantiation: boolean, _trace: Trace): T {
-		if (!_supportsDelayedInstantiation || !_canUseProxy) {
-			// eager instantiation or no support JS proxies (e.g. IE11)
+		if (!_supportsDelayedInstantiation) {
+			// eager instantiation
 			return this._createInstance(ctor, args, _trace);
 
 		} else {
 			// Return a proxy object that's backed by an idle value. That
 			// strategy is to instantiate services in our idle time or when actually
 			// needed but not when injected into a consumer
-			const idle = new IdleValue(() => this._createInstance<T>(ctor, args, _trace));
+			const idle = new IdleValue<any>(() => this._createInstance<T>(ctor, args, _trace));
 			return <T>new Proxy(Object.create(null), {
-				get(_target: T, prop: PropertyKey): any {
-					return idle.getValue()[prop];
+				get(target: any, key: PropertyKey): any {
+					if (key in target) {
+						return target[key];
+					}
+					let obj = idle.value;
+					let prop = obj[key];
+					if (typeof prop !== 'function') {
+						return prop;
+					}
+					prop = prop.bind(obj);
+					target[key] = prop;
+					return prop;
 				},
 				set(_target: T, p: PropertyKey, value: any): boolean {
-					idle.getValue()[p] = value;
+					idle.value[p] = value;
 					return true;
 				}
 			});
@@ -242,7 +244,7 @@ const enum TraceType {
 
 class Trace {
 
-	private static _None = new class extends Trace {
+	private static readonly _None = new class extends Trace {
 		constructor() { super(-1, null); }
 		stop() { }
 		branch() { return this; }

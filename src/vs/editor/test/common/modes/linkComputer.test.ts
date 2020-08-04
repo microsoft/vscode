@@ -202,4 +202,32 @@ suite('Editor Modes - Link Computer', () => {
 			'         http://[::1]:5000/connect/token  '
 		);
 	});
+
+	test('issue #70254: bold links dont open in markdown file using editor mode with ctrl + click', () => {
+		assertLink(
+			'2. Navigate to **https://portal.azure.com**',
+			'                 https://portal.azure.com  '
+		);
+	});
+
+	test('issue #86358: URL wrong recognition pattern', () => {
+		assertLink(
+			'POST|https://portal.azure.com|2019-12-05|',
+			'     https://portal.azure.com            '
+		);
+	});
+
+	test('issue #67022: Space as end of hyperlink isn\'t always good idea', () => {
+		assertLink(
+			'aa  https://foo.bar/[this is foo site]  aa',
+			'    https://foo.bar/[this is foo site]    '
+		);
+	});
+
+	test('issue #100353: Link detection stops at ＆(double-byte)', () => {
+		assertLink(
+			'aa  http://tree-mark.chips.jp/レーズン＆ベリーミックス  aa',
+			'    http://tree-mark.chips.jp/レーズン＆ベリーミックス    '
+		);
+	});
 });

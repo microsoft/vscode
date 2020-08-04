@@ -6,11 +6,11 @@
 import { ActiveLineMarker } from './activeLineMarker';
 import { onceDocumentLoaded } from './events';
 import { createPosterForVsCode } from './messaging';
-import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine } from './scroll-sync';
+import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElementForFragment } from './scroll-sync';
 import { getSettings, getData } from './settings';
 import throttle = require('lodash.throttle');
 
-declare var acquireVsCodeApi: any;
+declare let acquireVsCodeApi: any;
 
 let scrollDisabled = true;
 const marker = new ActiveLineMarker();
@@ -18,8 +18,14 @@ const settings = getSettings();
 
 const vscode = acquireVsCodeApi();
 
-// Set VS Code state
-let state = getData('data-state');
+const originalState = vscode.getState();
+
+const state = {
+	...(typeof originalState === 'object' ? originalState : {}),
+	...getData<any>('data-state')
+};
+
+// Make sure to sync VS Code state here
 vscode.setState(state);
 
 const messaging = createPosterForVsCode(vscode);
@@ -32,14 +38,35 @@ window.onload = () => {
 };
 
 onceDocumentLoaded(() => {
+	const scrollProgress = state.scrollProgress;
+
+	if (typeof scrollProgress === 'number' && !settings.fragment) {
+		setImmediate(() => {
+			scrollDisabled = true;
+			window.scrollTo(0, scrollProgress * document.body.clientHeight);
+		});
+		return;
+	}
+
 	if (settings.scrollPreviewWithEditor) {
-		setTimeout(() => {
-			const initialLine = +settings.line;
-			if (!isNaN(initialLine)) {
-				scrollDisabled = true;
-				scrollToRevealSourceLine(initialLine);
+		setImmediate(() => {
+			// Try to scroll to fragment if available
+			if (settings.fragment) {
+				state.fragment = undefined;
+				vscode.setState(state);
+
+				const element = getLineElementForFragment(settings.fragment);
+				if (element) {
+					scrollDisabled = true;
+					scrollToRevealSourceLine(element.line);
+				}
+			} else {
+				if (!isNaN(settings.line!)) {
+					scrollDisabled = true;
+					scrollToRevealSourceLine(settings.line!);
+				}
 			}
-		}, 0);
+		});
 	}
 });
 
@@ -49,16 +76,17 @@ const onUpdateView = (() => {
 		scrollToRevealSourceLine(line);
 	}, 50);
 
-	return (line: number, settings: any) => {
+	return (line: number) => {
 		if (!isNaN(line)) {
-			settings.line = line;
+			state.line = line;
+
 			doScroll(line);
 		}
 	};
 })();
 
 let updateImageSizes = throttle(() => {
-	const imageInfo: { id: string, height: number, width: number }[] = [];
+	const imageInfo: { id: string, height: number, width: number; }[] = [];
 	let images = document.getElementsByTagName('img');
 	if (images) {
 		let i;
@@ -82,6 +110,7 @@ let updateImageSizes = throttle(() => {
 
 window.addEventListener('resize', () => {
 	scrollDisabled = true;
+	updateScrollProgress();
 	updateImageSizes();
 }, true);
 
@@ -96,7 +125,7 @@ window.addEventListener('message', event => {
 			break;
 
 		case 'updateView':
-			onUpdateView(event.data.line, settings);
+			onUpdateView(event.data.line);
 			break;
 	}
 }, false);
@@ -120,6 +149,8 @@ document.addEventListener('dblclick', event => {
 	}
 });
 
+const passThroughLinkSchemes = ['http:', 'https:', 'mailto:', 'vscode:', 'vscode-insiders:'];
+
 document.addEventListener('click', event => {
 	if (!event) {
 		return;
@@ -129,32 +160,47 @@ document.addEventListener('click', event => {
 	while (node) {
 		if (node.tagName && node.tagName === 'A' && node.href) {
 			if (node.getAttribute('href').startsWith('#')) {
-				break;
+				return;
 			}
-			if (node.href.startsWith('file://') || node.href.startsWith('vscode-resource:')) {
-				const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-resource:)/i, '').split('#');
-				messaging.postMessage('clickLink', { path, fragment });
+
+			let hrefText = node.getAttribute('data-href');
+			if (!hrefText) {
+				// Pass through known schemes
+				if (passThroughLinkSchemes.some(scheme => node.href.startsWith(scheme))) {
+					return;
+				}
+				hrefText = node.getAttribute('href');
+			}
+
+			// If original link doesn't look like a url, delegate back to VS Code to resolve
+			if (!/^[a-z\-]+:/i.test(hrefText)) {
+				messaging.postMessage('openLink', { href: hrefText });
 				event.preventDefault();
 				event.stopPropagation();
-				break;
+				return;
 			}
-			break;
+
+			return;
 		}
 		node = node.parentNode;
 	}
 }, true);
 
-if (settings.scrollEditorWithPreview) {
-	window.addEventListener('scroll', throttle(() => {
-		if (scrollDisabled) {
-			scrollDisabled = false;
-		} else {
-			const line = getEditorLineNumberForPageOffset(window.scrollY);
-			if (typeof line === 'number' && !isNaN(line)) {
-				messaging.postMessage('revealLine', { line });
-				state.line = line;
-				vscode.setState(state);
-			}
+window.addEventListener('scroll', throttle(() => {
+	updateScrollProgress();
+
+	if (scrollDisabled) {
+		scrollDisabled = false;
+	} else {
+		const line = getEditorLineNumberForPageOffset(window.scrollY);
+		if (typeof line === 'number' && !isNaN(line)) {
+			messaging.postMessage('revealLine', { line });
 		}
-	}, 50));
+	}
+}, 50));
+
+function updateScrollProgress() {
+	state.scrollProgress = window.scrollY / document.body.clientHeight;
+	vscode.setState(state);
 }
+

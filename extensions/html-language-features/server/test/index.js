@@ -11,7 +11,7 @@ const suite = 'Integration HTML Extension Tests';
 
 const options = {
 	ui: 'tdd',
-	useColors: true,
+	useColors: (!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY && process.platform !== 'win32'),
 	timeout: 60000
 };
 

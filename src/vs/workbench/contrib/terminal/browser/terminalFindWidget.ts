@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
+import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export class TerminalFindWidget extends SimpleFindWidget {
 	protected _findInputFocused: IContextKey<boolean>;
@@ -23,8 +24,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();
 		}));
-		this._findInputFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
-		this._findWidgetFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED.bindTo(this._contextKeyService);
+		this._findInputFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED.bindTo(this._contextKeyService);
+		this._findWidgetFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED.bindTo(this._contextKeyService);
 	}
 
 	public find(previous: boolean) {
@@ -50,8 +51,9 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		// Ignore input changes for now
 		const instance = this._terminalService.getActiveInstance();
 		if (instance !== null) {
-			instance.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true });
+			return instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true });
 		}
+		return false;
 	}
 
 	protected onFocusTrackerFocus() {
@@ -76,5 +78,15 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	protected onFindInputFocusTrackerBlur() {
 		this._findInputFocused.reset();
+	}
+
+	public findFirst() {
+		const instance = this._terminalService.getActiveInstance();
+		if (instance) {
+			if (instance.hasSelection()) {
+				instance.clearSelection();
+			}
+			instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+		}
 	}
 }

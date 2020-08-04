@@ -1,0 +1,223 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .feedback-form {
+	width: 420px;
+	top: 30px;
+	right: 6px;
+	padding: 1em;
+	cursor: default;
+}
+
+.monaco-workbench .feedback-form h2 {
+	margin: 0;
+	padding: 0;
+	font-weight: normal;
+	font-size: 1.8em;
+}
+
+.monaco-workbench .feedback-form h3 {
+	margin: 1em 0 0;
+	padding: 0;
+	font-weight: normal;
+	font-size: 1.2em;
+}
+
+.monaco-workbench .feedback-form .content {
+	font-size: 1.2em;
+}
+
+.monaco-workbench .feedback-form .content > div {
+	display: inline-block;
+	vertical-align: top;
+	margin-top: 20px;
+}
+
+.monaco-workbench .feedback-form .content .contactus {
+	padding: 10px;
+	float: right;
+}
+
+.monaco-workbench .feedback-form .content .channels {
+	margin-top: 5px;
+	font-size: 0.9em;
+}
+
+.monaco-workbench .char-counter {
+	padding-left: 3px;
+}
+
+.monaco-workbench .feedback-form .content .channels a {
+	padding: 2px 0;
+}
+
+.monaco-workbench .feedback-form .content .channels a:hover {
+	text-decoration: underline;
+}
+
+.monaco-workbench .feedback-form .feedback-alias, .monaco-workbench .feedback-form .feedback-description {
+	resize: none;
+	font-size: 1.1em;
+	margin: 6px 0 0;
+	width: 100%;
+	padding: 3px 2px;
+	box-sizing:			border-box;
+}
+
+.monaco-workbench .feedback-form .feedback-empty {
+	margin-top: .2em;
+}
+
+.monaco-workbench .feedback-form .feedback-alias-checkbox {
+	display: inline-block;
+	vertical-align: text-top;
+	margin-left: 0;
+}
+
+.monaco-workbench .feedback-form .feedback-alias {
+	height: 26px;
+}
+
+.monaco-workbench .feedback-form .feedback-alias:disabled {
+	opacity: 0.6;
+}
+
+.monaco-workbench .feedback-form .cancel {
+	position: absolute;
+	top: 0;
+	right: 0;
+	padding: .5em;
+	width: 22px;
+	height: 22px;
+	line-height: 22px;
+	border: none;
+	cursor: pointer;
+}
+
+.monaco-workbench .feedback-form .form-buttons {
+	margin-top: 18px;
+	text-align: right;
+}
+
+.monaco-workbench .feedback-form .sentiment {
+	height: 32px;
+	width: 32px;
+	display: inline-block;
+	margin: .5em 0;
+	cursor: pointer;
+	box-sizing:			border-box;
+}
+
+.monaco-workbench .feedback-form .sentiment:hover {
+	background-color: #eaeaea;
+}
+
+/* Theming */
+.monaco-workbench.vs .feedback-form .feedback-alias,
+.monaco-workbench.vs .feedback-form .feedback-description {
+	font-family: inherit;
+	border: 1px solid transparent;
+}
+
+.monaco-workbench .feedback-form .form-buttons {
+	display: flex;
+}
+
+.monaco-workbench .feedback-form .form-buttons .hide-button-container {
+	display: flex;
+}
+
+.monaco-workbench .feedback-form .form-buttons .hide-button-container input,
+.monaco-workbench .feedback-form .form-buttons .hide-button-container label {
+	align-self: center;
+}
+
+.monaco-workbench .feedback-form .form-buttons .send {
+	width: auto;
+	padding: 8px 12px;
+	margin-left: auto;
+	display: flex;
+	align-items: center;
+	transition: width 200ms ease-out;
+}
+
+.monaco-workbench .feedback-form .form-buttons .send .codicon {
+	color: currentColor;
+	font-size: 20px;
+	padding-right: 8px;
+}
+
+.monaco-workbench .feedback-form .form-buttons .send.in-progress,
+.monaco-workbench .feedback-form .form-buttons .send:hover {
+	background-color: #006BB3;
+}
+
+.monaco-workbench .feedback-form .form-buttons .send:disabled {
+	pointer-events: none;
+	cursor: not-allowed;
+	opacity: .65;
+}
+
+.monaco-workbench .feedback-form .form-buttons .send.success {
+	background-color: #2d883e;
+}
+
+.monaco-workbench .feedback-form .form-buttons .send.error {
+	background-color: #E51400;
+}
+
+.monaco-workbench.vs-dark .feedback-form h3 {
+	font-weight: normal;
+	font-size: 1.2em;
+}
+
+.monaco-workbench.vs-dark .feedback-form .sentiment:hover {
+	background-color: rgba(30,30,30,0.8);
+}
+
+.monaco-workbench.vs-dark .feedback-form .feedback-alias,
+.monaco-workbench.vs-dark .feedback-form .feedback-description {
+	font-family: inherit;
+}
+
+.monaco-workbench .feedback-form .sentiment.smile {
+	background-image: url('happy.svg');
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.monaco-workbench .feedback-form .sentiment.frown {
+	background-image: url('sad.svg');
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+/* High Contrast Theming */
+.monaco-workbench.hc-black .feedback-form {
+	outline: 2px solid #6fc3df;
+	outline-offset: -2px;
+}
+
+.monaco-workbench.hc-black .feedback-form .feedback-alias,
+.monaco-workbench.hc-black .feedback-form .feedback-description {
+	font-family: inherit;
+}
+
+.monaco-workbench.hc-black .feedback-form .content .contactus {
+	padding: 10px;
+	float: right;
+}
+
+.monaco-workbench.hc-black .feedback-form .form-buttons .send,
+.monaco-workbench.hc-black .feedback-form .form-buttons .send.in-progress,
+.monaco-workbench.hc-black .feedback-form .form-buttons .send.success {
+	background-color: #0C141F;
+	color: #D4D4D4;
+	border: 1px solid #6FC3DF;
+}
+
+.monaco-workbench.hc-black .feedback-form .form-buttons .send:hover {
+	background-color: #0C141F;
+}

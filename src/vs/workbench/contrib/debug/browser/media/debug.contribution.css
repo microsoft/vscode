@@ -3,101 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Activity Bar */
-.monaco-workbench .activitybar .monaco-action-bar .action-label.debug {
-	-webkit-mask: url('debug-dark.svg') no-repeat 50% 50%;
+.codicon-debug-hint {
+	cursor: pointer;
+}
+
+.codicon-debug-hint:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']) {
+	opacity: 0.4 !important;
+}
+
+.inline-breakpoint-widget.codicon {
+	display: flex !important;
+	align-items: center;
+}
+
+.inline-breakpoint-widget.codicon-debug-breakpoint-disabled {
+	opacity: 0.7;
+}
+
+.codicon-debug-breakpoint.codicon-debug-stackframe-focused::after,
+.codicon-debug-breakpoint.codicon-debug-stackframe::after {
+	content: '\eb8a';
+	position: absolute;
+}
+
+.monaco-editor .inline-breakpoint-widget.line-start {
+	left: -8px !important;
+}
+
+.monaco-editor .debug-breakpoint-placeholder::before,
+.monaco-editor .debug-top-stack-frame-column::before {
+	content: ' ';
+	width: 0.9em;
+	display: inline-flex;
+	vertical-align: middle;
+	margin-top: -1px; /* TODO @misolori: figure out a way to not use negative margin for alignment */
+}
+
+.monaco-editor .debug-top-stack-frame-column {
+	display: inline-flex;
+	vertical-align: middle;
 }
 
 .monaco-editor .debug-top-stack-frame-column::before {
-	background: url('current-arrow.svg') center center no-repeat;
+	content: '\eb8b';
+	font: normal normal normal 16px/1 codicon;
+	text-rendering: auto;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	margin-left: 0;
+	margin-right: 4px;
 }
 
-.debug-breakpoint-hint {
-	background: url('breakpoint-hint.svg') center center no-repeat;
-}
-
-.debug-breakpoint-disabled,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-disabled-column::before {
-	background: url('breakpoint-disabled.svg') center center no-repeat;
-}
-
-.debug-breakpoint-unverified,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-unverified-column::before {
-	background: url('breakpoint-unverified.svg') center center no-repeat;
-}
-
-.monaco-editor .debug-top-stack-frame {
-	background: url('current-arrow.svg') center center no-repeat;
-}
-
-.monaco-editor .debug-focused-stack-frame {
-	background: url('stackframe-arrow.svg') center center no-repeat;
-}
-
-.debug-breakpoint,
-.monaco-editor .debug-breakpoint-column::before {
-	background: url('breakpoint.svg') center center no-repeat;
-}
-
-.monaco-editor .debug-breakpoint-column::before,
-.monaco-editor .debug-top-stack-frame-column::before {
-	content: " ";
-	width: 1.3em;
-	height: 1.3em;
-	display: inline-block;
-	vertical-align: text-bottom;
-	margin-right: 2px;
-	margin-left: 2px;
-}
-
-.debug-function-breakpoint {
-	background: url('breakpoint-function.svg') center center no-repeat;
-}
-
-.debug-function-breakpoint-unverified {
-	background: url('breakpoint-function-unverified.svg') center center no-repeat;
-}
-
-.debug-function-breakpoint-disabled {
-	background: url('breakpoint-function-disabled.svg') center center no-repeat;
-}
-
-.debug-breakpoint-conditional,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-conditional-column::before {
-	background: url('breakpoint-conditional.svg') center center no-repeat;
-}
-
-.debug-breakpoint-log,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-log-column::before {
-	background: url('breakpoint-log.svg') center center no-repeat;
-}
-
-.debug-breakpoint-log-disabled,
-.monaco-editor .debug-breakpoint-log-disabled-column::before {
-	background: url('breakpoint-log-disabled.svg') center center no-repeat;
-}
-
-.debug-breakpoint-log-unverified,
-.monaco-editor .debug-breakpoint-log-unverified-column::before {
-	background: url('breakpoint-log-unverified.svg') center center no-repeat;
-}
-
-.debug-breakpoint-unsupported,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-unsupported-column::before {
-	background: url('breakpoint-unsupported.svg') center center no-repeat;
-}
-
-.monaco-editor .debug-top-stack-frame.debug-breakpoint,
-.monaco-editor .debug-top-stack-frame.debug-breakpoint-conditional,
-.monaco-editor .debug-top-stack-frame.debug-breakpoint-log,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-column.debug-top-stack-frame-column::before {
-	background: url('current-and-breakpoint.svg') center center no-repeat;
-}
-
-.monaco-editor .debug-focused-stack-frame.debug-breakpoint,
-.monaco-editor .debug-focused-stack-frame.debug-breakpoint-conditional,
-.monaco-editor .debug-focused-stack-frame.debug-breakpoint-log {
-	background: url('stackframe-and-breakpoint.svg') center center no-repeat;
+.monaco-editor .inline-breakpoint-widget {
+	cursor: pointer;
 }
 
 /* Error editor */
@@ -110,25 +68,6 @@
 	box-sizing: border-box;
 }
 
-/* Debug status */
-/* A very precise css rule to overwrite the display set in statusbar.css */
-.monaco-workbench .part.statusbar > .statusbar-item > .debug-statusbar-item > a {
-	display: flex;
-	padding: 0 5px 0 5px;
-}
-
-.monaco-workbench .part.statusbar .debug-statusbar-item.hidden {
-	display: none;
-}
-
-.monaco-workbench .part.statusbar .debug-statusbar-item .icon {
-	-webkit-mask: url('start.svg') no-repeat 50% 50%;
-	-webkit-mask-size: 16px;
-	display: inline-block;
-	padding-right: 2px;
-	width: 16px;
-}
-
 .monaco-workbench .debug-view-content .monaco-list-row .monaco-tl-contents {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -136,15 +75,16 @@
 
 /* Expressions */
 
-.monaco-workbench .debug-viewlet .monaco-list-row .expression,
+.monaco-workbench .debug-pane .monaco-list-row .expression,
 .monaco-workbench .debug-hover-widget .monaco-list-row .expression {
 	font-size: 13px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	font-family: var(--monaco-monospace-font);
+	white-space: pre;
 }
 
-.monaco-workbench.mac .debug-viewlet .monaco-list-row .expression,
+.monaco-workbench.mac .debug-pane .monaco-list-row .expression,
 .monaco-workbench.mac .debug-hover-widget .monaco-list-row .expression {
 	font-size: 11px;
 }
@@ -153,92 +93,26 @@
 	margin-left: 6px;
 }
 
+/* Links */
+
+.monaco-workbench .monaco-list-row .expression .value a.link {
+	text-decoration: underline;
+}
+
+.monaco-workbench .monaco-list-row .expression .value a.link.pointer {
+	cursor: pointer;
+}
+
 /* White color when element is selected and list is focused. White looks better on blue selection background. */
 .monaco-workbench .monaco-list:focus .monaco-list-row.selected .expression .name,
 .monaco-workbench .monaco-list:focus .monaco-list-row.selected .expression .value {
-	color: white;
-}
-
-.monaco-workbench .monaco-list-row .expression .name {
-	color: #9B46B0;
+	color: inherit;
 }
 
 .monaco-workbench .monaco-list-row .expression .name.virtual {
 	opacity: 0.5;
 }
 
-.monaco-workbench > .monaco-list-row .expression .value {
-	color: rgba(108, 108, 108, 0.8);
-}
-
 .monaco-workbench .monaco-list-row .expression .unavailable {
 	font-style: italic;
-}
-
-.monaco-workbench .monaco-list-row .expression .error {
-	color: #E51400;
-}
-
-.monaco-workbench .monaco-list-row .expression .value.number {
-	color: #09885A;
-}
-
-.monaco-workbench .monaco-list-row .expression .value.boolean {
-	color: #0000FF;
-}
-
-.monaco-workbench .monaco-list-row .expression .value.string {
-	color: #A31515;
-}
-
-.vs-dark .monaco-workbench  > .monaco-list-row .expression .value {
-	color: rgba(204, 204, 204, 0.6);
-}
-
-.vs-dark .monaco-workbench  .monaco-list-row .expression .error {
-	color: #F48771;
-}
-
-.vs-dark .monaco-workbench  .monaco-list-row .expression .value.number {
-	color: #B5CEA8;
-}
-
-.hc-black .monaco-workbench  .monaco-list-row .expression .value.number {
-	color: #89d185;
-}
-
-.hc-black .monaco-workbench  .monaco-list-row .expression .value.boolean {
-	color: #75bdfe;
-}
-
-.hc-black .monaco-workbench  .monaco-list-row .expression .value.string {
-	color: #f48771;
-}
-
-.vs-dark .monaco-workbench  .monaco-list-row .expression .value.boolean {
-	color: #4E94CE;
-}
-
-.vs-dark .monaco-workbench  .monaco-list-row .expression .value.string {
-	color: #CE9178;
-}
-
-.hc-black .monaco-workbench .monaco-list-row .expression .error {
-	color: #F48771;
-}
-
-/* Dark theme */
-
-.vs-dark .monaco-workbench .monaco-list-row .expression .name {
-	color: #C586C0;
-}
-
-/* High Contrast Theming */
-
-.hc-black .monaco-workbench .monaco-list-row .expression .name {
-	color: inherit;
-}
-
-.hc-black .monaco-editor .debug-remove-token-colors {
-	color:black;
 }

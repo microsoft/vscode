@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { keys } from 'vs/base/common/map';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, SET_CONTEXT_COMMAND_ID } from 'vs/platform/contextkey/common/contextkey';
+import { IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, SET_CONTEXT_COMMAND_ID, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { toArray } from 'vs/base/common/arrays';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -87,7 +87,7 @@ class NullContext extends Context {
 
 class ConfigAwareContextValuesContainer extends Context {
 
-	private static _keyPrefix = 'config.';
+	private static readonly _keyPrefix = 'config.';
 
 	private readonly _values = new Map<string, any>();
 	private readonly _listener: IDisposable;
@@ -102,7 +102,7 @@ class ConfigAwareContextValuesContainer extends Context {
 		this._listener = this._configurationService.onDidChangeConfiguration(event => {
 			if (event.source === ConfigurationTarget.DEFAULT) {
 				// new setting, reset everything
-				const allKeys = keys(this._values);
+				const allKeys = toArray(this._values.keys());
 				this._values.clear();
 				emitter.fire(new ArrayContextKeyChangeEvent(allKeys));
 			} else {
@@ -142,6 +142,10 @@ class ConfigAwareContextValuesContainer extends Context {
 			case 'string':
 				value = configValue;
 				break;
+			default:
+				if (Array.isArray(configValue)) {
+					value = JSON.stringify(configValue);
+				}
 		}
 
 		this._values.set(key, value);
@@ -225,7 +229,7 @@ class CompositeContextKeyChangeEvent implements IContextKeyChangeEvent {
 }
 
 export abstract class AbstractContextKeyService implements IContextKeyService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	protected _isDisposed: boolean;
 	protected _onDidChangeContext = new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) });
@@ -265,7 +269,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		return new ScopedContextKeyService(this, domNode);
 	}
 
-	public contextMatchesRules(rules: ContextKeyExpr | undefined): boolean {
+	public contextMatchesRules(rules: ContextKeyExpression | undefined): boolean {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
 		}
@@ -323,7 +327,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 	private _lastContextId: number;
 	private readonly _contexts = new Map<number, Context>();
 
-	private _toDispose: IDisposable[] = [];
+	private readonly _toDispose = new DisposableStore();
 
 	constructor(@IConfigurationService configurationService: IConfigurationService) {
 		super(0);
@@ -332,7 +336,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 
 		const myContext = new ConfigAwareContextValuesContainer(this._myContextId, configurationService, this._onDidChangeContext);
 		this._contexts.set(this._myContextId, myContext);
-		this._toDispose.push(myContext);
+		this._toDispose.add(myContext);
 
 		// Uncomment this to see the contexts continuously logged
 		// let lastLoggedValue: string | null = null;
@@ -348,7 +352,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 
 	public dispose(): void {
 		this._isDisposed = true;
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.dispose();
 	}
 
 	public getContextValuesContainer(contextId: number): Context {

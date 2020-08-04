@@ -7,6 +7,27 @@ import * as assert from 'assert';
 import { Direction, getRelativeLocation, Orientation, SerializableGrid, ISerializableView, IViewDeserializer, GridNode, Sizing, isGridBranchNode, sanitizeGridNodeDescriptor, GridNodeDescriptor, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { TestView, nodesToArrays } from './util';
 import { deepClone } from 'vs/base/common/objects';
+import { Event } from 'vs/base/common/event';
+
+// Simple example:
+//
+//  +-----+---------------+
+//  |  4  |      2        |
+//  +-----+---------+-----+
+//  |        1      |     |
+//  +---------------+  3  |
+//  |        5      |     |
+//  +---------------+-----+
+//
+//  V
+//  +-H
+//  | +-4
+//  | +-2
+//  +-H
+//    +-V
+//    | +-1
+//    | +-5
+//    +-3
 
 suite('Grid', function () {
 	let container: HTMLElement;
@@ -502,7 +523,8 @@ suite('SerializableGrid', function () {
 		container.appendChild(grid.element);
 		grid.layout(800, 600);
 
-		assert.deepEqual(grid.serialize(), {
+		const actual = grid.serialize();
+		assert.deepEqual(actual, {
 			orientation: 0,
 			width: 800,
 			height: 600,
@@ -625,12 +647,6 @@ suite('SerializableGrid', function () {
 
 		assert.deepEqual(nodesToArrays(grid2.getViews()), [[view4Copy, view2Copy], [[view1Copy, view5Copy], view3Copy]]);
 
-		assert.deepEqual(view1Copy.size, [50, 50]);
-		assert.deepEqual(view2Copy.size, [50, 50]);
-		assert.deepEqual(view3Copy.size, [50, 100]);
-		assert.deepEqual(view4Copy.size, [50, 50]);
-		assert.deepEqual(view5Copy.size, [50, 50]);
-
 		grid2.layout(800, 600);
 
 		assert.deepEqual(view1Copy.size, [600, 300]);
@@ -673,10 +689,10 @@ suite('SerializableGrid', function () {
 
 		grid2.layout(400, 800); // [/2, *4/3]
 		assert.deepEqual(view1Copy.size, [300, 400]);
-		assert.deepEqual(view2Copy.size, [300, 266]);
-		assert.deepEqual(view3Copy.size, [100, 534]);
-		assert.deepEqual(view4Copy.size, [100, 266]);
-		assert.deepEqual(view5Copy.size, [300, 134]);
+		assert.deepEqual(view2Copy.size, [300, 267]);
+		assert.deepEqual(view3Copy.size, [100, 533]);
+		assert.deepEqual(view4Copy.size, [100, 267]);
+		assert.deepEqual(view5Copy.size, [300, 133]);
 	});
 
 	test('deserialize 4 view layout (ben issue #2)', function () {
@@ -771,7 +787,7 @@ suite('SerializableGrid', function () {
 	test('sanitizeGridNodeDescriptor', () => {
 		const nodeDescriptor = { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{}, {}] }] };
 		const nodeDescriptorCopy = deepClone<GridNodeDescriptor>(nodeDescriptor);
-		sanitizeGridNodeDescriptor(nodeDescriptorCopy);
+		sanitizeGridNodeDescriptor(nodeDescriptorCopy, true);
 		assert.deepEqual(nodeDescriptorCopy, { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{ size: 0.5 }, { size: 0.5 }] }] });
 	});
 
@@ -797,5 +813,268 @@ suite('SerializableGrid', function () {
 			width: 1,
 			height: 1
 		});
+	});
+
+	test('createSerializedGrid - issue #85601, should not allow single children groups', () => {
+		const serializedGrid = createSerializedGrid({ orientation: Orientation.HORIZONTAL, groups: [{ groups: [{}, {}], size: 0.5 }, { groups: [{}], size: 0.5 }] });
+		const views: ISerializableView[] = [];
+		const deserializer = new class implements IViewDeserializer<ISerializableView> {
+			fromJSON(): ISerializableView {
+				const view: ISerializableView = {
+					element: document.createElement('div'),
+					layout: () => null,
+					minimumWidth: 0,
+					maximumWidth: Number.POSITIVE_INFINITY,
+					minimumHeight: 0,
+					maximumHeight: Number.POSITIVE_INFINITY,
+					onDidChange: Event.None,
+					toJSON: () => ({})
+				};
+				views.push(view);
+				return view;
+			}
+		};
+
+		const grid = SerializableGrid.deserialize(serializedGrid, deserializer);
+		assert.equal(views.length, 3);
+
+		// should not throw
+		grid.removeView(views[2]);
+	});
+
+	test('serialize should store visibility and previous size', function () {
+		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new SerializableGrid(view1);
+		container.appendChild(grid.element);
+		grid.layout(800, 600);
+
+		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, 200, view1, Direction.Up);
+
+		const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, 200, view1, Direction.Right);
+
+		const view4 = new TestSerializableView('view4', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view4, 200, view2, Direction.Left);
+
+		const view5 = new TestSerializableView('view5', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view5, 100, view1, Direction.Down);
+
+		assert.deepEqual(view1.size, [600, 300]);
+		assert.deepEqual(view2.size, [600, 200]);
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(view4.size, [200, 200]);
+		assert.deepEqual(view5.size, [600, 100]);
+
+		grid.setViewVisible(view5, false);
+
+		assert.deepEqual(view1.size, [600, 400]);
+		assert.deepEqual(view2.size, [600, 200]);
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(view4.size, [200, 200]);
+		assert.deepEqual(view5.size, [600, 0]);
+
+		grid.setViewVisible(view5, true);
+
+		assert.deepEqual(view1.size, [600, 300]);
+		assert.deepEqual(view2.size, [600, 200]);
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(view4.size, [200, 200]);
+		assert.deepEqual(view5.size, [600, 100]);
+
+		grid.setViewVisible(view5, false);
+
+		assert.deepEqual(view1.size, [600, 400]);
+		assert.deepEqual(view2.size, [600, 200]);
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(view4.size, [200, 200]);
+		assert.deepEqual(view5.size, [600, 0]);
+
+		grid.setViewVisible(view5, false);
+
+		const json = grid.serialize();
+		assert.deepEqual(json, {
+			orientation: 0,
+			width: 800,
+			height: 600,
+			root: {
+				type: 'branch',
+				data: [
+					{
+						type: 'branch',
+						data: [
+							{ type: 'leaf', data: { name: 'view4' }, size: 200 },
+							{ type: 'leaf', data: { name: 'view2' }, size: 600 }
+						],
+						size: 200
+					},
+					{
+						type: 'branch',
+						data: [
+							{
+								type: 'branch',
+								data: [
+									{ type: 'leaf', data: { name: 'view1' }, size: 400 },
+									{ type: 'leaf', data: { name: 'view5' }, size: 100, visible: false }
+								],
+								size: 600
+							},
+							{ type: 'leaf', data: { name: 'view3' }, size: 200 }
+						],
+						size: 400
+					}
+				],
+				size: 800
+			}
+		});
+
+		grid.dispose();
+
+		const deserializer = new TestViewDeserializer();
+		const grid2 = SerializableGrid.deserialize(json, deserializer);
+
+		const view1Copy = deserializer.getView('view1');
+		const view2Copy = deserializer.getView('view2');
+		const view3Copy = deserializer.getView('view3');
+		const view4Copy = deserializer.getView('view4');
+		const view5Copy = deserializer.getView('view5');
+
+		assert.deepEqual(nodesToArrays(grid2.getViews()), [[view4Copy, view2Copy], [[view1Copy, view5Copy], view3Copy]]);
+
+		grid2.layout(800, 600);
+		assert.deepEqual(view1Copy.size, [600, 400]);
+		assert.deepEqual(view2Copy.size, [600, 200]);
+		assert.deepEqual(view3Copy.size, [200, 400]);
+		assert.deepEqual(view4Copy.size, [200, 200]);
+		assert.deepEqual(view5Copy.size, [600, 0]);
+
+		assert.deepEqual(grid2.isViewVisible(view1Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view2Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view3Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view4Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view5Copy), false);
+
+		grid2.setViewVisible(view5Copy, true);
+
+		assert.deepEqual(view1Copy.size, [600, 300]);
+		assert.deepEqual(view2Copy.size, [600, 200]);
+		assert.deepEqual(view3Copy.size, [200, 400]);
+		assert.deepEqual(view4Copy.size, [200, 200]);
+		assert.deepEqual(view5Copy.size, [600, 100]);
+
+		assert.deepEqual(grid2.isViewVisible(view1Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view2Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view3Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view4Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view5Copy), true);
+	});
+
+	test('serialize should store visibility and previous size even for first leaf', function () {
+		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new SerializableGrid(view1);
+		container.appendChild(grid.element);
+		grid.layout(800, 600);
+
+		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, 200, view1, Direction.Up);
+
+		const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, 200, view1, Direction.Right);
+
+		const view4 = new TestSerializableView('view4', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view4, 200, view2, Direction.Left);
+
+		const view5 = new TestSerializableView('view5', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view5, 100, view1, Direction.Down);
+
+		assert.deepEqual(view1.size, [600, 300]);
+		assert.deepEqual(view2.size, [600, 200]);
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(view4.size, [200, 200]);
+		assert.deepEqual(view5.size, [600, 100]);
+
+		grid.setViewVisible(view4, false);
+
+		assert.deepEqual(view1.size, [600, 300]);
+		assert.deepEqual(view2.size, [800, 200]);
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(view4.size, [0, 200]);
+		assert.deepEqual(view5.size, [600, 100]);
+
+		const json = grid.serialize();
+		assert.deepEqual(json, {
+			orientation: 0,
+			width: 800,
+			height: 600,
+			root: {
+				type: 'branch',
+				data: [
+					{
+						type: 'branch',
+						data: [
+							{ type: 'leaf', data: { name: 'view4' }, size: 200, visible: false },
+							{ type: 'leaf', data: { name: 'view2' }, size: 800 }
+						],
+						size: 200
+					},
+					{
+						type: 'branch',
+						data: [
+							{
+								type: 'branch',
+								data: [
+									{ type: 'leaf', data: { name: 'view1' }, size: 300 },
+									{ type: 'leaf', data: { name: 'view5' }, size: 100 }
+								],
+								size: 600
+							},
+							{ type: 'leaf', data: { name: 'view3' }, size: 200 }
+						],
+						size: 400
+					}
+				],
+				size: 800
+			}
+		});
+
+		grid.dispose();
+
+		const deserializer = new TestViewDeserializer();
+		const grid2 = SerializableGrid.deserialize(json, deserializer);
+
+		const view1Copy = deserializer.getView('view1');
+		const view2Copy = deserializer.getView('view2');
+		const view3Copy = deserializer.getView('view3');
+		const view4Copy = deserializer.getView('view4');
+		const view5Copy = deserializer.getView('view5');
+
+		assert.deepEqual(nodesToArrays(grid2.getViews()), [[view4Copy, view2Copy], [[view1Copy, view5Copy], view3Copy]]);
+
+		grid2.layout(800, 600);
+		assert.deepEqual(view1Copy.size, [600, 300]);
+		assert.deepEqual(view2Copy.size, [800, 200]);
+		assert.deepEqual(view3Copy.size, [200, 400]);
+		assert.deepEqual(view4Copy.size, [0, 200]);
+		assert.deepEqual(view5Copy.size, [600, 100]);
+
+		assert.deepEqual(grid2.isViewVisible(view1Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view2Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view3Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view4Copy), false);
+		assert.deepEqual(grid2.isViewVisible(view5Copy), true);
+
+		grid2.setViewVisible(view4Copy, true);
+
+		assert.deepEqual(view1Copy.size, [600, 300]);
+		assert.deepEqual(view2Copy.size, [600, 200]);
+		assert.deepEqual(view3Copy.size, [200, 400]);
+		assert.deepEqual(view4Copy.size, [200, 200]);
+		assert.deepEqual(view5Copy.size, [600, 100]);
+
+		assert.deepEqual(grid2.isViewVisible(view1Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view2Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view3Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view4Copy), true);
+		assert.deepEqual(grid2.isViewVisible(view5Copy), true);
 	});
 });

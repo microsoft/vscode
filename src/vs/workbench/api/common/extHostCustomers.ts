@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature1, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
@@ -13,13 +13,13 @@ export type IExtHostNamedCustomer<T extends IDisposable> = [ProxyIdentifier<T>, 
 export type IExtHostCustomerCtor<T extends IDisposable> = IConstructorSignature1<IExtHostContext, T>;
 
 export function extHostNamedCustomer<T extends IDisposable>(id: ProxyIdentifier<T>) {
-	return function (ctor: IExtHostCustomerCtor<T>): void {
-		ExtHostCustomersRegistryImpl.INSTANCE.registerNamedCustomer(id, ctor);
+	return function <Services extends BrandedService[]>(ctor: { new(context: IExtHostContext, ...services: Services): T }): void {
+		ExtHostCustomersRegistryImpl.INSTANCE.registerNamedCustomer(id, ctor as IExtHostCustomerCtor<T>);
 	};
 }
 
-export function extHostCustomer<T extends IDisposable>(ctor: IExtHostCustomerCtor<T>): void {
-	ExtHostCustomersRegistryImpl.INSTANCE.registerCustomer(ctor);
+export function extHostCustomer<T extends IDisposable, Services extends BrandedService[]>(ctor: { new(context: IExtHostContext, ...services: Services): T }): void {
+	ExtHostCustomersRegistryImpl.INSTANCE.registerCustomer(ctor as IExtHostCustomerCtor<T>);
 }
 
 export namespace ExtHostCustomersRegistry {

@@ -7,13 +7,14 @@ import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as cp from 'child_process';
 import * as pfs from 'vs/base/node/pfs';
+import * as extpath from 'vs/base/node/extpath';
 import * as platform from 'vs/base/common/platform';
 import { promisify } from 'util';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
@@ -40,7 +41,7 @@ function isAvailable(): Promise<boolean> {
 class InstallAction extends Action {
 
 	static readonly ID = 'workbench.action.installCommandLine';
-	static LABEL = nls.localize('install', "Install '{0}' command in PATH", product.applicationName);
+	static readonly LABEL = nls.localize('install', "Install '{0}' command in PATH", product.applicationName);
 
 	constructor(
 		id: string,
@@ -91,7 +92,7 @@ class InstallAction extends Action {
 	private isInstalled(): Promise<boolean> {
 		return pfs.lstat(this.target)
 			.then(stat => stat.isSymbolicLink())
-			.then(() => pfs.readlink(this.target))
+			.then(() => extpath.realpath(this.target))
 			.then(link => link === getSource())
 			.then(undefined, ignore('ENOENT', false));
 	}
@@ -100,14 +101,14 @@ class InstallAction extends Action {
 		return new Promise<void>((resolve, reject) => {
 			const buttons = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
 
-			this.dialogService.show(Severity.Info, nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command."), buttons, { cancelId: 1 }).then(choice => {
-				switch (choice) {
+			this.dialogService.show(Severity.Info, nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command."), buttons, { cancelId: 1 }).then(result => {
+				switch (result.choice) {
 					case 0 /* OK */:
 						const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'' + getSource() + '\' \'' + this.target + '\'\\" with administrator privileges"';
 
 						promisify(cp.exec)(command, {})
 							.then(undefined, _ => Promise.reject(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
-							.then(resolve, reject);
+							.then(() => resolve(), reject);
 						break;
 					case 1 /* Cancel */:
 						reject(new Error(nls.localize('aborted', "Aborted")));
@@ -121,7 +122,7 @@ class InstallAction extends Action {
 class UninstallAction extends Action {
 
 	static readonly ID = 'workbench.action.uninstallCommandLine';
-	static LABEL = nls.localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName);
+	static readonly LABEL = nls.localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName);
 
 	constructor(
 		id: string,
@@ -164,23 +165,22 @@ class UninstallAction extends Action {
 	}
 
 	private deleteSymlinkAsAdmin(): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
+		return new Promise<void>(async (resolve, reject) => {
 			const buttons = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
 
-			this.dialogService.show(Severity.Info, nls.localize('warnEscalationUninstall', "Code will now prompt with 'osascript' for Administrator privileges to uninstall the shell command."), buttons, { cancelId: 1 }).then(choice => {
-				switch (choice) {
-					case 0 /* OK */:
-						const command = 'osascript -e "do shell script \\"rm \'' + this.target + '\'\\" with administrator privileges"';
+			const { choice } = await this.dialogService.show(Severity.Info, nls.localize('warnEscalationUninstall', "Code will now prompt with 'osascript' for Administrator privileges to uninstall the shell command."), buttons, { cancelId: 1 });
+			switch (choice) {
+				case 0 /* OK */:
+					const command = 'osascript -e "do shell script \\"rm \'' + this.target + '\'\\" with administrator privileges"';
 
-						promisify(cp.exec)(command, {})
-							.then(undefined, _ => Promise.reject(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
-							.then(resolve, reject);
-						break;
-					case 1 /* Cancel */:
-						reject(new Error(nls.localize('aborted', "Aborted")));
-						break;
-				}
-			});
+					promisify(cp.exec)(command, {})
+						.then(undefined, _ => Promise.reject(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
+						.then(() => resolve(), reject);
+					break;
+				case 1 /* Cancel */:
+					reject(new Error(nls.localize('aborted', "Aborted")));
+					break;
+			}
 		});
 	}
 }
@@ -189,6 +189,6 @@ if (platform.isMacintosh) {
 	const category = nls.localize('shellCommand', "Shell Command");
 
 	const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallAction, InstallAction.ID, InstallAction.LABEL), 'Shell Command: Install \'code\' command in PATH', category);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(UninstallAction, UninstallAction.ID, UninstallAction.LABEL), 'Shell Command: Uninstall \'code\' command from PATH', category);
+	workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(InstallAction), `Shell Command: Install \'${product.applicationName}\' command in PATH`, category);
+	workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(UninstallAction), `Shell Command: Uninstall \'${product.applicationName}\' command from PATH`, category);
 }

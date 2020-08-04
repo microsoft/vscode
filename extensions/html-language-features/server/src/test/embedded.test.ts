@@ -5,32 +5,32 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as embeddedSupport from '../modes/embeddedSupport';
-import { TextDocument } from 'vscode-languageserver-types';
 import { getLanguageService } from 'vscode-html-languageservice';
+import { TextDocument } from '../modes/languageModes';
 
 suite('HTML Embedded Support', () => {
 
-	var htmlLanguageService = getLanguageService();
+	const htmlLanguageService = getLanguageService();
 
 	function assertLanguageId(value: string, expectedLanguageId: string | undefined): void {
-		let offset = value.indexOf('|');
+		const offset = value.indexOf('|');
 		value = value.substr(0, offset) + value.substr(offset + 1);
 
-		let document = TextDocument.create('test://test/test.html', 'html', 0, value);
+		const document = TextDocument.create('test://test/test.html', 'html', 0, value);
 
-		let position = document.positionAt(offset);
+		const position = document.positionAt(offset);
 
-		let docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
-		let languageId = docRegions.getLanguageAtPosition(position);
+		const docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
+		const languageId = docRegions.getLanguageAtPosition(position);
 
 		assert.equal(languageId, expectedLanguageId);
 	}
 
 	function assertEmbeddedLanguageContent(value: string, languageId: string, expectedContent: string): void {
-		let document = TextDocument.create('test://test/test.html', 'html', 0, value);
+		const document = TextDocument.create('test://test/test.html', 'html', 0, value);
 
-		let docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
-		let content = docRegions.getEmbeddedDocument(languageId);
+		const docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
+		const content = docRegions.getEmbeddedDocument(languageId);
 		assert.equal(content.getText(), expectedContent);
 	}
 

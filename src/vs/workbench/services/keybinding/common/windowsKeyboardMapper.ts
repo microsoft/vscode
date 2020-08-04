@@ -239,6 +239,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 		}
 
 		let producesLetter: boolean[] = [];
+		let producesLetters = false;
 
 		this._codeInfo = [];
 		for (let strCode in rawMappings) {
@@ -301,11 +302,13 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 					if (charCode >= CharCode.a && charCode <= CharCode.z) {
 						const upperCaseValue = CharCode.A + (charCode - CharCode.a);
 						producesLetter[upperCaseValue] = true;
+						producesLetters = true;
 						this._keyCodeToLabel[keyCode] = String.fromCharCode(CharCode.A + (charCode - CharCode.a));
 					}
 
 					else if (charCode >= CharCode.A && charCode <= CharCode.Z) {
 						producesLetter[charCode] = true;
+						producesLetters = true;
 						this._keyCodeToLabel[keyCode] = value;
 					}
 
@@ -348,6 +351,30 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 		_registerLetterIfMissing(CharCode.X, KeyCode.KEY_X);
 		_registerLetterIfMissing(CharCode.Y, KeyCode.KEY_Y);
 		_registerLetterIfMissing(CharCode.Z, KeyCode.KEY_Z);
+
+		if (!producesLetters) {
+			// Since this keyboard layout produces no latin letters at all, most of the UI will use the
+			// US kb layout equivalent for UI labels, so also try to render other keys with the US labels
+			// for consistency...
+			const _registerLabel = (keyCode: KeyCode, charCode: CharCode): void => {
+				// const existingLabel = this._keyCodeToLabel[keyCode];
+				// const existingCharCode = (existingLabel ? existingLabel.charCodeAt(0) : CharCode.Null);
+				// if (existingCharCode < 32 || existingCharCode > 126) {
+				this._keyCodeToLabel[keyCode] = String.fromCharCode(charCode);
+				// }
+			};
+			_registerLabel(KeyCode.US_SEMICOLON, CharCode.Semicolon);
+			_registerLabel(KeyCode.US_EQUAL, CharCode.Equals);
+			_registerLabel(KeyCode.US_COMMA, CharCode.Comma);
+			_registerLabel(KeyCode.US_MINUS, CharCode.Dash);
+			_registerLabel(KeyCode.US_DOT, CharCode.Period);
+			_registerLabel(KeyCode.US_SLASH, CharCode.Slash);
+			_registerLabel(KeyCode.US_BACKTICK, CharCode.BackTick);
+			_registerLabel(KeyCode.US_OPEN_SQUARE_BRACKET, CharCode.OpenSquareBracket);
+			_registerLabel(KeyCode.US_BACKSLASH, CharCode.Backslash);
+			_registerLabel(KeyCode.US_CLOSE_SQUARE_BRACKET, CharCode.CloseSquareBracket);
+			_registerLabel(KeyCode.US_QUOTE, CharCode.SingleQuote);
+		}
 	}
 
 	public dumpDebugInfo(): string {

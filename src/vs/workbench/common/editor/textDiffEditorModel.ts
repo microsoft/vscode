@@ -14,35 +14,34 @@ import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
  */
 export class TextDiffEditorModel extends DiffEditorModel {
 
-	protected readonly _originalModel: BaseTextEditorModel;
-	protected readonly _modifiedModel: BaseTextEditorModel;
+	protected readonly _originalModel: BaseTextEditorModel | null;
+	get originalModel(): BaseTextEditorModel | null { return this._originalModel; }
 
-	private _textDiffEditorModel: IDiffEditorModel | null;
+	protected readonly _modifiedModel: BaseTextEditorModel | null;
+	get modifiedModel(): BaseTextEditorModel | null { return this._modifiedModel; }
+
+	private _textDiffEditorModel: IDiffEditorModel | null = null;
+	get textDiffEditorModel(): IDiffEditorModel | null { return this._textDiffEditorModel; }
 
 	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
 		super(originalModel, modifiedModel);
 
+		this._originalModel = originalModel;
+		this._modifiedModel = modifiedModel;
+
 		this.updateTextDiffEditorModel();
 	}
 
-	get originalModel(): BaseTextEditorModel {
-		return this._originalModel;
-	}
+	async load(): Promise<EditorModel> {
+		await super.load();
 
-	get modifiedModel(): BaseTextEditorModel {
-		return this._modifiedModel;
-	}
+		this.updateTextDiffEditorModel();
 
-	load(): Promise<EditorModel> {
-		return super.load().then(() => {
-			this.updateTextDiffEditorModel();
-
-			return this;
-		});
+		return this;
 	}
 
 	private updateTextDiffEditorModel(): void {
-		if (this.originalModel.isResolved() && this.modifiedModel.isResolved()) {
+		if (this.originalModel?.isResolved() && this.modifiedModel?.isResolved()) {
 
 			// Create new
 			if (!this._textDiffEditorModel) {
@@ -60,16 +59,12 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		}
 	}
 
-	get textDiffEditorModel(): IDiffEditorModel | null {
-		return this._textDiffEditorModel;
-	}
-
 	isResolved(): boolean {
 		return !!this._textDiffEditorModel;
 	}
 
 	isReadonly(): boolean {
-		return this.modifiedModel.isReadonly();
+		return !!this.modifiedModel && this.modifiedModel.isReadonly();
 	}
 
 	dispose(): void {

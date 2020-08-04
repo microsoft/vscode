@@ -11,6 +11,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('SnippetSession', function () {
 
@@ -26,7 +27,7 @@ suite('SnippetSession', function () {
 	}
 
 	setup(function () {
-		model = TextModel.createFromString('function foo() {\n    console.log(a);\n}');
+		model = createTextModel('function foo() {\n    console.log(a);\n}');
 		editor = createTestCodeEditor({ model: model }) as IActiveCodeEditor;
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.equal(model.getEOL(), '\n');
@@ -41,7 +42,7 @@ suite('SnippetSession', function () {
 
 		function assertNormalized(position: IPosition, input: string, expected: string): void {
 			const snippet = new SnippetParser().parse(input);
-			SnippetSession.adjustWhitespace(model, position, snippet);
+			SnippetSession.adjustWhitespace(model, position, snippet, true, true);
 			assert.equal(snippet.toTextmateString(), expected);
 		}
 
@@ -126,7 +127,7 @@ suite('SnippetSession', function () {
 	test('snippets, newline NO whitespace adjust', () => {
 
 		editor.setSelection(new Selection(2, 5, 2, 5));
-		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', 0, 0, false);
+		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', { overwriteBefore: 0, overwriteAfter: 0, adjustWhitespace: false, clipboardText: undefined });
 		session.insert();
 		assert.equal(editor.getModel()!.getValue(), 'function foo() {\n    abc\n    foo\n        bar\nconsole.log(a);\n}');
 	});
@@ -648,7 +649,7 @@ suite('SnippetSession', function () {
 		assert.ok(actual.equalsSelection(new Selection(1, 9, 1, 12)));
 
 		editor.setSelections([new Selection(1, 9, 1, 12)]);
-		new SnippetSession(editor, 'far', 3, 0).insert();
+		new SnippetSession(editor, 'far', { overwriteBefore: 3, overwriteAfter: 0, adjustWhitespace: true, clipboardText: undefined }).insert();
 		assert.equal(model.getValue(), 'console.far');
 	});
 });

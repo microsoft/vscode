@@ -4,6 +4,7 @@
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
@@ -31,6 +32,7 @@
           ".js",
           ".es6",
           ".mjs",
+          ".cjs",
           ".pac"
         ],
         "filenames": [
@@ -88,44 +90,42 @@
         "path": "./syntaxes/Regular Expressions (JavaScript).tmLanguage"
       }
     ],
-    "snippets": [
+    "semanticTokenScopes": [
       {
         "language": "javascript",
-        "path": "./snippets/javascript.json"
+        "scopes": {
+          "property": ["variable.other.property.js"],
+          "property.readonly": ["variable.other.constant.property.js"],
+          "variable": ["variable.other.readwrite.js"],
+          "variable.readonly": ["variable.other.constant.object.js"],
+          "function": ["entity.name.function.js"],
+          "namespace": ["entity.name.type.module.js"],
+          "variable.defaultLibrary": ["support.variable.js"],
+          "function.defaultLibrary": ["support.function.js"]
+        }
       },
       {
         "language": "javascriptreact",
-        "path": "./snippets/javascript.json"
+        "scopes": {
+          "property": ["variable.other.property.jsx"],
+          "property.readonly": ["variable.other.constant.property.jsx"],
+          "variable": ["variable.other.readwrite.jsx"],
+          "variable.readonly": ["variable.other.constant.object.jsx"],
+          "function": ["entity.name.function.jsx"],
+          "namespace": ["entity.name.type.module.jsx"],
+          "variable.defaultLibrary": ["support.variable.js"],
+          "function.defaultLibrary": ["support.function.js"]
+        }
       }
     ],
-    "jsonValidation": [
+    "snippets": [
       {
-        "fileMatch": ".bowerrc",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/bowerrc.json"
+        "language": "javascript",
+        "path": "./snippets/javascript.code-snippets"
       },
       {
-        "fileMatch": ".babelrc",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
-      },
-      {
-        "fileMatch": ".babelrc.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
-      },
-      {
-        "fileMatch": "jsconfig.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
-      },
-      {
-        "fileMatch": "jsconfig.json",
-        "url": "./schemas/jsconfig.schema.json"
-      },
-      {
-        "fileMatch": "jsconfig.*.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
-      },
-      {
-        "fileMatch": "jsconfig.*.json",
-        "url": "./schemas/jsconfig.schema.json"
+        "language": "javascriptreact",
+        "path": "./snippets/javascript.code-snippets"
       }
     ]
   }

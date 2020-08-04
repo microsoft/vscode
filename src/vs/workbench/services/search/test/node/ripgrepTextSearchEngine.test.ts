@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { fixRegexCRMatchingNonWordClass, fixRegexCRMatchingWhitespaceClass, fixRegexEndingPattern, fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
+import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
 import { Range, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 
 suite('RipgrepTextSearchEngine', () => {
@@ -17,88 +17,29 @@ suite('RipgrepTextSearchEngine', () => {
 		assert.equal(unicodeEscapesToPCRE2('\\\\\\u1234'), '\\\\\\x{1234}');
 		assert.equal(unicodeEscapesToPCRE2('foo\\\\\\u1234'), 'foo\\\\\\x{1234}');
 
+		assert.equal(unicodeEscapesToPCRE2('\\u{1234}'), '\\x{1234}');
+		assert.equal(unicodeEscapesToPCRE2('\\u{1234}\\u{0001}'), '\\x{1234}\\x{0001}');
+		assert.equal(unicodeEscapesToPCRE2('foo\\u{1234}bar'), 'foo\\x{1234}bar');
+
+		assert.equal(unicodeEscapesToPCRE2('foo\\u{123456}7bar'), 'foo\\u{123456}7bar');
 		assert.equal(unicodeEscapesToPCRE2('\\u123'), '\\u123');
-		assert.equal(unicodeEscapesToPCRE2('\\u12345'), '\\u12345');
-		assert.equal(unicodeEscapesToPCRE2('\\\\u12345'), '\\\\u12345');
 		assert.equal(unicodeEscapesToPCRE2('foo'), 'foo');
 		assert.equal(unicodeEscapesToPCRE2(''), '');
 	});
 
-	test('fixRegexEndingPattern', () => {
-		function testFixRegexEndingPattern([input, expectedResult]: string[]): void {
-			assert.equal(fixRegexEndingPattern(input), expectedResult);
-		}
-
-		[
-			['foo', 'foo'],
-			['', ''],
-			['^foo.*bar\\s+', '^foo.*bar\\s+'],
-			['foo$', 'foo\\r?$'],
-			['$', '\\r?$'],
-			['foo\\$', 'foo\\$'],
-			['foo\\\\$', 'foo\\\\\\r?$'],
-		].forEach(testFixRegexEndingPattern);
-	});
-
-	test('fixRegexCRMatchingWhitespaceClass', () => {
-		function testFixRegexCRMatchingWhitespaceClass([inputReg, isMultiline, testStr, shouldMatch]: [string, boolean, string, boolean]): void {
-			const fixed = fixRegexCRMatchingWhitespaceClass(inputReg, isMultiline);
-			const reg = new RegExp(fixed);
-			assert.equal(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
-		}
-
-		[
-			['foo', false, 'foo', true],
-
-			['foo\\s', false, 'foo\r\n', false],
-			['foo\\sabc', true, 'foo\r\nabc', true],
-
-			['foo\\s', false, 'foo\n', false],
-			['foo\\s', true, 'foo\n', true],
-
-			['foo\\s\\n', true, 'foo\r\n', false],
-			['foo\\r\\s', true, 'foo\r\n', true],
-
-			['foo\\s+abc', true, 'foo   \r\nabc', true],
-			['foo\\s+abc', false, 'foo   \t   abc', true],
-		].forEach(testFixRegexCRMatchingWhitespaceClass);
-	});
-
-	test('fixRegexCRMatchingNonWordClass', () => {
-		function testRegexCRMatchingNonWordClass([inputReg, isMultiline, testStr, shouldMatch]: [string, boolean, string, boolean]): void {
-			const fixed = fixRegexCRMatchingNonWordClass(inputReg, isMultiline);
-			const reg = new RegExp(fixed);
-			assert.equal(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
-		}
-
-		[
-			['foo', false, 'foo', true],
-
-			['foo\\W', false, 'foo\r\n', false],
-			['foo\\Wabc', true, 'foo\r\nabc', true],
-
-			['foo\\W', false, 'foo\n', true],
-			['foo\\W', true, 'foo\n', true],
-
-			['foo\\W\\n', true, 'foo\r\n', false],
-			['foo\\r\\W', true, 'foo\r\n', true],
-
-			['foo\\W+abc', true, 'foo   \r\nabc', true],
-			['foo\\W+abc', false, 'foo .-\t   abc', true],
-		].forEach(testRegexCRMatchingNonWordClass);
-	});
-
 	test('fixRegexNewline', () => {
-		function testFixRegexNewline([inputReg, testStr, shouldMatch]: [string, string, boolean]): void {
+		function testFixRegexNewline([inputReg, testStr, shouldMatch]: readonly [string, string, boolean]): void {
 			const fixed = fixRegexNewline(inputReg);
 			const reg = new RegExp(fixed);
 			assert.equal(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
 		}
 
-		[
+		([
 			['foo', 'foo', true],
 
 			['foo\\n', 'foo\r\n', true],
+			['foo\\n\\n', 'foo\n\n', true],
+			['foo\\n\\n', 'foo\r\n\r\n', true],
 			['foo\\n', 'foo\n', true],
 			['foo\\nabc', 'foo\r\nabc', true],
 			['foo\\nabc', 'foo\nabc', true],
@@ -106,17 +47,17 @@ suite('RipgrepTextSearchEngine', () => {
 
 			['foo\\n+abc', 'foo\r\nabc', true],
 			['foo\\n+abc', 'foo\n\n\nabc', true],
-		].forEach(testFixRegexNewline);
+		] as const).forEach(testFixRegexNewline);
 	});
 
 	test('fixNewline', () => {
-		function testFixNewline([inputReg, testStr, shouldMatch = true]: [string, string, boolean]): void {
+		function testFixNewline([inputReg, testStr, shouldMatch = true]: readonly [string, string, boolean?]): void {
 			const fixed = fixNewline(inputReg);
 			const reg = new RegExp(fixed);
 			assert.equal(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
 		}
 
-		[
+		([
 			['foo', 'foo'],
 
 			['foo\n', 'foo\r\n'],
@@ -127,7 +68,7 @@ suite('RipgrepTextSearchEngine', () => {
 
 			['foo\nbarc', 'foobar', false],
 			['foobar', 'foo\nbar', false],
-		].forEach(testFixNewline);
+		] as const).forEach(testFixNewline);
 	});
 
 	suite('RipgrepParser', () => {
@@ -223,15 +164,16 @@ suite('RipgrepTextSearchEngine', () => {
 
 		test('chopped-up input chunks', () => {
 			const dataStrs = [
-				makeRgMatch('file1.js', 'foobar', 4, [{ start: 3, end: 6 }]),
+				makeRgMatch('file1.js', 'foo bar', 4, [{ start: 3, end: 7 }]),
 				makeRgMatch('app/file2.js', 'foobar', 4, [{ start: 3, end: 6 }]),
 				makeRgMatch('app2/file3.js', 'foobar', 4, [{ start: 3, end: 6 }]),
 			];
 
+			const dataStr0Space = dataStrs[0].indexOf(' ');
 			testParser(
 				[
-					dataStrs[0].substring(0, 5),
-					dataStrs[0].substring(5),
+					dataStrs[0].substring(0, dataStr0Space + 1),
+					dataStrs[0].substring(dataStr0Space + 1),
 					'\n',
 					dataStrs[1].trim(),
 					'\n' + dataStrs[2].substring(0, 25),
@@ -240,11 +182,11 @@ suite('RipgrepTextSearchEngine', () => {
 				[
 					{
 						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
+							text: 'foo bar',
+							matches: [new Range(0, 3, 0, 7)]
 						},
 						uri: joinPath(TEST_FOLDER, 'file1.js'),
-						ranges: [new Range(3, 3, 3, 6)]
+						ranges: [new Range(3, 3, 3, 7)]
 					},
 					{
 						preview: {

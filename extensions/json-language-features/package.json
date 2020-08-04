@@ -1,112 +1,138 @@
 {
-  "name": "json-language-features",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
-  "engines": {
-    "vscode": "0.10.x"
-  },
-  "icon": "icons/json.png",
-  "activationEvents": [
-    "onLanguage:json",
-    "onLanguage:jsonc"
-  ],
-  "main": "./client/out/jsonMain",
-  "enableProposedApi": true,
-  "scripts": {
-    "compile": "gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
-    "watch": "gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
-    "postinstall": "cd server && yarn install",
-    "install-client-next": "yarn add vscode-languageclient@next"
-  },
-  "categories": [
-    "Programming Languages"
-  ],
-  "contributes": {
-    "configuration": {
-      "id": "json",
-      "order": 20,
-      "type": "object",
-      "title": "JSON",
-      "properties": {
-        "json.schemas": {
-          "type": "array",
-          "scope": "resource",
-          "description": "%json.schemas.desc%",
-          "items": {
+    "name": "json-language-features",
+    "displayName": "%displayName%",
+    "description": "%description%",
+    "version": "1.0.0",
+    "publisher": "vscode",
+    "license": "MIT",
+    "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+    "engines": {
+        "vscode": "0.10.x"
+    },
+    "icon": "icons/json.png",
+    "activationEvents": [
+        "onLanguage:json",
+        "onLanguage:jsonc"
+    ],
+    "main": "./client/out/node/jsonClientMain",
+    "browser": "./client/dist/browser/jsonClientMain",
+    "enableProposedApi": true,
+    "scripts": {
+        "compile": "gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
+        "watch": "gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
+        "postinstall": "cd server && yarn install",
+        "install-client-next": "yarn add vscode-languageclient@next"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "configuration": {
+            "id": "json",
+            "order": 20,
             "type": "object",
-            "default": {
-              "fileMatch": [
-                "/myfile"
-              ],
-              "url": "schemaURL"
-            },
+            "title": "JSON",
             "properties": {
-              "url": {
-                "type": "string",
-                "default": "/user.schema.json",
-                "description": "%json.schemas.url.desc%"
-              },
-              "fileMatch": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "default": "MyFile.json",
-                  "description": "%json.schemas.fileMatch.item.desc%"
+                "json.schemas": {
+                    "type": "array",
+                    "scope": "resource",
+                    "description": "%json.schemas.desc%",
+                    "items": {
+                        "type": "object",
+                        "default": {
+                            "fileMatch": [
+                                "/myfile"
+                            ],
+                            "url": "schemaURL"
+                        },
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "default": "/user.schema.json",
+                                "description": "%json.schemas.url.desc%"
+                            },
+                            "fileMatch": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "default": "MyFile.json",
+                                    "description": "%json.schemas.fileMatch.item.desc%"
+                                },
+                                "minItems": 1,
+                                "description": "%json.schemas.fileMatch.desc%"
+                            },
+                            "schema": {
+                                "$ref": "http://json-schema.org/draft-07/schema#",
+                                "description": "%json.schemas.schema.desc%"
+                            }
+                        }
+                    }
                 },
-                "minItems": 1,
-                "description": "%json.schemas.fileMatch.desc%"
-              },
-              "schema": {
-                "$ref": "http://json-schema.org/draft-07/schema#",
-                "description": "%json.schemas.schema.desc%"
+                "json.format.enable": {
+                    "type": "boolean",
+                    "scope": "window",
+                    "default": true,
+                    "description": "%json.format.enable.desc%"
+                },
+                "json.trace.server": {
+                    "type": "string",
+                    "scope": "window",
+                    "enum": [
+                        "off",
+                        "messages",
+                        "verbose"
+                    ],
+                    "default": "off",
+                    "description": "%json.tracing.desc%"
+                },
+                "json.colorDecorators.enable": {
+                    "type": "boolean",
+                    "scope": "window",
+                    "default": true,
+                    "description": "%json.colorDecorators.enable.desc%",
+                    "deprecationMessage": "%json.colorDecorators.enable.deprecationMessage%"
+                },
+                "json.maxItemsComputed": {
+                    "type": "number",
+                    "default": 5000,
+                    "description": "%json.maxItemsComputed.desc%"
+                },
+                "json.schemaDownload.enable": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "%json.enableSchemaDownload.desc%",
+                  "tags": ["usesOnlineServices"]
               }
             }
-          }
         },
-        "json.format.enable": {
-          "type": "boolean",
-          "scope": "window",
-          "default": true,
-          "description": "%json.format.enable.desc%"
+        "configurationDefaults": {
+            "[json]": {
+                "editor.quickSuggestions": {
+                    "strings": true
+                },
+                "editor.suggest.insertMode": "replace"
+            },
+            "[jsonc]": {
+                "editor.quickSuggestions": {
+                    "strings": true
+                },
+                "editor.suggest.insertMode": "replace"
+            }
         },
-        "json.trace.server": {
-          "type": "string",
-          "scope": "window",
-          "enum": [
-            "off",
-            "messages",
-            "verbose"
-          ],
-          "default": "off",
-          "description": "%json.tracing.desc%"
-        },
-        "json.colorDecorators.enable": {
-          "type": "boolean",
-          "scope": "window",
-          "default": true,
-          "description": "%json.colorDecorators.enable.desc%",
-          "deprecationMessage": "%json.colorDecorators.enable.deprecationMessage%"
-        }
-      }
+        "jsonValidation": [
+            {
+                "fileMatch": "*.schema.json",
+                "url": "http://json-schema.org/draft-07/schema#"
+            }
+        ]
     },
-    "configurationDefaults": {
-      "[json]": {
-        "editor.quickSuggestions": {
-          "strings": true
-        }
-      }
+    "dependencies": {
+        "request-light": "^0.3.0",
+        "vscode-extension-telemetry": "0.1.1",
+        "vscode-languageclient": "7.0.0-next.5.1",
+        "vscode-nls": "^4.1.2"
+    },
+    "devDependencies": {
+        "@types/node": "^12.11.7"
     }
-  },
-  "dependencies": {
-    "vscode-extension-telemetry": "0.1.1",
-    "vscode-languageclient": "^5.2.1",
-    "vscode-nls": "^4.0.0",
-    "request-light": "^0.2.4"
-  },
-  "devDependencies": {
-    "@types/node": "^10.12.21"
-  }
 }
