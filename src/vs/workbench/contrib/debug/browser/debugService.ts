@@ -433,21 +433,6 @@ export class DebugService implements IDebugService {
 							nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
 					}
 
-					/*let actionList: IAction[] = [];
-					let action = {
-						id: "Install Debug Extension",
-						label: "Install Debug Extension(s)",
-						tooltip: "Install Debug Extension",
-						class: "string",
-						checked: true,
-						run: () => this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID),
-						dispose: () => this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID),
-						enabled: true
-					} as IAction;
-					actionList.push(action);
-					await this.showError(message, actionList);
-					return false;*/
-
 					let actionList: IAction[] = [];
 					let action = {
 						id: 'Install Debug Extension',
@@ -455,7 +440,11 @@ export class DebugService implements IDebugService {
 						tooltip: 'Install Debug Extension',
 						class: 'string',
 						checked: true,
-						run: () => this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true),
+						run: async () => {
+							const viewlet = (await this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+							viewlet.search('tag:debuggers @sort:installs');
+							return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true);
+						},
 						dispose: () => this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true),
 						enabled: true
 					} as IAction;
