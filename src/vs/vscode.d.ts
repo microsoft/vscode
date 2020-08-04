@@ -11640,9 +11640,8 @@ declare module 'vscode' {
 		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 
 		/**
-		 * An [event](#Event) which fires when the array of sessions has changed, or data
-		 * within a session has changed for a provider. Fires with the ids of the providers
-		 * that have had session data change.
+		 * An [event](#Event) which fires when the authentication sessions of an authentication provider have
+		 * been added, removed, or changed.
 		 */
 		export const onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
 	}
