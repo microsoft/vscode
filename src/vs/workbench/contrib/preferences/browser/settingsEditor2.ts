@@ -509,6 +509,8 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.settingsTree.reveal(elements[0], sourceTop);
+			// Set focus on the element once the link is clicked
+			setTimeout(() => this.settingsTree.setFocus([elements[0]]), 50);
 
 			const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
 			if (domElements && domElements[0]) {
@@ -615,6 +617,8 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
 				this.settingsTree.reveal(element, 0);
+				// Focus on the group heading after setting the status
+				setTimeout(() => this.settingsTree.setFocus([element]), 0);
 			}
 		}));
 
