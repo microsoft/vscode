@@ -46,6 +46,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
+import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -432,7 +433,34 @@ export class DebugService implements IDebugService {
 							nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
 					}
 
-					await this.showError(message);
+					/*let actionList: IAction[] = [];
+					let action = {
+						id: "Install Debug Extension",
+						label: "Install Debug Extension(s)",
+						tooltip: "Install Debug Extension",
+						class: "string",
+						checked: true,
+						run: () => this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID),
+						dispose: () => this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID),
+						enabled: true
+					} as IAction;
+					actionList.push(action);
+					await this.showError(message, actionList);
+					return false;*/
+
+					let actionList: IAction[] = [];
+					let action = {
+						id: 'Install Debug Extension',
+						label: 'Install Debug Extension(s)',
+						tooltip: 'Install Debug Extension',
+						class: 'string',
+						checked: true,
+						run: () => this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true),
+						dispose: () => this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true),
+						enabled: true
+					} as IAction;
+					actionList.push(action);
+					await this.showError(message, actionList);
 					return false;
 				}
 
