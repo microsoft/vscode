@@ -11581,7 +11581,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Basic information about an[authenticationProvider](#AuthenticationProvider)
+	 * Basic information about an [authenticationProvider](#AuthenticationProvider)
 	 */
 	export interface AuthenticationProviderInformation {
 		/**
