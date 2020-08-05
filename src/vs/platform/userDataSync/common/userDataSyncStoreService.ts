@@ -5,7 +5,7 @@
 
 import { Disposable, } from 'vs/base/common/lifecycle';
 import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, ServerResource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, IResourceRefHandle, HEADER_OPERATION_ID, HEADER_EXECUTION_ID, CONFIGURATION_SYNC_STORE_KEY, IAuthenticationProvider, IUserDataSyncStoreManagementService, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
-import { IRequestService, asText, isSuccess, asJson } from 'vs/platform/request/common/request';
+import { IRequestService, asText, isSuccess as isSuccessContext, asJson } from 'vs/platform/request/common/request';
 import { joinPath, relativePath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
@@ -210,11 +210,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		const uri = joinPath(this.userDataSyncStoreUrl, 'resource', resource);
 		const headers: IHeaders = {};
 
-		const context = await this.request({ type: 'GET', url: uri.toString(), headers }, CancellationToken.None);
-
-		if (!isSuccess(context)) {
-			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, context.res.headers[HEADER_OPERATION_ID]);
-		}
+		const context = await this.request({ type: 'GET', url: uri.toString(), headers }, [], CancellationToken.None);
 
 		const result = await asJson<{ url: string, created: number }[]>(context) || [];
 		return result.map(({ url, created }) => ({ ref: relativePath(uri, uri.with({ path: url }))!, created: created * 1000 /* Server returns in seconds */ }));
@@ -229,12 +225,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		const headers: IHeaders = {};
 		headers['Cache-Control'] = 'no-cache';
 
-		const context = await this.request({ type: 'GET', url, headers }, CancellationToken.None);
-
-		if (!isSuccess(context)) {
-			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, context.res.headers[HEADER_OPERATION_ID]);
-		}
-
+		const context = await this.request({ type: 'GET', url, headers }, [], CancellationToken.None);
 		const content = await asText(context);
 		return content;
 	}
@@ -247,11 +238,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
 		const headers: IHeaders = {};
 
-		const context = await this.request({ type: 'DELETE', url, headers }, CancellationToken.None);
-
-		if (!isSuccess(context)) {
-			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, context.res.headers[HEADER_OPERATION_ID]);
-		}
+		await this.request({ type: 'DELETE', url, headers }, [], CancellationToken.None);
 	}
 
 	async read(resource: ServerResource, oldValue: IUserData | null, headers: IHeaders = {}): Promise<IUserData> {
@@ -267,15 +254,11 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			headers['If-None-Match'] = oldValue.ref;
 		}
 
-		const context = await this.request({ type: 'GET', url, headers }, CancellationToken.None);
+		const context = await this.request({ type: 'GET', url, headers }, [304], CancellationToken.None);
 
 		if (context.res.statusCode === 304) {
 			// There is no new value. Hence return the old value.
 			return oldValue!;
-		}
-
-		if (!isSuccess(context)) {
-			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, context.res.headers[HEADER_OPERATION_ID]);
 		}
 
 		const ref = context.res.headers['etag'];
@@ -298,11 +281,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			headers['If-Match'] = ref;
 		}
 
-		const context = await this.request({ type: 'POST', url, data, headers }, CancellationToken.None);
-
-		if (!isSuccess(context)) {
-			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, context.res.headers[HEADER_OPERATION_ID]);
-		}
+		const context = await this.request({ type: 'POST', url, data, headers }, [], CancellationToken.None);
 
 		const newRef = context.res.headers['etag'];
 		if (!newRef) {
@@ -320,10 +299,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		headers = { ...headers };
 		headers['Content-Type'] = 'application/json';
 
-		const context = await this.request({ type: 'GET', url, headers }, CancellationToken.None);
-		if (!isSuccess(context)) {
-			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, context.res.headers[HEADER_OPERATION_ID]);
-		}
+		const context = await this.request({ type: 'GET', url, headers }, [], CancellationToken.None);
 
 		const manifest = await asJson<IUserDataManifest>(context);
 		const currentSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
@@ -354,11 +330,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		const url = joinPath(this.userDataSyncStoreUrl, 'resource').toString();
 		const headers: IHeaders = { 'Content-Type': 'text/plain' };
 
-		const context = await this.request({ type: 'DELETE', url, headers }, CancellationToken.None);
-
-		if (!isSuccess(context)) {
-			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, context.res.headers[HEADER_OPERATION_ID]);
-		}
+		await this.request({ type: 'DELETE', url, headers }, [], CancellationToken.None);
 
 		// clear cached session.
 		this.clearSession();
@@ -369,7 +341,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		this.storageService.remove(MACHINE_SESSION_ID_KEY, StorageScope.GLOBAL);
 	}
 
-	private async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+	private async request(options: IRequestOptions, successCodes: number[], token: CancellationToken): Promise<IRequestContext> {
 		if (!this.authToken) {
 			throw new UserDataSyncStoreError('No Auth Token Available', UserDataSyncErrorCode.Unauthorized, undefined);
 		}
@@ -403,7 +375,8 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 		const operationId = context.res.headers[HEADER_OPERATION_ID];
 		const requestInfo = { url: options.url, status: context.res.statusCode, 'execution-id': options.headers[HEADER_EXECUTION_ID], 'operation-id': operationId };
-		if (isSuccess(context)) {
+		const isSuccess = isSuccessContext(context) || (context.res.statusCode && successCodes.indexOf(context.res.statusCode) !== -1);
+		if (isSuccess) {
 			this.logService.trace('Request succeeded', requestInfo);
 		} else {
 			this.logService.info('Request failed', requestInfo);
@@ -441,6 +414,10 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			} else {
 				throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of too many requests (429).`, UserDataSyncErrorCode.TooManyRequests, operationId);
 			}
+		}
+
+		if (!isSuccess) {
+			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown, operationId);
 		}
 
 		return context;

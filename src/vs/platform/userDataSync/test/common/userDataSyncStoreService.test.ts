@@ -388,6 +388,20 @@ suite('UserDataSyncStoreService', () => {
 		assert.ok(!target.donotMakeRequestsUntil);
 	});
 
+	test('test read resource request handles 304', async () => {
+		// Setup the client
+		const target = new UserDataSyncTestServer();
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		await client.sync();
+
+		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+		const expected = await testObject.read(SyncResource.Settings, null);
+		const actual = await testObject.read(SyncResource.Settings, expected);
+
+		assert.equal(actual, expected);
+	});
+
 });
 
 suite('UserDataSyncRequestsSession', () => {
