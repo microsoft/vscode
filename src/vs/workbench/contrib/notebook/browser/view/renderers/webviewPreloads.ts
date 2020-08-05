@@ -449,6 +449,15 @@ function webviewPreloads() {
 					if (output) {
 						output.parentElement!.style.display = 'block';
 						output.style.top = top + 'px';
+
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: outputId,
+							data: {
+								height: output.clientHeight
+							}
+						});
 					}
 				});
 				break;

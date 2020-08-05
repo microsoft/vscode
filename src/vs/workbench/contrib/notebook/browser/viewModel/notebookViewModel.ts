@@ -349,6 +349,16 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		});
 	}
 
+	inspectLayout() {
+		console.log('--- notebook ---\n');
+		console.log(this.layoutInfo);
+		console.log('--- cells ---');
+		this.viewCells.forEach(cell => {
+			console.log(`--- cell: ${cell.handle} ---\n`);
+			console.log((cell as (CodeCellViewModel | MarkdownCellViewModel)).layoutInfo);
+		});
+	}
+
 	setFocus(focused: boolean) {
 		this._focused = focused;
 	}

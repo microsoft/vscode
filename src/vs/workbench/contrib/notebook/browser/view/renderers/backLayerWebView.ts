@@ -344,6 +344,13 @@ export class BackLayerWebView extends Disposable {
 			return;
 		}
 
+		const cell = this.insetMapping.get(output)!.cell;
+
+		const currCell = this.notebookEditor.viewModel?.viewCells.find(vc => vc.handle === cell.handle);
+		if (currCell !== cell && currCell !== undefined) {
+			this.insetMapping.get(output)!.cell = currCell as CodeCellViewModel;
+		}
+
 		return { cell: this.insetMapping.get(output)!.cell, output };
 	}
 

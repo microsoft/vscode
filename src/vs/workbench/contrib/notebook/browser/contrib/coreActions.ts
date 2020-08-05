@@ -1497,3 +1497,16 @@ registerAction2(class extends NotebookCellAction {
 		context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, { inputCollapsed: false });
 	}
 });
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super({
+			id: 'notebook.inspectLayout',
+			title: localize('notebookActions.inspectLayout', "Inspect Layout")
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		context.notebookEditor.viewModel!.inspectLayout();
+	}
+});
