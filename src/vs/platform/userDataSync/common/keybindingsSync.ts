@@ -143,7 +143,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		/* Accept remote resource */
 		if (isEqual(resource, this.remoteResource)) {
 			return {
-				content: resourcePreview.remoteContent !== null ? this.getKeybindingsContentFromSyncContent(resourcePreview.remoteContent) : null,
+				content: resourcePreview.remoteContent,
 				localChange: Change.Modified,
 				remoteChange: Change.None,
 			};
