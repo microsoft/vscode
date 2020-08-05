@@ -450,7 +450,7 @@ class AutoSync extends Disposable {
 			if (manifest === null && await this.userDataSyncService.hasPreviouslySynced()) {
 				if (this.hasSyncServiceChanged()) {
 					if (await this.hasDefaultServiceChanged()) {
-						throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because sync default servuce has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
+						throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because default service has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
 					} else {
 						throw new UserDataAutoSyncError(localize('service changed', "Cannot sync because sync service has changed"), UserDataSyncErrorCode.ServiceChanged);
 					}
@@ -465,7 +465,7 @@ class AutoSync extends Disposable {
 			if (sessionId && manifest && sessionId !== manifest.session) {
 				if (this.hasSyncServiceChanged()) {
 					if (await this.hasDefaultServiceChanged()) {
-						throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because sync default servuce has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
+						throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because default service has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
 					} else {
 						throw new UserDataAutoSyncError(localize('service changed', "Cannot sync because sync service has changed"), UserDataSyncErrorCode.ServiceChanged);
 					}
