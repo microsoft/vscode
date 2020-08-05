@@ -11569,7 +11569,7 @@ declare module 'vscode' {
 	 */
 	export interface AuthenticationGetSessionOptions {
 		/**
-		 *  Whether login should be performed if there is no matching session. Defaults to false.
+		 * Whether login should be performed if there is no matching session. Defaults to false.
 		 */
 		createIfNone?: boolean;
 
