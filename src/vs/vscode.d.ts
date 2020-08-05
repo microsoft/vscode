@@ -11637,7 +11637,7 @@ declare module 'vscode' {
 		 * @param options The [getSessionOptions](#GetSessionOptions) to use
 		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
 		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopes: string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 
 		/**
 		 * An [event](#Event) which fires when the authentication sessions of an authentication provider have
