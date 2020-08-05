@@ -45,10 +45,14 @@ interface ILastSyncUserData extends IRemoteUserData {
 export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	private static readonly EXTENSIONS_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'extensions', path: `/extensions.json` });
+
 	/*
 		Version 3 - Introduce installed property to skip installing built in extensions
+		protected readonly version: number = 3;
 	*/
-	protected readonly version: number = 3;
+	/* Version 4: Change settings from `sync.${setting}` to `settingsSync.{setting}` */
+	protected readonly version: number = 4;
+
 	protected isEnabled(): boolean { return super.isEnabled() && this.extensionGalleryService.isEnabled(); }
 	private readonly previewResource: URI = joinPath(this.syncPreviewFolder, 'extensions.json');
 	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
@@ -239,11 +243,18 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		}
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
+	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
 		return [{ resource: joinPath(uri, 'extensions.json'), comparableResource: ExtensionsSynchroniser.EXTENSIONS_DATA_URI }];
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
+		if (isEqual(uri, ExtensionsSynchroniser.EXTENSIONS_DATA_URI)) {
+			const installedExtensions = await this.extensionManagementService.getInstalled();
+			const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
+			const localExtensions = this.getLocalExtensions(installedExtensions).filter(e => !ignoredExtensions.some(id => areSameExtensions({ id }, e.identifier)));
+			return this.format(localExtensions);
+		}
+
 		if (isEqual(this.remoteResource, uri) || isEqual(this.localResource, uri) || isEqual(this.acceptedResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}

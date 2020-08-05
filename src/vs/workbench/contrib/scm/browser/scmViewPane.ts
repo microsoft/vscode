@@ -356,6 +356,12 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 		return undefined;
 	}
+
+	clearValidation(): void {
+		for (const [, inputWidget] of this.inputWidgets) {
+			inputWidget.clearValidation();
+		}
+	}
 }
 
 interface ResourceGroupTemplate {
@@ -488,22 +494,12 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		const elementDisposables = new DisposableStore();
 		const resourceOrFolder = node.element;
-		const theme = this.themeService.getColorTheme();
 		const iconResource = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.element : resourceOrFolder;
-		const icon = iconResource && (theme.type === LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
-
 		const uri = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.uri : resourceOrFolder.sourceUri;
 		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) ? FileKind.FOLDER : FileKind.FILE;
 		const viewModel = this.viewModelProvider();
-
 		const [matches, descriptionMatches] = splitMatches(uri, node.filterData);
-		template.fileLabel.setFile(uri, {
-			fileDecorations: { colors: false, badges: !icon },
-			hidePath: viewModel.mode === ViewModelMode.Tree,
-			fileKind,
-			matches,
-			descriptionMatches
-		});
+		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
 
 		template.actionBar.clear();
 		template.actionBar.context = resourceOrFolder;
@@ -527,17 +523,31 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 			toggleClass(template.element, 'faded', resourceOrFolder.decorations.faded);
 		}
 
-		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
+		const render = () => {
+			const theme = this.themeService.getColorTheme();
+			const icon = iconResource && (theme.type === LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
 
-		if (icon) {
-			template.decorationIcon.style.display = '';
-			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
-			template.decorationIcon.title = tooltip;
-		} else {
-			template.decorationIcon.style.display = 'none';
-			template.decorationIcon.style.backgroundImage = '';
-			template.decorationIcon.title = '';
-		}
+			template.fileLabel.setFile(uri, {
+				fileDecorations: { colors: false, badges: !icon },
+				hidePath: viewModel.mode === ViewModelMode.Tree,
+				fileKind,
+				matches,
+				descriptionMatches
+			});
+
+			if (icon) {
+				template.decorationIcon.style.display = '';
+				template.decorationIcon.style.backgroundImage = `url('${icon}')`;
+				template.decorationIcon.title = tooltip;
+			} else {
+				template.decorationIcon.style.display = 'none';
+				template.decorationIcon.style.backgroundImage = '';
+				template.decorationIcon.title = '';
+			}
+		};
+
+		elementDisposables.add(this.themeService.onDidColorThemeChange(render));
+		render();
 
 		template.element.setAttribute('data-tooltip', tooltip);
 		template.elementDisposables = elementDisposables;
@@ -1217,36 +1227,41 @@ class SCMViewSubMenuAction extends SubmenuAction {
 	}
 }
 
-abstract class SCMViewModeAction extends Action {
-	constructor(id: string, label: string, private viewModel: ViewModel, private viewMode: ViewModelMode) {
-		super(id, label);
+export class ToggleViewModeAction extends Action {
 
-		this.checked = this.viewModel.mode === this.viewMode;
+	static readonly ID = 'workbench.scm.action.toggleViewMode';
+	static readonly LABEL = localize('toggleViewMode', "Toggle View Mode");
+
+	constructor(id: string = ToggleViewModeAction.ID, label: string = ToggleViewModeAction.LABEL, private viewModel: ViewModel, private mode?: ViewModelMode) {
+		super(id, label);
+		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
+		this.onDidChangeMode(this.viewModel.mode);
 	}
 
 	async run(): Promise<void> {
-		if (this.viewMode !== this.viewModel.mode) {
-			this.checked = !this.checked;
-			this.viewModel.mode = this.viewMode;
+		if (typeof this.mode === 'undefined') {
+			this.viewModel.mode = this.viewModel.mode === ViewModelMode.List ? ViewModelMode.Tree : ViewModelMode.List;
+		} else {
+			this.viewModel.mode = this.mode;
 		}
 	}
-}
 
-class SCMViewModeListAction extends SCMViewModeAction {
-	static readonly ID = 'workbench.scm.action.viewModeList';
-	static readonly LABEL = localize('viewModeList', "View as List");
-
-	constructor(viewModel: ViewModel) {
-		super(SCMViewModeListAction.ID, SCMViewModeListAction.LABEL, viewModel, ViewModelMode.List);
+	private onDidChangeMode(mode: ViewModelMode): void {
+		const iconClass = mode === ViewModelMode.List ? 'codicon-list-tree' : 'codicon-list-flat';
+		this.class = `scm-action toggle-view-mode ${iconClass}`;
+		this.checked = this.viewModel.mode === this.mode;
 	}
 }
 
-class SCMViewModeTreeAction extends SCMViewModeAction {
-	static readonly ID = 'workbench.scm.action.viewModeTree';
-	static readonly LABEL = localize('viewModeTree', "View as Tree");
-
+class SCMViewModeListAction extends ToggleViewModeAction {
 	constructor(viewModel: ViewModel) {
-		super(SCMViewModeTreeAction.ID, SCMViewModeTreeAction.LABEL, viewModel, ViewModelMode.Tree);
+		super('workbench.scm.action.viewModeList', localize('viewModeList', "View as List"), viewModel, ViewModelMode.List);
+	}
+}
+
+class SCMViewModeTreeAction extends ToggleViewModeAction {
+	constructor(viewModel: ViewModel) {
+		super('workbench.scm.action.viewModeTree', localize('viewModeTree', "View as Tree"), viewModel, ViewModelMode.Tree);
 	}
 }
 
@@ -1468,7 +1483,8 @@ class SCMInputWidget extends Disposable {
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			padding: { top: 3, bottom: 3 },
-			quickSuggestions: false
+			quickSuggestions: false,
+			scrollbar: { alwaysConsumeMouseWheel: false }
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -1571,6 +1587,10 @@ class SCMInputWidget extends Disposable {
 		return this.defaultInputFontFamily;
 	}
 
+	clearValidation(): void {
+		this.validationDisposable.dispose();
+	}
+
 	dispose(): void {
 		this.input = undefined;
 		this.repositoryDisposables.dispose();
@@ -1622,6 +1642,7 @@ export class SCMViewPane extends ViewPane {
 	private listLabels!: ResourceLabels;
 	private menus!: SCMMenus;
 	private inputRenderer!: InputRenderer;
+	private toggleViewModelModeAction: ToggleViewModeAction | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1718,6 +1739,7 @@ export class SCMViewPane extends ViewPane {
 		this._register(this.tree.onDidOpen(this.open, this));
 
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
+		this._register(this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer));
 		this._register(this.tree);
 
 		let viewMode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
@@ -1736,6 +1758,9 @@ export class SCMViewPane extends ViewPane {
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
 		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
+
+		this.toggleViewModelModeAction = new ToggleViewModeAction(ToggleViewModeAction.ID, ToggleViewModeAction.LABEL, this.viewModel);
+		this._register(this.toggleViewModelModeAction);
 
 		this._register(this.onDidChangeBodyVisibility(this.viewModel.setVisible, this.viewModel));
 
@@ -1781,15 +1806,22 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	getActions(): IAction[] {
+		const result = [];
+
+		if (this.toggleViewModelModeAction) {
+			result.push(this.toggleViewModelModeAction);
+		}
+
 		if (!this.viewModel) {
-			return [];
+			return result;
 		}
 
 		if (this.viewModel.repositories.elements.length < 2) {
-			return this.viewModel.getViewActions();
+			return [...result, ...this.viewModel.getViewActions()];
 		}
 
 		return [
+			...result,
 			new SCMCollapseAction(this.viewModel),
 			...this.viewModel.getViewActions()
 		];

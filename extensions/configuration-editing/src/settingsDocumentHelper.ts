@@ -42,11 +42,11 @@ export class SettingsDocument {
 			});
 		}
 
-		// sync.ignoredExtensions
-		if (location.path[0] === 'sync.ignoredExtensions') {
+		// settingsSync.ignoredExtensions
+		if (location.path[0] === 'settingsSync.ignoredExtensions') {
 			let ignoredExtensions = [];
 			try {
-				ignoredExtensions = parse(this.document.getText())['sync.ignoredExtensions'];
+				ignoredExtensions = parse(this.document.getText())['settingsSync.ignoredExtensions'];
 			} catch (e) {/* ignore error */ }
 			return provideInstalledExtensionProposals(ignoredExtensions, range, true);
 		}

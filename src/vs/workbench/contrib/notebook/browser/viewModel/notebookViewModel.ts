@@ -32,6 +32,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { SplitCellEdit, JoinCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -1051,12 +1052,38 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		});
 	}
 
+	async withElement(element: SingleModelEditStackElement | MultiModelEditStackElement, callback: () => Promise<void>) {
+		const viewCells = this._viewCells.filter(cell => element.matchesResource(cell.uri));
+		const refs = await Promise.all(viewCells.map(cell => cell.model.resolveTextModelRef()));
+		await callback();
+		refs.forEach(ref => ref.dispose());
+	}
+
 	async undo() {
+		const editStack = this._undoService.getElements(this.uri);
+		const element = editStack.past.length ? editStack.past[editStack.past.length - 1] : undefined;
+
+		if (element && element instanceof SingleModelEditStackElement || element instanceof MultiModelEditStackElement) {
+			return await this.withElement(element, async () => {
+				await this._undoService.undo(this.uri);
+			});
+		}
+
 		await this._undoService.undo(this.uri);
 	}
 
 	async redo() {
+		const editStack = this._undoService.getElements(this.uri);
+		const element = editStack.future[0];
+
+		if (element && element instanceof SingleModelEditStackElement || element instanceof MultiModelEditStackElement) {
+			return await this.withElement(element, async () => {
+				await this._undoService.redo(this.uri);
+			});
+		}
+
 		await this._undoService.redo(this.uri);
+
 	}
 
 	equal(notebook: NotebookTextModel) {

@@ -481,6 +481,11 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		return undefined;
 	}
 
+	async revealReference(reference: OneReference): Promise<void> {
+		await this._revealReference(reference, false);
+		this._onDidSelectReference.fire({ element: reference, kind: 'goto', source: 'tree' });
+	}
+
 	private _revealedReference?: OneReference;
 
 	private async _revealReference(reference: OneReference, revealParent: boolean): Promise<void> {

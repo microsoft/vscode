@@ -205,7 +205,7 @@ function massageOutgoingExtension(extension: ISyncExtension, key: string): ISync
 
 export function getIgnoredExtensions(installed: ILocalExtension[], configurationService: IConfigurationService): string[] {
 	const defaultIgnoredExtensions = installed.filter(i => i.isMachineScoped).map(i => i.identifier.id.toLowerCase());
-	const value = (configurationService.getValue<string[]>('sync.ignoredExtensions') || []).map(id => id.toLowerCase());
+	const value = getConfiguredIgnoredExtensions(configurationService).map(id => id.toLowerCase());
 	const added: string[] = [], removed: string[] = [];
 	if (Array.isArray(value)) {
 		for (const key of value) {
@@ -217,4 +217,16 @@ export function getIgnoredExtensions(installed: ILocalExtension[], configuration
 		}
 	}
 	return distinct([...defaultIgnoredExtensions, ...added,].filter(setting => removed.indexOf(setting) === -1));
+}
+
+function getConfiguredIgnoredExtensions(configurationService: IConfigurationService): string[] {
+	let userValue = configurationService.inspect<string[]>('settingsSync.ignoredExtensions').userValue;
+	if (userValue !== undefined) {
+		return userValue;
+	}
+	userValue = configurationService.inspect<string[]>('sync.ignoredExtensions').userValue;
+	if (userValue !== undefined) {
+		return userValue;
+	}
+	return configurationService.getValue<string[]>('settingsSync.ignoredExtensions') || [];
 }
