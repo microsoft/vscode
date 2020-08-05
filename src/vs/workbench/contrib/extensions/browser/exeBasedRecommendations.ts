@@ -145,7 +145,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 			source: 'executable',
 			reason: {
 				reasonId: ExtensionRecommendationReason.Executable,
-				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.extensionName)
+				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.exeFriendlyName || basename(tip.windowsPath!))
 			}
 		};
 	}
