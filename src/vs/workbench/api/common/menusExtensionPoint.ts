@@ -288,7 +288,7 @@ namespace schema {
 				type: 'string'
 			},
 			group: {
-				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this command belongs'),
+				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this item belongs'),
 				type: 'string'
 			}
 		}
@@ -307,7 +307,7 @@ namespace schema {
 				type: 'string'
 			},
 			group: {
-				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this command belongs'),
+				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this item belongs'),
 				type: 'string'
 			}
 		}
