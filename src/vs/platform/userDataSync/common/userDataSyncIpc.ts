@@ -224,6 +224,9 @@ export class UserDataSyncMachinesServiceChannel implements IServerChannel {
 	constructor(private readonly service: IUserDataSyncMachinesService) { }
 
 	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onDidChange': return this.service.onDidChange;
+		}
 		throw new Error(`Event not found: ${event}`);
 	}
 
