@@ -127,6 +127,7 @@ const viewDescriptor: IJSONSchema = {
 				'hidden',
 				'collapsed'
 			],
+			default: 'visible',
 			enumDescriptions: [
 				localize('vscode.extension.contributes.view.initialState.visible', "The default initial state for view. The view will be expanded. This may have different behavior when the view container that the view is in is built in."),
 				localize('vscode.extension.contributes.view.initialState.hidden', "The view will not be shown in the view container, but will be discoverable through the views menu and other view entry points and can be un-hidden by the user."),
