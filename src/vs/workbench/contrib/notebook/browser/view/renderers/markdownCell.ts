@@ -146,6 +146,7 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.editorPart);
 		DOM.hide(this.markdownContainer);
 		this.templateData.container.classList.toggle('collapsed', true);
+		this.viewCell.renderedMarkdownHeight = 0;
 	}
 
 	private viewUpdateEditing(): void {
