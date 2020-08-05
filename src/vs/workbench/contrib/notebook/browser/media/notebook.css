@@ -456,7 +456,7 @@
 	right: 0px;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator:hover {
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:hover {
 	cursor: grab;
 }
 
