@@ -494,22 +494,12 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		const elementDisposables = new DisposableStore();
 		const resourceOrFolder = node.element;
-		const theme = this.themeService.getColorTheme();
 		const iconResource = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.element : resourceOrFolder;
-		const icon = iconResource && (theme.type === LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
-
 		const uri = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.uri : resourceOrFolder.sourceUri;
 		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) ? FileKind.FOLDER : FileKind.FILE;
 		const viewModel = this.viewModelProvider();
-
 		const [matches, descriptionMatches] = splitMatches(uri, node.filterData);
-		template.fileLabel.setFile(uri, {
-			fileDecorations: { colors: false, badges: !icon },
-			hidePath: viewModel.mode === ViewModelMode.Tree,
-			fileKind,
-			matches,
-			descriptionMatches
-		});
+		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
 
 		template.actionBar.clear();
 		template.actionBar.context = resourceOrFolder;
@@ -533,17 +523,31 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 			toggleClass(template.element, 'faded', resourceOrFolder.decorations.faded);
 		}
 
-		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
+		const render = () => {
+			const theme = this.themeService.getColorTheme();
+			const icon = iconResource && (theme.type === LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
 
-		if (icon) {
-			template.decorationIcon.style.display = '';
-			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
-			template.decorationIcon.title = tooltip;
-		} else {
-			template.decorationIcon.style.display = 'none';
-			template.decorationIcon.style.backgroundImage = '';
-			template.decorationIcon.title = '';
-		}
+			template.fileLabel.setFile(uri, {
+				fileDecorations: { colors: false, badges: !icon },
+				hidePath: viewModel.mode === ViewModelMode.Tree,
+				fileKind,
+				matches,
+				descriptionMatches
+			});
+
+			if (icon) {
+				template.decorationIcon.style.display = '';
+				template.decorationIcon.style.backgroundImage = `url('${icon}')`;
+				template.decorationIcon.title = tooltip;
+			} else {
+				template.decorationIcon.style.display = 'none';
+				template.decorationIcon.style.backgroundImage = '';
+				template.decorationIcon.title = '';
+			}
+		};
+
+		elementDisposables.add(this.themeService.onDidColorThemeChange(render));
+		render();
 
 		template.element.setAttribute('data-tooltip', tooltip);
 		template.elementDisposables = elementDisposables;
