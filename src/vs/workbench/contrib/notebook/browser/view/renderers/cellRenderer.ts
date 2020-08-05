@@ -746,14 +746,21 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	private async moveCells(draggedCells: ICellViewModel[], ontoCell: ICellViewModel, direction: 'above' | 'below') {
-		const relativeToIndex = this.notebookEditor!.viewModel!.getCellIndex(ontoCell);
-		const newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
-
 		this.notebookEditor.textModel!.pushStackElement('Move Cells');
-		for (let i = draggedCells.length - 1; i >= 0; i--) {
-			await this.notebookEditor.moveCellToIdx(draggedCells[i], newIdx);
-		}
+		if (direction === 'above') {
+			const relativeToIndex = this.notebookEditor!.viewModel!.getCellIndex(ontoCell);
+			const newIdx = relativeToIndex;
 
+			for (let i = draggedCells.length - 1; i >= 0; i--) {
+				await this.notebookEditor.moveCellToIdx(draggedCells[i], newIdx);
+			}
+		} else {
+			for (let i = draggedCells.length - 1; i >= 0; i--) {
+				const relativeToIndex = this.notebookEditor!.viewModel!.getCellIndex(ontoCell);
+				const newIdx = relativeToIndex + 1;
+				await this.notebookEditor.moveCellToIdx(draggedCells[i], newIdx);
+			}
+		}
 		this.notebookEditor.textModel!.pushStackElement('Move Cells');
 	}
 
