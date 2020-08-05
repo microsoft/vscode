@@ -1223,36 +1223,41 @@ class SCMViewSubMenuAction extends SubmenuAction {
 	}
 }
 
-abstract class SCMViewModeAction extends Action {
-	constructor(id: string, label: string, private viewModel: ViewModel, private viewMode: ViewModelMode) {
-		super(id, label);
+export class ToggleViewModeAction extends Action {
 
-		this.checked = this.viewModel.mode === this.viewMode;
+	static readonly ID = 'workbench.scm.action.toggleViewMode';
+	static readonly LABEL = localize('toggleViewMode', "Toggle View Mode");
+
+	constructor(id: string = ToggleViewModeAction.ID, label: string = ToggleViewModeAction.LABEL, private viewModel: ViewModel, private mode?: ViewModelMode) {
+		super(id, label);
+		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
+		this.onDidChangeMode(this.viewModel.mode);
 	}
 
 	async run(): Promise<void> {
-		if (this.viewMode !== this.viewModel.mode) {
-			this.checked = !this.checked;
-			this.viewModel.mode = this.viewMode;
+		if (typeof this.mode === 'undefined') {
+			this.viewModel.mode = this.viewModel.mode === ViewModelMode.List ? ViewModelMode.Tree : ViewModelMode.List;
+		} else {
+			this.viewModel.mode = this.mode;
 		}
 	}
-}
 
-class SCMViewModeListAction extends SCMViewModeAction {
-	static readonly ID = 'workbench.scm.action.viewModeList';
-	static readonly LABEL = localize('viewModeList', "View as List");
-
-	constructor(viewModel: ViewModel) {
-		super(SCMViewModeListAction.ID, SCMViewModeListAction.LABEL, viewModel, ViewModelMode.List);
+	private onDidChangeMode(mode: ViewModelMode): void {
+		const iconClass = mode === ViewModelMode.List ? 'codicon-list-tree' : 'codicon-list-flat';
+		this.class = `scm-action toggle-view-mode ${iconClass}`;
+		this.checked = this.viewModel.mode === this.mode;
 	}
 }
 
-class SCMViewModeTreeAction extends SCMViewModeAction {
-	static readonly ID = 'workbench.scm.action.viewModeTree';
-	static readonly LABEL = localize('viewModeTree', "View as Tree");
-
+class SCMViewModeListAction extends ToggleViewModeAction {
 	constructor(viewModel: ViewModel) {
-		super(SCMViewModeTreeAction.ID, SCMViewModeTreeAction.LABEL, viewModel, ViewModelMode.Tree);
+		super('workbench.scm.action.viewModeList', localize('viewModeList', "View as List"), viewModel, ViewModelMode.List);
+	}
+}
+
+class SCMViewModeTreeAction extends ToggleViewModeAction {
+	constructor(viewModel: ViewModel) {
+		super('workbench.scm.action.viewModeTree', localize('viewModeTree', "View as Tree"), viewModel, ViewModelMode.Tree);
 	}
 }
 
@@ -1632,6 +1637,7 @@ export class SCMViewPane extends ViewPane {
 	private listLabels!: ResourceLabels;
 	private menus!: SCMMenus;
 	private inputRenderer!: InputRenderer;
+	private toggleViewModelModeAction: ToggleViewModeAction | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1748,6 +1754,9 @@ export class SCMViewPane extends ViewPane {
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
 		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
 
+		this.toggleViewModelModeAction = new ToggleViewModeAction(ToggleViewModeAction.ID, ToggleViewModeAction.LABEL, this.viewModel);
+		this._register(this.toggleViewModelModeAction);
+
 		this._register(this.onDidChangeBodyVisibility(this.viewModel.setVisible, this.viewModel));
 
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'))(this.updateActions, this));
@@ -1792,15 +1801,22 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	getActions(): IAction[] {
+		const result = [];
+
+		if (this.toggleViewModelModeAction) {
+			result.push(this.toggleViewModelModeAction);
+		}
+
 		if (!this.viewModel) {
-			return [];
+			return result;
 		}
 
 		if (this.viewModel.repositories.elements.length < 2) {
-			return this.viewModel.getViewActions();
+			return [...result, ...this.viewModel.getViewActions()];
 		}
 
 		return [
+			...result,
 			new SCMCollapseAction(this.viewModel),
 			...this.viewModel.getViewActions()
 		];
