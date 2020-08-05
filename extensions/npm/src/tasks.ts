@@ -251,7 +251,8 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 	const result: Task[] = [];
 
 	const prePostScripts = getPrePostScripts(scripts);
-	Object.keys(scripts).forEach(async (each) => {
+
+	for (const each of Object.keys(scripts)) {
 		const task = await createTask(each, `run ${each}`, folder!, packageJsonUri, scripts![each]);
 		const lowerCaseTaskName = each.toLowerCase();
 		if (isBuildTask(lowerCaseTaskName)) {
@@ -268,7 +269,8 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 			task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
 		}
 		result.push(task);
-	});
+	}
+
 	// always add npm install (without a problem matcher)
 	result.push(await createTask(INSTALL_SCRIPT, INSTALL_SCRIPT, folder, packageJsonUri, 'install dependencies from package', []));
 	return result;
