@@ -45,33 +45,33 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 		@IStorageService protected readonly storageService: IStorageService,
 	) {
 		super();
-		this.userDataSyncStore = this.toUserDataSyncStore(this.productService[CONFIGURATION_SYNC_STORE_KEY]);
+		this.userDataSyncStore = this.toUserDataSyncStore(productService[CONFIGURATION_SYNC_STORE_KEY], configurationService.getValue<ConfigurationSyncStore>(CONFIGURATION_SYNC_STORE_KEY));
 	}
 
-	protected toUserDataSyncStore(syncStore: ConfigurationSyncStore | undefined): UserDataSyncStore | undefined {
-		if (syncStore) {
-			if (syncStore
-				&& isString(syncStore.url)
-				&& isObject(syncStore.authenticationProviders)
-				&& Object.keys(syncStore.authenticationProviders).every(authenticationProviderId => isArray(syncStore.authenticationProviders[authenticationProviderId].scopes))
-			) {
-				const type: UserDataSyncStoreType | undefined = this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL) as UserDataSyncStoreType | undefined;
-				const url = this.configurationService.getValue<ConfigurationSyncStore>(CONFIGURATION_SYNC_STORE_KEY)?.url
-					|| (type === 'insiders' ? syncStore.insidersUrl : type === 'stable' ? syncStore.stableUrl : undefined)
-					|| syncStore.url;
-				return {
-					url: URI.parse(url),
-					type,
-					defaultType: syncStore.url === syncStore.insidersUrl ? 'insiders' : syncStore.url === syncStore.stableUrl ? 'stable' : undefined,
-					defaultUrl: URI.parse(syncStore.url),
-					stableUrl: syncStore.stableUrl ? URI.parse(syncStore.stableUrl) : undefined,
-					insidersUrl: syncStore.insidersUrl ? URI.parse(syncStore.insidersUrl) : undefined,
-					authenticationProviders: Object.keys(syncStore.authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
-						result.push({ id, scopes: syncStore.authenticationProviders[id].scopes });
-						return result;
-					}, [])
-				};
-			}
+	protected toUserDataSyncStore(productStore: ConfigurationSyncStore | undefined, configuredStore?: ConfigurationSyncStore): UserDataSyncStore | undefined {
+		const value: Partial<ConfigurationSyncStore> = { ...(productStore || {}), ...(configuredStore || {}) };
+		if (value
+			&& isString(value.url)
+			&& isObject(value.authenticationProviders)
+			&& Object.keys(value.authenticationProviders).every(authenticationProviderId => isArray(value!.authenticationProviders![authenticationProviderId].scopes))
+		) {
+			const syncStore = value as ConfigurationSyncStore;
+			const type: UserDataSyncStoreType | undefined = this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL) as UserDataSyncStoreType | undefined;
+			const url = configuredStore?.url
+				|| (type === 'insiders' ? syncStore.insidersUrl : type === 'stable' ? syncStore.stableUrl : undefined)
+				|| syncStore.url;
+			return {
+				url: URI.parse(url),
+				type,
+				defaultType: syncStore.url === syncStore.insidersUrl ? 'insiders' : syncStore.url === syncStore.stableUrl ? 'stable' : undefined,
+				defaultUrl: URI.parse(syncStore.url),
+				stableUrl: syncStore.stableUrl ? URI.parse(syncStore.stableUrl) : undefined,
+				insidersUrl: syncStore.insidersUrl ? URI.parse(syncStore.insidersUrl) : undefined,
+				authenticationProviders: Object.keys(syncStore.authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
+					result.push({ id, scopes: syncStore!.authenticationProviders[id].scopes });
+					return result;
+				}, [])
+			};
 		}
 		return undefined;
 	}
