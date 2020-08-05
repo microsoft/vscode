@@ -367,7 +367,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (activityCache.length) {
 			const [{ badge, clazz, priority }] = activityCache;
 			if (badge instanceof NumberBadge && activityCache.length > 1) {
-				const cumulativeNumberBadge = this.getCumulativeNumberBadge(priority);
+				const cumulativeNumberBadge = this.getCumulativeNumberBadge(activityCache, priority);
 				activityAction.setBadge(cumulativeNumberBadge);
 			} else {
 				activityAction.setBadge(badge, clazz);
@@ -377,8 +377,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 	}
 
-	private getCumulativeNumberBadge(priority: number): NumberBadge {
-		const numberActivities = this.globalActivity.filter(activity => activity.badge instanceof NumberBadge && activity.priority === priority);
+	private getCumulativeNumberBadge(activityCache: ICompositeActivity[], priority: number): NumberBadge {
+		const numberActivities = activityCache.filter(activity => activity.badge instanceof NumberBadge && activity.priority === priority);
 		let number = numberActivities.reduce((result, activity) => { return result + (<NumberBadge>activity.badge).number; }, 0);
 		let descriptorFn = (): string => {
 			return numberActivities.reduce((result, activity, index) => {
