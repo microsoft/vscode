@@ -28,7 +28,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { parse, getFirstFrame } from 'vs/base/common/console';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -47,6 +47,7 @@ import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -72,6 +73,7 @@ export class DebugService implements IDebugService {
 	private previousState: State | undefined;
 	private sessionCancellationTokens = new Map<string, CancellationTokenSource>();
 	private activity: IDisposable | undefined;
+	private commandService!: CommandService;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -433,23 +435,23 @@ export class DebugService implements IDebugService {
 							nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
 					}
 
-					let actionList: IAction[] = [];
-					let action = {
-						id: 'Install Debug Extension',
-						label: 'Install Debug Extension(s)',
-						tooltip: 'Install Debug Extension',
-						class: 'string',
-						checked: true,
-						run: async () => {
+					const actionList: IAction[] = [];
+
+					actionList.push(new Action(
+						'installAdditionalDebuggers',
+						nls.localize('installAdditionalDebuggers', "Install {0} Extension", resolvedConfig.type),
+						undefined,
+						true,
+						async () => {
 							const viewlet = (await this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 							viewlet.search('tag:debuggers @sort:installs');
 							return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true);
-						},
-						dispose: () => this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true),
-						enabled: true
-					} as IAction;
-					actionList.push(action);
+						}
+						//() => this.commandService.executeCommand('debug.installAdditionalDebuggers')
+					));
+
 					await this.showError(message, actionList);
+
 					return false;
 				}
 
