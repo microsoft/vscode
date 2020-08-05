@@ -273,6 +273,10 @@ export class BackLayerWebView extends Disposable {
 						background-color: var(--vscode-notebook-symbolHighlightBackground);
 					}
 
+					#container > div > div > div {
+						overflow-x: scroll;
+					}
+
 					body {
 						padding: 0px;
 						height: 100%;
