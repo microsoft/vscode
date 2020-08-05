@@ -284,13 +284,34 @@ abstract class AbstractCellRenderer {
 			}
 		};
 
+		// #103926
+		let dropdownIsVisible = false;
+		let deferredUpdate: (() => void) | undefined;
+
 		updateActions();
 		disposables.add(templateData.titleMenu.onDidChange(() => {
 			if (this.notebookEditor.isDisposed) {
 				return;
 			}
 
+			if (dropdownIsVisible) {
+				deferredUpdate = () => updateActions();
+				return;
+			}
+
 			updateActions();
+		}));
+		disposables.add(templateData.toolbar.onDidChangeDropdownVisibility(visible => {
+			dropdownIsVisible = visible;
+
+			if (deferredUpdate && !visible) {
+				setTimeout(() => {
+					if (deferredUpdate) {
+						deferredUpdate();
+					}
+				}, 0);
+				deferredUpdate = undefined;
+			}
 		}));
 	}
 
