@@ -1829,19 +1829,20 @@ export class ShowRecommendedExtensionsAction extends Action {
 	}
 }
 
-export class InstallWorkspaceRecommendedExtensionsAction extends Action {
+export class InstallRecommendedExtensionsAction extends Action {
 
-	static readonly ID = 'workbench.extensions.action.installWorkspaceRecommendedExtensions';
-	static readonly LABEL = localize('installWorkspaceRecommendedExtensions', "Install All Workspace Recommended Extensions");
+	static readonly ID = 'workbench.extensions.action.installRecommendedExtensions';
+	static readonly LABEL = localize('installRecommendedExtensions', "Install Recommended Extensions");
 
 	private _recommendations: string[] = [];
 	get recommendations(): string[] { return this._recommendations; }
 	set recommendations(recommendations: string[]) { this._recommendations = recommendations; this.enabled = this._recommendations.length > 0; }
 
 	constructor(
-		id: string = InstallWorkspaceRecommendedExtensionsAction.ID,
-		label: string = InstallWorkspaceRecommendedExtensionsAction.LABEL,
+		id: string,
+		label: string,
 		recommendations: string[],
+		private readonly source: string,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
@@ -1860,7 +1861,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 				viewlet.search('@recommended ');
 				viewlet.focus();
 				const names = this.recommendations;
-				return this.extensionWorkbenchService.queryGallery({ names, source: 'install-all-workspace-recommendations' }, CancellationToken.None).then(pager => {
+				return this.extensionWorkbenchService.queryGallery({ names, source: this.source }, CancellationToken.None).then(pager => {
 					let installPromises: Promise<any>[] = [];
 					let model = new PagedModel(pager);
 					for (let i = 0; i < pager.total; i++) {
@@ -1889,6 +1890,22 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 			console.error(err);
 			return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService);
 		}
+	}
+}
+
+export class InstallWorkspaceRecommendedExtensionsAction extends InstallRecommendedExtensionsAction {
+
+	constructor(
+		recommendations: string[],
+		@IViewletService viewletService: IViewletService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IExtensionsWorkbenchService extensionWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
+		@IProductService productService: IProductService,
+	) {
+		super('workbench.extensions.action.installWorkspaceRecommendedExtensions', localize('installWorkspaceRecommendedExtensions', "Install Workspace Recommended Extensions"), recommendations, 'install-all-workspace-recommendations',
+			viewletService, instantiationService, extensionWorkbenchService, configurationService, extensionManagementServerService, productService);
 	}
 }
 

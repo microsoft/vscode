@@ -226,7 +226,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			message = localize('reallyRecommendedExtensionPack', "The '{0}' extension pack is recommended for this file type.", extensionName);
 		}
 
-		this.promptImportantExtensionInstallNotification(extensionId, message);
+		this.promptImportantExtensionsInstallNotification([extensionId], message);
 		return true;
 	}
 

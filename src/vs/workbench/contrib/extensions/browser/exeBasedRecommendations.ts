@@ -90,15 +90,39 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
+		const recommendationsByExe = new Map<string, IExecutableBasedExtensionTip[]>();
 		for (const extensionId of recommendations) {
-			if (this.tasExperimentService && extensionId === 'ms-vscode-remote.remote-wsl') {
+			const tip = importantExeBasedRecommendations[extensionId];
+			let tips = recommendationsByExe.get(tip.exeFriendlyName);
+			if (!tips) {
+				tips = [];
+				recommendationsByExe.set(tip.exeFriendlyName, tips);
+			}
+			tips.push(tip);
+		}
+
+		for (const [, tips] of recommendationsByExe) {
+			const extensionIds = tips.map(({ extensionId }) => extensionId.toLowerCase());
+			if (this.tasExperimentService && extensionIds.indexOf('ms-vscode-remote.remote-wsl') !== -1) {
 				await this.tasExperimentService.getTreatment<boolean>('wslpopupaa');
 			}
 
-			const tip = importantExeBasedRecommendations[extensionId];
-			const message = tip.isExtensionPack ? localize('extensionPackRecommended', "The '{0}' extension pack is recommended as you have {1} installed on your system.", tip.extensionName!, tip.exeFriendlyName || basename(tip.windowsPath!))
-				: localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.extensionName!, tip.exeFriendlyName || basename(tip.windowsPath!));
-			this.promptImportantExtensionInstallNotification(extensionId, message);
+			if (tips.length === 1) {
+				const tip = tips[0];
+				const message = tip.isExtensionPack ? localize('extensionPackRecommended', "The '{0}' extension pack is recommended as you have {1} installed on your system.", tip.extensionName, tip.exeFriendlyName || basename(tip.windowsPath!))
+					: localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.extensionName, tip.exeFriendlyName || basename(tip.windowsPath!));
+				this.promptImportantExtensionsInstallNotification(extensionIds, message);
+			}
+
+			else if (tips.length === 2) {
+				const message = localize('two extensions recommended', "The '{0}' and '{1}' extensions are recommended as you have {2} installed on your system.", tips[0].extensionName, tips[1].extensionName, tips[0].exeFriendlyName || basename(tips[0].windowsPath!));
+				this.promptImportantExtensionsInstallNotification(extensionIds, message);
+			}
+
+			else if (tips.length > 2) {
+				const message = localize('more than two extensions recommended', "The '{0}', '{1}' and other extensions are recommended as you have {2} installed on your system.", tips[0].extensionName, tips[1].extensionName, tips[0].exeFriendlyName || basename(tips[0].windowsPath!));
+				this.promptImportantExtensionsInstallNotification(extensionIds, message);
+			}
 		}
 	}
 

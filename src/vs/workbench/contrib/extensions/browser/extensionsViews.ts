@@ -1030,7 +1030,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 
 	getActions(): IAction[] {
 		if (!this.installAllAction) {
-			this.installAllAction = this._register(this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, InstallWorkspaceRecommendedExtensionsAction.LABEL, []));
+			this.installAllAction = this._register(this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, []));
 			this.installAllAction.class = 'codicon codicon-cloud-download';
 		}
 

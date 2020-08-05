@@ -88,7 +88,7 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 			const tip = this.importantTips.filter(tip => tip.extensionId === extension)[0];
 			const message = tip.isExtensionPack ? localize('extensionPackRecommended', "The '{0}' extension pack is recommended for this workspace.", tip.extensionName)
 				: localize('extensionRecommended', "The '{0}' extension is recommended for this workspace.", tip.extensionName);
-			this.promptImportantExtensionInstallNotification(extension, message);
+			this.promptImportantExtensionsInstallNotification([extension], message);
 		}
 	}
 
