@@ -356,6 +356,12 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 		return undefined;
 	}
+
+	clearValidation(): void {
+		for (const [, inputWidget] of this.inputWidgets) {
+			inputWidget.clearValidation();
+		}
+	}
 }
 
 interface ResourceGroupTemplate {
@@ -1571,6 +1577,10 @@ class SCMInputWidget extends Disposable {
 		return this.defaultInputFontFamily;
 	}
 
+	clearValidation(): void {
+		this.validationDisposable.dispose();
+	}
+
 	dispose(): void {
 		this.input = undefined;
 		this.repositoryDisposables.dispose();
@@ -1718,6 +1728,7 @@ export class SCMViewPane extends ViewPane {
 		this._register(this.tree.onDidOpen(this.open, this));
 
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
+		this._register(this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer));
 		this._register(this.tree);
 
 		let viewMode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
