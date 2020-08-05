@@ -53,8 +53,12 @@ suite('UserDataSyncStoreManagementService', () => {
 			insidersUrl: undefined,
 			authenticationProviders: [{ id: 'configuredAuthProvider', scopes: [] }]
 		};
+
 		const testObject: IUserDataSyncStoreManagementService = client.instantiationService.createInstance(UserDataSyncStoreManagementService);
-		assert.equal(JSON.stringify(testObject.userDataSyncStore), JSON.stringify(expected));
+
+		assert.equal(testObject.userDataSyncStore?.url.toString(), expected.url.toString());
+		assert.equal(testObject.userDataSyncStore?.defaultUrl.toString(), expected.defaultUrl.toString());
+		assert.deepEqual(testObject.userDataSyncStore?.authenticationProviders, expected.authenticationProviders);
 	});
 
 });
