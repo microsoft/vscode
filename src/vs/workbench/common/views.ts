@@ -465,6 +465,8 @@ export interface IView {
 
 	readonly id: string;
 
+	focus(): void;
+
 	isVisible(): boolean;
 
 	isBodyVisible(): boolean;
