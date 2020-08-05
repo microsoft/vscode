@@ -26,6 +26,8 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
 			case 'onDidChangeLastSyncTime': return this.service.onDidChangeLastSyncTime;
 			case 'onSyncErrors': return this.service.onSyncErrors;
+			case 'onDidResetLocal': return this.service.onDidResetLocal;
+			case 'onDidResetRemote': return this.service.onDidResetRemote;
 		}
 		throw new Error(`Event not found: ${event}`);
 	}

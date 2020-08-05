@@ -81,6 +81,7 @@ export class UserDataSyncDataViews extends Disposable {
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
+		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 	) {
 		super();
 		this.registerViews(container);
@@ -123,7 +124,7 @@ export class UserDataSyncDataViews extends Disposable {
 				treeView.dataProvider = dataProvider;
 			}
 		});
-		this._register(this.userDataSyncMachinesService.onDidChange(() => treeView.refresh()));
+		this._register(Event.any(this.userDataSyncMachinesService.onDidChange, this.userDataSyncService.onDidResetRemote)(() => treeView.refresh()));
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id,
@@ -191,7 +192,10 @@ export class UserDataSyncDataViews extends Disposable {
 					: this.instantiationService.createInstance(LocalUserDataSyncActivityViewDataProvider);
 			}
 		});
-		this._register(Event.any(this.userDataSyncResourceEnablementService.onDidChangeResourceEnablement, this.userDataAutoSyncService.onDidChangeEnablement)(() => treeView.refresh()));
+		this._register(Event.any(this.userDataSyncResourceEnablementService.onDidChangeResourceEnablement,
+			this.userDataAutoSyncService.onDidChangeEnablement,
+			this.userDataSyncService.onDidResetLocal,
+			this.userDataSyncService.onDidResetRemote)(() => treeView.refresh()));
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id,

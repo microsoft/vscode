@@ -69,6 +69,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onDidChangeLastSyncTime: Emitter<number> = this._register(new Emitter<number>());
 	readonly onDidChangeLastSyncTime: Event<number> = this._onDidChangeLastSyncTime.event;
 
+	private _onDidResetLocal = this._register(new Emitter<void>());
+	readonly onDidResetLocal = this._onDidResetLocal.event;
+	private _onDidResetRemote = this._register(new Emitter<void>());
+	readonly onDidResetRemote = this._onDidResetRemote.event;
+
 	private readonly settingsSynchroniser: SettingsSynchroniser;
 	private readonly keybindingsSynchroniser: KeybindingsSynchroniser;
 	private readonly snippetsSynchroniser: SnippetsSynchroniser;
@@ -286,6 +291,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		} catch (e) {
 			this.logService.error(e);
 		}
+		this._onDidResetRemote.fire();
 	}
 
 	async resetLocal(): Promise<void> {
@@ -299,6 +305,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.logService.error(e);
 			}
 		}
+		this._onDidResetLocal.fire();
 		this.logService.info('Did reset the local sync state.');
 	}
 

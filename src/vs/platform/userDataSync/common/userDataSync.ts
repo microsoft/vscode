@@ -417,6 +417,9 @@ export interface IUserDataSyncService {
 	readonly lastSyncTime: number | undefined;
 	readonly onDidChangeLastSyncTime: Event<number>;
 
+	readonly onDidResetRemote: Event<void>;
+	readonly onDidResetLocal: Event<void>;
+
 	createSyncTask(): Promise<ISyncTask>;
 	createManualSyncTask(): Promise<IManualSyncTask>;
 
