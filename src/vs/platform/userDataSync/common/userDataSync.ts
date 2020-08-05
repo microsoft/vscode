@@ -48,7 +48,7 @@ export function registerConfiguration(): IDisposable {
 		properties: {
 			'sync.keybindingsPerPlatform': {
 				type: 'boolean',
-				description: localize('sync.keybindingsPerPlatform', "Synchronize keybindings per platform."),
+				description: localize('sync.keybindingsPerPlatform', "Synchronize keybindings for each platform."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['sync', 'usesOnlineServices']

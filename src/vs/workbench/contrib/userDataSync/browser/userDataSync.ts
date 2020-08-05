@@ -120,6 +120,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -552,7 +553,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			label: getSyncAreaLabel(SyncResource.Settings)
 		}, {
 			id: SyncResource.Keybindings,
-			label: getSyncAreaLabel(SyncResource.Keybindings)
+			label: getSyncAreaLabel(SyncResource.Keybindings),
+			description: this.configurationService.getValue('sync.keybindingsPerPlatform') ? localize('per platform', "for each platform") : undefined
 		}, {
 			id: SyncResource.Snippets,
 			label: getSyncAreaLabel(SyncResource.Snippets)
