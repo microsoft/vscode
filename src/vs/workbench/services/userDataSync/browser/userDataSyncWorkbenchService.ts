@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, UserDataSyncStoreType, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -268,7 +268,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
 		try {
 			let action: FirstTimeSyncAction = 'manual';
-			let preview: [SyncResource, ISyncResourcePreview][] = [];
 
 			await this.progressService.withProgress({
 				location: ProgressLocation.Notification,
@@ -277,7 +276,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			}, async progress => {
 				progress.report({ message: localize('turning on', "Turning on...") });
 
-				preview = await manualSyncTask.preview();
+				const preview = await manualSyncTask.preview();
 				const hasRemoteData = manualSyncTask.manifest !== null;
 				const hasLocalData = await this.userDataSyncService.hasLocalData();
 				const hasMergesFromAnotherMachine = preview.some(([syncResource, { isLastSyncFromCurrentMachine, resourcePreviews }]) =>
@@ -289,7 +288,12 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 					synchronizingResources.length ? progress.report({ message: localize('syncing resource', "Syncing {0}...", getSyncAreaLabel(synchronizingResources[0][0])) }) : undefined);
 				try {
 					switch (action) {
-						case 'merge': return await manualSyncTask.apply();
+						case 'merge':
+							await manualSyncTask.merge();
+							if (manualSyncTask.status !== SyncStatus.HasConflicts) {
+								await manualSyncTask.apply();
+							}
+							return;
 						case 'pull': return await manualSyncTask.pull();
 						case 'push': return await manualSyncTask.push();
 						case 'manual': return;
@@ -298,8 +302,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 					progressDisposable.dispose();
 				}
 			});
+			if (manualSyncTask.status === SyncStatus.HasConflicts) {
+				await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected"), [], {
+					detail: localize('resolve', "Unable to merge due to conflicts. Please resolve them to continue.")
+				});
+				await manualSyncTask.discardConflicts();
+				action = 'manual';
+			}
 			if (action === 'manual') {
-				await this.syncManually(manualSyncTask, preview);
+				await this.syncManually(manualSyncTask);
 			}
 		} catch (error) {
 			await manualSyncTask.stop();
@@ -347,8 +358,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		throw canceled();
 	}
 
-	private async syncManually(task: IManualSyncTask, preview: [SyncResource, ISyncResourcePreview][]): Promise<void> {
+	private async syncManually(task: IManualSyncTask): Promise<void> {
 		const visibleViewContainer = this.viewsService.getVisibleViewContainer(ViewContainerLocation.Sidebar);
+		const preview = await task.preview();
 		this.userDataSyncPreview.setManualSyncPreview(task, preview);
 
 		this.mergesViewEnablementContext.set(true);

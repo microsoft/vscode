@@ -73,8 +73,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async createManualSyncTask(): Promise<IManualSyncTask> {
-		const { id, manifest } = await this.channel.call<{ id: string, manifest: IUserDataManifest | null }>('createManualSyncTask');
-		return new ManualSyncTask(id, manifest, this.sharedProcessService);
+		const { id, manifest, status } = await this.channel.call<{ id: string, manifest: IUserDataManifest | null, status: SyncStatus }>('createManualSyncTask');
+		return new ManualSyncTask(id, manifest, status, this.sharedProcessService);
 	}
 
 	replace(uri: URI): Promise<void> {
@@ -163,16 +163,27 @@ class ManualSyncTask implements IManualSyncTask {
 
 	get onSynchronizeResources(): Event<[SyncResource, URI[]][]> { return this.channel.listen<[SyncResource, URI[]][]>('onSynchronizeResources'); }
 
+	private _status: SyncStatus;
+	get status(): SyncStatus { return this._status; }
+
 	constructor(
 		readonly id: string,
 		readonly manifest: IUserDataManifest | null,
+		status: SyncStatus,
 		sharedProcessService: ISharedProcessService,
 	) {
 		const manualSyncTaskChannel = sharedProcessService.getChannel(`manualSyncTask-${id}`);
+		this._status = status;
+		const that = this;
 		this.channel = {
-			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
-				return manualSyncTaskChannel.call(command, arg, cancellationToken)
-					.then(null, error => { throw UserDataSyncError.toUserDataSyncError(error); });
+			async call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
+				try {
+					const result = await manualSyncTaskChannel.call<T>(command, arg, cancellationToken);
+					that._status = await manualSyncTaskChannel.call<SyncStatus>('_getStatus');
+					return result;
+				} catch (error) {
+					throw UserDataSyncError.toUserDataSyncError(error);
+				}
 			},
 			listen<T>(event: string, arg?: any): Event<T> {
 				return manualSyncTaskChannel.listen(event, arg);
@@ -190,13 +201,18 @@ class ManualSyncTask implements IManualSyncTask {
 		return this.deserializePreviews(previews);
 	}
 
-	async merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
+	async merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
 		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('merge', [resource]);
 		return this.deserializePreviews(previews);
 	}
 
 	async discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
 		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('discard', [resource]);
+		return this.deserializePreviews(previews);
+	}
+
+	async discardConflicts(): Promise<[SyncResource, ISyncResourcePreview][]> {
+		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('discardConflicts');
 		return this.deserializePreviews(previews);
 	}
 

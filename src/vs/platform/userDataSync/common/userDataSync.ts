@@ -389,12 +389,14 @@ export interface ISyncTask {
 
 export interface IManualSyncTask extends IDisposable {
 	readonly id: string;
+	readonly status: SyncStatus;
 	readonly manifest: IUserDataManifest | null;
 	readonly onSynchronizeResources: Event<[SyncResource, URI[]][]>;
 	preview(): Promise<[SyncResource, ISyncResourcePreview][]>;
 	accept(resource: URI, content?: string | null): Promise<[SyncResource, ISyncResourcePreview][]>;
-	merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
+	merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
 	discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
+	discardConflicts(): Promise<[SyncResource, ISyncResourcePreview][]>;
 	apply(): Promise<[SyncResource, ISyncResourcePreview][]>;
 	pull(): Promise<void>;
 	push(): Promise<void>;

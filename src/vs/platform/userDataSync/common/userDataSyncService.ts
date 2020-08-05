@@ -412,6 +412,16 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 
 	private isDisposed: boolean = false;
 
+	get status(): SyncStatus {
+		if (this.synchronisers.some(s => s.status === SyncStatus.HasConflicts)) {
+			return SyncStatus.HasConflicts;
+		}
+		if (this.synchronisers.some(s => s.status === SyncStatus.Syncing)) {
+			return SyncStatus.Syncing;
+		}
+		return SyncStatus.Idle;
+	}
+
 	constructor(
 		readonly id: string,
 		readonly manifest: IUserDataManifest | null,
@@ -429,7 +439,9 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 		if (!this.previewsPromise) {
 			this.previewsPromise = createCancelablePromise(token => this.getPreviews(token));
 		}
-		this.previews = await this.previewsPromise;
+		if (!this.previews) {
+			this.previews = await this.previewsPromise;
+		}
 		return this.previews;
 	}
 
@@ -437,87 +449,43 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 		return this.performAction(resource, sychronizer => sychronizer.accept(resource, content));
 	}
 
-	async merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
-		return this.performAction(resource, sychronizer => sychronizer.merge(resource));
+	async merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
+		if (resource) {
+			return this.performAction(resource, sychronizer => sychronizer.merge(resource));
+		} else {
+			return this.doMerge(false);
+		}
 	}
 
 	async discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
 		return this.performAction(resource, sychronizer => sychronizer.discard(resource));
 	}
 
-	private async performAction(resource: URI, action: (synchroniser: IUserDataSynchroniser) => Promise<ISyncResourcePreview | null>): Promise<[SyncResource, ISyncResourcePreview][]> {
+	async discardConflicts(): Promise<[SyncResource, ISyncResourcePreview][]> {
 		if (!this.previews) {
 			throw new Error('Missing preview. Create preview and try again.');
 		}
-
-		const index = this.previews.findIndex(([, preview]) => preview.resourcePreviews.some(({ localResource, previewResource, remoteResource }) =>
-			isEqual(resource, localResource) || isEqual(resource, previewResource) || isEqual(resource, remoteResource)));
-		if (index === -1) {
-			return this.previews;
+		if (this.synchronizingResources.length) {
+			throw new Error('Cannot discard while synchronizing resources');
 		}
 
-		const [syncResource, previews] = this.previews[index];
-		const resourcePreview = previews.resourcePreviews.find(({ localResource, remoteResource, previewResource }) => isEqual(localResource, resource) || isEqual(remoteResource, resource) || isEqual(previewResource, resource));
-		if (!resourcePreview) {
-			return this.previews;
+		const conflictResources: URI[] = [];
+		for (const [, syncResourcePreview] of this.previews) {
+			for (const resourcePreview of syncResourcePreview.resourcePreviews) {
+				if (resourcePreview.mergeState === MergeState.Conflict) {
+					conflictResources.push(resourcePreview.previewResource);
+				}
+			}
 		}
 
-		let synchronizingResources = this.synchronizingResources.find(s => s[0] === syncResource);
-		if (!synchronizingResources) {
-			synchronizingResources = [syncResource, []];
-			this.synchronizingResources.push(synchronizingResources);
+		for (const resource of conflictResources) {
+			await this.discard(resource);
 		}
-		if (!synchronizingResources[1].some(s => isEqual(s, resourcePreview.localResource))) {
-			synchronizingResources[1].push(resourcePreview.localResource);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
-		}
-
-		const synchroniser = this.synchronisers.find(s => s.resource === this.previews![index][0])!;
-		const preview = await action(synchroniser);
-		preview ? this.previews.splice(index, 1, this.toSyncResourcePreview(synchroniser.resource, preview)) : this.previews.splice(index, 1);
-
-		const i = this.synchronizingResources.findIndex(s => s[0] === syncResource);
-		this.synchronizingResources[i][1].splice(synchronizingResources[1].findIndex(r => isEqual(r, resourcePreview.localResource)), 1);
-		if (!synchronizingResources[1].length) {
-			this.synchronizingResources.splice(i, 1);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
-		}
-
 		return this.previews;
 	}
 
 	async apply(): Promise<[SyncResource, ISyncResourcePreview][]> {
-		if (!this.previews) {
-			throw new Error('You need to create preview before applying');
-		}
-		if (this.synchronizingResources.length) {
-			throw new Error('Cannot pull while synchronizing resources');
-		}
-		const previews: [SyncResource, ISyncResourcePreview][] = [];
-		for (const [syncResource, preview] of this.previews) {
-			this.synchronizingResources.push([syncResource, preview.resourcePreviews.map(r => r.localResource)]);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
-
-			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
-
-			/* merge those which are not yet merged */
-			for (const resourcePreview of preview.resourcePreviews) {
-				if ((resourcePreview.localChange !== Change.None || resourcePreview.remoteChange !== Change.None) && resourcePreview.mergeState === MergeState.Preview) {
-					await synchroniser.merge(resourcePreview.previewResource);
-				}
-			}
-
-			/* apply */
-			const newPreview = await synchroniser.apply(false, this.syncHeaders);
-			if (newPreview) {
-				previews.push(this.toSyncResourcePreview(synchroniser.resource, newPreview));
-			}
-
-			this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
-		}
-		this.previews = previews;
-		return this.previews;
+		return this.doMerge(true);
 	}
 
 	async pull(): Promise<void> {
@@ -573,6 +541,85 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 			}
 		}
 		this.reset();
+	}
+
+	private async performAction(resource: URI, action: (synchroniser: IUserDataSynchroniser) => Promise<ISyncResourcePreview | null>): Promise<[SyncResource, ISyncResourcePreview][]> {
+		if (!this.previews) {
+			throw new Error('Missing preview. Create preview and try again.');
+		}
+
+		const index = this.previews.findIndex(([, preview]) => preview.resourcePreviews.some(({ localResource, previewResource, remoteResource }) =>
+			isEqual(resource, localResource) || isEqual(resource, previewResource) || isEqual(resource, remoteResource)));
+		if (index === -1) {
+			return this.previews;
+		}
+
+		const [syncResource, previews] = this.previews[index];
+		const resourcePreview = previews.resourcePreviews.find(({ localResource, remoteResource, previewResource }) => isEqual(localResource, resource) || isEqual(remoteResource, resource) || isEqual(previewResource, resource));
+		if (!resourcePreview) {
+			return this.previews;
+		}
+
+		let synchronizingResources = this.synchronizingResources.find(s => s[0] === syncResource);
+		if (!synchronizingResources) {
+			synchronizingResources = [syncResource, []];
+			this.synchronizingResources.push(synchronizingResources);
+		}
+		if (!synchronizingResources[1].some(s => isEqual(s, resourcePreview.localResource))) {
+			synchronizingResources[1].push(resourcePreview.localResource);
+			this._onSynchronizeResources.fire(this.synchronizingResources);
+		}
+
+		const synchroniser = this.synchronisers.find(s => s.resource === this.previews![index][0])!;
+		const preview = await action(synchroniser);
+		preview ? this.previews.splice(index, 1, this.toSyncResourcePreview(synchroniser.resource, preview)) : this.previews.splice(index, 1);
+
+		const i = this.synchronizingResources.findIndex(s => s[0] === syncResource);
+		this.synchronizingResources[i][1].splice(synchronizingResources[1].findIndex(r => isEqual(r, resourcePreview.localResource)), 1);
+		if (!synchronizingResources[1].length) {
+			this.synchronizingResources.splice(i, 1);
+			this._onSynchronizeResources.fire(this.synchronizingResources);
+		}
+
+		return this.previews;
+	}
+
+	private async doMerge(apply: boolean): Promise<[SyncResource, ISyncResourcePreview][]> {
+		if (!this.previews) {
+			throw new Error('You need to create preview before merging or applying');
+		}
+		if (this.synchronizingResources.length) {
+			throw new Error('Cannot merge or apply while synchronizing resources');
+		}
+		const previews: [SyncResource, ISyncResourcePreview][] = [];
+		for (const [syncResource, preview] of this.previews) {
+			this.synchronizingResources.push([syncResource, preview.resourcePreviews.map(r => r.localResource)]);
+			this._onSynchronizeResources.fire(this.synchronizingResources);
+
+			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
+
+			/* merge those which are not yet merged */
+			let newPreview: ISyncResourcePreview | null = null;
+			for (const resourcePreview of preview.resourcePreviews) {
+				if ((resourcePreview.localChange !== Change.None || resourcePreview.remoteChange !== Change.None) && resourcePreview.mergeState === MergeState.Preview) {
+					newPreview = await synchroniser.merge(resourcePreview.previewResource);
+				}
+			}
+
+			/* apply */
+			if (apply) {
+				newPreview = await synchroniser.apply(false, this.syncHeaders);
+			}
+
+			if (newPreview) {
+				previews.push(this.toSyncResourcePreview(synchroniser.resource, newPreview));
+			}
+
+			this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
+			this._onSynchronizeResources.fire(this.synchronizingResources);
+		}
+		this.previews = previews;
+		return this.previews;
 	}
 
 	private async getPreviews(token: CancellationToken): Promise<[SyncResource, ISyncResourcePreview][]> {
