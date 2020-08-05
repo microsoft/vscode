@@ -270,24 +270,20 @@ export class UserDataSyncDataViews extends Disposable {
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const editorService = accessor.get(IEditorService);
-				const { resource, comparableResource } = <{ resource: string, comparableResource?: string }>JSON.parse(handle.$treeItemHandle);
-				if (comparableResource) {
-					const leftResource = URI.parse(resource);
-					const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(leftResource));
-					const rightResource = URI.parse(comparableResource);
-					const rightResourceName = localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
-					await editorService.openEditor({
-						leftResource,
-						rightResource,
-						label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
-						options: {
-							preserveFocus: true,
-							revealIfVisible: true,
-						},
-					});
-				} else {
-					await editorService.openEditor({ resource: URI.parse(resource) });
-				}
+				const { resource, comparableResource } = <{ resource: string, comparableResource: string }>JSON.parse(handle.$treeItemHandle);
+				const leftResource = URI.parse(resource);
+				const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(leftResource));
+				const rightResource = URI.parse(comparableResource);
+				const rightResourceName = localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
+				await editorService.openEditor({
+					leftResource,
+					rightResource,
+					label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
+					options: {
+						preserveFocus: true,
+						revealIfVisible: true,
+					},
+				});
 			}
 		});
 	}
@@ -365,7 +361,7 @@ abstract class UserDataSyncActivityViewDataProvider implements ITreeViewDataProv
 	protected async getChildrenForSyncResourceTreeItem(element: SyncResourceHandleTreeItem): Promise<ITreeItem[]> {
 		const associatedResources = await this.userDataSyncService.getAssociatedResources((<SyncResourceHandleTreeItem>element).syncResourceHandle.syncResource, (<SyncResourceHandleTreeItem>element).syncResourceHandle);
 		return associatedResources.map(({ resource, comparableResource }) => {
-			const handle = JSON.stringify({ resource: resource.toString(), comparableResource: comparableResource?.toString() });
+			const handle = JSON.stringify({ resource: resource.toString(), comparableResource: comparableResource.toString() });
 			return {
 				handle,
 				collapsibleState: TreeItemCollapsibleState.None,
