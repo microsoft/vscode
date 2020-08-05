@@ -25,8 +25,14 @@ type ExeExtensionRecommendationsClassification = {
 
 export class ExeBasedRecommendations extends ExtensionRecommendations {
 
-	readonly _recommendations: ExtensionRecommendation[] = [];
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
+
+	private readonly _otherRecommendations: ExtensionRecommendation[] = [];
+	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._otherRecommendations; }
+
+	private readonly _importantRecommendations: ExtensionRecommendation[] = [];
+	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._importantRecommendations; }
+
+	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return [...this.importantRecommendations, ...this.otherRecommendations]; }
 
 	private readonly tasExperimentService: ITASExperimentService | undefined;
 
@@ -54,16 +60,30 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 
 	protected async doActivate(): Promise<void> {
 		const otherExectuableBasedTips = await this.extensionTipsService.getOtherExecutableBasedTips();
-		otherExectuableBasedTips.forEach(tip => this._recommendations.push(this.toExtensionRecommendation(tip)));
+		otherExectuableBasedTips.forEach(tip => this._otherRecommendations.push(this.toExtensionRecommendation(tip)));
+		await this.fetchImportantExeBasedRecommendations();
 	}
 
-	private async fetchAndPromptImportantExeBasedRecommendations(): Promise<void> {
+	private _importantExeBasedRecommendations: Promise<IStringDictionary<IExecutableBasedExtensionTip>> | undefined;
+	private async fetchImportantExeBasedRecommendations(): Promise<IStringDictionary<IExecutableBasedExtensionTip>> {
+		if (!this._importantExeBasedRecommendations) {
+			this._importantExeBasedRecommendations = this.doFetchImportantExeBasedRecommendations();
+		}
+		return this._importantExeBasedRecommendations;
+	}
+
+	private async doFetchImportantExeBasedRecommendations(): Promise<IStringDictionary<IExecutableBasedExtensionTip>> {
 		const importantExeBasedRecommendations: IStringDictionary<IExecutableBasedExtensionTip> = {};
 		const importantExectuableBasedTips = await this.extensionTipsService.getImportantExecutableBasedTips();
 		importantExectuableBasedTips.forEach(tip => {
-			this._recommendations.push(this.toExtensionRecommendation(tip));
+			this._importantRecommendations.push(this.toExtensionRecommendation(tip));
 			importantExeBasedRecommendations[tip.extensionId.toLowerCase()] = tip;
 		});
+		return importantExeBasedRecommendations;
+	}
+
+	private async fetchAndPromptImportantExeBasedRecommendations(): Promise<void> {
+		const importantExeBasedRecommendations = await this.fetchImportantExeBasedRecommendations();
 
 		const local = await this.extensionManagementService.getInstalled();
 		const { installed, uninstalled } = this.groupByInstalled(Object.keys(importantExeBasedRecommendations), local);

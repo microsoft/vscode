@@ -75,6 +75,14 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		return recommendations;
 	}
 
+	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> {
+		return this.recommendations.filter(e => this.importantExtensionTips[e.extensionId]);
+	}
+
+	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> {
+		return this.recommendations.filter(e => !this.importantExtensionTips[e.extensionId]);
+	}
+
 	constructor(
 		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
