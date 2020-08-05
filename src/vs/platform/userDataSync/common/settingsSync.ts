@@ -236,7 +236,8 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 	}
 
 	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
-		return [{ resource: joinPath(uri, 'settings.json'), comparableResource: this.file }];
+		const comparableResource = (await this.fileService.exists(this.file)) ? this.file : undefined;
+		return [{ resource: joinPath(uri, 'settings.json'), comparableResource }];
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {

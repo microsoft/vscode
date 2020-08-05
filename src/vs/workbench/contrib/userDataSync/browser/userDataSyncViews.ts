@@ -37,6 +37,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { TreeView } from 'vs/workbench/contrib/views/browser/treeView';
 import { flatten } from 'vs/base/common/arrays';
 import { UserDataSyncMergesViewPane } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncMergesView';
+import { basename } from 'vs/base/common/resources';
 
 export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
@@ -271,9 +272,14 @@ export class UserDataSyncDataViews extends Disposable {
 				const editorService = accessor.get(IEditorService);
 				const { resource, comparableResource } = <{ resource: string, comparableResource?: string }>JSON.parse(handle.$treeItemHandle);
 				if (comparableResource) {
+					const leftResource = URI.parse(resource);
+					const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(leftResource));
+					const rightResource = URI.parse(comparableResource);
+					const rightResourceName = localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
 					await editorService.openEditor({
-						leftResource: URI.parse(resource),
-						rightResource: URI.parse(comparableResource),
+						leftResource,
+						rightResource,
+						label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
 						options: {
 							preserveFocus: true,
 							revealIfVisible: true,

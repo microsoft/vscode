@@ -236,7 +236,8 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 	}
 
 	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
-		return [{ resource: joinPath(uri, 'keybindings.json'), comparableResource: this.file }];
+		const comparableResource = (await this.fileService.exists(this.file)) ? this.file : undefined;
+		return [{ resource: joinPath(uri, 'keybindings.json'), comparableResource }];
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
