@@ -37,7 +37,8 @@ interface IKeybindingsResourcePreview extends IFileResourcePreview {
 
 export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implements IUserDataSynchroniser {
 
-	protected readonly version: number = 1;
+	/* Version 2: Change settings from `sync.${setting}` to `settingsSync.{setting}` */
+	protected readonly version: number = 2;
 	private readonly previewResource: URI = joinPath(this.syncPreviewFolder, 'keybindings.json');
 	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
 	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
@@ -262,7 +263,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 	getKeybindingsContentFromSyncContent(syncContent: string): string | null {
 		try {
 			const parsed = <ISyncContent>JSON.parse(syncContent);
-			if (!this.configurationService.getValue<boolean>('sync.keybindingsPerPlatform')) {
+			if (!this.syncKeybindingsPerPlatform()) {
 				return isUndefined(parsed.all) ? null : parsed.all;
 			}
 			switch (OS) {
@@ -286,7 +287,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		} catch (e) {
 			this.logService.error(e);
 		}
-		if (!this.configurationService.getValue<boolean>('sync.keybindingsPerPlatform')) {
+		if (!this.syncKeybindingsPerPlatform()) {
 			parsed.all = keybindingsContent;
 		} else {
 			delete parsed.all;
@@ -303,6 +304,18 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 				break;
 		}
 		return JSON.stringify(parsed);
+	}
+
+	private syncKeybindingsPerPlatform(): boolean {
+		let userValue = this.configurationService.inspect<boolean>('settingsSync.keybindingsPerPlatform').userValue;
+		if (userValue !== undefined) {
+			return userValue;
+		}
+		userValue = this.configurationService.inspect<boolean>('sync.keybindingsPerPlatform').userValue;
+		if (userValue !== undefined) {
+			return userValue;
+		}
+		return this.configurationService.getValue<boolean>('settingsSync.keybindingsPerPlatform');
 	}
 
 }

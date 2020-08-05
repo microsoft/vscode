@@ -300,7 +300,7 @@ suite('SettingsSync - Auto', () => {
 	"workbench.colorTheme": "GitHub Sharp",
 
 	// Ignored
-	"sync.ignoredSettings": [
+	"settingsSync.ignoredSettings": [
 		"editor.fontFamily",
 		"terminal.integrated.shell.osx"
 	]
@@ -321,7 +321,7 @@ suite('SettingsSync - Auto', () => {
 	"workbench.colorTheme": "GitHub Sharp",
 
 	// Ignored
-	"sync.ignoredSettings": [
+	"settingsSync.ignoredSettings": [
 		"editor.fontFamily",
 		"terminal.integrated.shell.osx"
 	]
@@ -345,7 +345,7 @@ suite('SettingsSync - Auto', () => {
 	"workbench.colorTheme": "GitHub Sharp",
 
 	// Ignored
-	"sync.ignoredSettings": [
+	"settingsSync.ignoredSettings": [
 		"editor.fontFamily",
 		"terminal.integrated.shell.osx"
 	],
@@ -369,7 +369,7 @@ suite('SettingsSync - Auto', () => {
 	"workbench.colorTheme": "GitHub Sharp",
 
 	// Ignored
-	"sync.ignoredSettings": [
+	"settingsSync.ignoredSettings": [
 		"editor.fontFamily",
 		"terminal.integrated.shell.osx"
 	],
@@ -417,14 +417,14 @@ suite('SettingsSync - Auto', () => {
 		await updateSettings(JSON.stringify({
 			'a': 1,
 			'b': 2,
-			'sync.ignoredSettings': ['a']
+			'settingsSync.ignoredSettings': ['a']
 		}), client2);
 		await client2.sync();
 
 		await updateSettings(JSON.stringify({
 			'a': 2,
 			'b': 1,
-			'sync.ignoredSettings': ['a']
+			'settingsSync.ignoredSettings': ['a']
 		}), client);
 		await testObject.sync(await client.manifest());
 
@@ -435,7 +435,7 @@ suite('SettingsSync - Auto', () => {
 		const mergeContent = (await fileService.readFile(testObject.conflicts[0].previewResource)).value.toString();
 		assert.deepEqual(JSON.parse(mergeContent), {
 			'b': 1,
-			'sync.ignoredSettings': ['a']
+			'settingsSync.ignoredSettings': ['a']
 		});
 	});
 
@@ -474,7 +474,7 @@ suite('SettingsSync - Manual', () => {
 	"workbench.colorTheme": "GitHub Sharp",
 
 	// Ignored
-	"sync.ignoredSettings": [
+	"settingsSync.ignoredSettings": [
 		"editor.fontFamily",
 		"terminal.integrated.shell.osx"
 	]
@@ -498,7 +498,7 @@ suite('SettingsSync - Manual', () => {
 	"workbench.colorTheme": "GitHub Sharp",
 
 	// Ignored
-	"sync.ignoredSettings": [
+	"settingsSync.ignoredSettings": [
 		"editor.fontFamily",
 		"terminal.integrated.shell.osx"
 	]

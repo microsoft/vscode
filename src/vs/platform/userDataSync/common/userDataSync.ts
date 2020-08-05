@@ -41,21 +41,25 @@ export function registerConfiguration(): IDisposable {
 	const ignoredExtensionsSchemaId = 'vscode://schemas/ignoredExtensions';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	configurationRegistry.registerConfiguration({
-		id: 'sync',
+		id: 'settingsSync',
 		order: 30,
-		title: localize('sync', "Sync"),
+		title: localize('settings sync', "Settings Sync"),
 		type: 'object',
 		properties: {
-			'sync.keybindingsPerPlatform': {
+			'settingsSync.keybindingsPerPlatform': {
 				type: 'boolean',
-				description: localize('sync.keybindingsPerPlatform', "Synchronize keybindings for each platform."),
+				description: localize('settingsSync.keybindingsPerPlatform', "Synchronize keybindings for each platform."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['sync', 'usesOnlineServices']
 			},
-			'sync.ignoredExtensions': {
+			'sync.keybindingsPerPlatform': {
+				type: 'boolean',
+				deprecationMessage: localize('sync.keybindingsPerPlatform.deprecated', "Deprecated, use settingsSync.keybindingsPerPlatform instead"),
+			},
+			'settingsSync.ignoredExtensions': {
 				'type': 'array',
-				'description': localize('sync.ignoredExtensions', "List of extensions to be ignored while synchronizing. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
+				'description': localize('settingsSync.ignoredExtensions', "List of extensions to be ignored while synchronizing. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
 				$ref: ignoredExtensionsSchemaId,
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
@@ -63,9 +67,13 @@ export function registerConfiguration(): IDisposable {
 				disallowSyncIgnore: true,
 				tags: ['sync', 'usesOnlineServices']
 			},
-			'sync.ignoredSettings': {
+			'sync.ignoredExtensions': {
 				'type': 'array',
-				description: localize('sync.ignoredSettings', "Configure settings to be ignored while synchronizing."),
+				deprecationMessage: localize('sync.ignoredExtensions.deprecated', "Deprecated, use settingsSync.ignoredExtensions instead"),
+			},
+			'settingsSync.ignoredSettings': {
+				'type': 'array',
+				description: localize('settingsSync.ignoredSettings', "Configure settings to be ignored while synchronizing."),
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
 				$ref: ignoredSettingsSchemaId,
@@ -73,6 +81,10 @@ export function registerConfiguration(): IDisposable {
 				uniqueItems: true,
 				disallowSyncIgnore: true,
 				tags: ['sync', 'usesOnlineServices']
+			},
+			'sync.ignoredSettings': {
+				'type': 'array',
+				deprecationMessage: localize('sync.ignoredSettings.deprecated', "Deprecated, use settingsSync.ignoredSettings instead"),
 			}
 		}
 	});

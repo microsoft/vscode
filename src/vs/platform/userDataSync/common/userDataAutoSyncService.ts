@@ -270,13 +270,13 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		// Incompatible Local Content
 		else if (userDataSyncError.code === UserDataSyncErrorCode.IncompatibleLocalContent) {
 			await this.turnOff(false, true /* force soft turnoff on error */);
-			this.logService.info('Auto Sync: Turned off sync because server has {0} content with newer version than of client. Requires client upgrade.', userDataSyncError.resource);
+			this.logService.info(`Auto Sync: Turned off sync because server has ${userDataSyncError.resource} content with newer version than of client. Requires client upgrade.`);
 		}
 
 		// Incompatible Remote Content
 		else if (userDataSyncError.code === UserDataSyncErrorCode.IncompatibleRemoteContent) {
 			await this.turnOff(false, true /* force soft turnoff on error */);
-			this.logService.info('Auto Sync: Turned off sync because server has {0} content with older version than of client. Requires server reset.', userDataSyncError.resource);
+			this.logService.info(`Auto Sync: Turned off sync because server has ${userDataSyncError.resource} content with older version than of client. Requires server reset.`);
 		}
 
 		// Service changed
