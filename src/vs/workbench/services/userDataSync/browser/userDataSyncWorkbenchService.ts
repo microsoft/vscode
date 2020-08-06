@@ -17,7 +17,6 @@ import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { localize } from 'vs/nls';
@@ -32,6 +31,7 @@ import { URI } from 'vs/base/common/uri';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { isNative } from 'vs/base/common/platform';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -100,7 +100,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -111,6 +110,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IHostService private readonly hostService: IHostService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 		this._authenticationProviders = this.userDataSyncStoreManagementService.userDataSyncStore?.authenticationProviders || [];
@@ -239,6 +239,13 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	async turnOn(): Promise<void> {
+		if (this.userDataAutoSyncService.isEnabled()) {
+			return;
+		}
+		if (this.userDataSyncService.status !== SyncStatus.Idle) {
+			throw new Error('Cannont turn on sync while syncing');
+		}
+
 		const picked = await this.pick();
 		if (!picked) {
 			throw canceled();
@@ -251,7 +258,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		const syncTitle = SYNC_TITLE;
 		const title = `${syncTitle} [(${localize('details', "details")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`;
-		await this.syncBeforeTurningOn(title);
+		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
+		const disposable = this.lifecycleService.onBeforeShutdown(e => e.veto(this.onBeforeShutdown(manualSyncTask)));
+
+		try {
+			await this.syncBeforeTurningOn(title, manualSyncTask);
+		} finally {
+			disposable.dispose();
+		}
+
 		await this.userDataAutoSyncService.turnOn();
 		this.notificationService.info(localize('sync turned on', "{0} is turned on", title));
 	}
@@ -260,12 +275,25 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		return this.userDataAutoSyncService.turnOff(everywhere);
 	}
 
-	private async syncBeforeTurningOn(title: string): Promise<void> {
+	private async onBeforeShutdown(manualSyncTask: IManualSyncTask): Promise<boolean> {
+		const result = await this.dialogService.confirm({
+			type: 'warning',
+			message: localize('sync in progress', "Settings Sync is being turned on. Would you like to cancel it?"),
+			title: localize('settings sync', "Settings Sync"),
+			primaryButton: localize('yes', "Yes"),
+			secondaryButton: localize('no', "No"),
+		});
+		if (result.confirmed) {
+			await manualSyncTask.stop();
+		}
+		return !result.confirmed;
+	}
+
+	private async syncBeforeTurningOn(title: string, manualSyncTask: IManualSyncTask): Promise<void> {
 
 		/* Make sure sync started on clean local state */
 		await this.userDataSyncService.resetLocal();
 
-		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
 		try {
 			let action: FirstTimeSyncAction = 'manual';
 
