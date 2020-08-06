@@ -864,7 +864,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return;
 			}
 
-			this._webview?.updateViewScrollTop(-e.scrollTop, []);
+			this._webview?.updateViewScrollTop(-e.scrollTop, true, []);
 			this._webviewTransparentCover!.style.top = `${e.scrollTop}px`;
 		}));
 
@@ -912,7 +912,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					removedItems.forEach(output => this._webview?.removeInset(output));
 
 					if (updateItems.length) {
-						this._webview?.updateViewScrollTop(-scrollTop, updateItems);
+						this._webview?.updateViewScrollTop(-scrollTop, false, updateItems);
 					}
 				}
 			});
@@ -1535,7 +1535,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			const cellTop = this._list?.getAbsoluteTopOfElement(cell) || 0;
 			const scrollTop = this._list?.scrollTop || 0;
 
-			this._webview!.updateViewScrollTop(-scrollTop, [{ cell: cell, output: output, cellTop: cellTop }]);
+			this._webview!.updateViewScrollTop(-scrollTop, true, [{ cell: cell, output: output, cellTop: cellTop }]);
 		}
 	}
 
