@@ -267,13 +267,16 @@ export abstract class AbstractSynchroniser extends Disposable {
 			const lastSyncUserData = await this.getLastSyncUserData();
 			const remoteUserData = await this.getLatestRemoteUserData(null, lastSyncUserData);
 
-			const resourcePreviewResults = await this.generateSyncPreview(remoteUserData, lastSyncUserData, CancellationToken.None);
+			/* use replace sync data */
+			const resourcePreviewResults = await this.generateSyncPreview({ ref: remoteUserData.ref, syncData }, lastSyncUserData, CancellationToken.None);
 
 			const resourcePreviews: [IResourcePreview, IAcceptResult][] = [];
 			for (const resourcePreviewResult of resourcePreviewResults) {
 				/* Accept remote resource */
-				const acceptResult: IAcceptResult = await this.getAcceptResult(resourcePreviewResult, resourcePreviewResult.remoteResource, resourcePreviewResult.remoteContent, CancellationToken.None);
-				resourcePreviews.push([resourcePreviewResult, acceptResult]);
+				const acceptResult: IAcceptResult = await this.getAcceptResult(resourcePreviewResult, resourcePreviewResult.remoteResource, undefined, CancellationToken.None);
+				/* compute remote change */
+				const { remoteChange } = await this.getAcceptResult(resourcePreviewResult, resourcePreviewResult.previewResource, resourcePreviewResult.remoteContent, CancellationToken.None);
+				resourcePreviews.push([resourcePreviewResult, { ...acceptResult, remoteChange: remoteChange !== Change.None ? remoteChange : Change.Modified }]);
 			}
 
 			await this.applyResult(remoteUserData, lastSyncUserData, resourcePreviews, false);
