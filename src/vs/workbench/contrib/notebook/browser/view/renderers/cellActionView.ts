@@ -37,7 +37,7 @@ export function createAndFillInActionBarActionsWithVerticalSeparators(menu: IMen
 }
 
 function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
-	for (let tuple of groups) {
+	for (const tuple of groups) {
 		let [group, actions] = tuple;
 		if (useAlternativeActions) {
 			actions = actions.map(a => (a instanceof MenuItemAction) && !!a.alt ? a.alt : a);

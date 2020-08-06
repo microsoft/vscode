@@ -77,10 +77,10 @@ function webviewPreloads() {
 	const domEval = (container: Element) => {
 		const arr = Array.from(container.getElementsByTagName('script'));
 		for (let n = 0; n < arr.length; n++) {
-			let node = arr[n];
-			let scriptTag = document.createElement('script');
+			const node = arr[n];
+			const scriptTag = document.createElement('script');
 			scriptTag.text = node.innerText;
-			for (let key of preservedScriptAttributes) {
+			for (const key of preservedScriptAttributes) {
 				const val = node[key] || node.getAttribute && node.getAttribute(key);
 				if (val) {
 					scriptTag.setAttribute(key, val as any);
@@ -92,11 +92,11 @@ function webviewPreloads() {
 		}
 	};
 
-	let outputObservers = new Map<string, ResizeObserver>();
+	const outputObservers = new Map<string, ResizeObserver>();
 
 	const resizeObserve = (container: Element, id: string) => {
 		const resizeObserver = new ResizeObserver(entries => {
-			for (let entry of entries) {
+			for (const entry of entries) {
 				if (!document.body.contains(entry.target)) {
 					return;
 				}
@@ -346,14 +346,14 @@ function webviewPreloads() {
 					}
 
 					let cellOutputContainer = document.getElementById(data.cellId);
-					let outputId = data.outputId;
+					const outputId = data.outputId;
 					if (!cellOutputContainer) {
 						const container = document.getElementById('container')!;
 
 						const upperWrapperElement = createFocusSink(data.cellId, outputId);
 						container.appendChild(upperWrapperElement);
 
-						let newElement = document.createElement('div');
+						const newElement = document.createElement('div');
 
 						newElement.id = data.cellId;
 						container.appendChild(newElement);
@@ -363,7 +363,7 @@ function webviewPreloads() {
 						container.appendChild(lowerWrapperElement);
 					}
 
-					let outputNode = document.createElement('div');
+					const outputNode = document.createElement('div');
 					outputNode.style.position = 'absolute';
 					outputNode.style.top = data.top + 'px';
 					outputNode.style.left = data.left + 'px';
@@ -372,7 +372,7 @@ function webviewPreloads() {
 					outputNode.id = outputId;
 
 					addMouseoverListeners(outputNode, outputId);
-					let content = data.content;
+					const content = data.content;
 					outputNode.innerHTML = content;
 					cellOutputContainer.appendChild(outputNode);
 
@@ -411,9 +411,11 @@ function webviewPreloads() {
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
 					for (let i = 0; i < event.data.widgets.length; i++) {
-						let widget = document.getElementById(event.data.widgets[i].id)!;
+						const widget = document.getElementById(event.data.widgets[i].id)!;
 						widget.style.top = event.data.widgets[i].top + 'px';
-						widget.parentElement!.style.display = 'block';
+						if (event.data.forceDisplay) {
+							widget.parentElement!.style.display = 'block';
+						}
 					}
 					break;
 				}
@@ -428,7 +430,7 @@ function webviewPreloads() {
 				outputObservers.clear();
 				break;
 			case 'clearOutput':
-				let output = document.getElementById(event.data.outputId);
+				const output = document.getElementById(event.data.outputId);
 				queuedOuputActions.delete(event.data.outputId); // stop any in-progress rendering
 				if (output && output.parentNode) {
 					onWillDestroyOutput.fire([event.data.apiNamespace, { outputId: event.data.outputId }]);
@@ -445,16 +447,25 @@ function webviewPreloads() {
 				break;
 			case 'showOutput':
 				enqueueOutputAction(event.data, ({ outputId, top }) => {
-					let output = document.getElementById(outputId);
+					const output = document.getElementById(outputId);
 					if (output) {
 						output.parentElement!.style.display = 'block';
 						output.style.top = top + 'px';
+
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: outputId,
+							data: {
+								height: output.clientHeight
+							}
+						});
 					}
 				});
 				break;
 			case 'preload':
-				let resources = event.data.resources;
-				let preloadsContainer = document.getElementById('__vscode_preloads')!;
+				const resources = event.data.resources;
+				const preloadsContainer = document.getElementById('__vscode_preloads')!;
 				for (let i = 0; i < resources.length; i++) {
 					const { uri } = resources[i];
 					const scriptTag = document.createElement('script');
@@ -471,7 +482,7 @@ function webviewPreloads() {
 				break;
 			case 'decorations':
 				{
-					let outputContainer = document.getElementById(event.data.cellId);
+					const outputContainer = document.getElementById(event.data.cellId);
 					event.data.addedClassNames.forEach(n => {
 						outputContainer?.classList.add(n);
 					});

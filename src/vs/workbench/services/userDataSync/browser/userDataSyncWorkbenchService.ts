@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, UserDataSyncStoreType, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -17,7 +17,6 @@ import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { localize } from 'vs/nls';
@@ -32,6 +31,7 @@ import { URI } from 'vs/base/common/uri';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { isNative } from 'vs/base/common/platform';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -100,7 +100,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -111,6 +110,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IHostService private readonly hostService: IHostService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 		this._authenticationProviders = this.userDataSyncStoreManagementService.userDataSyncStore?.authenticationProviders || [];
@@ -143,8 +143,10 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			await Promise.all(unregisteredProviders.map(({ id }) => this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id))));
 		}
 
-		/* wait until one of the providers is availabe */
-		await Event.toPromise(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, ({ id }) => this.isSupportedAuthenticationProviderId(id)));
+		/* wait until all providers are availabe */
+		if (this._authenticationProviders.some(({ id }) => !this.authenticationService.isAuthenticationProviderRegistered(id))) {
+			await Event.toPromise(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, () => this._authenticationProviders.every(({ id }) => this.authenticationService.isAuthenticationProviderRegistered(id))));
+		}
 
 		/* initialize */
 		await this.initialize();
@@ -237,6 +239,13 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	async turnOn(): Promise<void> {
+		if (this.userDataAutoSyncService.isEnabled()) {
+			return;
+		}
+		if (this.userDataSyncService.status !== SyncStatus.Idle) {
+			throw new Error('Cannont turn on sync while syncing');
+		}
+
 		const picked = await this.pick();
 		if (!picked) {
 			throw canceled();
@@ -249,7 +258,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		const syncTitle = SYNC_TITLE;
 		const title = `${syncTitle} [(${localize('details', "details")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`;
-		await this.syncBeforeTurningOn(title);
+		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
+		const disposable = this.lifecycleService.onBeforeShutdown(e => e.veto(this.onBeforeShutdown(manualSyncTask)));
+
+		try {
+			await this.syncBeforeTurningOn(title, manualSyncTask);
+		} finally {
+			disposable.dispose();
+		}
+
 		await this.userDataAutoSyncService.turnOn();
 		this.notificationService.info(localize('sync turned on', "{0} is turned on", title));
 	}
@@ -258,15 +275,27 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		return this.userDataAutoSyncService.turnOff(everywhere);
 	}
 
-	private async syncBeforeTurningOn(title: string): Promise<void> {
+	private async onBeforeShutdown(manualSyncTask: IManualSyncTask): Promise<boolean> {
+		const result = await this.dialogService.confirm({
+			type: 'warning',
+			message: localize('sync in progress', "Settings Sync is being turned on. Would you like to cancel it?"),
+			title: localize('settings sync', "Settings Sync"),
+			primaryButton: localize('yes', "Yes"),
+			secondaryButton: localize('no', "No"),
+		});
+		if (result.confirmed) {
+			await manualSyncTask.stop();
+		}
+		return !result.confirmed;
+	}
+
+	private async syncBeforeTurningOn(title: string, manualSyncTask: IManualSyncTask): Promise<void> {
 
 		/* Make sure sync started on clean local state */
 		await this.userDataSyncService.resetLocal();
 
-		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
 		try {
 			let action: FirstTimeSyncAction = 'manual';
-			let preview: [SyncResource, ISyncResourcePreview][] = [];
 
 			await this.progressService.withProgress({
 				location: ProgressLocation.Notification,
@@ -275,7 +304,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			}, async progress => {
 				progress.report({ message: localize('turning on', "Turning on...") });
 
-				preview = await manualSyncTask.preview();
+				const preview = await manualSyncTask.preview();
 				const hasRemoteData = manualSyncTask.manifest !== null;
 				const hasLocalData = await this.userDataSyncService.hasLocalData();
 				const hasMergesFromAnotherMachine = preview.some(([syncResource, { isLastSyncFromCurrentMachine, resourcePreviews }]) =>
@@ -287,7 +316,12 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 					synchronizingResources.length ? progress.report({ message: localize('syncing resource', "Syncing {0}...", getSyncAreaLabel(synchronizingResources[0][0])) }) : undefined);
 				try {
 					switch (action) {
-						case 'merge': return await manualSyncTask.apply();
+						case 'merge':
+							await manualSyncTask.merge();
+							if (manualSyncTask.status !== SyncStatus.HasConflicts) {
+								await manualSyncTask.apply();
+							}
+							return;
 						case 'pull': return await manualSyncTask.pull();
 						case 'push': return await manualSyncTask.push();
 						case 'manual': return;
@@ -296,8 +330,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 					progressDisposable.dispose();
 				}
 			});
+			if (manualSyncTask.status === SyncStatus.HasConflicts) {
+				await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected"), [], {
+					detail: localize('resolve', "Unable to merge due to conflicts. Please merge manually to continue...")
+				});
+				await manualSyncTask.discardConflicts();
+				action = 'manual';
+			}
 			if (action === 'manual') {
-				await this.syncManually(manualSyncTask, preview);
+				await this.syncManually(manualSyncTask);
 			}
 		} catch (error) {
 			await manualSyncTask.stop();
@@ -345,8 +386,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		throw canceled();
 	}
 
-	private async syncManually(task: IManualSyncTask, preview: [SyncResource, ISyncResourcePreview][]): Promise<void> {
+	private async syncManually(task: IManualSyncTask): Promise<void> {
 		const visibleViewContainer = this.viewsService.getVisibleViewContainer(ViewContainerLocation.Sidebar);
+		const preview = await task.preview();
 		this.userDataSyncPreview.setManualSyncPreview(task, preview);
 
 		this.mergesViewEnablementContext.set(true);

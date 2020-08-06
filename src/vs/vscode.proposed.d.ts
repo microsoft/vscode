@@ -765,11 +765,10 @@ declare module 'vscode' {
 	export namespace debug {
 
 		/**
-		 * Stop the given debug session or stop all debug sessions if no session is specified.
-		 * @param session The [debug session](#DebugSession) to stop or `undefined` for stopping all sessions.
-		 * @return A thenable that resolves when the sessions could be stopped successfully.
+		 * Stop the given debug session or stop all debug sessions if session is omitted.
+		 * @param session The [debug session](#DebugSession) to stop; if omitted all sessions are stopped.
 		 */
-		export function stopDebugging(session: DebugSession | undefined): Thenable<void>;
+		export function stopDebugging(session?: DebugSession): Thenable<void>;
 	}
 
 	//#endregion
@@ -1432,6 +1431,7 @@ declare module 'vscode' {
 		readonly fileName: string;
 		readonly viewType: string;
 		readonly isDirty: boolean;
+		readonly isUntitled: boolean;
 		readonly cells: NotebookCell[];
 		languages: string[];
 		displayOrder?: GlobPattern[];
@@ -1780,6 +1780,7 @@ declare module 'vscode' {
 
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
 
 		/**
 		 * All currently known notebook documents.

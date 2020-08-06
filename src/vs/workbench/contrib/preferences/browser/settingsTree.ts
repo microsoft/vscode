@@ -499,7 +499,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 		this._register(this._configService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.includes('sync.ignoredSettings')) {
+			if (e.affectedKeys.includes('settingsSync.ignoredSettings')) {
 				this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 				this._onDidChangeIgnoredSettings.fire();
 			}
@@ -1071,7 +1071,7 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 				: {};
 
 			const newValue: Record<string, unknown> = {};
-			let newItems: IObjectDataItem[] = [];
+			const newItems: IObjectDataItem[] = [];
 
 			template.objectWidget.items.forEach((item, idx) => {
 				// Item was updated
@@ -2025,7 +2025,7 @@ class SyncSettingAction extends Action {
 		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
 		super(SyncSettingAction.ID, SyncSettingAction.LABEL);
-		this._register(Event.filter(configService.onDidChangeConfiguration, e => e.affectsConfiguration('sync.ignoredSettings'))(() => this.update()));
+		this._register(Event.filter(configService.onDidChangeConfiguration, e => e.affectsConfiguration('settingsSync.ignoredSettings'))(() => this.update()));
 		this.update();
 	}
 
@@ -2036,7 +2036,7 @@ class SyncSettingAction extends Action {
 
 	async run(): Promise<void> {
 		// first remove the current setting completely from ignored settings
-		let currentValue = [...this.configService.getValue<string[]>('sync.ignoredSettings')];
+		let currentValue = [...this.configService.getValue<string[]>('settingsSync.ignoredSettings')];
 		currentValue = currentValue.filter(v => v !== this.setting.key && v !== `-${this.setting.key}`);
 
 		const defaultIgnoredSettings = getDefaultIgnoredSettings();
@@ -2053,7 +2053,7 @@ class SyncSettingAction extends Action {
 			currentValue.push(this.setting.key);
 		}
 
-		this.configService.updateValue('sync.ignoredSettings', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
+		this.configService.updateValue('settingsSync.ignoredSettings', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
 
 		return Promise.resolve(undefined);
 	}

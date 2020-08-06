@@ -172,7 +172,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		this.saveViewState();
 		// decorations need to be cleared first as editors can be resued.
 		this._resolvedDecorations.forEach(value => {
-			let resolvedid = value.id;
+			const resolvedid = value.id;
 
 			if (resolvedid) {
 				this._textEditor?.deltaDecorations([resolvedid], []);

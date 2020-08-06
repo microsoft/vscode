@@ -99,6 +99,7 @@
 	"config.branchWhitespaceChar": "The character to replace whitespace in new branch names.",
 	"config.ignoreLegacyWarning": "Ignores the legacy Git warning.",
 	"config.ignoreMissingGitWarning": "Ignores the warning when Git is missing.",
+	"config.ignoreWindowsGit27Warning": "Ignores the warning when Git 2.25 - 2.26 is installed on Windows.",
 	"config.ignoreLimitWarning": "Ignores the warning when there are too many changes in a repository.",
 	"config.defaultCloneDirectory": "The default location to clone a git repository.",
 	"config.enableSmartCommit": "Commit all changes when there are no staged changes.",

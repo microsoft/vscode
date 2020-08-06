@@ -244,13 +244,13 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 	private setAllFindMatchesDecorations(cellFindMatches: CellFindMatch[]) {
 		this._notebookEditor.changeModelDecorations((accessor) => {
 
-			let findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;
+			const findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;
 
-			let deltaDecorations: ICellModelDeltaDecorations[] = cellFindMatches.map(cellFindMatch => {
+			const deltaDecorations: ICellModelDeltaDecorations[] = cellFindMatches.map(cellFindMatch => {
 				const findMatches = cellFindMatch.matches;
 
 				// Find matches
-				let newFindMatchesDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(findMatches.length);
+				const newFindMatchesDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(findMatches.length);
 				for (let i = 0, len = findMatches.length; i < len; i++) {
 					newFindMatchesDecorations[i] = {
 						range: findMatches[i].range,
@@ -355,8 +355,8 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		let editorService = accessor.get(IEditorService);
-		let editor = getActiveNotebookEditor(editorService);
+		const editorService = accessor.get(IEditorService);
+		const editor = getActiveNotebookEditor(editorService);
 
 		if (!editor) {
 			return;
@@ -382,8 +382,8 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		let editorService = accessor.get(IEditorService);
-		let editor = getActiveNotebookEditor(editorService);
+		const editorService = accessor.get(IEditorService);
+		const editor = getActiveNotebookEditor(editorService);
 
 		if (!editor) {
 			return;
@@ -395,8 +395,8 @@ registerAction2(class extends Action2 {
 });
 
 EditorStartFindAction.addImplementation(100, (accessor: ServicesAccessor, args: any) => {
-	let editorService = accessor.get(IEditorService);
-	let editor = getActiveNotebookEditor(editorService);
+	const editorService = accessor.get(IEditorService);
+	const editor = getActiveNotebookEditor(editorService);
 
 	if (!editor) {
 		return false;
@@ -408,8 +408,8 @@ EditorStartFindAction.addImplementation(100, (accessor: ServicesAccessor, args: 
 });
 
 EditorStartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, args: any) => {
-	let editorService = accessor.get(IEditorService);
-	let editor = getActiveNotebookEditor(editorService);
+	const editorService = accessor.get(IEditorService);
+	const editor = getActiveNotebookEditor(editorService);
 
 	if (!editor) {
 		return false;

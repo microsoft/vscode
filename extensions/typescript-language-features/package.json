@@ -689,16 +689,16 @@
         "typescript.preferences.includePackageJsonAutoImports": {
           "type": "string",
           "enum": [
-            "all",
-            "exclude-dev",
-            "none"
+            "auto",
+            "on",
+            "off"
           ],
           "enumDescriptions": [
-            "%typescript.preferences.includePackageJsonAutoImports.all%",
-            "%typescript.preferences.includePackageJsonAutoImports.excludeDev%",
-            "%typescript.preferences.includePackageJsonAutoImports.none%"
+            "%typescript.preferences.includePackageJsonAutoImports.auto%",
+            "%typescript.preferences.includePackageJsonAutoImports.on%",
+            "%typescript.preferences.includePackageJsonAutoImports.off%"
           ],
-          "default": "exclude-dev",
+          "default": "auto",
           "markdownDescription": "%typescript.preferences.includePackageJsonAutoImports%",
           "scope": "window"
         },

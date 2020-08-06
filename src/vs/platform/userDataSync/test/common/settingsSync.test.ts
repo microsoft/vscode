@@ -79,6 +79,61 @@ suite('SettingsSync - Auto', () => {
 		assert.deepEqual(server.requests, []);
 	});
 
+	test('when settings file is empty and remote has no changes', async () => {
+		const fileService = client.instantiationService.get(IFileService);
+		const settingsResource = client.instantiationService.get(IEnvironmentService).settingsResource;
+		await fileService.writeFile(settingsResource, VSBuffer.fromString(''));
+
+		await testObject.sync(await client.manifest());
+
+		const lastSyncUserData = await testObject.getLastSyncUserData();
+		const remoteUserData = await testObject.getRemoteUserData(null);
+		assert.equal(testObject.parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
+		assert.equal(testObject.parseSettingsSyncContent(remoteUserData!.syncData!.content!)?.settings, '{}');
+		assert.equal((await fileService.readFile(settingsResource)).value.toString(), '');
+	});
+
+	test('when settings file is empty and remote has changes', async () => {
+		const client2 = disposableStore.add(new UserDataSyncClient(server));
+		await client2.setUp(true);
+		const content =
+			`{
+	// Always
+	"files.autoSave": "afterDelay",
+	"files.simpleDialog.enable": true,
+
+	// Workbench
+	"workbench.colorTheme": "GitHub Sharp",
+	"workbench.tree.indent": 20,
+	"workbench.colorCustomizations": {
+		"editorLineNumber.activeForeground": "#ff0000",
+		"[GitHub Sharp]": {
+			"statusBarItem.remoteBackground": "#24292E",
+			"editorPane.background": "#f3f1f11a"
+		}
+	},
+
+	"gitBranch.base": "remote-repo/master",
+
+	// Experimental
+	"workbench.view.experimental.allowMovingToNewContainer": true,
+}`;
+		await client2.instantiationService.get(IFileService).writeFile(client2.instantiationService.get(IEnvironmentService).settingsResource, VSBuffer.fromString(content));
+		await client2.sync();
+
+		const fileService = client.instantiationService.get(IFileService);
+		const settingsResource = client.instantiationService.get(IEnvironmentService).settingsResource;
+		await fileService.writeFile(settingsResource, VSBuffer.fromString(''));
+
+		await testObject.sync(await client.manifest());
+
+		const lastSyncUserData = await testObject.getLastSyncUserData();
+		const remoteUserData = await testObject.getRemoteUserData(null);
+		assert.equal(testObject.parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, content);
+		assert.equal(testObject.parseSettingsSyncContent(remoteUserData!.syncData!.content!)?.settings, content);
+		assert.equal((await fileService.readFile(settingsResource)).value.toString(), content);
+	});
+
 	test('when settings file is created after first sync', async () => {
 		const fileService = client.instantiationService.get(IFileService);
 
@@ -300,7 +355,7 @@ suite('SettingsSync - Auto', () => {
 	"workbench.colorTheme": "GitHub Sharp",
 
 	// Ignored
-	"sync.ignoredSettings": [
+	"settingsSync.ignoredSettings": [
 		"editor.fontFamily",
 		"terminal.integrated.shell.osx"
 	]
@@ -321,7 +376,7 @@ suite('SettingsSync - Auto', () => {
 	"workbench.colorTheme": "GitHub Sharp",
 
 	// Ignored
-	"sync.ignoredSettings": [
+	"settingsSync.ignoredSettings": [
 		"editor.fontFamily",
 		"terminal.integrated.shell.osx"
 	]
@@ -345,7 +400,7 @@ suite('SettingsSync - Auto', () => {
 	"workbench.colorTheme": "GitHub Sharp",
 
 	// Ignored
-	"sync.ignoredSettings": [
+	"settingsSync.ignoredSettings": [
 		"editor.fontFamily",
 		"terminal.integrated.shell.osx"
 	],
@@ -369,7 +424,7 @@ suite('SettingsSync - Auto', () => {
 	"workbench.colorTheme": "GitHub Sharp",
 
 	// Ignored
-	"sync.ignoredSettings": [
+	"settingsSync.ignoredSettings": [
 		"editor.fontFamily",
 		"terminal.integrated.shell.osx"
 	],
@@ -417,14 +472,14 @@ suite('SettingsSync - Auto', () => {
 		await updateSettings(JSON.stringify({
 			'a': 1,
 			'b': 2,
-			'sync.ignoredSettings': ['a']
+			'settingsSync.ignoredSettings': ['a']
 		}), client2);
 		await client2.sync();
 
 		await updateSettings(JSON.stringify({
 			'a': 2,
 			'b': 1,
-			'sync.ignoredSettings': ['a']
+			'settingsSync.ignoredSettings': ['a']
 		}), client);
 		await testObject.sync(await client.manifest());
 
@@ -435,7 +490,7 @@ suite('SettingsSync - Auto', () => {
 		const mergeContent = (await fileService.readFile(testObject.conflicts[0].previewResource)).value.toString();
 		assert.deepEqual(JSON.parse(mergeContent), {
 			'b': 1,
-			'sync.ignoredSettings': ['a']
+			'settingsSync.ignoredSettings': ['a']
 		});
 	});
 
@@ -474,7 +529,7 @@ suite('SettingsSync - Manual', () => {
 	"workbench.colorTheme": "GitHub Sharp",
 
 	// Ignored
-	"sync.ignoredSettings": [
+	"settingsSync.ignoredSettings": [
 		"editor.fontFamily",
 		"terminal.integrated.shell.osx"
 	]
@@ -498,7 +553,7 @@ suite('SettingsSync - Manual', () => {
 	"workbench.colorTheme": "GitHub Sharp",
 
 	// Ignored
-	"sync.ignoredSettings": [
+	"settingsSync.ignoredSettings": [
 		"editor.fontFamily",
 		"terminal.integrated.shell.osx"
 	]

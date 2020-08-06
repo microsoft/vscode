@@ -27,6 +27,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { localize } from 'vs/nls';
 import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -38,7 +39,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CELL_TOP_MARGIN, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CancelCellAction, ChangeCellLanguageAction, ExecuteCellAction, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { BaseCellRenderTemplate, CellEditState, CodeCellRenderTemplate, ICellViewModel, INotebookCellList, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CodeCellRenderTemplate, EXPAND_CELL_CONTENT_COMMAND_ID, ICellViewModel, INotebookCellList, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
@@ -283,13 +284,34 @@ abstract class AbstractCellRenderer {
 			}
 		};
 
+		// #103926
+		let dropdownIsVisible = false;
+		let deferredUpdate: (() => void) | undefined;
+
 		updateActions();
 		disposables.add(templateData.titleMenu.onDidChange(() => {
 			if (this.notebookEditor.isDisposed) {
 				return;
 			}
 
+			if (dropdownIsVisible) {
+				deferredUpdate = () => updateActions();
+				return;
+			}
+
 			updateActions();
+		}));
+		disposables.add(templateData.toolbar.onDidChangeDropdownVisibility(visible => {
+			dropdownIsVisible = visible;
+
+			if (deferredUpdate && !visible) {
+				setTimeout(() => {
+					if (deferredUpdate) {
+						deferredUpdate();
+					}
+				}, 0);
+				deferredUpdate = undefined;
+			}
 		}));
 	}
 
@@ -329,6 +351,13 @@ abstract class AbstractCellRenderer {
 		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part'));
 		collapsedPart.innerHTML = renderCodicons('$(unfold)');
 		const expandButton = collapsedPart.querySelector('.codicon') as HTMLElement;
+		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_CONTENT_COMMAND_ID);
+		let title = localize('cellExpandButtonLabel', "Expand");
+		if (keybinding) {
+			title += ` (${keybinding.getLabel()})`;
+		}
+
+		collapsedPart.title = title;
 		DOM.hide(collapsedPart);
 
 		return { collapsedPart, expandButton };
@@ -439,7 +468,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		templateData.currentEditor = undefined;
 		templateData.editorPart!.style.display = 'none';
 		templateData.cellContainer.innerText = '';
-		let renderedHTML = element.getHTML();
+		const renderedHTML = element.getHTML();
 		if (renderedHTML) {
 			templateData.cellContainer.appendChild(renderedHTML);
 		}
@@ -717,14 +746,21 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	private async moveCells(draggedCells: ICellViewModel[], ontoCell: ICellViewModel, direction: 'above' | 'below') {
-		const relativeToIndex = this.notebookEditor!.viewModel!.getCellIndex(ontoCell);
-		const newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
-
 		this.notebookEditor.textModel!.pushStackElement('Move Cells');
-		for (let i = draggedCells.length - 1; i >= 0; i--) {
-			await this.notebookEditor.moveCellToIdx(draggedCells[i], newIdx);
-		}
+		if (direction === 'above') {
+			const relativeToIndex = this.notebookEditor!.viewModel!.getCellIndex(ontoCell);
+			const newIdx = relativeToIndex;
 
+			for (let i = draggedCells.length - 1; i >= 0; i--) {
+				await this.notebookEditor.moveCellToIdx(draggedCells[i], newIdx);
+			}
+		} else {
+			for (let i = draggedCells.length - 1; i >= 0; i--) {
+				const relativeToIndex = this.notebookEditor!.viewModel!.getCellIndex(ontoCell);
+				const newIdx = relativeToIndex + 1;
+				await this.notebookEditor.moveCellToIdx(draggedCells[i], newIdx);
+			}
+		}
 		this.notebookEditor.textModel!.pushStackElement('Move Cells');
 	}
 
@@ -842,8 +878,8 @@ class EditorTextRenderer {
 	}
 
 	private getDefaultColorMap(): string[] {
-		let colorMap = modes.TokenizationRegistry.getColorMap();
-		let result: string[] = ['#000000'];
+		const colorMap = modes.TokenizationRegistry.getColorMap();
+		const result: string[] = ['#000000'];
 		if (colorMap) {
 			for (let i = 1, len = colorMap.length; i < len; i++) {
 				result[i] = Color.Format.CSS.formatHex(colorMap[i]);

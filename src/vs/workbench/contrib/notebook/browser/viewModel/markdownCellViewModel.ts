@@ -156,7 +156,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 			if (this._html) {
 				return this._html;
 			}
-			let renderer = this.getMarkdownRenderer();
+			const renderer = this.getMarkdownRenderer();
 			const text = this.getText();
 
 			if (text.length === 0) {

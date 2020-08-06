@@ -71,8 +71,8 @@ async function getBuiltInExtensionInfos() {
 	const locations = {};
 
 	const [localExtensions, marketplaceExtensions] = await Promise.all([
-		extensions.scanBuiltinExtensions(BUILTIN_EXTENSIONS_ROOT, true),
-		extensions.scanBuiltinExtensions(BUILTIN_MARKETPLACE_EXTENSIONS_ROOT, true),
+		extensions.scanBuiltinExtensions(BUILTIN_EXTENSIONS_ROOT),
+		extensions.scanBuiltinExtensions(BUILTIN_MARKETPLACE_EXTENSIONS_ROOT),
 	]);
 	for (const ext of localExtensions) {
 		allExtensions.push(ext);
@@ -239,7 +239,9 @@ async function handleExtension(req, res, parsedUrl) {
 	if (!filePath) {
 		return serveError(req, res, 400, `Bad request.`);
 	}
-	return serveFile(req, res, filePath);
+	return serveFile(req, res, filePath, {
+		'Access-Control-Allow-Origin': '*'
+	});
 }
 
 /**

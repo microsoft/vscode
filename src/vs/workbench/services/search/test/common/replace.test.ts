@@ -8,7 +8,7 @@ import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 suite('Replace Pattern test', () => {
 
 	test('parse replace string', () => {
-		let testParse = (input: string, expected: string, expectedHasParameters: boolean) => {
+		const testParse = (input: string, expected: string, expectedHasParameters: boolean) => {
 			let actual = new ReplacePattern(input, { pattern: 'somepattern', isRegExp: true });
 			assert.equal(expected, actual.pattern);
 			assert.equal(expectedHasParameters, actual.hasParameters);

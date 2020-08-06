@@ -107,6 +107,7 @@ export interface IContentWidgetTopRequest {
 export interface IViewScrollTopRequestMessage {
 	type: 'view-scroll';
 	top?: number;
+	forceDisplay: boolean;
 	widgets: IContentWidgetTopRequest[];
 	version: number;
 }
@@ -273,6 +274,10 @@ export class BackLayerWebView extends Disposable {
 						background-color: var(--vscode-notebook-symbolHighlightBackground);
 					}
 
+					#container > div > div > div {
+						overflow-x: scroll;
+					}
+
 					body {
 						padding: 0px;
 						height: 100%;
@@ -338,6 +343,13 @@ export class BackLayerWebView extends Disposable {
 		const output = this.reversedInsetMapping.get(id);
 		if (!output) {
 			return;
+		}
+
+		const cell = this.insetMapping.get(output)!.cell;
+
+		const currCell = this.notebookEditor.viewModel?.viewCells.find(vc => vc.handle === cell.handle);
+		if (currCell !== cell && currCell !== undefined) {
+			this.insetMapping.get(output)!.cell = currCell as CodeCellViewModel;
 		}
 
 		return { cell: this.insetMapping.get(output)!.cell, output };
@@ -427,13 +439,13 @@ ${loaderJs}
 
 			if (data.__vscode_notebook_message) {
 				if (data.type === 'dimension') {
-					let height = data.data.height;
-					let outputHeight = height;
+					const height = data.data.height;
+					const outputHeight = height;
 
 					const info = this.resolveOutputId(data.id);
 					if (info) {
 						const { cell, output } = info;
-						let outputIndex = cell.outputs.indexOf(output);
+						const outputIndex = cell.outputs.indexOf(output);
 						cell.updateOutputHeight(outputIndex, outputHeight);
 						this.notebookEditor.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
 					}
@@ -545,7 +557,7 @@ ${loaderJs}
 			resolveFunc = resolve;
 		});
 
-		let dispose = webview.onMessage((data: FromWebviewMessage) => {
+		const dispose = webview.onMessage((data: FromWebviewMessage) => {
 			if (data.__vscode_notebook_message && data.type === 'initialized') {
 				resolveFunc();
 				dispose.dispose();
@@ -565,9 +577,9 @@ ${loaderJs}
 			return false;
 		}
 
-		let outputCache = this.insetMapping.get(output)!;
-		let outputIndex = cell.outputs.indexOf(output);
-		let outputOffset = cellTop + cell.getOutputOffset(outputIndex);
+		const outputCache = this.insetMapping.get(output)!;
+		const outputIndex = cell.outputs.indexOf(output);
+		const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
 
 		if (this.hiddenInsetMapping.has(output)) {
 			return true;
@@ -580,17 +592,17 @@ ${loaderJs}
 		return true;
 	}
 
-	updateViewScrollTop(top: number, items: { cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number }[]) {
+	updateViewScrollTop(top: number, forceDisplay: boolean, items: { cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number }[]) {
 		if (this._disposed) {
 			return;
 		}
 
-		let widgets: IContentWidgetTopRequest[] = items.map(item => {
-			let outputCache = this.insetMapping.get(item.output)!;
-			let id = outputCache.outputId;
-			let outputIndex = item.cell.outputs.indexOf(item.output);
+		const widgets: IContentWidgetTopRequest[] = items.map(item => {
+			const outputCache = this.insetMapping.get(item.output)!;
+			const id = outputCache.outputId;
+			const outputIndex = item.cell.outputs.indexOf(item.output);
 
-			let outputOffset = item.cellTop + item.cell.getOutputOffset(outputIndex);
+			const outputOffset = item.cellTop + item.cell.getOutputOffset(outputIndex);
 			outputCache.cachedCreation.top = outputOffset;
 			this.hiddenInsetMapping.delete(item.output);
 
@@ -605,6 +617,7 @@ ${loaderJs}
 			top,
 			type: 'view-scroll',
 			version: version++,
+			forceDisplay,
 			widgets: widgets
 		});
 	}
@@ -615,10 +628,10 @@ ${loaderJs}
 		}
 
 		const requiredPreloads = await this.updateRendererPreloads(preloads);
-		let initialTop = cellTop + offset;
+		const initialTop = cellTop + offset;
 
 		if (this.insetMapping.has(output)) {
-			let outputCache = this.insetMapping.get(output);
+			const outputCache = this.insetMapping.get(output);
 
 			if (outputCache) {
 				this.hiddenInsetMapping.delete(output);
@@ -632,7 +645,7 @@ ${loaderJs}
 			}
 		}
 
-		let outputId = output.outputKind === CellOutputKind.Rich ? output.outputId : UUID.generateUuid();
+		const outputId = output.outputKind === CellOutputKind.Rich ? output.outputId : UUID.generateUuid();
 		let apiNamespace: string | undefined;
 		if (output.outputKind === CellOutputKind.Rich && output.pickedMimeTypeIndex !== undefined) {
 			const pickedMimeTypeRenderer = output.orderedMimeTypes?.[output.pickedMimeTypeIndex];
@@ -641,7 +654,7 @@ ${loaderJs}
 			}
 		}
 
-		let message: ICreationRequestMessage = {
+		const message: ICreationRequestMessage = {
 			type: 'html',
 			content: shadowContent,
 			cellId: cell.id,
@@ -663,12 +676,12 @@ ${loaderJs}
 			return;
 		}
 
-		let outputCache = this.insetMapping.get(output);
+		const outputCache = this.insetMapping.get(output);
 		if (!outputCache) {
 			return;
 		}
 
-		let id = outputCache.outputId;
+		const id = outputCache.outputId;
 
 		this._sendMessageToWebview({
 			type: 'clearOutput',
@@ -686,7 +699,7 @@ ${loaderJs}
 			return;
 		}
 
-		let outputCache = this.insetMapping.get(output);
+		const outputCache = this.insetMapping.get(output);
 		if (!outputCache) {
 			return;
 		}
@@ -752,7 +765,7 @@ ${loaderJs}
 
 		await this._loaded;
 
-		let resources: IPreloadResource[] = [];
+		const resources: IPreloadResource[] = [];
 		preloads = preloads.map(preload => {
 			if (this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')) {
 				return preload;
@@ -782,14 +795,14 @@ ${loaderJs}
 
 		await this._loaded;
 
-		let requiredPreloads: IPreloadResource[] = [];
-		let resources: IPreloadResource[] = [];
-		let extensionLocations: URI[] = [];
+		const requiredPreloads: IPreloadResource[] = [];
+		const resources: IPreloadResource[] = [];
+		const extensionLocations: URI[] = [];
 		preloads.forEach(preload => {
-			let rendererInfo = this.notebookService.getRendererInfo(preload);
+			const rendererInfo = this.notebookService.getRendererInfo(preload);
 
 			if (rendererInfo) {
-				let preloadResources = rendererInfo.preloads.map(preloadResource => {
+				const preloadResources = rendererInfo.preloads.map(preloadResource => {
 					if (this.environmentService.isExtensionDevelopment && (preloadResource.scheme === 'http' || preloadResource.scheme === 'https')) {
 						return preloadResource;
 					}

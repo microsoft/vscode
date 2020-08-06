@@ -523,7 +523,6 @@ function focusElement(accessor: ServicesAccessor, retainCurrentFocus: boolean): 
 			}
 		}
 		tree.setSelection(focus, fakeKeyboardEvent);
-		tree.open(fakeKeyboardEvent);
 	}
 }
 

@@ -191,7 +191,7 @@ function fromMarketplace(extensionName, version, metadata) {
         .pipe(packageJsonFilter.restore);
 }
 exports.fromMarketplace = fromMarketplace;
-const excludedCommonExtensions = [
+const excludedExtensions = [
     'vscode-api-tests',
     'vscode-colorize-tests',
     'vscode-test-resolver',
@@ -200,15 +200,12 @@ const excludedCommonExtensions = [
     'vscode-notebook-tests',
     'vscode-custom-editor-tests',
 ];
-const excludedDesktopExtensions = excludedCommonExtensions.concat([
-    'vscode-web-playground',
-]);
-const excludedWebExtensions = excludedCommonExtensions.concat([]);
 const marketplaceWebExtensions = [
-    'ms-vscode.references-view',
-    'ms-vscode.github-browser'
+    'ms-vscode.references-view'
 ];
-const builtInExtensions = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8')).builtInExtensions;
+const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
+const builtInExtensions = productJson.builtInExtensions || [];
+const webBuiltInExtensions = productJson.webBuiltInExtensions || [];
 /**
  * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionsUtil.ts`
  */
@@ -220,7 +217,6 @@ function isWebExtension(manifest) {
     return (!Boolean(manifest.main) || Boolean(manifest.browser));
 }
 function packageLocalExtensionsStream(forWeb) {
-    const excludedLocalExtensions = (forWeb ? excludedWebExtensions : excludedDesktopExtensions);
     const localExtensionsDescriptions = (glob.sync('extensions/*/package.json')
         .map(manifestPath => {
         const absoluteManifestPath = path.join(root, manifestPath);
@@ -228,7 +224,8 @@ function packageLocalExtensionsStream(forWeb) {
         const extensionName = path.basename(extensionPath);
         return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
     })
-        .filter(({ name }) => excludedLocalExtensions.indexOf(name) === -1)
+        .filter(({ name }) => (name === 'vscode-web-playground' ? forWeb : true)) // package vscode-web-playground only for web
+        .filter(({ name }) => excludedExtensions.indexOf(name) === -1)
         .filter(({ name }) => builtInExtensions.every(b => b.name !== name))
         .filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true)));
     const localExtensionsStream = minifyExtensionResources(es.merge(...localExtensionsDescriptions.map(extension => {
@@ -248,8 +245,10 @@ function packageLocalExtensionsStream(forWeb) {
 }
 exports.packageLocalExtensionsStream = packageLocalExtensionsStream;
 function packageMarketplaceExtensionsStream(forWeb) {
-    const marketplaceExtensionsDescriptions = (builtInExtensions
-        .filter(({ name }) => (forWeb ? marketplaceWebExtensions.indexOf(name) >= 0 : true)));
+    const marketplaceExtensionsDescriptions = [
+        ...builtInExtensions.filter(({ name }) => (forWeb ? marketplaceWebExtensions.indexOf(name) >= 0 : true)),
+        ...(forWeb ? webBuiltInExtensions : [])
+    ];
     const marketplaceExtensionsStream = minifyExtensionResources(es.merge(...marketplaceExtensionsDescriptions
         .map(extension => {
         const input = fromMarketplace(extension.name, extension.version, extension.metadata)
@@ -265,17 +264,20 @@ function packageMarketplaceExtensionsStream(forWeb) {
         .pipe(util2.setExecutableBit(['**/*.sh'])));
 }
 exports.packageMarketplaceExtensionsStream = packageMarketplaceExtensionsStream;
-function scanBuiltinExtensions(extensionsRoot, forWeb) {
+function scanBuiltinExtensions(extensionsRoot, exclude = []) {
     const scannedExtensions = [];
     try {
         const extensionsFolders = fs.readdirSync(extensionsRoot);
         for (const extensionFolder of extensionsFolders) {
+            if (exclude.indexOf(extensionFolder) >= 0) {
+                continue;
+            }
             const packageJSONPath = path.join(extensionsRoot, extensionFolder, 'package.json');
             if (!fs.existsSync(packageJSONPath)) {
                 continue;
             }
             let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
-            if (forWeb && !isWebExtension(packageJSON)) {
+            if (!isWebExtension(packageJSON)) {
                 continue;
             }
             const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
