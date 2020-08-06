@@ -62,7 +62,7 @@
 	"configuration.tsserver.experimental.enableProjectDiagnostics": "(Experimental) Enables project wide error reporting.",
 	"typescript.locale": "Sets the locale used to report JavaScript and TypeScript errors. Requires using TypeScript 2.6.0 or newer in the workspace. Default of `null` uses VS Code's locale.",
 	"javascript.implicitProjectConfig.experimentalDecorators": "Enable/disable `experimentalDecorators` for JavaScript files that are not part of a project. Existing jsconfig.json or tsconfig.json files override this setting. Requires using TypeScript 2.3.1 or newer in the workspace.",
-	"configuration.suggest.autoImports": "Enable/disable auto import suggestions. Requires using TypeScript 2.6.1 or newer in the workspace.",
+	"configuration.suggest.autoImports": "Enable/disable auto import suggestions. Requires using TypeScript 3.0 or newer in the workspace.",
 	"taskDefinition.tsconfig.description": "The tsconfig file that defines the TS build.",
 	"javascript.suggestionActions.enabled": "Enable/disable suggestion diagnostics for JavaScript files in the editor. Requires using TypeScript 2.8 or newer in the workspace.",
 	"typescript.suggestionActions.enabled": "Enable/disable suggestion diagnostics for TypeScript files in the editor. Requires using TypeScript 2.8 or newer in the workspace.",
