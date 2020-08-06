@@ -509,7 +509,10 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.settingsTree.reveal(elements[0], sourceTop);
-			// Set focus on the element once the link is clicked
+
+			// We need to shift focus from the setting that contains the link to the setting that's
+			//  linked. Clicking on the link sets focus on the setting that contains the link,
+			//  which is why we need the setTimeout
 			setTimeout(() => this.settingsTree.setFocus([elements[0]]), 50);
 
 			const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
@@ -617,8 +620,7 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
 				this.settingsTree.reveal(element, 0);
-				// Focus on the group heading after setting the status
-				setTimeout(() => this.settingsTree.setFocus([element]), 0);
+				this.settingsTree.setFocus([element]);
 			}
 		}));
 
