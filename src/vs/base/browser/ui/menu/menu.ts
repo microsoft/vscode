@@ -835,7 +835,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 		if (!this.parentData.submenu) {
 			this.updateAriaExpanded('true');
-			this.submenuContainer = document.createElement('div.monaco-submenu');
+			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
 			addClasses(this.submenuContainer, 'menubar-menu-items-holder', 'context-view');
 
 			// Set the top value of the menu container before construction
