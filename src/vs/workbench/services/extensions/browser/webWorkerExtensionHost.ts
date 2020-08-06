@@ -98,10 +98,11 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const escapeAttribute = (value: string): string => {
 			return value.replace(/"/g, '&quot;');
 		};
+		const isBuilt = this._environmentService.isBuilt;
 		const html = `<!DOCTYPE html>
 <html>
 	<head>
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-eval' '${WEB_WORKER_IFRAME.sha}' *; worker-src data:; connect-src *" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-eval' '${WEB_WORKER_IFRAME.sha}' ${isBuilt ? 'https:' : 'http: https:'}; worker-src data:; connect-src ${isBuilt ? 'https:' : 'http: https:'}" />
 		<meta id="vscode-worker-src" data-value="${escapeAttribute(workerSrc)}" />
 		<meta id="vscode-web-worker-ext-host-id" data-value="${escapeAttribute(vscodeWebWorkerExtHostId)}" />
 	</head>
