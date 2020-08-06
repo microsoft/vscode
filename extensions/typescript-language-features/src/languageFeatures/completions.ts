@@ -643,7 +643,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 				const { snippet, parameterCount } = snippetForFunctionCall(item, detail.displayParts);
 				item.insertText = snippet;
 				if (parameterCount > 0) {
-					commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+					//Fix for https://github.com/microsoft/vscode/issues/104059
+					//Don't show parameter hints if "editor.parameterHints.enabled": false
+					if (vscode.workspace.getConfiguration('editor.parameterHints').get('enabled')) {
+						commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+					}
 				}
 			}
 		}
