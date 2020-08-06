@@ -179,10 +179,6 @@ const server = http.createServer((req, res) => {
 			// default extension requests
 			return handleExtension(req, res, parsedUrl);
 		}
-		if (/^\/builtin-extension\//.test(pathname)) {
-			// built-in extension requests
-			return handleBuiltInExtension(req, res, parsedUrl);
-		}
 		if (pathname === '/') {
 			// main web
 			return handleRoot(req, res);
@@ -219,7 +215,18 @@ server.on('error', err => {
  * @param {import('http').ServerResponse} res
  * @param {import('url').UrlWithParsedQuery} parsedUrl
  */
-function handleStatic(req, res, parsedUrl) {
+async function handleStatic(req, res, parsedUrl) {
+
+	if (/^\/static\/extensions\//.test(parsedUrl.pathname)) {
+		const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/static/extensions/'.length));
+		const filePath = getExtensionFilePath(relativePath, (await builtInExtensionsPromise).locations);
+		if (!filePath) {
+			return serveError(req, res, 400, `Bad request.`);
+		}
+		return serveFile(req, res, filePath, {
+			'Access-Control-Allow-Origin': '*'
+		});
+	}
 
 	// Strip `/static/` from the path
 	const relativeFilePath = path.normalize(decodeURIComponent(parsedUrl.pathname.substr('/static/'.length)));
@@ -236,23 +243,6 @@ async function handleExtension(req, res, parsedUrl) {
 	// Strip `/extension/` from the path
 	const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/extension/'.length));
 	const filePath = getExtensionFilePath(relativePath, (await defaultExtensionsPromise).locations);
-	if (!filePath) {
-		return serveError(req, res, 400, `Bad request.`);
-	}
-	return serveFile(req, res, filePath, {
-		'Access-Control-Allow-Origin': '*'
-	});
-}
-
-/**
- * @param {import('http').IncomingMessage} req
- * @param {import('http').ServerResponse} res
- * @param {import('url').UrlWithParsedQuery} parsedUrl
- */
-async function handleBuiltInExtension(req, res, parsedUrl) {
-	// Strip `/builtin-extension/` from the path
-	const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/builtin-extension/'.length));
-	const filePath = getExtensionFilePath(relativePath, (await builtInExtensionsPromise).locations);
 	if (!filePath) {
 		return serveError(req, res, 400, `Bad request.`);
 	}
@@ -306,7 +296,7 @@ async function handleRoot(req, res) {
 	const webConfigJSON = escapeAttribute(JSON.stringify({
 		folderUri: folderUri,
 		staticExtensions,
-		builtinExtensionsServiceUrl: `${SCHEME}://${AUTHORITY}/builtin-extension`
+		builtinExtensionsServiceUrl: `${SCHEME}://${AUTHORITY}/static/extensions`
 	}));
 
 	const data = (await readFile(WEB_MAIN)).toString()
