@@ -212,14 +212,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 								}
 							},
 							{
-								label: localize('accept merges', "Accept Merges"),
+								label: localize('accept local', "Accept Local"),
 								run: () => {
 									this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: 'acceptLocal' });
 									this.acceptLocal(syncResource, conflicts);
 								}
 							},
 							{
-								label: localize('show merges', "Show Merges"),
+								label: localize('show conflicts', "Show Conflicts"),
 								run: () => {
 									this.telemetryService.publicLog2<{ source: string, action?: string }, SyncConflictsClassification>('sync/showConflicts', { source: syncResource });
 									this.handleConflicts([syncResource, conflicts]);
@@ -266,7 +266,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private async acceptLocal(syncResource: SyncResource, conflicts: IResourcePreview[]): Promise<void> {
 		try {
 			for (const conflict of conflicts) {
-				await this.userDataSyncService.accept(syncResource, conflict.previewResource, undefined, this.userDataAutoSyncService.isEnabled());
+				await this.userDataSyncService.accept(syncResource, conflict.localResource, undefined, this.userDataAutoSyncService.isEnabled());
 			}
 		} catch (e) {
 			this.notificationService.error(e);
