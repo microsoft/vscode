@@ -124,7 +124,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		}
 
 		const namePrefix = `${this.productService.nameLong} (${PlatformToString(isWeb ? Platform.Web : platform)})`;
-		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s#(\\d)`);
+		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s#(\\d+)`);
 		let nameIndex = 0;
 		for (const machine of machines) {
 			const matches = nameRegEx.exec(machine.name);
