@@ -54,6 +54,14 @@ export class SCMViewPaneContainer extends ViewPaneContainer {
 		addClass(parent, 'scm-viewlet');
 	}
 
+	getActionsContext(): unknown {
+		if (this.scmService.repositories.length === 1) {
+			return this.scmService.repositories[0].provider;
+		}
+
+		return undefined;
+	}
+
 	getOptimalWidth(): number {
 		return 400;
 	}

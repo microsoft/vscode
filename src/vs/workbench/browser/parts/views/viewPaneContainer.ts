@@ -1070,6 +1070,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return [];
 	}
 
+	getActionsContext(): unknown {
+		return undefined;
+	}
+
 	getViewsVisibilityActions(): IAction[] {
 		return this.viewContainerModel.activeViewDescriptors.map(viewDescriptor => (<IAction>{
 			id: `${viewDescriptor.id}.toggleVisibility`,
