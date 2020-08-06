@@ -84,6 +84,17 @@ async function getBuiltInExtensionInfos() {
 		allExtensions.push(ext);
 		locations[ext.extensionPath] = path.join(BUILTIN_MARKETPLACE_EXTENSIONS_ROOT, ext.extensionPath);
 	}
+	for (const ext of allExtensions) {
+		if (ext.packageJSON.browser) {
+			let mainFilePath = path.join(locations[ext.extensionPath], ext.packageJSON.browser);
+			if (path.extname(mainFilePath) !== '.js') {
+				mainFilePath += '.js';
+			}
+			if (!await exists(mainFilePath)) {
+				fancyLog(`${ansiColors.red('Error')}: Could not find ${mainFilePath}. Use ${ansiColors.cyan('yarn watch-web')} to build the built-in extensions.`);
+			}
+		}
+	}
 	return { extensions: allExtensions, locations };
 }
 
@@ -122,16 +133,6 @@ async function getExtensionPackageJSON(extensionPath) {
 			let packageJSON = JSON.parse((await readFile(packageJSONPath)).toString());
 			if (packageJSON.main && !packageJSON.browser) {
 				return; // unsupported
-			}
-
-			if (packageJSON.browser) {
-				let mainFilePath = path.join(extensionPath, packageJSON.browser);
-				if (path.extname(mainFilePath) !== '.js') {
-					mainFilePath += '.js';
-				}
-				if (!await exists(mainFilePath)) {
-					fancyLog(`${ansiColors.yellow('Warning')}: Could not find ${mainFilePath}. Use ${ansiColors.cyan('yarn gulp watch-web')} to build the built-in extensions.`);
-				}
 			}
 
 			const packageNLSPath = path.join(extensionPath, 'package.nls.json');
