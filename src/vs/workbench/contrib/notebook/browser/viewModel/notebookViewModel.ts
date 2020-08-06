@@ -1070,6 +1070,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	async undo() {
+		if (!this.metadata.editable) {
+			return;
+		}
+
 		const editStack = this._undoService.getElements(this.uri);
 		const element = editStack.past.length ? editStack.past[editStack.past.length - 1] : undefined;
 
@@ -1083,6 +1087,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	async redo() {
+		if (!this.metadata.editable) {
+			return;
+		}
+
 		const editStack = this._undoService.getElements(this.uri);
 		const element = editStack.future[0];
 
