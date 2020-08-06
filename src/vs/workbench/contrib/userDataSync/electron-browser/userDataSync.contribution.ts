@@ -85,8 +85,14 @@ registerAction2(class OpenSyncBackupsFolder extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const syncHome = accessor.get(IEnvironmentService).userDataSyncHome;
 		const electronService = accessor.get(IElectronService);
-		const folderStat = await accessor.get(IFileService).resolve(syncHome);
-		const item = folderStat.children && folderStat.children[0] ? folderStat.children[0].resource : syncHome;
-		return electronService.showItemInFolder(item.fsPath);
+		const fileService = accessor.get(IFileService);
+		const notificationService = accessor.get(INotificationService);
+		if (await fileService.exists(syncHome)) {
+			const folderStat = await fileService.resolve(syncHome);
+			const item = folderStat.children && folderStat.children[0] ? folderStat.children[0].resource : syncHome;
+			return electronService.showItemInFolder(item.fsPath);
+		} else {
+			notificationService.info(localize('no backups', "Local backups folder does not exist"));
+		}
 	}
 });
