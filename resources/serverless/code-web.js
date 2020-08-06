@@ -295,8 +295,7 @@ async function handleRoot(req, res) {
 
 	const webConfigJSON = escapeAttribute(JSON.stringify({
 		folderUri: folderUri,
-		staticExtensions,
-		builtinExtensionsServiceUrl: `${SCHEME}://${AUTHORITY}/static/extensions`
+		staticExtensions
 	}));
 
 	const data = (await readFile(WEB_MAIN)).toString()

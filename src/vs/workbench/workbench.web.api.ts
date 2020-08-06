@@ -268,9 +268,17 @@ interface IWorkbenchConstructionOptions {
 	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
 
 	/**
+	 * [TEMPORARY]: This will be removed soon.
 	 * Service end-point hosting builtin extensions
 	 */
 	readonly builtinExtensionsServiceUrl?: string;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Disable the inlined extensions.
+	 * Defaults to false on serverful and true on serverless.
+	 */
+	readonly _enableBuiltinExtensions?: boolean;
 
 	/**
 	 * Support for URL callbacks.
