@@ -11580,7 +11580,12 @@ declare module 'vscode' {
 		createIfNone?: boolean;
 
 		/**
-		 * Whether the existing user session preference should be cleared. Set to allow the user to switch accounts.
+		 * Whether the existing user session preference should be cleared.
+		 *
+		 * For authentication providers that support being signed into multiple accounts at once, the user will be
+		 * prompted to select an account to use when [getSession](#authentication.getSession) is called. This preference
+		 * is remembered until [getSession](#authentication.getSession) is called with this flag.
+		 *
 		 * Defaults to false.
 		 */
 		clearSessionPreference?: boolean;
