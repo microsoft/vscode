@@ -765,11 +765,11 @@ declare module 'vscode' {
 	export namespace debug {
 
 		/**
-		 * Stop the given debug session or stop all debug sessions if no session is specified.
-		 * @param session The [debug session](#DebugSession) to stop or `undefined` for stopping all sessions.
+		 * Stop the given debug session or stop all debug sessions if session is omitted.
+		 * @param session The [debug session](#DebugSession) to stop; if omitted all sessions are stopped.
 		 * @return A thenable that resolves when the sessions could be stopped successfully.
 		 */
-		export function stopDebugging(session: DebugSession | undefined): Thenable<void>;
+		export function stopDebugging(session?: DebugSession): Thenable<void>;
 	}
 
 	//#endregion
