@@ -453,24 +453,24 @@ abstract class PersistentConnection extends Disposable {
 					break;
 				}
 				if (RemoteAuthorityResolverError.isTemporarilyNotAvailable(err)) {
-					this._options.logService.info(`${logPrefix} A temporarily not available error occured while trying to reconnect, will try again...`);
+					this._options.logService.info(`${logPrefix} A temporarily not available error occurred while trying to reconnect, will try again...`);
 					this._options.logService.trace(err);
 					// try again!
 					continue;
 				}
 				if ((err.code === 'ETIMEDOUT' || err.code === 'ENETUNREACH' || err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') && err.syscall === 'connect') {
-					this._options.logService.info(`${logPrefix} A network error occured while trying to reconnect, will try again...`);
+					this._options.logService.info(`${logPrefix} A network error occurred while trying to reconnect, will try again...`);
 					this._options.logService.trace(err);
 					// try again!
 					continue;
 				}
 				if (isPromiseCanceledError(err)) {
-					this._options.logService.info(`${logPrefix} A promise cancelation error occured while trying to reconnect, will try again...`);
+					this._options.logService.info(`${logPrefix} A promise cancelation error occurred while trying to reconnect, will try again...`);
 					this._options.logService.trace(err);
 					// try again!
 					continue;
 				}
-				this._options.logService.error(`${logPrefix} An unknown error occured while trying to reconnect, since this is an unknown case, it will be treated as a permanent error! Will give up now! Error:`);
+				this._options.logService.error(`${logPrefix} An unknown error occurred while trying to reconnect, since this is an unknown case, it will be treated as a permanent error! Will give up now! Error:`);
 				this._options.logService.error(err);
 				PersistentConnection.triggerPermanentFailure();
 				break;
