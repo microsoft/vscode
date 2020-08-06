@@ -29,8 +29,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { WEB_WORKER_IFRAME } from 'vs/workbench/services/extensions/common/webWorkerIframe';
 
-const WRAP_IN_IFRAME = true;
-
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
 	readonly extensions: IExtensionDescription[];
@@ -74,7 +72,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 	public async start(): Promise<IMessagePassingProtocol> {
 		if (!this._protocolPromise) {
-			if (WRAP_IN_IFRAME && platform.isWeb) {
+			if (platform.isWeb && this._environmentService.options && this._environmentService.options._wrapWebWorkerExtHostInIframe) {
 				this._protocolPromise = this._startInsideIframe();
 			} else {
 				this._protocolPromise = this._startOutsideIframe();

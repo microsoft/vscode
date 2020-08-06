@@ -275,10 +275,17 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
-	 * Disable the inlined extensions.
+	 * Enable inlined extensions.
 	 * Defaults to false on serverful and true on serverless.
 	 */
 	readonly _enableBuiltinExtensions?: boolean;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Enable `<iframe>` wrapping.
+	 * Defaults to false.
+	 */
+	readonly _wrapWebWorkerExtHostInIframe?: boolean;
 
 	/**
 	 * Support for URL callbacks.
