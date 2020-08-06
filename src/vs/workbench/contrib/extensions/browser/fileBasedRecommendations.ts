@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ExtensionRecommendationSource, ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ExtensionRecommendationSource, ExtensionRecommendationReason, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
@@ -85,7 +84,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 
 	constructor(
 		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewletService private readonly viewletService: IViewletService,
@@ -190,7 +188,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		const installed = await this.extensionManagementService.getInstalled();
+		const installed = await this.extensionsWorkbenchService.queryLocal();
 		if (await this.promptRecommendedExtensionForFileType(recommendationsToPrompt, installed)) {
 			return;
 		}
@@ -211,7 +209,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		this.promptRecommendedExtensionForFileExtension(fileExtension, installed);
 	}
 
-	private async promptRecommendedExtensionForFileType(recommendations: string[], installed: ILocalExtension[]): Promise<boolean> {
+	private async promptRecommendedExtensionForFileType(recommendations: string[], installed: IExtension[]): Promise<boolean> {
 
 		recommendations = this.filterIgnoredOrNotAllowed(recommendations);
 		if (recommendations.length === 0) {
@@ -238,7 +236,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		return true;
 	}
 
-	private async promptRecommendedExtensionForFileExtension(fileExtension: string, installed: ILocalExtension[]): Promise<void> {
+	private async promptRecommendedExtensionForFileExtension(fileExtension: string, installed: IExtension[]): Promise<void> {
 		const fileExtensionSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/fileExtensionsSuggestionIgnore', StorageScope.GLOBAL, '[]'));
 		if (fileExtensionSuggestionIgnoreList.indexOf(fileExtension) > -1) {
 			return;
@@ -290,8 +288,13 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		);
 	}
 
-	private filterInstalled(recommendationsToSuggest: string[], installed: ILocalExtension[]): string[] {
-		const installedExtensionsIds = installed.reduce((result, i) => { result.add(i.identifier.id.toLowerCase()); return result; }, new Set<string>());
+	private filterInstalled(recommendationsToSuggest: string[], installed: IExtension[]): string[] {
+		const installedExtensionsIds = installed.reduce((result, i) => {
+			if (i.enablementState !== EnablementState.DisabledByExtensionKind) {
+				result.add(i.identifier.id.toLowerCase());
+			}
+			return result;
+		}, new Set<string>());
 		return recommendationsToSuggest.filter(id => !installedExtensionsIds.has(id.toLowerCase()));
 	}
 
