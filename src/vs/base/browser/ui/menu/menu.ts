@@ -853,8 +853,6 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 				this.parentData.submenu.style(this.menuStyle);
 			}
 
-			this.element.appendChild(this.submenuContainer);
-
 			// layout submenu
 			const entryBox = this.element.getBoundingClientRect();
 			const entryBoxUpdated = {
