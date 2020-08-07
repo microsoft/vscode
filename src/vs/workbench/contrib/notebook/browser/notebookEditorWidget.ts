@@ -926,7 +926,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.hideInset(output);
 		}));
 
-		this._list!.layout();
+		if (this._dimension) {
+			this._list?.layout(this._dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, this._dimension.width);
+		} else {
+			this._list!.layout();
+		}
+
 		this._dndController?.clearGlobalDragState();
 
 		// restore list state at last, it must be after list layout
