@@ -1880,11 +1880,7 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 
 	protected estimateHeight(element: SettingsTreeGroupChild): number {
 		if (element instanceof SettingsTreeGroupElement) {
-			if (element.isFirstGroup) {
-				return 31;
-			}
-
-			return 40 + (7 * element.level);
+			return 42;
 		}
 
 		return element instanceof SettingsTreeSettingElement && element.valueType === SettingValueType.Boolean ? 78 : 104;
@@ -1998,11 +1994,14 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 			const listActiveSelectionBackgroundColor = theme.getColor(listActiveSelectionBackground);
 			if (listActiveSelectionBackgroundColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .setting-item-contents .setting-item-title { background-color: ${listActiveSelectionBackgroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .settings-group-title-label { background-color: ${listActiveSelectionBackgroundColor}; }`);
 			}
 
 			const listActiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
 			if (listActiveSelectionForegroundColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .setting-item-contents .setting-item-title { color: ${listActiveSelectionForegroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .setting-item-label { color: ${listActiveSelectionForegroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .settings-group-title-label { color: ${listActiveSelectionForegroundColor}; }`);
 			}
 		}));
 
