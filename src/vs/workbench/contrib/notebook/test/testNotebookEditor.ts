@@ -103,6 +103,10 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
+	getOverflowContainerDomNode(): HTMLElement {
+		throw new Error('Method not implemented.');
+	}
+
 	private _onDidChangeModel = new Emitter<NotebookTextModel | undefined>();
 	onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
 	getContribution<T extends INotebookEditorContribution>(id: string): T {

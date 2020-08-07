@@ -189,7 +189,8 @@ export class StatefulMarkdownCell extends Disposable {
 				dimension: {
 					width: width,
 					height: editorHeight
-				}
+				},
+				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 			}, {});
 			this.templateData.currentEditor = this.editor;
 

@@ -992,7 +992,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			dimension: {
 				width: 0,
 				height: 0
-			}
+			},
+			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {});
 
 		disposables.add(this.editorOptions.onDidChange(newValue => editor.updateOptions(newValue)));
