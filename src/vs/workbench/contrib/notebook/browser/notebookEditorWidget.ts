@@ -1193,12 +1193,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null> {
+		if (!this._notebookViewModel!.metadata.editable) {
+			return null;
+		}
+
 		const index = this._notebookViewModel!.getCellIndex(cell);
 
 		return this._notebookViewModel!.splitNotebookCell(index);
 	}
 
 	async joinNotebookCells(cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<ICellViewModel | null> {
+		if (!this._notebookViewModel!.metadata.editable) {
+			return null;
+		}
+
 		const index = this._notebookViewModel!.getCellIndex(cell);
 		const ret = await this._notebookViewModel!.joinNotebookCells(index, direction, constraint);
 
