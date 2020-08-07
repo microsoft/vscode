@@ -193,6 +193,7 @@ export interface INotebookEditor extends IEditor {
 
 	getId(): string;
 	getDomNode(): HTMLElement;
+	getOverflowContainerDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
 
 	/**

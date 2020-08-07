@@ -799,7 +799,7 @@ registerAction2(class extends NotebookCellAction {
 		clipboardService.writeText(context.cell.getText());
 		const viewModel = context.notebookEditor.viewModel;
 
-		if (!viewModel) {
+		if (!viewModel || !viewModel.metadata.editable) {
 			return;
 		}
 
@@ -828,7 +828,7 @@ registerAction2(class extends NotebookAction {
 
 		const viewModel = context.notebookEditor.viewModel;
 
-		if (!viewModel) {
+		if (!viewModel || !viewModel.metadata.editable) {
 			return;
 		}
 
@@ -884,7 +884,7 @@ registerAction2(class extends NotebookCellAction {
 
 		const viewModel = context.notebookEditor.viewModel;
 
-		if (!viewModel) {
+		if (!viewModel || !viewModel.metadata.editable) {
 			return;
 		}
 

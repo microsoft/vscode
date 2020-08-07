@@ -331,9 +331,14 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				}
 			});
 			if (manualSyncTask.status === SyncStatus.HasConflicts) {
-				await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected"), [], {
-					detail: localize('resolve', "Unable to merge due to conflicts. Please merge manually to continue...")
-				});
+				await this.dialogService.show(
+					Severity.Warning,
+					localize('conflicts detected', "Conflicts Detected"),
+					[localize('merge Manually', "Merge Manually...")],
+					{
+						detail: localize('resolve', "Unable to merge due to conflicts. Please merge manually to continue..."),
+					}
+				);
 				await manualSyncTask.discardConflicts();
 				action = 'manual';
 			}
