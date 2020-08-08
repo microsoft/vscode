@@ -1568,6 +1568,12 @@
           "description": "%config.enableStatusBarSync%",
           "scope": "resource"
         },
+        "git.pushTags": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.pushTags%"
+        },
         "git.promptToSaveFilesBeforeCommit": {
           "type": "string",
           "enum": [
