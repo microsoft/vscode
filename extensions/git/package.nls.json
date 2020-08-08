@@ -141,6 +141,7 @@
 	"config.confirmForcePush": "Controls whether to ask for confirmation before force-pushing.",
 	"config.openDiffOnClick": "Controls whether the diff editor should be opened when clicking a change. Otherwise the regular editor will be opened.",
 	"config.supportCancellation": "Controls whether a notification comes up when running the Sync action, which allows the user to cancel the operation.",
+	"config.repositoryName": "Controls whether the repository name is shown in the status bar.",
 	"config.branchSortOrder": "Controls the sort order for branches.",
 	"config.untrackedChanges": "Controls how untracked changes behave.",
 	"config.untrackedChanges.mixed": "All changes, tracked and untracked, appear together and behave equally.",

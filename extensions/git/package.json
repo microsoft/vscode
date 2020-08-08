@@ -1732,6 +1732,12 @@
           "default": false,
           "description": "%config.supportCancellation%"
         },
+        "git.repositoryName": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.repositoryName%"
+        },
         "git.branchSortOrder": {
           "type": "string",
           "enum": [

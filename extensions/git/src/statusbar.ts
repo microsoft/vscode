@@ -9,6 +9,7 @@ import { anyEvent, dispose, filterEvent } from './util';
 import * as nls from 'vscode-nls';
 import { Branch, RemoteSourceProvider } from './api/git';
 import { IRemoteSourceProviderRegistry } from './remoteProvider';
+import { basename } from 'path';
 
 const localize = nls.loadMessageBundle();
 
@@ -24,7 +25,11 @@ class CheckoutStatusBar {
 
 	get command(): Command | undefined {
 		const rebasing = !!this.repository.rebaseCommit;
-		const title = `$(git-branch) ${this.repository.headLabel}${rebasing ? ` (${localize('rebasing', 'Rebasing')})` : ''}`;
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const repositoryName = config.get<boolean>('repositoryName');
+		const title = repositoryName ?
+			`$(git-branch) ${basename(this.repository.root)} - ${this.repository.headLabel}${rebasing ? ` (${localize('rebasing', 'Rebasing')})` : ''}` :
+			`$(git-branch) ${this.repository.headLabel}${rebasing ? ` (${localize('rebasing', 'Rebasing')})` : ''}`;
 
 		return {
 			command: 'git.checkout',
