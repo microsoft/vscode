@@ -228,7 +228,7 @@ abstract class AbstractCellRenderer {
 		}));
 	}
 
-	protected createToolbar(container: HTMLElement): ToolBar {
+	protected createToolbar(container: HTMLElement, elementClass?: string): ToolBar {
 		const toolbar = new ToolBar(container, this.contextMenuService, {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			actionViewItemProvider: action => {
@@ -245,6 +245,10 @@ abstract class AbstractCellRenderer {
 				return undefined;
 			}
 		});
+
+		if (elementClass) {
+			toolbar.getElement().classList.add(elementClass);
+		}
 
 		return toolbar;
 	}
@@ -263,7 +267,7 @@ abstract class AbstractCellRenderer {
 		const updateActions = () => {
 			const actions = this.getCellToolbarActions(templateData.titleMenu);
 
-			const hadFocus = DOM.isAncestor(document.activeElement, templateData.toolbar.getContainer());
+			const hadFocus = DOM.isAncestor(document.activeElement, templateData.toolbar.getElement());
 			templateData.toolbar.setActions(actions.primary, actions.secondary);
 			if (hadFocus) {
 				this.notebookEditor.focus();
@@ -387,11 +391,12 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 	renderTemplate(container: HTMLElement): MarkdownCellRenderTemplate {
 		container.classList.add('markdown-cell-row');
+		container = DOM.append(container, DOM.$('.cell-inner-container'));
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
-		const toolbar = disposables.add(this.createToolbar(container));
-		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
-		focusIndicator.setAttribute('draggable', 'true');
+		const toolbar = disposables.add(this.createToolbar(container, 'cell-title-toolbar'));
+		const focusIndicatorLeft = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
+		container.setAttribute('draggable', 'true');
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
 		const editorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
@@ -399,7 +404,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		editorPart.style.display = 'none';
 
 		const innerContent = DOM.append(container, $('.cell.markdown'));
-		const foldingIndicator = DOM.append(focusIndicator, DOM.$('.notebook-folding-indicator'));
+		const foldingIndicator = DOM.append(focusIndicatorLeft, DOM.$('.notebook-folding-indicator'));
 
 		const { collapsedPart, expandButton } = this.setupCollapsedPart(container);
 
@@ -417,7 +422,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			cellContainer: innerContent,
 			editorPart,
 			editorContainer,
-			focusIndicatorLeft: focusIndicator,
+			focusIndicatorLeft,
 			foldingIndicator,
 			disposables,
 			elementDisposables: new DisposableStore(),
@@ -445,7 +450,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
 		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
-		dragImageContainer.innerHTML = templateData.container.innerHTML;
+		dragImageContainer.innerHTML = templateData.container.outerHTML;
 
 		// Remove all rendered content nodes after the
 		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
@@ -720,15 +725,14 @@ export class CellDragAndDropController extends Disposable {
 
 	registerDragHandle(templateData: BaseCellRenderTemplate, dragImageProvider: DragImageProvider): void {
 		const container = templateData.container;
-		const dragHandle = templateData.focusIndicatorLeft;
 
-		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_END)(() => {
+		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_END)(() => {
 			// Note, templateData may have a different element rendered into it by now
 			container.classList.remove(DRAGGING_CLASS);
 			this.dragCleanup();
 		}));
 
-		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_START)(event => {
+		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_START)(event => {
 			if (!event.dataTransfer) {
 				return;
 			}
@@ -737,7 +741,7 @@ export class CellDragAndDropController extends Disposable {
 			this.currentDraggedCell.dragging = true;
 
 			const dragImage = dragImageProvider();
-			container.parentElement!.appendChild(dragImage);
+			container.parentElement!.parentElement!.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, 0, 0);
 			setTimeout(() => container.parentElement!.removeChild(dragImage!), 0); // Comment this out to debug drag image layout
 
@@ -965,11 +969,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	renderTemplate(container: HTMLElement): CodeCellRenderTemplate {
 		container.classList.add('code-cell-row');
+		container = DOM.append(container, DOM.$('.cell-inner-container'));
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
 
 		DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
-		const toolbar = disposables.add(this.createToolbar(container));
+		const toolbar = disposables.add(this.createToolbar(container, 'cell-title-toolbar'));
 		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		focusIndicator.setAttribute('draggable', 'true');
 
