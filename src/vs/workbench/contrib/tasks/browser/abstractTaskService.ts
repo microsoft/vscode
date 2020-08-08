@@ -1479,7 +1479,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		};
 
 		const saveAllEditorsAndExecTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
-			return this.editorService.saveAll({ reason: SaveReason.AUTO }).then(() => {
+			return this.editorService.saveAll({ reason: SaveReason.EXPLICIT }).then(() => {
 				return execTask(task, resolver);
 			});
 		};
@@ -2554,7 +2554,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		ProblemMatcherRegistry.onReady().then(() => {
-			return this.editorService.saveAll({ reason: SaveReason.AUTO }).then(() => { // make sure all dirty editors are saved
+			return this.editorService.saveAll({ reason: SaveReason.EXPLICIT }).then(() => { // make sure all dirty editors are saved
 				let executeResult = this.getTaskSystem().rerun();
 				if (executeResult) {
 					return this.handleExecuteResult(executeResult);
