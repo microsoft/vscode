@@ -22,6 +22,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { addClass } from 'vs/base/browser/dom';
+import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 
 export class SCMViewPaneContainer extends ViewPaneContainer {
 
@@ -55,8 +56,12 @@ export class SCMViewPaneContainer extends ViewPaneContainer {
 	}
 
 	getActionsContext(): unknown {
-		if (this.scmService.repositories.length === 1) {
-			return this.scmService.repositories[0].provider;
+		if (this.views.length === 1) {
+			const view = this.views[0];
+
+			if (view instanceof SCMViewPane) {
+				return view.getActionsContext();
+			}
 		}
 
 		return undefined;
