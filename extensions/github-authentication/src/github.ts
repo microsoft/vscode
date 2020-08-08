@@ -9,7 +9,7 @@ import { keychain } from './common/keychain';
 import { GitHubServer, NETWORK_ERROR } from './githubServer';
 import Logger from './common/logger';
 
-export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationSessionsChangeEvent>();
+export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 
 interface SessionData {
 	id: string;
@@ -141,7 +141,12 @@ export class GitHubAuthenticationProvider {
 
 	private async tokenToSession(token: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
 		const userInfo = await this._githubServer.getUserInfo(token);
-		return new vscode.AuthenticationSession(uuid(), token, { label: userInfo.accountName, id: userInfo.id }, scopes);
+		return {
+			id: uuid(),
+			accessToken: token,
+			account: { label: userInfo.accountName, id: userInfo.id },
+			scopes
+		};
 	}
 
 	private async setToken(session: vscode.AuthenticationSession): Promise<void> {

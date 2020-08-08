@@ -253,7 +253,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._ptyProcess.resize(cols, rows);
 			} catch (e) {
 				// Swallow error if the pty has already exited
-				if (this._exitCode !== undefined) {
+				this._logService.trace('IPty#resize exception ' + e.message);
+				if (this._exitCode !== undefined && e.message !== 'ioctl(2) failed, EBADF') {
 					throw e;
 				}
 			}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as semver from 'semver-umd';
-import { IBuiltinExtensionsScannerService, IScannedExtension, ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IBuiltinExtensionsScannerService, IScannedExtension, ExtensionType, IExtensionIdentifier, ITranslatedScannedExtension } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { isWeb } from 'vs/base/common/platform';
@@ -18,7 +18,12 @@ import { asText, isSuccess, IRequestService } from 'vs/platform/request/common/r
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { groupByExtension, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { groupByExtension, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStaticExtension } from 'vs/workbench/workbench.web.api';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
+import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 
 interface IUserExtension {
 	identifier: IExtensionIdentifier;
@@ -42,31 +47,92 @@ const AssetTypeWebResource = 'Microsoft.VisualStudio.Code.WebResources';
 
 function getExtensionLocation(assetUri: URI): URI { return joinPath(assetUri, AssetTypeWebResource, 'extension'); }
 
-export class WebExtensionsScannerService implements IWebExtensionsScannerService {
+export class WebExtensionsScannerService extends Disposable implements IWebExtensionsScannerService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly systemExtensionsPromise: Promise<IScannedExtension[]>;
-	private readonly staticExtensions: IScannedExtension[];
-	private readonly extensionsResource: URI;
-	private readonly userExtensionsResourceLimiter: Queue<IUserExtension[]>;
+	private readonly systemExtensionsPromise: Promise<IScannedExtension[]> = Promise.resolve([]);
+	private readonly defaultExtensionsPromise: Promise<IScannedExtension[]> = Promise.resolve([]);
+	private readonly extensionsResource: URI | undefined = undefined;
+	private readonly userExtensionsResourceLimiter: Queue<IUserExtension[]> = new Queue<IUserExtension[]>();
+
+	private userExtensionsPromise: Promise<IScannedExtension[]> | undefined;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IBuiltinExtensionsScannerService private readonly builtinExtensionsScannerService: IBuiltinExtensionsScannerService,
 		@IFileService private readonly fileService: IFileService,
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		this.extensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
-		this.userExtensionsResourceLimiter = new Queue<IUserExtension[]>();
-		this.systemExtensionsPromise = isWeb ? this.builtinExtensionsScannerService.scanBuiltinExtensions() : Promise.resolve([]);
-		const staticExtensions = environmentService.options && Array.isArray(environmentService.options.staticExtensions) ? environmentService.options.staticExtensions : [];
-		this.staticExtensions = staticExtensions.map(data => <IScannedExtension>{
-			location: data.extensionLocation,
+		super();
+		if (isWeb) {
+			this.extensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
+			this.systemExtensionsPromise = this.readSystemExtensions();
+			this.defaultExtensionsPromise = this.readDefaultExtensions();
+			if (this.extensionsResource) {
+				this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.extensionsResource!))(() => this.userExtensionsPromise = undefined));
+			}
+		}
+	}
+
+	private async readSystemExtensions(): Promise<IScannedExtension[]> {
+		const extensions = await this.builtinExtensionsScannerService.scanBuiltinExtensions();
+		return extensions.concat(this.getStaticExtensions(true));
+	}
+
+	/**
+	 * All extensions defined via `staticExtensions`
+	 */
+	private getStaticExtensions(builtin: boolean): IScannedExtension[] {
+		const staticExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.staticExtensions) ? this.environmentService.options.staticExtensions : [];
+		return (
+			staticExtensions
+				.filter(e => Boolean(e.isBuiltin) === builtin)
+				.map(e => ({
+					identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
+					location: e.extensionLocation,
+					type: e.isBuiltin ? ExtensionType.System : ExtensionType.User,
+					packageJSON: e.packageJSON,
+				}))
+		);
+	}
+
+	private async readDefaultExtensions(): Promise<IScannedExtension[]> {
+		const defaultUserWebExtensions = await this.readDefaultUserWebExtensions();
+		const extensions = defaultUserWebExtensions.map(e => ({
+			identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
+			location: e.extensionLocation,
 			type: ExtensionType.User,
-			packageJSON: data.packageJSON,
-		});
+			packageJSON: e.packageJSON,
+		}));
+		return extensions.concat(this.getStaticExtensions(false));
+	}
+
+	private async readDefaultUserWebExtensions(): Promise<IStaticExtension[]> {
+		const result: IStaticExtension[] = [];
+		const defaultUserWebExtensions = this.configurationService.getValue<{ location: string }[]>('_extensions.defaultUserWebExtensions') || [];
+		for (const webExtension of defaultUserWebExtensions) {
+			const extensionLocation = URI.parse(webExtension.location);
+			const manifestLocation = joinPath(extensionLocation, 'package.json');
+			const context = await this.requestService.request({ type: 'GET', url: manifestLocation.toString(true) }, CancellationToken.None);
+			if (!isSuccess(context)) {
+				this.logService.warn('Skipped default user web extension as there is an error while fetching manifest', manifestLocation);
+				continue;
+			}
+			const content = await asText(context);
+			if (!content) {
+				this.logService.warn('Skipped default user web extension as there is manifest is not found', manifestLocation);
+				continue;
+			}
+			const packageJSON = JSON.parse(content);
+			result.push({
+				packageJSON,
+				extensionLocation,
+			});
+		}
+		return result;
 	}
 
 	async scanExtensions(type?: ExtensionType): Promise<IScannedExtension[]> {
@@ -76,11 +142,52 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 			extensions.push(...systemExtensions);
 		}
 		if (type === undefined || type === ExtensionType.User) {
-			extensions.push(...this.staticExtensions);
-			const userExtensions = await this.scanUserExtensions();
+			const staticExtensions = await this.defaultExtensionsPromise;
+			extensions.push(...staticExtensions);
+			if (!this.userExtensionsPromise) {
+				this.userExtensionsPromise = this.scanUserExtensions();
+			}
+			const userExtensions = await this.userExtensionsPromise;
 			extensions.push(...userExtensions);
 		}
 		return extensions;
+	}
+
+	async scanAndTranslateExtensions(type?: ExtensionType): Promise<ITranslatedScannedExtension[]> {
+		const extensions = await this.scanExtensions(type);
+		return Promise.all(extensions.map((ext) => this._translateScannedExtension(ext)));
+	}
+
+	private async _translateScannedExtension(scannedExtension: IScannedExtension): Promise<ITranslatedScannedExtension> {
+		let manifest = scannedExtension.packageJSON;
+		if (scannedExtension.packageNLS) {
+			// package.nls.json is inlined
+			try {
+				manifest = localizeManifest(manifest, scannedExtension.packageNLS);
+			} catch (error) {
+				console.log(error);
+				/* ignore */
+			}
+		} else if (scannedExtension.packageNLSUrl) {
+			// package.nls.json needs to be fetched
+			try {
+				const context = await this.requestService.request({ type: 'GET', url: scannedExtension.packageNLSUrl.toString() }, CancellationToken.None);
+				if (isSuccess(context)) {
+					const content = await asText(context);
+					if (content) {
+						manifest = localizeManifest(manifest, JSON.parse(content));
+					}
+				}
+			} catch (error) { /* ignore */ }
+		}
+		return {
+			identifier: scannedExtension.identifier,
+			location: scannedExtension.location,
+			type: scannedExtension.type,
+			packageJSON: manifest,
+			readmeUrl: scannedExtension.readmeUrl,
+			changelogUrl: scannedExtension.changelogUrl
+		};
 	}
 
 	async addExtension(galleryExtension: IGalleryExtension): Promise<IScannedExtension> {
@@ -113,7 +220,7 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 
 	async removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void> {
 		let userExtensions = await this.readUserExtensions();
-		userExtensions = userExtensions.filter(extension => !(areSameExtensions(extension.identifier, identifier) && version ? extension.version === version : true));
+		userExtensions = userExtensions.filter(extension => !(areSameExtensions(extension.identifier, identifier) && (version ? extension.version === version : true)));
 		await this.writeUserExtensions(userExtensions);
 	}
 
@@ -155,10 +262,13 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 		return null;
 	}
 
-	private readUserExtensions(): Promise<IUserExtension[]> {
+	private async readUserExtensions(): Promise<IUserExtension[]> {
+		if (!this.extensionsResource) {
+			return [];
+		}
 		return this.userExtensionsResourceLimiter.queue(async () => {
 			try {
-				const content = await this.fileService.readFile(this.extensionsResource);
+				const content = await this.fileService.readFile(this.extensionsResource!);
 				const storedUserExtensions: IStoredUserExtension[] = JSON.parse(content.value.toString());
 				return storedUserExtensions.map(e => ({
 					identifier: e.identifier,
@@ -174,6 +284,9 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 	}
 
 	private writeUserExtensions(userExtensions: IUserExtension[]): Promise<IUserExtension[]> {
+		if (!this.extensionsResource) {
+			throw new Error('unsupported');
+		}
 		return this.userExtensionsResourceLimiter.queue(async () => {
 			const storedUserExtensions: IStoredUserExtension[] = userExtensions.map(e => ({
 				identifier: e.identifier,
@@ -183,7 +296,8 @@ export class WebExtensionsScannerService implements IWebExtensionsScannerService
 				changelogUri: e.changelogUri?.toJSON(),
 				packageNLSUri: e.packageNLSUri?.toJSON(),
 			}));
-			await this.fileService.writeFile(this.extensionsResource, VSBuffer.fromString(JSON.stringify(storedUserExtensions)));
+			await this.fileService.writeFile(this.extensionsResource!, VSBuffer.fromString(JSON.stringify(storedUserExtensions)));
+			this.userExtensionsPromise = undefined;
 			return userExtensions;
 		});
 	}

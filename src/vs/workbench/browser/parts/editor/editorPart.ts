@@ -443,7 +443,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Events for groups that got added
 		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(groupView => {
-			if (currentGroupViews.indexOf(groupView) === -1) {
+			if (!currentGroupViews.includes(groupView)) {
 				this._onDidAddGroup.fire(groupView);
 			}
 		});

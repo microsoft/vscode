@@ -74,7 +74,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 		new GitTimelineProvider(model)
 	);
 
-	await checkGitVersion(info);
+	checkGitVersion(info);
 
 	return model;
 }
@@ -127,7 +127,7 @@ async function warnAboutMissingGit(): Promise<void> {
 	}
 }
 
-export async function _activate(context: ExtensionContext): Promise<GitExtension> {
+export async function _activate(context: ExtensionContext): Promise<GitExtensionImpl> {
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
 
@@ -208,14 +208,25 @@ async function checkGitWindows(info: IGit): Promise<void> {
 		return;
 	}
 
+	const config = workspace.getConfiguration('git');
+	const shouldIgnore = config.get<boolean>('ignoreWindowsGit27Warning') === true;
+
+	if (shouldIgnore) {
+		return;
+	}
+
 	const update = localize('updateGit', "Update Git");
+	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
 	const choice = await window.showWarningMessage(
 		localize('git2526', "There are known issues with the installed Git {0}. Please update to Git >= 2.27 for the git features to work correctly.", info.version),
-		update
+		update,
+		neverShowAgain
 	);
 
 	if (choice === update) {
 		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+	} else if (choice === neverShowAgain) {
+		await config.update('ignoreWindowsGit27Warning', true, true);
 	}
 }
 

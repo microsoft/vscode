@@ -26,6 +26,7 @@ import * as Platform from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
+import { NotSupportedError } from 'vs/base/common/errors';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
@@ -370,7 +371,7 @@ export interface HandlerData {
 	extension: IExtensionDescription;
 }
 
-export abstract class ExtHostTaskBase implements ExtHostTaskShape {
+export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask {
 	readonly _serviceBrand: undefined;
 
 	protected readonly _proxy: MainThreadTaskShape;
@@ -418,6 +419,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		this._activeCustomExecutions2 = new Map<string, types.CustomExecution>();
 		this._logService = logService;
 		this._deprecationService = deprecationService;
+		this._proxy.$registerSupportedExecutions(true);
 	}
 
 	public registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable {
@@ -678,7 +680,9 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		}
 	}
 
-	public abstract async $jsonTasksSupported(): Promise<boolean>;
+	public abstract $jsonTasksSupported(): Promise<boolean>;
+
+	public abstract $findExecutable(command: string, cwd?: string | undefined, paths?: string[] | undefined): Promise<string | undefined>;
 }
 
 export class WorkerExtHostTask extends ExtHostTaskBase {
@@ -693,13 +697,11 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService
 	) {
 		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService, deprecationService);
-		if (initData.remote.isRemote && initData.remote.authority) {
-			this.registerTaskSystem(Schemas.vscodeRemote, {
-				scheme: Schemas.vscodeRemote,
-				authority: initData.remote.authority,
-				platform: Platform.PlatformToString(Platform.Platform.Web)
-			});
-		}
+		this.registerTaskSystem(Schemas.vscodeRemote, {
+			scheme: Schemas.vscodeRemote,
+			authority: '',
+			platform: Platform.PlatformToString(Platform.Platform.Web)
+		});
 	}
 
 	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
@@ -714,7 +716,7 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		if (CustomExecutionDTO.is(dto.execution)) {
 			await this.addCustomExecution(dto, task, false);
 		} else {
-			throw new Error('Not implemented');
+			throw new NotSupportedError();
 		}
 
 		// Always get the task execution first to prevent timing issues when retrieving it later
@@ -773,6 +775,10 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 
 	public async $jsonTasksSupported(): Promise<boolean> {
 		return false;
+	}
+
+	public async $findExecutable(command: string, cwd?: string | undefined, paths?: string[] | undefined): Promise<string | undefined> {
+		return undefined;
 	}
 }
 

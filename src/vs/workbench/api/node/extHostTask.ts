@@ -47,6 +47,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 				platform: process.platform
 			});
 		}
+		this._proxy.$registerSupportedExecutions(true, true, true);
 	}
 
 	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
@@ -194,5 +195,9 @@ export class ExtHostTask extends ExtHostTaskBase {
 
 	public async $jsonTasksSupported(): Promise<boolean> {
 		return true;
+	}
+
+	public async $findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string> {
+		return win32.findExecutable(command, cwd, paths);
 	}
 }

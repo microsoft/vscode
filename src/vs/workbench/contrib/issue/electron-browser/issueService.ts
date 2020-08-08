@@ -15,6 +15,8 @@ import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-brow
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { platform } from 'process';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
@@ -24,7 +26,8 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		@IThemeService private readonly themeService: IThemeService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IProductService private readonly productService: IProductService
 	) { }
 
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
@@ -67,7 +70,9 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 				hoverBackground: getColor(theme, listHoverBackground),
 				hoverForeground: getColor(theme, listHoverForeground),
 				highlightForeground: getColor(theme, listHighlightForeground),
-			}
+			},
+			platform,
+			applicationName: this.productService.applicationName
 		};
 		return this.issueService.openProcessExplorer(data);
 	}

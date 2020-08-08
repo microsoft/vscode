@@ -57,13 +57,13 @@ export class ReplacePattern {
 	*/
 	getReplaceString(text: string, preserveCase?: boolean): string | null {
 		this._regExp.lastIndex = 0;
-		let match = this._regExp.exec(text);
+		const match = this._regExp.exec(text);
 		if (match) {
 			if (this.hasParameters) {
 				if (match[0] === text) {
 					return text.replace(this._regExp, this.buildReplaceString(match, preserveCase));
 				}
-				let replaceString = text.replace(this._regExp, this.buildReplaceString(match, preserveCase));
+				const replaceString = text.replace(this._regExp, this.buildReplaceString(match, preserveCase));
 				return replaceString.substr(match.index, match[0].length - (text.length - replaceString.length));
 			}
 			return this.buildReplaceString(match, preserveCase);
@@ -94,7 +94,7 @@ export class ReplacePattern {
 
 		let substrFrom = 0, result = '';
 		for (let i = 0, len = replaceString.length; i < len; i++) {
-			let chCode = replaceString.charCodeAt(i);
+			const chCode = replaceString.charCodeAt(i);
 
 			if (chCode === CharCode.Backslash) {
 
@@ -106,7 +106,7 @@ export class ReplacePattern {
 					break;
 				}
 
-				let nextChCode = replaceString.charCodeAt(i);
+				const nextChCode = replaceString.charCodeAt(i);
 				let replaceWithCharacter: string | null = null;
 
 				switch (nextChCode) {
@@ -140,7 +140,7 @@ export class ReplacePattern {
 					break;
 				}
 
-				let nextChCode = replaceString.charCodeAt(i);
+				const nextChCode = replaceString.charCodeAt(i);
 				let replaceWithCharacter: string | null = null;
 
 				switch (nextChCode) {

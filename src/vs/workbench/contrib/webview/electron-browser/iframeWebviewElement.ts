@@ -10,6 +10,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -46,9 +47,10 @@ export class ElectronIframeWebview extends IFrameWebview {
 		@IRemoteAuthorityResolverService _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ILogService logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@INotificationService noficationService: INotificationService,
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider,
-			tunnelService, fileService, requestService, telemetryService, environmentService, _workbenchEnvironmentService, _remoteAuthorityResolverService, logService);
+			noficationService, tunnelService, fileService, requestService, telemetryService, environmentService, _workbenchEnvironmentService, _remoteAuthorityResolverService, logService);
 
 		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.content.options, Promise.resolve(undefined)));
 	}

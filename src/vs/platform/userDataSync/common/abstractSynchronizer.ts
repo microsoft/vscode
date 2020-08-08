@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import {
 	SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService,
 	IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncResourcePreview as IBaseSyncResourcePreview,
-	IUserDataManifest, ISyncData, IRemoteUserData, PREVIEW_DIR_NAME, IResourcePreview as IBaseResourcePreview, Change
+	IUserDataManifest, ISyncData, IRemoteUserData, PREVIEW_DIR_NAME, IResourcePreview as IBaseResourcePreview, Change, MergeState
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname, isEqual, basename } from 'vs/base/common/resources';
@@ -53,16 +53,41 @@ function isSyncData(thing: any): thing is ISyncData {
 	return false;
 }
 
-export interface ISyncResourcePreview extends IBaseSyncResourcePreview {
-	readonly remoteUserData: IRemoteUserData;
-	readonly lastSyncUserData: IRemoteUserData | null;
-	readonly resourcePreviews: IResourcePreview[];
+export interface IResourcePreview {
+
+	readonly remoteResource: URI;
+	readonly remoteContent: string | null;
+	readonly remoteChange: Change;
+
+	readonly localResource: URI;
+	readonly localContent: string | null;
+	readonly localChange: Change;
+
+	readonly previewResource: URI;
+	readonly acceptedResource: URI;
 }
 
-export interface IResourcePreview extends IBaseResourcePreview {
-	readonly remoteContent: string | null;
-	readonly localContent: string | null;
-	readonly previewContent: string | null;
+export interface IAcceptResult {
+	readonly content: string | null;
+	readonly localChange: Change;
+	readonly remoteChange: Change;
+}
+
+export interface IMergeResult extends IAcceptResult {
+	readonly hasConflicts: boolean;
+}
+
+interface IEditableResourcePreview extends IBaseResourcePreview, IResourcePreview {
+	localChange: Change;
+	remoteChange: Change;
+	mergeState: MergeState;
+	acceptResult?: IAcceptResult;
+}
+
+interface ISyncResourcePreview extends IBaseSyncResourcePreview {
+	readonly remoteUserData: IRemoteUserData;
+	readonly lastSyncUserData: IRemoteUserData | null;
+	readonly resourcePreviews: IEditableResourcePreview[];
 }
 
 export abstract class AbstractSynchroniser extends Disposable {
@@ -78,11 +103,10 @@ export abstract class AbstractSynchroniser extends Disposable {
 	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
 
-	private _resourcePreviews: IResourcePreview[] = [];
-	get resourcePreviews(): IResourcePreview[] { return this._resourcePreviews; }
-	get conflicts(): IResourcePreview[] { return this._resourcePreviews.filter(({ hasConflicts }) => hasConflicts); }
-	private _onDidChangeConflicts: Emitter<IResourcePreview[]> = this._register(new Emitter<IResourcePreview[]>());
-	readonly onDidChangeConflicts: Event<IResourcePreview[]> = this._onDidChangeConflicts.event;
+	private _conflicts: IBaseResourcePreview[] = [];
+	get conflicts(): IBaseResourcePreview[] { return this._conflicts; }
+	private _onDidChangeConflicts: Emitter<IBaseResourcePreview[]> = this._register(new Emitter<IBaseResourcePreview[]>());
+	readonly onDidChangeConflicts: Event<IBaseResourcePreview[]> = this._onDidChangeConflicts.event;
 
 	private readonly localChangeTriggerScheduler = new RunOnceScheduler(() => this.doTriggerLocalChange(), 50);
 	private readonly _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
@@ -96,7 +120,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 	constructor(
 		readonly resource: SyncResource,
 		@IFileService protected readonly fileService: IFileService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService protected readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService protected readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
@@ -136,7 +160,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		else {
 			this.logService.trace(`${this.syncResourceLogLabel}: Checking for local changes...`);
 			const lastSyncUserData = await this.getLastSyncUserData();
-			const hasRemoteChanged = lastSyncUserData ? (await this.doGenerateSyncResourcePreview(lastSyncUserData, lastSyncUserData, CancellationToken.None)).resourcePreviews.some(({ remoteChange }) => remoteChange !== Change.None) : true;
+			const hasRemoteChanged = lastSyncUserData ? (await this.doGenerateSyncResourcePreview(lastSyncUserData, lastSyncUserData, true, CancellationToken.None)).resourcePreviews.some(({ remoteChange }) => remoteChange !== Change.None) : true;
 			if (hasRemoteChanged) {
 				this._onDidChangeLocal.fire();
 			}
@@ -146,8 +170,6 @@ export abstract class AbstractSynchroniser extends Disposable {
 	protected setStatus(status: SyncStatus): void {
 		if (this._status !== status) {
 			const oldStatus = this._status;
-			this._status = status;
-			this._onDidChangStatus.fire(status);
 			if (status === SyncStatus.HasConflicts) {
 				// Log to telemetry when there is a sync conflict
 				this.telemetryService.publicLog2<{ source: string }, SyncSourceClassification>('sync/conflictsDetected', { source: this.resource });
@@ -156,53 +178,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 				// Log to telemetry when conflicts are resolved
 				this.telemetryService.publicLog2<{ source: string }, SyncSourceClassification>('sync/conflictsResolved', { source: this.resource });
 			}
-		}
-	}
-
-	async pull(): Promise<void> {
-		if (!this.isEnabled()) {
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped pulling ${this.syncResourceLogLabel.toLowerCase()} as it is disabled.`);
-			return;
-		}
-
-		await this.stop();
-
-		try {
-			this.logService.info(`${this.syncResourceLogLabel}: Started pulling ${this.syncResourceLogLabel.toLowerCase()}...`);
-			this.setStatus(SyncStatus.Syncing);
-
-			const lastSyncUserData = await this.getLastSyncUserData();
-			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-			const preview = await this.generatePullPreview(remoteUserData, lastSyncUserData, CancellationToken.None);
-
-			await this.applyPreview(remoteUserData, lastSyncUserData, preview, false);
-			this.logService.info(`${this.syncResourceLogLabel}: Finished pulling ${this.syncResourceLogLabel.toLowerCase()}.`);
-		} finally {
-			this.setStatus(SyncStatus.Idle);
-		}
-	}
-
-	async push(): Promise<void> {
-		if (!this.isEnabled()) {
-			this.logService.info(`${this.syncResourceLogLabel}: Skipped pushing ${this.syncResourceLogLabel.toLowerCase()} as it is disabled.`);
-			return;
-		}
-
-		this.stop();
-
-		try {
-			this.logService.info(`${this.syncResourceLogLabel}: Started pushing ${this.syncResourceLogLabel.toLowerCase()}...`);
-			this.setStatus(SyncStatus.Syncing);
-
-			const lastSyncUserData = await this.getLastSyncUserData();
-			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-			const preview = await this.generatePushPreview(remoteUserData, lastSyncUserData, CancellationToken.None);
-
-			await this.applyPreview(remoteUserData, lastSyncUserData, preview, true);
-			this.logService.info(`${this.syncResourceLogLabel}: Finished pushing ${this.syncResourceLogLabel.toLowerCase()}.`);
-
-		} finally {
-			this.setStatus(SyncStatus.Idle);
+			this._status = status;
+			this._onDidChangStatus.fire(status);
 		}
 	}
 
@@ -212,6 +189,19 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	async preview(manifest: IUserDataManifest | null, headers: IHeaders = {}): Promise<ISyncResourcePreview | null> {
 		return this._sync(manifest, false, headers);
+	}
+
+	async apply(force: boolean, headers: IHeaders = {}): Promise<ISyncResourcePreview | null> {
+		try {
+			this.syncHeaders = { ...headers };
+
+			const status = await this.doApply(force);
+			this.setStatus(status);
+
+			return this.syncPreviewPromise;
+		} finally {
+			this.syncHeaders = {};
+		}
 	}
 
 	private async _sync(manifest: IUserDataManifest | null, apply: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null> {
@@ -276,8 +266,20 @@ export abstract class AbstractSynchroniser extends Disposable {
 			this.setStatus(SyncStatus.Syncing);
 			const lastSyncUserData = await this.getLastSyncUserData();
 			const remoteUserData = await this.getLatestRemoteUserData(null, lastSyncUserData);
-			const preview = await this.generateReplacePreview(syncData, remoteUserData, lastSyncUserData);
-			await this.applyPreview(remoteUserData, lastSyncUserData, preview, false);
+
+			/* use replace sync data */
+			const resourcePreviewResults = await this.generateSyncPreview({ ref: remoteUserData.ref, syncData }, lastSyncUserData, CancellationToken.None);
+
+			const resourcePreviews: [IResourcePreview, IAcceptResult][] = [];
+			for (const resourcePreviewResult of resourcePreviewResults) {
+				/* Accept remote resource */
+				const acceptResult: IAcceptResult = await this.getAcceptResult(resourcePreviewResult, resourcePreviewResult.remoteResource, undefined, CancellationToken.None);
+				/* compute remote change */
+				const { remoteChange } = await this.getAcceptResult(resourcePreviewResult, resourcePreviewResult.previewResource, resourcePreviewResult.remoteContent, CancellationToken.None);
+				resourcePreviews.push([resourcePreviewResult, { ...acceptResult, remoteChange: remoteChange !== Change.None ? remoteChange : Change.Modified }]);
+			}
+
+			await this.applyResult(remoteUserData, lastSyncUserData, resourcePreviews, false);
 			this.logService.info(`${this.syncResourceLogLabel}: Finished resetting ${this.resource.toLowerCase()}.`);
 		} finally {
 			this.setStatus(SyncStatus.Idle);
@@ -304,20 +306,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 		return this.getRemoteUserData(lastSyncUserData);
 	}
 
-	async generateSyncResourcePreview(): Promise<ISyncResourcePreview | null> {
-		if (this.isEnabled()) {
-			const lastSyncUserData = await this.getLastSyncUserData();
-			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
-			return this.doGenerateSyncResourcePreview(remoteUserData, lastSyncUserData, CancellationToken.None);
-		}
-		return null;
-	}
-
 	private async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean): Promise<SyncStatus> {
 		if (remoteUserData.syncData && remoteUserData.syncData.version > this.version) {
 			// current version is not compatible with cloud version
 			this.telemetryService.publicLog2<{ source: string }, SyncSourceClassification>('sync/incompatible', { source: this.resource });
-			throw new UserDataSyncError(localize({ key: 'incompatible', comment: ['This is an error while syncing a resource that its local version is not compatible with its remote version.'] }, "Cannot sync {0} as its local version {1} is not compatible with its remote version {2}", this.resource, this.version, remoteUserData.syncData.version), UserDataSyncErrorCode.Incompatible, this.resource);
+			throw new UserDataSyncError(localize({ key: 'incompatible', comment: ['This is an error while syncing a resource that its local version is not compatible with its remote version.'] }, "Cannot sync {0} as its local version {1} is not compatible with its remote version {2}", this.resource, this.version, remoteUserData.syncData.version), UserDataSyncErrorCode.IncompatibleLocalContent, this.resource);
 		}
 
 		try {
@@ -353,20 +346,20 @@ export abstract class AbstractSynchroniser extends Disposable {
 		try {
 			// generate or use existing preview
 			if (!this.syncPreviewPromise) {
-				this.syncPreviewPromise = createCancelablePromise(token => this.doGenerateSyncResourcePreview(remoteUserData, lastSyncUserData, token));
+				this.syncPreviewPromise = createCancelablePromise(token => this.doGenerateSyncResourcePreview(remoteUserData, lastSyncUserData, apply, token));
 			}
-			const preview = await this.syncPreviewPromise;
 
-			if (preview.resourcePreviews.some(({ hasConflicts }) => hasConflicts)) {
+			const preview = await this.syncPreviewPromise;
+			this.updateConflicts(preview.resourcePreviews);
+			if (preview.resourcePreviews.some(({ mergeState }) => mergeState === MergeState.Conflict)) {
 				return SyncStatus.HasConflicts;
 			}
 
 			if (apply) {
-				await this.apply(remoteUserData, lastSyncUserData, false);
-				return SyncStatus.Idle;
-			} else {
-				return SyncStatus.Syncing;
+				return await this.doApply(false);
 			}
+
+			return SyncStatus.Syncing;
 
 		} catch (error) {
 
@@ -377,107 +370,117 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
-	private async apply(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, force: boolean): Promise<void> {
+	async merge(resource: URI): Promise<ISyncResourcePreview | null> {
+		await this.updateSyncResourcePreview(resource, async (resourcePreview) => {
+			const mergeResult = await this.getMergeResult(resourcePreview, CancellationToken.None);
+			await this.fileService.writeFile(resourcePreview.previewResource, VSBuffer.fromString(mergeResult?.content || ''));
+			const acceptResult: IAcceptResult | undefined = mergeResult && !mergeResult.hasConflicts
+				? await this.getAcceptResult(resourcePreview, resourcePreview.previewResource, undefined, CancellationToken.None)
+				: undefined;
+			resourcePreview.acceptResult = acceptResult;
+			resourcePreview.mergeState = mergeResult.hasConflicts ? MergeState.Conflict : acceptResult ? MergeState.Accepted : MergeState.Preview;
+			resourcePreview.localChange = acceptResult ? acceptResult.localChange : mergeResult.localChange;
+			resourcePreview.remoteChange = acceptResult ? acceptResult.remoteChange : mergeResult.remoteChange;
+			return resourcePreview;
+		});
+		return this.syncPreviewPromise;
+	}
+
+	async accept(resource: URI, content?: string | null): Promise<ISyncResourcePreview | null> {
+		await this.updateSyncResourcePreview(resource, async (resourcePreview) => {
+			const acceptResult = await this.getAcceptResult(resourcePreview, resource, content, CancellationToken.None);
+			resourcePreview.acceptResult = acceptResult;
+			resourcePreview.mergeState = MergeState.Accepted;
+			resourcePreview.localChange = acceptResult.localChange;
+			resourcePreview.remoteChange = acceptResult.remoteChange;
+			return resourcePreview;
+		});
+		return this.syncPreviewPromise;
+	}
+
+	async discard(resource: URI): Promise<ISyncResourcePreview | null> {
+		await this.updateSyncResourcePreview(resource, async (resourcePreview) => {
+			const mergeResult = await this.getMergeResult(resourcePreview, CancellationToken.None);
+			await this.fileService.writeFile(resourcePreview.previewResource, VSBuffer.fromString(mergeResult.content || ''));
+			resourcePreview.acceptResult = undefined;
+			resourcePreview.mergeState = MergeState.Preview;
+			resourcePreview.localChange = mergeResult.localChange;
+			resourcePreview.remoteChange = mergeResult.remoteChange;
+			return resourcePreview;
+		});
+		return this.syncPreviewPromise;
+	}
+
+	private async updateSyncResourcePreview(resource: URI, updateResourcePreview: (resourcePreview: IEditableResourcePreview) => Promise<IEditableResourcePreview>): Promise<void> {
 		if (!this.syncPreviewPromise) {
 			return;
+		}
+
+		let preview = await this.syncPreviewPromise;
+		const index = preview.resourcePreviews.findIndex(({ localResource, remoteResource, previewResource }) =>
+			isEqual(localResource, resource) || isEqual(remoteResource, resource) || isEqual(previewResource, resource));
+		if (index === -1) {
+			return;
+		}
+
+		this.syncPreviewPromise = createCancelablePromise(async token => {
+			const resourcePreviews = [...preview.resourcePreviews];
+			resourcePreviews[index] = await updateResourcePreview(resourcePreviews[index]);
+			return {
+				...preview,
+				resourcePreviews
+			};
+		});
+
+		preview = await this.syncPreviewPromise;
+		this.updateConflicts(preview.resourcePreviews);
+		if (preview.resourcePreviews.some(({ mergeState }) => mergeState === MergeState.Conflict)) {
+			this.setStatus(SyncStatus.HasConflicts);
+		} else {
+			this.setStatus(SyncStatus.Syncing);
+		}
+	}
+
+	private async doApply(force: boolean): Promise<SyncStatus> {
+		if (!this.syncPreviewPromise) {
+			return SyncStatus.Idle;
 		}
 
 		const preview = await this.syncPreviewPromise;
 
-		if (preview.resourcePreviews.some(({ hasConflicts }) => hasConflicts)) {
-			return;
+		// check for conflicts
+		if (preview.resourcePreviews.some(({ mergeState }) => mergeState === MergeState.Conflict)) {
+			return SyncStatus.HasConflicts;
+		}
+
+		// check if all are accepted
+		if (preview.resourcePreviews.some(({ mergeState }) => mergeState !== MergeState.Accepted)) {
+			return SyncStatus.Syncing;
 		}
 
 		// apply preview
-		await this.applyPreview(remoteUserData, lastSyncUserData, preview.resourcePreviews, force);
+		await this.applyResult(preview.remoteUserData, preview.lastSyncUserData, preview.resourcePreviews.map(resourcePreview => ([resourcePreview, resourcePreview.acceptResult!])), force);
 
 		// reset preview
 		this.syncPreviewPromise = null;
 
-		// reset resource previews
-		await this.updateResourcePreviews([], CancellationToken.None);
+		// reset preview folder
+		await this.clearPreviewFolder();
+
+		return SyncStatus.Idle;
 	}
 
-	async acceptPreviewContent(resource: URI, content: string, force: boolean, headers: IHeaders = {}): Promise<ISyncResourcePreview | null> {
-		if (!this.syncPreviewPromise) {
-			return null;
-		}
-
+	private async clearPreviewFolder(): Promise<void> {
 		try {
-			this.syncHeaders = { ...headers };
-
-			let preview = await this.syncPreviewPromise;
-			this.syncPreviewPromise = createCancelablePromise(async token => {
-				const newPreview = await this.updateSyncResourcePreviewContent(preview, resource, content, token);
-
-				if (!token.isCancellationRequested) {
-					await this.updateResourcePreviews(newPreview.resourcePreviews, token);
-				}
-
-				return newPreview;
-			});
-			preview = await this.syncPreviewPromise;
-
-			if (preview.resourcePreviews.some(({ hasConflicts }) => hasConflicts)) {
-				return preview;
-			}
-
-			await this.apply(preview.remoteUserData, preview.lastSyncUserData, force);
-
-			// reset status
-			this.setStatus(SyncStatus.Idle);
-
-			return null;
-
-		} finally {
-			this.syncHeaders = {};
-		}
+			await this.fileService.del(this.syncPreviewFolder, { recursive: true });
+		} catch (error) { /* Ignore */ }
 	}
 
-	private async updateSyncResourcePreviewContent(preview: ISyncResourcePreview, resource: URI, previewContent: string, token: CancellationToken): Promise<ISyncResourcePreview> {
-		const index = preview.resourcePreviews.findIndex(({ localResource, remoteResource, previewResource, localChange, remoteChange }) =>
-			(localChange !== Change.None || remoteChange !== Change.None)
-			&& (isEqual(localResource, resource) || isEqual(remoteResource, resource) || isEqual(previewResource, resource)));
-		if (index !== -1) {
-			const resourcePreviews = [...preview.resourcePreviews];
-			const resourcePreview = await this.updateResourcePreviewContent(resourcePreviews[index], resource, previewContent, token);
-			resourcePreviews[index] = resourcePreview;
-			preview = {
-				...preview,
-				resourcePreviews
-			};
-		}
-		return preview;
-	}
-
-	protected async updateResourcePreviewContent(resourcePreview: IResourcePreview, resource: URI, previewContent: string, token: CancellationToken): Promise<IResourcePreview> {
-		return {
-			...resourcePreview,
-			previewContent,
-			hasConflicts: false,
-			localChange: Change.Modified,
-			remoteChange: Change.Modified,
-		};
-	}
-
-	private async updateResourcePreviews(resourcePreviews: IResourcePreview[], token: CancellationToken): Promise<void> {
-		const oldConflicts = this.conflicts;
-		const oldPreviews = this._resourcePreviews;
-		this._resourcePreviews = resourcePreviews;
-
-		// clear obsolete previews
-		for (const resourcePreview of oldPreviews) {
-			if (!this._resourcePreviews.some(({ previewResource }) => isEqual(previewResource, resourcePreview.previewResource))) {
-				try {
-					await this.fileService.del(resourcePreview.previewResource);
-				} catch (error) { /* Ignore */ }
-			}
-		}
-
-		// update conflicts
-		const newConflicts = this.conflicts;
-		if (!equals(oldConflicts, newConflicts, (a, b) => isEqual(a.previewResource, b.previewResource))) {
-			this._onDidChangeConflicts.fire(newConflicts);
+	private updateConflicts(resourcePreviews: IEditableResourcePreview[]): void {
+		const conflicts = resourcePreviews.filter(({ mergeState }) => mergeState === MergeState.Conflict);
+		if (!equals(this._conflicts, conflicts, (a, b) => isEqual(a.previewResource, b.previewResource))) {
+			this._conflicts = conflicts;
+			this._onDidChangeConflicts.fire(conflicts);
 		}
 	}
 
@@ -532,14 +535,14 @@ export abstract class AbstractSynchroniser extends Disposable {
 		const syncPreview = this.syncPreviewPromise ? await this.syncPreviewPromise : null;
 		if (syncPreview) {
 			for (const resourcePreview of syncPreview.resourcePreviews) {
-				if (resourcePreview.previewResource && isEqual(resourcePreview.previewResource, uri)) {
-					return resourcePreview.previewContent || '';
+				if (isEqual(resourcePreview.acceptedResource, uri)) {
+					return resourcePreview.acceptResult ? resourcePreview.acceptResult.content : null;
 				}
-				if (resourcePreview.remoteResource && isEqual(resourcePreview.remoteResource, uri)) {
-					return resourcePreview.remoteContent || '';
+				if (isEqual(resourcePreview.remoteResource, uri)) {
+					return resourcePreview.remoteContent;
 				}
-				if (resourcePreview.localResource && isEqual(resourcePreview.localResource, uri)) {
-					return resourcePreview.localContent || '';
+				if (isEqual(resourcePreview.localResource, uri)) {
+					return resourcePreview.localContent;
 				}
 			}
 		}
@@ -552,16 +555,51 @@ export abstract class AbstractSynchroniser extends Disposable {
 		} catch (e) { /* ignore */ }
 	}
 
-	private async doGenerateSyncResourcePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISyncResourcePreview> {
+	private async doGenerateSyncResourcePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean, token: CancellationToken): Promise<ISyncResourcePreview> {
 		const machineId = await this.currentMachineIdPromise;
 		const isLastSyncFromCurrentMachine = !!remoteUserData.syncData?.machineId && remoteUserData.syncData.machineId === machineId;
 
 		// For preview, use remoteUserData if lastSyncUserData does not exists and last sync is from current machine
 		const lastSyncUserDataForPreview = lastSyncUserData === null && isLastSyncFromCurrentMachine ? remoteUserData : lastSyncUserData;
-		const resourcePreviews = await this.generateSyncPreview(remoteUserData, lastSyncUserDataForPreview, token);
+		const resourcePreviewResults = await this.generateSyncPreview(remoteUserData, lastSyncUserDataForPreview, token);
 
-		if (!token.isCancellationRequested) {
-			await this.updateResourcePreviews(resourcePreviews, token);
+		const resourcePreviews: IEditableResourcePreview[] = [];
+		for (const resourcePreviewResult of resourcePreviewResults) {
+			const acceptedResource = resourcePreviewResult.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
+
+			/* No change -> Accept */
+			if (resourcePreviewResult.localChange === Change.None && resourcePreviewResult.remoteChange === Change.None) {
+				resourcePreviews.push({
+					...resourcePreviewResult,
+					acceptedResource,
+					acceptResult: { content: null, localChange: Change.None, remoteChange: Change.None },
+					mergeState: MergeState.Accepted
+				});
+			}
+
+			/* Changed -> Apply ? (Merge ? Conflict | Accept) : Preview */
+			else {
+				/* Merge */
+				const mergeResult = apply ? await this.getMergeResult(resourcePreviewResult, token) : undefined;
+				if (token.isCancellationRequested) {
+					break;
+				}
+				await this.fileService.writeFile(resourcePreviewResult.previewResource, VSBuffer.fromString(mergeResult?.content || ''));
+
+				/* Conflict | Accept */
+				const acceptResult = mergeResult && !mergeResult.hasConflicts
+					/* Accept if merged and there are no conflicts */
+					? await this.getAcceptResult(resourcePreviewResult, resourcePreviewResult.previewResource, undefined, token)
+					: undefined;
+
+				resourcePreviews.push({
+					...resourcePreviewResult,
+					acceptResult,
+					mergeState: mergeResult?.hasConflicts ? MergeState.Conflict : acceptResult ? MergeState.Accepted : MergeState.Preview,
+					localChange: acceptResult ? acceptResult.localChange : mergeResult ? mergeResult.localChange : resourcePreviewResult.localChange,
+					remoteChange: acceptResult ? acceptResult.remoteChange : mergeResult ? mergeResult.remoteChange : resourcePreviewResult.remoteChange
+				});
+			}
 		}
 
 		return { remoteUserData, lastSyncUserData, resourcePreviews, isLastSyncFromCurrentMachine };
@@ -614,7 +652,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		} catch (error) {
 			this.logService.error(error);
 		}
-		throw new UserDataSyncError(localize('incompatible sync data', "Cannot parse sync data as it is not compatible with current version."), UserDataSyncErrorCode.Incompatible, this.resource);
+		throw new UserDataSyncError(localize('incompatible sync data', "Cannot parse sync data as it is not compatible with the current version."), UserDataSyncErrorCode.IncompatibleRemoteContent, this.resource);
 	}
 
 	private async getUserData(refOrLastSyncData: string | IRemoteUserData | null): Promise<IUserData> {
@@ -650,18 +688,18 @@ export abstract class AbstractSynchroniser extends Disposable {
 			this.syncPreviewPromise = null;
 		}
 
-		await this.updateResourcePreviews([], CancellationToken.None);
+		this.updateConflicts([]);
+		await this.clearPreviewFolder();
 
 		this.setStatus(SyncStatus.Idle);
 		this.logService.info(`${this.syncResourceLogLabel}: Stopped synchronizing ${this.resource.toLowerCase()}.`);
 	}
 
 	protected abstract readonly version: number;
-	protected abstract generatePullPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<IResourcePreview[]>;
-	protected abstract generatePushPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<IResourcePreview[]>;
-	protected abstract generateReplacePreview(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<IResourcePreview[]>;
 	protected abstract generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<IResourcePreview[]>;
-	protected abstract applyPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: IResourcePreview[], forcePush: boolean): Promise<void>;
+	protected abstract getMergeResult(resourcePreview: IResourcePreview, token: CancellationToken): Promise<IMergeResult>;
+	protected abstract getAcceptResult(resourcePreview: IResourcePreview, resource: URI, content: string | null | undefined, token: CancellationToken): Promise<IAcceptResult>;
+	protected abstract applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, result: [IResourcePreview, IAcceptResult][], force: boolean): Promise<void>;
 }
 
 export interface IFileResourcePreview extends IResourcePreview {

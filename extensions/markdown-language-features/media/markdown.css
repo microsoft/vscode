@@ -11,6 +11,21 @@ html, body {
 	word-wrap: break-word;
 }
 
+body {
+	padding-top: 1em;
+}
+
+/* Reset margin top for elements */
+h1, h2, h3, h4, h5, h6,
+p, ol, ul, pre {
+	margin-top: 0;
+}
+
+h2, h3, h4, h5, h6 {
+	font-weight: normal;
+	margin-bottom: 0.2em;
+}
+
 #code-csp-warning {
 	position: fixed;
 	top: 0;
@@ -112,6 +127,15 @@ textarea:focus {
 	outline-offset: -1px;
 }
 
+p {
+	margin-bottom: 0.7em;
+}
+
+ul,
+ol {
+	margin-bottom: 0.7em;
+}
+
 hr {
 	border: 0;
 	height: 2px;
@@ -123,9 +147,6 @@ h1 {
 	line-height: 1.2;
 	border-bottom-width: 1px;
 	border-bottom-style: solid;
-}
-
-h1, h2, h3 {
 	font-weight: normal;
 }
 

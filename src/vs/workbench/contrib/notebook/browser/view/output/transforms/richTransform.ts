@@ -54,12 +54,12 @@ class RichRenderer implements IOutputTransformContribution {
 
 		if (!preferredMimeType || !this._richMimeTypeRenderers.has(preferredMimeType)) {
 			const contentNode = document.createElement('p');
-			let mimeTypes = [];
+			const mimeTypes = [];
 			for (const property in output.data) {
 				mimeTypes.push(property);
 			}
 
-			let mimeTypesMessage = mimeTypes.join(', ');
+			const mimeTypesMessage = mimeTypes.join(', ');
 
 			if (preferredMimeType) {
 				contentNode.innerText = `No renderer could be found for MIME type: ${preferredMimeType}`;
@@ -74,13 +74,13 @@ class RichRenderer implements IOutputTransformContribution {
 			};
 		}
 
-		let renderer = this._richMimeTypeRenderers.get(preferredMimeType);
+		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);
 		return renderer!(output, container);
 	}
 
 	renderJSON(output: ITransformedDisplayOutputDto, container: HTMLElement) {
-		let data = output.data['application/json'];
-		let str = JSON.stringify(data, null, '\t');
+		const data = output.data['application/json'];
+		const str = JSON.stringify(data, null, '\t');
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
 			...getOutputSimpleEditorOptions(),
@@ -92,14 +92,14 @@ class RichRenderer implements IOutputTransformContribution {
 			isSimpleWidget: true
 		});
 
-		let mode = this.modeService.create('json');
-		let resource = URI.parse(`notebook-output-${Date.now()}.json`);
+		const mode = this.modeService.create('json');
+		const resource = URI.parse(`notebook-output-${Date.now()}.json`);
 		const textModel = this.modelService.createModel(str, mode, resource, false);
 		editor.setModel(textModel);
 
-		let width = this.notebookEditor.getLayoutInfo().width;
-		let fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
-		let height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
+		const width = this.notebookEditor.getLayoutInfo().width;
+		const fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
+		const height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
 
 		editor.layout({
 			height,
@@ -114,8 +114,8 @@ class RichRenderer implements IOutputTransformContribution {
 	}
 
 	renderCode(output: ITransformedDisplayOutputDto, container: HTMLElement) {
-		let data = output.data['text/x-javascript'];
-		let str = (isArray(data) ? data.join('') : data) as string;
+		const data = output.data['text/x-javascript'];
+		const str = (isArray(data) ? data.join('') : data) as string;
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
 			...getOutputSimpleEditorOptions(),
@@ -127,14 +127,14 @@ class RichRenderer implements IOutputTransformContribution {
 			isSimpleWidget: true
 		});
 
-		let mode = this.modeService.create('javascript');
-		let resource = URI.parse(`notebook-output-${Date.now()}.js`);
+		const mode = this.modeService.create('javascript');
+		const resource = URI.parse(`notebook-output-${Date.now()}.js`);
 		const textModel = this.modelService.createModel(str, mode, resource, false);
 		editor.setModel(textModel);
 
-		let width = this.notebookEditor.getLayoutInfo().width;
-		let fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
-		let height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
+		const width = this.notebookEditor.getLayoutInfo().width;
+		const fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
+		const height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
 
 		editor.layout({
 			height,
@@ -149,9 +149,9 @@ class RichRenderer implements IOutputTransformContribution {
 	}
 
 	renderJavaScript(output: ITransformedDisplayOutputDto, container: HTMLElement) {
-		let data = output.data['application/javascript'];
-		let str = isArray(data) ? data.join('') : data;
-		let scriptVal = `<script type="application/javascript">${str}</script>`;
+		const data = output.data['application/javascript'];
+		const str = isArray(data) ? data.join('') : data;
+		const scriptVal = `<script type="application/javascript">${str}</script>`;
 		return {
 			shadowContent: scriptVal,
 			hasDynamicHeight: false
@@ -159,8 +159,8 @@ class RichRenderer implements IOutputTransformContribution {
 	}
 
 	renderHTML(output: ITransformedDisplayOutputDto, container: HTMLElement) {
-		let data = output.data['text/html'];
-		let str = (isArray(data) ? data.join('') : data) as string;
+		const data = output.data['text/html'];
+		const str = (isArray(data) ? data.join('') : data) as string;
 		return {
 			shadowContent: str,
 			hasDynamicHeight: false
@@ -169,8 +169,8 @@ class RichRenderer implements IOutputTransformContribution {
 	}
 
 	renderSVG(output: ITransformedDisplayOutputDto, container: HTMLElement) {
-		let data = output.data['image/svg+xml'];
-		let str = (isArray(data) ? data.join('') : data) as string;
+		const data = output.data['image/svg+xml'];
+		const str = (isArray(data) ? data.join('') : data) as string;
 		return {
 			shadowContent: str,
 			hasDynamicHeight: false
@@ -178,7 +178,7 @@ class RichRenderer implements IOutputTransformContribution {
 	}
 
 	renderMarkdown(output: ITransformedDisplayOutputDto, container: HTMLElement) {
-		let data = output.data['text/markdown'];
+		const data = output.data['text/markdown'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		const mdOutput = document.createElement('div');
 		mdOutput.appendChild(this._mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }).element);
@@ -215,8 +215,8 @@ class RichRenderer implements IOutputTransformContribution {
 	}
 
 	renderPlainText(output: ITransformedDisplayOutputDto, container: HTMLElement) {
-		let data = output.data['text/plain'];
-		let str = (isArray(data) ? data.join('') : data) as string;
+		const data = output.data['text/plain'];
+		const str = (isArray(data) ? data.join('') : data) as string;
 		const contentNode = DOM.$('.output-plaintext');
 		contentNode.appendChild(handleANSIOutput(str, this.themeService));
 		container.appendChild(contentNode);

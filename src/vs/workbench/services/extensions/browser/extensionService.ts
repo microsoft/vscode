@@ -17,19 +17,19 @@ import { AbstractExtensionService, parseScannedExtension } from 'vs/workbench/se
 import { RemoteExtensionHost, IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
-import { canExecuteOnWeb } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, ExtensionKind } from 'vs/platform/extensions/common/extensions';
 import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { DeltaExtensionsResult } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
 	private _disposables = new DisposableStore();
 	private _remoteInitData: IRemoteExtensionHostInitData | null = null;
+	private _runningLocation: Map<string, ExtensionRunningLocation>;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -54,6 +54,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			productService,
 		);
 
+		this._runningLocation = new Map<string, ExtensionRunningLocation>();
+
 		this._initialize();
 		this._initFetchFileSystem();
 	}
@@ -73,10 +75,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return {
 			getInitData: async () => {
 				const allExtensions = await this.getExtensions();
-				const webExtensions = allExtensions.filter(ext => canExecuteOnWeb(ext, this._productService, this._configService));
+				const localWebWorkerExtensions = filterByRunningLocation(allExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
 				return {
 					autoStart: true,
-					extensions: webExtensions
+					extensions: localWebWorkerExtensions
 				};
 			}
 		};
@@ -109,32 +111,26 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	protected async _scanAndHandleExtensions(): Promise<void> {
 		// fetch the remote environment
-		let [remoteEnv, localExtensions] = await Promise.all([
+		let [localExtensions, remoteEnv, remoteExtensions] = await Promise.all([
+			this._webExtensionsScannerService.scanAndTranslateExtensions().then(extensions => extensions.map(parseScannedExtension)),
 			this._remoteAgentService.getEnvironment(),
-			this._webExtensionsScannerService.scanExtensions().then(extensions => extensions.map(parseScannedExtension))
+			this._remoteAgentService.scanExtensions()
 		]);
+		localExtensions = this._checkEnabledAndProposedAPI(localExtensions);
+		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
+		this._runningLocation = _determineRunningLocation(this._productService, this._configService, localExtensions, remoteExtensions, Boolean(remoteEnv && remoteAgentConnection));
 
-		let result: DeltaExtensionsResult;
+		localExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
+		remoteExtensions = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionRunningLocation.Remote);
 
-		// local: only enabled and web'ish extension
-		localExtensions = localExtensions!.filter(ext => this._isEnabled(ext) && canExecuteOnWeb(ext, this._productService, this._configService));
-		this._checkEnableProposedApi(localExtensions);
+		const result = this._registry.deltaExtensions(remoteExtensions.concat(localExtensions), []);
+		if (result.removedDueToLooping.length > 0) {
+			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+		}
 
-		if (!remoteEnv || !remoteAgentConnection) {
-			result = this._registry.deltaExtensions(localExtensions, []);
-
-		} else {
-			// remote: only enabled and none-web'ish extension
-			remoteEnv.extensions = remoteEnv.extensions.filter(extension => this._isEnabled(extension) && !canExecuteOnWeb(extension, this._productService, this._configService));
-			this._checkEnableProposedApi(remoteEnv.extensions);
-
-			// in case of overlap, the remote wins
-			const isRemoteExtension = new Set<string>();
-			remoteEnv.extensions.forEach(extension => isRemoteExtension.add(ExtensionIdentifier.toKey(extension.identifier)));
-			localExtensions = localExtensions.filter(extension => !isRemoteExtension.has(ExtensionIdentifier.toKey(extension.identifier)));
-
+		if (remoteEnv && remoteAgentConnection) {
 			// save for remote extension's init data
 			this._remoteInitData = {
 				connectionData: this._remoteAuthorityResolverService.getConnectionData(remoteAgentConnection.remoteAuthority),
@@ -143,16 +139,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				extensionHostLogsPath: remoteEnv.extensionHostLogsPath,
 				globalStorageHome: remoteEnv.globalStorageHome,
 				workspaceStorageHome: remoteEnv.workspaceStorageHome,
-				extensions: remoteEnv.extensions,
-				allExtensions: remoteEnv.extensions.concat(localExtensions)
+				extensions: remoteExtensions,
+				allExtensions: this._registry.getAllExtensionDescriptions()
 			};
-
-			result = this._registry.deltaExtensions(remoteEnv.extensions.concat(localExtensions), []);
 		}
 
-		if (result.removedDueToLooping.length > 0) {
-			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
-		}
 		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
 	}
 
@@ -162,6 +153,57 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// on this message to exit properly.
 		console.log(`vscode:exit ${code}`);
 	}
+}
+
+const enum ExtensionRunningLocation {
+	None,
+	LocalWebWorker,
+	Remote
+}
+
+export function determineRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], allExtensionKinds: Map<string, ExtensionKind[]>, hasRemote: boolean): Map<string, ExtensionRunningLocation> {
+	const localExtensionsSet = new Set<string>();
+	localExtensions.forEach(ext => localExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier)));
+
+	const remoteExtensionsSet = new Set<string>();
+	remoteExtensions.forEach(ext => remoteExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier)));
+
+	const pickRunningLocation = (extension: IExtensionDescription): ExtensionRunningLocation => {
+		const isInstalledLocally = localExtensionsSet.has(ExtensionIdentifier.toKey(extension.identifier));
+		const isInstalledRemotely = remoteExtensionsSet.has(ExtensionIdentifier.toKey(extension.identifier));
+		const extensionKinds = allExtensionKinds.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
+		for (const extensionKind of extensionKinds) {
+			if (extensionKind === 'ui' && isInstalledRemotely) {
+				// ui extensions run remotely if possible
+				return ExtensionRunningLocation.Remote;
+			}
+			if (extensionKind === 'workspace' && isInstalledRemotely) {
+				// workspace extensions run remotely if possible
+				return ExtensionRunningLocation.Remote;
+			}
+			if (extensionKind === 'web' && isInstalledLocally) {
+				// web worker extensions run in the local web worker if possible
+				return ExtensionRunningLocation.LocalWebWorker;
+			}
+		}
+		return ExtensionRunningLocation.None;
+	};
+
+	const runningLocation = new Map<string, ExtensionRunningLocation>();
+	localExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext)));
+	remoteExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext)));
+	return runningLocation;
+}
+
+function _determineRunningLocation(productService: IProductService, configurationService: IConfigurationService, localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], hasRemote: boolean): Map<string, ExtensionRunningLocation> {
+	const allExtensionKinds = new Map<string, ExtensionKind[]>();
+	localExtensions.forEach(ext => allExtensionKinds.set(ExtensionIdentifier.toKey(ext.identifier), getExtensionKind(ext, productService, configurationService)));
+	remoteExtensions.forEach(ext => allExtensionKinds.set(ExtensionIdentifier.toKey(ext.identifier), getExtensionKind(ext, productService, configurationService)));
+	return determineRunningLocation(localExtensions, remoteExtensions, allExtensionKinds, hasRemote);
+}
+
+function filterByRunningLocation(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation>, desiredRunningLocation: ExtensionRunningLocation): IExtensionDescription[] {
+	return extensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === desiredRunningLocation);
 }
 
 registerSingleton(IExtensionService, ExtensionService);

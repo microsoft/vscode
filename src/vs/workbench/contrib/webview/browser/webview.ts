@@ -113,6 +113,11 @@ export interface Webview extends IDisposable {
 	runFindAction(previous: boolean): void;
 
 	selectAll(): void;
+	copy(): void;
+	paste(): void;
+	cut(): void;
+	undo(): void;
+	redo(): void;
 
 	windowDidDragStart(): void;
 	windowDidDragEnd(): void;

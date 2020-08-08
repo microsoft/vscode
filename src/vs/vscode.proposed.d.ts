@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from 'vscode';
-
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -19,61 +17,6 @@ import { MarkdownString } from 'vscode';
 declare module 'vscode' {
 
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
-
-	export class AuthenticationSession {
-		/**
-		 * The identifier of the authentication session.
-		 */
-		readonly id: string;
-
-		/**
-		 * The access token.
-		 */
-		readonly accessToken: string;
-
-		/**
-		 * The account associated with the session.
-		 */
-		readonly account: AuthenticationSessionAccountInformation;
-
-		/**
-		 * The permissions granted by the session's access token. Available scopes
-		 * are defined by the authentication provider.
-		 */
-		readonly scopes: ReadonlyArray<string>;
-
-		constructor(id: string, accessToken: string, account: AuthenticationSessionAccountInformation, scopes: string[]);
-	}
-
-	/**
-	 * The information of an account associated with an authentication session.
-	 */
-	export interface AuthenticationSessionAccountInformation {
-		/**
-		 * The unique identifier of the account.
-		 */
-		readonly id: string;
-
-		/**
-		 * The human-readable name of the account.
-		 */
-		readonly label: string;
-	}
-
-	/**
-	 * Basic information about an[authenticationProvider](#AuthenticationProvider)
-	 */
-	export interface AuthenticationProviderInformation {
-		/**
-		 * The unique identifier of the authentication provider.
-		 */
-		readonly id: string;
-
-		/**
-		 * The human-readable name of the authentication provider.
-		 */
-		readonly label: string;
-	}
 
 	/**
 	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
@@ -91,32 +34,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options to be used when getting a session from an [AuthenticationProvider](#AuthenticationProvider).
-	 */
-	export interface AuthenticationGetSessionOptions {
-		/**
-		 *  Whether login should be performed if there is no matching session. Defaults to false.
-		 */
-		createIfNone?: boolean;
-
-		/**
-		 * Whether the existing user session preference should be cleared. Set to allow the user to switch accounts.
-		 * Defaults to false.
-		 */
-		clearSessionPreference?: boolean;
-	}
-
-	export interface AuthenticationProviderAuthenticationSessionsChangeEvent extends AuthenticationSessionsChangeEvent {
-		/**
-		 * The [authenticationProvider](#AuthenticationProvider) that has had its sessions change.
-		 */
-		readonly provider: AuthenticationProviderInformation;
-	}
-
-	/**
 	* An [event](#Event) which fires when an [AuthenticationSession](#AuthenticationSession) is added, removed, or changed.
 	*/
-	export interface AuthenticationSessionsChangeEvent {
+	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
 		/**
 		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been added.
 		*/
@@ -160,7 +80,7 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
 		 */
-		readonly onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
+		readonly onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
 
 		/**
 		 * Returns an array of current sessions.
@@ -215,41 +135,6 @@ declare module 'vscode' {
 		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
-		 * Returns whether a provider has any sessions matching the requested scopes. This request
-		 * is transparent to the user, no UI is shown. Rejects if a provider with providerId is not
-		 * registered.
-		 * @param providerId The id of the provider
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
-		 * provider
-		 * @returns A thenable that resolve to whether the provider has sessions with the requested scopes.
-		 */
-		export function hasSessions(providerId: string, scopes: string[]): Thenable<boolean>;
-
-		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
-		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
-		 * @param options The [getSessionOptions](#GetSessionOptions) to use
-		 * @returns A thenable that resolves to an authentication session
-		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession>;
-
-		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
-		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
-		 * @param options The [getSessionOptions](#GetSessionOptions) to use
-		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
-		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
-
-		/**
 		 * @deprecated
 		* Logout of a specific session.
 		* @param providerId The id of the provider to use
@@ -257,13 +142,6 @@ declare module 'vscode' {
 		* provider
 		*/
 		export function logout(providerId: string, sessionId: string): Thenable<void>;
-
-		/**
-		* An [event](#Event) which fires when the array of sessions has changed, or data
-		* within a session has changed for a provider. Fires with the ids of the providers
-		* that have had session data change.
-		*/
-		export const onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
 	}
 
 	//#endregion
@@ -346,6 +224,9 @@ declare module 'vscode' {
 		/**
 		 * Forwards a port. If the current resolver implements RemoteAuthorityResolver:forwardPort then that will be used to make the tunnel.
 		 * By default, openTunnel only support localhost; however, RemoteAuthorityResolver:tunnelFactory can be used to support other ips.
+		 *
+		 * @throws When run in an environment without a remote.
+		 *
 		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
 		export function openTunnel(tunnelOptions: TunnelOptions): Thenable<Tunnel>;
@@ -370,13 +251,14 @@ declare module 'vscode' {
 
 	export interface ResourceLabelFormatting {
 		label: string; // myLabel:/${path}
-		// TODO@isidorn
+		// For historic reasons we use an or string here. Once we finalize this API we should start using enums instead and adopt it in extensions.
 		// eslint-disable-next-line vscode-dts-literal-or-types
 		separator: '/' | '\\' | '';
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;
 		workspaceSuffix?: string;
 		authorityPrefix?: string;
+		stripPathStartingSeparator?: boolean;
 	}
 
 	export namespace workspace {
@@ -880,30 +762,13 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
-	export interface DebugSession {
-
-		/**
-		 * Terminates the session.
-		 */
-		terminate(): Thenable<void>;
-	}
-
-	export interface DebugSession {
-
-		/**
-		 * Terminates the session.
-		 */
-		terminate(): Thenable<void>;
-	}
-
 	export namespace debug {
 
 		/**
-		 * Stop the given debug session or stop all debug sessions if no session is specified.
-		 * @param session The [debug session](#DebugSession) to stop or `undefined` for stopping all sessions.
-		 * @return A thenable that resolves when the sessions could be stopped successfully.
+		 * Stop the given debug session or stop all debug sessions if session is omitted.
+		 * @param session The [debug session](#DebugSession) to stop; if omitted all sessions are stopped.
 		 */
-		export function stopDebugging(session: DebugSession | undefined): Thenable<void>;
+		export function stopDebugging(session?: DebugSession): Thenable<void>;
 	}
 
 	//#endregion
@@ -1115,25 +980,27 @@ declare module 'vscode' {
 		 * even before previous calls resolve, make sure to not share global objects (eg. `RegExp`)
 		 * that could have problems when asynchronous usage may overlap.
 		 * @param context Information about what links are being provided for.
+		 * @param token A cancellation token.
+		 * @return A list of terminal links for the given line.
 		 */
-		provideTerminalLinks(context: TerminalLinkContext): ProviderResult<T[]>
+		provideTerminalLinks(context: TerminalLinkContext, token: CancellationToken): ProviderResult<T[]>
 
 		/**
 		 * Handle an activated terminal link.
 		 */
-		handleTerminalLink(link: T): void;
+		handleTerminalLink(link: T): ProviderResult<void>;
 	}
 
 	export interface TerminalLink {
 		/**
-		 * The 0-based start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
+		 * The start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
 		 */
 		startIndex: number;
 
 		/**
-		 * The 0-based end index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
+		 * The length of the link on [TerminalLinkContext.line](#TerminalLinkContext.line]
 		 */
-		endIndex: number;
+		length: number;
 
 		/**
 		 * The tooltip text when you hover over this link.
@@ -1435,6 +1302,11 @@ declare module 'vscode' {
 		Error = 4
 	}
 
+	export enum NotebookRunState {
+		Running = 1,
+		Idle = 2
+	}
+
 	export interface NotebookCellMetadata {
 		/**
 		 * Controls if the content of a cell is editable or not.
@@ -1483,6 +1355,16 @@ declare module 'vscode' {
 		 * The total duration of the cell's last run
 		 */
 		lastRunDuration?: number;
+
+		/**
+		 * Whether a code cell's editor is collapsed
+		 */
+		inputCollapsed?: boolean;
+
+		/**
+		 * Whether a code cell's outputs are collapsed
+		 */
+		outputCollapsed?: boolean;
 
 		/**
 		 * Additional attributes of a cell metadata.
@@ -1537,6 +1419,11 @@ declare module 'vscode' {
 		 * Additional attributes of the document metadata.
 		 */
 		custom?: { [key: string]: any };
+
+		/**
+		 * The document's current run state
+		 */
+		runState?: NotebookRunState;
 	}
 
 	export interface NotebookDocument {
@@ -1544,6 +1431,7 @@ declare module 'vscode' {
 		readonly fileName: string;
 		readonly viewType: string;
 		readonly isDirty: boolean;
+		readonly isUntitled: boolean;
 		readonly cells: NotebookCell[];
 		languages: string[];
 		displayOrder?: GlobPattern[];
@@ -1551,6 +1439,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookConcatTextDocument {
+		uri: Uri;
 		isClosed: boolean;
 		dispose(): void;
 		onDidChange: Event<void>;
@@ -1603,6 +1492,11 @@ declare module 'vscode' {
 		 * Fired when the panel is disposed.
 		 */
 		readonly onDidDispose: Event<void>;
+
+		/**
+		 * Active kernel used in the editor
+		 */
+		readonly kernel?: NotebookKernel;
 
 		/**
 		 * Fired when the output hosting webview posts a message.
@@ -1705,6 +1599,11 @@ declare module 'vscode' {
 		readonly language: string;
 	}
 
+	export interface NotebookCellMetadataChangeEvent {
+		readonly document: NotebookDocument;
+		readonly cell: NotebookCell;
+	}
+
 	export interface NotebookCellData {
 		readonly cellKind: CellKind;
 		readonly source: string;
@@ -1764,7 +1663,7 @@ declare module 'vscode' {
 		/**
 		 * Unique identifier for the backup.
 		 *
-		 * This id is passed back to your extension in `openCustomDocument` when opening a custom editor from a backup.
+		 * This id is passed back to your extension in `openCustomDocument` when opening a notebook editor from a backup.
 		 */
 		readonly id: string;
 
@@ -1833,16 +1732,38 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookKernel {
+		readonly id?: string;
 		label: string;
+		description?: string;
+		isPreferred?: boolean;
 		preloads?: Uri[];
-		executeCell(document: NotebookDocument, cell: NotebookCell, token: CancellationToken): Promise<void>;
-		executeAllCells(document: NotebookDocument, token: CancellationToken): Promise<void>;
+		executeCell(document: NotebookDocument, cell: NotebookCell): void;
+		cancelCellExecution(document: NotebookDocument, cell: NotebookCell): void;
+		executeAllCells(document: NotebookDocument): void;
+		cancelAllCellsExecution(document: NotebookDocument): void;
+	}
+
+	export interface NotebookDocumentFilter {
+		viewType?: string;
+		filenamePattern?: GlobPattern;
+		excludeFileNamePattern?: GlobPattern;
+	}
+
+	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
+		onDidChangeKernels?: Event<void>;
+		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
+		resolveKernel?(kernel: T, document: NotebookDocument, webview: NotebookCommunication, token: CancellationToken): ProviderResult<void>;
 	}
 
 	export namespace notebook {
 		export function registerNotebookContentProvider(
 			notebookType: string,
 			provider: NotebookContentProvider
+		): Disposable;
+
+		export function registerNotebookKernelProvider(
+			selector: NotebookDocumentFilter,
+			provider: NotebookKernelProvider
 		): Disposable;
 
 		export function registerNotebookKernel(
@@ -1859,6 +1780,7 @@ declare module 'vscode' {
 
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
 
 		/**
 		 * All currently known notebook documents.
@@ -1873,6 +1795,7 @@ declare module 'vscode' {
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
+		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
 		/**
 		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
 		 * but a selector can be provided to narrow to down the set of cells.
@@ -1881,6 +1804,8 @@ declare module 'vscode' {
 		 * @param selector
 		 */
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
+
+		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined }>;
 	}
 
 	//#endregion
@@ -2105,17 +2030,22 @@ declare module 'vscode' {
 		 * The directory might not exist on disk and creation is up to the extension. However,
 		 * the parent directory is guaranteed to be existent.
 		 *
-		 * @see vscode.workspace.fs
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
 		 */
 		readonly logUri: Uri;
 
 		/**
 		 * The uri of a workspace specific directory in which the extension
-		 * can store private state. The directory might not exist on disk and creation is
+		 * can store private state. The directory might not exist and creation is
 		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * The value is `undefined` when no workspace nor folder has been opened.
 		 *
 		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
 		 */
 		readonly storageUri: Uri | undefined;
 
@@ -2125,8 +2055,24 @@ declare module 'vscode' {
 		 * up to the extension. However, the parent directory is guaranteed to be existent.
 		 *
 		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
 		 */
 		readonly globalStorageUri: Uri;
+
+		/**
+		 * @deprecated Use [logUri](#ExtensionContext.logUri) instead.
+		 */
+		readonly logPath: string;
+		/**
+		 * @deprecated Use [storagePath](#ExtensionContent.storageUri) instead.
+		 */
+		readonly storagePath: string | undefined;
+		/**
+		 * @deprecated Use [globalStoragePath](#ExtensionContent.globalStorageUri) instead.
+		 */
+		readonly globalStoragePath: string;
 	}
 
 	//#endregion

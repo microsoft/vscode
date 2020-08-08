@@ -22,12 +22,12 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 
 	private static readonly MEMOIZER = createMemoizer();
 
-	private _label: URI;
-	get label(): URI { return this._label; }
+	private _preferredResource: URI;
+	get preferredResource(): URI { return this._preferredResource; }
 
 	constructor(
 		public readonly resource: URI,
-		preferredLabel: URI | undefined,
+		preferredResource: URI | undefined,
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
@@ -37,7 +37,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 	) {
 		super();
 
-		this._label = preferredLabel || resource;
+		this._preferredResource = preferredResource || resource;
 
 		this.registerListeners();
 	}
@@ -51,7 +51,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 	}
 
 	private onLabelEvent(scheme: string): void {
-		if (scheme === this._label.scheme) {
+		if (scheme === this._preferredResource.scheme) {
 			this.updateLabel();
 		}
 	}
@@ -65,16 +65,12 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 		this._onDidChangeLabel.fire();
 	}
 
-	setLabel(label: URI): void {
-		if (!extUri.isEqual(label, this._label)) {
-			this._label = label;
+	setPreferredResource(preferredResource: URI): void {
+		if (!extUri.isEqual(preferredResource, this._preferredResource)) {
+			this._preferredResource = preferredResource;
 
 			this.updateLabel();
 		}
-	}
-
-	getLabel(): URI {
-		return this._label;
 	}
 
 	getName(): string {
@@ -83,7 +79,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get basename(): string {
-		return this.labelService.getUriBasenameLabel(this._label);
+		return this.labelService.getUriBasenameLabel(this._preferredResource);
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
@@ -100,17 +96,17 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get shortDescription(): string {
-		return this.labelService.getUriBasenameLabel(dirname(this._label));
+		return this.labelService.getUriBasenameLabel(dirname(this._preferredResource));
 	}
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get mediumDescription(): string {
-		return this.labelService.getUriLabel(dirname(this._label), { relative: true });
+		return this.labelService.getUriLabel(dirname(this._preferredResource), { relative: true });
 	}
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get longDescription(): string {
-		return this.labelService.getUriLabel(dirname(this._label));
+		return this.labelService.getUriLabel(dirname(this._preferredResource));
 	}
 
 	@AbstractTextResourceEditorInput.MEMOIZER
@@ -120,12 +116,12 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get mediumTitle(): string {
-		return this.labelService.getUriLabel(this._label, { relative: true });
+		return this.labelService.getUriLabel(this._preferredResource, { relative: true });
 	}
 
 	@AbstractTextResourceEditorInput.MEMOIZER
 	private get longTitle(): string {
-		return this.labelService.getUriLabel(this._label);
+		return this.labelService.getUriLabel(this._preferredResource);
 	}
 
 	getTitle(verbosity: Verbosity): string {

@@ -1009,7 +1009,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			restoreWindows = windowConfig?.restoreWindows || 'all'; // by default restore all windows
 
-			if (['all', 'folders', 'one', 'none'].indexOf(restoreWindows) === -1) {
+			if (!['all', 'folders', 'one', 'none'].includes(restoreWindows)) {
 				restoreWindows = 'all'; // by default restore all windows
 			}
 		}
@@ -1117,6 +1117,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		if (remoteAuthority) {
 			const first = anyPath.charCodeAt(0);
+
 			// make absolute
 			if (first !== CharCode.Slash) {
 				if (isWindowsDriveLetter(first) && anyPath.charCodeAt(anyPath.charCodeAt(1)) === CharCode.Colon) {

@@ -142,8 +142,25 @@ export interface IExtensionIdentifier {
 	uuid?: string;
 }
 
-export const EXTENSION_CATEGORIES = ['Programming Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs',
-	'SCM Providers', 'Azure', 'Language Packs', 'Data Science', 'Machine Learning', 'Visualization', 'Testing', 'Notebooks'];
+export const EXTENSION_CATEGORIES = [
+	'Azure',
+	'Data Science',
+	'Debuggers',
+	'Extension Packs',
+	'Formatters',
+	'Keymaps',
+	'Language Packs',
+	'Linters',
+	'Machine Learning',
+	'Notebooks',
+	'Programming Languages',
+	'SCM Providers',
+	'Snippets',
+	'Themes',
+	'Testing',
+	'Visualization',
+	'Other',
+];
 
 export interface IExtensionManifest {
 	readonly name: string;
@@ -255,8 +272,18 @@ export interface IScannedExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly location: URI;
 	readonly type: ExtensionType;
-	readonly packageJSON: IExtensionManifest
+	readonly packageJSON: IExtensionManifest;
+	readonly packageNLS?: any;
 	readonly packageNLSUrl?: URI;
+	readonly readmeUrl?: URI;
+	readonly changelogUrl?: URI;
+}
+
+export interface ITranslatedScannedExtension {
+	readonly identifier: IExtensionIdentifier;
+	readonly location: URI;
+	readonly type: ExtensionType;
+	readonly packageJSON: IExtensionManifest;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
 }

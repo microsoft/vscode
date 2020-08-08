@@ -277,6 +277,14 @@
 		 * @param {KeyboardEvent} e
 		 */
 		const handleInnerKeydown = (e) => {
+			// If the keypress would trigger a browser event, such as copy or paste,
+			// make sure we block the browser from dispatching it. Instead VS Code
+			// handles these events and will dispatch a copy/paste back to the webview
+			// if needed
+			if (isCopyPasteOrCut(e) || isUndoRedo(e)) {
+				e.preventDefault();
+			}
+
 			host.postMessage('did-keydown', {
 				key: e.key,
 				keyCode: e.keyCode,
@@ -288,6 +296,24 @@
 				repeat: e.repeat
 			});
 		};
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isCopyPasteOrCut(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && ['c', 'v', 'x'].includes(e.key);
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isUndoRedo(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && ['z', 'y'].includes(e.key);
+		}
 
 		let isHandlingScroll = false;
 
@@ -470,21 +496,45 @@
 					newFrame.contentDocument.open();
 				}
 
-				newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
+				/**
+				 * @param {Document} contentDocument
+				 */
+				function onFrameLoaded(contentDocument) {
 					// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=978325
 					setTimeout(() => {
 						if (host.fakeLoad) {
-							newFrame.contentDocument.open();
-							newFrame.contentDocument.write(newDocument);
-							newFrame.contentDocument.close();
+							contentDocument.open();
+							contentDocument.write(newDocument);
+							contentDocument.close();
 							hookupOnLoadHandlers(newFrame);
 						}
-						const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
 						if (contentDocument) {
 							applyStyles(contentDocument, contentDocument.body);
 						}
 					}, 0);
-				});
+				}
+
+				if (host.fakeLoad) {
+					// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired.
+					// Use polling instead.
+					const interval = setInterval(() => {
+						// If the frame is no longer mounted, loading has stopped
+						if (!newFrame.parentElement) {
+							clearInterval(interval);
+							return;
+						}
+
+						if (newFrame.contentDocument.readyState === 'complete') {
+							clearInterval(interval);
+							onFrameLoaded(newFrame.contentDocument);
+						}
+					}, 10);
+				} else {
+					newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
+						const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
+						onFrameLoaded(contentDocument);
+					});
+				}
 
 				/**
 				 * @param {Document} contentDocument
