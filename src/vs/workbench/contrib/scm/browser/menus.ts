@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/scm';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -23,15 +23,46 @@ function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;
 }
 
-interface ISCMResourceGroupMenuEntry {
-	readonly group: ISCMResourceGroup;
-	readonly disposable: IDisposable;
-}
+class SCMMenusItem {
 
-interface ISCMMenus {
-	readonly resourceGroupMenu: IMenu;
-	readonly resourceMenu: IMenu;
-	readonly resourceFolderMenu: IMenu;
+	private _resourceGroupMenu: IMenu | undefined;
+	get resourceGroupMenu(): IMenu {
+		if (!this._resourceGroupMenu) {
+			this._resourceGroupMenu = this.menuService.createMenu(MenuId.SCMResourceGroupContext, this.contextKeyService);
+		}
+
+		return this._resourceGroupMenu;
+	}
+
+	private _resourceMenu: IMenu | undefined;
+	get resourceMenu(): IMenu {
+		if (!this._resourceMenu) {
+			this._resourceMenu = this.menuService.createMenu(MenuId.SCMResourceContext, this.contextKeyService);
+		}
+
+		return this._resourceMenu;
+	}
+
+	private _resourceFolderMenu: IMenu | undefined;
+	get resourceFolderMenu(): IMenu {
+		if (!this._resourceFolderMenu) {
+			this._resourceFolderMenu = this.menuService.createMenu(MenuId.SCMResourceFolderContext, this.contextKeyService);
+		}
+
+		return this._resourceFolderMenu;
+	}
+
+	constructor(
+		private contextKeyService: IContextKeyService,
+		private menuService: IMenuService
+	) { }
+
+	dispose(): void {
+		this.resourceGroupMenu?.dispose();
+		this.resourceMenu?.dispose();
+		this.resourceFolderMenu?.dispose();
+		this.contextKeyService.dispose();
+	}
 }
 
 export function getSCMResourceContextKey(resource: ISCMResourceGroup | ISCMResource): string {
@@ -50,8 +81,8 @@ export class SCMRepositoryMenus implements IDisposable {
 	private readonly _onDidChangeTitle = new Emitter<void>();
 	readonly onDidChangeTitle: Event<void> = this._onDidChangeTitle.event;
 
-	private readonly resourceGroupMenuEntries: ISCMResourceGroupMenuEntry[] = [];
-	private readonly resourceGroupMenus = new Map<ISCMResourceGroup, ISCMMenus>();
+	private readonly resourceGroups: ISCMResourceGroup[] = [];
+	private readonly resourceGroupMenusItems = new Map<ISCMResourceGroup, SCMMenusItem>();
 
 	private readonly disposables = new DisposableStore();
 
@@ -161,55 +192,45 @@ export class SCMRepositoryMenus implements IDisposable {
 	}
 
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu {
-		if (!this.resourceGroupMenus.has(group)) {
-			throw new Error('SCM Resource Group menu not found');
-		}
-
-		return this.resourceGroupMenus.get(group)!.resourceGroupMenu;
+		return this.getOrCreateResourceGroupMenusItem(group).resourceGroupMenu;
 	}
 
 	getResourceMenu(group: ISCMResourceGroup): IMenu {
-		if (!this.resourceGroupMenus.has(group)) {
-			throw new Error('SCM Resource Group menu not found');
-		}
-
-		return this.resourceGroupMenus.get(group)!.resourceMenu;
+		return this.getOrCreateResourceGroupMenusItem(group).resourceMenu;
 	}
 
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu {
-		if (!this.resourceGroupMenus.has(group)) {
-			throw new Error('SCM Resource Group menu not found');
-		}
-
-		return this.resourceGroupMenus.get(group)!.resourceFolderMenu;
+		return this.getOrCreateResourceGroupMenusItem(group).resourceFolderMenu;
 	}
 
-	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
-		const menuEntriesToInsert = toInsert.map<ISCMResourceGroupMenuEntry>(group => {
+	private getOrCreateResourceGroupMenusItem(group: ISCMResourceGroup): SCMMenusItem {
+		let result = this.resourceGroupMenusItems.get(group);
+
+		if (!result) {
 			const contextKeyService = this.contextKeyService.createScoped();
 			contextKeyService.createKey('scmProvider', group.provider.contextValue);
 			contextKeyService.createKey('scmResourceGroup', getSCMResourceContextKey(group));
 
-			const resourceGroupMenu = this.menuService.createMenu(MenuId.SCMResourceGroupContext, contextKeyService);
-			const resourceMenu = this.menuService.createMenu(MenuId.SCMResourceContext, contextKeyService);
-			const resourceFolderMenu = this.menuService.createMenu(MenuId.SCMResourceFolderContext, contextKeyService);
-			const disposable = combinedDisposable(contextKeyService, resourceGroupMenu, resourceMenu, resourceFolderMenu);
+			result = new SCMMenusItem(contextKeyService, this.menuService);
+			this.resourceGroupMenusItems.set(group, result);
+		}
 
-			this.resourceGroupMenus.set(group, { resourceGroupMenu, resourceMenu, resourceFolderMenu });
-			return { group, disposable };
-		});
+		return result;
+	}
 
-		const deleted = this.resourceGroupMenuEntries.splice(start, deleteCount, ...menuEntriesToInsert);
+	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
+		const deleted = this.resourceGroups.splice(start, deleteCount, ...toInsert);
 
-		for (const entry of deleted) {
-			this.resourceGroupMenus.delete(entry.group);
-			entry.disposable.dispose();
+		for (const group of deleted) {
+			const item = this.resourceGroupMenusItems.get(group);
+			item?.dispose();
+			this.resourceGroupMenusItems.delete(group);
 		}
 	}
 
 	dispose(): void {
 		this.disposables.dispose();
-		this.resourceGroupMenuEntries.forEach(e => e.disposable.dispose());
+		this.resourceGroupMenusItems.forEach(item => item.dispose());
 	}
 }
 

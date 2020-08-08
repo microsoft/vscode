@@ -128,6 +128,7 @@ export interface IExtensionRecommendationsService {
 
 	getAllRecommendationsWithReason(): IStringDictionary<IExtensionRecommendationReson>;
 	getFileBasedRecommendations(): IExtensionRecommendation[];
+	getImportantRecommendations(): Promise<IExtensionRecommendation[]>;
 	getConfigBasedRecommendations(): Promise<IExtensionRecommendation[]>;
 	getOtherRecommendations(): Promise<IExtensionRecommendation[]>;
 	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]>;

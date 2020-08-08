@@ -59,7 +59,7 @@ export function registerConfiguration(): IDisposable {
 			},
 			'settingsSync.ignoredExtensions': {
 				'type': 'array',
-				'description': localize('settingsSync.ignoredExtensions', "List of extensions to be ignored while synchronizing. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
+				markdownDescription: localize('settingsSync.ignoredExtensions', "List of extensions to be ignored while synchronizing. The identifier of an extension is always `${publisher}.${name}`. For example: `vscode.csharp`."),
 				$ref: ignoredExtensionsSchemaId,
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,

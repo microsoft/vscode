@@ -426,11 +426,13 @@ class RemoteUserDataSyncActivityViewDataProvider extends UserDataSyncActivityVie
 
 	protected async getChildrenForSyncResourceTreeItem(element: SyncResourceHandleTreeItem): Promise<ITreeItem[]> {
 		const children = await super.getChildrenForSyncResourceTreeItem(element);
-		const machineId = await this.userDataSyncService.getMachineId(element.syncResourceHandle.syncResource, element.syncResourceHandle);
-		if (machineId) {
-			const machines = await this.getMachines();
-			const machine = machines.find(({ id }) => id === machineId);
-			children[0].description = machine?.isCurrent ? localize({ key: 'current', comment: ['Represents current machine'] }, "Current") : machine?.name;
+		if (children.length) {
+			const machineId = await this.userDataSyncService.getMachineId(element.syncResourceHandle.syncResource, element.syncResourceHandle);
+			if (machineId) {
+				const machines = await this.getMachines();
+				const machine = machines.find(({ id }) => id === machineId);
+				children[0].description = machine?.isCurrent ? localize({ key: 'current', comment: ['Represents current machine'] }, "Current") : machine?.name;
+			}
 		}
 		return children;
 	}

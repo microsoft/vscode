@@ -870,7 +870,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 				return extHostDebugService.startDebugging(folder, nameOrConfig, parentSessionOrOptions || {});
 			},
-			stopDebugging(session: vscode.DebugSession | undefined) {
+			stopDebugging(session?: vscode.DebugSession) {
 				return extHostDebugService.stopDebugging(session);
 			},
 			addBreakpoints(breakpoints: vscode.Breakpoint[]) {

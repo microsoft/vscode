@@ -878,6 +878,7 @@ class ViewModel {
 	private alwaysShowRepositories = false;
 	private firstVisible = true;
 	private repositoryCollapseStates: Map<ISCMRepository, boolean> | undefined;
+	private viewSubMenuAction: SCMViewSubMenuAction | undefined;
 	private disposables = new DisposableStore();
 
 	constructor(
@@ -1134,20 +1135,23 @@ class ViewModel {
 			return [];
 		}
 
-		const viewAction = new SCMViewSubMenuAction(this);
+		if (!this.viewSubMenuAction) {
+			this.viewSubMenuAction = new SCMViewSubMenuAction(this);
+			this.disposables.add(this.viewSubMenuAction);
+		}
 
 		if (this.alwaysShowRepositories || this.repositories.elements.length !== 1) {
-			return Array.isArray(viewAction.actions) ? viewAction.actions : viewAction.actions();
+			return this.viewSubMenuAction.actions;
 		}
 
 		const menus = this.menus.getRepositoryMenus(this.repositories.elements[0].provider);
 		const secondaryActions = menus.getTitleSecondaryActions();
 
 		if (secondaryActions.length === 0) {
-			return [viewAction];
+			return [this.viewSubMenuAction];
 		}
 
-		return [viewAction, new Separator(), ...secondaryActions];
+		return [this.viewSubMenuAction, new Separator(), ...secondaryActions];
 	}
 
 	getViewActionsContext(): any {
@@ -1207,23 +1211,27 @@ class ViewModel {
 }
 
 class SCMViewSubMenuAction extends SubmenuAction {
+
+	readonly actions!: IAction[];
+
 	constructor(viewModel: ViewModel) {
+		const listAction = new SCMViewModeListAction(viewModel);
+		const treeAction = new SCMViewModeTreeAction(viewModel);
+		const sortByNameAction = new SCMSortByNameAction(viewModel);
+		const sortByPathAction = new SCMSortByPathAction(viewModel);
+		const sortByStatusAction = new SCMSortByStatusAction(viewModel);
+
 		super(
 			'scm.viewsort',
 			localize('sortAction', "View & Sort"),
 			[
-				...new RadioGroup([
-					new SCMViewModeListAction(viewModel),
-					new SCMViewModeTreeAction(viewModel)
-				]).actions,
+				...new RadioGroup([listAction, treeAction]).actions,
 				new Separator(),
-				...new RadioGroup([
-					new SCMSortByNameAction(viewModel),
-					new SCMSortByPathAction(viewModel),
-					new SCMSortByStatusAction(viewModel)
-				]).actions
+				...new RadioGroup([sortByNameAction, sortByPathAction, sortByStatusAction]).actions
 			]
 		);
+
+		this._register(combinedDisposable(listAction, treeAction, sortByNameAction, sortByPathAction, sortByStatusAction));
 	}
 }
 

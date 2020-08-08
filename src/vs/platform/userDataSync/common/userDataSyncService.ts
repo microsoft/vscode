@@ -453,7 +453,7 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 		if (resource) {
 			return this.performAction(resource, sychronizer => sychronizer.merge(resource));
 		} else {
-			return this.doMerge(false);
+			return this.mergeAll();
 		}
 	}
 
@@ -485,7 +485,37 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 	}
 
 	async apply(): Promise<[SyncResource, ISyncResourcePreview][]> {
-		return this.doMerge(true);
+		if (!this.previews) {
+			throw new Error('You need to create preview before applying');
+		}
+		if (this.synchronizingResources.length) {
+			throw new Error('Cannot pull while synchronizing resources');
+		}
+		const previews: [SyncResource, ISyncResourcePreview][] = [];
+		for (const [syncResource, preview] of this.previews) {
+			this.synchronizingResources.push([syncResource, preview.resourcePreviews.map(r => r.localResource)]);
+			this._onSynchronizeResources.fire(this.synchronizingResources);
+
+			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
+
+			/* merge those which are not yet merged */
+			for (const resourcePreview of preview.resourcePreviews) {
+				if ((resourcePreview.localChange !== Change.None || resourcePreview.remoteChange !== Change.None) && resourcePreview.mergeState === MergeState.Preview) {
+					await synchroniser.merge(resourcePreview.previewResource);
+				}
+			}
+
+			/* apply */
+			const newPreview = await synchroniser.apply(false, this.syncHeaders);
+			if (newPreview) {
+				previews.push(this.toSyncResourcePreview(synchroniser.resource, newPreview));
+			}
+
+			this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
+			this._onSynchronizeResources.fire(this.synchronizingResources);
+		}
+		this.previews = previews;
+		return this.previews;
 	}
 
 	async pull(): Promise<void> {
@@ -584,7 +614,7 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 		return this.previews;
 	}
 
-	private async doMerge(apply: boolean): Promise<[SyncResource, ISyncResourcePreview][]> {
+	private async mergeAll(): Promise<[SyncResource, ISyncResourcePreview][]> {
 		if (!this.previews) {
 			throw new Error('You need to create preview before merging or applying');
 		}
@@ -599,16 +629,11 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
 
 			/* merge those which are not yet merged */
-			let newPreview: ISyncResourcePreview | null = null;
+			let newPreview: ISyncResourcePreview | null = preview;
 			for (const resourcePreview of preview.resourcePreviews) {
 				if ((resourcePreview.localChange !== Change.None || resourcePreview.remoteChange !== Change.None) && resourcePreview.mergeState === MergeState.Preview) {
 					newPreview = await synchroniser.merge(resourcePreview.previewResource);
 				}
-			}
-
-			/* apply */
-			if (apply) {
-				newPreview = await synchroniser.apply(false, this.syncHeaders);
 			}
 
 			if (newPreview) {

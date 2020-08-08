@@ -399,6 +399,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					return false;
 				}
 
+				if (!viewModel.metadata.editable) {
+					return false;
+				}
+
 				const currCellIndex = viewModel.getCellIndex(activeCell);
 
 				let topPastedCell: CellViewModel | undefined = undefined;
@@ -439,6 +443,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 				const viewModel = editor.viewModel;
 
 				if (!viewModel) {
+					return false;
+				}
+
+				if (!viewModel.metadata.editable) {
 					return false;
 				}
 

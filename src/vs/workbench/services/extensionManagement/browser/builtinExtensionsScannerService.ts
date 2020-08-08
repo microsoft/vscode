@@ -29,36 +29,52 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
+		if (isWeb) {
+			const builtinExtensionsServiceUrl = this._getBuiltinExtensionsUrl(environmentService);
+			if (builtinExtensionsServiceUrl) {
+				let scannedBuiltinExtensions: IScannedBuiltinExtension[] = [];
 
-		const builtinExtensionsServiceUrl = environmentService.options?.builtinExtensionsServiceUrl ? URI.parse(environmentService.options?.builtinExtensionsServiceUrl) : undefined;
-		if (isWeb && builtinExtensionsServiceUrl) {
-
-			let scannedBuiltinExtensions: IScannedBuiltinExtension[] = [];
-
-			if (environmentService.isBuilt) {
-				// Built time configuration (do NOT modify)
-				scannedBuiltinExtensions = [/*BUILD->INSERT_BUILTIN_EXTENSIONS*/];
-			} else {
-				// Find builtin extensions by checking for DOM
-				const builtinExtensionsElement = document.getElementById('vscode-workbench-builtin-extensions');
-				const builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
-				if (builtinExtensionsElementAttribute) {
-					try {
-						scannedBuiltinExtensions = JSON.parse(builtinExtensionsElementAttribute);
-					} catch (error) { /* ignore error*/ }
+				if (environmentService.isBuilt) {
+					// Built time configuration (do NOT modify)
+					scannedBuiltinExtensions = [/*BUILD->INSERT_BUILTIN_EXTENSIONS*/];
+				} else {
+					// Find builtin extensions by checking for DOM
+					const builtinExtensionsElement = document.getElementById('vscode-workbench-builtin-extensions');
+					const builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
+					if (builtinExtensionsElementAttribute) {
+						try {
+							scannedBuiltinExtensions = JSON.parse(builtinExtensionsElementAttribute);
+						} catch (error) { /* ignore error*/ }
+					}
 				}
-			}
 
-			this.builtinExtensions = scannedBuiltinExtensions.map(e => ({
-				identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
-				location: uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.extensionPath),
-				type: ExtensionType.System,
-				packageJSON: e.packageJSON,
-				packageNLS: e.packageNLS,
-				readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.readmePath) : undefined,
-				changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.changelogPath) : undefined,
-			}));
+				this.builtinExtensions = scannedBuiltinExtensions.map(e => ({
+					identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
+					location: uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.extensionPath),
+					type: ExtensionType.System,
+					packageJSON: e.packageJSON,
+					packageNLS: e.packageNLS,
+					readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.readmePath) : undefined,
+					changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.changelogPath) : undefined,
+				}));
+			}
 		}
+	}
+
+	private _getBuiltinExtensionsUrl(environmentService: IWorkbenchEnvironmentService): URI | undefined {
+		if (environmentService.options?.builtinExtensionsServiceUrl) {
+			return URI.parse(environmentService.options?.builtinExtensionsServiceUrl);
+		}
+		let enableBuiltinExtensions: boolean;
+		if (environmentService.options && typeof environmentService.options._enableBuiltinExtensions !== 'undefined') {
+			enableBuiltinExtensions = environmentService.options._enableBuiltinExtensions;
+		} else {
+			enableBuiltinExtensions = environmentService.configuration.remoteAuthority ? false : true;
+		}
+		if (enableBuiltinExtensions) {
+			return URI.parse(require.toUrl('../../../../../../extensions'));
+		}
+		return undefined;
 	}
 
 	async scanBuiltinExtensions(): Promise<IScannedExtension[]> {

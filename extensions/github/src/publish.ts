@@ -140,13 +140,11 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 				const ignored = new Set(children);
 				result.forEach(c => ignored.delete(c.label));
 
-				if (ignored.size === 0) {
-					return;
+				if (ignored.size > 0) {
+					const raw = [...ignored].map(i => `/${i}`).join('\n');
+					const encoder = new TextEncoder();
+					await vscode.workspace.fs.writeFile(gitignore, encoder.encode(raw));
 				}
-
-				const raw = [...ignored].map(i => `/${i}`).join('\n');
-				const encoder = new TextEncoder();
-				await vscode.workspace.fs.writeFile(gitignore, encoder.encode(raw));
 			} finally {
 				quickpick.dispose();
 			}

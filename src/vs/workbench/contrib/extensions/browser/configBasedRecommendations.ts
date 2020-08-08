@@ -21,8 +21,13 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 	private importantTips: IConfigBasedExtensionTip[] = [];
 	private otherTips: IConfigBasedExtensionTip[] = [];
 
-	private _recommendations: ExtensionRecommendation[] = [];
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
+	private _otherRecommendations: ExtensionRecommendation[] = [];
+	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._otherRecommendations; }
+
+	private _importantRecommendations: ExtensionRecommendation[] = [];
+	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._importantRecommendations; }
+
+	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return [...this.importantRecommendations, ...this.otherRecommendations]; }
 
 	constructor(
 		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
@@ -61,7 +66,8 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 		}
 		this.importantTips = [...importantTips.values()];
 		this.otherTips = [...otherTips.values()].filter(tip => !importantTips.has(tip.extensionId));
-		this._recommendations = [...this.importantTips, ...this.otherTips].map(tip => this.toExtensionRecommendation(tip));
+		this._otherRecommendations = this.otherTips.map(tip => this.toExtensionRecommendation(tip));
+		this._importantRecommendations = this.importantTips.map(tip => this.toExtensionRecommendation(tip));
 	}
 
 	private async promptWorkspaceRecommendations(): Promise<void> {

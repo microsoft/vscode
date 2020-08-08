@@ -604,7 +604,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	}
 
 	private fixToolbarIcon(toolbar: ToolBar): void {
-		const button = toolbar.getContainer().querySelector('.codicon-toolbar-more');
+		const button = toolbar.getElement().querySelector('.codicon-toolbar-more');
 		if (button) {
 			(<HTMLElement>button).tabIndex = -1;
 
