@@ -818,7 +818,8 @@ export type SCMRawResource = [
 	UriComponents[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
-	boolean /*faded*/
+	boolean /*faded*/,
+	string /*context value*/
 ];
 
 export type SCMRawResourceSplice = [
