@@ -389,14 +389,13 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		return MarkdownCellRenderer.TEMPLATE_ID;
 	}
 
-	renderTemplate(container: HTMLElement): MarkdownCellRenderTemplate {
-		container.classList.add('markdown-cell-row');
-		container = DOM.append(container, DOM.$('.cell-inner-container'));
+	renderTemplate(rootContainer: HTMLElement): MarkdownCellRenderTemplate {
+		rootContainer.classList.add('markdown-cell-row');
+		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
 		const toolbar = disposables.add(this.createToolbar(container, 'cell-title-toolbar'));
 		const focusIndicatorLeft = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
-		container.setAttribute('draggable', 'true');
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
 		const editorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
@@ -434,7 +433,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			titleMenu,
 			toJSON: () => { return {}; }
 		};
-		this.dndController.registerDragHandle(templateData, () => this.getDragImage(templateData));
+		this.dndController.registerDragHandle(templateData, rootContainer, container, () => this.getDragImage(templateData));
 		this.commonRenderTemplate(templateData);
 
 		return templateData;
@@ -723,16 +722,17 @@ export class CellDragAndDropController extends Disposable {
 		this.setInsertIndicatorVisibility(false);
 	}
 
-	registerDragHandle(templateData: BaseCellRenderTemplate, dragImageProvider: DragImageProvider): void {
+	registerDragHandle(templateData: BaseCellRenderTemplate, cellRoot: HTMLElement, dragHandle: HTMLElement, dragImageProvider: DragImageProvider): void {
 		const container = templateData.container;
+		dragHandle.setAttribute('draggable', 'true');
 
-		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_END)(() => {
+		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_END)(() => {
 			// Note, templateData may have a different element rendered into it by now
 			container.classList.remove(DRAGGING_CLASS);
 			this.dragCleanup();
 		}));
 
-		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_START)(event => {
+		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_START)(event => {
 			if (!event.dataTransfer) {
 				return;
 			}
@@ -741,9 +741,9 @@ export class CellDragAndDropController extends Disposable {
 			this.currentDraggedCell.dragging = true;
 
 			const dragImage = dragImageProvider();
-			container.parentElement!.parentElement!.appendChild(dragImage);
+			cellRoot.parentElement!.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, 0, 0);
-			setTimeout(() => container.parentElement!.removeChild(dragImage!), 0); // Comment this out to debug drag image layout
+			setTimeout(() => cellRoot.parentElement!.removeChild(dragImage!), 0); // Comment this out to debug drag image layout
 
 			container.classList.add(DRAGGING_CLASS);
 		}));
@@ -967,16 +967,16 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		return CodeCellRenderer.TEMPLATE_ID;
 	}
 
-	renderTemplate(container: HTMLElement): CodeCellRenderTemplate {
-		container.classList.add('code-cell-row');
-		container = DOM.append(container, DOM.$('.cell-inner-container'));
+	renderTemplate(rootContainer: HTMLElement): CodeCellRenderTemplate {
+		rootContainer.classList.add('code-cell-row');
+		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
 
 		DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
 		const toolbar = disposables.add(this.createToolbar(container, 'cell-title-toolbar'));
 		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
-		focusIndicator.setAttribute('draggable', 'true');
+		const dragHandle = DOM.append(container, DOM.$('.cell-drag-handle'));
 
 		const cellContainer = DOM.append(container, $('.cell.code'));
 		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
@@ -1016,7 +1016,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const outputContainer = DOM.append(container, $('.output'));
 
 		const focusIndicatorRight = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-right'));
-		focusIndicatorRight.setAttribute('draggable', 'true');
 
 		const focusSinkElement = DOM.append(container, $('.cell-editor-focus-sink'));
 		focusSinkElement.setAttribute('tabindex', '0');
@@ -1054,10 +1053,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			bottomCellContainer,
 			timer,
 			titleMenu,
+			dragHandle,
 			toJSON: () => { return {}; }
 		};
 
-		this.dndController.registerDragHandle(templateData, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
+		this.dndController.registerDragHandle(templateData, rootContainer, dragHandle, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
 
 		disposables.add(DOM.addDisposableListener(focusSinkElement, DOM.EventType.FOCUS, () => {
 			if (templateData.currentRenderedCell && (templateData.currentRenderedCell as CodeCellViewModel).outputs.length) {
@@ -1129,6 +1129,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT - CELL_BOTTOM_MARGIN}px`;
 		templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
+		templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT}px`;
 	}
 
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
