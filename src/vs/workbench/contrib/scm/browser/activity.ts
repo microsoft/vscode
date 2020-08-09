@@ -42,6 +42,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 	) {
 		this.focusedProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', undefined);
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 
 		const onDidChangeSCMCountBadge = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.countBadge'));
 		onDidChangeSCMCountBadge(this.renderActivityCount, this, this.disposables);
@@ -123,14 +124,22 @@ export class SCMStatusController implements IWorkbenchContribution {
 		this.focusRepository(repository);
 	}
 
+	private onDidRemoveRepository(repository: ISCMRepository): void {
+		if (this.focusedRepository !== repository) {
+			return;
+		}
+
+		this.focusRepository(this.scmService.repositories[0]);
+	}
+
 	private focusRepository(repository: ISCMRepository | undefined): void {
 		if (this.focusedRepository === repository) {
 			return;
 		}
 
+		this.focusDisposable.dispose();
 		this.focusedRepository = repository;
 		this.focusedProviderContextKey.set(repository && repository.provider.id);
-		this.focusDisposable.dispose();
 
 		if (repository && repository.provider.onDidChangeStatusBarCommands) {
 			this.focusDisposable = repository.provider.onDidChangeStatusBarCommands(() => this.renderStatusBar(repository));

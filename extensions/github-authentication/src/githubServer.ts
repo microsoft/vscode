@@ -79,7 +79,7 @@ export class GitHubServer {
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
 
 		if (this.isTestEnvironment(callbackUri)) {
-			const token = await vscode.window.showInputBox({ prompt: 'Token', ignoreFocusOut: true });
+			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
 			if (!token) { throw new Error('Sign in failed: No token provided'); }
 			this.updateStatusBarItem(false);
 			return token;

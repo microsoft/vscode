@@ -18,6 +18,10 @@ function getFocusedElectronBasedWebviewDelegate(accessor: ServicesAccessor): Ele
 		return;
 	}
 
+	if (!editor?.hasWebviewFocus()) {
+		return;
+	}
+
 	const webview = editor?.getInnerWebview();
 	if (webview && webview instanceof ElectronWebviewBasedWebview) {
 		return webview;

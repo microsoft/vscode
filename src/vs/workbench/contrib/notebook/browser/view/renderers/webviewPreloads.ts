@@ -413,7 +413,9 @@ function webviewPreloads() {
 					for (let i = 0; i < event.data.widgets.length; i++) {
 						const widget = document.getElementById(event.data.widgets[i].id)!;
 						widget.style.top = event.data.widgets[i].top + 'px';
-						widget.parentElement!.style.display = 'block';
+						if (event.data.forceDisplay) {
+							widget.parentElement!.style.display = 'block';
+						}
 					}
 					break;
 				}
@@ -449,6 +451,15 @@ function webviewPreloads() {
 					if (output) {
 						output.parentElement!.style.display = 'block';
 						output.style.top = top + 'px';
+
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: outputId,
+							data: {
+								height: output.clientHeight
+							}
+						});
 					}
 				});
 				break;

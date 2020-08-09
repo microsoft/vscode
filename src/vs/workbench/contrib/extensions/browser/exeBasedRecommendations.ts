@@ -25,8 +25,14 @@ type ExeExtensionRecommendationsClassification = {
 
 export class ExeBasedRecommendations extends ExtensionRecommendations {
 
-	readonly _recommendations: ExtensionRecommendation[] = [];
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
+
+	private readonly _otherRecommendations: ExtensionRecommendation[] = [];
+	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._otherRecommendations; }
+
+	private readonly _importantRecommendations: ExtensionRecommendation[] = [];
+	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._importantRecommendations; }
+
+	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return [...this.importantRecommendations, ...this.otherRecommendations]; }
 
 	private readonly tasExperimentService: ITASExperimentService | undefined;
 
@@ -54,16 +60,30 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 
 	protected async doActivate(): Promise<void> {
 		const otherExectuableBasedTips = await this.extensionTipsService.getOtherExecutableBasedTips();
-		otherExectuableBasedTips.forEach(tip => this._recommendations.push(this.toExtensionRecommendation(tip)));
+		otherExectuableBasedTips.forEach(tip => this._otherRecommendations.push(this.toExtensionRecommendation(tip)));
+		await this.fetchImportantExeBasedRecommendations();
 	}
 
-	private async fetchAndPromptImportantExeBasedRecommendations(): Promise<void> {
+	private _importantExeBasedRecommendations: Promise<IStringDictionary<IExecutableBasedExtensionTip>> | undefined;
+	private async fetchImportantExeBasedRecommendations(): Promise<IStringDictionary<IExecutableBasedExtensionTip>> {
+		if (!this._importantExeBasedRecommendations) {
+			this._importantExeBasedRecommendations = this.doFetchImportantExeBasedRecommendations();
+		}
+		return this._importantExeBasedRecommendations;
+	}
+
+	private async doFetchImportantExeBasedRecommendations(): Promise<IStringDictionary<IExecutableBasedExtensionTip>> {
 		const importantExeBasedRecommendations: IStringDictionary<IExecutableBasedExtensionTip> = {};
 		const importantExectuableBasedTips = await this.extensionTipsService.getImportantExecutableBasedTips();
 		importantExectuableBasedTips.forEach(tip => {
-			this._recommendations.push(this.toExtensionRecommendation(tip));
+			this._importantRecommendations.push(this.toExtensionRecommendation(tip));
 			importantExeBasedRecommendations[tip.extensionId.toLowerCase()] = tip;
 		});
+		return importantExeBasedRecommendations;
+	}
+
+	private async fetchAndPromptImportantExeBasedRecommendations(): Promise<void> {
+		const importantExeBasedRecommendations = await this.fetchImportantExeBasedRecommendations();
 
 		const local = await this.extensionManagementService.getInstalled();
 		const { installed, uninstalled } = this.groupByInstalled(Object.keys(importantExeBasedRecommendations), local);
@@ -90,15 +110,39 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
+		const recommendationsByExe = new Map<string, IExecutableBasedExtensionTip[]>();
 		for (const extensionId of recommendations) {
-			if (this.tasExperimentService && extensionId === 'ms-vscode-remote.remote-wsl') {
+			const tip = importantExeBasedRecommendations[extensionId];
+			let tips = recommendationsByExe.get(tip.exeFriendlyName);
+			if (!tips) {
+				tips = [];
+				recommendationsByExe.set(tip.exeFriendlyName, tips);
+			}
+			tips.push(tip);
+		}
+
+		for (const [, tips] of recommendationsByExe) {
+			const extensionIds = tips.map(({ extensionId }) => extensionId.toLowerCase());
+			if (this.tasExperimentService && extensionIds.indexOf('ms-vscode-remote.remote-wsl') !== -1) {
 				await this.tasExperimentService.getTreatment<boolean>('wslpopupaa');
 			}
 
-			const tip = importantExeBasedRecommendations[extensionId];
-			const message = tip.isExtensionPack ? localize('extensionPackRecommended', "The '{0}' extension pack is recommended as you have {1} installed on your system.", tip.extensionName!, tip.exeFriendlyName || basename(tip.windowsPath!))
-				: localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.extensionName!, tip.exeFriendlyName || basename(tip.windowsPath!));
-			this.promptImportantExtensionInstallNotification(extensionId, message);
+			if (tips.length === 1) {
+				const tip = tips[0];
+				const message = tip.isExtensionPack ? localize('extensionPackRecommended', "The '{0}' extension pack is recommended as you have {1} installed on your system.", tip.extensionName, tip.exeFriendlyName || basename(tip.windowsPath!))
+					: localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.extensionName, tip.exeFriendlyName || basename(tip.windowsPath!));
+				this.promptImportantExtensionsInstallNotification(extensionIds, message);
+			}
+
+			else if (tips.length === 2) {
+				const message = localize('two extensions recommended', "The '{0}' and '{1}' extensions are recommended as you have {2} installed on your system.", tips[0].extensionName, tips[1].extensionName, tips[0].exeFriendlyName || basename(tips[0].windowsPath!));
+				this.promptImportantExtensionsInstallNotification(extensionIds, message);
+			}
+
+			else if (tips.length > 2) {
+				const message = localize('more than two extensions recommended', "The '{0}', '{1}' and other extensions are recommended as you have {2} installed on your system.", tips[0].extensionName, tips[1].extensionName, tips[0].exeFriendlyName || basename(tips[0].windowsPath!));
+				this.promptImportantExtensionsInstallNotification(extensionIds, message);
+			}
 		}
 	}
 
@@ -121,7 +165,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 			source: 'executable',
 			reason: {
 				reasonId: ExtensionRecommendationReason.Executable,
-				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.extensionName)
+				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.exeFriendlyName || basename(tip.windowsPath!))
 			}
 		};
 	}

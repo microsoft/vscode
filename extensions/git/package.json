@@ -1501,6 +1501,11 @@
           "description": "%config.ignoreMissingGitWarning%",
           "default": false
         },
+        "git.ignoreWindowsGit27Warning": {
+          "type": "boolean",
+          "description": "%config.ignoreWindowsGit27Warning%",
+          "default": false
+        },
         "git.ignoreLimitWarning": {
           "type": "boolean",
           "description": "%config.ignoreLimitWarning%",

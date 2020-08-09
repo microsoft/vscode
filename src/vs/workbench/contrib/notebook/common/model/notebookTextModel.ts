@@ -536,7 +536,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			};
 
 			this._increaseVersionId();
-			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeMetadata, versionId: this._versionId, index: this.cells.indexOf(cell), metadata: newMetadata });
+			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeMetadata, versionId: this._versionId, index: this.cells.indexOf(cell), metadata: cell.metadata });
 		}
 	}
 

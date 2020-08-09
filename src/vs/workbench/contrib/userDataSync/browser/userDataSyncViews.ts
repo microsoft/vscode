@@ -37,6 +37,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { TreeView } from 'vs/workbench/contrib/views/browser/treeView';
 import { flatten } from 'vs/base/common/arrays';
 import { UserDataSyncMergesViewPane } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncMergesView';
+import { basename } from 'vs/base/common/resources';
 
 export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
@@ -80,6 +81,8 @@ export class UserDataSyncDataViews extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
+		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
+		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 	) {
 		super();
 		this.registerViews(container);
@@ -122,7 +125,7 @@ export class UserDataSyncDataViews extends Disposable {
 				treeView.dataProvider = dataProvider;
 			}
 		});
-		this._register(Event.any(this.userDataSyncResourceEnablementService.onDidChangeResourceEnablement, this.userDataAutoSyncService.onDidChangeEnablement)(() => treeView.refresh()));
+		this._register(Event.any(this.userDataSyncMachinesService.onDidChange, this.userDataSyncService.onDidResetRemote)(() => treeView.refresh()));
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id,
@@ -190,7 +193,10 @@ export class UserDataSyncDataViews extends Disposable {
 					: this.instantiationService.createInstance(LocalUserDataSyncActivityViewDataProvider);
 			}
 		});
-		this._register(Event.any(this.userDataSyncResourceEnablementService.onDidChangeResourceEnablement, this.userDataAutoSyncService.onDidChangeEnablement)(() => treeView.refresh()));
+		this._register(Event.any(this.userDataSyncResourceEnablementService.onDidChangeResourceEnablement,
+			this.userDataAutoSyncService.onDidChangeEnablement,
+			this.userDataSyncService.onDidResetLocal,
+			this.userDataSyncService.onDidResetRemote)(() => treeView.refresh()));
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id,
@@ -264,19 +270,20 @@ export class UserDataSyncDataViews extends Disposable {
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const editorService = accessor.get(IEditorService);
-				const { resource, comparableResource } = <{ resource: string, comparableResource?: string }>JSON.parse(handle.$treeItemHandle);
-				if (comparableResource) {
-					await editorService.openEditor({
-						leftResource: URI.parse(resource),
-						rightResource: URI.parse(comparableResource),
-						options: {
-							preserveFocus: true,
-							revealIfVisible: true,
-						},
-					});
-				} else {
-					await editorService.openEditor({ resource: URI.parse(resource) });
-				}
+				const { resource, comparableResource } = <{ resource: string, comparableResource: string }>JSON.parse(handle.$treeItemHandle);
+				const leftResource = URI.parse(resource);
+				const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(leftResource));
+				const rightResource = URI.parse(comparableResource);
+				const rightResourceName = localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
+				await editorService.openEditor({
+					leftResource,
+					rightResource,
+					label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
+					options: {
+						preserveFocus: true,
+						revealIfVisible: true,
+					},
+				});
 			}
 		});
 	}
@@ -354,7 +361,7 @@ abstract class UserDataSyncActivityViewDataProvider implements ITreeViewDataProv
 	protected async getChildrenForSyncResourceTreeItem(element: SyncResourceHandleTreeItem): Promise<ITreeItem[]> {
 		const associatedResources = await this.userDataSyncService.getAssociatedResources((<SyncResourceHandleTreeItem>element).syncResourceHandle.syncResource, (<SyncResourceHandleTreeItem>element).syncResourceHandle);
 		return associatedResources.map(({ resource, comparableResource }) => {
-			const handle = JSON.stringify({ resource: resource.toString(), comparableResource: comparableResource?.toString() });
+			const handle = JSON.stringify({ resource: resource.toString(), comparableResource: comparableResource.toString() });
 			return {
 				handle,
 				collapsibleState: TreeItemCollapsibleState.None,
@@ -419,11 +426,13 @@ class RemoteUserDataSyncActivityViewDataProvider extends UserDataSyncActivityVie
 
 	protected async getChildrenForSyncResourceTreeItem(element: SyncResourceHandleTreeItem): Promise<ITreeItem[]> {
 		const children = await super.getChildrenForSyncResourceTreeItem(element);
-		const machineId = await this.userDataSyncService.getMachineId(element.syncResourceHandle.syncResource, element.syncResourceHandle);
-		if (machineId) {
-			const machines = await this.getMachines();
-			const machine = machines.find(({ id }) => id === machineId);
-			children[0].description = machine?.isCurrent ? localize({ key: 'current', comment: ['Represents current machine'] }, "Current") : machine?.name;
+		if (children.length) {
+			const machineId = await this.userDataSyncService.getMachineId(element.syncResourceHandle.syncResource, element.syncResourceHandle);
+			if (machineId) {
+				const machines = await this.getMachines();
+				const machine = machines.find(({ id }) => id === machineId);
+				children[0].description = machine?.isCurrent ? localize({ key: 'current', comment: ['Represents current machine'] }, "Current") : machine?.name;
+			}
 		}
 		return children;
 	}

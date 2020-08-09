@@ -413,6 +413,15 @@ export interface NotebookDataDto {
 	readonly metadata: NotebookDocumentMetadata;
 }
 
+export function getCellUndoRedoComparisonKey(uri: URI) {
+	const data = CellUri.parse(uri);
+	if (!data) {
+		return uri.toString();
+	}
+
+	return data.notebook.toString();
+}
+
 
 export namespace CellUri {
 

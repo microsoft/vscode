@@ -205,7 +205,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get providers(): ReadonlyArray<vscode.AuthenticationProviderInformation> {
 				return extHostAuthentication.providers;
 			},
-			getSession(providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions) {
+			getSession(providerId: string, scopes: string[], options?: vscode.AuthenticationGetSessionOptions) {
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			logout(providerId: string, sessionId: string): Thenable<void> {
@@ -870,7 +870,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 				return extHostDebugService.startDebugging(folder, nameOrConfig, parentSessionOrOptions || {});
 			},
-			stopDebugging(session: vscode.DebugSession | undefined) {
+			stopDebugging(session?: vscode.DebugSession) {
 				return extHostDebugService.stopDebugging(session);
 			},
 			addBreakpoints(breakpoints: vscode.Breakpoint[]) {

@@ -24,7 +24,7 @@ export class DialogService implements IDialogService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private allowableCommands = ['copy', 'cut'];
+	private allowableCommands = ['copy', 'cut', 'editor.action.clipboardCopyAction', 'editor.action.clipboardCopyAction'];
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

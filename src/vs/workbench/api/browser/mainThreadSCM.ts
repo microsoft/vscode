@@ -66,10 +66,10 @@ class MainThreadSCMResource implements ISCMResource {
 		private readonly sourceControlHandle: number,
 		private readonly groupHandle: number,
 		private readonly handle: number,
-		public sourceUri: URI,
-		public resourceGroup: ISCMResourceGroup,
-		public decorations: ISCMResourceDecorations,
-		public contextValue: string
+		readonly sourceUri: URI,
+		readonly resourceGroup: ISCMResourceGroup,
+		readonly decorations: ISCMResourceDecorations,
+		readonly contextValue: string | undefined
 	) { }
 
 	open(preserveFocus: boolean): Promise<void> {
@@ -151,18 +151,22 @@ class MainThreadSCMProvider implements ISCMProvider {
 		}
 	}
 
-	$registerGroup(handle: number, id: string, label: string): void {
-		const group = new MainThreadSCMResourceGroup(
-			this.handle,
-			handle,
-			this,
-			{},
-			label,
-			id
-		);
+	$registerGroups(_groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][]): void {
+		const groups = _groups.map(([handle, id, label, features]) => {
+			const group = new MainThreadSCMResourceGroup(
+				this.handle,
+				handle,
+				this,
+				features,
+				label,
+				id
+			);
 
-		this._groupsByHandle[handle] = group;
-		this.groups.splice(this.groups.elements.length, 0, [group]);
+			this._groupsByHandle[handle] = group;
+			return group;
+		});
+
+		this.groups.splice(this.groups.elements.length, 0, groups);
 	}
 
 	$updateGroup(handle: number, features: SCMGroupFeatures): void {
@@ -218,7 +222,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 						URI.revive(sourceUri),
 						group,
 						decorations,
-						contextValue
+						contextValue || undefined
 					);
 				});
 
@@ -328,7 +332,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositories.delete(handle);
 	}
 
-	$registerGroup(sourceControlHandle: number, groupHandle: number, id: string, label: string): void {
+	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][], splices: SCMRawResourceSplices[]): void {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
@@ -336,7 +340,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$registerGroup(groupHandle, id, label);
+		provider.$registerGroups(groups);
+		provider.$spliceGroupResourceStates(splices);
 	}
 
 	$updateGroup(sourceControlHandle: number, groupHandle: number, features: SCMGroupFeatures): void {
