@@ -1635,6 +1635,11 @@ export class Repository {
 		}
 	}
 
+	async cherryPick(commitHash: string): Promise<void> {
+		const args = ['cherry-pick', commitHash];
+		await this.run(args);
+	}
+
 	async blame(path: string): Promise<string> {
 		try {
 			const args = ['blame', sanitizePath(path)];

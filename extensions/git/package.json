@@ -327,6 +327,11 @@
         "category": "Git"
       },
       {
+        "command": "git.cherryPick",
+        "title": "%command.cherryPick%",
+        "category": "Git"
+      },
+      {
         "command": "git.addRemote",
         "title": "%command.addRemote%",
         "category": "Git"
@@ -672,6 +677,10 @@
         {
           "command": "git.pushWithTagsForce",
           "when": "config.git.enabled && !git.missing && config.git.allowForcePush && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.cherryPick",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.addRemote",

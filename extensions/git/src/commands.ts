@@ -2027,6 +2027,21 @@ export class CommandCenter {
 		await this._push(repository, { pushType: PushType.PushFollowTags, forcePush: true });
 	}
 
+	@command('git.cherryPick', { repository: true })
+	async cherryPick(repository: Repository): Promise<void> {
+		const inputCommitHash = await window.showInputBox({
+			placeHolder: localize('commit hash', "Commit Hash"),
+			prompt: localize('provide commit hash', "Please provide the commit hash"),
+			ignoreFocusOut: true
+		});
+
+		if (!inputCommitHash) {
+			return;
+		}
+
+		await repository.cherryPick(inputCommitHash);
+	}
+
 	@command('git.pushTo', { repository: true })
 	async pushTo(repository: Repository): Promise<void> {
 		await this._push(repository, { pushType: PushType.PushTo });

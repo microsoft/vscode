@@ -294,6 +294,7 @@ export const enum Operation {
 	Fetch = 'Fetch',
 	Pull = 'Pull',
 	Push = 'Push',
+	CherryPick = 'CherryPick',
 	Sync = 'Sync',
 	Show = 'Show',
 	Stage = 'Stage',
@@ -1193,6 +1194,10 @@ export class Repository implements Disposable {
 
 	async pushFollowTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
 		await this.run(Operation.Push, () => this._push(remote, undefined, false, true, forcePushMode));
+	}
+
+	async cherryPick(commitHash: string): Promise<void> {
+		await this.run(Operation.CherryPick, () => this.repository.cherryPick(commitHash));
 	}
 
 	async blame(path: string): Promise<string> {
