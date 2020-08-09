@@ -130,6 +130,8 @@ class SCMMenusItem {
 					contextKeyService.dispose();
 				}
 			};
+
+			this.contextualResourceMenus.set(resource.contextValue, item);
 		}
 
 		return item.menu;
