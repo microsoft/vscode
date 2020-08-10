@@ -956,64 +956,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal link provider https://github.com/microsoft/vscode/issues/91606
-
-	export namespace window {
-		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
-	}
-
-	export interface TerminalLinkContext {
-		/**
-		 * This is the text from the unwrapped line in the terminal.
-		 */
-		line: string;
-
-		/**
-		 * The terminal the link belongs to.
-		 */
-		terminal: Terminal;
-	}
-
-	export interface TerminalLinkProvider<T extends TerminalLink = TerminalLink> {
-		/**
-		 * Provide terminal links for the given context. Note that this can be called multiple times
-		 * even before previous calls resolve, make sure to not share global objects (eg. `RegExp`)
-		 * that could have problems when asynchronous usage may overlap.
-		 * @param context Information about what links are being provided for.
-		 * @param token A cancellation token.
-		 * @return A list of terminal links for the given line.
-		 */
-		provideTerminalLinks(context: TerminalLinkContext, token: CancellationToken): ProviderResult<T[]>
-
-		/**
-		 * Handle an activated terminal link.
-		 */
-		handleTerminalLink(link: T): ProviderResult<void>;
-	}
-
-	export interface TerminalLink {
-		/**
-		 * The start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
-		 */
-		startIndex: number;
-
-		/**
-		 * The length of the link on [TerminalLinkContext.line](#TerminalLinkContext.line]
-		 */
-		length: number;
-
-		/**
-		 * The tooltip text when you hover over this link.
-		 *
-		 * If a tooltip is provided, is will be displayed in a string that includes instructions on
-		 * how to trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary
-		 * depending on OS, user settings, and localization.
-		 */
-		tooltip?: string;
-	}
-
-	//#endregion
-
 	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
