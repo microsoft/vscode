@@ -9,6 +9,8 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/modes';
 import { ISequence } from 'vs/base/common/sequence';
+import { IAction } from 'vs/base/common/actions';
+import { IMenu } from 'vs/platform/actions/common/actions';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
@@ -112,6 +114,26 @@ export interface ISCMService {
 	readonly repositories: ISCMRepository[];
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
+}
+
+export interface ISCMTitleMenu {
+	readonly actions: IAction[];
+	readonly secondaryActions: IAction[];
+	readonly onDidChangeTitle: Event<void>;
+	readonly menu: IMenu;
+}
+
+export interface ISCMRepositoryMenus {
+	readonly titleMenu: ISCMTitleMenu;
+	readonly repositoryMenu: IMenu;
+	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
+	getResourceMenu(resource: ISCMResource): IMenu;
+	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;
+}
+
+export interface ISCMMenus {
+	readonly titleMenu: ISCMTitleMenu;
+	getRepositoryMenus(provider: ISCMProvider): ISCMRepositoryMenus;
 }
 
 export const ISCMViewService = createDecorator<ISCMViewService>('scmView');
