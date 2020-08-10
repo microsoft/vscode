@@ -21,6 +21,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Emitter } from 'vs/base/common/event';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class MainThreadNotebookDocument extends Disposable {
 	private _textModel: NotebookTextModel;
@@ -181,7 +182,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		@INotebookService private _notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ILogService private readonly logService: ILogService
 
 	) {
 		super();
@@ -582,21 +584,25 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 
 	async $updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void> {
+		this.logService.debug('MainThreadNotebooks#updateNotebookLanguages', resource.path, languages);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		textModel?.updateLanguages(languages);
 	}
 
 	async $updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void> {
+		this.logService.debug('MainThreadNotebooks#updateNotebookMetadata', resource.path, metadata);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		textModel?.updateNotebookMetadata(metadata);
 	}
 
 	async $updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata): Promise<void> {
+		this.logService.debug('MainThreadNotebooks#updateNotebookCellMetadata', resource.path, handle, metadata);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		textModel?.updateNotebookCellMetadata(handle, metadata);
 	}
 
 	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void> {
+		this.logService.debug('MainThreadNotebooks#spliceNotebookCellOutputs', resource.path, cellHandle);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 
 		if (textModel) {
