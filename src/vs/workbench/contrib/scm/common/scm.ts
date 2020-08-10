@@ -113,3 +113,17 @@ export interface ISCMService {
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
 }
+
+export const ISCMViewService = createDecorator<ISCMViewService>('scmView');
+
+export interface ISCMViewVisibleRepositoryChangeEvent {
+	readonly added: Iterable<ISCMRepository>;
+	readonly removed: Iterable<ISCMRepository>;
+}
+
+export interface ISCMViewService {
+	readonly _serviceBrand: undefined;
+
+	visibleRepositories: ISCMRepository[];
+	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
+}

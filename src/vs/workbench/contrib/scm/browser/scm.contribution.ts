@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { VIEWLET_ID, ISCMRepository, ISCMService, VIEW_PANE_ID, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID, ISCMRepository, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { SCMStatusController } from './activity';
@@ -24,6 +24,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
+import { SCMViewService } from 'vs/workbench/contrib/scm/common/scmViewService';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -225,3 +226,4 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 });
 
 registerSingleton(ISCMService, SCMService);
+registerSingleton(ISCMViewService, SCMViewService);
