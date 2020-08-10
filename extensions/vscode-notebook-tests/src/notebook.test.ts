@@ -132,7 +132,7 @@ suite('Notebook API tests', () => {
 	});
 
 	test('notebook open/close, all cell-documents are ready', async function () {
-		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 
 		const p = getEventOncePromise(vscode.notebook.onDidOpenNotebookDocument).then(notebook => {
 			for (let cell of notebook.cells) {
@@ -151,7 +151,7 @@ suite('Notebook API tests', () => {
 	});
 
 	test('notebook open/close, notebook ready when cell-document open event is fired', async function () {
-		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		let didHappen = false;
 		const p = getEventOncePromise(vscode.workspace.onDidOpenTextDocument).then(doc => {
 			if (doc.uri.scheme !== 'vscode-notebook-cell') {
