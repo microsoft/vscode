@@ -15,7 +15,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const storageKey = 'VSCode.ABExp.FeatureData';
-const refetchInterval = 1000 * 60 * 30; // By default it's set up to 30 minutes.
+const refetchInterval = 0; // no polling
 
 class MementoKeyValueStorage implements IKeyValueStorage {
 	constructor(private mementoObj: MementoObject) { }
