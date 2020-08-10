@@ -24,7 +24,7 @@ import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, 
 import { SCMMenus, SCMTitleMenu } from './menus';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, connectPrimaryMenu, collectContextMenuActions } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, StatusBarAction, StatusBarActionViewItem } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -56,7 +56,7 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import * as platform from 'vs/base/common/platform';
-import { escape, compare, format } from 'vs/base/common/strings';
+import { compare, format } from 'vs/base/common/strings';
 import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder, registerColor, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -72,11 +72,9 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { Command } from 'vs/editor/common/modes';
-import { renderCodicons, Codicon } from 'vs/base/common/codicons';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { Codicon } from 'vs/base/common/codicons';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -113,143 +111,10 @@ function splitMatches(uri: URI, filterData: FuzzyScore | undefined): [IMatch[] |
 	return [matches, descriptionMatches];
 }
 
-class StatusBarAction extends Action {
-
-	constructor(
-		private command: Command,
-		private commandService: ICommandService
-	) {
-		super(`statusbaraction{${command.id}}`, command.title, '', true);
-		this.tooltip = command.tooltip || '';
-	}
-
-	run(): Promise<void> {
-		return this.commandService.executeCommand(this.command.id, ...(this.command.arguments || []));
-	}
-}
-
-class StatusBarActionViewItem extends ActionViewItem {
-
-	constructor(action: StatusBarAction) {
-		super(null, action, {});
-	}
-
-	updateLabel(): void {
-		if (this.options.label && this.label) {
-			this.label.innerHTML = renderCodicons(escape(this.getAction().label));
-		}
-	}
-}
-
 interface ISCMLayout {
 	height: number | undefined;
 	width: number | undefined;
 	readonly onDidChange: Event<void>;
-}
-
-interface RepositoryTemplate {
-	readonly label: HTMLElement;
-	readonly name: HTMLElement;
-	readonly description: HTMLElement;
-	readonly countContainer: HTMLElement;
-	readonly count: CountBadge;
-	readonly toolBar: ToolBar;
-	disposable: IDisposable;
-	readonly templateDisposable: IDisposable;
-}
-
-class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, FuzzyScore, RepositoryTemplate> {
-
-	static readonly TEMPLATE_ID = 'repository';
-	get templateId(): string { return RepositoryRenderer.TEMPLATE_ID; }
-
-	constructor(
-		private actionViewItemProvider: IActionViewItemProvider,
-		private menus: SCMMenus,
-		@ICommandService private commandService: ICommandService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IThemeService private themeService: IThemeService
-	) { }
-
-	renderTemplate(container: HTMLElement): RepositoryTemplate {
-		// hack
-		addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-twistie');
-
-		const provider = append(container, $('.scm-provider'));
-		const label = append(provider, $('.label'));
-		const name = append(label, $('span.name'));
-		const description = append(label, $('span.description'));
-		const actions = append(provider, $('.actions'));
-		const toolBar = new ToolBar(actions, this.contextMenuService, { actionViewItemProvider: this.actionViewItemProvider });
-		const countContainer = append(provider, $('.count'));
-		const count = new CountBadge(countContainer);
-		const badgeStyler = attachBadgeStyler(count, this.themeService);
-		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => toggleClass(provider, 'active', e));
-
-		const disposable = Disposable.None;
-		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar, badgeStyler);
-
-		return { label, name, description, countContainer, count, toolBar, disposable, templateDisposable };
-	}
-
-	renderElement(node: ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
-		templateData.disposable.dispose();
-
-		const disposables = new DisposableStore();
-		const repository = node.element;
-
-		if (repository.provider.rootUri) {
-			templateData.label.title = `${repository.provider.label}: ${repository.provider.rootUri.fsPath}`;
-			templateData.name.textContent = basename(repository.provider.rootUri);
-			templateData.description.textContent = repository.provider.label;
-		} else {
-			templateData.label.title = repository.provider.label;
-			templateData.name.textContent = repository.provider.label;
-			templateData.description.textContent = '';
-		}
-
-		let statusPrimaryActions: IAction[] = [];
-		let menuPrimaryActions: IAction[] = [];
-		let menuSecondaryActions: IAction[] = [];
-		const updateToolbar = () => {
-			templateData.toolBar.setActions([...statusPrimaryActions, ...menuPrimaryActions], menuSecondaryActions);
-		};
-
-		const onDidChangeProvider = () => {
-			const commands = repository.provider.statusBarCommands || [];
-			statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
-			updateToolbar();
-
-			const count = repository.provider.count || 0;
-			templateData.countContainer.setAttribute('data-count', String(count));
-			templateData.count.setCount(count);
-		};
-		disposables.add(repository.provider.onDidChange(onDidChangeProvider, null));
-		onDidChangeProvider();
-
-		const menus = this.menus.getRepositoryMenus(repository.provider);
-		disposables.add(connectPrimaryMenu(menus.titleMenu.menu, (primary, secondary) => {
-			menuPrimaryActions = primary;
-			menuSecondaryActions = secondary;
-			updateToolbar();
-		}));
-		templateData.toolBar.context = repository.provider;
-
-		templateData.disposable = disposables;
-	}
-
-	renderCompressedElements(): void {
-		throw new Error('Should never happen since node is incompressible');
-	}
-
-	disposeElement(group: ITreeNode<ISCMRepository, FuzzyScore>, index: number, template: RepositoryTemplate): void {
-		template.disposable.dispose();
-	}
-
-	disposeTemplate(templateData: RepositoryTemplate): void {
-		templateData.disposable.dispose();
-		templateData.templateDisposable.dispose();
-	}
 }
 
 interface InputTemplate {
