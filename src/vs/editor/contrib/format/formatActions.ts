@@ -232,7 +232,7 @@ class FormatDocumentAction extends EditorAction {
 		if (editor.hasModel()) {
 			const instaService = accessor.get(IInstantiationService);
 			const progressService = accessor.get(IEditorProgressService);
-			return progressService.showWhile(
+			await progressService.showWhile(
 				instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, Progress.None, CancellationToken.None)
 			);
 		}
@@ -272,7 +272,7 @@ class FormatSelectionAction extends EditorAction {
 		}
 
 		const progressService = accessor.get(IEditorProgressService);
-		return progressService.showWhile(
+		await progressService.showWhile(
 			instaService.invokeFunction(formatDocumentRangeWithSelectedProvider, editor, range, FormattingMode.Explicit, CancellationToken.None)
 		);
 	}
