@@ -477,11 +477,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	moveCellToIdx(index: number, newIdx: number, emitToExtHost: boolean = true) {
+	moveCellToIdx(index: number, length: number, newIdx: number, emitToExtHost: boolean = true) {
 		this.assertIndex(index);
 		this.assertIndex(newIdx);
 
-		const cells = this.cells.splice(index, 1);
+		const cells = this.cells.splice(index, length);
 		this.cells.splice(newIdx, 0, ...cells);
 		this.setDirty(true);
 		this._onDidChangeContent.fire();
@@ -618,22 +618,22 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	moveCellToIdx2(index: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): boolean {
-		const cell = this.cells[index];
+	moveCellToIdx2(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): boolean {
+		const cells = this.cells.slice(index, index + length);
 		if (pushedToUndoStack) {
-			this._operationManager.pushEditOperation(new MoveCellEdit(this.uri, index, newIdx, {
-				moveCell: (fromIndex: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined) => {
-					this.moveCellToIdx2(fromIndex, toIndex, true, false, beforeSelections, endSelections);
+			this._operationManager.pushEditOperation(new MoveCellEdit(this.uri, index, length, newIdx, {
+				moveCell: (fromIndex: number, length: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined) => {
+					this.moveCellToIdx2(fromIndex, length, toIndex, true, false, beforeSelections, endSelections);
 				},
 				emitSelections: this._emitSelectionsDelegate.bind(this)
 			}, beforeSelections, endSelections));
 		}
 
-		this.moveCellToIdx(index, newIdx);
+		this.moveCellToIdx(index, length, newIdx);
 		// todo, we can't emit this change as it will create a new view model and that will hold
 		// a new reference to the document, thus
-		this._onDidChangeCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
-		this._onDidChangeCells.fire({ synchronous: synchronous, splices: [[newIdx, 0, [cell]]] });
+		this._onDidChangeCells.fire({ synchronous: synchronous, splices: [[index, length, []]] });
+		this._onDidChangeCells.fire({ synchronous: synchronous, splices: [[newIdx, 0, cells]] });
 		if (endSelections) {
 			this._emitSelections.fire(endSelections);
 		}

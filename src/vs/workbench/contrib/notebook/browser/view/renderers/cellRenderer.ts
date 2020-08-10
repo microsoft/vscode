@@ -672,6 +672,7 @@ export class CellDragAndDropController extends Disposable {
 		}
 
 		let draggedCells: ICellViewModel[] = [draggedCell];
+		let draggedCellRange: [number, number] = [this.notebookEditor.viewModel!.getCellIndex(draggedCell), 1];
 
 		if (draggedCell.cellKind === CellKind.Markdown) {
 			const currCellIndex = this.notebookEditor.viewModel!.getCellIndex(draggedCell);
@@ -680,6 +681,7 @@ export class CellDragAndDropController extends Disposable {
 			if (nextVisibleCellIndex > currCellIndex + 1) {
 				// folding ;)
 				draggedCells = this.notebookEditor.viewModel!.viewCells.slice(currCellIndex, nextVisibleCellIndex);
+				draggedCellRange = [currCellIndex, nextVisibleCellIndex - currCellIndex];
 			}
 		}
 
@@ -699,7 +701,15 @@ export class CellDragAndDropController extends Disposable {
 		if (isCopy) {
 			this.copyCells(draggedCells, event.draggedOverCell, dropDirection);
 		} else {
-			this.moveCells(draggedCells, event.draggedOverCell, dropDirection);
+			const viewModel = this.notebookEditor.viewModel!;
+			let originalToIdx = viewModel.getCellIndex(event.draggedOverCell);
+			if (dropDirection === 'below') {
+				const relativeToIndex = viewModel.getCellIndex(event.draggedOverCell);
+				const newIdx = viewModel.getNextVisibleCellIndex(relativeToIndex);
+				originalToIdx = newIdx;
+			}
+
+			this.notebookEditor.moveCellsToIdx(draggedCellRange[0], draggedCellRange[1], originalToIdx);
 		}
 	}
 
@@ -743,47 +753,6 @@ export class CellDragAndDropController extends Disposable {
 
 			container.classList.add(DRAGGING_CLASS);
 		}));
-	}
-
-	private async moveCells(draggedCells: ICellViewModel[], ontoCell: ICellViewModel, direction: 'above' | 'below') {
-		const viewModel = this.notebookEditor.viewModel;
-
-		if (!viewModel) {
-			return;
-		}
-
-		this.notebookEditor.textModel!.pushStackElement('Move Cells');
-		if (direction === 'above') {
-			for (let i = 0; i < draggedCells.length; i++) {
-				await this.notebookEditor.moveCellToIdx(draggedCells[i], viewModel.getCellIndex(ontoCell));
-			}
-		} else {
-			const relativeToIndex = viewModel.getCellIndex(ontoCell);
-			const newIdx = viewModel.getNextVisibleCellIndex(relativeToIndex);
-
-			if (relativeToIndex + 1 === newIdx) {
-				// no folding
-				for (let i = draggedCells.length - 1; i >= 0; i--) {
-					const newIdx = viewModel.getCellIndex(ontoCell) + 1;
-					await this.notebookEditor.moveCellToIdx(draggedCells[i], newIdx);
-				}
-			} else {
-				// there is folding
-				if (newIdx === viewModel.length) {
-					// insert to the end
-					for (let i = 0; i < draggedCells.length; i++) {
-						await this.notebookEditor.moveCellToIdx(draggedCells[i], this.notebookEditor.viewModel!.length);
-					}
-				} else {
-					ontoCell = viewModel.viewCells[newIdx];
-					// drop above ontoCell
-					for (let i = 0; i < draggedCells.length; i++) {
-						await this.notebookEditor.moveCellToIdx(draggedCells[i], viewModel.getCellIndex(ontoCell));
-					}
-				}
-			}
-		}
-		this.notebookEditor.textModel!.pushStackElement('Move Cells');
 	}
 
 	private copyCells(draggedCells: ICellViewModel[], ontoCell: ICellViewModel, direction: 'above' | 'below') {
