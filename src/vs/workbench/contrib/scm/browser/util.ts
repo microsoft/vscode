@@ -15,6 +15,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { renderCodicons } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Command } from 'vs/editor/common/modes';
+import { escape } from 'vs/base/common/strings';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
