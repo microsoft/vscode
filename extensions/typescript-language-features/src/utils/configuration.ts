@@ -66,7 +66,7 @@ export class TypeScriptServiceConfiguration {
 	public readonly maxTsServerMemory: number;
 	public readonly enablePromptUseWorkspaceTsdk: boolean;
 	public readonly watchOptions: protocol.WatchOptions | undefined;
-	public readonly includePackageJsonAutoImports: string | undefined;
+	public readonly includePackageJsonAutoImports: 'auto' | 'on' | 'off' | undefined;
 
 	public static loadFromWorkspace(): TypeScriptServiceConfiguration {
 		return new TypeScriptServiceConfiguration();
@@ -181,8 +181,8 @@ export class TypeScriptServiceConfiguration {
 		return configuration.get<protocol.WatchOptions>('typescript.tsserver.watchOptions');
 	}
 
-	private static readIncludePackageJsonAutoImports(configuration: vscode.WorkspaceConfiguration): string | undefined {
-		return configuration.get<string>('typescript.preferences.includePackageJsonAutoImports');
+	private static readIncludePackageJsonAutoImports(configuration: vscode.WorkspaceConfiguration): 'auto' | 'on' | 'off' | undefined {
+		return configuration.get<'auto' | 'on' | 'off'>('typescript.preferences.includePackageJsonAutoImports');
 	}
 
 	private static readMaxTsServerMemory(configuration: vscode.WorkspaceConfiguration): number {
