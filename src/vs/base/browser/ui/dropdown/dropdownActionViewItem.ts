@@ -8,7 +8,7 @@ import { IAction, IActionRunner, IActionViewItemProvider } from 'vs/base/common/
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { append, $ } from 'vs/base/browser/dom';
+import { append, $, addClasses } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IActionProvider, DropdownMenu, IDropdownMenuOptions, ILabelRenderer } from 'vs/base/browser/ui/dropdown/dropdown';
@@ -67,7 +67,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 				classNames.push('codicon');
 			}
 
-			this.element.classList.add(...classNames);
+			addClasses(this.element, ...classNames);
 
 			this.element.tabIndex = 0;
 			this.element.setAttribute('role', 'button');
