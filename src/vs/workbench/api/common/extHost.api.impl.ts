@@ -584,7 +584,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTerminalService.registerLinkHandler(handler);
 			},
 			registerTerminalLinkProvider(handler: vscode.TerminalLinkProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension);
 				return extHostTerminalService.registerLinkProvider(handler);
 			},
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
