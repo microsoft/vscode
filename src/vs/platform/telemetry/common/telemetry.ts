@@ -46,6 +46,8 @@ export interface ITelemetryService {
 
 	getTelemetryInfo(): Promise<ITelemetryInfo>;
 
+	setExperimentProperty(name: string, value: string): void;
+
 	isOptedIn: boolean;
 }
 

@@ -20,7 +20,7 @@ export class OutputRenderer {
 		this._contributions = {};
 		this._mimeTypeMapping = {};
 
-		let contributions = NotebookRegistry.getOutputTransformContributions();
+		const contributions = NotebookRegistry.getOutputTransformContributions();
 
 		for (const desc of contributions) {
 			try {
@@ -44,7 +44,7 @@ export class OutputRenderer {
 	}
 
 	render(output: IProcessedOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput {
-		let transform = this._mimeTypeMapping[output.outputKind];
+		const transform = this._mimeTypeMapping[output.outputKind];
 
 		if (transform) {
 			return transform.render(output, container, preferredMimeType);

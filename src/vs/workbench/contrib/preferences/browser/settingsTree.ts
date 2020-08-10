@@ -8,7 +8,6 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
@@ -20,7 +19,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -500,7 +499,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 		this._register(this._configService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.includes('sync.ignoredSettings')) {
+			if (e.affectedKeys.includes('settingsSync.ignoredSettings')) {
 				this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 				this._onDidChangeIgnoredSettings.fire();
 			}
@@ -605,7 +604,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	}
 
 	private fixToolbarIcon(toolbar: ToolBar): void {
-		const button = toolbar.getContainer().querySelector('.codicon-toolbar-more');
+		const button = toolbar.getElement().querySelector('.codicon-toolbar-more');
 		if (button) {
 			(<HTMLElement>button).tabIndex = -1;
 
@@ -1072,7 +1071,7 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 				: {};
 
 			const newValue: Record<string, unknown> = {};
-			let newItems: IObjectDataItem[] = [];
+			const newItems: IObjectDataItem[] = [];
 
 			template.objectWidget.items.forEach((item, idx) => {
 				// Item was updated
@@ -2026,7 +2025,7 @@ class SyncSettingAction extends Action {
 		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
 		super(SyncSettingAction.ID, SyncSettingAction.LABEL);
-		this._register(Event.filter(configService.onDidChangeConfiguration, e => e.affectsConfiguration('sync.ignoredSettings'))(() => this.update()));
+		this._register(Event.filter(configService.onDidChangeConfiguration, e => e.affectsConfiguration('settingsSync.ignoredSettings'))(() => this.update()));
 		this.update();
 	}
 
@@ -2037,7 +2036,7 @@ class SyncSettingAction extends Action {
 
 	async run(): Promise<void> {
 		// first remove the current setting completely from ignored settings
-		let currentValue = [...this.configService.getValue<string[]>('sync.ignoredSettings')];
+		let currentValue = [...this.configService.getValue<string[]>('settingsSync.ignoredSettings')];
 		currentValue = currentValue.filter(v => v !== this.setting.key && v !== `-${this.setting.key}`);
 
 		const defaultIgnoredSettings = getDefaultIgnoredSettings();
@@ -2054,7 +2053,7 @@ class SyncSettingAction extends Action {
 			currentValue.push(this.setting.key);
 		}
 
-		this.configService.updateValue('sync.ignoredSettings', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
+		this.configService.updateValue('settingsSync.ignoredSettings', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
 
 		return Promise.resolve(undefined);
 	}

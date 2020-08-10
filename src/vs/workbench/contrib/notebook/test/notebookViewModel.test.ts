@@ -239,7 +239,7 @@ function getVisibleCells<T>(cells: T[], hiddenRanges: ICellRange[]) {
 
 	let start = 0;
 	let hiddenRangeIndex = 0;
-	let result: T[] = [];
+	const result: T[] = [];
 
 	while (start < cells.length && hiddenRangeIndex < hiddenRanges.length) {
 		if (start < hiddenRanges[hiddenRangeIndex].start) {

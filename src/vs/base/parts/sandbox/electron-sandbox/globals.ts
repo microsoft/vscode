@@ -81,3 +81,30 @@ export const crashReporter = (window as any).vscode.crashReporter as {
 	 */
 	start(options: CrashReporterStartOptions): void;
 };
+
+export const process = (window as any).vscode.process as {
+
+	/**
+	 * The process.platform property returns a string identifying the operating system platform
+	 * on which the Node.js process is running.
+	 */
+	platform: 'win32' | 'linux' | 'darwin';
+
+	/**
+	 * The process.env property returns an object containing the user environment. See environ(7).
+	 */
+	env: { [key: string]: string | undefined };
+
+	/**
+	 * A listener on the process. Only a small subset of listener types are allowed.
+	 */
+	on: (type: string, callback: Function) => void;
+};
+
+export const context = (window as any).vscode.context as {
+
+	/**
+	 * Wether the renderer runs with `sandbox` enabled or not.
+	 */
+	sandbox: boolean;
+};

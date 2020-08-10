@@ -67,15 +67,26 @@ function parseQuery(uri: vscode.Uri) {
 export class GitHubServer {
 	private _statusBarItem: vscode.StatusBarItem | undefined;
 
+	private isTestEnvironment(url: vscode.Uri): boolean {
+		return url.authority === 'vscode-web-test-playground.azurewebsites.net' || url.authority.startsWith('localhost:');
+	}
+
 	public async login(scopes: string): Promise<string> {
 		Logger.info('Logging in...');
 		this.updateStatusBarItem(true);
 
 		const state = uuid();
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
-		const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com`);
 
-		await vscode.env.openExternal(uri);
+		if (this.isTestEnvironment(callbackUri)) {
+			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
+			if (!token) { throw new Error('Sign in failed: No token provided'); }
+			this.updateStatusBarItem(false);
+			return token;
+		} else {
+			const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com`);
+			await vscode.env.openExternal(uri);
+		}
 
 		return Promise.race([
 			promiseFromEvent(uriHandler.event, exchangeCodeForToken(state)),

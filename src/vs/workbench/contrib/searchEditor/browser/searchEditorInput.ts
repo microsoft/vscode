@@ -305,7 +305,7 @@ export const getOrMakeSearchEditorInput = (
 	const priorConfig: SearchConfiguration = reuseOldSettings ? new Memento(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE).searchConfig : {};
 	const defaultConfig = defaultSearchConfig();
 
-	let config = { ...defaultConfig, ...priorConfig, ...existingData.config };
+	const config = { ...defaultConfig, ...priorConfig, ...existingData.config };
 
 	if (defaultNumberOfContextLines !== null && defaultNumberOfContextLines !== undefined) {
 		config.contextLines = existingData.config.contextLines ?? defaultNumberOfContextLines;

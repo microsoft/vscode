@@ -1600,6 +1600,11 @@ json-stringify-safe@~5.0.1:
   resolved "https://registry.yarnpkg.com/json-stringify-safe/-/json-stringify-safe-5.0.1.tgz#1296a2d58fd45f19a0f6ce01d65701e2c735b6eb"
   integrity sha1-Epai1Y/UXxmg9s4B1lcB4sc1tus=
 
+jsonc-parser@^2.3.0:
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-2.3.0.tgz#7c7fc988ee1486d35734faaaa866fadb00fa91ee"
+  integrity sha512-b0EBt8SWFNnixVdvoR2ZtEGa9ZqLhbJnOjezn+WP+8kspFm+PFYDN8Z4Bc7pRlDjvuVcADSUkroIuTWWn/YiIA==
+
 jsonfile@^4.0.0:
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/jsonfile/-/jsonfile-4.0.0.tgz#8771aae0799b64076b76640fca058f9c10e33ecb"
@@ -1749,9 +1754,9 @@ lodash.unescape@4.0.1:
   integrity sha1-vyJJiGzlFM2hEvrpIYzcBlIR/Jw=
 
 lodash@^4.15.0, lodash@^4.17.10:
-  version "4.17.11"
-  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.11.tgz#b39ea6229ef607ecd89e2c8df12536891cac9b8d"
-  integrity sha512-cQKh8igo5QUhZ7lg38DYWAxMvjSAKG0A8wGSVimP07SIUEK2UO+arSRKbRZWtelMtN5V0Hkwh5ryOto/SshYIg==
+  version "4.17.19"
+  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.19.tgz#e48ddedbe30b3321783c5b4301fbd353bc1e4a4b"
+  integrity sha512-JNvd8XER9GQX0v2qJgsaN/mzFCNA5BRe/j8JN9d+tWyGLSodKQHKFicdwNYzWwI3wjRnaKPsGj1XkBjx/F96DQ==
 
 macos-release@^2.2.0:
   version "2.3.0"
@@ -2530,10 +2535,10 @@ typescript@^3.0.1:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.5.3.tgz#c830f657f93f1ea846819e929092f5fe5983e977"
   integrity sha512-ACzBtm/PhXBDId6a6sDJfroT2pOWt/oOnk4/dElG5G33ZL776N3Y6/6bKZJBFpd+b05F3Ct9qDjMeJmRWtE2/g==
 
-typescript@^4.0.0-dev.20200715:
-  version "4.0.0-dev.20200715"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.0.0-dev.20200715.tgz#d65961a5a6f13fde95a6f4db5f5946f15e4c59bc"
-  integrity sha512-gmPXoWktfXeutmWTM6el9U4vIn5kqOHGI1OESSOhPtLWrxodKqLfFuMygQtOUTtGjKLFQRFAJhHEwUhHZNOURA==
+typescript@^4.0.0-dev.20200803:
+  version "4.0.0-dev.20200803"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.0.0-dev.20200803.tgz#ea8b0e9fb2ee3085598ff200c8568f04f4cbb2ba"
+  integrity sha512-f/jDkFqCs0gbUd5MCUijO9u3AOMx1x1HdRDDHSidlc6uPVEkRduxjeTFhIXbGutO7ivzv+aC2sxH+1FQwsyBcg==
 
 typical@^4.0.0:
   version "4.0.0"

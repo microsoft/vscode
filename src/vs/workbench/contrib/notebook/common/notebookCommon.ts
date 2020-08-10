@@ -53,6 +53,11 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
 
 export const BUILTIN_RENDERER_ID = '_builtin';
 
+export enum NotebookRunState {
+	Running = 1,
+	Idle = 2
+}
+
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
 	editable: true,
 	runnable: true,
@@ -60,7 +65,8 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	cellRunnable: true,
 	cellHasExecutionOrder: true,
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
-	custom: {}
+	custom: {},
+	runState: NotebookRunState.Idle
 };
 
 export interface NotebookDocumentMetadata {
@@ -71,6 +77,7 @@ export interface NotebookDocumentMetadata {
 	cellHasExecutionOrder: boolean;
 	displayOrder?: (string | glob.IRelativePattern)[];
 	custom?: { [key: string]: unknown };
+	runState?: NotebookRunState;
 }
 
 export enum NotebookCellRunState {
@@ -90,6 +97,8 @@ export interface NotebookCellMetadata {
 	runState?: NotebookCellRunState;
 	runStartTime?: number;
 	lastRunDuration?: number;
+	inputCollapsed?: boolean;
+	outputCollapsed?: boolean;
 	custom?: { [key: string]: unknown };
 }
 
@@ -118,7 +127,9 @@ export interface INotebookKernelInfo {
 	extension: ExtensionIdentifier;
 	extensionLocation: URI,
 	preloads: URI[];
-	executeNotebook(viewType: string, uri: URI, handle: number | undefined, token: CancellationToken): Promise<void>;
+	providerHandle?: number;
+	executeNotebook(viewType: string, uri: URI, handle: number | undefined): Promise<void>;
+
 }
 
 export interface INotebookKernelInfoDto {
@@ -314,7 +325,8 @@ export enum NotebookCellsChangeType {
 	CellClearOutput = 3,
 	CellsClearOutput = 4,
 	ChangeLanguage = 5,
-	Initialize = 6
+	Initialize = 6,
+	ChangeMetadata = 7
 }
 
 export interface NotebookCellsInitializeEvent {
@@ -354,7 +366,14 @@ export interface NotebookCellsChangeLanguageEvent {
 	readonly language: string;
 }
 
-export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent;
+export interface NotebookCellsChangeMetadataEvent {
+	readonly kind: NotebookCellsChangeType.ChangeMetadata;
+	readonly versionId: number;
+	readonly index: number;
+	readonly metadata: NotebookCellMetadata;
+}
+
+export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
 export enum CellEditType {
 	Insert = 1,
 	Delete = 2
@@ -392,6 +411,15 @@ export interface NotebookDataDto {
 	readonly cells: ICellDto2[];
 	readonly languages: string[];
 	readonly metadata: NotebookDocumentMetadata;
+}
+
+export function getCellUndoRedoComparisonKey(uri: URI) {
+	const data = CellUri.parse(uri);
+	if (!data) {
+		return uri.toString();
+	}
+
+	return data.notebook.toString();
 }
 
 
@@ -641,6 +669,7 @@ export interface INotebookKernelInfoDto2 {
 	label: string;
 	extension: ExtensionIdentifier;
 	extensionLocation: URI;
+	providerHandle?: number;
 	description?: string;
 	isPreferred?: boolean;
 	preloads?: UriComponents[];
@@ -648,13 +677,17 @@ export interface INotebookKernelInfoDto2 {
 
 export interface INotebookKernelInfo2 extends INotebookKernelInfoDto2 {
 	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
-	executeNotebookCell?(uri: URI, handle: number | undefined, token: CancellationToken): Promise<void>;
+	executeNotebookCell?(uri: URI, handle: number | undefined): Promise<void>;
+	cancelNotebookCell?(uri: URI, handle: number | undefined): Promise<void>;
 }
 
 export interface INotebookKernelProvider {
+	providerExtensionId: string;
+	providerDescription?: string;
 	selector: INotebookDocumentFilter;
 	onDidChangeKernels: Event<void>;
 	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
 	resolveKernel(editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
-	executeNotebook(uri: URI, kernelId: string, handle: number | undefined, token: CancellationToken): Promise<void>;
+	executeNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
+	cancelNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
 }

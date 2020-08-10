@@ -20,17 +20,15 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
-import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup } from 'vs/base/common/actions';
-import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { SCMMenus } from './menus';
-import { ActionBar, IActionViewItemProvider, Separator, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, SubmenuAction, IActionViewItemProvider } from 'vs/base/common/actions';
+import { SCMMenus, SCMTitleMenu } from './menus';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, connectPrimaryMenu } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, connectPrimaryMenu, collectContextMenuActions } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
 import { ISequence, ISplice, SimpleSequence } from 'vs/base/common/sequence';
@@ -72,15 +70,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { Command } from 'vs/editor/common/modes';
 import { renderCodicons, Codicon } from 'vs/base/common/codicons';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { domEvent } from 'vs/base/browser/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -232,7 +228,7 @@ class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, Fu
 		onDidChangeProvider();
 
 		const menus = this.menus.getRepositoryMenus(repository.provider);
-		disposables.add(connectPrimaryMenu(menus.titleMenu, (primary, secondary) => {
+		disposables.add(connectPrimaryMenu(menus.titleMenu.menu, (primary, secondary) => {
 			menuPrimaryActions = primary;
 			menuSecondaryActions = secondary;
 			updateToolbar();
@@ -275,7 +271,6 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	constructor(
 		private outerLayout: ISCMLayout,
 		private updateHeight: (input: ISCMInput, height: number) => void,
-		private focusTree: () => void,
 		@IInstantiationService private instantiationService: IInstantiationService,
 	) { }
 
@@ -288,10 +283,6 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement);
 		disposables.add(inputWidget);
 
-		const onKeyDown = Event.map(domEvent(container, 'keydown'), e => new StandardKeyboardEvent(e));
-		const onEscape = Event.filter(onKeyDown, e => e.keyCode === KeyCode.Escape);
-		disposables.add(onEscape(this.focusTree));
-
 		return { inputWidget, disposable: Disposable.None, templateDisposable: disposables };
 	}
 
@@ -301,7 +292,6 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		const disposables = new DisposableStore();
 		const input = node.element;
 		templateData.inputWidget.input = input;
-		disposables.add({ dispose: () => templateData.inputWidget.input = undefined });
 
 		// Remember widget
 		this.inputWidgets.set(input, templateData.inputWidget);
@@ -355,6 +345,22 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	getRenderedInputWidget(input: ISCMInput): SCMInputWidget | undefined {
 		return this.inputWidgets.get(input);
+	}
+
+	getFocusedInput(): ISCMInput | undefined {
+		for (const [input, inputWidget] of this.inputWidgets) {
+			if (inputWidget.hasFocus()) {
+				return input;
+			}
+		}
+
+		return undefined;
+	}
+
+	clearValidation(): void {
+		for (const [, inputWidget] of this.inputWidgets) {
+			inputWidget.clearValidation();
+		}
 	}
 }
 
@@ -488,22 +494,12 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		const elementDisposables = new DisposableStore();
 		const resourceOrFolder = node.element;
-		const theme = this.themeService.getColorTheme();
 		const iconResource = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.element : resourceOrFolder;
-		const icon = iconResource && (theme.type === LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
-
 		const uri = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.uri : resourceOrFolder.sourceUri;
 		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) ? FileKind.FOLDER : FileKind.FILE;
 		const viewModel = this.viewModelProvider();
-
 		const [matches, descriptionMatches] = splitMatches(uri, node.filterData);
-		template.fileLabel.setFile(uri, {
-			fileDecorations: { colors: false, badges: !icon },
-			hidePath: viewModel.mode === ViewModelMode.Tree,
-			fileKind,
-			matches,
-			descriptionMatches
-		});
+		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
 
 		template.actionBar.clear();
 		template.actionBar.context = resourceOrFolder;
@@ -511,7 +507,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
 				const menus = this.menus.getRepositoryMenus(resourceOrFolder.element.resourceGroup.provider);
-				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.element.resourceGroup), template.actionBar));
+				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.element), template.actionBar));
 				toggleClass(template.name, 'strike-through', resourceOrFolder.element.decorations.strikeThrough);
 				toggleClass(template.element, 'faded', resourceOrFolder.element.decorations.faded);
 			} else {
@@ -522,22 +518,36 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 			}
 		} else {
 			const menus = this.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
-			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.resourceGroup), template.actionBar));
+			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
 			toggleClass(template.name, 'strike-through', resourceOrFolder.decorations.strikeThrough);
 			toggleClass(template.element, 'faded', resourceOrFolder.decorations.faded);
 		}
 
-		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
+		const render = () => {
+			const theme = this.themeService.getColorTheme();
+			const icon = iconResource && (theme.type === LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
 
-		if (icon) {
-			template.decorationIcon.style.display = '';
-			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
-			template.decorationIcon.title = tooltip;
-		} else {
-			template.decorationIcon.style.display = 'none';
-			template.decorationIcon.style.backgroundImage = '';
-			template.decorationIcon.title = '';
-		}
+			template.fileLabel.setFile(uri, {
+				fileDecorations: { colors: false, badges: !icon },
+				hidePath: viewModel.mode === ViewModelMode.Tree,
+				fileKind,
+				matches,
+				descriptionMatches
+			});
+
+			if (icon) {
+				template.decorationIcon.style.display = '';
+				template.decorationIcon.style.backgroundImage = `url('${icon}')`;
+				template.decorationIcon.title = tooltip;
+			} else {
+				template.decorationIcon.style.display = 'none';
+				template.decorationIcon.style.backgroundImage = '';
+				template.decorationIcon.title = '';
+			}
+		};
+
+		elementDisposables.add(this.themeService.onDidColorThemeChange(render));
+		render();
 
 		template.element.setAttribute('data-tooltip', tooltip);
 		template.elementDisposables = elementDisposables;
@@ -865,8 +875,10 @@ class ViewModel {
 	private items: IRepositoryItem[] = [];
 	private visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
+	private alwaysShowRepositories = false;
 	private firstVisible = true;
 	private repositoryCollapseStates: Map<ISCMRepository, boolean> | undefined;
+	private viewSubMenuAction: SCMViewSubMenuAction | undefined;
 	private disposables = new DisposableStore();
 
 	constructor(
@@ -883,6 +895,16 @@ class ViewModel {
 			this._onDidChangeRepositoryCollapseState.event,
 			Event.signal(Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element)))
 		);
+
+		configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
+		this.onDidChangeConfiguration();
+	}
+
+	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
+		if (!e || e.affectsConfiguration('scm.alwaysShowRepositories')) {
+			this.alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
+			this.refresh();
+		}
 	}
 
 	private _onDidSpliceRepositories({ start, deleteCount, toInsert }: ISplice<ISCMRepository>): void {
@@ -995,12 +1017,22 @@ class ViewModel {
 	}
 
 	private refresh(item?: IRepositoryItem | IGroupItem): void {
-		if (this.items.length === 1 && (!item || isRepositoryItem(item))) {
+		const focusedInput = this.inputRenderer.getFocusedInput();
+
+		if (!this.alwaysShowRepositories && (this.items.length === 1 && (!item || isRepositoryItem(item)))) {
 			this.tree.setChildren(null, this.render(this.items[0]).children);
 		} else if (item) {
 			this.tree.setChildren(item.element, this.render(item).children);
 		} else {
 			this.tree.setChildren(null, this.items.map(item => this.render(item)));
+		}
+
+		if (focusedInput) {
+			const inputWidget = this.inputRenderer.getRenderedInputWidget(focusedInput);
+
+			if (inputWidget) {
+				inputWidget.focus();
+			}
 		}
 
 		this._onDidChangeRepositoryCollapseState.fire();
@@ -1086,37 +1118,48 @@ class ViewModel {
 	}
 
 	getViewActions(): IAction[] {
-		if (this.repositories.elements.length !== 1) {
+		if (this.repositories.elements.length === 0) {
+			return this.menus.titleMenu.actions;
+		}
+
+		if (this.alwaysShowRepositories || this.repositories.elements.length !== 1) {
 			return [];
 		}
 
 		const menus = this.menus.getRepositoryMenus(this.repositories.elements[0].provider);
-		return menus.getTitleActions();
+		return menus.titleMenu.actions;
 	}
 
 	getViewSecondaryActions(): IAction[] {
 		if (this.repositories.elements.length === 0) {
-			return [];
+			return this.menus.titleMenu.secondaryActions;
 		}
 
-		const viewAction = new SCMViewSubMenuAction(this);
+		if (!this.viewSubMenuAction) {
+			this.viewSubMenuAction = new SCMViewSubMenuAction(this);
+			this.disposables.add(this.viewSubMenuAction);
+		}
 
-		if (this.repositories.elements.length !== 1) {
-			return viewAction.entries;
+		if (this.alwaysShowRepositories || this.repositories.elements.length !== 1) {
+			return this.viewSubMenuAction.actions;
 		}
 
 		const menus = this.menus.getRepositoryMenus(this.repositories.elements[0].provider);
-		const secondaryActions = menus.getTitleSecondaryActions();
+		const secondaryActions = menus.titleMenu.secondaryActions;
 
 		if (secondaryActions.length === 0) {
-			return [viewAction];
+			return [this.viewSubMenuAction];
 		}
 
-		return [viewAction, new Separator(), ...secondaryActions];
+		return [this.viewSubMenuAction, new Separator(), ...secondaryActions];
 	}
 
 	getViewActionsContext(): any {
-		if (this.repositories.elements.length !== 1) {
+		if (this.repositories.elements.length === 0) {
+			return [];
+		}
+
+		if (this.alwaysShowRepositories || this.repositories.elements.length !== 1) {
 			return undefined;
 		}
 
@@ -1167,55 +1210,66 @@ class ViewModel {
 	}
 }
 
-class SCMViewSubMenuAction extends ContextSubMenu {
+class SCMViewSubMenuAction extends SubmenuAction {
+
+	readonly actions!: IAction[];
+
 	constructor(viewModel: ViewModel) {
-		super(localize('sortAction', "View & Sort"),
+		const listAction = new SCMViewModeListAction(viewModel);
+		const treeAction = new SCMViewModeTreeAction(viewModel);
+		const sortByNameAction = new SCMSortByNameAction(viewModel);
+		const sortByPathAction = new SCMSortByPathAction(viewModel);
+		const sortByStatusAction = new SCMSortByStatusAction(viewModel);
+
+		super(
+			'scm.viewsort',
+			localize('sortAction', "View & Sort"),
 			[
-				...new RadioGroup([
-					new SCMViewModeListAction(viewModel),
-					new SCMViewModeTreeAction(viewModel)
-				]).actions,
+				...new RadioGroup([listAction, treeAction]).actions,
 				new Separator(),
-				...new RadioGroup([
-					new SCMSortByNameAction(viewModel),
-					new SCMSortByPathAction(viewModel),
-					new SCMSortByStatusAction(viewModel)
-				]).actions
+				...new RadioGroup([sortByNameAction, sortByPathAction, sortByStatusAction]).actions
 			]
 		);
+
+		this._register(combinedDisposable(listAction, treeAction, sortByNameAction, sortByPathAction, sortByStatusAction));
 	}
 }
 
-abstract class SCMViewModeAction extends Action {
-	constructor(id: string, label: string, private viewModel: ViewModel, private viewMode: ViewModelMode) {
-		super(id, label);
+export class ToggleViewModeAction extends Action {
 
-		this.checked = this.viewModel.mode === this.viewMode;
+	static readonly ID = 'workbench.scm.action.toggleViewMode';
+	static readonly LABEL = localize('toggleViewMode', "Toggle View Mode");
+
+	constructor(id: string = ToggleViewModeAction.ID, label: string = ToggleViewModeAction.LABEL, private viewModel: ViewModel, private mode?: ViewModelMode) {
+		super(id, label);
+		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
+		this.onDidChangeMode(this.viewModel.mode);
 	}
 
 	async run(): Promise<void> {
-		if (this.viewMode !== this.viewModel.mode) {
-			this.checked = !this.checked;
-			this.viewModel.mode = this.viewMode;
+		if (typeof this.mode === 'undefined') {
+			this.viewModel.mode = this.viewModel.mode === ViewModelMode.List ? ViewModelMode.Tree : ViewModelMode.List;
+		} else {
+			this.viewModel.mode = this.mode;
 		}
 	}
-}
 
-class SCMViewModeListAction extends SCMViewModeAction {
-	static readonly ID = 'workbench.scm.action.viewModeList';
-	static readonly LABEL = localize('viewModeList', "View as List");
-
-	constructor(viewModel: ViewModel) {
-		super(SCMViewModeListAction.ID, SCMViewModeListAction.LABEL, viewModel, ViewModelMode.List);
+	private onDidChangeMode(mode: ViewModelMode): void {
+		const iconClass = mode === ViewModelMode.List ? 'codicon-list-tree' : 'codicon-list-flat';
+		this.class = `scm-action toggle-view-mode ${iconClass}`;
+		this.checked = this.viewModel.mode === this.mode;
 	}
 }
 
-class SCMViewModeTreeAction extends SCMViewModeAction {
-	static readonly ID = 'workbench.scm.action.viewModeTree';
-	static readonly LABEL = localize('viewModeTree', "View as Tree");
-
+class SCMViewModeListAction extends ToggleViewModeAction {
 	constructor(viewModel: ViewModel) {
-		super(SCMViewModeTreeAction.ID, SCMViewModeTreeAction.LABEL, viewModel, ViewModelMode.Tree);
+		super('workbench.scm.action.viewModeList', localize('viewModeList', "View as List"), viewModel, ViewModelMode.List);
+	}
+}
+
+class SCMViewModeTreeAction extends ToggleViewModeAction {
+	constructor(viewModel: ViewModel) {
+		super('workbench.scm.action.viewModeTree', localize('viewModeTree', "View as Tree"), viewModel, ViewModelMode.Tree);
 	}
 }
 
@@ -1294,6 +1348,10 @@ class SCMInputWidget extends Disposable {
 	}
 
 	set input(input: ISCMInput | undefined) {
+		if (input === this.input) {
+			return;
+		}
+
 		this.validationDisposable.dispose();
 		removeClass(this.editorContainer, 'synthetic-focus');
 
@@ -1433,7 +1491,8 @@ class SCMInputWidget extends Disposable {
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			padding: { top: 3, bottom: 3 },
-			quickSuggestions: false
+			quickSuggestions: false,
+			scrollbar: { alwaysConsumeMouseWheel: false }
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -1492,6 +1551,10 @@ class SCMInputWidget extends Disposable {
 		addClass(this.editorContainer, 'synthetic-focus');
 	}
 
+	hasFocus(): boolean {
+		return this.inputEditor.hasWidgetFocus();
+	}
+
 	private renderValidation(): void {
 		this.validationDisposable.dispose();
 
@@ -1532,7 +1595,12 @@ class SCMInputWidget extends Disposable {
 		return this.defaultInputFontFamily;
 	}
 
+	clearValidation(): void {
+		this.validationDisposable.dispose();
+	}
+
 	dispose(): void {
+		this.input = undefined;
 		this.repositoryDisposables.dispose();
 		this.validationDisposable.dispose();
 		super.dispose();
@@ -1582,6 +1650,8 @@ export class SCMViewPane extends ViewPane {
 	private listLabels!: ResourceLabels;
 	private menus!: SCMMenus;
 	private inputRenderer!: InputRenderer;
+	private genericTitleMenu: SCMTitleMenu;
+	private toggleViewModelModeAction: ToggleViewModeAction | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1591,7 +1661,6 @@ export class SCMViewPane extends ViewPane {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IContextViewService protected contextViewService: IContextViewService,
 		@ICommandService protected commandService: ICommandService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService protected editorService: IEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -1604,6 +1673,9 @@ export class SCMViewPane extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
+
+		this.genericTitleMenu = instantiationService.createInstance(SCMTitleMenu);
+		this._register(this.genericTitleMenu.onDidChangeTitle(this.updateActions, this));
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -1613,7 +1685,7 @@ export class SCMViewPane extends ViewPane {
 		this.listContainer = append(container, $('.scm-view.show-file-icons'));
 
 		const updateActionsVisibility = () => toggleClass(this.listContainer, 'show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
-		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility);
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility));
 		updateActionsVisibility();
 
 		const updateProviderCountVisibility = () => {
@@ -1621,7 +1693,7 @@ export class SCMViewPane extends ViewPane {
 			toggleClass(this.listContainer, 'hide-provider-counts', value === 'hidden');
 			toggleClass(this.listContainer, 'auto-provider-counts', value === 'auto');
 		};
-		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'))(updateProviderCountVisibility);
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'))(updateProviderCountVisibility));
 		updateProviderCountVisibility();
 
 		const repositories = new SimpleSequence(this.scmService.repositories, this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository);
@@ -1629,10 +1701,11 @@ export class SCMViewPane extends ViewPane {
 
 		this.menus = this.instantiationService.createInstance(SCMMenus, repositories);
 		this._register(this.menus);
+		this._register(this.menus.titleMenu.onDidChangeTitle(this.updateActions, this));
 
 		this._register(repositories.onDidSplice(() => this.updateActions()));
 
-		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height), () => this.tree.domFocus());
+		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height));
 		const delegate = new ProviderListDelegate(this.inputRenderer);
 
 		const actionViewItemProvider = (action: IAction) => this.getActionViewItem(action);
@@ -1679,6 +1752,7 @@ export class SCMViewPane extends ViewPane {
 		this._register(this.tree.onDidOpen(this.open, this));
 
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
+		this._register(this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer));
 		this._register(this.tree);
 
 		let viewMode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
@@ -1698,8 +1772,12 @@ export class SCMViewPane extends ViewPane {
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
 		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
 
+		this.toggleViewModelModeAction = new ToggleViewModeAction(ToggleViewModeAction.ID, ToggleViewModeAction.LABEL, this.viewModel);
+		this._register(this.toggleViewModelModeAction);
+
 		this._register(this.onDidChangeBodyVisibility(this.viewModel.setVisible, this.viewModel));
 
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'))(this.updateActions, this));
 		this.updateActions();
 	}
 
@@ -1741,15 +1819,22 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	getActions(): IAction[] {
+		const result = [];
+
+		if (this.toggleViewModelModeAction) {
+			result.push(this.toggleViewModelModeAction);
+		}
+
 		if (!this.viewModel) {
-			return [];
+			return result;
 		}
 
 		if (this.viewModel.repositories.elements.length < 2) {
-			return this.viewModel.getViewActions();
+			return [...result, ...this.viewModel.getViewActions()];
 		}
 
 		return [
+			...result,
 			new SCMCollapseAction(this.viewModel),
 			...this.viewModel.getViewActions()
 		];
@@ -1768,11 +1853,7 @@ export class SCMViewPane extends ViewPane {
 			return new StatusBarActionViewItem(action);
 		}
 
-		if (!(action instanceof MenuItemAction)) {
-			return undefined;
-		}
-
-		return new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+		return super.getActionViewItem(action);
 	}
 
 	getActionsContext(): any {
@@ -1842,27 +1923,33 @@ export class SCMViewPane extends ViewPane {
 		const element = e.element;
 		let context: any = element;
 		let actions: IAction[] = [];
+		let disposable: IDisposable = Disposable.None;
 
 		if (isSCMRepository(element)) {
 			const menus = this.menus.getRepositoryMenus(element.provider);
+			const menu = menus.getRepositoryMenu();
 			context = element.provider;
-			actions = menus.getRepositoryContextActions();
+			[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
 		} else if (isSCMInput(element)) {
 			// noop
 		} else if (isSCMResourceGroup(element)) {
 			const menus = this.menus.getRepositoryMenus(element.provider);
-			actions = menus.getResourceGroupContextActions(element);
+			const menu = menus.getResourceGroupMenu(element);
+			[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
 		} else if (ResourceTree.isResourceNode(element)) {
 			if (element.element) {
 				const menus = this.menus.getRepositoryMenus(element.element.resourceGroup.provider);
-				actions = menus.getResourceContextActions(element.element);
+				const menu = menus.getResourceMenu(element.element);
+				[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
 			} else {
 				const menus = this.menus.getRepositoryMenus(element.context.provider);
-				actions = menus.getResourceFolderContextActions(element.context);
+				const menu = menus.getResourceFolderMenu(element.context);
+				[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
 			}
 		} else {
 			const menus = this.menus.getRepositoryMenus(element.resourceGroup.provider);
-			actions = menus.getResourceContextActions(element);
+			const menu = menus.getResourceMenu(element);
+			[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
 		}
 
 		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
@@ -1872,7 +1959,10 @@ export class SCMViewPane extends ViewPane {
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => context,
-			actionRunner
+			actionRunner,
+			onHide() {
+				disposable.dispose();
+			}
 		});
 	}
 

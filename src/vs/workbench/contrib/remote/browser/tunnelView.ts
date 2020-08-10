@@ -21,11 +21,11 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent, ITreeMouseEvent } from 'vs/base/browser/ui/tree/tree';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Disposable, IDisposable, toDisposable, MutableDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { ActionBar, ActionViewItem, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction, ILocalizedString } from 'vs/platform/actions/common/actions';
-import { createAndFillInContextMenuActions, createAndFillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction, ILocalizedString, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { createAndFillInContextMenuActions, createAndFillInActionBarActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IRemoteExplorerService, TunnelModel, MakeAddress, TunnelType, ITunnelItem, Tunnel } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -41,6 +41,7 @@ import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 
@@ -157,8 +158,18 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	get candidates(): TunnelItem[] {
 		const candidates: TunnelItem[] = [];
 		this._candidates.forEach(value => {
-			const key = MakeAddress(value.host, value.port);
+			let key = MakeAddress(value.host, value.port);
 			if (!this.model.forwarded.has(key) && !this.model.detected.has(key)) {
+				// The host:port hasn't been forwarded or detected. However, if the candidate is 0.0.0.0,
+				// also check that the port hasn't already been forwarded with localhost, and vice versa.
+				// For example: no need to show 0.0.0.0:3000 as a candidate if localhost:3000 is already forwarded.
+				const otherHost = value.host === '0.0.0.0' ? 'localhost' : (value.host === 'localhost' ? '0.0.0.0' : undefined);
+				if (otherHost) {
+					key = MakeAddress(otherHost, value.port);
+					if (this.model.forwarded.has(key) || this.model.detected.has(key)) {
+						return;
+					}
+				}
 				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, undefined, false, undefined, value.detail));
 			}
 		});
@@ -213,10 +224,11 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 		// dom.addClass(iconLabel.element, 'tunnel-view-label');
 		const actionsContainer = dom.append(iconLabel.element, dom.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
-			// actionViewItemProvider: undefined // this.actionViewItemProvider
 			actionViewItemProvider: (action: IAction) => {
 				if (action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ContextAwareMenuEntryActionViewItem, action);
+					return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+				} else if (action instanceof SubmenuItemAction) {
+					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
 				}
 
 				return undefined;
@@ -451,7 +463,6 @@ export class TunnelPanel extends ViewPane {
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ICommandService protected commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService themeService: IThemeService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
@@ -646,10 +657,6 @@ export class TunnelPanel extends ViewPane {
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
-	}
-
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return action instanceof MenuItemAction ? new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService) : undefined;
 	}
 }
 

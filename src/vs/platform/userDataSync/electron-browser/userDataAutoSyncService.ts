@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { UserDataAutoSyncService as BaseUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
@@ -16,6 +16,7 @@ import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/us
 export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 
 	constructor(
+		@IUserDataSyncStoreManagementService userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IUserDataSyncService userDataSyncService: IUserDataSyncService,
@@ -27,7 +28,7 @@ export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 		@IStorageService storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
-		super(userDataSyncStoreService, userDataSyncResourceEnablementService, userDataSyncService, logService, authTokenService, telemetryService, userDataSyncMachinesService, storageService, environmentService);
+		super(userDataSyncStoreManagementService, userDataSyncStoreService, userDataSyncResourceEnablementService, userDataSyncService, logService, authTokenService, telemetryService, userDataSyncMachinesService, storageService, environmentService);
 
 		this._register(Event.debounce<string, string[]>(Event.any<string>(
 			Event.map(electronService.onWindowFocus, () => 'windowFocus'),

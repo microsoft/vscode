@@ -268,9 +268,24 @@ interface IWorkbenchConstructionOptions {
 	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
 
 	/**
+	 * [TEMPORARY]: This will be removed soon.
 	 * Service end-point hosting builtin extensions
 	 */
 	readonly builtinExtensionsServiceUrl?: string;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Enable inlined extensions.
+	 * Defaults to false on serverful and true on serverless.
+	 */
+	readonly _enableBuiltinExtensions?: boolean;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Enable `<iframe>` wrapping.
+	 * Defaults to false.
+	 */
+	readonly _wrapWebWorkerExtHostInIframe?: boolean;
 
 	/**
 	 * Support for URL callbacks.
@@ -294,6 +309,11 @@ interface IWorkbenchConstructionOptions {
 	 * Optional default layout to apply on first time the workspace is opened.
 	 */
 	readonly defaultLayout?: IDefaultLayout;
+
+	/**
+	 * Optional configuration default overrides contributed to the workbench.
+	 */
+	readonly configurationDefaults?: Record<string, any>;
 
 	//#endregion
 
@@ -339,6 +359,11 @@ interface IWorkbenchConstructionOptions {
 	 * Whether to enable the smoke test driver.
 	 */
 	readonly driver?: boolean;
+
+	/**
+	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
+	 */
+	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
 
 	//#endregion
 }

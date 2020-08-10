@@ -20,7 +20,7 @@ import { Action } from 'vs/base/common/actions';
 import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-browser/issue';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CONTEXT_SYNC_STATE, SHOW_SYNC_LOG_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { CONTEXT_SYNC_STATE, SHOW_SYNC_LOG_COMMAND_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
 
 class UserDataSyncServicesContribution implements IWorkbenchContribution {
 
@@ -49,11 +49,11 @@ class UserDataSyncReportIssueContribution extends Disposable implements IWorkben
 			case UserDataSyncErrorCode.LocalTooManyRequests:
 			case UserDataSyncErrorCode.TooManyRequests:
 				const operationId = error.operationId ? localize('operationId', "Operation Id: {0}", error.operationId) : undefined;
-				const message = localize({ key: 'too many requests', comment: ['Preferences Sync is the name of the feature'] }, "Preferences sync is disabled because the current device is making too many requests. Please report an issue by providing the sync logs.");
+				const message = localize({ key: 'too many requests', comment: ['Settings Sync is the name of the feature'] }, "Settings sync is disabled because the current device is making too many requests. Please report an issue by providing the sync logs.");
 				this.notificationService.notify({
 					severity: Severity.Error,
 					message: operationId ? `${message} ${operationId}` : message,
-					source: error.operationId ? localize('preferences sync', "Preferences Sync. Operation Id: {0}", error.operationId) : undefined,
+					source: error.operationId ? localize('settings sync', "Settings Sync. Operation Id: {0}", error.operationId) : undefined,
 					actions: {
 						primary: [
 							new Action('Show Sync Logs', localize('show sync logs', "Show Log"), undefined, true, () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)),
@@ -75,7 +75,7 @@ registerAction2(class OpenSyncBackupsFolder extends Action2 {
 		super({
 			id: 'workbench.userData.actions.openSyncBackupsFolder',
 			title: { value: localize('Open Backup folder', "Open Local Backups Folder"), original: 'Open Local Backups Folder' },
-			category: { value: localize('sync preferences', "Preferences Sync"), original: `Preferences Sync` },
+			category: { value: SYNC_TITLE, original: `Settings Sync` },
 			menu: {
 				id: MenuId.CommandPalette,
 				when: CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized),
@@ -85,8 +85,14 @@ registerAction2(class OpenSyncBackupsFolder extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const syncHome = accessor.get(IEnvironmentService).userDataSyncHome;
 		const electronService = accessor.get(IElectronService);
-		const folderStat = await accessor.get(IFileService).resolve(syncHome);
-		const item = folderStat.children && folderStat.children[0] ? folderStat.children[0].resource : syncHome;
-		return electronService.showItemInFolder(item.fsPath);
+		const fileService = accessor.get(IFileService);
+		const notificationService = accessor.get(INotificationService);
+		if (await fileService.exists(syncHome)) {
+			const folderStat = await fileService.resolve(syncHome);
+			const item = folderStat.children && folderStat.children[0] ? folderStat.children[0].resource : syncHome;
+			return electronService.showItemInFolder(item.fsPath);
+		} else {
+			notificationService.info(localize('no backups', "Local backups folder does not exist"));
+		}
 	}
 });
