@@ -224,7 +224,7 @@ export function fromMarketplace(extensionName: string, version: string, metadata
 		.pipe(json({ __metadata: metadata }))
 		.pipe(packageJsonFilter.restore);
 }
-const excludedCommonExtensions = [
+const excludedExtensions = [
 	'vscode-api-tests',
 	'vscode-colorize-tests',
 	'vscode-test-resolver',
@@ -233,15 +233,9 @@ const excludedCommonExtensions = [
 	'vscode-notebook-tests',
 	'vscode-custom-editor-tests',
 ];
-const excludedDesktopExtensions = excludedCommonExtensions.concat([
-	'vscode-web-playground',
-]);
-const excludedWebExtensions = excludedCommonExtensions.concat([
-]);
 
 const marketplaceWebExtensions = [
-	'ms-vscode.references-view',
-	'ms-vscode.github-browser'
+	'ms-vscode.references-view'
 ];
 
 interface IBuiltInExtension {
@@ -251,7 +245,9 @@ interface IBuiltInExtension {
 	metadata: any;
 }
 
-const builtInExtensions: IBuiltInExtension[] = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8')).builtInExtensions;
+const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
+const builtInExtensions: IBuiltInExtension[] = productJson.builtInExtensions || [];
+const webBuiltInExtensions: IBuiltInExtension[] = productJson.webBuiltInExtensions || [];
 
 type ExtensionKind = 'ui' | 'workspace' | 'web';
 interface IExtensionManifest {
@@ -271,7 +267,6 @@ function isWebExtension(manifest: IExtensionManifest): boolean {
 }
 
 export function packageLocalExtensionsStream(forWeb: boolean): Stream {
-	const excludedLocalExtensions = (forWeb ? excludedWebExtensions : excludedDesktopExtensions);
 	const localExtensionsDescriptions = (
 		(<string[]>glob.sync('extensions/*/package.json'))
 			.map(manifestPath => {
@@ -280,7 +275,8 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 				const extensionName = path.basename(extensionPath);
 				return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
 			})
-			.filter(({ name }) => excludedLocalExtensions.indexOf(name) === -1)
+			.filter(({ name }) => (name === 'vscode-web-playground' ? forWeb : true)) // package vscode-web-playground only for web
+			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
 			.filter(({ name }) => builtInExtensions.every(b => b.name !== name))
 			.filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true))
 	);
@@ -308,10 +304,10 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 }
 
 export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
-	const marketplaceExtensionsDescriptions = (
-		builtInExtensions
-			.filter(({ name }) => (forWeb ? marketplaceWebExtensions.indexOf(name) >= 0 : true))
-	);
+	const marketplaceExtensionsDescriptions = [
+		...builtInExtensions.filter(({ name }) => (forWeb ? marketplaceWebExtensions.indexOf(name) >= 0 : true)),
+		...(forWeb ? webBuiltInExtensions : [])
+	];
 	const marketplaceExtensionsStream = minifyExtensionResources(
 		es.merge(
 			...marketplaceExtensionsDescriptions
@@ -342,18 +338,21 @@ export interface IScannedBuiltinExtension {
 	changelogPath?: string;
 }
 
-export function scanBuiltinExtensions(extensionsRoot: string, forWeb: boolean): IScannedBuiltinExtension[] {
+export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] = []): IScannedBuiltinExtension[] {
 	const scannedExtensions: IScannedBuiltinExtension[] = [];
 
 	try {
 		const extensionsFolders = fs.readdirSync(extensionsRoot);
 		for (const extensionFolder of extensionsFolders) {
+			if (exclude.indexOf(extensionFolder) >= 0) {
+				continue;
+			}
 			const packageJSONPath = path.join(extensionsRoot, extensionFolder, 'package.json');
 			if (!fs.existsSync(packageJSONPath)) {
 				continue;
 			}
 			let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
-			if (forWeb && !isWebExtension(packageJSON)) {
+			if (!isWebExtension(packageJSON)) {
 				continue;
 			}
 			const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));

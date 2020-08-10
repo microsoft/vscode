@@ -65,7 +65,7 @@ registerAction2(class extends Action2 {
 
 			const edits: WorkspaceTextEdit[] = [];
 
-			for (let cell of notebook.cells) {
+			for (const cell of notebook.cells) {
 
 				const ref = await textModelService.createModelReference(cell.uri);
 				dispoables.add(ref);

@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionType, IExtensionIdentifier, IExtensionManifest, IScannedExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionIdentifier, IExtensionManifest, ITranslatedScannedExtension } from 'vs/platform/extensions/common/extensions';
 import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IGalleryExtension, IReportedExtension, IGalleryMetadata, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IRequestService, isSuccess, asText } from 'vs/platform/request/common/request';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -33,14 +30,13 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 
 	constructor(
 		@IWebExtensionsScannerService private readonly webExtensionsScannerService: IWebExtensionsScannerService,
-		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 	}
 
 	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		const extensions = await this.webExtensionsScannerService.scanExtensions(type);
+		const extensions = await this.webExtensionsScannerService.scanAndTranslateExtensions(type);
 		return Promise.all(extensions.map(e => this.toLocalExtension(e)));
 	}
 
@@ -83,29 +79,11 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 		return userExtensions.find(e => areSameExtensions(e.identifier, identifier));
 	}
 
-	private async toLocalExtension(scannedExtension: IScannedExtension): Promise<ILocalExtension> {
-		let manifest = scannedExtension.packageJSON;
-		if (scannedExtension.packageNLS) {
-			// package.nls.json is inlined
-			try {
-				manifest = localizeManifest(manifest, scannedExtension.packageNLS);
-			} catch (error) { /* ignore */ }
-		} else if (scannedExtension.packageNLSUrl) {
-			// package.nls.json needs to be fetched
-			try {
-				const context = await this.requestService.request({ type: 'GET', url: scannedExtension.packageNLSUrl.toString() }, CancellationToken.None);
-				if (isSuccess(context)) {
-					const content = await asText(context);
-					if (content) {
-						manifest = localizeManifest(manifest, JSON.parse(content));
-					}
-				}
-			} catch (error) { /* ignore */ }
-		}
+	private async toLocalExtension(scannedExtension: ITranslatedScannedExtension): Promise<ILocalExtension> {
 		return <ILocalExtension>{
 			type: scannedExtension.type,
 			identifier: scannedExtension.identifier,
-			manifest,
+			manifest: scannedExtension.packageJSON,
 			location: scannedExtension.location,
 			isMachineScoped: false,
 			publisherId: null,

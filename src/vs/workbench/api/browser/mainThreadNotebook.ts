@@ -305,6 +305,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			this._proxy.$acceptNotebookActiveKernelChange(e);
 		}));
 
+		this._register(this._notebookService.onNotebookDocumentSaved(e => {
+			this._proxy.$acceptModelSaved(e);
+		}));
+
 		const updateOrder = () => {
 			let userOrder = this.configurationService.getValue<string[]>('notebook.displayOrder');
 			this._proxy.$acceptDisplayOrder({

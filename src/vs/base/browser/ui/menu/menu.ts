@@ -21,6 +21,8 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { Codicon, registerIcon, stripCodicons } from 'vs/base/common/codicons';
 import { BaseActionViewItem, ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { formatRule } from 'vs/base/browser/ui/codicons/codiconStyles';
+import { isFirefox } from 'vs/base/browser/browser';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
@@ -424,9 +426,29 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 				// add back if issues arise and link new issue
 				EventHelper.stop(e, true);
 
-				// Set timout to allow context menu cancellation to trigger
-				// otherwise the action will destroy the menu and context menu
-				// will still trigger
+				// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
+				// > Writing to the clipboard
+				// > You can use the "cut" and "copy" commands without any special
+				// permission if you are using them in a short-lived event handler
+				// for a user action (for example, a click handler).
+
+				// => to get the Copy and Paste context menu actions working on Firefox,
+				// there should be no timeout here
+				if (isFirefox) {
+					const mouseEvent = new StandardMouseEvent(e);
+
+					// Allowing right click to trigger the event causes the issue described below,
+					// but since the solution below does not work in FF, we must disable right click
+					if (mouseEvent.rightButton) {
+						return;
+					}
+
+					this.onClick(e);
+				}
+
+				// In all other cases, set timout to allow context menu cancellation to trigger
+				// otherwise the action will destroy the menu and a second context menu
+				// will still trigger for right click.
 				setTimeout(() => {
 					this.onClick(e);
 				}, 0);
@@ -783,7 +805,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		const ret = { top: 0, left: 0 };
 
 		// Start with horizontal
-		ret.left = layout(windowDimensions.width, submenu.width, { position: this.expandDirection === Direction.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width });
+		ret.left = layout(windowDimensions.width, submenu.width, { position: expandDirection === Direction.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width });
 
 		// We don't have enough room to layout the menu fully, so we are overlapping the menu
 		if (ret.left >= entry.left && ret.left < entry.left + entry.width) {
@@ -813,7 +835,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 		if (!this.parentData.submenu) {
 			this.updateAriaExpanded('true');
-			this.submenuContainer = document.createElement('div.monaco-submenu');
+			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
 			addClasses(this.submenuContainer, 'menubar-menu-items-holder', 'context-view');
 
 			// Set the top value of the menu container before construction
@@ -822,13 +844,14 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
 			// this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
 			this.submenuContainer.style.zIndex = '1';
+			this.submenuContainer.style.position = 'fixed';
+			this.submenuContainer.style.top = '0';
+			this.submenuContainer.style.left = '0';
 
 			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions, this.submenuOptions);
 			if (this.menuStyle) {
 				this.parentData.submenu.style(this.menuStyle);
 			}
-
-			this.element.appendChild(this.submenuContainer);
 
 			// layout submenu
 			const entryBox = this.element.getBoundingClientRect();
@@ -840,9 +863,6 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			};
 
 			const viewBox = this.submenuContainer.getBoundingClientRect();
-
-
-			this.submenuContainer.style.position = 'fixed';
 
 			const { top, left } = this.calculateSubmenuMenuLayout({ height: window.innerHeight, width: window.innerWidth }, viewBox, entryBoxUpdated, this.expandDirection);
 			this.submenuContainer.style.left = `${left}px`;

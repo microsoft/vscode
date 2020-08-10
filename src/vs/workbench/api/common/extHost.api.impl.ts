@@ -205,7 +205,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get providers(): ReadonlyArray<vscode.AuthenticationProviderInformation> {
 				return extHostAuthentication.providers;
 			},
-			getSession(providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions) {
+			getSession(providerId: string, scopes: string[], options?: vscode.AuthenticationGetSessionOptions) {
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			logout(providerId: string, sessionId: string): Thenable<void> {
@@ -870,7 +870,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 				return extHostDebugService.startDebugging(folder, nameOrConfig, parentSessionOrOptions || {});
 			},
-			stopDebugging(session: vscode.DebugSession | undefined) {
+			stopDebugging(session?: vscode.DebugSession) {
 				return extHostDebugService.stopDebugging(session);
 			},
 			addBreakpoints(breakpoints: vscode.Breakpoint[]) {
@@ -920,6 +920,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get onDidCloseNotebookDocument(): Event<vscode.NotebookDocument> {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidCloseNotebookDocument;
+			},
+			get onDidSaveNotebookDocument(): Event<vscode.NotebookDocument> {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidSaveNotebookDocument;
 			},
 			get notebookDocuments(): vscode.NotebookDocument[] {
 				checkProposedApiEnabled(extension);
@@ -972,6 +976,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeCellLanguage(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeCellLanguage(listener, thisArgs, disposables);
+			},
+			onDidChangeCellMetadata(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeCellMetadata(listener, thisArgs, disposables);
 			},
 			createConcatTextDocument(notebook, selector) {
 				checkProposedApiEnabled(extension);

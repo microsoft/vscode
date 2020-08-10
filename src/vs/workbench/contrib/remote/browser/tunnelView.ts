@@ -158,8 +158,18 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	get candidates(): TunnelItem[] {
 		const candidates: TunnelItem[] = [];
 		this._candidates.forEach(value => {
-			const key = MakeAddress(value.host, value.port);
+			let key = MakeAddress(value.host, value.port);
 			if (!this.model.forwarded.has(key) && !this.model.detected.has(key)) {
+				// The host:port hasn't been forwarded or detected. However, if the candidate is 0.0.0.0,
+				// also check that the port hasn't already been forwarded with localhost, and vice versa.
+				// For example: no need to show 0.0.0.0:3000 as a candidate if localhost:3000 is already forwarded.
+				const otherHost = value.host === '0.0.0.0' ? 'localhost' : (value.host === 'localhost' ? '0.0.0.0' : undefined);
+				if (otherHost) {
+					key = MakeAddress(otherHost, value.port);
+					if (this.model.forwarded.has(key) || this.model.detected.has(key)) {
+						return;
+					}
+				}
 				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, undefined, false, undefined, value.detail));
 			}
 		});

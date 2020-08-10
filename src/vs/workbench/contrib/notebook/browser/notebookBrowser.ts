@@ -52,6 +52,9 @@ export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCel
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false); // bool
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
 
+// Shared commands
+export const EXPAND_CELL_CONTENT_COMMAND_ID = 'notebook.cell.expandCellContent';
+
 // Kernels
 
 export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
@@ -113,8 +116,6 @@ export interface ICellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
-	collapseState: CellCollapseState;
-	outputCollapseState: CellCollapseState;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -192,6 +193,7 @@ export interface INotebookEditor extends IEditor {
 
 	getId(): string;
 	getDomNode(): HTMLElement;
+	getOverflowContainerDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
 
 	/**
@@ -200,6 +202,9 @@ export interface INotebookEditor extends IEditor {
 	focus(): void;
 
 	hasFocus(): boolean;
+	hasWebviewFocus(): boolean;
+
+	hasOutputTextSelection(): boolean;
 
 	/**
 	 * Select & focus cell
@@ -502,6 +507,7 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	timer: TimerRenderer;
 	focusIndicatorRight: HTMLElement;
 	focusIndicatorBottom: HTMLElement;
+	dragHandle: HTMLElement;
 }
 
 export function isCodeCellRenderTemplate(templateData: BaseCellRenderTemplate): templateData is CodeCellRenderTemplate {
@@ -545,11 +551,6 @@ export enum CellEditState {
 	 * Eding mode. Source for markdown or code is rendered in editors and the state will be persistent.
 	 */
 	Editing
-}
-
-export enum CellCollapseState {
-	Normal,
-	Collapsed
 }
 
 export enum CellFocusMode {
@@ -599,13 +600,13 @@ export function reduceCellRanges(_ranges: ICellRange[]): ICellRange[] {
 		return [];
 	}
 
-	let ranges = _ranges.sort((a, b) => a.start - b.start);
-	let result: ICellRange[] = [];
+	const ranges = _ranges.sort((a, b) => a.start - b.start);
+	const result: ICellRange[] = [];
 	let currentRangeStart = ranges[0].start;
 	let currentRangeEnd = ranges[0].end + 1;
 
 	for (let i = 0, len = ranges.length; i < len; i++) {
-		let range = ranges[i];
+		const range = ranges[i];
 
 		if (range.start > currentRangeEnd) {
 			result.push({ start: currentRangeStart, end: currentRangeEnd - 1 });
@@ -627,7 +628,7 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 
 	let start = 0;
 	let hiddenRangeIndex = 0;
-	let result: CellViewModel[] = [];
+	const result: CellViewModel[] = [];
 
 	while (start < cells.length && hiddenRangeIndex < hiddenRanges.length) {
 		if (start < hiddenRanges[hiddenRangeIndex].start) {

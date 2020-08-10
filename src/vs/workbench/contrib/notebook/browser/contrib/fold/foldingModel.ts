@@ -79,7 +79,7 @@ export class FoldingModel extends Disposable {
 
 	recompute() {
 		const cells = this._viewModel!.viewCells;
-		let stack: { index: number, level: number, endIndex: number }[] = [];
+		const stack: { index: number, level: number, endIndex: number }[] = [];
 
 		for (let i = 0; i < cells.length; i++) {
 			const cell = cells[i];
@@ -129,9 +129,9 @@ export class FoldingModel extends Disposable {
 
 		// restore collased state
 		let i = 0;
-		let nextCollapsed = () => {
+		const nextCollapsed = () => {
 			while (i < this._regions.length) {
-				let isCollapsed = this._regions.isCollapsed(i);
+				const isCollapsed = this._regions.isCollapsed(i);
 				i++;
 				if (isCollapsed) {
 					return i - 1;
@@ -145,12 +145,12 @@ export class FoldingModel extends Disposable {
 
 		while (collapsedIndex !== -1 && k < newRegions.length) {
 			// get the latest range
-			let decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[collapsedIndex]);
+			const decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[collapsedIndex]);
 			if (decRange) {
-				let collasedStartIndex = decRange.start;
+				const collasedStartIndex = decRange.start;
 
 				while (k < newRegions.length) {
-					let startIndex = newRegions.getStartLineNumber(k) - 1;
+					const startIndex = newRegions.getStartLineNumber(k) - 1;
 					if (collasedStartIndex >= startIndex) {
 						newRegions.setCollapsed(k, collasedStartIndex === startIndex);
 						k++;
@@ -186,7 +186,7 @@ export class FoldingModel extends Disposable {
 		const collapsedRanges: ICellRange[] = [];
 		let i = 0;
 		while (i < this._regions.length) {
-			let isCollapsed = this._regions.isCollapsed(i);
+			const isCollapsed = this._regions.isCollapsed(i);
 
 			if (isCollapsed) {
 				const region = this._regions.toRegion(i);
@@ -205,12 +205,12 @@ export class FoldingModel extends Disposable {
 
 		while (k < state.length && i < this._regions.length) {
 			// get the latest range
-			let decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[i]);
+			const decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[i]);
 			if (decRange) {
-				let collasedStartIndex = state[k].start;
+				const collasedStartIndex = state[k].start;
 
 				while (i < this._regions.length) {
-					let startIndex = this._regions.getStartLineNumber(i) - 1;
+					const startIndex = this._regions.getStartLineNumber(i) - 1;
 					if (collasedStartIndex >= startIndex) {
 						this._regions.setCollapsed(i, collasedStartIndex === startIndex);
 						i++;

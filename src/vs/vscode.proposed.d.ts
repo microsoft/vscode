@@ -765,11 +765,10 @@ declare module 'vscode' {
 	export namespace debug {
 
 		/**
-		 * Stop the given debug session or stop all debug sessions if no session is specified.
-		 * @param session The [debug session](#DebugSession) to stop or `undefined` for stopping all sessions.
-		 * @return A thenable that resolves when the sessions could be stopped successfully.
+		 * Stop the given debug session or stop all debug sessions if session is omitted.
+		 * @param session The [debug session](#DebugSession) to stop; if omitted all sessions are stopped.
 		 */
-		export function stopDebugging(session: DebugSession | undefined): Thenable<void>;
+		export function stopDebugging(session?: DebugSession): Thenable<void>;
 	}
 
 	//#endregion
@@ -1432,6 +1431,7 @@ declare module 'vscode' {
 		readonly fileName: string;
 		readonly viewType: string;
 		readonly isDirty: boolean;
+		readonly isUntitled: boolean;
 		readonly cells: NotebookCell[];
 		languages: string[];
 		displayOrder?: GlobPattern[];
@@ -1597,6 +1597,11 @@ declare module 'vscode' {
 		readonly document: NotebookDocument;
 		readonly cell: NotebookCell;
 		readonly language: string;
+	}
+
+	export interface NotebookCellMetadataChangeEvent {
+		readonly document: NotebookDocument;
+		readonly cell: NotebookCell;
 	}
 
 	export interface NotebookCellData {
@@ -1775,6 +1780,7 @@ declare module 'vscode' {
 
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
 
 		/**
 		 * All currently known notebook documents.
@@ -1789,6 +1795,7 @@ declare module 'vscode' {
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
+		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
 		/**
 		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
 		 * but a selector can be provided to narrow to down the set of cells.
@@ -2014,6 +2021,31 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Support `scmResourceState` in `when` clauses #86180 https://github.com/microsoft/vscode/issues/86180
+
+	export interface SourceControlResourceState {
+		/**
+		 * Context value of the resource state. This can be used to contribute resource specific actions.
+		 * For example, if a resource is given a context value as `diffable`. When contributing actions to `scm/resourceState/context`
+		 * using `menus` extension point, you can specify context value for key `scmResourceState` in `when` expressions, like `scmResourceState == diffable`.
+		 * ```
+		 *	"contributes": {
+		 *		"menus": {
+		 *			"scm/resourceState/context": [
+		 *				{
+		 *					"command": "extension.diff",
+		 *					"when": "scmResourceState == diffable"
+		 *				}
+		 *			]
+		 *		}
+		 *	}
+		 * ```
+		 * This will show action `extension.diff` only for resources with `contextValue` is `diffable`.
+		 */
+		readonly contextValue?: string;
+	}
+
+	//#endregion
 	//#region https://github.com/microsoft/vscode/issues/101857
 
 	export interface ExtensionContext {

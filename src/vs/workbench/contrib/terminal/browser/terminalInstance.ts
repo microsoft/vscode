@@ -564,20 +564,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			setTimeout(() => this._refreshSelectionContextKey(), 0);
 		}));
 
-		const xtermHelper: HTMLElement = <HTMLElement>xterm.element.querySelector('.xterm-helpers');
-		const focusTrap: HTMLElement = document.createElement('div');
-		focusTrap.setAttribute('tabindex', '0');
-		dom.addClass(focusTrap, 'focus-trap');
-		this._register(dom.addDisposableListener(focusTrap, 'focus', () => {
-			let currentElement = focusTrap;
-			while (!dom.hasClass(currentElement, 'part')) {
-				currentElement = currentElement.parentElement!;
-			}
-			const hidePanelElement = currentElement.querySelector<HTMLElement>('.hide-panel-action');
-			hidePanelElement?.focus();
-		}));
-		xtermHelper.insertBefore(focusTrap, xterm.textarea);
-
 		this._register(dom.addDisposableListener(xterm.textarea, 'focus', () => {
 			this._terminalFocusContextKey.set(true);
 			if (this.shellType) {

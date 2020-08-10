@@ -212,7 +212,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		for (let i = 0; i < mainCells.length; i++) {
 			this._mapping.set(mainCells[i].handle, mainCells[i]);
-			let dirtyStateListener = mainCells[i].onDidChangeContent(() => {
+			const dirtyStateListener = mainCells[i].onDidChangeContent(() => {
 				this.setDirty(true);
 				this._onDidChangeContent.fire();
 			});
@@ -259,7 +259,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		// const edits
 		operations = operations.sort((a, b) => {
-			let r = compareRangesUsingEnds([a.start, a.end], [b.start, b.end]);
+			const r = compareRangesUsingEnds([a.start, a.end], [b.start, b.end]);
 			if (r === 0) {
 				return b.sortIndex - a.sortIndex;
 			}
@@ -384,7 +384,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this.cells = [cell];
 		this._mapping.set(cell.handle, cell);
 
-		let dirtyStateListener = cell.onDidChangeContent(() => {
+		const dirtyStateListener = cell.onDidChangeContent(() => {
 			this._isUntitled = false;
 			this.setDirty(true);
 			this._onDidChangeContent.fire();
@@ -421,7 +421,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		for (let i = 0; i < cells.length; i++) {
 			this._mapping.set(cells[i].handle, cells[i]);
-			let dirtyStateListener = cells[i].onDidChangeContent(() => {
+			const dirtyStateListener = cells[i].onDidChangeContent(() => {
 				this.setDirty(true);
 				this._onDidChangeContent.fire();
 			});
@@ -463,7 +463,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._isUntitled = false;
 
 		for (let i = index; i < index + count; i++) {
-			let cell = this.cells[i];
+			const cell = this.cells[i];
 			this._cellListeners.get(cell.handle)?.dispose();
 			this._cellListeners.delete(cell.handle);
 		}
@@ -501,12 +501,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	// TODO@rebornix should this trigger content change event?
 	$spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
-		let cell = this._mapping.get(cellHandle);
+		const cell = this._mapping.get(cellHandle);
 		cell?.spliceNotebookCellOutputs(splices);
 	}
 
 	clearCellOutput(handle: number) {
-		let cell = this._mapping.get(handle);
+		const cell = this._mapping.get(handle);
 		if (cell) {
 			cell.spliceNotebookCellOutputs([
 				[0, cell.outputs.length, []]
@@ -518,12 +518,25 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	changeCellLanguage(handle: number, languageId: string) {
-		let cell = this._mapping.get(handle);
+		const cell = this._mapping.get(handle);
 		if (cell && cell.language !== languageId) {
 			cell.language = languageId;
 
 			this._increaseVersionId();
 			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeLanguage, versionId: this._versionId, index: this.cells.indexOf(cell), language: languageId });
+		}
+	}
+
+	changeCellMetadata(handle: number, newMetadata: NotebookCellMetadata) {
+		const cell = this._mapping.get(handle);
+		if (cell) {
+			cell.metadata = {
+				...cell.metadata,
+				...newMetadata
+			};
+
+			this._increaseVersionId();
+			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeMetadata, versionId: this._versionId, index: this.cells.indexOf(cell), metadata: cell.metadata });
 		}
 	}
 

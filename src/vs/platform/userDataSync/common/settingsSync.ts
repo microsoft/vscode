@@ -42,7 +42,8 @@ function isSettingsSyncContent(thing: any): thing is ISettingsSyncContent {
 
 export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implements IUserDataSynchroniser {
 
-	protected readonly version: number = 1;
+	/* Version 2: Change settings from `sync.${setting}` to `settingsSync.{setting}` */
+	protected readonly version: number = 2;
 	readonly previewResource: URI = joinPath(this.syncPreviewFolder, 'settings.json');
 	readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
 	readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
@@ -77,7 +78,8 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		let hasConflicts: boolean = false;
 
 		if (remoteSettingsSyncContent) {
-			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
+			let localContent: string = fileContent ? fileContent.value.toString().trim() : '{}';
+			localContent = localContent || '{}';
 			this.validateContent(localContent);
 			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote settings with local settings...`);
 			const result = merge(localContent, remoteSettingsSyncContent.settings, lastSettingsSyncContent ? lastSettingsSyncContent.settings : null, ignoredSettings, [], formattingOptions);
@@ -182,7 +184,8 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing settings.`);
 		}
 
-		content = content !== null ? content : '{}';
+		content = content ? content.trim() : '{}';
+		content = content || '{}';
 		this.validateContent(content);
 
 		if (localChange !== Change.None) {
@@ -234,8 +237,9 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return false;
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
-		return [{ resource: joinPath(uri, 'settings.json'), comparableResource: this.file }];
+	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
+		const comparableResource = (await this.fileService.exists(this.file)) ? this.file : this.localResource;
+		return [{ resource: joinPath(uri, 'settings.json'), comparableResource }];
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {

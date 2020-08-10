@@ -39,6 +39,7 @@ export class ToolBar extends Disposable {
 	private submenuActionViewItems: DropdownMenuActionViewItem[] = [];
 	private hasSecondaryActions: boolean = false;
 	private lookupKeybindings: boolean;
+	private element: HTMLElement;
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
 	readonly onDidChangeDropdownVisibility = this._onDidChangeDropdownVisibility.event;
@@ -52,11 +53,11 @@ export class ToolBar extends Disposable {
 
 		this.toggleMenuAction = this._register(new ToggleMenuAction(() => this.toggleMenuActionViewItem?.show(), options.toggleMenuTitle));
 
-		let element = document.createElement('div');
-		element.className = 'monaco-toolbar';
-		container.appendChild(element);
+		this.element = document.createElement('div');
+		this.element.className = 'monaco-toolbar';
+		container.appendChild(this.element);
 
-		this.actionBar = this._register(new ActionBar(element, {
+		this.actionBar = this._register(new ActionBar(this.element, {
 			orientation: options.orientation,
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
@@ -134,8 +135,8 @@ export class ToolBar extends Disposable {
 		}
 	}
 
-	getContainer(): HTMLElement {
-		return this.actionBar.getContainer();
+	getElement(): HTMLElement {
+		return this.element;
 	}
 
 	getItemsWidth(): number {

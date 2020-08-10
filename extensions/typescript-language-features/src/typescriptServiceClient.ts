@@ -366,6 +366,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		let version = this._versionManager.currentVersion;
+		if (!version.isValid) {
+			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', version.path));
+
+			this._versionManager.reset();
+			version = this._versionManager.currentVersion;
+		}
 
 		this.info(`Using tsserver from: ${version.path}`);
 
@@ -946,7 +952,7 @@ The log file may contain personal data, including full paths and source code fro
 
 		sections.push(`**TS Server Log**
 
-Server logging disabled. To help us fix crashes like this, please enable logging by setting:
+❗️Server logging disabled. To help us fix crashes like this, please enable logging by setting:
 
 \`\`\`json
 "typescript.tsserver.log": "verbose"
@@ -956,6 +962,8 @@ After enabling this setting, future crash reports will include the server log.`)
 	}
 
 	sections.push(`**TS Server Error Stack**
+
+Server: \`${error.serverId}\`
 
 \`\`\`
 ${error.serverStack}

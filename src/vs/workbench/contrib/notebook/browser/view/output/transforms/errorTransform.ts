@@ -174,7 +174,7 @@ export function handleANSIOutput(text: string, themeService: IThemeService): HTM
 	 * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code }
 	 */
 	function setBasicFormatters(styleCodes: number[]): void {
-		for (let code of styleCodes) {
+		for (const code of styleCodes) {
 			switch (code) {
 				case 0: {
 					styleNames = [];

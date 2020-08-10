@@ -92,6 +92,15 @@
 					"type": "integer",
 					"description": "The port VS Code can use to connect to its backend."
 				},
+				"userEnvProbe": {
+					"type": "string",
+					"enum": [
+						"none",
+						"loginInteractiveShell",
+						"interactiveShell"
+					],
+					"description": "User environment probe to run. The default is none."
+				},
 				"codespaces": {
 					"type": "object",
 					"description": "Codespaces-specific configuration."
