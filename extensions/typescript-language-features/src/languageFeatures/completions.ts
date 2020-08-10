@@ -561,6 +561,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 				"type" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
 				"count" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
 				"updateGraphDurationMs" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+				"createAutoImportProviderProgramDurationMs" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
 				"includesPackageJsonImport" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"
@@ -572,6 +573,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			type: response?.type ?? 'unknown',
 			count: response?.type === 'response' && response.body ? response.body.entries.length : 0,
 			updateGraphDurationMs: response?.type === 'response' ? response.performanceData?.updateGraphDurationMs : undefined,
+			createAutoImportProviderProgramDurationMs: response?.type === 'response' ? (response.performanceData as Proto.PerformanceData & { createAutoImportProviderProgramDurationMs?: number })?.createAutoImportProviderProgramDurationMs : undefined,
 			includesPackageJsonImport: includesPackageJsonImport ? 'true' : undefined,
 		});
 	}

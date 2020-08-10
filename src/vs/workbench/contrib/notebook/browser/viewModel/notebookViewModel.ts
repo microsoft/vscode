@@ -349,6 +349,16 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		});
 	}
 
+	inspectLayout() {
+		console.log('--- notebook ---\n');
+		console.log(this.layoutInfo);
+		console.log('--- cells ---');
+		this.viewCells.forEach(cell => {
+			console.log(`--- cell: ${cell.handle} ---\n`);
+			console.log((cell as (CodeCellViewModel | MarkdownCellViewModel)).layoutInfo);
+		});
+	}
+
 	setFocus(focused: boolean) {
 		this._focused = focused;
 	}
@@ -687,7 +697,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._pushIfAbsent(boundaries, new Position(1, 1));
 
 		for (let sp of splitPoints) {
-			if (getLineLen(sp.lineNumber) + 1 === sp.column && sp.lineNumber < lineCnt) {
+			if (getLineLen(sp.lineNumber) + 1 === sp.column && sp.column !== 1 /** empty line */ && sp.lineNumber < lineCnt) {
 				sp = new Position(sp.lineNumber + 1, 1);
 			}
 			this._pushIfAbsent(boundaries, sp);
@@ -1060,6 +1070,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	async undo() {
+		if (!this.metadata.editable) {
+			return;
+		}
+
 		const editStack = this._undoService.getElements(this.uri);
 		const element = editStack.past.length ? editStack.past[editStack.past.length - 1] : undefined;
 
@@ -1073,6 +1087,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	async redo() {
+		if (!this.metadata.editable) {
+			return;
+		}
+
 		const editStack = this._undoService.getElements(this.uri);
 		const element = editStack.future[0];
 

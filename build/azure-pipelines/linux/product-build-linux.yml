@@ -106,7 +106,7 @@ steps:
 
 - script: |
     set -e
-    DISPLAY=:10 yarn test-browser --build --browser chromium
+    DISPLAY=:10 yarn test-browser --build --browser chromium --tfs "Browser Unit Tests"
   displayName: Run unit tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -147,6 +147,13 @@ steps:
   displayName: 'Publish Crash Reports'
   continueOnError: true
   condition: failed()
+
+- task: PublishTestResults@2
+  displayName: Publish Tests Results
+  inputs:
+    testResultsFiles: '*-results.xml'
+    searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
+  condition: succeededOrFailed()
 
 - script: |
     set -e

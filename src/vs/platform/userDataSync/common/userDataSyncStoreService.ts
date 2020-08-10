@@ -89,6 +89,7 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 	) {
 		super(productService, configurationService, storageService);
 
@@ -102,6 +103,10 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 			this.storageService.store(SYNC_PREVIOUS_STORE, JSON.stringify(syncStore), StorageScope.GLOBAL);
 		} else {
 			this.storageService.remove(SYNC_PREVIOUS_STORE, StorageScope.GLOBAL);
+		}
+
+		if (this.userDataSyncStore) {
+			logService.info('Using settings sync service', this.userDataSyncStore.url.toString());
 		}
 	}
 

@@ -89,6 +89,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 				}
 			} else {
 				exePaths.push(join('/usr/local/bin', exeName));
+				exePaths.push(join('/usr/bin', exeName));
 				exePaths.push(join(this.environmentService.userHome.fsPath, exeName));
 			}
 

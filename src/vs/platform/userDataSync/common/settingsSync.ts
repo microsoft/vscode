@@ -78,7 +78,8 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		let hasConflicts: boolean = false;
 
 		if (remoteSettingsSyncContent) {
-			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
+			let localContent: string = fileContent ? fileContent.value.toString().trim() : '{}';
+			localContent = localContent || '{}';
 			this.validateContent(localContent);
 			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote settings with local settings...`);
 			const result = merge(localContent, remoteSettingsSyncContent.settings, lastSettingsSyncContent ? lastSettingsSyncContent.settings : null, ignoredSettings, [], formattingOptions);
@@ -183,7 +184,8 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing settings.`);
 		}
 
-		content = content !== null ? content : '{}';
+		content = content ? content.trim() : '{}';
+		content = content || '{}';
 		this.validateContent(content);
 
 		if (localChange !== Change.None) {
