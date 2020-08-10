@@ -579,10 +579,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 				return extHostTerminalService.createTerminal(nameOrOptions, shellPath, shellArgs);
 			},
-			registerTerminalLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable {
-				checkProposedApiEnabled(extension);
-				return extHostTerminalService.registerLinkHandler(handler);
-			},
 			registerTerminalLinkProvider(handler: vscode.TerminalLinkProvider): vscode.Disposable {
 				return extHostTerminalService.registerLinkProvider(handler);
 			},
