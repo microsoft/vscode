@@ -29,25 +29,26 @@ stages:
 - stage: Windows
   dependsOn:
   - Compile
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
   pool:
     vmImage: VS2017-Win2016
   jobs:
   - job: Windows
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
     variables:
       VSCODE_ARCH: x64
     steps:
     - template: win32/product-build-win32.yml
 
   - job: Windows32
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
     variables:
       VSCODE_ARCH: ia32
     steps:
     - template: win32/product-build-win32.yml
 
   - job: WindowsARM64
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'))
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'))
     variables:
       VSCODE_ARCH: arm64
     steps:
@@ -56,11 +57,12 @@ stages:
 - stage: Linux
   dependsOn:
   - Compile
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
   pool:
     vmImage: 'Ubuntu-16.04'
   jobs:
   - job: Linux
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
     container: vscode-x64
     steps:
     - template: linux/product-build-linux.yml
@@ -68,34 +70,34 @@ stages:
   - job: LinuxSnap
     dependsOn:
     - Linux
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
     container: snapcraft
     steps:
     - template: linux/snap-build-linux.yml
 
   - job: LinuxArmhf
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
     variables:
       VSCODE_ARCH: armhf
     steps:
     - template: linux/product-build-linux-multiarch.yml
 
   - job: LinuxArm64
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
     variables:
       VSCODE_ARCH: arm64
     steps:
     - template: linux/product-build-linux-multiarch.yml
 
   - job: LinuxAlpine
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))
     variables:
       VSCODE_ARCH: alpine
     steps:
     - template: linux/product-build-linux-multiarch.yml
 
   - job: LinuxWeb
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WEB'], 'true'))
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_WEB'], 'true'))
     variables:
       VSCODE_ARCH: x64
     steps:
@@ -104,11 +106,12 @@ stages:
 - stage: macOS
   dependsOn:
   - Compile
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
   pool:
     vmImage: macOS-latest
   jobs:
   - job: macOS
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
     steps:
     - template: darwin/product-build-darwin.yml
 
@@ -117,12 +120,12 @@ stages:
   - Windows
   - Linux
   - macOS
+  condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
   pool:
     vmImage: 'Ubuntu-16.04'
   jobs:
   - job: SyncMooncake
     displayName: Sync Mooncake
-    condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
     steps:
     - template: sync-mooncake.yml
 
@@ -131,11 +134,11 @@ stages:
   - Windows
   - Linux
   - macOS
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
   pool:
     vmImage: 'Ubuntu-16.04'
   jobs:
   - job: BuildService
     displayName: Build Service
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
     steps:
     - template: release.yml
