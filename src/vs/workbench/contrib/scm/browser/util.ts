@@ -7,10 +7,14 @@ import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput } from 'vs/w
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { equals } from 'vs/base/common/arrays';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { renderCodicons } from 'vs/base/common/codicons';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Command } from 'vs/editor/common/modes';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
@@ -73,4 +77,32 @@ export function collectContextMenuActions(menu: IMenu, contextMenuService: ICont
 	const actions: IAction[] = [];
 	const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, contextMenuService, g => /^inline/.test(g));
 	return [actions, disposable];
+}
+
+export class StatusBarAction extends Action {
+
+	constructor(
+		private command: Command,
+		private commandService: ICommandService
+	) {
+		super(`statusbaraction{${command.id}}`, command.title, '', true);
+		this.tooltip = command.tooltip || '';
+	}
+
+	run(): Promise<void> {
+		return this.commandService.executeCommand(this.command.id, ...(this.command.arguments || []));
+	}
+}
+
+export class StatusBarActionViewItem extends ActionViewItem {
+
+	constructor(action: StatusBarAction) {
+		super(null, action, {});
+	}
+
+	updateLabel(): void {
+		if (this.options.label && this.label) {
+			this.label.innerHTML = renderCodicons(escape(this.getAction().label));
+		}
+	}
 }

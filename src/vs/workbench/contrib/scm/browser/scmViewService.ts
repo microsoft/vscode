@@ -5,12 +5,16 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent } from './scm';
+import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus } from 'vs/workbench/contrib/scm/common/scm';
 import { Iterable } from 'vs/base/common/iterator';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { SCMMenus } from 'vs/workbench/contrib/scm/browser/menus';
 
 export class SCMViewService implements ISCMViewService {
 
 	declare readonly _serviceBrand: undefined;
+
+	readonly menus: ISCMMenus;
 
 	private disposables = new DisposableStore();
 
@@ -50,7 +54,12 @@ export class SCMViewService implements ISCMViewService {
 	private _onDidChangeVisibleRepositories = new Emitter<ISCMViewVisibleRepositoryChangeEvent>();
 	readonly onDidChangeVisibleRepositories = this._onDidChangeVisibleRepositories.event;
 
-	constructor(@ISCMService scmService: ISCMService) {
+	constructor(
+		@ISCMService scmService: ISCMService,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		this.menus = instantiationService.createInstance(SCMMenus);
+
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 

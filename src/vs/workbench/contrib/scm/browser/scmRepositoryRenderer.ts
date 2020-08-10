@@ -7,12 +7,11 @@ import 'vs/css!./media/scm';
 import { basename } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
-import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IAction, IActionViewItemProvider } from 'vs/base/common/actions';
-import { SCMMenus } from './menus';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { connectPrimaryMenu, StatusBarAction } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -39,7 +38,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 
 	constructor(
 		private actionViewItemProvider: IActionViewItemProvider,
-		private menus: SCMMenus,
+		@ISCMViewService private scmViewService: ISCMViewService,
 		@ICommandService private commandService: ICommandService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService private themeService: IThemeService
@@ -101,7 +100,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		disposables.add(repository.provider.onDidChange(onDidChangeProvider, null));
 		onDidChangeProvider();
 
-		const menus = this.menus.getRepositoryMenus(repository.provider);
+		const menus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
 		disposables.add(connectPrimaryMenu(menus.titleMenu.menu, (primary, secondary) => {
 			menuPrimaryActions = primary;
 			menuSecondaryActions = secondary;

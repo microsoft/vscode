@@ -21,7 +21,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
 import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, SubmenuAction, IActionViewItemProvider } from 'vs/base/common/actions';
-import { SCMMenus, SCMTitleMenu } from './menus';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, StatusBarAction, StatusBarActionViewItem } from './util';
@@ -244,7 +243,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 
 	constructor(
 		private actionViewItemProvider: IActionViewItemProvider,
-		private menus: SCMMenus,
+		@ISCMViewService private scmViewService: ISCMViewService,
 		@IThemeService private themeService: IThemeService,
 	) { }
 
@@ -275,7 +274,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		template.count.setCount(group.elements.length);
 
 		const disposables = new DisposableStore();
-		const menus = this.menus.getRepositoryMenus(group.provider);
+		const menus = this.scmViewService.menus.getRepositoryMenus(group.provider);
 		disposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceGroupMenu(group), template.actionBar));
 
 		template.elementDisposables = disposables;
@@ -334,7 +333,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
 		private actionRunner: ActionRunner,
-		private menus: SCMMenus,
+		@ISCMViewService private scmViewService: ISCMViewService,
 		@IThemeService private themeService: IThemeService
 	) { }
 
@@ -371,18 +370,18 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
-				const menus = this.menus.getRepositoryMenus(resourceOrFolder.element.resourceGroup.provider);
+				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.element.resourceGroup.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.element), template.actionBar));
 				toggleClass(template.name, 'strike-through', resourceOrFolder.element.decorations.strikeThrough);
 				toggleClass(template.element, 'faded', resourceOrFolder.element.decorations.faded);
 			} else {
-				const menus = this.menus.getRepositoryMenus(resourceOrFolder.context.provider);
+				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.context.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
 				removeClass(template.name, 'strike-through');
 				removeClass(template.element, 'faded');
 			}
 		} else {
-			const menus = this.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
+			const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
 			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
 			toggleClass(template.name, 'strike-through', resourceOrFolder.decorations.strikeThrough);
 			toggleClass(template.element, 'faded', resourceOrFolder.decorations.faded);
@@ -443,7 +442,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		template.actionBar.clear();
 		template.actionBar.context = folder;
 
-		const menus = this.menus.getRepositoryMenus(folder.context.provider);
+		const menus = this.scmViewService.menus.getRepositoryMenus(folder.context.provider);
 		elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(folder.context), template.actionBar));
 
 		removeClass(template.name, 'strike-through');
@@ -748,7 +747,6 @@ class ViewModel {
 
 	constructor(
 		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
-		private menus: SCMMenus,
 		private inputRenderer: InputRenderer,
 		private _mode: ViewModelMode,
 		private _sortKey: ViewModelSortKey,
@@ -988,20 +986,20 @@ class ViewModel {
 
 	getViewActions(): IAction[] {
 		if (this.scmViewService.visibleRepositories.length === 0) {
-			return this.menus.titleMenu.actions;
+			return this.scmViewService.menus.titleMenu.actions;
 		}
 
 		if (this.alwaysShowRepositories || this.scmViewService.visibleRepositories.length !== 1) {
 			return [];
 		}
 
-		const menus = this.menus.getRepositoryMenus(this.scmViewService.visibleRepositories[0].provider);
+		const menus = this.scmViewService.menus.getRepositoryMenus(this.scmViewService.visibleRepositories[0].provider);
 		return menus.titleMenu.actions;
 	}
 
 	getViewSecondaryActions(): IAction[] {
 		if (this.scmViewService.visibleRepositories.length === 0) {
-			return this.menus.titleMenu.secondaryActions;
+			return this.scmViewService.menus.titleMenu.secondaryActions;
 		}
 
 		if (!this.viewSubMenuAction) {
@@ -1013,7 +1011,7 @@ class ViewModel {
 			return this.viewSubMenuAction.actions;
 		}
 
-		const menus = this.menus.getRepositoryMenus(this.scmViewService.visibleRepositories[0].provider);
+		const menus = this.scmViewService.menus.getRepositoryMenus(this.scmViewService.visibleRepositories[0].provider);
 		const secondaryActions = menus.titleMenu.secondaryActions;
 
 		if (secondaryActions.length === 0) {
@@ -1513,9 +1511,7 @@ export class SCMViewPane extends ViewPane {
 	private tree!: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 	private viewModel!: ViewModel;
 	private listLabels!: ResourceLabels;
-	private menus!: SCMMenus;
 	private inputRenderer!: InputRenderer;
-	private genericTitleMenu: SCMTitleMenu;
 	private toggleViewModelModeAction: ToggleViewModeAction | undefined;
 
 	constructor(
@@ -1540,8 +1536,7 @@ export class SCMViewPane extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
 
-		this.genericTitleMenu = instantiationService.createInstance(SCMTitleMenu);
-		this._register(this.genericTitleMenu.onDidChangeTitle(this.updateActions, this));
+		this._register(this.scmViewService.menus.titleMenu.onDidChangeTitle(this.updateActions, this));
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -1562,10 +1557,6 @@ export class SCMViewPane extends ViewPane {
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'))(updateProviderCountVisibility));
 		updateProviderCountVisibility();
 
-		this.menus = this.instantiationService.createInstance(SCMMenus);
-		this._register(this.menus);
-		this._register(this.menus.titleMenu.onDidChangeTitle(this.updateActions, this));
-
 		this._register(this.scmViewService.onDidChangeVisibleRepositories(() => this.updateActions()));
 
 		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height));
@@ -1581,10 +1572,10 @@ export class SCMViewPane extends ViewPane {
 		this._register(actionRunner.onDidBeforeRun(() => this.tree.domFocus()));
 
 		const renderers = [
-			this.instantiationService.createInstance(RepositoryRenderer, actionViewItemProvider, this.menus),
+			this.instantiationService.createInstance(RepositoryRenderer, actionViewItemProvider),
 			this.inputRenderer,
-			this.instantiationService.createInstance(ResourceGroupRenderer, actionViewItemProvider, this.menus),
-			this.instantiationService.createInstance(ResourceRenderer, () => this.viewModel, this.listLabels, actionViewItemProvider, actionRunner, this.menus)
+			this.instantiationService.createInstance(ResourceGroupRenderer, actionViewItemProvider),
+			this.instantiationService.createInstance(ResourceRenderer, () => this.viewModel, this.listLabels, actionViewItemProvider, actionRunner)
 		];
 
 		const filter = new SCMTreeFilter();
@@ -1625,7 +1616,7 @@ export class SCMViewPane extends ViewPane {
 			viewMode = storageMode;
 		}
 
-		this.viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.menus, this.inputRenderer, viewMode, ViewModelSortKey.Path);
+		this.viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, ViewModelSortKey.Path);
 		this._register(this.viewModel);
 
 		addClass(this.listContainer, 'file-icon-themable-tree');
@@ -1789,28 +1780,28 @@ export class SCMViewPane extends ViewPane {
 		let disposable: IDisposable = Disposable.None;
 
 		if (isSCMRepository(element)) {
-			const menus = this.menus.getRepositoryMenus(element.provider);
+			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
 			const menu = menus.repositoryMenu;
 			context = element.provider;
 			[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
 		} else if (isSCMInput(element)) {
 			// noop
 		} else if (isSCMResourceGroup(element)) {
-			const menus = this.menus.getRepositoryMenus(element.provider);
+			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
 			const menu = menus.getResourceGroupMenu(element);
 			[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
 		} else if (ResourceTree.isResourceNode(element)) {
 			if (element.element) {
-				const menus = this.menus.getRepositoryMenus(element.element.resourceGroup.provider);
+				const menus = this.scmViewService.menus.getRepositoryMenus(element.element.resourceGroup.provider);
 				const menu = menus.getResourceMenu(element.element);
 				[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
 			} else {
-				const menus = this.menus.getRepositoryMenus(element.context.provider);
+				const menus = this.scmViewService.menus.getRepositoryMenus(element.context.provider);
 				const menu = menus.getResourceFolderMenu(element.context);
 				[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
 			}
 		} else {
-			const menus = this.menus.getRepositoryMenus(element.resourceGroup.provider);
+			const menus = this.scmViewService.menus.getRepositoryMenus(element.resourceGroup.provider);
 			const menu = menus.getResourceMenu(element);
 			[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
 		}

@@ -24,7 +24,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
-import { SCMViewService } from 'vs/workbench/contrib/scm/common/scmViewService';
+import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
