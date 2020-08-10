@@ -282,7 +282,7 @@ export class SettingsEditor2 extends BaseEditor {
 					}));
 
 					// Init TOC selection
-					this.syncTOCTree();
+					this.updateTreeScrollSync();
 				});
 			});
 	}
@@ -541,7 +541,6 @@ export class SettingsEditor2 extends BaseEditor {
 				const targetGroupTOCEntry = this.allSettingsModel.getTOCEntryByGroupElement(targetGroup);
 				this.settingsTreeModel.update(createRootTOCEntry(targetGroupTOCEntry));
 				this.refreshTree();
-				this.syncTOCTree();
 			}
 
 			const targetElement = this.settingsTreeModel.getElementById(elements[0].id);
@@ -727,6 +726,12 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.settingsTreeScrollTop = this.settingsTree.scrollTop;
 			updateSettingTreeTabOrder(this.settingsTreeContainer);
+
+			// setTimeout because calling setChildren on the settingsTree can trigger onDidScroll, so it fires when
+			// setChildren has called on the settings tree but not the toc tree yet, so their rendered elements are out of sync
+			setTimeout(() => {
+				this.updateTreeScrollSync();
+			}, 0);
 		}));
 
 		// There is no different select state in the settings tree
@@ -766,40 +771,35 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private syncTOCTree(): void {
+	private updateTreeScrollSync(): void {
 		this.settingRenderers.cancelSuggesters();
-		if (this.searchResultModel || !this.tocTreeModel || !this.settingsTreeModel) {
+		if (this.searchResultModel) {
 			return;
 		}
 
-		const visibleGroup = unwrapRootElement(this.settingsTreeModel.root);
-		const tocSelectedGroup = this.tocTree.getSelection()[0];
-
-		if (visibleGroup.id === tocSelectedGroup?.id) {
+		if (!this.tocTreeModel) {
 			return;
 		}
 
-		// visibleGroup and targetGroup are not referentially equal
-		const targetGroup = this.allSettingsModel.getElementById(visibleGroup.id);
-
-		if (!(targetGroup instanceof SettingsTreeGroupElement)) {
-			return;
-		}
+		const elementToSync = this.settingsTree.firstVisibleElement;
+		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
+			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
+				null;
 
 		// It's possible for this to be called when the TOC and settings tree are out of sync - e.g. when the settings tree has deferred a refresh because
 		// it is focused. So, bail if element doesn't exist in the TOC.
 		let nodeExists = true;
-		try { this.tocTree.getNode(targetGroup); } catch (e) { nodeExists = false; }
+		try { this.tocTree.getNode(element); } catch (e) { nodeExists = false; }
 		if (!nodeExists) {
 			return;
 		}
 
-		if (this.tocTree.getSelection()[0] !== targetGroup) {
-			const ancestors = this.getAncestors(targetGroup);
+		if (element && this.tocTree.getSelection()[0] !== element) {
+			const ancestors = this.getAncestors(element);
 			ancestors.forEach(e => this.tocTree.expand(<SettingsTreeGroupElement>e));
 
-			this.tocTree.reveal(targetGroup);
-			const elementTop = this.tocTree.getRelativeTop(targetGroup);
+			this.tocTree.reveal(element);
+			const elementTop = this.tocTree.getRelativeTop(element);
 			if (typeof elementTop !== 'number') {
 				return;
 			}
@@ -808,18 +808,18 @@ export class SettingsEditor2 extends BaseEditor {
 
 			ancestors.forEach(e => this.tocTree.expand(<SettingsTreeGroupElement>e));
 			if (elementTop < 0 || elementTop > 1) {
-				this.tocTree.reveal(targetGroup);
+				this.tocTree.reveal(element);
 			} else {
-				this.tocTree.reveal(targetGroup, elementTop);
+				this.tocTree.reveal(element, elementTop);
 			}
 
-			this.tocTree.expand(targetGroup);
+			this.tocTree.expand(element);
 
-			this.tocTree.setSelection([targetGroup]);
+			this.tocTree.setSelection([element]);
 
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
 			(<IFocusEventFromScroll>fakeKeyboardEvent).fromScroll = true;
-			this.tocTree.setFocus([targetGroup], fakeKeyboardEvent);
+			this.tocTree.setFocus([element], fakeKeyboardEvent);
 		}
 	}
 
