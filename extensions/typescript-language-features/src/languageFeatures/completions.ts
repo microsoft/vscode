@@ -345,7 +345,6 @@ class CompletionAcceptedCommand implements Command {
 				}
 			*/
 			this.telemetryReporter.logTelemetry('completions.accept', {
-				// @ts-expect-error - remove after TS 4.0 protocol update
 				isPackageJsonImport: item.tsEntry.isPackageJsonImport ? 'true' : undefined,
 			});
 		}
@@ -540,7 +539,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		for (let entry of entries) {
 			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
 				items.push(new MyCompletionItem(position, document, entry, completionContext, metadata));
-				// @ts-expect-error - remove after TS 4.0 protocol update
 				includesPackageJsonImport = !!entry.isPackageJsonImport;
 			}
 		}
