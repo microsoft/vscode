@@ -465,7 +465,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	}
 }
 
-class ProviderListDelegate implements IListVirtualDelegate<TreeElement> {
+class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
 	constructor(private readonly inputRenderer: InputRenderer) { }
 
@@ -1569,7 +1569,7 @@ export class SCMViewPane extends ViewPane {
 		this._register(this.scmViewService.onDidChangeVisibleRepositories(() => this.updateActions()));
 
 		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height));
-		const delegate = new ProviderListDelegate(this.inputRenderer);
+		const delegate = new ListDelegate(this.inputRenderer);
 
 		const actionViewItemProvider = (action: IAction) => this.getActionViewItem(action);
 
