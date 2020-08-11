@@ -18,7 +18,6 @@ import { ILogDirectoryProvider } from './logDirectoryProvider';
 import { GetErrRoutingTsServer, ITypeScriptServer, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
-import * as semver from 'semver';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */
@@ -164,7 +163,7 @@ export class TypeScriptServerSpawner {
 		let tsServerLogFile: string | undefined;
 
 		if (kind === TsServerProcessKind.Syntax) {
-			if (semver.gte(API.v401rc.fullVersionString, apiVersion.fullVersionString)) {
+			if (apiVersion.gte(API.v401)) {
 				args.push('--serverMode', 'partialSemantic');
 			} else {
 				args.push('--syntaxOnly');
