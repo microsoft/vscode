@@ -175,14 +175,14 @@
 
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container {
 	position: absolute;
-	left: -32px;
+	left: -22px;
 	top: 11px;
 	bottom: 0px;
 	width: 26px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .mouseover .setting-toolbar-container > .monaco-toolbar .codicon,
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-item-contents.focused .setting-toolbar-container > .monaco-toolbar .codicon,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .setting-item-contents .setting-toolbar-container > .monaco-toolbar .codicon,
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container:hover > .monaco-toolbar .codicon,
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container > .monaco-toolbar .active .codicon {
 	opacity: 1;
@@ -283,15 +283,34 @@
 	max-width: 1000px;
 	margin: auto;
 	box-sizing: border-box;
-	padding-left: 219px;
-	padding-right: 20px;
+	padding-left: 204px;
+	padding-right: 5px;
 	overflow: visible;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label::before,
+.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label::after,
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents::before,
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents::after {
+	content: ' ';
+	position: absolute;
+	left: 0px;
+	right: 0px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label::before,
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents::before {
+	top: 0px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label::after,
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents::after {
+	bottom: 0px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents {
 	position: relative;
-	padding-top: 12px;
-	padding-bottom: 18px;
+	padding: 12px 15px 18px;
 	white-space: normal;
 }
 
@@ -300,12 +319,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	display: inline-block; /* size to contents for hover to show context button */
-	border-radius: 5px;
 }
-.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused.selected .setting-item-contents .setting-item-title {
-	padding-left: 7px;
-}
-
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-modified-indicator {
 	display: none;
@@ -318,7 +332,7 @@
 	width: 6px;
 	border-left-width: 2px;
 	border-left-style: solid;
-	left: -9px;
+	left: 5px;
 	top: 15px;
 	bottom: 16px;
 }
@@ -536,13 +550,10 @@
 	font-weight: 600;
 	height: 100%;
 	box-sizing: border-box;
-	border-radius: 5px;
 	padding: 10px;
-	padding-left: 0;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .settings-group-title-label {
-	padding-left: 10px;
+	padding-left: 15px;
+	width: 100%;
+	position: relative;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-1 {
