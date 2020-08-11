@@ -91,10 +91,9 @@ export class ToolBar extends Disposable {
 				}
 
 				if (action instanceof SubmenuAction) {
-					const actions = Array.isArray(action.actions) ? action.actions : action.actions();
 					const result = new DropdownMenuActionViewItem(
 						action,
-						actions,
+						action.actions,
 						contextMenuProvider,
 						{
 							actionViewItemProvider: this.options.actionViewItemProvider,
