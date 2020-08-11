@@ -36,13 +36,13 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, focusedRowBackground, focusedRowBorder, settingsHeaderForeground, rowHoverBackground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -650,7 +650,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	private fixToolbarIcon(toolbar: ToolBar): void {
 		const button = toolbar.getElement().querySelector('.codicon-toolbar-more');
 		if (button) {
-			(<HTMLElement>button).tabIndex = -1;
+			(<HTMLElement>button).tabIndex = 0;
 
 			// change icon from ellipsis to gear
 			(<HTMLElement>button).classList.add('codicon-gear');
@@ -1981,6 +1981,26 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.invalid-input .setting-item-control .monaco-inputbox.idle { outline-width: 0; border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
 			}
 
+			const focusedRowBackgroundColor = theme.getColor(focusedRowBackground);
+			if (focusedRowBackgroundColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused .setting-item-contents,
+					.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused .settings-group-title-label { background-color: ${focusedRowBackgroundColor}; }`);
+			}
+
+			const rowHoverBackgroundColor = theme.getColor(rowHoverBackground);
+			if (rowHoverBackgroundColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row .setting-item-contents:hover,
+					.settings-editor > .settings-body > .settings-tree-container .monaco-list-row .settings-group-title-label:hover { background-color: ${rowHoverBackgroundColor}; }`);
+			}
+
+			const focusedRowBorderColor = theme.getColor(focusedRowBorder);
+			if (focusedRowBorderColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents::before,
+					.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents::after { border-top: 1px solid ${focusedRowBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .settings-group-title-label::before,
+					.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .settings-group-title-label::after { border-top: 1px solid ${focusedRowBorderColor} }`);
+			}
+
 			const headerForegroundColor = theme.getColor(settingsHeaderForeground);
 			if (headerForegroundColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label { color: ${headerForegroundColor}; }`);
@@ -1992,18 +2012,11 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
 			}
 
-			const listActiveSelectionBackgroundColor = theme.getColor(listActiveSelectionBackground);
-			if (listActiveSelectionBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .setting-item-contents .setting-item-title { background-color: ${listActiveSelectionBackgroundColor}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .settings-group-title-label { background-color: ${listActiveSelectionBackgroundColor}; }`);
-			}
-
-			const listActiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
-			if (listActiveSelectionForegroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .setting-item-contents .setting-item-title { color: ${listActiveSelectionForegroundColor}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .setting-item-label { color: ${listActiveSelectionForegroundColor}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .settings-group-title-label { color: ${listActiveSelectionForegroundColor}; }`);
-			}
+			// const listActiveSelectionBackgroundColor = theme.getColor(listActiveSelectionBackground);
+			// if (listActiveSelectionBackgroundColor) {
+			// collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .setting-item-contents .setting-item-title { background-color: ${listActiveSelectionBackgroundColor}; }`);
+			// collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .settings-group-title-label { background-color: ${listActiveSelectionBackgroundColor}; }`);
+			// }
 		}));
 
 		this.getHTMLElement().classList.add('settings-editor-tree');
