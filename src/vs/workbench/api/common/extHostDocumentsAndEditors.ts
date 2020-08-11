@@ -92,12 +92,11 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 						data.versionId,
 						data.isDirty
 					));
+					this._documents.set(resource, ref);
+					addedDocuments.push(ref.value);
 				}
 
 				ref.ref();
-
-				this._documents.set(resource, ref);
-				addedDocuments.push(ref.value);
 			}
 		}
 
