@@ -791,4 +791,61 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		});
 	});
+
+
+	test('Trigger (full) completions when (incomplete) completions are already active #99504', function () {
+		this.skip();
+
+		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					incomplete: true,
+					suggestions: [{
+						kind: CompletionItemKind.Class,
+						label: 'Z aaa',
+						insertText: 'Z aaa',
+						range: new Range(1, 1, pos.lineNumber, pos.column)
+					}],
+				};
+			}
+		}));
+		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					incomplete: false,
+					suggestions: [{
+						kind: CompletionItemKind.Folder,
+						label: 'aaa',
+						insertText: 'aaa',
+						range: getDefaultSuggestRange(doc, pos)
+					}],
+				};
+			},
+		}));
+
+		return withOracle(async (model, editor) => {
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('');
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				editor.trigger('keyboard', Handler.Type, { text: 'Z' });
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				assert.equal(event.completionModel.items[0].textLabel, 'Z aaa');
+			});
+
+			await assertEvent(model.onDidSuggest, () => {
+				// started another word: Z a|
+				// item should be: Z aaa, aaa
+				editor.trigger('keyboard', Handler.Type, { text: ' a' });
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 2);
+				assert.equal(event.completionModel.items[0].textLabel, 'Z aaa');
+				assert.equal(event.completionModel.items[1].textLabel, 'aaa');
+			});
+		});
+	});
 });
